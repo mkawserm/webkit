@@ -191,8 +191,7 @@ public:
     TextLayout(RenderText& text, const FontCascade& font, float xPos)
     {
         const TextRun run(constructTextRun(&text, font, xPos));
-        const String sanitized = FontCascade::normalizeSpaces(run.characters16(), run.length());
-        const QString string(sanitized);
+        QString string = toNormalizedQString(run);
         m_layout.setText(string);
         m_layout.setRawFont(font.rawFont());
         font.initFormatForTextLayout(&m_layout, run);
