@@ -182,16 +182,16 @@ static void drawQtGlyphRun(GraphicsContext& context, const QGlyphRun& qtGlyphRun
 
 class TextLayout {
 public:
-    static bool isNeeded(RenderText* text, const Font& font)
+    static bool isNeeded(RenderText& text, const FontCascade& font)
     {
-        TextRun run = RenderBlock::constructTextRun(text, font, text, text->style());
-        return font.codePath(run) == Font::Complex;
+        TextRun run = RenderBlock::constructTextRun(&text, font, &text, text.style());
+        return font.codePath(run) == FontCascade::Complex;
     }
 
-    TextLayout(RenderText* text, const Font& font, float xPos)
+    TextLayout(RenderText& text, const FontCascade& font, float xPos)
     {
-        const TextRun run(constructTextRun(text, font, xPos));
-        const String sanitized = Font::normalizeSpaces(run.characters16(), run.length());
+        const TextRun run(constructTextRun(&text, font, xPos));
+        const String sanitized = FontCascade::normalizeSpaces(run.characters16(), run.length());
         const QString string(sanitized);
         m_layout.setText(string);
         m_layout.setRawFont(font.rawFont());
@@ -199,7 +199,7 @@ public:
         m_line = setupLayout(&m_layout, run);
     }
 
-    float width(unsigned from, unsigned len, HashSet<const SimpleFontData*>* fallbackFonts)
+    float width(unsigned from, unsigned len, HashSet<const Font*>* fallbackFonts)
     {
         Q_UNUSED(fallbackFonts);
         float x1 = m_line.cursorToX(from);
@@ -210,7 +210,7 @@ public:
     }
 
 private:
-    static TextRun constructTextRun(RenderText* text, const Font& font, float xPos)
+    static TextRun constructTextRun(RenderText* text, const FontCascade& font, float xPos)
     {
         TextRun run = RenderBlock::constructTextRun(text, font, text, text->style());
         run.setCharactersLength(text->textLength());
@@ -224,19 +224,19 @@ private:
     QTextLine m_line;
 };
 
-std::unique_ptr<TextLayout, TextLayoutDeleter> FontCascade::createLayout(RenderText* text, float xPos, bool collapseWhiteSpace) const
-{
-    if (!collapseWhiteSpace || !TextLayout::isNeeded(text, *this))
-        return PassOwnPtr<TextLayout>();
-    return adoptPtr(new TextLayout(text, *this, xPos));
-}
-
-void FontCascade::deleteLayout(TextLayout* layout)
+void TextLayoutDeleter::operator()(TextLayout* layout) const
 {
     delete layout;
 }
 
-float FontCascade::width(TextLayout& layout, unsigned from, unsigned len, HashSet<const SimpleFontData*>* fallbackFonts)
+std::unique_ptr<TextLayout, TextLayoutDeleter> FontCascade::createLayout(RenderText& text, float xPos, bool collapseWhiteSpace) const
+{
+    if (!collapseWhiteSpace || !TextLayout::isNeeded(text, *this))
+        return nullptr;
+    return std::unique_ptr<TextLayout, TextLayoutDeleter>(new TextLayout(text, *this, xPos));
+}
+
+float FontCascade::width(TextLayout& layout, unsigned from, unsigned len, HashSet<const Font*>* fallbackFonts)
 {
     return layout.width(from, len, fallbackFonts);
 }
