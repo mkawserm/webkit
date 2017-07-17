@@ -30,16 +30,6 @@ endif ()
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 define_property(TARGET PROPERTY FOLDER INHERITED BRIEF_DOCS "folder" FULL_DOCS "IDE folder name")
 
-if (COMPILER_IS_GCC_OR_CLANG)
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-exceptions -fno-strict-aliasing")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-exceptions -fno-strict-aliasing -fno-rtti")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++1y")
-    if (NOT (COMPILER_IS_CLANG AND "${CLANG_VERSION}" VERSION_LESS 4.0.0))
-        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-expansion-to-defined")
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-expansion-to-defined")
-    endif ()
-endif ()
-
 if (CMAKE_GENERATOR STREQUAL "Ninja")
     if (COMPILER_IS_CLANG)
         set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fcolor-diagnostics")
@@ -54,9 +44,39 @@ if (CMAKE_GENERATOR STREQUAL "Ninja")
     endif ()
 endif ()
 
-if (WIN32 AND COMPILER_IS_GCC_OR_CLANG)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mno-ms-bitfields -Wno-unknown-pragmas")
-    add_definitions(-D__USE_MINGW_ANSI_STDIO=1)
+# FIXME: Some warning flags should probably be set in WEBKIT_SET_EXTRA_COMPILER_FLAGS instead.
+# But language-specific warnings probably cannot be moved there.
+if (COMPILER_IS_GCC_OR_CLANG)
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-strict-aliasing")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-strict-aliasing")
+
+    if (COMPILER_IS_CLANG_CL)
+        # clang-cl.exe impersonates cl.exe so some clang arguments like -fno-rtti are
+        # represented using cl.exe's options and should not be passed as flags, so 
+        # we do not add -fno-rtti or -fno-exceptions for clang-cl
+
+        # FIXME: These warnings should be addressed
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-undef -Wno-macro-redefined -Wno-unknown-pragmas -Wno-nonportable-include-path -Wno-unknown-argument")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-undef -Wno-macro-redefined -Wno-unknown-pragmas -Wno-nonportable-include-path -Wno-unknown-argument")
+    else ()
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-exceptions")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++1y -fno-exceptions -fno-rtti")
+
+        if (WIN32)
+            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mno-ms-bitfields -Wno-unknown-pragmas")
+            add_definitions(-D{CMAKE_CXX_FLAGS} -mno-ms-bitfields -Wno-unknown-pragmas)
+            add_definitions(-D__USE_MINGW_ANSI_STDIO=1)
+        endif ()
+    endif ()
+
+    if (NOT (COMPILER_IS_CLANG AND "${CLANG_VERSION}" VERSION_LESS 4.0.0))
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-expansion-to-defined")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-expansion-to-defined")
+    endif ()
+
+    if (CMAKE_COMPILER_IS_GNUCXX AND ${CMAKE_CXX_COMPILER_VERSION} VERSION_GREATER "7.0")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-noexcept-type")
+    endif ()
 endif ()
 
 # Ensure that the default include system directories are added to the list of CMake implicit includes.
@@ -212,14 +232,6 @@ if (NOT PORT STREQUAL "GTK")
     set(LIB_INSTALL_DIR "${CMAKE_INSTALL_PREFIX}/lib" CACHE PATH "Absolute path to library installation directory")
     set(EXEC_INSTALL_DIR "${CMAKE_INSTALL_PREFIX}/bin" CACHE PATH "Absolute path to executable installation directory")
     set(LIBEXEC_INSTALL_DIR "${CMAKE_INSTALL_PREFIX}/bin" CACHE PATH "Absolute path to install executables executed by the library")
-endif ()
-
-# The Ninja generator does not yet know how to build archives in pieces, and so response
-# files must be used to deal with very long linker command lines.
-# CMake does this automatically, but the condition was wrong on Linux until CMake 3.2.
-# See https://cmake.org/Bug/view.php?id=14892
-if ((CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux") AND (CMAKE_VERSION VERSION_LESS 3.2))
-    set(CMAKE_NINJA_FORCE_RESPONSE_FILE 1)
 endif ()
 
 # Macros for determining HAVE values.

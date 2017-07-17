@@ -1,10 +1,5 @@
-cmake_minimum_required(VERSION 2.8.12)
+cmake_minimum_required(VERSION 3.3)
 project(WebKit)
-
-# This should be removed once we require CMake 3.3.
-if (POLICY CMP0058)
-    cmake_policy(SET CMP0058 NEW)
-endif ()
 
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/Source/cmake")
 
@@ -46,8 +41,18 @@ if (${CMAKE_CXX_COMPILER_ID} STREQUAL "Clang" OR ${CMAKE_CXX_COMPILER_ID} STREQU
     set(COMPILER_IS_CLANG ON)
 endif ()
 
+if (${CMAKE_CXX_COMPILER_ID} STREQUAL "GNU")
+    if (${CMAKE_CXX_COMPILER_VERSION} VERSION_LESS "5.0.0")
+        message(FATAL_ERROR "GCC 5.0.0 is required to build WebKitGTK+, use a newer GCC version or clang")
+    endif ()
+endif ()
+
 if (CMAKE_COMPILER_IS_GNUCXX OR COMPILER_IS_CLANG)
     set(COMPILER_IS_GCC_OR_CLANG ON)
+endif ()
+
+if (MSVC AND COMPILER_IS_CLANG)
+    set(COMPILER_IS_CLANG_CL ON)
 endif ()
 
 # -----------------------------------------------------------------------------

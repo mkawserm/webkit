@@ -153,6 +153,7 @@ class InstantFileUploader extends ComponentBase {
     _uploadFiles(files)
     {
         const limit = UploadedFile.fileUploadSizeLimit;
+        files = Array.from(files);
         for (let file of files) {
             if (file.size > limit) {
                 alert(`The specified file "${file.name}" is too big (${this._fileSizeFormatter(file.size)}). It must be smaller than ${this._fileSizeFormatter(limit)}`);
@@ -162,7 +163,7 @@ class InstantFileUploader extends ComponentBase {
 
         const uploadProgress = this._uploadProgress;
         for (let file of files) {
-            UploadedFile.fetchUnloadedFileWithIdenticalHash(file).then((uploadedFile) => {
+            UploadedFile.fetchUploadedFileWithIdenticalHash(file).then((uploadedFile) => {
                 if (uploadedFile) {
                     this._didUploadFile(file, uploadedFile);
                     return;

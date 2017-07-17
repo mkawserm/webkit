@@ -1,3 +1,183 @@
+2017-07-13  Mark Lam  <mark.lam@apple.com>
+
+        Add some additional test cases for bug 170896.
+        https://bugs.webkit.org/show_bug.cgi?id=174491
+
+        Reviewed by Filip Pizlo.
+
+        * stress/regress-170896-with-contiguous-shape-profile.js: Copied from JSTests/stress/regress-170896.js.
+        * stress/regress-170896-with-double-shape-profile.js: Added.
+        (test):
+        * stress/regress-170896-with-int32-shape-profile.js: Added.
+        (test):
+        * stress/regress-170896.js: Removed.
+
+2017-07-13  Saam Barati  <sbarati@apple.com>
+
+        Missing exception check in JSObject::hasInstance
+        https://bugs.webkit.org/show_bug.cgi?id=174455
+        <rdar://problem/31384608>
+
+        Reviewed by Mark Lam.
+
+        * stress/has-instance-exception-check.js: Added.
+        (assert):
+        (let.getter.Object.getOwnPropertyDescriptor.get foo):
+
+2017-07-13  Caio Lima  <ticaiolima@gmail.com>
+
+        [ESnext] Implement Object Spread
+        https://bugs.webkit.org/show_bug.cgi?id=167963
+
+        Reviewed by Saam Barati.
+
+        * stress/obj-rest-destructuring-order.js: Added.
+        (assert):
+        (o.get z):
+        (o.get a):
+        * stress/obj-spread-order.js: Added.
+        (assert):
+        (o.get z):
+        (o.get a):
+        * stress/object-spread.js: Added.
+        (let.assert):
+        (assert.sameValue):
+        (let.o.get a):
+        (let.obj.get c):
+        (cthulhu.get x):
+        (let.obj.set c):
+        (calls.o.get z):
+        (calls.o.get a):
+        (try.let.obj.get foo):
+        (get calls):
+
+2017-07-12  Saam Barati  <sbarati@apple.com>
+
+        GenericArguments consults the wrong state when tracking modified argument descriptors and mapped arguments
+        https://bugs.webkit.org/show_bug.cgi?id=174411
+        <rdar://problem/31696186>
+
+        Reviewed by Mark Lam.
+
+        * stress/generic-arguments-correct-delete-behavior.js: Added.
+        (assert):
+        (makeTest):
+
+2017-07-07  Mark Lam  <mark.lam@apple.com>
+
+        \n\r is not the same as \r\n.
+        https://bugs.webkit.org/show_bug.cgi?id=173053
+
+        Reviewed by Keith Miller.
+
+        * stress/regress-173053.js: Added.
+        * stress/template-literal-line-terminators.js:
+
+2017-07-06  Saam Barati  <sbarati@apple.com>
+
+        We are missing places where we invalidate the for-in context
+        https://bugs.webkit.org/show_bug.cgi?id=174184
+
+        Reviewed by Geoffrey Garen.
+
+        * stress/for-in-invalidate-context-weird-assignments.js: Added.
+        (assert):
+        (test):
+
+2017-07-05  Saam Barati  <sbarati@apple.com>
+
+        NewArray in FTLLowerDFGToB3 does not handle speculating on doubles when having a bad time
+        https://bugs.webkit.org/show_bug.cgi?id=174188
+        <rdar://problem/30581423>
+
+        Reviewed by Mark Lam.
+
+        * stress/new-array-having-a-bad-time-double.js: Added.
+        (assert):
+        (foo):
+
+2017-07-05  Yusuke Suzuki  <utatane.tea@gmail.com>
+
+        WTF::StringImpl::copyChars segfaults when built with GCC 7
+        https://bugs.webkit.org/show_bug.cgi?id=173407
+
+        Reviewed by Andreas Kling.
+
+        * stress/string-repeat-copy-chars-crash.js: Added.
+        (shouldBe):
+
+2017-07-03  Saam Barati  <sbarati@apple.com>
+
+        Skip unshiftCountSlowCase-correct-postCapacity.js on debug builds since it takes a long time to run.
+
+        * stress/unshiftCountSlowCase-correct-postCapacity.js:
+
+2017-07-03  Yusuke Suzuki  <utatane.tea@gmail.com>
+
+        Unreviewed, annotate dont--reserve-huge-capacity-lexer.js with $memoryLimited
+
+        It requires too much memory.
+
+        * stress/dont-reserve-huge-capacity-lexer.js:
+
+2017-06-30  Michael Saboff  <msaboff@apple.com>
+
+        Skip a test on ARM64 platform since we run out of address space.
+
+        Rubber stamped by Saam Barati.
+
+        * stress/dont-reserve-huge-capacity-lexer.js:
+
+2017-06-30  Michael Saboff  <msaboff@apple.com>
+
+        RegExp's  anchored with .* with \g flag can return wrong match start for strings with multiple matches
+        https://bugs.webkit.org/show_bug.cgi?id=174044
+
+        Reviewed by Oliver Hunt.
+
+        New regression test.
+
+        * stress/regress-174044.js: Added.
+        (test1):
+        (test2):
+
+2017-06-30  Filip Pizlo  <fpizlo@apple.com>
+
+        RegExpCachedResult::setInput should reify left and right contexts
+        https://bugs.webkit.org/show_bug.cgi?id=173818
+
+        Reviewed by Keith Miller.
+
+        * stress/right-left-context-invalidated-by-input.js: Added.
+        (test.validateContexts):
+        (test):
+
+2017-06-29  Saam Barati  <sbarati@apple.com>
+
+        Calculating postCapacity in unshiftCountSlowCase is wrong
+        https://bugs.webkit.org/show_bug.cgi?id=173992
+        <rdar://problem/32283199>
+
+        Reviewed by Keith Miller.
+
+        * stress/unshiftCountSlowCase-correct-postCapacity.js: Added.
+        (temp):
+
+2017-06-29  Commit Queue  <commit-queue@webkit.org>
+
+        Unreviewed, rolling out r218512.
+        https://bugs.webkit.org/show_bug.cgi?id=173981
+
+        "It changes the behavior of the JS API's JSEvaluateScript
+        which breaks TurboTax" (Requested by saamyjoon on #webkit).
+
+        Reverted changeset:
+
+        "test262: Completion values for control flow do not match the
+        spec"
+        https://bugs.webkit.org/show_bug.cgi?id=171265
+        http://trac.webkit.org/changeset/218512
+
 2017-06-27  JF Bastien  <jfbastien@apple.com>
 
         WebAssembly: running out of executable memory should throw OoM

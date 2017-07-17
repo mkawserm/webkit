@@ -27,22 +27,16 @@
 #import "PlatformPasteboard.h"
 
 #import "Color.h"
-#import "URL.h"
 #import "Image.h"
 #import "Pasteboard.h"
 #import "SharedBuffer.h"
-#import "SoftLinking.h"
+#import "UIKitSPI.h"
+#import "URL.h"
 #import "WebItemProviderPasteboard.h"
 #import <MobileCoreServices/MobileCoreServices.h>
 #import <UIKit/UIImage.h>
 #import <UIKit/UIPasteboard.h>
-
-#if ENABLE(DATA_INTERACTION)
-#import <UIKit/NSAttributedString+UIItemProvider.h>
-#import <UIKit/NSString+UIItemProvider.h>
-#import <UIKit/NSURL+UIItemProvider.h>
-#import <UIKit/UIImage+UIItemProvider.h>
-#endif
+#import <wtf/SoftLinking.h>
 
 SOFT_LINK_FRAMEWORK(UIKit)
 SOFT_LINK_CLASS(UIKit, UIImage)
@@ -213,6 +207,24 @@ static void addRepresentationsForPlainText(WebItemProviderRegistrationInfoList *
         [itemsToRegister addRepresentingObject:platformURL];
 
     [itemsToRegister addData:[(NSString *)plainText dataUsingEncoding:NSUTF8StringEncoding] forType:(NSString *)kUTTypeUTF8PlainText];
+}
+
+bool PlatformPasteboard::allowReadingURLAtIndex(const URL& url, int index) const
+{
+    NSItemProvider *itemProvider = (NSUInteger)index < [m_pasteboard itemProviders].count ? [[m_pasteboard itemProviders] objectAtIndex:index] : nil;
+    for (NSString *type in itemProvider.registeredTypeIdentifiers) {
+        if (UTTypeConformsTo((CFStringRef)type, kUTTypeURL))
+            return true;
+    }
+
+    return url.isValid();
+}
+
+#else
+
+bool PlatformPasteboard::allowReadingURLAtIndex(const URL&, int) const
+{
+    return true;
 }
 
 #endif
@@ -426,7 +438,7 @@ String PlatformPasteboard::readString(int index, const String& type)
             return [(NSAttributedString *)value string];
     } else if (type == String(kUTTypeURL)) {
         ASSERT([value isKindOfClass:[NSURL class]]);
-        if ([value isKindOfClass:[NSURL class]])
+        if ([value isKindOfClass:[NSURL class]] && allowReadingURLAtIndex((NSURL *)value, index))
             return [(NSURL *)value absoluteString];
     }
 
@@ -446,6 +458,9 @@ URL PlatformPasteboard::readURL(int index, const String& type, String& title)
     ASSERT([value isKindOfClass:[NSURL class]]);
     if (![value isKindOfClass:[NSURL class]])
         return URL();
+
+    if (!allowReadingURLAtIndex((NSURL *)value, index))
+        return { };
 
 #if __IPHONE_OS_VERSION_MIN_REQUIRED >= 110000
     title = [value _title];

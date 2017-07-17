@@ -69,6 +69,7 @@ interface AccessibilityUIElement {
     boolean isPressActionSupported();
     boolean isIncrementActionSupported();
     boolean isDecrementActionSupported();
+    void setValue(DOMString value);
 
     readonly attribute DOMString stringValue;
     readonly attribute long intValue;
@@ -225,6 +226,7 @@ interface AccessibilityUIElement {
     AccessibilityTextMarkerRange sentenceTextMarkerRangeForTextMarker(AccessibilityTextMarker textMarker);
     AccessibilityTextMarker previousSentenceStartTextMarkerForTextMarker(AccessibilityTextMarker textMarker);
     AccessibilityTextMarker nextSentenceEndTextMarkerForTextMarker(AccessibilityTextMarker textMarker);
+    AccessibilityTextMarkerRange textMarkerRangeMatchesTextNearMarkers(DOMString text, AccessibilityTextMarker startMarker, AccessibilityTextMarker endMarker);
 
     // Returns an ordered list of supported actions for an element.
     readonly attribute DOMString supportedActions;

@@ -93,16 +93,18 @@ template<typename> class FlowMap;
         }                                                               \
     } while (false)
 
-#define DFG_ASSERT(graph, node, assertion) do {                         \
+#define DFG_ASSERT(graph, node, assertion, ...) do {                    \
         if (!!(assertion))                                              \
             break;                                                      \
-        (graph).handleAssertionFailure(                                 \
+        (graph).logAssertionFailure(                                    \
             (node), __FILE__, __LINE__, WTF_PRETTY_FUNCTION, #assertion); \
+        CRASH_WITH_SECURITY_IMPLICATION_AND_INFO(__VA_ARGS__);          \
     } while (false)
 
-#define DFG_CRASH(graph, node, reason) do {                             \
-        (graph).handleAssertionFailure(                                 \
+#define DFG_CRASH(graph, node, reason, ...) do {                        \
+        (graph).logAssertionFailure(                                    \
             (node), __FILE__, __LINE__, WTF_PRETTY_FUNCTION, (reason)); \
+        CRASH_WITH_SECURITY_IMPLICATION_AND_INFO(__VA_ARGS__);          \
     } while (false)
 
 struct InlineVariableData {
@@ -887,13 +889,13 @@ public:
     
     void visitChildren(SlotVisitor&) override;
     
-    NO_RETURN_DUE_TO_CRASH void handleAssertionFailure(
+    void logAssertionFailure(
         std::nullptr_t, const char* file, int line, const char* function,
         const char* assertion);
-    NO_RETURN_DUE_TO_CRASH void handleAssertionFailure(
+    void logAssertionFailure(
         Node*, const char* file, int line, const char* function,
         const char* assertion);
-    NO_RETURN_DUE_TO_CRASH void handleAssertionFailure(
+    void logAssertionFailure(
         BasicBlock*, const char* file, int line, const char* function,
         const char* assertion);
 
@@ -995,7 +997,7 @@ public:
     HashMap<const StringImpl*, String> m_copiedStrings;
 
 #if USE(JSVALUE32_64)
-    std::unordered_map<int64_t, double*> m_doubleConstantsMap;
+    std::unordered_map<int64_t, double*, std::hash<int64_t>, std::equal_to<int64_t>, FastAllocator<std::pair<const int64_t, double*>>> m_doubleConstantsMap;
     std::unique_ptr<Bag<double>> m_doubleConstants;
 #endif
     

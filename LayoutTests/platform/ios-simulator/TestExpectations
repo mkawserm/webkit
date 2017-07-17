@@ -74,6 +74,7 @@ media/modern-media-controls/button [ Pass ]
 media/modern-media-controls/buttons-container [ Pass ]
 media/modern-media-controls/controls-bar [ Pass ]
 media/modern-media-controls/controls-visibility-support [ Pass ]
+media/modern-media-controls/css [ Pass ]
 media/modern-media-controls/forward-button [ Pass ]
 media/modern-media-controls/fullscreen-button [ Pass ]
 media/modern-media-controls/fullscreen-support [ Pass ]
@@ -121,6 +122,7 @@ media/modern-media-controls/placard-support/placard-support-airplay-fullscreen.h
 media/modern-media-controls/ios-inline-media-controls/ios-inline-media-controls-button-padding.html [ Pass ]
 
 # These tests are designed to work only on macOS
+media/modern-media-controls/button/button-click-on-edges.html [ Skip ]
 media/modern-media-controls/placard-support/placard-support-pip.html [ Skip ]
 media/modern-media-controls/media-documents/media-document-audio-mac-sizing.html [ Skip ]
 media/modern-media-controls/media-documents/media-document-video-mac-sizing.html [ Skip ]
@@ -132,3 +134,16 @@ webkit.org/b/156718 storage/websql/alter-to-info-table.html [ Failure ]
 # This test relies on Arial being used to draw Arabic. However, on iOS,
 # we explicitly disallow this because this font is too slow.
 fast/text/initial-advance-in-intermediate-run-complex.html [ ImageOnlyFailure ]
+
+# Simulator doesn't support WebAssembly.
+http/tests/security/contentSecurityPolicy/WebAssembly-allowed.html [ Failure ]
+http/tests/security/contentSecurityPolicy/WebAssembly-blocked-in-about-blank-iframe.html [ Failure ]
+http/tests/security/contentSecurityPolicy/WebAssembly-blocked-in-external-script.html [ Failure ]
+http/tests/security/contentSecurityPolicy/WebAssembly-blocked-in-subframe.html [ Failure ]
+http/tests/security/contentSecurityPolicy/WebAssembly-blocked.html [ Failure ]
+
+# WebGL tests which need triaging https://bugs.webkit.org/b/174100
+webgl/1.0.2/conformance/uniforms/uniform-default-values.html [ Failure ]
+
+# This test requires Skia, which isn't available on iOS.
+webkit.org/b/174079 fast/text/variations/skia-postscript-name.html [ ImageOnlyFailure ]

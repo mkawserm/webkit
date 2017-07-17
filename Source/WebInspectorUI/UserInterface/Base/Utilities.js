@@ -671,6 +671,14 @@ Object.defineProperty(String.prototype, "capitalize",
     }
 });
 
+Object.defineProperty(String.prototype, "extendedLocaleCompare",
+{
+    value(other)
+    {
+        return this.localeCompare(other, undefined, {numeric: true});
+    }
+});
+
 Object.defineProperty(String, "tokenizeFormatString",
 {
     value: function(format)
@@ -1081,9 +1089,16 @@ Object.defineProperty(Number, "bytesToString",
         }
 
         let megabytes = kilobytes / 1024;
-        if (higherResolution || Math.abs(megabytes) < 10)
-            return WebInspector.UIString("%.2f MB").format(megabytes);
-        return WebInspector.UIString("%.1f MB").format(megabytes);
+        if (Math.abs(megabytes) < 1024) {
+            if (higherResolution || Math.abs(megabytes) < 10)
+                return WebInspector.UIString("%.2f MB").format(megabytes);
+            return WebInspector.UIString("%.1f MB").format(megabytes);
+        }
+
+        let gigabytes = megabytes / 1024;
+        if (higherResolution || Math.abs(gigabytes) < 10)
+            return WebInspector.UIString("%.2f GB").format(gigabytes);
+        return WebInspector.UIString("%.1f GB").format(gigabytes);
     }
 });
 

@@ -63,11 +63,11 @@ public:
     bool operator!=(const FontDescription& other) const { return !(*this == other); }
 
     float computedSize() const { return m_computedSize; }
+    unsigned computedPixelSize() const { return unsigned(m_computedSize + 0.5f); }
     FontSelectionValue italic() const { return m_fontSelectionRequest.slope; }
     FontSelectionValue stretch() const { return m_fontSelectionRequest.width; }
     FontSelectionValue weight() const { return m_fontSelectionRequest.weight; }
     FontSelectionRequest fontSelectionRequest() const { return m_fontSelectionRequest; }
-    int computedPixelSize() const { return int(m_computedSize + 0.5f); }
     FontRenderingMode renderingMode() const { return static_cast<FontRenderingMode>(m_renderingMode); }
     TextRenderingMode textRenderingMode() const { return static_cast<TextRenderingMode>(m_textRendering); }
     UScriptCode script() const { return static_cast<UScriptCode>(m_script); }
@@ -303,7 +303,7 @@ public:
     static FontVariantCaps initialVariantCaps() { return FontVariantCaps::Normal; }
     static FontVariantAlternates initialVariantAlternates() { return FontVariantAlternates::Normal; }
     static FontOpticalSizing initialOpticalSizing() { return FontOpticalSizing::Enabled; }
-    static const AtomicString& initialLocale() { return nullAtom; }
+    static const AtomicString& initialLocale() { return nullAtom(); }
 
 private:
     RefCountedArray<AtomicString> m_families { 1 };

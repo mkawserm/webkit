@@ -50,6 +50,7 @@
 #include "ExceptionCode.h"
 #include "FFTFrame.h"
 #include "Frame.h"
+#include "FrameLoader.h"
 #include "GainNode.h"
 #include "GenericEventQueue.h"
 #include "HRTFDatabaseLoader.h"
@@ -190,7 +191,7 @@ void AudioContext::constructCommon()
 AudioContext::~AudioContext()
 {
 #if DEBUG_AUDIONODE_REFERENCES
-    WTFLogAlways("%p: AudioContext::~AudioContext()\n", this);
+    fprintf(stderr, "%p: AudioContext::~AudioContext()\n", this);
 #endif
     ASSERT(!m_isInitialized);
     ASSERT(m_isStopScheduled);

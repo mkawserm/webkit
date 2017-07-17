@@ -38,10 +38,10 @@
 #include "FloatConversion.h"
 #include "Logging.h"
 #include "RuntimeApplicationChecks.h"
-#include "SoftLinking.h"
 #include <AudioToolbox/AudioServices.h>
 #include <wtf/HashSet.h>
 #include <wtf/NeverDestroyed.h>
+#include <wtf/SoftLinking.h>
 
 SOFT_LINK_FRAMEWORK(AudioToolbox)
 SOFT_LINK(AudioToolbox, AudioComponentFindNext, AudioComponent, (AudioComponent inComponent, const AudioComponentDescription *inDesc), (inComponent, inDesc))
@@ -268,7 +268,7 @@ void AudioDestinationIOS::frameSizeChangedProc(void *inRefCon, AudioUnit, AudioU
     UInt32 bufferSize = 0;
     UInt32 dataSize = sizeof(bufferSize);
     AudioUnitGetProperty(audioOutput->m_outputUnit, kAudioUnitProperty_MaximumFramesPerSlice, kAudioUnitScope_Global, 0, (void*)&bufferSize, &dataSize);
-    WTFLogAlways(">>>> frameSizeChanged = %lu\n", static_cast<unsigned long>(bufferSize));
+    fprintf(stderr, ">>>> frameSizeChanged = %lu\n", static_cast<unsigned long>(bufferSize));
 }
 
 } // namespace WebCore

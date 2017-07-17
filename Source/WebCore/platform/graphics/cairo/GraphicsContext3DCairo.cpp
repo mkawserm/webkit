@@ -47,11 +47,16 @@
 #include <ANGLE/ShaderLang.h>
 #endif
 
+#if USE(LIBEPOXY)
+#include <epoxy/gl.h>
+#elif !USE(OPENGL_ES_2)
+#include "OpenGLShims.h"
+#endif
+
 #if USE(OPENGL_ES_2)
 #include "Extensions3DOpenGLES.h"
 #else
 #include "Extensions3DOpenGL.h"
-#include "OpenGLShims.h"
 #endif
 
 #if USE(TEXTURE_MAPPER)
@@ -69,7 +74,7 @@ RefPtr<GraphicsContext3D> GraphicsContext3D::create(GraphicsContext3DAttributes 
     static bool initialized = false;
     static bool success = true;
     if (!initialized) {
-#if !USE(OPENGL_ES_2)
+#if !USE(OPENGL_ES_2) && !USE(LIBEPOXY)
         success = initializeOpenGLShims();
 #endif
         initialized = true;
@@ -85,7 +90,9 @@ GraphicsContext3D::GraphicsContext3D(GraphicsContext3DAttributes attributes, Hos
     , m_currentHeight(0)
     , m_attrs(attributes)
     , m_texture(0)
+#if USE(COORDINATED_GRAPHICS_THREADED)
     , m_compositorTexture(0)
+#endif
     , m_fbo(0)
 #if USE(COORDINATED_GRAPHICS_THREADED)
     , m_intermediateTexture(0)
@@ -228,8 +235,10 @@ GraphicsContext3D::~GraphicsContext3D()
     makeContextCurrent();
     if (m_texture)
         ::glDeleteTextures(1, &m_texture);
+#if USE(COORDINATED_GRAPHICS_THREADED)
     if (m_compositorTexture)
         ::glDeleteTextures(1, &m_compositorTexture);
+#endif
 
     if (m_attrs.antialias) {
         ::glDeleteRenderbuffers(1, &m_multisampleColorBuffer);

@@ -413,32 +413,6 @@ void JSTestInterface::destroy(JSC::JSCell* cell)
     thisObject->JSTestInterface::~JSTestInterface();
 }
 
-bool JSTestInterface::put(JSCell* cell, ExecState* state, PropertyName propertyName, JSValue value, PutPropertySlot& putPropertySlot)
-{
-    auto* thisObject = jsCast<JSTestInterface*>(cell);
-    ASSERT_GC_OBJECT_INHERITS(thisObject, info());
-
-    bool putResult = false;
-    if (thisObject->putDelegate(state, propertyName, value, putPropertySlot, putResult))
-        return putResult;
-
-    return JSObject::put(thisObject, state, propertyName, value, putPropertySlot);
-}
-
-bool JSTestInterface::putByIndex(JSCell* cell, ExecState* state, unsigned index, JSValue value, bool shouldThrow)
-{
-    auto* thisObject = jsCast<JSTestInterface*>(cell);
-    ASSERT_GC_OBJECT_INHERITS(thisObject, info());
-
-    auto propertyName = Identifier::from(state, index);
-    PutPropertySlot slot(thisObject, shouldThrow);
-    bool putResult = false;
-    if (thisObject->putDelegate(state, propertyName, value, slot, putResult))
-        return putResult;
-
-    return JSObject::putByIndex(cell, state, index, value, shouldThrow);
-}
-
 template<> inline JSTestInterface* IDLAttribute<JSTestInterface>::cast(ExecState& state, EncodedJSValue thisValue)
 {
     return jsDynamicDowncast<JSTestInterface*>(state.vm(), JSValue::decode(thisValue));
@@ -976,13 +950,11 @@ void JSTestInterfaceOwner::finalize(JSC::Handle<JSC::Unknown> handle, void* cont
 
 JSC::JSValue toJSNewlyCreated(JSC::ExecState*, JSDOMGlobalObject* globalObject, Ref<TestInterface>&& impl)
 {
-#if COMPILER(CLANG)
     // If you hit this failure the interface definition has the ImplementationLacksVTable
     // attribute. You should remove that attribute. If the class has subclasses
     // that may be passed through this toJS() function you should use the SkipVTableValidation
     // attribute to TestInterface.
-    static_assert(!__is_polymorphic(TestInterface), "TestInterface is polymorphic but the IDL claims it is not");
-#endif
+    static_assert(!std::is_polymorphic<TestInterface>::value, "TestInterface is polymorphic but the IDL claims it is not");
     return createWrapper<TestInterface>(globalObject, WTFMove(impl));
 }
 

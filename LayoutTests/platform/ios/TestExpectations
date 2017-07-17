@@ -33,13 +33,10 @@ perf/accessibility-title-ui-element.html
 fullscreen
 http/tests/fullscreen
 
-# Skip WebGL tests in iOS Simulator
-webgl
-fast/canvas/webgl
-http/tests/webgl
-
 # WebGPU is not enabled on iOS Simulator.
 fast/canvas/webgpu
+inspector/canvas/create-context-webgpu.html [ Skip ]
+inspector/canvas/resolveCanvasContext-webgpu.html [ Skip ]
 
 # Encrypted Media Extensions are not enabled
 media/encrypted-media/
@@ -327,6 +324,7 @@ fast/scrolling/scroll-animator-overlay-scrollbars-clicked.html [ Skip ]
 fast/scrolling/scroll-animator-overlay-scrollbars-hovered.html [ Skip ]
 fast/scrolling/scroll-animator-select-list-events.html [ Skip ]
 fast/events/prevent-default-prevents-interaction-with-scrollbars.html [ Skip ]
+fast/events/simulated-click-zoomed.html [ Skip ]
 fast/text/text-disappear-on-deselect.html [ ImageOnlyFailure ]
 fast/css/pseudo-active-on-labeled-control-without-renderer.html [ Skip ]
 fast/css/pseudo-active-on-labeled-element-not-canceled-by-focus.html [ Skip ]
@@ -2565,6 +2563,7 @@ webkit.org/b/136708 media/media-fullscreen-not-in-document.html
 media/media-controls-accessibility.html [ Timeout ]
 media/media-fullscreen-return-to-inline.html
 media/no-autoplay-with-user-gesture-requirement.html
+media/video-add-autoplay-user-gesture.html
 media/video-controls-drag.html
 media/video-controls-fullscreen-volume.html
 media/video-controls-no-display-with-text-track.html
@@ -2721,11 +2720,13 @@ webkit.org/b/164594 http/tests/cache/disk-cache/disk-cache-request-headers.html 
 webkit.org/b/163046 js/regress-141098.html [ Pass Failure ]
 
 # Test relies on window.scrollTo
+fast/dom/elementFromPoint-scaled-scrolled.html [ Skip ]
 fast/zooming/client-rect-in-fixed-zoomed.html [ Skip ]
 fast/visual-viewport/zoomed-scroll-to-anchor-in-position-fixed.html [ Skip ]
 fast/visual-viewport/zoomed-scroll-into-view-fixed.html [ Skip ]
 fast/scrolling/scroll-to-anchor-zoomed-header.html [ Skip ]
 fast/visual-viewport/client-coordinates-relative-to-layout-viewport.html [ Skip ]
+fast/visual-viewport/client-rects-relative-to-layout-viewport-zoomed.html [ Skip ]
 
 # On iOS we do not visually highlight a programmatic selection
 fast/selectors/040.html
@@ -2818,8 +2819,6 @@ webkit.org/b/124933 svg/animations/getCurrentTime-pause-unpause.html [ Pass Fail
 webkit.org/b/171760 imported/w3c/i18n/bidi/bidi-plaintext-011.html [ ImageOnlyFailure ]
 webkit.org/b/171760 imported/w3c/i18n/bidi/block-plaintext-005.html [ ImageOnlyFailure ]
 
-webkit.org/b/172019 imported/w3c/web-platform-tests/cssom-view/elementFromPoint.html [ Failure ]
-
 webkit.org/b/172547 http/tests/xmlhttprequest/xmlhttprequest-50ms-download-dispatch.html [ Failure ]
 
 webkit.org/b/172610 media/ios/autoplay-only-in-main-document.html [ Skip ]
@@ -2833,3 +2832,38 @@ webkit.org/b/173328 fast/text/system-font-fallback.html [ ImageOnlyFailure ]
 webkit.org/b/173611 media/video-buffered.html [ Pass Failure ]
 
 webkit.org/b/171617 perf/object-keys.html [ Pass Failure ]
+
+# WebGL tests which need triaging https://bugs.webkit.org/b/174100
+fast/canvas/webgl/context-attributes-alpha-depth-stencil-antialias.html [ Failure ]
+fast/canvas/webgl/framebuffer-object-attachment.html [ Failure ]
+fast/canvas/webgl/oes-texture-float-linear.html [ Failure ]
+fast/canvas/webgl/oes-texture-half-float-linear.html [ Failure ]
+fast/canvas/webgl/tex-image-and-sub-image-2d-with-potentially-subsampled-image.html [ Failure ]
+fast/canvas/webgl/webgl-compressed-texture-size-limit.html [ Failure ]
+fast/canvas/webgl/webgl-draw-buffers.html [ Failure ]
+fast/canvas/webgl/webgl2-texture-upload-enums.html [ Failure ]
+webgl/1.0.2/conformance/context/context-attribute-preserve-drawing-buffer.html [ Failure ]
+webgl/1.0.2/conformance/context/context-attributes-alpha-depth-stencil-antialias.html [ Failure ]
+webgl/1.0.2/conformance/ogles/GL/build/build_009_to_016.html [ Failure ]
+webgl/1.0.3/conformance/context/context-hidden-alpha.html [ Failure ]
+webgl/1.0.3/conformance/extensions/oes-texture-float-linear.html [ Failure ]
+webgl/1.0.3/conformance/extensions/oes-texture-half-float-linear.html [ Failure ]
+webgl/1.0.3/conformance/extensions/oes-texture-half-float.html [ Failure ]
+webgl/1.0.3/conformance/extensions/webgl-compressed-texture-pvrtc.html [ Failure ]
+webgl/1.0.3/conformance/glsl/misc/shader-struct-scope.html [ Failure ]
+webgl/1.0.3/conformance/glsl/misc/shaders-with-invariance.html [ Failure ]
+webgl/1.0.3/conformance/glsl/misc/shaders-with-name-conflicts.html [ Failure ]
+webgl/1.0.3/conformance/glsl/misc/struct-nesting-of-variable-names.html [ Failure ]
+webgl/1.0.3/conformance/renderbuffers/feedback-loop.html [ Failure ]
+webgl/1.0.3/conformance/rendering/point-no-attributes.html [ Failure ]
+webgl/1.0.3/conformance/textures/texture-copying-feedback-loops.html [ Failure ]
+fast/canvas/webgl/read-pixels-test.html [ Skip ]
+fast/canvas/webgl/webglcontextchangedevent.html [ Skip ]
+webgl/1.0.2/conformance/context/context-creation-and-destruction.html [ Skip ]
+webgl/1.0.2/conformance/ogles/GL/sin/sin_001_to_006.html [ Skip ]
+webgl/1.0.2/conformance/reading/read-pixels-test.html [ Skip ]
+webgl/1.0.2/conformance/rendering/multisample-corruption.html [ Skip ]
+webgl/1.0.2/conformance/uniforms/out-of-bounds-uniform-array-access.html [ Skip ]
+
+webkit.org/b/174120 http/tests/loading/resourceLoadStatistics/user-interaction-in-cross-origin-sub-frame.html [ Skip ]
+

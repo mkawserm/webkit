@@ -209,11 +209,8 @@ namespace JSC {
         void setLoc(unsigned firstLine, unsigned lastLine, int startOffset, int lineStartOffset);
         unsigned lastLine() const { return m_lastLine; }
 
-        StatementNode* next() const { return m_next; }
+        StatementNode* next() { return m_next; }
         void setNext(StatementNode* next) { m_next = next; }
-
-        virtual bool hasCompletionValue() const { return true; }
-        virtual bool hasEarlyBreakOrContinue() const { return false; }
 
         virtual bool isEmptyStatement() const { return false; }
         virtual bool isDebuggerStatement() const { return false; }
@@ -648,10 +645,11 @@ namespace JSC {
 
     class PropertyNode : public ParserArenaFreeable {
     public:
-        enum Type { Constant = 1, Getter = 2, Setter = 4, Computed = 8, Shorthand = 16 };
+        enum Type { Constant = 1, Getter = 2, Setter = 4, Computed = 8, Shorthand = 16, Spread = 32 };
         enum PutType { Unknown, KnownDirect };
 
         PropertyNode(const Identifier&, ExpressionNode*, Type, PutType, SuperBinding, bool isClassProperty);
+        PropertyNode(ExpressionNode*, Type, PutType, SuperBinding, bool isClassProperty);
         PropertyNode(ExpressionNode* propertyName, ExpressionNode*, Type, PutType, SuperBinding, bool isClassProperty);
 
         ExpressionNode* expressionName() const { return m_expression; }
@@ -667,7 +665,7 @@ namespace JSC {
         const Identifier* m_name;
         ExpressionNode* m_expression;
         ExpressionNode* m_assign;
-        unsigned m_type : 5;
+        unsigned m_type : 6;
         unsigned m_needsSuperBinding : 1;
         unsigned m_putType : 1;
         unsigned m_isClassProperty: 1;
@@ -747,6 +745,18 @@ namespace JSC {
         RegisterID* emitBytecode(BytecodeGenerator&, RegisterID* = 0) override;
         
         bool isSpreadExpression() const override { return true; }
+        ExpressionNode* m_expression;
+    };
+    
+    class ObjectSpreadExpressionNode : public ExpressionNode, public ThrowableExpressionData {
+    public:
+        ObjectSpreadExpressionNode(const JSTokenLocation&, ExpressionNode*);
+        
+        ExpressionNode* expression() const { return m_expression; }
+        
+    private:
+        RegisterID* emitBytecode(BytecodeGenerator&, RegisterID* = 0) override;
+        
         ExpressionNode* m_expression;
     };
 
@@ -1344,9 +1354,6 @@ namespace JSC {
         StatementNode* singleStatement() const;
         StatementNode* lastStatement() const;
 
-        bool hasCompletionValue() const;
-        bool hasEarlyBreakOrContinue() const;
-
         void emitBytecode(BytecodeGenerator&, RegisterID* destination);
         void analyzeModule(ModuleAnalyzer&);
 
@@ -1367,9 +1374,6 @@ namespace JSC {
     private:
         void emitBytecode(BytecodeGenerator&, RegisterID* = 0) override;
 
-        bool hasCompletionValue() const override;
-        bool hasEarlyBreakOrContinue() const override;
-
         bool isBlock() const override { return true; }
 
         SourceElements* m_statements;
@@ -1382,7 +1386,6 @@ namespace JSC {
     private:
         void emitBytecode(BytecodeGenerator&, RegisterID* = 0) override;
 
-        bool hasCompletionValue() const override { return false; }
         bool isEmptyStatement() const override { return true; }
     };
     
@@ -1390,7 +1393,6 @@ namespace JSC {
     public:
         DebuggerStatementNode(const JSTokenLocation&);
 
-        bool hasCompletionValue() const override { return false; }
         bool isDebuggerStatement() const override { return true; }
         
     private:
@@ -1416,8 +1418,6 @@ namespace JSC {
         DeclarationStatement(const JSTokenLocation&, ExpressionNode*);
     private:
         void emitBytecode(BytecodeGenerator&, RegisterID* = 0) override;
-
-        bool hasCompletionValue() const override { return false; }
 
         ExpressionNode* m_expr;
     };
@@ -1536,7 +1536,6 @@ namespace JSC {
         Label* trivialTarget(BytecodeGenerator&);
         
     private:
-        bool hasCompletionValue() const override { return false; }
         bool isContinue() const override { return true; }
         void emitBytecode(BytecodeGenerator&, RegisterID* = 0) override;
 
@@ -1549,7 +1548,6 @@ namespace JSC {
         Label* trivialTarget(BytecodeGenerator&);
         
     private:
-        bool hasCompletionValue() const override { return false; }
         bool isBreak() const override { return true; }
         void emitBytecode(BytecodeGenerator&, RegisterID* = 0) override;
 
@@ -1590,7 +1588,6 @@ namespace JSC {
         bool isLabel() const override { return true; }
 
     private:
-        bool hasCompletionValue() const override { return m_statement->hasCompletionValue(); }
         void emitBytecode(BytecodeGenerator&, RegisterID* = 0) override;
 
         const Identifier& m_name;
@@ -1674,9 +1671,6 @@ namespace JSC {
         }
 
         StatementNode* singleStatement() const;
-
-        bool hasCompletionValue() const override;
-        bool hasEarlyBreakOrContinue() const override;
 
         void emitStatementsBytecode(BytecodeGenerator&, RegisterID* destination);
         
@@ -1787,7 +1781,6 @@ namespace JSC {
     class ModuleDeclarationNode : public StatementNode {
     public:
         virtual void analyzeModule(ModuleAnalyzer&) = 0;
-        bool hasCompletionValue() const override { return false; }
         bool isModuleDeclarationNode() const override { return true; }
 
     protected:
@@ -2285,7 +2278,6 @@ namespace JSC {
     public:
         FuncDeclNode(const JSTokenLocation&, const Identifier&, FunctionMetadataNode*, const SourceCode&);
 
-        bool hasCompletionValue() const override { return false; }
         bool isFuncDeclNode() const override { return true; }
         FunctionMetadataNode* metadata() { return m_metadata; }
 
@@ -2301,8 +2293,6 @@ namespace JSC {
 
     private:
         void emitBytecode(BytecodeGenerator&, RegisterID* = 0) override;
-
-        bool hasCompletionValue() const override { return false; }
 
         ExpressionNode* m_classDeclaration;
     };

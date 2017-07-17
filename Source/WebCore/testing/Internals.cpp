@@ -469,6 +469,8 @@ void Internals::resetToConsistentState(Page& page)
 #if USE(LIBWEBRTC)
     WebCore::useRealRTCPeerConnectionFactory();
 #endif
+    
+    ResourceLoadObserver::shared().setShouldThrottleObserverNotifications(true);
 }
 
 Internals::Internals(Document& document)
@@ -490,10 +492,6 @@ Internals::Internals(Document& document)
 #if ENABLE(WEB_RTC)
 #if USE(OPENWEBRTC)
     enableMockMediaEndpoint();
-#endif
-#if USE(LIBWEBRTC)
-    if (document.page())
-        document.page()->rtcController().disableICECandidateFiltering();
 #endif
 #endif
 
@@ -647,30 +645,6 @@ static String responseSourceToString(const ResourceResponse& response)
 String Internals::xhrResponseSource(XMLHttpRequest& request)
 {
     return responseSourceToString(request.resourceResponse());
-}
-
-Vector<String> Internals::mediaResponseSources(HTMLMediaElement& media)
-{
-    auto* resourceLoader = media.lastMediaResourceLoaderForTesting();
-    if (!resourceLoader)
-        return { };
-    Vector<String> result;
-    auto responses = resourceLoader->responsesForTesting();
-    for (auto& response : responses)
-        result.append(responseSourceToString(response));
-    return result;
-}
-
-Vector<String> Internals::mediaResponseContentRanges(HTMLMediaElement& media)
-{
-    auto* resourceLoader = media.lastMediaResourceLoaderForTesting();
-    if (!resourceLoader)
-        return { };
-    Vector<String> result;
-    auto responses = resourceLoader->responsesForTesting();
-    for (auto& response : responses)
-        result.append(response.httpHeaderField(HTTPHeaderName::ContentRange));
-    return result;
 }
 
 bool Internals::isSharingStyleSheetContents(HTMLLinkElement& a, HTMLLinkElement& b)
@@ -1328,10 +1302,10 @@ void Internals::useMockRTCPeerConnectionFactory(const String& testCase)
 
 void Internals::setICECandidateFiltering(bool enabled)
 {
-    Document* document = contextDocument();
-    auto* page = document->page();
+    auto* page = contextDocument()->page();
     if (!page)
         return;
+
     auto& rtcController = page->rtcController();
     if (enabled)
         rtcController.enableICECandidateFiltering();
@@ -1861,7 +1835,7 @@ ExceptionOr<Ref<DOMRectList>> Internals::passiveTouchEventListenerRects()
 // contextDocument(), with the exception of a few tests that pass a
 // different document, and could just make the call through another Internals
 // instance instead.
-ExceptionOr<RefPtr<NodeList>> Internals::nodesFromRect(Document& document, int centerX, int centerY, unsigned topPadding, unsigned rightPadding, unsigned bottomPadding, unsigned leftPadding, bool ignoreClipping, bool allowShadowContent, bool allowChildFrameContent) const
+ExceptionOr<RefPtr<NodeList>> Internals::nodesFromRect(Document& document, int centerX, int centerY, unsigned topPadding, unsigned rightPadding, unsigned bottomPadding, unsigned leftPadding, bool ignoreClipping, bool allowUserAgentShadowContent, bool allowChildFrameContent) const
 {
     if (!document.frame() || !document.frame()->view())
         return Exception { INVALID_ACCESS_ERR };
@@ -1880,7 +1854,7 @@ ExceptionOr<RefPtr<NodeList>> Internals::nodesFromRect(Document& document, int c
     HitTestRequest::HitTestRequestType hitType = HitTestRequest::ReadOnly | HitTestRequest::Active;
     if (ignoreClipping)
         hitType |= HitTestRequest::IgnoreClipping;
-    if (!allowShadowContent)
+    if (!allowUserAgentShadowContent)
         hitType |= HitTestRequest::DisallowUserAgentShadowContent;
     if (allowChildFrameContent)
         hitType |= HitTestRequest::AllowChildFrameContent;
@@ -3061,6 +3035,30 @@ String Internals::getImageSourceURL(Element& element)
 
 #if ENABLE(VIDEO)
 
+Vector<String> Internals::mediaResponseSources(HTMLMediaElement& media)
+{
+    auto* resourceLoader = media.lastMediaResourceLoaderForTesting();
+    if (!resourceLoader)
+        return { };
+    Vector<String> result;
+    auto responses = resourceLoader->responsesForTesting();
+    for (auto& response : responses)
+        result.append(responseSourceToString(response));
+    return result;
+}
+
+Vector<String> Internals::mediaResponseContentRanges(HTMLMediaElement& media)
+{
+    auto* resourceLoader = media.lastMediaResourceLoaderForTesting();
+    if (!resourceLoader)
+        return { };
+    Vector<String> result;
+    auto responses = resourceLoader->responsesForTesting();
+    for (auto& response : responses)
+        result.append(response.httpHeaderField(HTTPHeaderName::ContentRange));
+    return result;
+}
+
 void Internals::simulateAudioInterruption(HTMLMediaElement& element)
 {
 #if USE(GSTREAMER)
@@ -3196,10 +3194,10 @@ ExceptionOr<Ref<DOMRect>> Internals::selectionBounds()
 ExceptionOr<bool> Internals::isPluginUnavailabilityIndicatorObscured(Element& element)
 {
     auto* renderer = element.renderer();
-    if (!is<RenderEmbeddedObject>(renderer))
+    if (!is<HTMLPlugInElement>(element) || !is<RenderEmbeddedObject>(renderer))
         return Exception { INVALID_ACCESS_ERR };
 
-    return downcast<RenderEmbeddedObject>(*renderer).isReplacementObscured();
+    return downcast<HTMLPlugInElement>(element).isReplacementObscured();
 }
 
 bool Internals::isPluginSnapshotted(Element& element)
@@ -3884,7 +3882,7 @@ JSValue Internals::cloneArrayBuffer(JSC::ExecState& state, JSValue buffer, JSVal
 
 String Internals::resourceLoadStatisticsForOrigin(const String& origin)
 {
-    return ResourceLoadObserver::sharedObserver().statisticsForOrigin(origin);
+    return ResourceLoadObserver::shared().statisticsForOrigin(origin);
 }
 
 void Internals::setResourceLoadStatisticsEnabled(bool enable)
@@ -3892,6 +3890,11 @@ void Internals::setResourceLoadStatisticsEnabled(bool enable)
     Settings::setResourceLoadStatisticsEnabled(enable);
 }
 
+void Internals::setResourceLoadStatisticsShouldThrottleObserverNotifications(bool enable)
+{
+    ResourceLoadObserver::shared().setShouldThrottleObserverNotifications(enable);
+}
+    
 String Internals::composedTreeAsText(Node& node)
 {
     if (!is<ContainerNode>(node))
@@ -4022,10 +4025,9 @@ Vector<String> Internals::accessKeyModifiers() const
     return accessKeyModifierStrings;
 }
 
-#if PLATFORM(IOS)
 void Internals::setQuickLookPassword(const String& password)
 {
-#if USE(QUICK_LOOK)
+#if PLATFORM(IOS) && USE(QUICK_LOOK)
     auto& quickLookHandleClient = MockPreviewLoaderClient::singleton();
     PreviewLoader::setClientForTesting(&quickLookHandleClient);
     quickLookHandleClient.setPassword(password);
@@ -4033,7 +4035,6 @@ void Internals::setQuickLookPassword(const String& password)
     UNUSED_PARAM(password);
 #endif
 }
-#endif
 
 void Internals::setAsRunningUserScripts(Document& document)
 {
@@ -4158,6 +4159,11 @@ void Internals::setMediaStreamTrackMuted(MediaStreamTrack& track, bool muted)
 void Internals::removeMediaStreamTrack(MediaStream& stream, MediaStreamTrack& track)
 {
     stream.internalRemoveTrack(track.id(), MediaStream::StreamModifier::Platform);
+}
+
+void Internals::simulateMediaStreamTrackCaptureSourceFailure(MediaStreamTrack& track)
+{
+    track.source().captureFailed();
 }
 
 #endif

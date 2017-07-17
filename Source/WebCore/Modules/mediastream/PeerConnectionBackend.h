@@ -88,7 +88,7 @@ public:
     virtual RefPtr<RTCSessionDescription> currentRemoteDescription() const = 0;
     virtual RefPtr<RTCSessionDescription> pendingRemoteDescription() const = 0;
 
-    virtual void setConfiguration(MediaEndpointConfiguration&&) = 0;
+    virtual bool setConfiguration(MediaEndpointConfiguration&&) = 0;
 
     virtual void getStats(MediaStreamTrack*, Ref<DeferredPromise>&&) = 0;
 
@@ -107,7 +107,7 @@ public:
 
     virtual void emulatePlatformEvent(const String& action) = 0;
 
-    void newICECandidate(String&& sdp, String&& mid);
+    void newICECandidate(String&& sdp, String&& mid, unsigned short sdpMLineIndex);
     void disableICECandidateFiltering();
     void enableICECandidateFiltering();
 
@@ -158,6 +158,7 @@ private:
         // Fields described in https://www.w3.org/TR/webrtc/#idl-def-rtcicecandidateinit.
         String sdp;
         String mid;
+        unsigned short sdpMLineIndex;
     };
     Vector<PendingICECandidate> m_pendingICECandidates;
 

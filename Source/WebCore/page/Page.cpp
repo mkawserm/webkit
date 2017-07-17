@@ -53,6 +53,7 @@
 #include "FrameTree.h"
 #include "FrameView.h"
 #include "HTMLElement.h"
+#include "HTMLMediaElement.h"
 #include "HistoryController.h"
 #include "HistoryItem.h"
 #include "InspectorController.h"
@@ -114,11 +115,6 @@
 #include <wtf/StdLibExtras.h>
 #include <wtf/text/Base64.h>
 #include <wtf/text/StringHash.h>
-
-#if ENABLE(WEB_REPLAY)
-#include "ReplayController.h"
-#include <replay/InputCursor.h>
-#endif
 
 #if ENABLE(WIRELESS_PLAYBACK_TARGET)
 #include "HTMLVideoElement.h"
@@ -196,9 +192,6 @@ Page::Page(PageConfiguration&& pageConfiguration)
     , m_contextMenuController(std::make_unique<ContextMenuController>(*this, *pageConfiguration.contextMenuClient))
 #endif
     , m_userInputBridge(std::make_unique<UserInputBridge>(*this))
-#if ENABLE(WEB_REPLAY)
-    , m_replayController(std::make_unique<ReplayController>(*this))
-#endif
     , m_inspectorController(std::make_unique<InspectorController>(*this, pageConfiguration.inspectorClient))
 #if ENABLE(POINTER_LOCK)
     , m_pointerLockController(std::make_unique<PointerLockController>(*this))
@@ -338,7 +331,8 @@ Page::~Page()
         m_scrollingCoordinator->pageDestroyed();
 
     backForward().close();
-    PageCache::singleton().removeAllItemsForPage(*this);
+    if (!isUtilityPage())
+        PageCache::singleton().removeAllItemsForPage(*this);
 
 #ifndef NDEBUG
     pageCounter.decrement();
@@ -555,7 +549,7 @@ void Page::setGroupName(const String& name)
 
 const String& Page::groupName() const
 {
-    return m_group ? m_group->name() : nullAtom.string();
+    return m_group ? m_group->name() : nullAtom().string();
 }
 
 void Page::initGroup()
@@ -991,6 +985,14 @@ void Page::setUserInterfaceLayoutDirection(UserInterfaceLayoutDirection userInte
     }
 #endif
 }
+
+#if ENABLE(VIDEO)
+void Page::updateMediaElementRateChangeRestrictions()
+{
+    for (auto* mediaElement : HTMLMediaElement::allMediaElements())
+        mediaElement->updateRateChangeRestrictions();
+}
+#endif
 
 void Page::didStartProvisionalLoad()
 {
@@ -2408,5 +2410,28 @@ bool Page::hasSelectionAtPosition(const FloatPoint& position) const
 }
 
 #endif
+
+void Page::disableICECandidateFiltering()
+{
+    m_shouldEnableICECandidateFilteringByDefault = false;
+#if ENABLE(WEB_RTC)
+    m_rtcController.disableICECandidateFiltering();
+#endif
+}
+
+void Page::enableICECandidateFiltering()
+{
+    m_shouldEnableICECandidateFilteringByDefault = true;
+#if ENABLE(WEB_RTC)
+    m_rtcController.enableICECandidateFiltering();
+#endif
+}
+
+void Page::didChangeMainDocument()
+{
+#if ENABLE(WEB_RTC)
+    m_rtcController.reset(m_shouldEnableICECandidateFilteringByDefault);
+#endif
+}
 
 } // namespace WebCore

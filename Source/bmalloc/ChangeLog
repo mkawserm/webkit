@@ -1,3 +1,59 @@
+2017-07-12  Adrian Perez de Castro  <aperez@igalia.com>
+
+        bmalloc: Failure to build when the compiler specifically targets ARMv8-A / defines __ARM_ARCH_8A__
+        https://bugs.webkit.org/show_bug.cgi?id=174424
+
+        Reviewed by Michael Catanzaro.
+
+        * bmalloc/BPlatform.h: Also check for __ARCH_ARM_8A__ to detect ARMv8.
+
+2017-07-05  Daewoong Jang  <daewoong.jang@navercorp.com>
+
+        reinterpret_cast does not evaluate to constexpr
+        https://bugs.webkit.org/show_bug.cgi?id=173622
+
+        Reviewed by Yusuke Suzuki.
+
+        * bmalloc/Algorithm.h:
+        (bmalloc::mask):
+        (bmalloc::roundUpToMultipleOf):
+
+2017-07-03  Andy Estes  <aestes@apple.com>
+
+        [Xcode] Add an experimental setting to build with ccache
+        https://bugs.webkit.org/show_bug.cgi?id=173875
+
+        Reviewed by Tim Horton.
+
+        * Configurations/DebugRelease.xcconfig: Included ccache.xcconfig.
+
+2017-07-01  Dan Bernstein  <mitz@apple.com>
+
+        [iOS] Remove code only needed when building for iOS 9.x
+        https://bugs.webkit.org/show_bug.cgi?id=174068
+
+        Reviewed by Tim Horton.
+
+        * bmalloc/BPlatform.h:
+        * bmalloc/VMAllocate.h:
+        (bmalloc::vmPageSizePhysical):
+
+2017-07-01  Dan Bernstein  <mitz@apple.com>
+
+        [macOS] Remove code only needed when building for OS X Yosemite
+        https://bugs.webkit.org/show_bug.cgi?id=174067
+
+        Reviewed by Tim Horton.
+
+        * Configurations/Base.xcconfig:
+        * Configurations/DebugRelease.xcconfig:
+
+2017-06-30  Ryosuke Niwa  <rniwa@webkit.org>
+
+        Ran sort-Xcode-project-file.
+
+        * bmalloc.xcodeproj/project.pbxproj:
+
 2017-06-19  Geoffrey Garen  <ggaren@apple.com>
 
         bmalloc: Add a per-thread line cache

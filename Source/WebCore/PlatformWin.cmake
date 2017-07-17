@@ -58,7 +58,6 @@ list(APPEND WebCore_SOURCES
     page/win/FrameWin.cpp
 
     platform/Cursor.cpp
-    platform/KillRingNone.cpp
     platform/LocalizedStrings.cpp
     platform/StaticPasteboard.cpp
 
@@ -139,7 +138,6 @@ list(APPEND WebCore_SOURCES
     platform/win/ScrollbarThemeWin.cpp
     platform/win/SearchPopupMenuWin.cpp
     platform/win/SharedBufferWin.cpp
-    platform/win/SoundWin.cpp
     platform/win/StructuredExceptionHandlerSuppressor.cpp
     platform/win/SystemInfo.cpp
     platform/win/WCDataObject.cpp
@@ -187,6 +185,7 @@ set(WebCore_FORWARDING_HEADERS_DIRECTORIES
 
     Modules/geolocation
     Modules/indexeddb
+    Modules/mediastream
     Modules/websockets
 
     Modules/indexeddb/client

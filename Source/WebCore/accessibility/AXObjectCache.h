@@ -41,6 +41,7 @@ namespace WebCore {
 
 class Document;
 class HTMLAreaElement;
+class HTMLTextFormControlElement;
 class Node;
 class Page;
 class RenderBlock;
@@ -51,13 +52,13 @@ class VisiblePosition;
 class Widget;
 
 struct TextMarkerData {
-    AXID axID;
-    Node* node;
-    int offset;
-    int characterStartIndex;
-    int characterOffset;
-    bool ignored;
-    EAffinity affinity;
+    AXID axID { 0 };
+    Node* node { nullptr };
+    int offset { 0 };
+    int characterStartIndex { 0 };
+    int characterOffset { 0 };
+    bool ignored { false };
+    EAffinity affinity { DOWNSTREAM };
 };
 
 struct CharacterOffset {
@@ -212,7 +213,8 @@ public:
     AccessibilityObject* objectFromAXID(AXID id) const { return m_objects.get(id); }
 
     // Text marker utilities.
-    void textMarkerDataForVisiblePosition(TextMarkerData&, const VisiblePosition&);
+    std::optional<TextMarkerData> textMarkerDataForVisiblePosition(const VisiblePosition&);
+    std::optional<TextMarkerData> textMarkerDataForFirstPositionInTextControl(HTMLTextFormControlElement&);
     void textMarkerDataForCharacterOffset(TextMarkerData&, const CharacterOffset&);
     void textMarkerDataForNextCharacterOffset(TextMarkerData&, const CharacterOffset&);
     void textMarkerDataForPreviousCharacterOffset(TextMarkerData&, const CharacterOffset&);
@@ -300,6 +302,7 @@ public:
 
     void postTextStateChangeNotification(Node*, AXTextEditType, const String&, const VisiblePosition&);
     void postTextReplacementNotification(Node*, AXTextEditType deletionType, const String& deletedText, AXTextEditType insertionType, const String& insertedText, const VisiblePosition&);
+    void postTextReplacementNotificationForTextControl(HTMLTextFormControlElement&, const String& deletedText, const String& insertedText);
     void postTextStateChangeNotification(Node*, const AXTextStateChangeIntent&, const VisibleSelection&);
     void postTextStateChangeNotification(const Position&, const AXTextStateChangeIntent&, const VisibleSelection&);
     void postLiveRegionChangeNotification(AccessibilityObject*);
@@ -329,6 +332,9 @@ public:
     void deferRecomputeIsIgnored(Element*);
     void deferTextChangedIfNeeded(Node*);
     void performDeferredCacheUpdate();
+    
+    RefPtr<Range> rangeMatchesTextNearRange(RefPtr<Range>, const String&);
+    
 
 protected:
     void postPlatformNotification(AccessibilityObject*, AXNotification);
@@ -337,6 +343,7 @@ protected:
 #if PLATFORM(COCOA)
     void postTextStateChangePlatformNotification(AccessibilityObject*, const AXTextStateChangeIntent&, const VisibleSelection&);
     void postTextStateChangePlatformNotification(AccessibilityObject*, AXTextEditType, const String&, const VisiblePosition&);
+    void postTextReplacementPlatformNotificationForTextControl(AccessibilityObject*, const String& deletedText, const String& insertedText, HTMLTextFormControlElement&);
     void postTextReplacementPlatformNotification(AccessibilityObject*, AXTextEditType, const String&, AXTextEditType, const String&, const VisiblePosition&);
 #else
     static AXTextChange textChangeForEditType(AXTextEditType);
@@ -475,36 +482,40 @@ inline const Element* AXObjectCache::rootAXEditableElement(const Node*) { return
 inline Node* AXObjectCache::ariaModalNode() { return nullptr; }
 inline void AXObjectCache::attachWrapper(AccessibilityObject*) { }
 inline void AXObjectCache::checkedStateChanged(Node*) { }
-inline void AXObjectCache::childrenChanged(RenderObject*, RenderObject*) { }
-inline void AXObjectCache::childrenChanged(Node*, Node*) { }
 inline void AXObjectCache::childrenChanged(AccessibilityObject*) { }
-inline void AXObjectCache::textChanged(Node*) { }
-inline void AXObjectCache::textChanged(AccessibilityObject*) { }
-inline void AXObjectCache::updateCacheAfterNodeIsAttached(Node*) { }
+inline void AXObjectCache::childrenChanged(Node*, Node*) { }
+inline void AXObjectCache::childrenChanged(RenderObject*, RenderObject*) { }
+inline void AXObjectCache::deferRecomputeIsIgnored(Element*) { }
+inline void AXObjectCache::deferTextChangedIfNeeded(Node*) { }
 inline void AXObjectCache::detachWrapper(AccessibilityObject*, AccessibilityDetachmentType) { }
+inline void AXObjectCache::focusAriaModalNodeTimerFired() { }
 inline void AXObjectCache::frameLoadingEventNotification(Frame*, AXLoadingEvent) { }
 inline void AXObjectCache::frameLoadingEventPlatformNotification(AccessibilityObject*, AXLoadingEvent) { }
 inline void AXObjectCache::handleActiveDescendantChanged(Node*) { }
 inline void AXObjectCache::handleAriaExpandedChange(Node*) { }
-inline void AXObjectCache::handleAriaRoleChanged(Node*) { }
 inline void AXObjectCache::handleAriaModalChange(Node*) { }
+inline void AXObjectCache::handleAriaRoleChanged(Node*) { }
+inline void AXObjectCache::handleAttributeChanged(const QualifiedName&, Element*) { }
 inline void AXObjectCache::handleFocusedUIElementChanged(Node*, Node*) { }
 inline void AXObjectCache::handleScrollbarUpdate(ScrollView*) { }
-inline void AXObjectCache::handleAttributeChanged(const QualifiedName&, Element*) { }
-inline void AXObjectCache::recomputeIsIgnored(RenderObject*) { }
-inline void AXObjectCache::deferRecomputeIsIgnored(Element*) { }
-inline void AXObjectCache::deferTextChangedIfNeeded(Node*) { }
-inline void AXObjectCache::performDeferredCacheUpdate() { }
 inline void AXObjectCache::handleScrolledToAnchor(const Node*) { }
-inline void AXObjectCache::postTextStateChangeNotification(Node*, const AXTextStateChangeIntent&, const VisibleSelection&) { }
-inline void AXObjectCache::postTextStateChangeNotification(Node*, AXTextEditType, const String&, const VisiblePosition&) { }
-inline void AXObjectCache::postTextReplacementNotification(Node*, AXTextEditType, const String&, AXTextEditType, const String&, const VisiblePosition&) { }
-inline void AXObjectCache::postNotification(AccessibilityObject*, Document*, AXNotification, PostTarget, PostType) { }
-inline void AXObjectCache::postNotification(RenderObject*, AXNotification, PostTarget, PostType) { }
-inline void AXObjectCache::postNotification(Node*, AXNotification, PostTarget, PostType) { }
-inline void AXObjectCache::postPlatformNotification(AccessibilityObject*, AXNotification) { }
+inline void AXObjectCache::liveRegionChangedNotificationPostTimerFired() { }
+inline void AXObjectCache::notificationPostTimerFired() { }
+inline void AXObjectCache::passwordNotificationPostTimerFired() { }
+inline void AXObjectCache::performDeferredCacheUpdate() { }
 inline void AXObjectCache::postLiveRegionChangeNotification(AccessibilityObject*) { }
-inline void AXObjectCache::focusAriaModalNode() { }
+inline void AXObjectCache::postNotification(AccessibilityObject*, Document*, AXNotification, PostTarget, PostType) { }
+inline void AXObjectCache::postNotification(Node*, AXNotification, PostTarget, PostType) { }
+inline void AXObjectCache::postNotification(RenderObject*, AXNotification, PostTarget, PostType) { }
+inline void AXObjectCache::postPlatformNotification(AccessibilityObject*, AXNotification) { }
+inline void AXObjectCache::postTextReplacementNotification(Node*, AXTextEditType, const String&, AXTextEditType, const String&, const VisiblePosition&) { }
+inline void AXObjectCache::postTextReplacementNotificationForTextControl(HTMLTextFormControlElement&, const String&, const String&) { }
+inline void AXObjectCache::postTextStateChangeNotification(Node*, AXTextEditType, const String&, const VisiblePosition&) { }
+inline void AXObjectCache::postTextStateChangeNotification(Node*, const AXTextStateChangeIntent&, const VisibleSelection&) { }
+inline void AXObjectCache::recomputeIsIgnored(RenderObject*) { }
+inline void AXObjectCache::textChanged(AccessibilityObject*) { }
+inline void AXObjectCache::textChanged(Node*) { }
+inline void AXObjectCache::updateCacheAfterNodeIsAttached(Node*) { }
 inline RefPtr<Range> AXObjectCache::rangeForNodeContents(Node*) { return nullptr; }
 inline void AXObjectCache::remove(AXID) { }
 inline void AXObjectCache::remove(RenderObject*) { }

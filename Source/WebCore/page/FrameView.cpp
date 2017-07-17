@@ -945,7 +945,7 @@ TiledBacking* FrameView::tiledBacking() const
     if (!backing)
         return nullptr;
 
-    return backing->graphicsLayer()->tiledBacking();
+    return backing->tiledBacking();
 }
 
 uint64_t FrameView::scrollLayerID() const
@@ -1918,6 +1918,14 @@ void FrameView::setLayoutViewportOverrideRect(std::optional<LayoutRect> rect)
         setViewportConstrainedObjectsNeedLayout();
 }
 
+void FrameView::setUnstableLayoutViewportRect(std::optional<LayoutRect> rect)
+{
+    if (rect == m_unstableLayoutViewportRect)
+        return;
+
+    m_unstableLayoutViewportRect = rect;
+}
+
 LayoutSize FrameView::baseLayoutViewportSize() const
 {
     return renderView() ? renderView()->size() : size();
@@ -1978,7 +1986,7 @@ LayoutRect FrameView::layoutViewportRect() const
         return m_layoutViewportOverrideRect.value();
 
     // Size of initial containing block, anchored at scroll position, in document coordinates (unchanged by scale factor).
-    return LayoutRect(m_layoutViewportOrigin, renderView() ? renderView()->size() : size());
+    return LayoutRect(m_layoutViewportOrigin, baseLayoutViewportSize());
 }
 
 // visibleContentRect is in the bounds of the scroll view content. That consists of an
@@ -2937,7 +2945,7 @@ void FrameView::adjustTiledBackingCoverage()
         enableSpeculativeTilingIfNeeded();
 
     RenderView* renderView = this->renderView();
-    if (renderView && renderView->layer()->backing())
+    if (renderView && renderView->layer() && renderView->layer()->backing())
         renderView->layer()->backing()->adjustTiledBackingCoverage();
 #if PLATFORM(IOS)
     if (LegacyTileCache* tileCache = legacyTileCache())
@@ -3335,7 +3343,7 @@ void FrameView::updateTilesForExtendedBackgroundMode(ExtendedBackgroundMode mode
     if (!backing)
         return;
 
-    TiledBacking* tiledBacking = backing->graphicsLayer()->tiledBacking();
+    TiledBacking* tiledBacking = backing->tiledBacking();
     if (!tiledBacking)
         return;
 
@@ -4380,12 +4388,12 @@ void FrameView::willPaintContents(GraphicsContext& context, const IntRect&, Pain
         if (parentView->paintBehavior() & PaintBehaviorFlattenCompositingLayers)
             m_paintBehavior |= PaintBehaviorFlattenCompositingLayers;
             
-        if (parentView->paintBehavior() & PaintBehaviorSnapshotting)
-            m_paintBehavior |= PaintBehaviorSnapshotting;
+        if (parentView->paintBehavior() & PaintBehaviorAllowAsyncImageDecoding)
+            m_paintBehavior |= PaintBehaviorAllowAsyncImageDecoding;
     }
 
     if (document->printing())
-        m_paintBehavior |= (PaintBehaviorFlattenCompositingLayers | PaintBehaviorSnapshotting);
+        m_paintBehavior = (m_paintBehavior & ~PaintBehaviorAllowAsyncImageDecoding) | PaintBehaviorFlattenCompositingLayers;
 
     paintingState.isFlatteningPaintOfRootFrame = (m_paintBehavior & PaintBehaviorFlattenCompositingLayers) && !frame().ownerElement();
     if (paintingState.isFlatteningPaintOfRootFrame)
@@ -4505,7 +4513,7 @@ void FrameView::paintContentsForSnapshot(GraphicsContext& context, const IntRect
 
     // Cache paint behavior and set a new behavior appropriate for snapshots.
     PaintBehavior oldBehavior = paintBehavior();
-    setPaintBehavior(oldBehavior | (PaintBehaviorFlattenCompositingLayers | PaintBehaviorSnapshotting));
+    setPaintBehavior((oldBehavior & ~PaintBehaviorAllowAsyncImageDecoding) | PaintBehaviorFlattenCompositingLayers);
 
     // If the snapshot should exclude selection, then we'll clear the current selection
     // in the render tree only. This will allow us to restore the selection from the DOM
@@ -4676,8 +4684,7 @@ void FrameView::forceLayoutForPagination(const FloatSize& pageSize, const FloatS
         float pageLogicalWidth = renderView->style().isHorizontalWritingMode() ? pageSize.width() : pageSize.height();
         float pageLogicalHeight = renderView->style().isHorizontalWritingMode() ? pageSize.height() : pageSize.width();
 
-        renderView->setLogicalWidth(floor(pageLogicalWidth));
-        renderView->setPageLogicalHeight(floor(pageLogicalHeight));
+        renderView->setPageLogicalSize({ floor(pageLogicalWidth), floor(pageLogicalHeight) });
         renderView->setNeedsLayoutAndPrefWidthsRecalc();
         forceLayout();
 
@@ -4695,8 +4702,7 @@ void FrameView::forceLayoutForPagination(const FloatSize& pageSize, const FloatS
             pageLogicalWidth = horizontalWritingMode ? maxPageSize.width() : maxPageSize.height();
             pageLogicalHeight = horizontalWritingMode ? maxPageSize.height() : maxPageSize.width();
 
-            renderView->setLogicalWidth(floor(pageLogicalWidth));
-            renderView->setPageLogicalHeight(floor(pageLogicalHeight));
+            renderView->setPageLogicalSize({ floor(pageLogicalWidth), floor(pageLogicalHeight) });
             renderView->setNeedsLayoutAndPrefWidthsRecalc();
             forceLayout();
 
@@ -4882,11 +4888,16 @@ IntPoint FrameView::convertFromContainingView(const IntPoint& parentPoint) const
     return parentPoint;
 }
 
+float FrameView::documentToAbsoluteScaleFactor(std::optional<float> effectiveZoom) const
+{
+    // If effectiveZoom is passed, it already factors in pageZoomFactor(). 
+    return effectiveZoom.value_or(frame().pageZoomFactor()) * frame().frameScaleFactor();
+}
+
 float FrameView::absoluteToDocumentScaleFactor(std::optional<float> effectiveZoom) const
 {
     // If effectiveZoom is passed, it already factors in pageZoomFactor(). 
-    float cssZoom = effectiveZoom.value_or(frame().pageZoomFactor()); 
-    return 1 / (cssZoom * frame().frameScaleFactor());
+    return 1 / documentToAbsoluteScaleFactor(effectiveZoom);
 }
 
 FloatRect FrameView::absoluteToDocumentRect(FloatRect rect, std::optional<float> effectiveZoom) const
@@ -4897,13 +4908,20 @@ FloatRect FrameView::absoluteToDocumentRect(FloatRect rect, std::optional<float>
 
 FloatPoint FrameView::absoluteToDocumentPoint(FloatPoint p, std::optional<float> effectiveZoom) const
 {
-    p.scale(absoluteToDocumentScaleFactor(effectiveZoom));
-    return p;
+    return p.scaled(absoluteToDocumentScaleFactor(effectiveZoom));
 }
 
 FloatSize FrameView::documentToClientOffset() const
 {
-    return frame().settings().visualViewportEnabled() ? -toFloatSize(layoutViewportRect().location()) : -toFloatSize(visibleContentRect().location());
+    FloatSize clientOrigin;
+    
+    if (frame().settings().visualViewportEnabled())
+        clientOrigin = -toFloatSize(m_unstableLayoutViewportRect ? m_unstableLayoutViewportRect.value().location() : layoutViewportRect().location()); 
+    else
+        clientOrigin = -toFloatSize(visibleContentRect().location());
+
+    // Layout and visual viewports are affected by page zoom, so we need to factor that out.
+    return clientOrigin.scaled(1 / frame().pageZoomFactor());
 }
 
 FloatRect FrameView::documentToClientRect(FloatRect rect) const
@@ -4916,6 +4934,27 @@ FloatPoint FrameView::documentToClientPoint(FloatPoint p) const
 {
     p.move(documentToClientOffset());
     return p;
+}
+
+FloatRect FrameView::layoutViewportToAbsoluteRect(FloatRect rect) const
+{
+    ASSERT(frame().settings().visualViewportEnabled());
+    rect.moveBy(layoutViewportRect().location());
+    rect.scale(frame().frameScaleFactor());
+    return rect;
+}
+
+FloatPoint FrameView::layoutViewportToAbsolutePoint(FloatPoint p) const
+{
+    ASSERT(frame().settings().visualViewportEnabled());
+    p.moveBy(layoutViewportRect().location());
+    return p.scaled(frame().frameScaleFactor());
+}
+
+FloatPoint FrameView::clientToLayoutViewportPoint(FloatPoint p) const
+{
+    ASSERT(frame().settings().visualViewportEnabled());
+    return p.scaled(frame().pageZoomFactor());
 }
 
 void FrameView::setTracksRepaints(bool trackRepaints)

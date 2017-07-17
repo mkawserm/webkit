@@ -353,10 +353,11 @@ public:
     void statisticsDidModifyDataRecordsCallback();
     void statisticsDidScanDataRecordsCallback();
     void statisticsDidRunTelemetryCallback(unsigned totalPrevalentResources, unsigned totalPrevalentResourcesWithUserInteraction, unsigned top3SubframeUnderTopFrameOrigins);
-    void statisticsFireDataModificationHandler();
-    void statisticsFireShouldPartitionCookiesHandler();
-    void statisticsFireShouldPartitionCookiesHandlerForOneDomain(JSStringRef hostName, bool value);
-    void statisticsFireTelemetryHandler();
+    void statisticsProcessStatisticsAndDataRecords();
+    void statisticsUpdateCookiePartitioning();
+    void statisticsSetShouldPartitionCookiesForHost(JSStringRef hostName, bool value);
+    void statisticsSubmitTelemetry();
+    void setStatisticsLastSeen(JSStringRef hostName, double seconds);
     void setStatisticsPrevalentResource(JSStringRef hostName, bool value);
     bool isStatisticsPrevalentResource(JSStringRef hostName);
     void setStatisticsHasHadUserInteraction(JSStringRef hostName, bool value);
@@ -371,8 +372,10 @@ public:
     void setStatisticsNotifyPagesWhenDataRecordsWereScanned(bool);
     void setStatisticsShouldClassifyResourcesBeforeDataRecordsRemoval(bool);
     void setStatisticsNotifyPagesWhenTelemetryWasCaptured(bool value);
-    void setStatisticsMinimumTimeBetweeenDataRecordsRemoval(double);
+    void setStatisticsMinimumTimeBetweenDataRecordsRemoval(double);
     void setStatisticsGrandfatheringTime(double seconds);
+    void setStatisticsMaxStatisticsEntries(unsigned);
+    void setStatisticsPruneEntriesDownTo(unsigned);
     void statisticsClearInMemoryAndPersistentStore();
     void statisticsClearInMemoryAndPersistentStoreModifiedSinceHours(unsigned hours);
     void statisticsResetToConsistentState();

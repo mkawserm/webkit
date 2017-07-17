@@ -48,6 +48,20 @@ namespace JSC { namespace DFG {
 
 namespace {
 
+NO_RETURN_DUE_TO_CRASH NEVER_INLINE void crash(const char*, int line, int)
+{
+    UNUSED_PARAM(line);
+    CRASH_WITH_SECURITY_IMPLICATION_AND_INFO(ObjectAllocationSinkingAssertionFailure, line);
+}
+
+#undef RELEASE_ASSERT
+#define RELEASE_ASSERT(assertion) do { \
+    if (!(assertion)) { \
+        WTFReportAssertionFailure(__FILE__, __LINE__, WTF_PRETTY_FUNCTION, #assertion); \
+        crash(__FILE__, __LINE__, __COUNTER__); \
+    } \
+} while (0)
+
 bool verbose = false;
 
 // In order to sink object cycles, we use a points-to analysis coupled
@@ -204,6 +218,7 @@ public:
     {
         ASSERT(hasStructures());
         m_structures.filter(structures);
+        RELEASE_ASSERT(!m_structures.isEmpty());
         return *this;
     }
 
@@ -888,7 +903,15 @@ private:
         case CheckStructure: {
             Allocation* allocation = m_heap.onlyLocalAllocation(node->child1().node());
             if (allocation && allocation->isObjectAllocation()) {
-                allocation->filterStructures(node->structureSet());
+                RegisteredStructureSet filteredStructures = allocation->structures();
+                filteredStructures.filter(node->structureSet());
+                if (filteredStructures.isEmpty()) {
+                    // FIXME: Write a test for this:
+                    // https://bugs.webkit.org/show_bug.cgi?id=174322
+                    m_heap.escape(node->child1().node());
+                    break;
+                }
+                allocation->setStructures(filteredStructures);
                 if (Node* value = heapResolve(PromotedHeapLocation(allocation->identifier(), StructurePLoc)))
                     node->convertToCheckStructureImmediate(value);
             } else
@@ -932,7 +955,7 @@ private:
                         RELEASE_ASSERT_NOT_REACHED();
                     }
                 }
-                if (hasInvalidStructures) {
+                if (hasInvalidStructures || validStructures.isEmpty()) {
                     m_heap.escape(node->child1().node());
                     break;
                 }
@@ -1906,7 +1929,7 @@ private:
         }
     }
 
-    Node* resolve(BasicBlock* block, PromotedHeapLocation location)
+    NEVER_INLINE Node* resolve(BasicBlock* block, PromotedHeapLocation location)
     {
         // If we are currently pointing to a single local allocation,
         // simply return the associated materialization.
@@ -1931,7 +1954,7 @@ private:
         return result;
     }
 
-    Node* resolve(BasicBlock* block, Node* node)
+    NEVER_INLINE Node* resolve(BasicBlock* block, Node* node)
     {
         // If we are currently pointing to a single local allocation,
         // simply return the associated materialization.
@@ -1945,7 +1968,7 @@ private:
         return node;
     }
 
-    Node* getMaterialization(BasicBlock* block, Node* identifier)
+    NEVER_INLINE Node* getMaterialization(BasicBlock* block, Node* identifier)
     {
         ASSERT(m_heap.isAllocation(identifier));
         if (!m_sinkCandidates.contains(identifier))
@@ -2168,6 +2191,7 @@ private:
                     return a->getConcurrently(uid) < b->getConcurrently(uid);
                 });
 
+            RELEASE_ASSERT(structures.size());
             PropertyOffset firstOffset = structures[0]->getConcurrently(uid);
 
             if (firstOffset == structures.last()->getConcurrently(uid)) {

@@ -97,8 +97,6 @@ enum EventThrottlingBehavior {
     boolean isPreloaded(DOMString url);
     boolean isLoadingFromMemoryCache(DOMString url);
     DOMString xhrResponseSource(XMLHttpRequest xhr);
-    sequence<DOMString> mediaResponseSources(HTMLMediaElement media);
-    sequence<DOMString> mediaResponseContentRanges(HTMLMediaElement media);
     boolean isSharingStyleSheetContents(HTMLLinkElement a, HTMLLinkElement b);
     boolean isStyleSheetLoadingSubresources(HTMLLinkElement link);
     void clearMemoryCache();
@@ -300,9 +298,7 @@ enum EventThrottlingBehavior {
     void beginSimulatedMemoryPressure();
     void endSimulatedMemoryPressure();
 
-#if defined(ENABLE_PROXIMITY_EVENTS) && ENABLE_PROXIMITY_EVENTS
-    [MayThrowException] void setDeviceProximity(DOMString eventType, unrestricted double value, unrestricted double min, unrestricted double max);
-#endif
+    [Conditional=PROXIMITY_EVENTS, MayThrowException] void setDeviceProximity(DOMString eventType, unrestricted double value, unrestricted double min, unrestricted double max);
 
     unsigned long numberOfLiveNodes();
     unsigned long numberOfLiveDocuments();
@@ -335,12 +331,10 @@ enum EventThrottlingBehavior {
 
     void setTopContentInset(unrestricted float contentInset);
 
-#if defined(ENABLE_FULLSCREEN_API) && ENABLE_FULLSCREEN_API
-    void webkitWillEnterFullScreenForElement(Element element);
-    void webkitDidEnterFullScreenForElement(Element element);
-    void webkitWillExitFullScreenForElement(Element element);
-    void webkitDidExitFullScreenForElement(Element element);
-#endif
+    [Conditional=FULLSCREEN_API] void webkitWillEnterFullScreenForElement(Element element);
+    [Conditional=FULLSCREEN_API] void webkitDidEnterFullScreenForElement(Element element);
+    [Conditional=FULLSCREEN_API] void webkitWillExitFullScreenForElement(Element element);
+    [Conditional=FULLSCREEN_API] void webkitDidExitFullScreenForElement(Element element);
 
     void setApplicationCacheOriginQuota(unsigned long long quota);
 
@@ -410,6 +404,8 @@ enum EventThrottlingBehavior {
 
     void enableAutoSizeMode(boolean enabled, long minimumWidth, long minimumHeight, long maximumWidth, long maximumHeight);
 
+    [Conditional=VIDEO] sequence<DOMString> mediaResponseSources(HTMLMediaElement media);
+    [Conditional=VIDEO] sequence<DOMString> mediaResponseContentRanges(HTMLMediaElement media);
     [Conditional=VIDEO] void simulateAudioInterruption(HTMLMediaElement element);
     [Conditional=VIDEO, MayThrowException] boolean mediaElementHasCharacteristic(HTMLMediaElement element, DOMString characteristic);
 
@@ -485,10 +481,8 @@ enum EventThrottlingBehavior {
 
     [Conditional=CONTENT_FILTERING] readonly attribute MockContentFilterSettings mockContentFilterSettings;
 
-#if defined(ENABLE_CSS_SCROLL_SNAP) && ENABLE_CSS_SCROLL_SNAP
-    [MayThrowException] DOMString scrollSnapOffsets(Element element);
-    void setPlatformMomentumScrollingPredictionEnabled(boolean enabled);
-#endif
+    [Conditional=CSS_SCROLL_SNAP, MayThrowException] DOMString scrollSnapOffsets(Element element);
+    [Conditional=CSS_SCROLL_SNAP] void setPlatformMomentumScrollingPredictionEnabled(boolean enabled);
 
     [MayThrowException] DOMString pathStringWithShrinkWrappedRects(sequence<double> rectComponents, double radius);
 
@@ -503,6 +497,7 @@ enum EventThrottlingBehavior {
 
     DOMString resourceLoadStatisticsForOrigin(DOMString domain);
     void setResourceLoadStatisticsEnabled(boolean enable);
+    void setResourceLoadStatisticsShouldThrottleObserverNotifications(boolean enable);
 
     [MayThrowException] void setCanShowModalDialogOverride(boolean allow);
 
@@ -525,9 +520,7 @@ enum EventThrottlingBehavior {
 
     sequence<DOMString> accessKeyModifiers();
 
-#if defined(WTF_PLATFORM_IOS) && WTF_PLATFORM_IOS
     void setQuickLookPassword(DOMString password);
-#endif
 
     [CallWith=Document] void setAsRunningUserScripts();
 
@@ -551,6 +544,7 @@ enum EventThrottlingBehavior {
     [Conditional=MEDIA_STREAM] void delayMediaStreamTrackSamples(MediaStreamTrack track, float delay);
     [Conditional=MEDIA_STREAM] void setMediaStreamTrackMuted(MediaStreamTrack track, boolean muted);
     [Conditional=MEDIA_STREAM] void removeMediaStreamTrack(MediaStream stream, MediaStreamTrack track);
+    [Conditional=MEDIA_STREAM] void simulateMediaStreamTrackCaptureSourceFailure(MediaStreamTrack track);
 
     DOMString audioSessionCategory();
 };

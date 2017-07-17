@@ -51,6 +51,18 @@
 #include <os/log.h>
 #endif
 
+#ifdef __cplusplus
+#include <type_traits>
+
+#if OS(WINDOWS)
+#if !COMPILER(GCC_OR_CLANG)
+extern "C" void _ReadWriteBarrier(void);
+#pragma intrinsic(_ReadWriteBarrier)
+#endif
+#include <intrin.h>
+#endif
+#endif
+
 #ifdef NDEBUG
 /* Disable ASSERT* macros in release mode. */
 #define ASSERTIONS_DISABLED_DEFAULT 1
@@ -465,5 +477,52 @@ static inline void UNREACHABLE_FOR_PLATFORM()
 #define UNREACHABLE_FOR_PLATFORM() RELEASE_ASSERT_NOT_REACHED()
 #endif
 
+#ifdef __cplusplus
+
+// The combination of line, file, function, and counter should be a unique number per call to this crash. This tricks the compiler into not coalescing calls to WTFCrashWithInfo.
+// The easiest way to fill these values per translation unit is to pass __LINE__, __FILE__, WTF_PRETTY_FUNCTION, and __COUNTER__.
+WTF_EXPORT_PRIVATE NO_RETURN_DUE_TO_CRASH NOT_TAIL_CALLED void WTFCrashWithInfo(int line, const char* file, const char* function, int counter, uint64_t reason, uint64_t misc1, uint64_t misc2, uint64_t misc3, uint64_t misc4);
+WTF_EXPORT_PRIVATE NO_RETURN_DUE_TO_CRASH NOT_TAIL_CALLED void WTFCrashWithInfo(int line, const char* file, const char* function, int counter, uint64_t reason, uint64_t misc1, uint64_t misc2, uint64_t misc3);
+WTF_EXPORT_PRIVATE NO_RETURN_DUE_TO_CRASH NOT_TAIL_CALLED void WTFCrashWithInfo(int line, const char* file, const char* function, int counter, uint64_t reason, uint64_t misc1, uint64_t misc2);
+WTF_EXPORT_PRIVATE NO_RETURN_DUE_TO_CRASH NOT_TAIL_CALLED void WTFCrashWithInfo(int line, const char* file, const char* function, int counter, uint64_t reason, uint64_t misc1);
+WTF_EXPORT_PRIVATE NO_RETURN_DUE_TO_CRASH NOT_TAIL_CALLED void WTFCrashWithInfo(int line, const char* file, const char* function, int counter, uint64_t reason);
+WTF_EXPORT_PRIVATE NO_RETURN_DUE_TO_CRASH NOT_TAIL_CALLED void WTFCrashWithInfo(int line, const char* file, const char* function, int counter);
+
+
+namespace WTF {
+inline void isIntegralType() { }
+
+template<typename T, typename... Types>
+void isIntegralType(T, Types... types)
+{
+    static_assert(std::is_integral<T>::value || std::is_enum<T>::value, "All types need to be integral bitwise_cast to integral type for logging");
+    isIntegralType(types...);
+}
+}
+
+inline void compilerFenceForCrash()
+{
+#if OS(WINDOWS) && !COMPILER(GCC_OR_CLANG)
+    _ReadWriteBarrier();
+#else
+    asm volatile("" ::: "memory");
+#endif
+}
+
+#ifndef CRASH_WITH_SECURITY_IMPLICATION_AND_INFO
+// This is useful if you are going to stuff data into registers before crashing. Like the crashWithInfo functions below...
+// GCC doesn't like the ##__VA_ARGS__ here since this macro is called from another macro so we just CRASH instead there.
+#if COMPILER(CLANG) || COMPILER(MSVC)
+#define CRASH_WITH_SECURITY_IMPLICATION_AND_INFO(...) do { \
+        WTF::isIntegralType(__VA_ARGS__); \
+        compilerFenceForCrash(); \
+        WTFCrashWithInfo(__LINE__, __FILE__, WTF_PRETTY_FUNCTION, __COUNTER__, ##__VA_ARGS__); \
+    } while (false)
+#else
+#define CRASH_WITH_SECURITY_IMPLICATION_AND_INFO(...) CRASH()
+#endif
+#endif // CRASH_WITH_SECURITY_IMPLICATION_AND_INFO
+
+#endif // __cplusplus
 
 #endif /* WTF_Assertions_h */

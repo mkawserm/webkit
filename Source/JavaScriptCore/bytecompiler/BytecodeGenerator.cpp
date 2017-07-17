@@ -1956,7 +1956,7 @@ RegisterID* BytecodeGenerator::emitLoad(RegisterID* dst, JSValue v, SourceCodeRe
 
 RegisterID* BytecodeGenerator::emitLoad(RegisterID* dst, IdentifierSet& set)
 {
-    for (ConstantIndentifierSetEntry entry : m_codeBlock->constantIdentifierSets()) {
+    for (const auto& entry : m_codeBlock->constantIdentifierSets()) {
         if (entry.first != set)
             continue;
         
@@ -4710,10 +4710,8 @@ void BytecodeGenerator::invalidateForInContextForLocal(RegisterID* localRegister
     // reassigned from its original value.
     for (size_t i = m_forInContextStack.size(); i--; ) {
         ForInContext& context = m_forInContextStack[i].get();
-        if (context.local() != localRegister)
-            continue;
-        context.invalidate();
-        break;
+        if (context.local() == localRegister)
+            context.invalidate();
     }
 }
 

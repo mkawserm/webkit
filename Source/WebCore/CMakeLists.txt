@@ -1,6 +1,10 @@
 cmake_minimum_required(VERSION 2.8.12)
+
 include(WebKitCommon)
+include(WebCoreMacros.cmake)
+
 set_property(DIRECTORY . PROPERTY FOLDER "WebCore")
+
 add_subdirectory(PAL/pal)
 
 if (PAL_LIBRARY_TYPE MATCHES STATIC)
@@ -656,7 +660,6 @@ set(WebCore_NON_SVG_IDL_FILES
     page/IntersectionObserverEntry.idl
     page/Location.idl
     page/Navigator.idl
-    page/NavigatorConcurrentHardware.idl
     page/NavigatorID.idl
     page/NavigatorLanguage.idl
     page/NavigatorOnLine.idl
@@ -1147,6 +1150,7 @@ set(WebCore_SOURCES
     bindings/js/JSDOMConvertDate.cpp
     bindings/js/JSDOMConvertNumbers.cpp
     bindings/js/JSDOMConvertStrings.cpp
+    bindings/js/JSDOMConvertWebGL.cpp
     bindings/js/JSDOMIterator.cpp
     bindings/js/JSFontFaceCustom.cpp
     bindings/js/JSFontFaceSetCustom.cpp
@@ -1156,7 +1160,6 @@ set(WebCore_SOURCES
     bindings/js/JSCommandLineAPIHostCustom.cpp
     bindings/js/JSCryptoAlgorithmBuilder.cpp
     bindings/js/JSCryptoAlgorithmDictionary.cpp
-    bindings/js/JSCryptoCustom.cpp
     bindings/js/JSCryptoKeyCustom.cpp
     bindings/js/JSCryptoKeySerializationJWK.cpp
     bindings/js/JSCryptoOperationData.cpp
@@ -1189,13 +1192,10 @@ set(WebCore_SOURCES
     bindings/js/JSEventListener.cpp
     bindings/js/JSEventTargetCustom.cpp
     bindings/js/JSExceptionBase.cpp
-    bindings/js/JSHTMLAppletElementCustom.cpp
     bindings/js/JSHTMLCanvasElementCustom.cpp
     bindings/js/JSHTMLCollectionCustom.cpp
     bindings/js/JSHTMLDocumentCustom.cpp
     bindings/js/JSHTMLElementCustom.cpp
-    bindings/js/JSHTMLEmbedElementCustom.cpp
-    bindings/js/JSHTMLObjectElementCustom.cpp
     bindings/js/JSHTMLTemplateElementCustom.cpp
     bindings/js/JSHistoryCustom.cpp
     bindings/js/JSIDBCursorCustom.cpp
@@ -1977,7 +1977,6 @@ set(WebCore_SOURCES
     loader/ResourceLoadNotifier.cpp
     loader/ResourceLoadObserver.cpp
     loader/ResourceLoadStatistics.cpp
-    loader/ResourceLoadStatisticsStore.cpp
     loader/ResourceLoader.cpp
     loader/ResourceTiming.cpp
     loader/ResourceTimingInformation.cpp
@@ -2177,6 +2176,7 @@ set(WebCore_SOURCES
     platform/EventTrackingRegions.cpp
     platform/FileChooser.cpp
     platform/FileHandle.cpp
+    platform/FileMonitor.cpp
     platform/FileStream.cpp
     platform/FileSystem.cpp
     platform/GenericTaskQueue.cpp
@@ -2515,6 +2515,7 @@ set(WebCore_SOURCES
     rendering/InlineFlowBox.cpp
     rendering/InlineIterator.cpp
     rendering/InlineTextBox.cpp
+    rendering/LayoutDisallowedScope.cpp
     rendering/LayoutRepainter.cpp
     rendering/LayoutState.cpp
     rendering/OrderIterator.cpp
@@ -3174,7 +3175,6 @@ if (ENABLE_WEBGL)
         html/canvas/OESTextureHalfFloatLinear.cpp
         html/canvas/OESVertexArrayObject.cpp
         html/canvas/WebGL2RenderingContext.cpp
-        html/canvas/WebGLAny.cpp
         html/canvas/WebGLBuffer.cpp
         html/canvas/WebGLCompressedTextureATC.cpp
         html/canvas/WebGLCompressedTexturePVRTC.cpp
@@ -3329,7 +3329,7 @@ if (ENABLE_GRAPHICS_CONTEXT_3D)
     # For platforms that want to use system-provided OpenGL (ES) / EGL headers,
     # these include directories, libraries or definitions need to be
     # added before the ANGLE directories.
-    if (USE_OPENGL)
+    if (USE_OPENGL AND NOT USE_LIBEPOXY)
         list(APPEND WebCore_SYSTEM_INCLUDE_DIRECTORIES
             ${OPENGL_INCLUDE_DIRS}
         )
@@ -3337,7 +3337,7 @@ if (ENABLE_GRAPHICS_CONTEXT_3D)
             ${OPENGL_LIBRARIES}
         )
         add_definitions(${OPENGL_DEFINITIONS})
-    elseif (USE_OPENGL_ES_2)
+    elseif (USE_OPENGL_ES_2 AND NOT USE_LIBEPOXY)
         list(APPEND WebCore_SYSTEM_INCLUDE_DIRECTORIES
             ${OPENGLES2_INCLUDE_DIRS}
         )
@@ -3347,7 +3347,7 @@ if (ENABLE_GRAPHICS_CONTEXT_3D)
         add_definitions(${OPENGLES2_DEFINITIONS})
     endif ()
 
-    if (USE_EGL)
+    if (USE_EGL AND NOT USE_LIBEPOXY)
         list(APPEND WebCore_SYSTEM_INCLUDE_DIRECTORIES
             ${EGL_INCLUDE_DIRS}
         )
@@ -3355,6 +3355,15 @@ if (ENABLE_GRAPHICS_CONTEXT_3D)
             ${EGL_LIBRARIES}
         )
         add_definitions(${EGL_DEFINITIONS})
+    endif ()
+
+    if (USE_LIBEPOXY)
+        list(APPEND WebCore_SYSTEM_INCLUDE_DIRECTORIES
+            ${LIBEPOXY_INCLUDE_DIRS}
+        )
+        list(APPEND WebCore_LIBRARIES
+            ${LIBEPOXY_LIBRARIES}
+        )
     endif ()
 
     list(APPEND WebCore_INCLUDE_DIRECTORIES
@@ -3486,36 +3495,6 @@ if (ENABLE_GRAPHICS_CONTEXT_3D)
     )
 endif ()
 
-if (ENABLE_WEB_REPLAY)
-    set(WebCore_WEB_REPLAY_INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/replay/WebInputs.json ${JAVASCRIPTCORE_DIR}/replay/JSInputs.json)
-    add_custom_command(
-        OUTPUT ${DERIVED_SOURCES_WEBCORE_DIR}/WebReplayInputs.h ${DERIVED_SOURCES_WEBCORE_DIR}/WebReplayInputs.cpp
-        MAIN_DEPENDENCY ${JAVASCRIPTCORE_DIR}/replay/scripts/CodeGeneratorReplayInputs.py
-        DEPENDS ${WebCore_WEB_REPLAY_INPUTS}
-        COMMAND ${PYTHON_EXECUTABLE} ${JAVASCRIPTCORE_DIR}/replay/scripts/CodeGeneratorReplayInputs.py --outputDir ${DERIVED_SOURCES_WEBCORE_DIR}/ --framework WebCore ${WebCore_WEB_REPLAY_INPUTS}
-        VERBATIM)
-
-    list(APPEND WebCore_SOURCES
-        inspector/InspectorReplayAgent.cpp
-
-        replay/CapturingInputCursor.cpp
-        replay/EventLoopInput.cpp
-        replay/EventLoopInputDispatcher.cpp
-        replay/MemoizedDOMResult.cpp
-        replay/ReplayController.cpp
-        replay/ReplayInputCreationMethods.cpp
-        replay/ReplayInputDispatchMethods.cpp
-        replay/ReplaySession.cpp
-        replay/ReplaySessionSegment.cpp
-        replay/ReplayingInputCursor.cpp
-        replay/SegmentedInputStorage.cpp
-        replay/SerializationMethods.cpp
-        replay/UserInputBridge.cpp
-
-        ${DERIVED_SOURCES_WEBCORE_DIR}/WebReplayInputs.cpp
-    )
-endif ()
-
 if (ENABLE_USER_MESSAGE_HANDLERS)
     list(APPEND WebCore_IDL_FILES
         page/UserMessageHandler.idl
@@ -3523,8 +3502,6 @@ if (ENABLE_USER_MESSAGE_HANDLERS)
         page/WebKitNamespace.idl
     )
     list(APPEND WebCore_SOURCES
-        bindings/js/JSUserMessageHandlersNamespaceCustom.cpp
-
         page/UserMessageHandler.cpp
         page/UserMessageHandlerDescriptor.cpp
         page/UserMessageHandlersNamespace.cpp
@@ -3750,9 +3727,11 @@ if (WebCore_USER_AGENT_SCRIPTS)
     MAKE_JS_FILE_ARRAYS(
         ${DERIVED_SOURCES_WEBCORE_DIR}/UserAgentScriptsData.cpp
         ${DERIVED_SOURCES_WEBCORE_DIR}/UserAgentScripts.h
+        WebCore
         WebCore_USER_AGENT_SCRIPTS
         WebCore_USER_AGENT_SCRIPTS_DEPENDENCIES
     )
+    list(APPEND WebCore_DERIVED_SOURCES ${DERIVED_SOURCES_WEBCORE_DIR}/UserAgentScriptsData.cpp)
 endif ()
 
 if (ENABLE_WEB_RTC)
@@ -3766,9 +3745,11 @@ if (ENABLE_WEB_RTC)
     MAKE_JS_FILE_ARRAYS(
         ${DERIVED_SOURCES_WEBCORE_DIR}/SDPProcessorScriptsData.cpp
         ${DERIVED_SOURCES_WEBCORE_DIR}/SDPProcessorScriptsData.h
+        WebCore
         WebCore_SDP_PROCESSOR_SCRIPTS
         WebCore_SDP_PROCESSOR_SCRIPTS_DEPENDENCIES
     )
+    list(APPEND WebCore_DERIVED_SOURCES ${DERIVED_SOURCES_WEBCORE_DIR}/SDPProcessorScriptsData.cpp)
 endif ()
 
 # Generate plug-in resources
@@ -4036,12 +4017,6 @@ target_link_libraries(WebCore ${WebCore_LIBRARIES})
 if (SHARED_CORE)
     set_target_properties(WebCore PROPERTIES VERSION ${PROJECT_VERSION} SOVERSION ${PROJECT_VERSION_MAJOR})
     install(TARGETS WebCore DESTINATION "${LIB_INSTALL_DIR}")
-endif ()
-
-# [ARM] Build SVGPathElement.cpp with -O2 due to a GCC bug
-# https://bugs.webkit.org/show_bug.cgi?id=145377
-if ((CMAKE_CXX_COMPILER_ID STREQUAL "GNU") AND WTF_CPU_ARM AND (CMAKE_CXX_COMPILER_VERSION VERSION_GREATER "4.9") AND (CMAKE_CXX_COMPILER_VERSION VERSION_LESS "4.9.3"))
-    set_source_files_properties(svg/SVGPathElement.cpp PROPERTIES COMPILE_FLAGS "-O2")
 endif ()
 
 if (MSVC)

@@ -382,10 +382,6 @@ public:
 
     VM& m_vm;
 
-#if ENABLE(WEB_REPLAY)
-    Ref<InputCursor> m_inputCursor;
-#endif
-
 #if ENABLE(REMOTE_INSPECTOR)
     std::unique_ptr<Inspector::JSGlobalObjectInspectorController> m_inspectorController;
     std::unique_ptr<JSGlobalObjectDebuggable> m_inspectorDebuggable;
@@ -441,10 +437,12 @@ public:
 
     TemplateRegistry m_templateRegistry;
 
-    bool m_evalEnabled;
+    bool m_evalEnabled { true };
+    bool m_webAssemblyEnabled { true };
     String m_evalDisabledErrorMessage;
+    String m_webAssemblyDisabledErrorMessage;
     RuntimeFlags m_runtimeFlags;
-    ConsoleClient* m_consoleClient;
+    ConsoleClient* m_consoleClient { nullptr };
 
     static JS_EXPORTDATA const GlobalObjectMethodTable s_globalObjectMethodTable;
     const GlobalObjectMethodTable* m_globalObjectMethodTable;
@@ -650,11 +648,6 @@ public:
     JS_EXPORT_PRIVATE void setRemoteDebuggingEnabled(bool);
     JS_EXPORT_PRIVATE bool remoteDebuggingEnabled() const;
 
-#if ENABLE(WEB_REPLAY)
-    JS_EXPORT_PRIVATE void setInputCursor(Ref<InputCursor>&&);
-    InputCursor& inputCursor() const { return m_inputCursor.get(); }
-#endif
-
 #if ENABLE(REMOTE_INSPECTOR)
     Inspector::JSGlobalObjectInspectorController& inspectorController() const { return *m_inspectorController.get(); }
     JSGlobalObjectDebuggable& inspectorDebuggable() { return *m_inspectorDebuggable.get(); }
@@ -799,11 +792,18 @@ public:
     void queueMicrotask(Ref<Microtask>&&);
 
     bool evalEnabled() const { return m_evalEnabled; }
+    bool webAssemblyEnabled() const { return m_webAssemblyEnabled; }
     const String& evalDisabledErrorMessage() const { return m_evalDisabledErrorMessage; }
+    const String& webAssemblyDisabledErrorMessage() const { return m_webAssemblyDisabledErrorMessage; }
     void setEvalEnabled(bool enabled, const String& errorMessage = String())
     {
         m_evalEnabled = enabled;
         m_evalDisabledErrorMessage = errorMessage;
+    }
+    void setWebAssemblyEnabled(bool enabled, const String& errorMessage = String())
+    {
+        m_webAssemblyEnabled = enabled;
+        m_webAssemblyDisabledErrorMessage = errorMessage;
     }
 
     void resetPrototype(VM&, JSValue prototype);

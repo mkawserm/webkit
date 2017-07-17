@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2004, 2006, 2007, 2017 Apple Inc. All rights reserved.
+ * Copyright (C) 2004-2017 Apple Inc. All rights reserved.
  * Copyright (C) 2007 Alp Toker <alp@atoker.com>
  * Copyright (C) 2010 Torch Mobile (Beijing) Co. Ltd. All rights reserved.
  *
@@ -30,6 +30,7 @@
 
 #include "Blob.h"
 #include "BlobCallback.h"
+#include "CSSCanvasValue.h"
 #include "CanvasGradient.h"
 #include "CanvasPattern.h"
 #include "CanvasRenderingContext2D.h"
@@ -45,6 +46,7 @@
 #include "ImageData.h"
 #include "InspectorInstrumentation.h"
 #include "MIMETypeRegistry.h"
+#include "RenderElement.h"
 #include "RenderHTMLCanvas.h"
 #include "RuntimeEnabledFeatures.h"
 #include "ScriptController.h"
@@ -88,8 +90,6 @@ const int defaultHeight = 150;
 // in exchange for a smaller maximum canvas size. The maximum canvas size is in device pixels.
 #if PLATFORM(IOS)
 const unsigned maxCanvasArea = 4096 * 4096;
-#elif PLATFORM(MAC) && __MAC_OS_X_VERSION_MIN_REQUIRED < 101100
-const unsigned maxCanvasArea = 8192 * 8192;
 #else
 const unsigned maxCanvasArea = 16384 * 16384;
 #endif
@@ -170,11 +170,33 @@ bool HTMLCanvasElement::canStartSelection() const
 void HTMLCanvasElement::addObserver(CanvasObserver& observer)
 {
     m_observers.add(&observer);
+
+    if (is<CSSCanvasValue::CanvasObserverProxy>(observer))
+        InspectorInstrumentation::didChangeCSSCanvasClientNodes(*this);
 }
 
 void HTMLCanvasElement::removeObserver(CanvasObserver& observer)
 {
     m_observers.remove(&observer);
+
+    if (is<CSSCanvasValue::CanvasObserverProxy>(observer))
+        InspectorInstrumentation::didChangeCSSCanvasClientNodes(*this);
+}
+
+HashSet<Element*> HTMLCanvasElement::cssCanvasClients() const
+{
+    HashSet<Element*> cssCanvasClients;
+    for (auto& observer : m_observers) {
+        if (!is<CSSCanvasValue::CanvasObserverProxy>(observer))
+            continue;
+
+        auto clients = downcast<CSSCanvasValue::CanvasObserverProxy>(observer)->ownerValue().clients();
+        for (auto& entry : clients) {
+            if (Element* element = entry.key->element())
+                cssCanvasClients.add(element);
+        }
+    }
+    return cssCanvasClients;
 }
 
 void HTMLCanvasElement::setHeight(unsigned value)
@@ -335,6 +357,8 @@ CanvasRenderingContext* HTMLCanvasElement::getContextWebGPU(const String& type)
         if (m_context) {
             // Need to make sure a RenderLayer and compositing layer get created for the Canvas
             invalidateStyleAndLayerComposition();
+
+            InspectorInstrumentation::didCreateCanvasRenderingContext(*this);
         }
     }
 
@@ -653,6 +677,10 @@ bool HTMLCanvasElement::shouldAccelerate(const IntSize& size) const
 
 size_t HTMLCanvasElement::memoryCost() const
 {
+    // memoryCost() may be invoked concurrently from a GC thread, and we need to be careful
+    // about what data we access here and how. We need to hold a lock to prevent m_imageBuffer
+    // from being changed while we access it.
+    auto locker = holdLock(m_imageBufferAssignmentLock);
     if (!m_imageBuffer)
         return 0;
     return m_imageBuffer->memoryCost();
@@ -660,6 +688,10 @@ size_t HTMLCanvasElement::memoryCost() const
 
 size_t HTMLCanvasElement::externalMemoryCost() const
 {
+    // externalMemoryCost() may be invoked concurrently from a GC thread, and we need to be careful
+    // about what data we access here and how. We need to hold a lock to prevent m_imageBuffer
+    // from being changed while we access it.
+    auto locker = holdLock(m_imageBufferAssignmentLock);
     if (!m_imageBuffer)
         return 0;
     return m_imageBuffer->externalMemoryCost();
@@ -756,11 +788,19 @@ void HTMLCanvasElement::createImageBuffer() const
 
 void HTMLCanvasElement::setImageBuffer(std::unique_ptr<ImageBuffer> buffer) const
 {
-    removeFromActivePixelMemory(memoryCost());
+    size_t previousMemoryCost = memoryCost();
+    removeFromActivePixelMemory(previousMemoryCost);
 
-    m_imageBuffer = WTFMove(buffer);
+    {
+        auto locker = holdLock(m_imageBufferAssignmentLock);
+        m_imageBuffer = WTFMove(buffer);
+    }
 
-    activePixelMemory += memoryCost();
+    size_t currentMemoryCost = memoryCost();
+    activePixelMemory += currentMemoryCost;
+
+    if (m_imageBuffer && previousMemoryCost != currentMemoryCost)
+        InspectorInstrumentation::didChangeCanvasMemory(const_cast<HTMLCanvasElement&>(*this));
 }
 
 GraphicsContext* HTMLCanvasElement::drawingContext() const

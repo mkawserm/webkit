@@ -41,7 +41,6 @@
 
 #ifndef NDEBUG
 #include <stdio.h>
-#include <wtf/ASCIICType.h>
 #include <wtf/text/CString.h>
 #endif
 
@@ -1363,7 +1362,7 @@ COMPILE_ASSERT(sizeof(StyleProperties) == sizeof(SameSizeAsStyleProperties), sty
 #ifndef NDEBUG
 void StyleProperties::showStyle()
 {
-    WTFLogAlways("%s\n", asText().ascii().data());
+    fprintf(stderr, "%s\n", asText().ascii().data());
 }
 #endif
 

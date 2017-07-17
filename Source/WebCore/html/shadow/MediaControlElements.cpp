@@ -1296,7 +1296,6 @@ void MediaControlTextTrackContainerElement::updateTextTrackRepresentation()
         mediaElement->setTextTrackRepresentation(m_textTrackRepresentation.get());
     }
 
-    hide();
     m_textTrackRepresentation->update();
     updateStyleForTextTrackRepresentation();
 }
@@ -1410,7 +1409,7 @@ RefPtr<Image> MediaControlTextTrackContainerElement::createTextTrackRepresentati
     if (!buffer)
         return nullptr;
 
-    layer->paint(buffer->context(), paintingRect, LayoutSize(), PaintBehaviorFlattenCompositingLayers | PaintBehaviorSnapshotting, nullptr, RenderLayer::PaintLayerPaintingCompositingAllPhases);
+    layer->paint(buffer->context(), paintingRect, LayoutSize(), PaintBehaviorFlattenCompositingLayers, nullptr, RenderLayer::PaintLayerPaintingCompositingAllPhases);
 
     return ImageBuffer::sinkIntoImage(WTFMove(buffer));
 }

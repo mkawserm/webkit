@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2004, 2006, 2009, 2010, 2017 Apple Inc. All rights reserved.
+ * Copyright (C) 2004-2017 Apple Inc. All rights reserved.
  * Copyright (C) 2007 Alp Toker <alp@atoker.com>
  * Copyright (C) 2010 Torch Mobile (Beijing) Co. Ltd. All rights reserved.
  *
@@ -32,6 +32,7 @@
 #include "IntSize.h"
 #include <memory>
 #include <wtf/Forward.h>
+#include <wtf/HashSet.h>
 
 #if ENABLE(WEBGL)
 #include "WebGLContextAttributes.h"
@@ -58,6 +59,8 @@ class CanvasObserver {
 public:
     virtual ~CanvasObserver() { }
 
+    virtual bool isCanvasObserverProxy() const { return false; }
+
     virtual void canvasChanged(HTMLCanvasElement&, const FloatRect& changedRect) = 0;
     virtual void canvasResized(HTMLCanvasElement&) = 0;
     virtual void canvasDestroyed(HTMLCanvasElement&) = 0;
@@ -71,6 +74,7 @@ public:
 
     void addObserver(CanvasObserver&);
     void removeObserver(CanvasObserver&);
+    HashSet<Element*> cssCanvasClients() const;
 
     unsigned width() const { return size().width(); }
     unsigned height() const { return size().height(); }
@@ -186,6 +190,8 @@ private:
     bool m_usesDisplayListDrawing { false };
     bool m_tracksDisplayListReplay { false };
 
+    mutable Lock m_imageBufferAssignmentLock;
+    
     // m_createdImageBuffer means we tried to malloc the buffer.  We didn't necessarily get it.
     mutable bool m_hasCreatedImageBuffer { false };
     mutable bool m_didClearImageBuffer { false };

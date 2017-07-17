@@ -42,7 +42,6 @@
 #import "MediaSourcePrivateAVFObjC.h"
 #import "MediaTimeAVFoundation.h"
 #import "NotImplemented.h"
-#import "SoftLinking.h"
 #import "SourceBufferPrivateClient.h"
 #import "TimeRanges.h"
 #import "VideoTrackPrivateMediaSourceAVFObjC.h"
@@ -55,6 +54,7 @@
 #import <wtf/BlockObjCExceptions.h>
 #import <wtf/HashCountedSet.h>
 #import <wtf/MainThread.h>
+#import <wtf/SoftLinking.h>
 #import <wtf/WeakPtr.h>
 #import <wtf/text/AtomicString.h>
 #import <wtf/text/CString.h>
@@ -485,10 +485,12 @@ void SourceBufferPrivateAVFObjC::didParseStreamDataAsAsset(AVAsset* asset)
     if (!m_mediaSource)
         return;
 
-    for (AVAssetTrack *track in [asset tracks]) {
-        if (!assetTrackMeetsHardwareDecodeRequirements(track, m_mediaSource->player()->mediaContentTypesRequiringHardwareSupport())) {
-            m_parsingSucceeded = false;
-            return;
+    if (m_mediaSource->player()->shouldCheckHardwareSupport()) {
+        for (AVAssetTrack *track in [asset tracks]) {
+            if (!assetTrackMeetsHardwareDecodeRequirements(track, m_mediaSource->player()->mediaContentTypesRequiringHardwareSupport())) {
+                m_parsingSucceeded = false;
+                return;
+            }
         }
     }
 

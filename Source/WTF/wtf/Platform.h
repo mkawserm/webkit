@@ -242,7 +242,8 @@
     || defined(__ARM_ARCH_7S__)
 #define WTF_ARM_ARCH_VERSION 7
 
-#elif defined(__ARM_ARCH_8__)
+#elif defined(__ARM_ARCH_8__) \
+    || defined(__ARM_ARCH_8A__)
 #define WTF_ARM_ARCH_VERSION 8
 
 /* MSVC sets _M_ARM */
@@ -518,6 +519,7 @@
 #define USE_HARFBUZZ 1
 #define USE_SOUP 1
 #define USE_WEBP 1
+#define USE_FILE_LOCK 1
 #endif
 
 #if PLATFORM(GTK)
@@ -545,6 +547,7 @@
 #define ENABLE_USER_MESSAGE_HANDLERS 1
 #define HAVE_OUT_OF_PROCESS_LAYER_HOSTING 1
 #define HAVE_DTRACE 0
+#define USE_FILE_LOCK 1
 
 #if !PLATFORM(WATCHOS) && !PLATFORM(APPLETV)
 #define ENABLE_DATA_DETECTION 1
@@ -572,12 +575,6 @@
 #define USE_PLUGIN_HOST_PROCESS 1
 #endif
 
-#if __MAC_OS_X_VERSION_MIN_REQUIRED >= 101100
-#define HAVE_NSSCROLLING_FILTERS 1
-#else
-#define HAVE_NSSCROLLING_FILTERS 0
-#endif
-
 /* OS X defines a series of platform macros for debugging. */
 /* Some of them are really annoying because they use common names (e.g. check()). */
 /* Disable those macros so that we are not limited in how we name methods and functions. */
@@ -587,13 +584,6 @@
 #endif /* PLATFORM(MAC) */
 
 #if PLATFORM(IOS)
-
-#if USE(APPLE_INTERNAL_SDK) \
-    && ((TARGET_OS_IOS && __IPHONE_OS_VERSION_MAX_ALLOWED < 100000) \
-     || (PLATFORM(APPLETV) && __TV_OS_VERSION_MAX_ALLOWED < 100000) \
-     || (PLATFORM(WATCHOS) && __WATCH_OS_VERSION_MAX_ALLOWED < 30000))
-#define USE_CFURLCONNECTION 1
-#endif
 
 #define HAVE_NETWORK_EXTENSION 1
 #define HAVE_READLINE 1
@@ -682,7 +672,7 @@
 
 #endif /* OS(DARWIN) */
 
-#if (PLATFORM(MAC) && __MAC_OS_X_VERSION_MIN_REQUIRED >= 101200) || (PLATFORM(IOS) && __IPHONE_OS_VERSION_MIN_REQUIRED >= 100000)
+#if (PLATFORM(MAC) && __MAC_OS_X_VERSION_MIN_REQUIRED >= 101200) || PLATFORM(IOS)
 #define HAVE_CFNETWORK_STORAGE_PARTITIONING 1
 #endif
 
@@ -1144,7 +1134,7 @@
 #define USE_INSERTION_UNDO_GROUPING 1
 #endif
 
-#if (PLATFORM(MAC) && __MAC_OS_X_VERSION_MIN_REQUIRED >= 101100) || PLATFORM(IOS)
+#if PLATFORM(COCOA)
 #define HAVE_TIMINGDATAOPTIONS 1
 #endif
 
@@ -1200,20 +1190,15 @@
 #define USE_MEDIATOOLBOX 1
 #endif
 
-/* While 10.10 has support for fences, it is missing some API important for our integration of them. */
-#if PLATFORM(IOS) || (PLATFORM(MAC) && __MAC_OS_X_VERSION_MIN_REQUIRED >= 101100)
-#define HAVE_COREANIMATION_FENCES 1
-#endif
-
 /* FIXME: Enable USE_OS_LOG when building with the public iOS 10 SDK once we fix <rdar://problem/27758343>. */
-#if (PLATFORM(MAC) && __MAC_OS_X_VERSION_MIN_REQUIRED >= 101200) || (PLATFORM(IOS) && __IPHONE_OS_VERSION_MIN_REQUIRED >= 100000 && USE(APPLE_INTERNAL_SDK))
+#if (PLATFORM(MAC) && __MAC_OS_X_VERSION_MIN_REQUIRED >= 101200) || (PLATFORM(IOS) && USE(APPLE_INTERNAL_SDK))
 #define USE_OS_LOG 1
 #if USE(APPLE_INTERNAL_SDK)
 #define USE_OS_STATE 1
 #endif
 #endif
 
-#if (PLATFORM(MAC) && __MAC_OS_X_VERSION_MIN_REQUIRED >= 101200) || (PLATFORM(IOS) && __IPHONE_OS_VERSION_MIN_REQUIRED >= 100000)
+#if (PLATFORM(MAC) && __MAC_OS_X_VERSION_MIN_REQUIRED >= 101200) || PLATFORM(IOS)
 #define HAVE_SEC_TRUST_SERIALIZATION 1
 #endif
 

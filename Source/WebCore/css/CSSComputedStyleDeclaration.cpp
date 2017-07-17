@@ -26,14 +26,12 @@
 #include "CSSComputedStyleDeclaration.h"
 
 #include "BasicShapeFunctions.h"
-#include "BasicShapes.h"
 #include "CSSAnimationController.h"
 #include "CSSAnimationTriggerScrollValue.h"
 #include "CSSAspectRatioValue.h"
 #include "CSSBasicShapes.h"
 #include "CSSBorderImage.h"
 #include "CSSBorderImageSliceValue.h"
-#include "CSSCustomPropertyValue.h"
 #include "CSSFontFeatureValue.h"
 #include "CSSFontStyleValue.h"
 #include "CSSFontValue.h"
@@ -52,17 +50,15 @@
 #include "CSSValuePool.h"
 #include "ComposedTreeAncestorIterator.h"
 #include "ContentData.h"
-#include "CounterContent.h"
 #include "CursorList.h"
 #include "DeprecatedCSSOMValue.h"
 #include "Document.h"
 #include "ExceptionCode.h"
+#include "FontCascade.h"
 #include "FontSelectionValueInlines.h"
 #include "FontTaggedSettings.h"
-#include "HTMLFrameOwnerElement.h"
 #include "NodeRenderStyle.h"
 #include "Pair.h"
-#include "PseudoElement.h"
 #include "Rect.h"
 #include "RenderBlock.h"
 #include "RenderBox.h"
@@ -71,14 +67,12 @@
 #include "SVGElement.h"
 #include "Settings.h"
 #include "ShapeValue.h"
-#include "StyleInheritedData.h"
 #include "StyleProperties.h"
 #include "StylePropertyShorthand.h"
 #include "StylePropertyShorthandFunctions.h"
 #include "StyleResolver.h"
 #include "StyleScope.h"
 #include "StyleScrollSnapPoints.h"
-#include "Text.h"
 #include "WebKitFontFamilyNames.h"
 #include "WillChangeData.h"
 #include <wtf/NeverDestroyed.h>
@@ -761,9 +755,9 @@ static LayoutUnit getOffsetUsedStyleRelative(RenderBox& box, CSSPropertyID prope
     return 0;
 }
 
-static LayoutUnit getOffsetUsedStyleAbsolute(RenderBlock& container, RenderBox& box, CSSPropertyID propertyID)
+static LayoutUnit getOffsetUsedStyleOutOfFlowPositioned(RenderBlock& container, RenderBox& box, CSSPropertyID propertyID)
 {
-    // For absoultely positioned boxes, the offset is how far an box's margin
+    // For out-of-flow positioned boxes, the offset is how far an box's margin
     // edge is offset below the edge of the box's containing block.
     // See http://www.w3.org/TR/CSS2/visuren.html#position-props
 
@@ -791,15 +785,17 @@ static RefPtr<CSSValue> positionOffsetValue(const RenderStyle& style, CSSPropert
         return zoomAdjustedPixelValueForLength(getOffsetComputedLength(style, propertyID), style);
 
     // We should return the "used value".
-    LayoutUnit length = 0;
     auto& box = downcast<RenderBox>(*renderer);
-    RenderBlock* containingBlock = box.containingBlock();
+    auto* containingBlock = box.containingBlock();
     if (box.isRelPositioned() || !containingBlock)
-        length = getOffsetUsedStyleRelative(box, propertyID);
-    else
-        length = getOffsetUsedStyleAbsolute(*containingBlock, box, propertyID);
-        
-    return zoomAdjustedPixelValue(length, style);
+        return zoomAdjustedPixelValue(getOffsetUsedStyleRelative(box, propertyID), style);
+    if (renderer->isOutOfFlowPositioned())
+        return zoomAdjustedPixelValue(getOffsetUsedStyleOutOfFlowPositioned(*containingBlock, box, propertyID), style);
+    // In-flow element.
+    auto offset = getOffsetComputedLength(style, propertyID);
+    if (offset.isAuto())
+        return CSSValuePool::singleton().createIdentifierValue(CSSValueAuto);
+    return zoomAdjustedPixelValueForLength(offset, style);
 }
 
 RefPtr<CSSPrimitiveValue> ComputedStyleExtractor::currentColorOrValidColor(const RenderStyle* style, const Color& color) const
@@ -1975,7 +1971,7 @@ static Ref<CSSPrimitiveValue> lineHeightFromStyle(const RenderStyle& style)
         // for how high to be in pixels does include things like minimum font size and the zoom factor.
         // On the other hand, since font-size doesn't include the zoom factor, we really can't do
         // that here either.
-        return zoomAdjustedPixelValue(static_cast<int>(length.percent() * style.fontDescription().specifiedSize()) / 100, style);
+        return zoomAdjustedPixelValue(static_cast<int>(length.percent() * style.fontDescription().computedSize()) / 100, style);
     }
     return zoomAdjustedPixelValue(floatValueForLength(length, 0), style);
 }
@@ -2384,49 +2380,6 @@ Element* ComputedStyleExtractor::styledElement()
     if (m_pseudoElementSpecifier == AFTER && (pseudoElement = m_element->afterPseudoElement()))
         return pseudoElement;
     return m_element.get();
-}
-
-static StyleSelfAlignmentData resolveLegacyJustifyItems(const StyleSelfAlignmentData& data)
-{
-    if (data.positionType() == LegacyPosition)
-        return { data.position(), OverflowAlignmentDefault };
-    return data;
-}
-
-static StyleSelfAlignmentData resolveJustifyItemsAuto(const StyleSelfAlignmentData& data, Node* parent)
-{
-    if (data.position() != ItemPositionAuto)
-        return data;
-
-    // If the inherited value of justify-items includes the 'legacy' keyword, 'auto' computes to the inherited value.
-    const auto& inheritedValue = (!parent || !parent->computedStyle()) ? RenderStyle::initialDefaultAlignment() : parent->computedStyle()->justifyItems();
-    if (inheritedValue.positionType() == LegacyPosition)
-        return inheritedValue;
-    if (inheritedValue.position() == ItemPositionAuto)
-        return resolveJustifyItemsAuto(inheritedValue, parent->parentNode());
-    return { ItemPositionNormal, OverflowAlignmentDefault };
-}
-
-static StyleSelfAlignmentData resolveJustifySelfAuto(const StyleSelfAlignmentData& data, Node* parent)
-{
-    if (data.position() != ItemPositionAuto)
-        return data;
-
-    // The 'auto' keyword computes to the computed value of justify-items on the parent or 'normal' if the box has no parent.
-    if (!parent || !parent->computedStyle())
-        return { ItemPositionNormal, OverflowAlignmentDefault };
-    return resolveLegacyJustifyItems(resolveJustifyItemsAuto(parent->computedStyle()->justifyItems(), parent->parentNode()));
-}
-
-static StyleSelfAlignmentData resolveAlignSelfAuto(const StyleSelfAlignmentData& data, Node* parent)
-{
-    if (data.position() != ItemPositionAuto)
-        return data;
-
-    // The 'auto' keyword computes to the computed value of align-items on the parent or 'normal' if the box has no parent.
-    if (!parent || !parent->computedStyle())
-        return { ItemPositionNormal, OverflowAlignmentDefault };
-    return parent->computedStyle()->alignItems();
 }
 
 static bool isImplicitlyInheritedGridOrFlexProperty(CSSPropertyID propertyID)
@@ -3018,7 +2971,7 @@ RefPtr<CSSValue> ComputedStyleExtractor::propertyValue(CSSPropertyID propertyID,
         case CSSPropertyAlignItems:
             return valueForItemPositionWithOverflowAlignment(style->alignItems());
         case CSSPropertyAlignSelf:
-            return valueForItemPositionWithOverflowAlignment(resolveAlignSelfAuto(style->alignSelf(), styledElement->parentNode()));
+            return valueForItemPositionWithOverflowAlignment(style->alignSelf());
         case CSSPropertyFlex:
             return getCSSPropertyValuesForShorthandProperties(flexShorthand());
         case CSSPropertyFlexBasis:
@@ -3036,9 +2989,9 @@ RefPtr<CSSValue> ComputedStyleExtractor::propertyValue(CSSPropertyID propertyID,
         case CSSPropertyJustifyContent:
             return valueForContentPositionAndDistributionWithOverflowAlignment(style->justifyContent(), CSSValueFlexStart);
         case CSSPropertyJustifyItems:
-            return valueForItemPositionWithOverflowAlignment(resolveJustifyItemsAuto(style->justifyItems(), styledElement->parentNode()));
+            return valueForItemPositionWithOverflowAlignment(style->justifyItems().position() == ItemPositionAuto ? RenderStyle::initialDefaultAlignment() : style->justifyItems());
         case CSSPropertyJustifySelf:
-            return valueForItemPositionWithOverflowAlignment(resolveJustifySelfAuto(style->justifySelf(), styledElement->parentNode()));
+            return valueForItemPositionWithOverflowAlignment(style->justifySelf());
         case CSSPropertyPlaceContent:
             return getCSSPropertyValuesForShorthandProperties(placeContentShorthand());
         case CSSPropertyPlaceItems:

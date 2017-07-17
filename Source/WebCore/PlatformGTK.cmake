@@ -62,7 +62,6 @@ list(APPEND WebCore_SOURCES
     page/linux/ResourceUsageOverlayLinux.cpp
     page/linux/ResourceUsageThreadLinux.cpp
 
-    platform/KillRingNone.cpp
     platform/ScrollAnimationKinetic.cpp
     platform/StaticPasteboard.cpp
     platform/UserAgentQuirks.cpp
@@ -176,7 +175,6 @@ list(APPEND WebCorePlatformGTK_SOURCES
     platform/gtk/RenderThemeGadget.cpp
     platform/gtk/RenderThemeWidget.cpp
     platform/gtk/ScrollbarThemeGtk.cpp
-    platform/gtk/SoundGtk.cpp
     platform/gtk/WidgetGtk.cpp
 
     rendering/RenderThemeGtk.cpp

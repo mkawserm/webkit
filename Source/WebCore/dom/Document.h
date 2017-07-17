@@ -463,11 +463,6 @@ public:
     String documentURI() const { return m_documentURI; }
     WEBCORE_EXPORT void setDocumentURI(const String&);
 
-#if ENABLE(WEB_REPLAY)
-    JSC::InputCursor& inputCursor();
-    void setInputCursor(Ref<JSC::InputCursor>&&);
-#endif
-
     using VisibilityState = PageVisibilityState;
     WEBCORE_EXPORT VisibilityState visibilityState() const;
     void visibilityStateChanged();
@@ -658,6 +653,7 @@ public:
     String userAgent(const URL&) const final;
 
     void disableEval(const String& errorMessage) final;
+    void disableWebAssembly(const String& errorMessage) final;
 
 #if ENABLE(INDEXED_DATABASE)
     IDBClient::IDBConnectionProxy* idbConnectionProxy() final;
@@ -1245,7 +1241,7 @@ public:
     bool inRenderTreeUpdate() const { return m_inRenderTreeUpdate; }
 
     // Return a Locale for the default locale if the argument is null or empty.
-    Locale& getCachedLocale(const AtomicString& locale = nullAtom);
+    Locale& getCachedLocale(const AtomicString& locale = nullAtom());
 
     const Document* templateDocument() const;
     Document& ensureTemplateDocument();
@@ -1693,10 +1689,6 @@ private:
     Document* m_templateDocumentHost { nullptr }; // Manually managed weakref (backpointer from m_templateDocument).
 
     Ref<CSSFontSelector> m_fontSelector;
-
-#if ENABLE(WEB_REPLAY)
-    Ref<JSC::InputCursor> m_inputCursor;
-#endif
 
     HashSet<MediaProducer*> m_audioProducers;
 

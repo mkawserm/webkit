@@ -101,6 +101,19 @@ bool DragCaretController::isContentRichlyEditable() const
     return isRichlyEditablePosition(m_position.deepEquivalent());
 }
 
+IntRect DragCaretController::caretRectInRootViewCoordinates() const
+{
+    if (!hasCaret())
+        return { };
+
+    if (auto* document = m_position.deepEquivalent().document()) {
+        if (auto* documentView = document->view())
+            return documentView->contentsToRootView(m_position.absoluteCaretBounds());
+    }
+
+    return { };
+}
+
 static inline bool shouldAlwaysUseDirectionalSelection(Frame* frame)
 {
     return !frame || frame->editor().behavior().shouldConsiderSelectionAsDirectional();
@@ -1754,11 +1767,11 @@ void FrameSelection::debugRenderer(RenderObject* renderer, bool selected) const
 {
     if (is<Element>(*renderer->node())) {
         Element& element = downcast<Element>(*renderer->node());
-        WTFLogAlways("%s%s\n", selected ? "==> " : "    ", element.localName().string().utf8().data());
+        fprintf(stderr, "%s%s\n", selected ? "==> " : "    ", element.localName().string().utf8().data());
     } else if (is<RenderText>(*renderer)) {
         RenderText& textRenderer = downcast<RenderText>(*renderer);
         if (!textRenderer.textLength() || !textRenderer.firstTextBox()) {
-            WTFLogAlways("%s#text (empty)\n", selected ? "==> " : "    ");
+            fprintf(stderr, "%s#text (empty)\n", selected ? "==> " : "    ");
             return;
         }
         
@@ -1800,17 +1813,17 @@ void FrameSelection::debugRenderer(RenderObject* renderer, bool selected) const
             
             show.replace('\n', ' ');
             show.replace('\r', ' ');
-            WTFLogAlways("==> #text : \"%s\" at offset %d\n", show.utf8().data(), pos);
-            WTFLogAlways("           ");
+            fprintf(stderr, "==> #text : \"%s\" at offset %d\n", show.utf8().data(), pos);
+            fprintf(stderr, "           ");
             for (int i = 0; i < caret; i++)
-                WTFLogAlways(" ");
-            WTFLogAlways("^\n");
+                fprintf(stderr, " ");
+            fprintf(stderr, "^\n");
         } else {
             if ((int)text.length() > max)
                 text = text.left(max - 3) + "...";
             else
                 text = text.left(max);
-            WTFLogAlways("    #text : \"%s\"\n", text.utf8().data());
+            fprintf(stderr, "    #text : \"%s\"\n", text.utf8().data());
         }
     }
 }

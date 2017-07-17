@@ -32,7 +32,6 @@
 #import "Logging.h"
 #import "MediaSelectionOption.h"
 #import "QuartzCoreSPI.h"
-#import "SoftLinking.h"
 #import "TimeRanges.h"
 #import "WebPlaybackSessionInterfaceAVKit.h"
 #import "WebPlaybackSessionModelMediaElement.h"
@@ -45,6 +44,7 @@
 #import <WebCore/HTMLVideoElement.h>
 #import <WebCore/RenderVideo.h>
 #import <WebCore/WebCoreThreadRun.h>
+#import <wtf/SoftLinking.h>
 
 SOFT_LINK_FRAMEWORK(UIKit)
 SOFT_LINK_CLASS(UIKit, UIView)
@@ -493,7 +493,7 @@ void WebVideoFullscreenControllerContext::setVideoLayerFrame(FloatRect frame)
     
     [videoFullscreenLayer setSublayerTransform:[videoFullscreenLayer transform]];
 
-    dispatch_async(dispatch_get_main_queue(), ^{
+    dispatch_async(dispatch_get_main_queue(), ^ {
         WebThreadRun([protectedThis, this, frame, videoFullscreenLayer] {
             [CATransaction begin];
             [CATransaction setDisableActions:YES];

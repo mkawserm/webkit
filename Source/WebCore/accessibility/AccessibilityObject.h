@@ -480,7 +480,9 @@ enum AccessibilityMathScriptObjectType { Subscript, Superscript };
 enum AccessibilityMathMultiscriptObjectType { PreSubscript, PreSuperscript, PostSubscript, PostSuperscript };
 
 enum AccessibilityARIACurrentState { ARIACurrentFalse, ARIACurrentTrue, ARIACurrentPage, ARIACurrentStep, ARIACurrentLocation, ARIACurrentDate, ARIACurrentTime };
-
+    
+bool nodeHasPresentationRole(Node*);
+    
 class AccessibilityObject : public RefCounted<AccessibilityObject> {
 protected:
     AccessibilityObject();
@@ -814,7 +816,7 @@ public:
     virtual URL url() const { return URL(); }
     virtual VisibleSelection selection() const { return VisibleSelection(); }
     virtual String selectedText() const { return String(); }
-    virtual const AtomicString& accessKey() const { return nullAtom; }
+    virtual const AtomicString& accessKey() const { return nullAtom(); }
     const String& actionVerb() const;
     virtual Widget* widget() const { return nullptr; }
     virtual Widget* widgetForAttachmentView() const { return nullptr; }
@@ -850,8 +852,8 @@ public:
     virtual void updateAccessibilityRole() { }
     const AccessibilityChildrenVector& children(bool updateChildrenIfNeeded = true);
     virtual void addChildren() { }
-    virtual void addChild(AccessibilityObject*) { }
-    virtual void insertChild(AccessibilityObject*, unsigned) { }
+    virtual void addChild(AccessibilityObject*);
+    virtual void insertChild(AccessibilityObject*, unsigned);
 
     virtual bool shouldIgnoreAttributeRole() const { return false; }
     
@@ -971,7 +973,7 @@ public:
     bool supportsARIALiveRegion() const;
     bool isInsideARIALiveRegion() const;
     virtual const String ariaLiveRegionStatus() const { return String(); }
-    virtual const AtomicString& ariaLiveRegionRelevant() const { return nullAtom; }
+    virtual const AtomicString& ariaLiveRegionRelevant() const { return nullAtom(); }
     virtual bool ariaLiveRegionAtomic() const { return false; }
     virtual bool isBusy() const { return false; }
     static const String defaultLiveRegionStatusForRole(AccessibilityRole);
@@ -1130,7 +1132,9 @@ protected:
     AccessibilityRole m_role;
     AccessibilityObjectInclusion m_lastKnownIsIgnoredValue;
     AccessibilityIsIgnoredFromParentData m_isIgnoredFromParentData;
-    
+    bool m_childrenDirty;
+    bool m_subtreeDirty;
+
     void setIsIgnoredFromParentData(AccessibilityIsIgnoredFromParentData& data) { m_isIgnoredFromParentData = data; }
 
     virtual bool computeAccessibilityIsIgnored() const { return true; }

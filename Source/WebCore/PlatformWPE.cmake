@@ -63,7 +63,6 @@ list(APPEND WebCore_SOURCES
     page/scrolling/coordinatedgraphics/ScrollingStateNodeCoordinatedGraphics.cpp
 
     platform/Cursor.cpp
-    platform/KillRingNone.cpp
     platform/PlatformStrategies.cpp
     platform/Theme.cpp
 
@@ -145,7 +144,6 @@ list(APPEND WebCorePlatformWPE_SOURCES
     platform/wpe/PlatformScreenWPE.cpp
     platform/wpe/RenderThemeWPE.cpp
     platform/wpe/ScrollbarThemeWPE.cpp
-    platform/wpe/SoundWPE.cpp
     platform/wpe/ThemeWPE.cpp
     platform/wpe/WidgetWPE.cpp
 )
@@ -163,7 +161,6 @@ set(WebCore_USER_AGENT_SCRIPTS_DEPENDENCIES ${WEBCORE_DIR}/platform/wpe/RenderTh
 
 list(APPEND WebCore_LIBRARIES
     ${CAIRO_LIBRARIES}
-    ${EGL_LIBRARIES}
     ${GLIB_GIO_LIBRARIES}
     ${GLIB_GMODULE_LIBRARIES}
     ${GLIB_GOBJECT_LIBRARIES}
@@ -181,7 +178,7 @@ list(APPEND WebCore_LIBRARIES
 
 list(APPEND WebCore_INCLUDE_DIRECTORIES
     ${CAIRO_INCLUDE_DIRS}
-    ${EGL_INCLUDE_DIRS}
+    ${GIO_UNIX_INCLUDE_DIRS}
     ${GLIB_INCLUDE_DIRS}
     ${GNUTLS_INCLUDE_DIRS}
     ${ICU_INCLUDE_DIRS}

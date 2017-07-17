@@ -22,7 +22,7 @@
                         r"|Source/WebCore/page/GeolocationClient.h"
                         r"|Source/WebCore/bindings/js/JSGeolocationCustom.cpp"
                         r"|Source/WebCore/platform/mock/GeolocationClientMock.(h|cpp)"
-                        r"|Source/WebKit2/WebProcess/Geolocation/",
+                        r"|Source/WebKit/WebProcess/Geolocation/",
         },
         "GStreamerGraphics": {
             "filename": r"Source/WebCore/platform/graphics/gstreamer/",
@@ -70,16 +70,16 @@
             "filename": r"Source/WebCore/page/animation/",
         },
         "GtkWebKit2PublicAPI": {
-            "filename": r"Source/WebKit2/UIProcess/API/gtk/"
-                        r"|Source/WebKit2/UIProcess/API/glib/"
-                        r"|Source/WebKit2/Shared/API/glib/"
-                        r"|Source/WebKit2/WebProcess/InjectedBundle/API/gtk/"
-                        r"|Source/WebKit2/WebProcess/InjectedBundle/API/glib/",
+            "filename": r"Source/WebKit/UIProcess/API/gtk/"
+                        r"|Source/WebKit/UIProcess/API/glib/"
+                        r"|Source/WebKit/Shared/API/glib/"
+                        r"|Source/WebKit/WebProcess/InjectedBundle/API/gtk/"
+                        r"|Source/WebKit/WebProcess/InjectedBundle/API/glib/",
         },
         "CoordinatedGraphics": {
-            "filename": r"Source/WebKit2/WebProcess/WebPage/CoordinatedGraphics/"
-                        r"|Source/WebKit2/UIProcess/CoordinatedGraphics/"
-                        r"|Source/WebKit2/Shared/CoordinatedGraphics/"
+            "filename": r"Source/WebKit/WebProcess/WebPage/CoordinatedGraphics/"
+                        r"|Source/WebKit/UIProcess/CoordinatedGraphics/"
+                        r"|Source/WebKit/Shared/CoordinatedGraphics/"
                         r"|Source/WebCore/platform/graphics/surfaces/",
         },
         "TextureMapper": {
@@ -187,10 +187,6 @@
         },
         "WebInspectorUIImages": {
             "filename": r"Source/WebInspectorUI/UserInterface/Images",
-        },
-        "WebReplayGenerator": {
-            "filename": r"Source/JavaScriptCore/replay/scripts"
-                        r"|Tools/Scripts/webkitpy/replay",
         },
         "WebSocket": {
             "filename": r"Source/WebCore/Modules/websockets"
@@ -323,7 +319,7 @@
                         r"|Source/WebCore/platform/text/BidiResolver.h",
         },
         "NetworkCache": {
-            "filename": r"Source/WebKit2/NetworkProcess/cache/",
+            "filename": r"Source/WebKit/NetworkProcess/cache/",
         },
         "WebCryptoAPI": {
             "filename": r"Source/WebCore/crypto/"
@@ -393,7 +389,6 @@
         "WebInspectorAPI": [ "joepeck@webkit.org" ],
         "WebInspectorGenerator": [ "bburg@apple.com", "joepeck@webkit.org" ],
         "WebInspectorUIImages": [ "agomez@igalia.com" ],
-        "WebReplayGenerator": [ "bburg@apple.com" ],
         "JSBuiltinsGenerator": [ "bburg@apple.com" ],
         "WebKitGTKTranslations": [ "gns@gnome.org", "berto@igalia.com", "cgarcia@igalia.com", "mcatanzaro@igalia.com" ],
         "WebSocket": [ "yutak@chromium.org", "toyoshim+watchlist@chromium.org" ],
@@ -409,7 +404,6 @@
         "ANGLE": [ "Note that there are important steps to take when updating ANGLE. "
                    "See http://trac.webkit.org/wiki/UpdatingANGLE", ],
         "WebInspectorGenerator": [ "This patch modifies the inspector protocol generator. Please ensure that you have rebaselined any generator test results (i.e., by running `Tools/Scripts/run-inspector-generator-tests --reset-results`)" ],
-        "WebReplayGenerator": [ "This patch modifies the WEB_REPLAY inputs generator. Please ensure that you have rebaselined any generator test results (i.e., by running `Tools/Scripts/run-input-generator-tests --reset-results`)" ],
         "JSBuiltinsGenerator": [ "This patch modifies the JS builtins code generator. Please ensure that you have rebaselined any generator test results (i.e., by running `Tools/Scripts/run-builtins-generator-tests --reset-results`)" ],
         "WasmJSON": [ "This patch modifies one of the wasm.json files. Please ensure that any changes in one have been mirrored to the other. You can find the wasm.json files at \"Source/JavaScriptCore/wasm/wasm.json\" and \"JSTests/wasm/wasm.json\"." ],
     },

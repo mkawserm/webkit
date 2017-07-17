@@ -1828,6 +1828,16 @@ FloatRect Range::absoluteBoundingRect() const
 {
     return boundingRect(CoordinateSpace::Absolute);
 }
+    
+TextStream& operator<<(TextStream& ts, const RangeBoundaryPoint& r)
+{
+    return ts << r.toPosition();
+}
+    
+TextStream& operator<<(TextStream& ts, const Range& r)
+{
+    return ts << "Range: " << "start: " << r.startPosition() << " end: " << r.endPosition();
+}
 
 } // namespace WebCore
 
@@ -1837,7 +1847,7 @@ void showTree(const WebCore::Range* range)
 {
     if (range && range->boundaryPointsValid()) {
         range->startContainer().showTreeAndMark(&range->startContainer(), "S", &range->endContainer(), "E");
-        WTFLogAlways("start offset: %d, end offset: %d\n", range->startOffset(), range->endOffset());
+        fprintf(stderr, "start offset: %d, end offset: %d\n", range->startOffset(), range->endOffset());
     }
 }
 

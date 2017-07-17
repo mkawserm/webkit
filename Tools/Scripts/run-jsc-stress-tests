@@ -859,7 +859,7 @@ def runFTLNoCJIT(*optionalTestSpecificOptions)
 end
 
 def runFTLNoCJITB3O1(*optionalTestSpecificOptions)
-    run("ftl-no-cjit-b3o1", *(FTL_OPTIONS + NO_CJIT_OPTIONS + B3O1_OPTIONS + optionalTestSpecificOptions))
+    run("ftl-no-cjit-b3o1", "--useArrayAllocationProfiling=false", *(FTL_OPTIONS + NO_CJIT_OPTIONS + B3O1_OPTIONS + optionalTestSpecificOptions))
 end
 
 def runFTLNoCJITValidate(*optionalTestSpecificOptions)
@@ -888,6 +888,11 @@ end
 
 def runFTLEager(*optionalTestSpecificOptions)
     run("ftl-eager", "--airForceBriggsAllocator=true", *(FTL_OPTIONS + EAGER_OPTIONS + COLLECT_CONTINUOUSLY_OPTIONS + optionalTestSpecificOptions))
+end
+
+def runFTLEagerWatchdog(*optionalTestSpecificOptions)
+    timeout = rand(100)
+    run("ftl-eager-watchdog-#{timeout}", "--watchdog=#{timeout}", "--watchdog-exception-ok", *(FTL_OPTIONS + EAGER_OPTIONS + COLLECT_CONTINUOUSLY_OPTIONS + optionalTestSpecificOptions))
 end
 
 def runFTLEagerNoCJITValidate(*optionalTestSpecificOptions)
@@ -1459,8 +1464,6 @@ def runMozillaTest(kind, mode, extraFiles, *options)
     when :negative
         errorHandler = mozillaExit3ErrorHandler
     when :fail
-        errorHandler = mozillaFailErrorHandler
-    when :failDueToOutdatedOrBadTest
         errorHandler = mozillaFailErrorHandler
     when :skip
         return

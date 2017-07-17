@@ -85,11 +85,6 @@ Bug(GTK) media/unsupported-rtsp.html [ WontFix Skip ]
 # ENABLE(DRAGGABLE_REGION) is disabled
 Bug(GTK) fast/css/draggable-region-parser.html [ Failure ]
 
-# X-Content-Type-Options (ENABLE_NOSNIFF) is not enabled.
-webkit.org/b/71851 http/tests/security/contentTypeOptions [ Skip ]
-imported/w3c/web-platform-tests/fetch/nosniff [ Skip ]
-
-
 # Accelerated overflow scrolling (ENABLE_ACCELERATED_OVERFLOW_SCROLLING) is not enabled.
 Bug(GTK) fast/repaint/overflow-scroll-touch-repaint.html [ Skip ]
 
@@ -468,7 +463,6 @@ webkit.org/b/169918 compositing/regions/z-index.html [ ImageOnlyFailure ]
 webkit.org/b/169918 compositing/text-on-scaled-layer.html [ ImageOnlyFailure ]
 webkit.org/b/169918 compositing/text-on-scaled-surface.html [ ImageOnlyFailure ]
 webkit.org/b/169918 compositing/transitions/transform-on-large-layer.html [ ImageOnlyFailure ]
-webkit.org/b/169918 compositing/video/poster.html [ ImageOnlyFailure ]
 webkit.org/b/169918 compositing/video/video-clip-change-src.html [ ImageOnlyFailure ]
 webkit.org/b/169918 compositing/reflections/compositing-change-inside-reflection.html [ Missing Failure ]
 webkit.org/b/169918 compositing/reflections/deeply-nested-reflections.html [ Missing Failure ]
@@ -594,6 +588,9 @@ webkit.org/b/166536 fast/canvas/webgl/webgl2-context-creation.html [ Skip ]
 webkit.org/b/166536 fast/canvas/webgl/webgl2-runtime-flag.html [ Skip ]
 webkit.org/b/166536 fast/canvas/webgl/webgl2-texStorage.html [ Skip ]
 webkit.org/b/166536 fast/canvas/webgl/webgl2-texture-upload-enums.html [ Skip ]
+webkit.org/b/166536 inspector/canvas/create-context-webgl2.html [ Skip ]
+webkit.org/b/166536 inspector/canvas/requestContent-webgl2.html [ Skip ]
+webkit.org/b/166536 inspector/canvas/resolveCanvasContext-webgl2.html [ Skip ]
 
 # These tests reference specific fonts on Mac port.
 Bug(GTK) fast/text/font-weights.html [ WontFix ]
@@ -623,32 +620,36 @@ webrtc [ Pass ]
 # GTK uses OWR instead of libwebrtc
 webrtc/libwebrtc [ Skip ]
 # Some WebRTC features like datachannel are still not implemented
+webrtc/audio-replace-track.html [ Failure ]
+webrtc/captureCanvas-webrtc.html [ Failure ]
+webrtc/clone-audio-track.html [ Failure ]
+webrtc/closing-peerconnection.html [ Timeout ]
+webrtc/connection-state.html [ Failure ]
 webrtc/datachannel [ Skip ]
+webrtc/ephemeral-certificates-and-cnames.html [ Failure ]
+webrtc/multi-video.html [ Failure ]
 webrtc/no-port-zero-in-upd-candidates.html [ Timeout ]
-webrtc/video-disabled-black.html [ Failure ]
-webrtc/video.html [ Failure ]
-webrtc/peer-connection-audio-mute.html [ Failure ]
 webrtc/peer-connection-audio-mute2.html [ Crash Failure ]
-webrtc/peer-connection-remote-audio-mute.html [ Failure ]
+webrtc/peer-connection-audio-mute.html [ Failure ]
+webrtc/peer-connection-audio-unmute.html [ Failure ]
 webrtc/peer-connection-remote-audio-mute2.html [ Crash Failure ]
+webrtc/peer-connection-remote-audio-mute.html [ Failure ]
+webrtc/peer-connection-track-end.html [ Failure ]
+webrtc/video-addTrack.html [ Crash ]
+webrtc/video-disabled-black.html [ Failure ]
+webrtc/video-getParameters.html [ Failure ]
+webrtc/video.html [ Failure ]
+webrtc/video-mediastreamtrack-stats.html [ Failure ]
 webrtc/video-mute.html [ Failure Timeout ]
 webrtc/video-remote-mute.html [ Failure ]
-webrtc/video-with-receiver.html [ Failure ]
-webrtc/connection-state.html [ Failure ]
-webrtc/video-stats.html [ Failure ]
-webrtc/audio-replace-track.html [ Failure ]
-webrtc/video-mediastreamtrack-stats.html [ Failure ]
-webrtc/video-replace-track-to-null.html [ Failure ]
+webrtc/video-replace-muted-track.html [ Failure ]
 webrtc/video-replace-track.html [ Failure ]
-webrtc/video-getParameters.html [ Failure ]
-webrtc/multi-video.html [ Failure ]
-webrtc/video-with-data-channel.html [ Failure ]
-webrtc/ephemeral-certificates-and-cnames.html [ Failure ]
-webrtc/video-addTrack.html [ Crash ]
-webrtc/closing-peerconnection.html [ Timeout ]
-webrtc/peer-connection-audio-unmute.html [ Failure ]
-webrtc/video-unmute.html [ Failure ]
+webrtc/video-replace-track-to-null.html [ Failure ]
 webrtc/video-rotation.html [ Failure ]
+webrtc/video-stats.html [ Failure ]
+webrtc/video-unmute.html [ Failure Timeout ]
+webrtc/video-with-data-channel.html [ Failure ]
+webrtc/video-with-receiver.html [ Failure ]
 imported/w3c/web-platform-tests/webrtc/RTCPeerConnection-addIceCandidate.html [ Failure ]
 imported/w3c/web-platform-tests/webrtc/RTCPeerConnection-createDataChannel.html [ Failure ]
 imported/w3c/web-platform-tests/webrtc/RTCPeerConnection-setRemoteDescription.html [ Failure ]
@@ -660,6 +661,11 @@ imported/w3c/web-platform-tests/webrtc/no-media-call.html [ Failure ]
 imported/w3c/web-platform-tests/webrtc/getstats.html [ Failure ]
 imported/w3c/web-platform-tests/webrtc/promises-call.html [ Failure ]
 imported/w3c/web-platform-tests/webrtc/rtcpeerconnection/setRemoteDescription.html [ Failure ]
+http/tests/webrtc/filtering-ice-candidate-cross-origin-frame.html [ Timeout ]
+http/tests/webrtc/filtering-ice-candidate-same-origin-frame.html [ Timeout ]
+http/tests/webrtc/filtering-ice-candidate-same-origin-frame2.html [ Timeout ]
+webrtc/filtering-ice-candidate-after-reload.html [ Timeout ]
+webrtc/ice-candidate-sdpMLineIndex.html [ Timeout ]
 http/tests/media/media-stream/getusermedia-with-canvas.html [ Timeout ]
 webkit.org/b/169110 webrtc/audio-peer-connection-webaudio.html [ Failure Timeout ]
 webkit.org/b/173456 imported/w3c/web-platform-tests/webrtc/RTCPeerConnection-createOffer.html [ Crash ]
@@ -681,6 +687,7 @@ webkit.org/b/79203 fast/mediastream/RTCPeerConnection-remotely-assigned-transcei
 webkit.org/b/79203 fast/mediastream/RTCPeerConnection-setLocalDescription-offer.html [ Failure ]
 webkit.org/b/79203 fast/mediastream/RTCPeerConnection-setRemoteDescription-offer.html [ Failure ]
 webkit.org/b/79203 fast/mediastream/RTCRtpSender-replaceTrack.html [ Failure ]
+webkit.org/b/79203 fast/mediastream/RTCPeerConnection-addIceCandidate.html [ Failure Pass ]
 webkit.org/b/79203 fast/mediastream/RTCPeerConnection-closed-state.html [ Crash ]
 webkit.org/b/79203 webaudio/mediastreamaudiosourcenode.html [ Failure ]
 webkit.org/b/151344 fast/mediastream/MediaStream-add-ended-tracks.html [ Timeout ]
@@ -752,69 +759,30 @@ webkit.org/b/133122 crypto/subtle/aes-cfb-import-key-wrap-jwk-key.html [ Skip ]
 webkit.org/b/133122 crypto/subtle/aes-cfb-import-key-wrap-raw-key.html [ Skip ]
 webkit.org/b/133122 crypto/subtle/aes-cfb-import-raw-key.html [ Skip ]
 webkit.org/b/133122 crypto/subtle/ecdh-derive-bits-malformed-parametrs.html [ Skip ]
-webkit.org/b/133122 crypto/subtle/ecdh-generate-export-key-pkcs8-p256.html [ Skip ]
-webkit.org/b/133122 crypto/subtle/ecdh-generate-export-key-pkcs8-p384.html [ Skip ]
-webkit.org/b/133122 crypto/subtle/ecdh-generate-export-key-spki-p256.html [ Skip ]
-webkit.org/b/133122 crypto/subtle/ecdh-generate-export-key-spki-p384.html [ Skip ]
 webkit.org/b/133122 crypto/subtle/ecdh-import-pkcs8-key-p256.html [ Skip ]
 webkit.org/b/133122 crypto/subtle/ecdh-import-pkcs8-key-p384.html [ Skip ]
-webkit.org/b/133122 crypto/subtle/ecdsa-generate-export-key-pkcs8.html [ Skip ]
-webkit.org/b/133122 crypto/subtle/ecdsa-generate-export-key-spki.html [ Skip ]
 webkit.org/b/133122 crypto/subtle/ecdsa-import-pkcs8-key.html [ Skip ]
-webkit.org/b/133122 crypto/subtle/ec-import-jwk-key-export-pkcs8-key.html [ Skip ]
-webkit.org/b/133122 crypto/subtle/ec-import-jwk-key-export-spki-key.html [ Skip ]
-webkit.org/b/133122 crypto/subtle/ec-import-raw-key-export-spki-key.html [ Skip ]
 webkit.org/b/133122 crypto/subtle/ec-import-pkcs8-key-export-jwk-key.html [ Skip ]
 webkit.org/b/133122 crypto/subtle/ec-import-pkcs8-key-export-pkcs8-key-p256.html [ Skip ]
 webkit.org/b/133122 crypto/subtle/ec-import-pkcs8-key-export-pkcs8-key-p384.html [ Skip ]
-webkit.org/b/133122 crypto/subtle/ec-import-spki-key-export-spki-key-p256.html [ Skip ]
-webkit.org/b/133122 crypto/subtle/ec-import-spki-key-export-spki-key-p384.html [ Skip ]
 webkit.org/b/133122 crypto/subtle/rsa-export-key-malformed-parameters.html [ Skip ]
-webkit.org/b/133122 crypto/subtle/rsa-import-jwk-key-export-pkcs8-key.html [ Skip ]
-webkit.org/b/133122 crypto/subtle/rsa-import-jwk-key-export-spki-key.html [ Skip ]
-webkit.org/b/133122 crypto/subtle/rsa-import-pkcs8-key-export-jwk-key.html [ Skip ]
 webkit.org/b/133122 crypto/subtle/rsa-import-pkcs8-key-export-pkcs8-key.html [ Skip ]
-webkit.org/b/133122 crypto/subtle/rsa-import-spki-key-export-jwk-key.html [ Skip ]
 webkit.org/b/133122 crypto/subtle/rsa-import-spki-key-export-spki-key.html [ Skip ]
-webkit.org/b/133122 crypto/subtle/rsa-import-spki-small-key.html [ Skip ]
 webkit.org/b/133122 crypto/subtle/rsa-indexeddb-non-exportable-private.html [ Skip ]
 webkit.org/b/133122 crypto/subtle/rsa-indexeddb-non-exportable.html [ Skip ]
 webkit.org/b/133122 crypto/subtle/rsa-indexeddb-private.html [ Skip ]
 webkit.org/b/133122 crypto/subtle/rsa-indexeddb.html [ Skip ]
-webkit.org/b/133122 crypto/subtle/rsa-oaep-generate-export-key-pkcs8.html [ Skip ]
-webkit.org/b/133122 crypto/subtle/rsa-oaep-generate-export-key-spki.html [ Skip ]
-webkit.org/b/133122 crypto/subtle/rsa-oaep-import-pkcs8-key.html [ Skip ]
-webkit.org/b/133122 crypto/subtle/rsa-oaep-import-spki-key-empty-usages.html [ Skip ]
-webkit.org/b/133122 crypto/subtle/rsa-oaep-import-spki-key.html [ Skip ]
-webkit.org/b/133122 crypto/subtle/rsa-pss-generate-export-key-pkcs8.html [ Skip ]
-webkit.org/b/133122 crypto/subtle/rsa-pss-generate-export-key-spki.html [ Skip ]
-webkit.org/b/133122 crypto/subtle/rsaes-pkcs1-v1_5-generate-export-key-pkcs8.html [ Skip ]
-webkit.org/b/133122 crypto/subtle/rsaes-pkcs1-v1_5-generate-export-key-spki.html [ Skip ]
-webkit.org/b/133122 crypto/subtle/rsaes-pkcs1-v1_5-import-pkcs8-key.html [ Skip ]
-webkit.org/b/133122 crypto/subtle/rsaes-pkcs1-v1_5-import-spki-key-empty-usages.html [ Skip ]
-webkit.org/b/133122 crypto/subtle/rsaes-pkcs1-v1_5-import-spki-key.html [ Skip ]
-webkit.org/b/133122 crypto/subtle/rsassa-pkcs1-v1_5-generate-export-key-pkcs8.html [ Skip ]
-webkit.org/b/133122 crypto/subtle/rsassa-pkcs1-v1_5-generate-export-key-spki.html [ Skip ]
-webkit.org/b/133122 crypto/subtle/rsassa-pkcs1-v1_5-import-pkcs8-key.html [ Skip ]
-webkit.org/b/133122 crypto/subtle/rsassa-pkcs1-v1_5-import-spki-key-empty-usages.html [ Skip ]
-webkit.org/b/133122 crypto/subtle/rsassa-pkcs1-v1_5-import-spki-key.html [ Skip ]
 webkit.org/b/133122 crypto/workers/subtle/aes-cfb-import-key-decrypt.html [ Skip ]
 webkit.org/b/133122 crypto/workers/subtle/aes-cfb-import-key-encrypt.html [ Skip ]
 webkit.org/b/133122 crypto/workers/subtle/aes-cfb-import-key-unwrap-key.html [ Skip ]
 webkit.org/b/133122 crypto/workers/subtle/aes-cfb-import-key-wrap-key.html [ Skip ]
 webkit.org/b/133122 crypto/workers/subtle/aes-postMessage-worker.html [ Skip ]
-webkit.org/b/133122 crypto/workers/subtle/ec-generate-export-pkcs8-key.html [ Skip ]
-webkit.org/b/133122 crypto/workers/subtle/ec-generate-export-spki-key.html [ Skip ]
 webkit.org/b/133122 crypto/workers/subtle/ec-import-pkcs8-key.html [ Skip ]
 webkit.org/b/133122 crypto/workers/subtle/ec-postMessage-worker.html [ Skip ]
 webkit.org/b/133122 crypto/workers/subtle/hmac-postMessage-worker.html [ Skip ]
 webkit.org/b/133122 crypto/workers/subtle/hrsa-postMessage-worker.html [ Skip ]
 webkit.org/b/133122 crypto/workers/subtle/multiple-postMessage-worker.html [ Skip ]
 webkit.org/b/133122 crypto/workers/subtle/raw-postMessage-worker.html [ Skip ]
-webkit.org/b/133122 crypto/workers/subtle/rsa-export-pkcs8-key.html [ Skip ]
-webkit.org/b/133122 crypto/workers/subtle/rsa-export-spki-key.html [ Skip ]
-webkit.org/b/133122 crypto/workers/subtle/rsa-import-pkcs8-key.html [ Skip ]
-webkit.org/b/133122 crypto/workers/subtle/rsa-import-spki-key.html [ Skip ]
 webkit.org/b/133122 crypto/workers/subtle/rsa-postMessage-worker.html [ Skip ]
 webkit.org/b/133122 crypto/workers/subtle/rsa-pss-import-key-sign.html [ Skip ]
 webkit.org/b/133122 crypto/workers/subtle/rsa-pss-import-key-verify.html [ Skip ]
@@ -1141,7 +1109,6 @@ webkit.org/b/154390 [ Release ] http/tests/media/hls/hls-audio-tracks-locale-sel
 webkit.org/b/154390 [ Release ] http/tests/media/hls/hls-video-resize.html [ Timeout Failure ]
 webkit.org/b/154390 [ Release ] http/tests/media/hls/hls-audio-tracks.html [ Timeout Failure ]
 webkit.org/b/154390 [ Release ] http/tests/media/hls/hls-audio-tracks-has-audio.html [ Timeout Failure ]
-webkit.org/b/154390 [ Release ] http/tests/media/hls/video-cookie.html [ Failure ]
 webkit.org/b/154390 http/tests/security/local-video-source-from-remote.html [ Timeout Pass ]
 
 webkit.org/b/155505 http/tests/security/contentSecurityPolicy/userAgentShadowDOM/allow-audio.html [ Skip ]
@@ -1259,6 +1226,8 @@ fast/animation/request-animation-frame-throttling-lowPowerMode.html [ Failure ]
 
 # WebGPU is not enabled on GTK+.
 fast/canvas/webgpu [ Skip ]
+inspector/canvas/create-context-webgpu.html [ Skip ]
+inspector/canvas/resolveCanvasContext-webgpu.html [ Skip ]
 
 # We don't support APPLE_PAY.
 http/tests/ssl/applepay [ Skip ]
@@ -1345,9 +1314,6 @@ webkit.org/b/131546 media/track/track-in-band.html [ Crash Timeout Failure ]
 
 webkit.org/b/163782 media/video-played-ranges-1.html [ Crash Pass ]
 
-webkit.org/b/168171 http/tests/loading/resourceLoadStatistics [ Crash ]
-webkit.org/b/168171 http/tests/loading/resourceLoadStatistics/grandfathering.html [ Timeout ]
-
 webkit.org/b/167576 imported/w3c/IndexedDB-private-browsing/idbcursor_iterating.html [ Crash Timeout ]
 webkit.org/b/167576 imported/w3c/IndexedDB-private-browsing/idbcursor_iterating_index.html [ Crash Timeout ]
 webkit.org/b/167576 storage/indexeddb/modern/index-3-private.html [ Crash ]
@@ -1363,6 +1329,8 @@ webkit.org/b/172951 editing/inserting/insert-table-in-paragraph-crash.html [ Cra
 webkit.org/b/172952 fast/frames/sandboxed-iframe-navigation-top-denied.html [ Crash ]
 
 webkit.org/b/172955 media/video-preload.html [ Crash Pass ]
+
+webkit.org/b/173916 webaudio/silent-audio-interrupted-in-background.html [ Skip ]
 
 #////////////////////////////////////////////////////////////////////////////////////////
 # End of Crashing tests
@@ -1920,6 +1888,10 @@ webkit.org/b/173412 fast/scrolling/overflow-scrollable-after-back.html [ Pass Fa
 webkit.org/b/168373 media/video-multiple-concurrent-playback.html [ Failure Crash ]
 webkit.org/b/168373 media/video-seek-past-end-paused.html [ Failure Pass ]
 
+webkit.org/b/174353 media/video-restricted-invisible-autoplay-not-allowed.html [ Crash Pass ]
+
+webkit.org/b/174354 imported/w3c/IndexedDB-private-browsing/idbfactory_open.html [ Crash Pass ]
+
 #////////////////////////////////////////////////////////////////////////////////////////
 # End of Flaky tests
 #////////////////////////////////////////////////////////////////////////////////////////
@@ -2248,6 +2220,22 @@ webkit.org/b/169211 fast/parser/adoption-agency-unload-iframe-4.html [ Timeout ]
 webkit.org/b/172284 svg/animations/animated-svg-image-outside-viewport-paused.html [ Timeout ]
 
 webkit.org/b/172816 media/media-source/media-source-paint-to-canvas.html [ Timeout ]
+
+webkit.org/b/168171 http/tests/loading/resourceLoadStatistics [ Timeout Failure ]
+
+webkit.org/b/174240 svg/dom/SVGScriptElement/script-change-externalResourcesRequired-while-loading.svg [ Timeout ]
+
+webkit.org/b/174241 media/video-inactive-playback.html [ Timeout ]
+
+webkit.org/b/174242 media/media-fullscreen-pause-inline.html [ Timeout ]
+
+webkit.org/b/174243 fast/images/low-memory-decode.html [ Timeout ]
+
+webkit.org/b/174459 fast/images/async-image-background-image-repeated.html [ Timeout ]
+webkit.org/b/174459 fast/images/async-image-background-image.html [ Timeout ]
+webkit.org/b/174459 fast/images/async-image-body-background-image.html [ Timeout ]
+webkit.org/b/174459 fast/images/async-image-multiple-clients-repaint.html [ Timeout ]
+webkit.org/b/174459 fast/images/sprite-sheet-image-draw.html [ Timeout ]
 
 #////////////////////////////////////////////////////////////////////////////////////////
 # End of Tests timing out
@@ -3215,11 +3203,10 @@ webkit.org/b/163512 media/media-controls-accessibility.html [ Failure ]
 webkit.org/b/163521 media/tab-focus-inside-media-elements.html [ Failure ]
 webkit.org/b/163523 media/track/track-manual-mode.html [ Failure ]
 webkit.org/b/163524 media/track/video-track-alternate-groups.html [ Failure ]
-webkit.org/b/163525 media/video-background-tab-playback.html [ Failure ]
+webkit.org/b/163525 media/video-background-tab-playback.html [ Failure Pass Crash Timeout ]
 webkit.org/b/163526 media/video-controls-drop-and-restore-timeline.html [ Failure ]
 webkit.org/b/163527 media/video-controls-show-on-kb-or-ax-event.html [ Failure ]
 webkit.org/b/163529 media/video-playback-restriction-play-before-load.html [ Failure ]
-webkit.org/b/163530 media/video-restricted-no-preload-metadata.html [ Failure ]
 webkit.org/b/163531 media/video-volume-slider-drag.html [ Failure ]
 
 webkit.org/b/163823 media/audio-playback-restriction-autoplay.html [ Failure ]
@@ -3389,6 +3376,7 @@ webkit.org/b/172270 fast/text/web-font-load-fallback-during-loading-2.html [ Ima
 webkit.org/b/172270 fast/text/web-font-load-fallback-during-loading.html [ ImageOnlyFailure ]
 
 webkit.org/b/172271 fast/text/softbank-emoji.html [ Failure ]
+webkit.org/b/172271 fast/text/system-font-fallback-emoji.html [ Failure ]
 webkit.org/b/172271 fast/text/tatechuyoko.html [ Failure ]
 webkit.org/b/172271 fast/text/emoji-overlap.html [ ImageOnlyFailure ]
 webkit.org/b/172271 fast/text/multiple-codeunit-vertical-upright.html [ ImageOnlyFailure ]
@@ -3442,6 +3430,13 @@ webkit.org/b/173413 imported/w3c/web-platform-tests/html/semantics/forms/textfie
 webkit.org/b/143702 media/progress-events-generated-correctly.html [ Failure ]
 
 webkit.org/b/173413 imported/w3c/web-platform-tests/html/webappapis/system-state-and-capabilities/the-navigator-object/navigator-pluginarray.html [ Failure ]
+
+webkit.org/b/174460 fast/canvas/canvas-blend-image.html [ Failure ]
+webkit.org/b/174460 fast/canvas/canvas-blend-solid.html [ Failure ]
+
+webkit.org/b/174461 inspector/canvas/memory.html [ Failure ]
+webkit.org/b/174461 inspector/canvas/requestContent-2d.html [ Failure ]
+webkit.org/b/174461 inspector/canvas/requestContent-webgl.html [ Failure ]
 
 #////////////////////////////////////////////////////////////////////////////////////////
 # End of non-crashing, non-flaky tests failing
@@ -3521,9 +3516,6 @@ fast/text/emoji-gender.html [ Pass ]
 #////////////////////////////////////////////////////////////////////////////////////////
 
 webkit.org/b/160119 accessibility/media-element.html [ Timeout Crash Pass Failure ]
-
-webkit.org/b/160119 editing/input/caret-at-the-edge-of-contenteditable.html [ Failure ]
-webkit.org/b/160119 editing/input/reveal-caret-of-multiline-contenteditable.html [ Failure ]
 
 # Note that caret-at-bidi-boundary was previously marked Slow before threaded
 # compositor introduced timeouts.

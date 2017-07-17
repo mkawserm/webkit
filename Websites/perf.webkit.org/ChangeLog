@@ -1,3 +1,172 @@
+2017-07-11  Ryosuke Niwa  <rniwa@webkit.org>
+
+        Another build fix.
+
+        * public/v3/components/chart-pane-base.js:
+        (ChartPaneBase.prototype._updateCommitLogViewer):
+
+2017-07-11  Ryosuke Niwa  <rniwa@webkit.org>
+
+        Build fix. It looks like the code here is racy.
+
+        * public/v3/components/chart-pane-base.js:
+        (ChartPaneBase.prototype.configure):
+        (ChartPaneBase.prototype.setOpenRepository):
+
+2017-07-11  Ryosuke Niwa  <rniwa@webkit.org>
+
+        Show the roots built by perf try bots on results page
+        https://bugs.webkit.org/show_bug.cgi?id=174305
+
+        Reviewed by Joseph Pecoraro.
+
+        Show build products created by a perf try bots so that we can download them for local testing.
+
+        * public/v3/components/test-group-revision-table.js:
+        (TestGroupRevisionTable.prototype._renderTable): Find the set of repositories for which a patch is applied.
+        Show build products for all commit sets for such a repository since when WebKit is built with a patch in
+        one configuration, the other configuration also needs to be built for consistency.
+        (TestGroupRevisionTable.prototype._buildCommitCell): Added the hyperlink for build products.
+        (TestGroupRevisionTable.prototype._buildFileInfo): Takes a string to override the file's label. Since all
+        build products made by bots tend to have the same filename, we show the label of "Build product" instead.
+        (TestGroupRevisionTable.prototype._mergeCellsWithSameCommitsAcrossRows): Fixed a bug that any entry with
+        a patch wasn't getting merged since it was comparing against the result commit set, which does not contain
+        the patch (only requested commit set contains a patch).
+
+2017-07-10  Ryosuke Niwa  <rniwa@webkit.org>
+
+        Address Antti's review comment.
+
+        * public/v3/models/analysis-results.js:
+        (AnalysisResults.prototype.containsTest):
+
+2017-07-10  Ryosuke Niwa  <rniwa@webkit.org>
+
+        A/B testing results page show results for the top-level tests instead of the one being analyzed
+        https://bugs.webkit.org/show_bug.cgi?id=174304
+
+        Reviewed by Antti Koivisto.
+
+        When a specific subtest is analyzed (e.g. Images subtest of MotionMark), then TestGroupResultsViewer
+        should expand and highlight that specific subtest instead of simply showing the top-level test's score.
+        This is especially misleading since AnalysisResultsViewer (stacking bars for each test group) uses
+        the score of the specific subtest being analyzed.
+
+        Fixed the bug by passing in the metric associated with the analysis task from AnalysisTaskPage to
+        TestGroupResultsViewer via AnalysisTaskTestGroupPane. Also made TestGroupResultsViewer.setAnalysisResults
+        auto-expand the tests that are ancestors of the specified metric. Without that, the test won't be shown
+        to the user until the ancestor tests are expanded by the user.
+
+        Also fixed the bug that we were always listing sub-tests regardless of whether they have results or not.
+        Since tests tend to change over time, we shouldn't show a test if it doesn't have any results associated.
+
+        * public/v3/components/test-group-results-viewer.js:
+        (TestGroupResultsViewer.prototype.setAnalysisResults): Expand the ancestor tests of the metric.
+        (TestGroupResultsViewer.prototype._buildRowsForTest): Exit early if this test doesn't have any results.
+        * public/v3/models/analysis-results.js:
+        (AnalysisResults.prototype.containsTest): Added.
+        * public/v3/pages/analysis-task-page.js:
+        (AnalysisTaskTestGroupPane.prototype.setAnalysisResults): Takes a metric to pass it to the results viewer.
+        (AnalysisTaskPage.prototype._assignTestResultsIfPossible):
+
+2017-07-06  Ryosuke Niwa  <rniwa@webkit.org>
+
+        Safari 10.1 fails to upload a patch on perf try bots page
+        https://bugs.webkit.org/show_bug.cgi?id=174214
+
+        Reviewed by Chris Dumez.
+
+        Added the workaround to make the analysis task page work on Safari 10.1
+
+        * public/v3/components/instant-file-uploader.js:
+        (InstantFileUploader.prototype._uploadFiles): Convert files to an array since for-of doesn't work otherwise on Safari 10.1.
+        * public/v3/models/uploaded-file.js:
+        (UploadedFile._computeSHA256Hash): Fallback to crypto.webkitSubtle since crypto.subtle isn't available on Safari 10.1 or 11.
+
+2017-07-03  Ryosuke Niwa  <rniwa@webkit.org>
+
+        Fix a typo pointed out by Andreas Kling.
+
+        * public/v3/components/instant-file-uploader.js:
+        (InstantFileUploader.prototype._uploadFiles):
+        * public/v3/models/uploaded-file.js:
+        (UploadedFile.fetchUploadedFileWithIdenticalHash): Renamed from fetchUnloadedFileWithIdenticalHash.
+
+2017-07-03  Ryosuke Niwa  <rniwa@webkit.org>
+
+        Add an admin page to manage uploaded files
+        https://bugs.webkit.org/show_bug.cgi?id=174089
+
+        Reviewed by Andreas Kling.
+
+        Add an admin page to see the disk usage per user as well as the total, and to prune any zombie files (ones marked
+        as deleted but aren't actually deleted in the filesystem).
+
+        * public/admin/files.php: Added.
+        (format_size): Added.
+        * public/include/admin-header.php:
+
+2017-07-03  Ryosuke Niwa  <rniwa@webkit.org>
+
+        Roots uploaded by bots don't get author specified properly
+        https://bugs.webkit.org/show_bug.cgi?id=174087
+
+        Reviewed by Andreas Kling.
+
+        When a root file is uploaded from the bot, we manually specify the remote user to upload_file_in_transaction.
+        However, this was getting ignored by create_uploaded_file_from_form_data since it was always calling
+        remote_user_name to get the user name off of $_SERVER.
+
+        Fixed the bug by passing in the user name from upload_file_in_transaction to create_uploaded_file_from_form_data.
+
+        * public/include/uploaded-file-helpers.php:
+        (create_uploaded_file_from_form_data): Take the remote user as an argument instead of calling remote_user_name.
+        (upload_file_in_transaction):
+        * server-tests/api-upload-root-tests.js: Updated an existing test cases to make sure root files' author is set.
+        (createTestGroupWihPatch): Manually override the author of a test group for testing.
+
+2017-07-03  Ryosuke Niwa  <rniwa@webkit.org>
+
+        Prune unused uploaded files when the file quota is reached
+        https://bugs.webkit.org/show_bug.cgi?id=174086
+
+        Reviewed by Andreas Kling.
+
+        Made /privileged-api/uploaded-file and /api/upload-root automatically delete old uploaded files when
+        uploading a new file results in the file quota to be exceeded. Also added the notion of the total quota
+        to avoid running out of a disk when there are hundreds of users each uploading near their quota.
+
+        * config.json: Added a sample total disk quota of 100GB.
+        * public/include/uploaded-file-helpers.php:
+        (query_file_usage_for_user): Renamed from query_total_file_size.
+        (query_total_file_usage): Added.
+        (upload_file_in_transaction):
+        (delete_file): Added.
+        (prune_old_files): Added.
+        * server-tests/privileged-api-upload-file-tests.js: Added tests for deleting old uploaded files as well as
+        tests for the total quota.
+        * server-tests/resources/test-server.js:
+        (TestServer.prototype.testConfig): Added uploadTotalQuotaInMB to the test configuration.
+
+2017-06-29  Ryosuke Niwa  <rniwa@webkit.org>
+
+        UploadedFile should include the file extension in its url
+        https://bugs.webkit.org/show_bug.cgi?id=174009
+
+        Reviewed by Chris Dumez.
+
+        Some command line tools such as darwinup use the file extension to determine the file type.
+        Include the file extension in the URL of an uploaded file to make it work with these tools.
+
+        * public/include/uploaded-file-helpers.php:
+        (format_uploaded_file): Include the file extension.
+        * public/v3/models/uploaded-file.js:
+        (UploadedFile):
+        (UploadedFile.prototype.url): Return the URL with hthe file extension specified. /api/uploaded-file
+        already supports having the file extension specified.
+        * server-tests/tools-sync-buildbot-integration-tests.js: Updated test cases.
+        * unit-tests/buildbot-syncer-tests.js: Ditto.
+
 2017-05-31  Ryosuke Niwa  <rniwa@webkit.org>
 
         Don't shouldn't create a request to build a patch if there is no patch to build

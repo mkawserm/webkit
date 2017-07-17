@@ -113,7 +113,7 @@ RefPtr<Thread> Thread::create(const char* name, Function<void()>&& entryPoint)
 
 void Thread::didExit()
 {
-    std::unique_lock<std::mutex> locker(m_mutex);
+    std::lock_guard<std::mutex> locker(m_mutex);
     m_didExit = true;
 }
 
@@ -165,7 +165,6 @@ void initializeThreading()
 {
     static std::once_flag initializeKey;
     std::call_once(initializeKey, [] {
-        WTF::double_conversion::initialize();
         ThreadHolder::initializeOnce();
         // StringImpl::empty() does not construct its static string in a threadsafe fashion,
         // so ensure it has been initialized from here.

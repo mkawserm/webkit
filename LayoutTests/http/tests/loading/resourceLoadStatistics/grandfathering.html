@@ -36,7 +36,7 @@
         testRunner.installStatisticsDidModifyDataRecordsCallback(function() {
             runTest();
         });
-        testRunner.statisticsFireDataModificationHandler();
+        testRunner.statisticsProcessStatisticsAndDataRecords();
     }
 
     function clearInMemoryAndPersistentStoreAndContinue() {
@@ -106,7 +106,7 @@
         setEnableFeature(true);
 
         testRunner.setStatisticsShouldClassifyResourcesBeforeDataRecordsRemoval(false);
-        testRunner.setStatisticsMinimumTimeBetweeenDataRecordsRemoval(0);
+        testRunner.setStatisticsMinimumTimeBetweenDataRecordsRemoval(0);
 
         testRunner.waitUntilDone();
         testRunner.dumpChildFramesAsText();

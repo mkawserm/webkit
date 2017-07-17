@@ -1330,7 +1330,7 @@ const AtomicString& RenderStyle::textEmphasisMarkString() const
 {
     switch (textEmphasisMark()) {
     case TextEmphasisMarkNone:
-        return nullAtom;
+        return nullAtom();
     case TextEmphasisMarkCustom:
         return textEmphasisCustomMark();
     case TextEmphasisMarkDot: {
@@ -1360,11 +1360,11 @@ const AtomicString& RenderStyle::textEmphasisMarkString() const
     }
     case TextEmphasisMarkAuto:
         ASSERT_NOT_REACHED();
-        return nullAtom;
+        return nullAtom();
     }
 
     ASSERT_NOT_REACHED();
-    return nullAtom;
+    return nullAtom();
 }
 
 #if ENABLE(DASHBOARD_SUPPORT)
@@ -1498,9 +1498,9 @@ float RenderStyle::computedFontSize() const
     return fontDescription().computedSize();
 }
 
-int RenderStyle::fontSize() const
+unsigned RenderStyle::computedFontPixelSize() const
 {
-    return m_inheritedData->fontCascade.pixelSize();
+    return fontDescription().computedPixelSize();
 }
 
 const Length& RenderStyle::wordSpacing() const
@@ -1559,7 +1559,7 @@ int RenderStyle::computedLineHeight() const
         return fontMetrics().lineSpacing();
 
     if (lh.isPercentOrCalculated())
-        return minimumValueForLength(lh, fontSize());
+        return minimumValueForLength(lh, computedFontPixelSize());
 
     return clampTo<int>(lh.value());
 }

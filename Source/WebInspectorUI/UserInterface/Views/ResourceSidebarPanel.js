@@ -232,6 +232,9 @@ WebInspector.ResourceSidebarPanel = class ResourceSidebarPanel extends WebInspec
             if (treeElement instanceof WebInspector.CanvasTreeElement)
                 return selectedScopeBarItem[WebInspector.ResourceSidebarPanel.ResourceTypeSymbol] === WebInspector.Canvas.ResourceSidebarType;
 
+            if (treeElement instanceof WebInspector.CSSStyleSheetTreeElement)
+                return selectedScopeBarItem[WebInspector.ResourceSidebarPanel.ResourceTypeSymbol] === WebInspector.Resource.Type.Stylesheet;
+
             console.assert(treeElement instanceof WebInspector.ResourceTreeElement, "Unknown treeElement", treeElement);
             if (!(treeElement instanceof WebInspector.ResourceTreeElement))
                 return false;
@@ -477,7 +480,7 @@ WebInspector.ResourceSidebarPanel = class ResourceSidebarPanel extends WebInspec
         console.assert(a.mainTitle);
         console.assert(b.mainTitle);
 
-        return (a.mainTitle || "").localeCompare(b.mainTitle || "");
+        return (a.mainTitle || "").extendedLocaleCompare(b.mainTitle || "");
     }
 
     _extraDomainsActivated()

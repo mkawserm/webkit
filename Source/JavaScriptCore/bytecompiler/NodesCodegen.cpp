@@ -500,8 +500,8 @@ RegisterID* PropertyListNode::emitBytecode(BytecodeGenerator& generator, Registe
     // Were there any get/set properties?
     if (p) {
         // Build a list of getter/setter pairs to try to put them at the same time. If we encounter
-        // a computed property, just emit everything as that may override previous values.
-        bool hasComputedProperty = false;
+        // a computed property or a spread, just emit everything as that may override previous values.
+        bool canOverrideProperties = false;
 
         typedef std::pair<PropertyNode*, PropertyNode*> GetterSetterPair;
         typedef HashMap<UniquedStringImpl*, GetterSetterPair, IdentifierRepHash> GetterSetterMap;
@@ -510,10 +510,11 @@ RegisterID* PropertyListNode::emitBytecode(BytecodeGenerator& generator, Registe
         // Build a map, pairing get/set values together.
         for (PropertyListNode* q = p; q; q = q->m_next) {
             PropertyNode* node = q->m_node;
-            if (node->m_type & PropertyNode::Computed) {
-                hasComputedProperty = true;
+            if (node->m_type & PropertyNode::Computed || node->m_type & PropertyNode::Spread) {
+                canOverrideProperties = true;
                 break;
             }
+
             if (node->m_type & PropertyNode::Constant)
                 continue;
 
@@ -536,6 +537,9 @@ RegisterID* PropertyListNode::emitBytecode(BytecodeGenerator& generator, Registe
             if (node->m_type & PropertyNode::Constant) {
                 emitPutConstantProperty(generator, dst, *node);
                 continue;
+            } else if (node->m_type & PropertyNode::Spread) {
+                generator.emitNode(dst, node->m_assign);
+                continue;
             }
 
             RefPtr<RegisterID> value = generator.emitNode(node->m_assign);
@@ -547,8 +551,8 @@ RegisterID* PropertyListNode::emitBytecode(BytecodeGenerator& generator, Registe
 
             ASSERT(node->m_type & (PropertyNode::Getter | PropertyNode::Setter));
 
-            // This is a get/set property which may be overridden by a computed property later.
-            if (hasComputedProperty) {
+            // This is a get/set property which may be overridden by a computed property or spread later.
+            if (canOverrideProperties) {
                 // Computed accessors.
                 if (node->m_type & PropertyNode::Computed) {
                     RefPtr<RegisterID> propertyName = generator.emitNode(node->m_expression);
@@ -2461,24 +2465,29 @@ RegisterID* CommaNode::emitBytecode(BytecodeGenerator& generator, RegisterID* ds
 
 // ------------------------------ SourceElements -------------------------------
 
+
+inline StatementNode* SourceElements::lastStatement() const
+{
+    return m_tail;
+}
+
 inline void SourceElements::emitBytecode(BytecodeGenerator& generator, RegisterID* dst)
 {
-    StatementNode* lastStatementWithCompletionValue = nullptr;
-    if (generator.shouldBeConcernedWithCompletionValue()) {
-        for (StatementNode* statement = m_head; statement; statement = statement->next()) {
-            if (statement->hasCompletionValue())
-                lastStatementWithCompletionValue = statement;
-        }
-    }
-
-    for (StatementNode* statement = m_head; statement; statement = statement->next()) {
-        if (statement == lastStatementWithCompletionValue)
-            generator.emitLoad(dst, jsUndefined());
+    for (StatementNode* statement = m_head; statement; statement = statement->next())
         generator.emitNodeInTailPosition(dst, statement);
-    }
 }
 
 // ------------------------------ BlockNode ------------------------------------
+
+inline StatementNode* BlockNode::lastStatement() const
+{
+    return m_statements ? m_statements->lastStatement() : 0;
+}
+
+StatementNode* BlockNode::singleStatement() const
+{
+    return m_statements ? m_statements->singleStatement() : 0;
+}
 
 void BlockNode::emitBytecode(BytecodeGenerator& generator, RegisterID* dst)
 {
@@ -2548,6 +2557,7 @@ RegisterID* EmptyLetExpression::emitBytecode(BytecodeGenerator& generator, Regis
     Variable var = generator.variable(m_ident);
     if (RegisterID* local = var.local()) {
         generator.emitLoad(local, jsUndefined());
+        generator.invalidateForInContextForLocal(local);
         generator.emitProfileType(local, var, position(), JSTextPosition(-1, position().offset + m_ident.length(), -1));
     } else {
         RefPtr<RegisterID> scope = generator.emitResolveScope(nullptr, var);
@@ -2603,11 +2613,6 @@ bool IfElseNode::tryFoldBreakAndContinue(BytecodeGenerator& generator, Statement
 
 void IfElseNode::emitBytecode(BytecodeGenerator& generator, RegisterID* dst)
 {
-    if (generator.shouldBeConcernedWithCompletionValue()) {
-        if (m_ifBlock->hasEarlyBreakOrContinue() || (m_elseBlock && m_elseBlock->hasEarlyBreakOrContinue()))
-            generator.emitLoad(dst, jsUndefined());
-    }
-
     Ref<Label> beforeThen = generator.newLabel();
     Ref<Label> beforeElse = generator.newLabel();
     Ref<Label> afterElse = generator.newLabel();
@@ -2643,9 +2648,6 @@ void IfElseNode::emitBytecode(BytecodeGenerator& generator, RegisterID* dst)
 
 void DoWhileNode::emitBytecode(BytecodeGenerator& generator, RegisterID* dst)
 {
-    if (generator.shouldBeConcernedWithCompletionValue() && m_statement->hasEarlyBreakOrContinue())
-        generator.emitLoad(dst, jsUndefined());
-
     Ref<LabelScope> scope = generator.newLabelScope(LabelScope::Loop);
 
     Ref<Label> topOfLoop = generator.newLabel();
@@ -2664,9 +2666,6 @@ void DoWhileNode::emitBytecode(BytecodeGenerator& generator, RegisterID* dst)
 
 void WhileNode::emitBytecode(BytecodeGenerator& generator, RegisterID* dst)
 {
-    if (generator.shouldBeConcernedWithCompletionValue() && m_statement->hasEarlyBreakOrContinue())
-        generator.emitLoad(dst, jsUndefined());
-
     Ref<LabelScope> scope = generator.newLabelScope(LabelScope::Loop);
     Ref<Label> topOfLoop = generator.newLabel();
 
@@ -2691,9 +2690,6 @@ void WhileNode::emitBytecode(BytecodeGenerator& generator, RegisterID* dst)
 
 void ForNode::emitBytecode(BytecodeGenerator& generator, RegisterID* dst)
 {
-    if (generator.shouldBeConcernedWithCompletionValue() && m_statement->hasEarlyBreakOrContinue())
-        generator.emitLoad(dst, jsUndefined());
-
     Ref<LabelScope> scope = generator.newLabelScope(LabelScope::Loop);
 
     RegisterID* forLoopSymbolTable = nullptr;
@@ -2755,13 +2751,13 @@ RegisterID* ForInNode::tryGetBoundLocal(BytecodeGenerator& generator)
 
 void ForInNode::emitLoopHeader(BytecodeGenerator& generator, RegisterID* propertyName)
 {
-    auto lambdaEmitResolveVariable = [&](const Identifier& ident)
-    {
+    auto lambdaEmitResolveVariable = [&] (const Identifier& ident) {
         Variable var = generator.variable(ident);
         if (RegisterID* local = var.local()) {
             if (var.isReadOnly())
                 generator.emitReadOnlyExceptionIfNeeded(var);
             generator.emitMove(local, propertyName);
+            generator.invalidateForInContextForLocal(local);
         } else {
             if (generator.isStrictMode())
                 generator.emitExpressionInfo(divot(), divotStart(), divotEnd());
@@ -2829,6 +2825,7 @@ void ForInNode::emitLoopHeader(BytecodeGenerator& generator, RegisterID* propert
             return;
         }
         generator.emitMove(var.local(), propertyName);
+        generator.invalidateForInContextForLocal(var.local());
         generator.emitProfileType(propertyName, var, simpleBinding->divotStart(), simpleBinding->divotEnd());
         return;
     }
@@ -2842,9 +2839,6 @@ void ForInNode::emitBytecode(BytecodeGenerator& generator, RegisterID* dst)
         emitThrowReferenceError(generator, ASCIILiteral("Left side of for-in statement is not a reference."));
         return;
     }
-
-    if (generator.shouldBeConcernedWithCompletionValue() && m_statement->hasEarlyBreakOrContinue())
-        generator.emitLoad(dst, jsUndefined());
 
     Ref<Label> end = generator.newLabel();
 
@@ -3000,9 +2994,6 @@ void ForOfNode::emitBytecode(BytecodeGenerator& generator, RegisterID* dst)
         return;
     }
 
-    if (generator.shouldBeConcernedWithCompletionValue() && m_statement->hasEarlyBreakOrContinue())
-        generator.emitLoad(dst, jsUndefined());
-
     RegisterID* forLoopSymbolTable = nullptr;
     generator.pushLexicalScope(this, BytecodeGenerator::TDZCheckOptimization::Optimize, BytecodeGenerator::NestedScopeType::IsNested, &forLoopSymbolTable);
     auto extractor = [this, dst](BytecodeGenerator& generator, RegisterID* value)
@@ -3014,6 +3005,7 @@ void ForOfNode::emitBytecode(BytecodeGenerator& generator, RegisterID* dst)
                 if (var.isReadOnly())
                     generator.emitReadOnlyExceptionIfNeeded(var);
                 generator.emitMove(local, value);
+                generator.invalidateForInContextForLocal(local);
             } else {
                 if (generator.isStrictMode())
                     generator.emitExpressionInfo(divot(), divotStart(), divotEnd());
@@ -3156,8 +3148,6 @@ void WithNode::emitBytecode(BytecodeGenerator& generator, RegisterID* dst)
     RefPtr<RegisterID> scope = generator.emitNode(m_expr);
     generator.emitExpressionInfo(m_divot, m_divot - m_expressionLength, m_divot);
     generator.emitPushWithScope(scope.get());
-    if (generator.shouldBeConcernedWithCompletionValue() && m_statement->hasEarlyBreakOrContinue())
-        generator.emitLoad(dst, jsUndefined());
     generator.emitNodeInTailPosition(dst, m_statement);
     generator.emitPopWithScope();
 }
@@ -3326,9 +3316,6 @@ void CaseBlockNode::emitBytecodeForBlock(BytecodeGenerator& generator, RegisterI
 
 void SwitchNode::emitBytecode(BytecodeGenerator& generator, RegisterID* dst)
 {
-    if (generator.shouldBeConcernedWithCompletionValue())
-        generator.emitLoad(dst, jsUndefined());
-
     Ref<LabelScope> scope = generator.newLabelScope(LabelScope::Switch);
 
     RefPtr<RegisterID> r0 = generator.emitNode(m_expr);
@@ -3372,9 +3359,6 @@ void TryNode::emitBytecode(BytecodeGenerator& generator, RegisterID* dst)
 {
     // NOTE: The catch and finally blocks must be labeled explicitly, so the
     // optimizer knows they may be jumped to from anywhere.
-
-    if (generator.shouldBeConcernedWithCompletionValue() && m_tryBlock->hasEarlyBreakOrContinue())
-        generator.emitLoad(dst, jsUndefined());
 
     ASSERT(m_catchBlock || m_finallyBlock);
     BytecodeGenerator::CompletionRecordScope completionRecordScope(generator, m_finallyBlock);
@@ -3467,7 +3451,7 @@ void TryNode::emitBytecode(BytecodeGenerator& generator, RegisterID* dst)
 
         int finallyStartOffset = m_catchBlock ? m_catchBlock->endOffset() + 1 : m_tryBlock->endOffset() + 1;
         generator.emitProfileControlFlow(finallyStartOffset);
-        generator.emitNodeInTailPosition(m_finallyBlock);
+        generator.emitNodeInTailPosition(dst, m_finallyBlock);
 
         generator.emitFinallyCompletion(finallyContext, savedCompletionTypeRegister.get(), *finallyEndLabel);
         generator.emitLabel(*finallyEndLabel);
@@ -3742,9 +3726,9 @@ RegisterID* AwaitExprNode::emitBytecode(BytecodeGenerator& generator, RegisterID
 
 // ------------------------------ ClassDeclNode ---------------------------------
 
-void ClassDeclNode::emitBytecode(BytecodeGenerator& generator, RegisterID*)
+void ClassDeclNode::emitBytecode(BytecodeGenerator& generator, RegisterID* dst)
 {
-    generator.emitNode(m_classDeclaration);
+    generator.emitNode(dst, m_classDeclaration);
 }
 
 // ------------------------------ ClassExprNode ---------------------------------
@@ -4168,6 +4152,7 @@ void BindingNode::bindValue(BytecodeGenerator& generator, RegisterID* value) con
             return;
         }
         generator.emitMove(local, value);
+        generator.invalidateForInContextForLocal(local);
         generator.emitProfileType(local, var, divotStart(), divotEnd());
         if (m_bindingContext == AssignmentContext::DeclarationStatement || m_bindingContext == AssignmentContext::ConstDeclarationStatement)
             generator.liftTDZCheckIfPossible(var);
@@ -4294,6 +4279,28 @@ RegisterID* SpreadExpressionNode::emitBytecode(BytecodeGenerator&, RegisterID*)
 {
     RELEASE_ASSERT_NOT_REACHED();
     return 0;
+}
+
+RegisterID* ObjectSpreadExpressionNode::emitBytecode(BytecodeGenerator& generator, RegisterID* dst)
+{
+    RefPtr<RegisterID> src = generator.newTemporary();
+    generator.emitNode(src.get(), m_expression);
+    
+    // load and call @copyDataPropertiesNoExclusions
+    auto var = generator.variable(generator.propertyNames().builtinNames().copyDataPropertiesNoExclusionsPrivateName());
+    
+    RefPtr<RegisterID> scope = generator.newTemporary();
+    generator.moveToDestinationIfNeeded(scope.get(), generator.emitResolveScope(scope.get(), var));
+    RefPtr<RegisterID> copyDataProperties = generator.emitGetFromScope(generator.newTemporary(), scope.get(), var, ThrowIfNotFound);
+    
+    CallArguments args(generator, nullptr, 2);
+    generator.emitLoad(args.thisRegister(), jsUndefined());
+    generator.emitMove(args.argumentRegister(0), dst);
+    generator.emitMove(args.argumentRegister(1), src.get());
+    
+    generator.emitCall(generator.newTemporary(), copyDataProperties.get(), NoExpectedFunction, args, divot(), divotStart(), divotEnd(), DebuggableCall::No);
+    
+    return dst;
 }
 
 } // namespace JSC

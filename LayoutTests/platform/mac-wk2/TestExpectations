@@ -408,6 +408,37 @@ webkit.org/b/142726 [ Yosemite ] fast/images/animated-png.html [ Skip ]
 ########################################
 ### START OF (4) Features that are not supported in WebKit2 and likely never will be
 
+# WebKitTestRunner needs textInputController
+# <https://bugs.webkit.org/show_bug.cgi?id=42337>
+editing/mac/input/5576619.html
+editing/mac/input/bold-node.html
+editing/mac/input/caret-primary-bidi.html
+editing/mac/input/firstrectforcharacterrange-caret-in-br.html
+editing/mac/input/firstrectforcharacterrange-plain.html
+editing/mac/input/firstrectforcharacterrange-styled.html
+editing/mac/input/firstrectforcharacterrange-vertical.html
+editing/mac/input/hangul-enter-confirms-and-sends-keypress.html
+editing/mac/input/insert-delete-smp-symbol.html
+editing/mac/input/kotoeri-enter-to-confirm-and-newline.html
+editing/mac/input/range-for-empty-document.html
+editing/mac/input/replace-invalid-range.html
+editing/mac/input/secure-input.html
+editing/mac/input/text-input-controller.html
+editing/mac/input/text-input-controller-no-editable-no-crash.html
+editing/mac/input/wrapped-line-char-rect.html
+editing/mac/input/NSBackgroundColor-transparent.html
+editing/mac/pasteboard/paste-and-match-style-selector-event.html
+editing/mac/selection/25228.html
+
+# WebKitTestRunner needs testRunner.setCallCloseOnWebViews
+# http://webkit.org/b/46714
+accessibility/mac/search-predicate.html
+
+# AX tests that require hit testing do not work in WK2.
+webkit.org/b/71298 accessibility/mac/html-slider-indicator.html
+webkit.org/b/71298 accessibility/mac/listbox-hit-test.html
+webkit.org/b/71298 accessibility/mac/iframe-with-title-correct-hierarchy.html
+
 ### END OF (4) Features that are not supported in WebKit2 and likely never will be
 ########################################
 
@@ -648,14 +679,6 @@ webkit.org/b/170484 swipe/main-frame-pinning-requirement.html [ Pass Failure ]
 
 webkit.org/b/170960 fast/mediastream/getUserMedia-webaudio.html [ Pass Timeout ]
 
-webkit.org/b/170818 imported/w3c/web-platform-tests/webrtc/rtcpeerconnection/setRemoteDescription.html [ Pass Failure ]
-
-webkit.org/b/171605 imported/w3c/web-platform-tests/webrtc/no-media-call.html [ Pass Failure ]
-
-webkit.org/b/171605 imported/w3c/web-platform-tests/webrtc/promises-call.html [ Pass Failure ]
-
-webkit.org/b/171605 imported/w3c/web-platform-tests/webrtc/datachannel-emptystring.html [ Pass Failure ]
-
 webkit.org/b/171553 [ Release ] http/tests/websocket/tests/hybi/inspector/binary.html [ Pass Failure ]
 
 webkit.org/b/172703  webrtc/libwebrtc/descriptionGetters.html [ Pass Failure ]
@@ -666,12 +689,6 @@ webkit.org/b/171837 [ Debug ] http/tests/security/storage-blocking-loosened-plug
 
 webkit.org/b/171862 [ Sierra Debug ] storage/indexeddb/modern/idbtransaction-objectstore-failures.html [ Pass Failure ]
 
-webkit.org/b/170870 webrtc/captureCanvas-webrtc.html [ Pass Timeout ]
-
-webkit.org/b/171895 webrtc/audio-replace-track.html [ Pass Failure ]
-
-webkit.org/b/171930 imported/w3c/web-platform-tests/webrtc/RTCPeerConnection-idl.html [ Pass Failure ]
-
 webkit.org/b/171935 [ Sierra ] tiled-drawing/scrolling/fast-scroll-select-latched-mainframe.html [ Pass Failure ]
 
 webkit.org/b/171939 [ Sierra Release ] media/track/track-cue-rendering-on-resize.html [ Pass Timeout ]
@@ -680,13 +697,7 @@ webkit.org/b/171947 [ Sierra Release ] transitions/extra-transition.html [ Pass 
 
 webkit.org/b/170699 [ Release ] imported/w3c/web-platform-tests/html/webappapis/timers/negative-settimeout.html [ Pass Failure ]
 
-webkit.org/b/168937 [ Debug ] tiled-drawing/scrolling/fast-scroll-iframe-latched-mainframe.html [ Pass Failure ]
-
-webkit.org/b/172034 [ Sierra Release ] webrtc/closing-peerconnection.html [ Pass Timeout ]
-
-webkit.org/b/171061 webrtc/datachannel/filter-ice-candidate.html [ Pass Timeout ]
-
-webkit.org/b/172521 imported/w3c/web-platform-tests/webrtc/getstats.html [ Pass Failure ]
+webkit.org/b/168937  tiled-drawing/scrolling/fast-scroll-iframe-latched-mainframe.html [ Pass Failure ]
 
 webkit.org/b/172054 [ Sierra Debug ] loader/stateobjects/replacestate-size-iframe.html [ Pass Timeout ]
 
@@ -698,9 +709,15 @@ webkit.org/b/173188 fast/mediastream/getUserMedia-grant-persistency3.html [ Pass
 
 webkit.org/b/172834 [ ElCapitan ] imported/w3c/web-platform-tests/IndexedDB/idbindex_getAll.html [ Pass Failure ]
 
+webkit.org/b/172834 [ ElCapitan ] imported/w3c/web-platform-tests/IndexedDB/idbindex_getAllKeys.html [ Pass Failure ]
+
 webkit.org/b/172834 [ ElCapitan ] imported/w3c/web-platform-tests/IndexedDB/idbobjectstore_getAllKeys.html [ Pass Failure ]
 
 webkit.org/b/172201 webaudio/silent-audio-interrupted-in-background.html [ Pass Timeout ]
 
-webkit.org/b/173608 webrtc/video-replace-muted-track.html [ Pass Failure ]
+webkit.org/b/167757 workers/bomb.html [ Pass Timeout ]
 
+webkit.org/b/172397 [ Sierra Debug ] animations/needs-layout.html [ Pass ImageOnlyFailure ]
+
+# Currently only tests with click, not tap.
+http/tests/loading/resourceLoadStatistics/user-interaction-in-cross-origin-sub-frame.html [ Pass ]

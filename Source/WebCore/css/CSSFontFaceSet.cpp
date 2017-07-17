@@ -28,7 +28,6 @@
 
 #include "CSSFontFaceSource.h"
 #include "CSSFontFamily.h"
-#include "CSSFontSelector.h"
 #include "CSSFontStyleValue.h"
 #include "CSSParser.h"
 #include "CSSPrimitiveValue.h"
@@ -267,6 +266,11 @@ void CSSFontFaceSet::purge()
 
     for (auto& item : toRemove)
         remove(item.get());
+}
+
+void CSSFontFaceSet::emptyCaches()
+{
+    m_cache.clear();
 }
 
 void CSSFontFaceSet::clear()

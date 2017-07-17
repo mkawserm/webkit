@@ -27,7 +27,7 @@ WebInspector.CanvasDetailsSidebarPanel = class CanvasDetailsSidebarPanel extends
 {
     constructor()
     {
-        super("canvas-details", WebInspector.UIString("Canvas"));
+        super("canvas", WebInspector.UIString("Canvas"));
 
         this.element.classList.add("canvas");
 
@@ -57,13 +57,23 @@ WebInspector.CanvasDetailsSidebarPanel = class CanvasDetailsSidebarPanel extends
         if (canvas === this._canvas)
             return;
 
-        this._canvas = canvas || null;
-
         if (this._node) {
             this._node.removeEventListener(WebInspector.DOMNode.Event.AttributeModified, this._refreshSourceSection, this);
             this._node.removeEventListener(WebInspector.DOMNode.Event.AttributeRemoved, this._refreshSourceSection, this);
 
             this._node = null;
+        }
+
+        if (this._canvas) {
+            this._canvas.removeEventListener(WebInspector.Canvas.Event.MemoryChanged, this._canvasMemoryChanged, this);
+            this._canvas.removeEventListener(WebInspector.Canvas.Event.CSSCanvasClientNodesChanged, this._refreshCSSCanvasSection, this);
+        }
+
+        this._canvas = canvas || null;
+
+        if (this._canvas) {
+            this._canvas.addEventListener(WebInspector.Canvas.Event.MemoryChanged, this._canvasMemoryChanged, this);
+            this._canvas.addEventListener(WebInspector.Canvas.Event.CSSCanvasClientNodesChanged, this._refreshCSSCanvasSection, this);
         }
 
         this.needsLayout();
@@ -77,9 +87,11 @@ WebInspector.CanvasDetailsSidebarPanel = class CanvasDetailsSidebarPanel extends
 
         this._nameRow = new WebInspector.DetailsSectionSimpleRow(WebInspector.UIString("Name"));
         this._typeRow = new WebInspector.DetailsSectionSimpleRow(WebInspector.UIString("Type"));
+        this._memoryRow = new WebInspector.DetailsSectionSimpleRow(WebInspector.UIString("Memory"));
+        this._memoryRow.tooltip = WebInspector.UIString("Memory usage of this canvas");
 
         let identitySection = new WebInspector.DetailsSection("canvas-details", WebInspector.UIString("Identity"));
-        identitySection.groups = [new WebInspector.DetailsSectionGroup([this._nameRow, this._typeRow])];
+        identitySection.groups = [new WebInspector.DetailsSectionGroup([this._nameRow, this._typeRow, this._memoryRow])];
         this.contentView.element.appendChild(identitySection.element);
 
         this._nodeRow = new WebInspector.DetailsSectionSimpleRow(WebInspector.UIString("Node"));
@@ -97,6 +109,13 @@ WebInspector.CanvasDetailsSidebarPanel = class CanvasDetailsSidebarPanel extends
         let attributesSection = new WebInspector.DetailsSection("canvas-attributes", WebInspector.UIString("Attributes"));
         attributesSection.groups = [new WebInspector.DetailsSectionGroup([this._attributesDataGridRow])];
         this.contentView.element.appendChild(attributesSection.element);
+
+        this._cssCanvasClientsRow = new WebInspector.DetailsSectionSimpleRow(WebInspector.UIString("Nodes"));
+
+        this._cssCanvasSection = new WebInspector.DetailsSection("canvas-css", WebInspector.UIString("CSS"));
+        this._cssCanvasSection.groups = [new WebInspector.DetailsSectionGroup([this._cssCanvasClientsRow])];
+        this._cssCanvasSection.element.hidden = true;
+        this.contentView.element.appendChild(this._cssCanvasSection.element);
     }
 
     layout()
@@ -109,6 +128,7 @@ WebInspector.CanvasDetailsSidebarPanel = class CanvasDetailsSidebarPanel extends
         this._refreshIdentitySection();
         this._refreshSourceSection();
         this._refreshAttributesSection();
+        this._refreshCSSCanvasSection();
     }
 
     sizeDidChange()
@@ -128,6 +148,7 @@ WebInspector.CanvasDetailsSidebarPanel = class CanvasDetailsSidebarPanel extends
 
         this._nameRow.value = this._canvas.displayName;
         this._typeRow.value = WebInspector.Canvas.displayNameForContextType(this._canvas.contextType);
+        this._formatMemoryRow();
     }
 
     _refreshSourceSection()
@@ -229,5 +250,45 @@ WebInspector.CanvasDetailsSidebarPanel = class CanvasDetailsSidebarPanel extends
         }
 
         dataGrid.updateLayoutIfNeeded();
+    }
+
+    _refreshCSSCanvasSection()
+    {
+        if (!this._canvas)
+            return;
+
+        if (!this._canvas.cssCanvasName) {
+            this._cssCanvasSection.element.hidden = true;
+            return;
+        }
+
+        this._cssCanvasClientsRow.value = emDash;
+
+        this._cssCanvasSection.element.hidden = false;
+
+        this._canvas.requestCSSCanvasClientNodes((cssCanvasClientNodes) => {
+            if (!cssCanvasClientNodes.length)
+                return;
+
+            let fragment = document.createDocumentFragment();
+            for (let clientNode of cssCanvasClientNodes)
+                fragment.appendChild(WebInspector.linkifyNodeReference(clientNode));
+            this._cssCanvasClientsRow.value = fragment;
+        });
+    }
+
+    _formatMemoryRow()
+    {
+        if (!this._canvas.memoryCost || isNaN(this._canvas.memoryCost)) {
+            this._memoryRow.value = emDash;
+            return;
+        }
+
+        this._memoryRow.value = Number.bytesToString(this._canvas.memoryCost);
+    }
+
+    _canvasMemoryChanged(event)
+    {
+        this._formatMemoryRow();
     }
 };

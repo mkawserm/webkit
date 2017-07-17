@@ -28,26 +28,28 @@
 
 #if ENABLE(DATA_INTERACTION)
 
-#import "SoftLinking.h"
 #import "UIKitSPI.h"
 #import <Foundation/NSProgress.h>
 #import <MobileCoreServices/MobileCoreServices.h>
-#import <UIKit/NSString+UIItemProvider.h>
-#import <UIKit/NSURL+UIItemProvider.h>
 #import <UIKit/UIColor.h>
 #import <UIKit/UIImage.h>
-#import <UIKit/UIItemProviderReading.h>
-#import <UIKit/UIItemProviderWriting.h>
 #import <WebCore/FileSystemIOS.h>
 #import <WebCore/Pasteboard.h>
 #import <wtf/BlockPtr.h>
 #import <wtf/OSObjectPtr.h>
 #import <wtf/RetainPtr.h>
+#import <wtf/SoftLinking.h>
 
 SOFT_LINK_FRAMEWORK(UIKit)
 SOFT_LINK_CLASS(UIKit, UIColor)
 SOFT_LINK_CLASS(UIKit, UIImage)
 SOFT_LINK_CLASS(UIKit, UIItemProvider)
+
+// FIXME: Remove once +objectWithItemProviderData:typeIdentifier:error: is available in the public SDK.
+@interface NSObject (Foundation_NSItemProvider_Staging)
++ (id <NSItemProviderReading>)objectWithItemProviderData:(NSData *)data typeIdentifier:(NSString *)typeIdentifier error:(NSError **)outError;
+- (id <NSItemProviderReading>)initWithItemProviderData:(NSData *)data typeIdentifier:(NSString *)typeIdentifier error:(NSError **)outError;
+@end
 
 using namespace WebCore;
 
@@ -216,12 +218,12 @@ typedef NSDictionary<NSString *, NSURL *> TypeToFileURLMap;
     return _cachedTypeIdentifiers.get();
 }
 
-- (NSArray<UIItemProvider *> *)itemProviders
+- (NSArray<__kindof NSItemProvider *> *)itemProviders
 {
     return _itemProviders.get();
 }
 
-- (void)setItemProviders:(NSArray<UIItemProvider *> *)itemProviders
+- (void)setItemProviders:(NSArray<__kindof NSItemProvider *> *)itemProviders
 {
     itemProviders = itemProviders ?: [NSArray array];
     if (_itemProviders == itemProviders || [_itemProviders isEqualToArray:itemProviders])
@@ -356,8 +358,13 @@ static Class classForTypeIdentifier(NSString *typeIdentifier, NSString *&outType
         if (!preloadedData)
             return;
 
-        if (auto readObject = adoptNS([[readableClass alloc] initWithItemProviderData:preloadedData typeIdentifier:(NSString *)typeIdentifierToLoad error:nil]))
-            [values addObject:readObject.get()];
+        if ([readableClass respondsToSelector:@selector(objectWithItemProviderData:typeIdentifier:error:)]) {
+            if (id <NSItemProviderReading> readObject = [readableClass objectWithItemProviderData:preloadedData typeIdentifier:(NSString *)typeIdentifierToLoad error:nil])
+                [values addObject:readObject];
+        } else {
+            if (auto readObject = adoptNS([[readableClass alloc] initWithItemProviderData:preloadedData typeIdentifier:(NSString *)typeIdentifierToLoad error:nil]))
+                [values addObject:readObject.get()];
+        }
     }];
 
     return values.autorelease();

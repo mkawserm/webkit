@@ -25,7 +25,7 @@
 
 WebInspector.Canvas = class Canvas extends WebInspector.Object
 {
-    constructor(identifier, contextType, frame, {domNode, cssCanvasName, contextAttributes} = {})
+    constructor(identifier, contextType, frame, {domNode, cssCanvasName, contextAttributes, memoryCost} = {})
     {
         super();
 
@@ -39,6 +39,9 @@ WebInspector.Canvas = class Canvas extends WebInspector.Object
         this._domNode = domNode || null;
         this._cssCanvasName = cssCanvasName || "";
         this._contextAttributes = contextAttributes || {};
+        this._memoryCost = memoryCost || NaN;
+
+        this._cssCanvasClientNodes = null;
     }
 
     // Static
@@ -53,6 +56,12 @@ WebInspector.Canvas = class Canvas extends WebInspector.Object
         case CanvasAgent.ContextType.WebGL:
             contextType = WebInspector.Canvas.ContextType.WebGL;
             break;
+        case CanvasAgent.ContextType.WebGL2:
+            contextType = WebInspector.Canvas.ContextType.WebGL2;
+            break;
+        case CanvasAgent.ContextType.WebGPU:
+            contextType = WebInspector.Canvas.ContextType.WebGPU;
+            break;
         default:
             console.error("Invalid canvas context type", payload.contextType);
         }
@@ -62,6 +71,7 @@ WebInspector.Canvas = class Canvas extends WebInspector.Object
             domNode: payload.nodeId ? WebInspector.domTreeManager.nodeForId(payload.nodeId) : null,
             cssCanvasName: payload.cssCanvasName,
             contextAttributes: payload.contextAttributes,
+            memoryCost: payload.memoryCost,
         });
     }
 
@@ -72,6 +82,10 @@ WebInspector.Canvas = class Canvas extends WebInspector.Object
             return WebInspector.UIString("2D");
         case WebInspector.Canvas.ContextType.WebGL:
             return WebInspector.unlocalizedString("WebGL");
+        case WebInspector.Canvas.ContextType.WebGL2:
+            return WebInspector.unlocalizedString("WebGL2");
+        case WebInspector.Canvas.ContextType.WebGPU:
+            return WebInspector.unlocalizedString("WebGPU");
         default:
             console.error("Invalid canvas context type", contextType);
         }
@@ -89,6 +103,21 @@ WebInspector.Canvas = class Canvas extends WebInspector.Object
     get frame() { return this._frame; }
     get cssCanvasName() { return this._cssCanvasName; }
     get contextAttributes() { return this._contextAttributes; }
+
+    get memoryCost()
+    {
+        return this._memoryCost;
+    }
+
+    set memoryCost(memoryCost)
+    {
+        if (memoryCost === this._memoryCost)
+            return;
+
+        this._memoryCost = memoryCost;
+
+        this.dispatchEventToListeners(WebInspector.Canvas.Event.MemoryChanged);
+    }
 
     get displayName()
     {
@@ -113,16 +142,16 @@ WebInspector.Canvas = class Canvas extends WebInspector.Object
             return;
         }
 
-        WebInspector.domTreeManager.requestDocument((document) => {
-            CanvasAgent.requestNode(this._identifier, (error, nodeId) => {
-                if (error) {
-                    callback(null);
-                    return;
-                }
+        WebInspector.domTreeManager.ensureDocument();
 
-                this._domNode = WebInspector.domTreeManager.nodeForId(nodeId);
-                callback(this._domNode);
-            });
+        CanvasAgent.requestNode(this._identifier, (error, nodeId) => {
+            if (error) {
+                callback(null);
+                return;
+            }
+
+            this._domNode = WebInspector.domTreeManager.nodeForId(nodeId);
+            callback(this._domNode);
         });
     }
 
@@ -138,6 +167,33 @@ WebInspector.Canvas = class Canvas extends WebInspector.Object
         });
     }
 
+    requestCSSCanvasClientNodes(callback)
+    {
+        if (!this._cssCanvasName) {
+            callback([]);
+            return;
+        }
+
+        if (this._cssCanvasClientNodes) {
+            callback(this._cssCanvasClientNodes);
+            return;
+        }
+
+        WebInspector.domTreeManager.ensureDocument();
+
+        CanvasAgent.requestCSSCanvasClientNodes(this._identifier, (error, clientNodeIds) => {
+            if (error) {
+                callback([]);
+                return;
+            }
+
+            clientNodeIds = Array.isArray(clientNodeIds) ? clientNodeIds : [];
+            this._cssCanvasClientNodes = clientNodeIds.map((clientNodeId) => WebInspector.domTreeManager.nodeForId(clientNodeId));
+
+            callback(this._cssCanvasClientNodes);
+        });
+    }
+
     saveIdentityToCookie(cookie)
     {
         cookie[WebInspector.Canvas.FrameURLCookieKey] = this._frame.url.hash;
@@ -147,6 +203,18 @@ WebInspector.Canvas = class Canvas extends WebInspector.Object
         else if (this._domNode)
             cookie[WebInspector.Canvas.NodePathCookieKey] = this._domNode.path;
 
+    }
+
+    cssCanvasClientNodesChanged()
+    {
+        // Called from WebInspector.CanvasManager.
+
+        if (!this._cssCanvasName)
+            return;
+
+        this._cssCanvasClientNodes = null;
+
+        this.dispatchEventToListeners(WebInspector.Canvas.Event.CSSCanvasClientNodesChanged);
     }
 };
 
@@ -158,6 +226,13 @@ WebInspector.Canvas.CSSCanvasNameCookieKey = "canvas-css-canvas-name";
 WebInspector.Canvas.ContextType = {
     Canvas2D: "canvas-2d",
     WebGL: "webgl",
+    WebGL2: "webgl2",
+    WebGPU: "webgpu",
 };
 
 WebInspector.Canvas.ResourceSidebarType = "resource-type-canvas";
+
+WebInspector.Canvas.Event = {
+    MemoryChanged: "canvas-memory-changed",
+    CSSCanvasClientNodesChanged: "canvas-css-canvas-client-nodes-changed",
+};
