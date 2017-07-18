@@ -1235,6 +1235,9 @@ http/tests/ssl/applepay [ Skip ]
 # GTK port doesn't use the scrolling tree
 fast/scrolling/scrolling-tree-includes-frame.html [ Skip ]
 
+# This test assumes that color on sliders is not reversed for RTL, so failing is good.
+fast/forms/range/input-appearance-range-rtl.html [ Failure ]
+
 #////////////////////////////////////////////////////////////////////////////////////////
 # End of Expected failures
 #////////////////////////////////////////////////////////////////////////////////////////
@@ -3437,6 +3440,10 @@ webkit.org/b/174460 fast/canvas/canvas-blend-solid.html [ Failure ]
 webkit.org/b/174461 inspector/canvas/memory.html [ Failure ]
 webkit.org/b/174461 inspector/canvas/requestContent-2d.html [ Failure ]
 webkit.org/b/174461 inspector/canvas/requestContent-webgl.html [ Failure ]
+
+webkit.org/b/174609 accessibility/presentation-role-iframe.html [ Failure ]
+
+webkit.org/b/174610 fast/forms/content-with-margins-inside-button.html [ Failure ]
 
 #////////////////////////////////////////////////////////////////////////////////////////
 # End of non-crashing, non-flaky tests failing

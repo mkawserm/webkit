@@ -119,6 +119,7 @@ else ()
     set(WebCore_LIBRARY_TYPE STATIC)
 endif ()
 
+set(WTF_LIBRARY_TYPE STATIC)
 set(JavaScriptCore_LIBRARY_TYPE SHARED)
 set(PAL_LIBRARY_TYPE STATIC)
 set(WebKit_LIBRARY_TYPE SHARED)
@@ -148,11 +149,6 @@ include(WebKitCommon)
 if (ENABLE_API_TESTS)
     enable_testing()
 endif ()
-
-# -----------------------------------------------------------------------------
-# Define packaging
-# -----------------------------------------------------------------------------
-include(WebKitPackaging)
 
 # -----------------------------------------------------------------------------
 # Add module directories

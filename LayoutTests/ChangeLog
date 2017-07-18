@@ -1,3 +1,211 @@
+2017-07-18  Devin Rousso  <drousso@apple.com>
+
+        Add CanvasRenderingContext2D::getTransform
+        https://bugs.webkit.org/show_bug.cgi?id=174278
+
+        Reviewed by Dean Jackson.
+
+        * canvas/philip/tests/2d.missingargs.html:
+        CanvasRenderingContext2D.prototype.setTransform no longer throws an error with no arguments.
+
+        * fast/canvas/2d.getTransform.modification-expected.txt: Added.
+        * fast/canvas/2d.getTransform.modification.html: Added.
+        * fast/canvas/2d.getTransform.newobject-expected.txt: Added.
+        * fast/canvas/2d.getTransform.newobject.html: Added.
+        * fast/canvas/2d.setTransform.matrix-expected.txt: Added.
+        * fast/canvas/2d.setTransform.matrix.html: Added.
+
+2017-07-18  Matt Lewis  <jlewis3@apple.com>
+
+        Rebaseline inspector/model/remote-object.html.
+        https://bugs.webkit.org/show_bug.cgi?id=173991
+
+        Unreviewed test gardening.
+
+        * inspector/model/remote-object-expected.txt:
+
+2017-07-18  Said Abou-Hallawa  <sabouhallawa@apple.com>
+
+        Async image decoding for large images should be disabled after the first time a tile is painted
+        https://bugs.webkit.org/show_bug.cgi?id=174451
+
+        Reviewed by Simon Fraser.
+
+        To test async image decoding for large images, we have to create the <img>
+        element dynamically so we can listen to the load and webkitImageFrameReady
+        events and know reliably when to end the test. But with this patch the async
+        image decoding for large images will be disabled after the first paint. 
+        That means async image decoding for large images will be disabled always
+        unless we force the async image decoding till the image is painted for the
+        first time. We use Internals::setLargeImageAsyncDecodingEnabledForTesting()
+        to force the async image decoding. So painting an image in this case will
+        require multiple paints; in all of them the async image decoding will be
+        enabled. But this is okay because it resembles the case where the <img> is
+        created from a static <img> tag in the HTML file.
+
+        For new tests, where we want to make sure that mutating the DOM will not
+        cause a flash, async image decoding will be forced till the image is drawn
+        for the first time. After that the async image decoding is enabled but not
+        forced.
+
+        Disable new tests for WK1 because the async image decoding is always enabled
+        because tiling does not necessarily exist in WK1 . But eventually the async
+        image decoding for large images will be always disabled for WK1.
+
+        * fast/images/async-image-background-change-expected.html: Added.
+        * fast/images/async-image-background-change.html: Added.
+        * fast/images/async-image-background-image-repeated.html:
+        * fast/images/async-image-background-image.html:
+        * fast/images/async-image-multiple-clients-repaint.html:
+        * fast/images/async-image-src-change-expected.html: Added.
+        * fast/images/async-image-src-change.html: Added.
+        * fast/images/resources/green-400x400.png: Added.
+        * fast/images/resources/red-100x100.png: Added.
+        * fast/images/resources/red-400x400.png: Added.
+        * http/tests/multipart/multipart-async-image-expected.txt: Added.
+        * http/tests/multipart/multipart-async-image.html: Added.
+        * platform/ios-wk1/TestExpectations:
+        * platform/mac-wk1/TestExpectations:
+
+2017-07-18  Michael Catanzaro  <mcatanzaro@igalia.com>
+
+        Unreviewed GTK test gardening
+
+        fast/forms/range/input-appearance-range-rtl.html is desired to fail.
+
+        * platform/gtk/TestExpectations:
+
+2017-07-18  Chris Dumez  <cdumez@apple.com>
+
+        DOMException should have its properties on the prototype
+        https://bugs.webkit.org/show_bug.cgi?id=174597
+
+        Reviewed by Alex Christensen.
+
+        Rebaseline inspector tests whose output changed slightly now that the
+        DOMException have moved to the prototype.
+
+        * inspector/debugger/setPauseOnExceptions-all-expected.txt:
+        * inspector/debugger/setPauseOnExceptions-none-expected.txt:
+        * inspector/debugger/setPauseOnExceptions-uncaught-expected.txt:
+
+2017-07-17  Michael Catanzaro  <mcatanzaro@igalia.com>
+
+        Unreviewed GTK test gardening
+
+        * TestExpectations: Skip tests that are clearly intended to have Skip expectations.
+        * platform/gtk/TestExpectations:
+        * platform/gtk/crypto/subtle/aes-cbc-cfb-encrypt-malformed-parameters-expected.txt:
+
+2017-07-17  Timothy Horton  <timothy_horton@apple.com>
+
+        Page using safe area constant properties jumps to correct layout after resize
+        https://bugs.webkit.org/show_bug.cgi?id=174598
+        <rdar://problem/33364275>
+
+        Reviewed by Simon Fraser.
+
+        * fast/events/ios/rotation/safe-area-insets-during-safari-type-rotation-expected.txt: Added.
+        * fast/events/ios/rotation/safe-area-insets-during-safari-type-rotation.html: Added.
+        Add a test making sure that dynamic-viewport-update-based rotation
+        updates safe area insets when needed.
+
+2017-07-17  Matt Lewis  <jlewis3@apple.com>
+        
+        Fixed test expectations after r219518.
+        https://bugs.webkit.org/show_bug.cgi?id=174472
+
+        Unreviewed test gardening.
+
+        * platform/mac/TestExpectations:
+
+2017-07-17  Jeremy Jones  <jeremyj@apple.com>
+
+        media element handle adding source immediately before src.
+        https://bugs.webkit.org/show_bug.cgi?id=174284
+
+        Reviewed by David Kilzer.
+
+        Adds missing -expected and tests to make sure resulting currentSrc is correct.
+
+        * TestExpectations:
+        * media/video-source-before-src-expected.txt: Added.
+        * media/video-source-before-src.html:
+
+2017-07-17  Matt Lewis  <jlewis3@apple.com>
+
+        Fixed test expectations after r219518.
+        https://bugs.webkit.org/show_bug.cgi?id=174472
+
+        Unreviewed test gardening.
+
+        * platform/ios-wk1/TestExpectations:
+        * platform/mac/TestExpectations:
+
+2017-07-17  Chris Dumez  <cdumez@apple.com>
+
+        fast/workers/worker-user-gesture.html crashes on iOS
+        https://bugs.webkit.org/show_bug.cgi?id=174592
+
+        Reviewed by Simon Fraser.
+
+        Make sure the tap/click event is fully processed before finishing the test by using
+        the promise returned by UIHelper.activateAt().
+
+        * fast/workers/worker-user-gesture.html:
+
+2017-07-17  Simon Fraser  <simon.fraser@apple.com>
+
+        clientX/clientY on TouchEvent.touches are wrong
+        https://bugs.webkit.org/show_bug.cgi?id=174561
+
+        Reviewed by Tim Horton.
+
+        * fast/events/touch/ios/touches-client-coords-after-zoom-expected.txt: Added.
+        * fast/events/touch/ios/touches-client-coords-after-zoom.html: Added.
+
+2017-07-17  Chris Dumez  <cdumez@apple.com>
+
+        click event does not dispatch to parent when child target stops hit testing after mousedown
+        https://bugs.webkit.org/show_bug.cgi?id=174564
+        <rdar://problem/33340234>
+
+        Reviewed by Simon Fraser.
+
+        Add layout test coverage.
+
+        * fast/events/mouse-click-different-mouseDown-mouseUp-nodes-expected.txt: Added.
+        * fast/events/mouse-click-different-mouseDown-mouseUp-nodes.html: Added.
+
+2017-07-17  Antoine Quint  <graouts@apple.com>
+
+        REGRESSION: order of AirPlay and volume controls is inconsistent between <audio> and <video>
+        https://bugs.webkit.org/show_bug.cgi?id=174581
+        <rdar://problem/33297519>
+
+        Reviewed by Sam Weinig.
+
+        Update the audio controls layout test to match the new expectations.
+
+        * media/modern-media-controls/audio/audio-controls-buttons-expected.txt:
+        * media/modern-media-controls/audio/audio-controls-buttons.html:
+
+2017-07-17  Antoine Quint  <graouts@apple.com>
+
+        Media controls draw behind captions
+        https://bugs.webkit.org/show_bug.cgi?id=174579
+        <rdar://problem/33295427>
+
+        Reviewed by Dean Jackson.
+
+        Add a new test that checks the order in which order the captions and controls containers appear
+        under the media shadow root.
+
+        * media/modern-media-controls/media-controls/media-controls-display-above-captions-expected.txt: Added.
+        * media/modern-media-controls/media-controls/media-controls-display-above-captions.html: Added.
+        * platform/ios-simulator/TestExpectations:
+        * platform/mac/TestExpectations:
+
 2017-07-16  Antoine Quint  <graouts@apple.com>
 
         Dismissing the captions panel using the mouse is too eager to remove the captions panel and media controls

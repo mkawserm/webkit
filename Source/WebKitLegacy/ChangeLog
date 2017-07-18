@@ -1,3 +1,48 @@
+2017-07-17  Konstantin Tokarev  <annulen@yandex.ru>
+
+        [cmake] Set library types before their targets are created
+        https://bugs.webkit.org/show_bug.cgi?id=174600
+
+        Reviewed by Michael Catanzaro.
+
+        Since r219560 library targets are created before PlatformXXX.cmake
+        files are processed, however library type must be passed in
+        add_library() call and cannot be changed afterwards. Set these
+        variables in OptionsXXX.cmake.
+
+        * PlatformMac.cmake:
+        * PlatformWin.cmake:
+
+2017-07-17  Darin Adler  <darin@apple.com>
+
+        Improve use of NeverDestroyed
+        https://bugs.webkit.org/show_bug.cgi?id=174348
+
+        Reviewed by Sam Weinig.
+
+        * Storage/StorageThread.cpp:
+        (WebCore::StorageThread::releaseFastMallocFreeMemoryInAllThreads):
+        Simplify code by using a modern for loop and passing a function without wrapping
+        it in a lambda.
+
+2017-07-17  Michael Catanzaro  <mcatanzaro@igalia.com>
+
+        [CMake] Macros in WebKitMacros.cmake should be prefixed with WEBKIT_ namespace
+        https://bugs.webkit.org/show_bug.cgi?id=174547
+
+        Reviewed by Alex Christensen.
+
+        * CMakeLists.txt:
+
+2017-07-17  Konstantin Tokarev  <annulen@yandex.ru>
+
+        [CMake] Create targets before WEBKIT_INCLUDE_CONFIG_FILES_IF_EXISTS is called
+        https://bugs.webkit.org/show_bug.cgi?id=174557
+
+        Reviewed by Michael Catanzaro.
+
+        * CMakeLists.txt:
+
 2017-07-14  Jonathan Bedard  <jbedard@apple.com>
 
         Add iOS 11 SPI

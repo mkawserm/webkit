@@ -1,3 +1,267 @@
+2017-07-18  Andy Estes  <aestes@apple.com>
+
+        [Xcode] Enable CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING
+        https://bugs.webkit.org/show_bug.cgi?id=174631
+
+        Reviewed by Darin Adler.
+
+        * Configurations/Base.xcconfig:
+
+2017-07-18  Said Abou-Hallawa  <sabouhallawa@apple.com>
+
+        Async image decoding for large images should be disabled after the first time a tile is painted
+        https://bugs.webkit.org/show_bug.cgi?id=174451
+
+        Reviewed by Simon Fraser.
+
+        * Shared/mac/RemoteLayerBackingStore.mm:
+        (WebKit::RemoteLayerBackingStore::drawInContext):
+        * WebProcess/WebPage/CoordinatedGraphics/CompositingCoordinator.cpp:
+        (WebKit::CompositingCoordinator::paintContents):
+        * WebProcess/WebPage/CoordinatedGraphics/CompositingCoordinator.h:
+
+2017-07-17  Carlos Garcia Campos  <cgarcia@igalia.com>
+
+        Web Automation: link and partial link queries don't work if text link contains trailing or leading whitespaces
+        https://bugs.webkit.org/show_bug.cgi?id=174499
+
+        Reviewed by Brian Burg.
+
+        This is causing test test_Driver_Can_Get_Link_By_Link_Test_Ignoring_Trailing_Whitespace to fail.
+
+        * UIProcess/Automation/atoms/FindNodes.js:
+        (switch): Use normalize-space() in in the links xpath expressions.
+
+2017-07-17  Darin Adler  <darin@apple.com>
+
+        Improve use of NeverDestroyed
+        https://bugs.webkit.org/show_bug.cgi?id=174348
+
+        Reviewed by Sam Weinig.
+
+        * DatabaseProcess/DatabaseProcess.h: Removed unneeded include of
+        NeverDestroyed.h.
+        * NetworkProcess/cache/NetworkCacheKey.cpp: Ditto.
+
+        * NetworkProcess/capture/NetworkCaptureManager.cpp: Moved include of
+        NeverDestroyed.h here ...
+        * NetworkProcess/capture/NetworkCaptureManager.h: ... from here.
+
+        * PluginProcess/PluginProcess.cpp: Moved include of NeverDestroyed.h
+        here ...
+        * PluginProcess/PluginProcess.h: ... from here.
+
+        * Shared/API/Cocoa/_WKRemoteObjectInterface.mm:
+        (isContainerClass): Removed trivial inefficient use of
+        LazyNeverDestroyed<HashSet> to check against two classes.
+        Instead wrote out the boolean expression.
+
+        * Shared/mac/SecItemShim.cpp: Removed unneeded include of
+        NeverDestroyed.h.
+
+        * UIProcess/Cocoa/WebProcessPoolCocoa.mm:
+        (WebKit::WebProcessPool::platformInitialize): Call
+        installMemoryPressureHandler instead of WebMemoryPressureHandler::singleton.
+
+        * UIProcess/Gamepad/UIGamepadProvider.h: Removed unneeded include
+        of NeverDestroyed.h.
+
+        * UIProcess/Plugins/PluginProcessManager.cpp: Moved include of
+        NeverDestroyed.h here ...
+        * UIProcess/Plugins/PluginProcessManager.h: ... from here.
+
+        * UIProcess/WebInspectorProxy.cpp: Removed unneeded include
+        of NeverDestroyed.h.
+
+        * UIProcess/WebPageProxy.h: Added now-needed include of
+        MediaPlaybackTargetContext.h.
+
+        * UIProcess/WebPasteboardProxy.cpp: Moved include of
+        NeverDestroyed.h here ...
+        * UIProcess/WebPasteboardProxy.h: ... from here.
+
+        * UIProcess/ios/WebMemoryPressureHandlerIOS.h: Removed the
+        WebMemoryPressureHandler class from this header. Callers don't need to
+        know if there is a class. They simply indicate when it's time to install
+        the handler. Another way to put it is that this class had no functions
+        other than the singleton function.
+
+        * UIProcess/ios/WebMemoryPressureHandlerIOS.mm:
+        (WebKit::installMemoryPressureHandler): Replaced the class with this function.
+        It creates a dispatch source and then resumes it. To avoid having the source
+        look like a leak, we keep it in a global variable.
+
+        * WebProcess/Gamepad/WebGamepadProvider.h: Include Forward.h instead of
+        NeverDestroyed.h.
+
+        * WebProcess/WebCoreSupport/WebPasteboardOverrides.cpp: Moved include of
+        NeverDestroyed.h here ...
+        * WebProcess/WebCoreSupport/WebPasteboardOverrides.h: ... from here.
+
+        * WebProcess/WebCoreSupport/WebPlatformStrategies.h: Removed unneeded
+        include of NeverDestroyed.h.
+
+2017-07-17  Timothy Horton  <timothy_horton@apple.com>
+
+        Page using safe area constant properties jumps to correct layout after resize
+        https://bugs.webkit.org/show_bug.cgi?id=174598
+        <rdar://problem/33364275>
+
+        Reviewed by Simon Fraser.
+
+        Test: fast/events/ios/rotation/safe-area-insets-during-safari-type-rotation.html
+
+        * UIProcess/API/Cocoa/WKWebView.mm:
+        (-[WKWebView _beginAnimatedResizeWithUpdates:]):
+        * UIProcess/WebPageProxy.h:
+        * UIProcess/ios/WebPageProxyIOS.mm:
+        (WebKit::WebPageProxy::dynamicViewportSizeUpdate):
+        * WebProcess/WebPage/WebPage.h:
+        * WebProcess/WebPage/WebPage.messages.in:
+        * WebProcess/WebPage/ios/WebPageIOS.mm:
+        (WebKit::WebPage::dynamicViewportSizeUpdate):
+        Plumb unobscured safe area insets through in the dynamicViewportSizeUpdate,
+        like we do in VisibleContentRectUpdate (once again sad that these aren't
+        more similar), so that it will be correct in the during-rotation snapshot,
+        instead of only becoming correct in the first visible content rect update
+        post-rotation.
+
+2017-07-17  Chris Dumez  <cdumez@apple.com>
+
+        UserMediaPermissionRequestManagerProxy should not use WebCore::Timer
+        https://bugs.webkit.org/show_bug.cgi?id=174599
+        <rdar://problem/33362600>
+
+        Reviewed by Tim Horton.
+
+        UserMediaPermissionRequestManagerProxy should not use WebCore::Timer since it runs in the
+        UIProcess. Switch to using RunLoop::Timer instead.
+
+        * UIProcess/UserMediaPermissionRequestManagerProxy.cpp:
+        (WebKit::UserMediaPermissionRequestManagerProxy::UserMediaPermissionRequestManagerProxy):
+        * UIProcess/UserMediaPermissionRequestManagerProxy.h:
+
+2017-07-17  Chris Dumez  <cdumez@apple.com>
+
+        NETWORK_SESSION does not need didReceiveAuthenticationChallenge(uint64_t, uint64_t, const AuthenticationChallenge&)
+        https://bugs.webkit.org/show_bug.cgi?id=174595
+
+        Reviewed by Alex Christensen.
+
+        * Shared/Authentication/AuthenticationManager.cpp:
+        (WebKit::AuthenticationManager::didReceiveAuthenticationChallenge):
+        * Shared/Authentication/AuthenticationManager.h:
+
+2017-07-17  Wenson Hsieh  <wenson_hsieh@apple.com>
+
+        [iOS DnD] Web process uses too much memory when beginning a drag on a very large image
+        https://bugs.webkit.org/show_bug.cgi?id=174585
+        <rdar://problem/33302541>
+
+        Reviewed by Tim Horton.
+
+        Add IPC support for serializing/deserializing the size of an image written to the pasteboard. See WebCore
+        ChangeLogs for more details.
+
+        * Shared/WebCoreArgumentCoders.cpp:
+        (IPC::ArgumentCoder<PasteboardImage>::encode):
+        (IPC::ArgumentCoder<PasteboardImage>::decode):
+
+2017-07-17  Konstantin Tokarev  <annulen@yandex.ru>
+
+        Unreviewed attempt to fix Mac cmake build
+
+        * PlatformMac.cmake: Remove reference to file which is gone since r219025
+
+2017-07-17  Michael Catanzaro  <mcatanzaro@igalia.com>
+
+        [CMake] Include most CMake modules from WebKitCommon.cmake
+        https://bugs.webkit.org/show_bug.cgi?id=174546
+
+        Reviewed by Konstantin Tokarev.
+
+        * CMakeLists.txt:
+
+2017-07-17  Michael Catanzaro  <mcatanzaro@igalia.com>
+
+        [CMake] Macros in WebKitMacros.cmake should be prefixed with WEBKIT_ namespace
+        https://bugs.webkit.org/show_bug.cgi?id=174547
+
+        Reviewed by Alex Christensen.
+
+        * CMakeLists.txt:
+
+2017-07-17  Alex Christensen  <achristensen@webkit.org>
+
+        Modernize content extension code
+        https://bugs.webkit.org/show_bug.cgi?id=174588
+
+        Reviewed by Sam Weinig.
+
+        * WebProcess/UserContent/WebUserContentController.cpp:
+        (WebKit::WebUserContentController::addContentRuleLists):
+
+2017-07-17  Jeremy Jones  <jeremyj@apple.com>
+
+        Add video fullscreen transition logging.
+        https://bugs.webkit.org/show_bug.cgi?id=174474
+
+        Reviewed by Jer Noble.
+
+        No functional change. Just adds logging.
+
+        * Platform/Logging.h:
+        * WebProcess/cocoa/WebVideoFullscreenManager.mm:
+        (WebKit::WebVideoFullscreenManager::enterVideoFullscreenForVideoElement):
+        (WebKit::WebVideoFullscreenManager::exitVideoFullscreenForVideoElement):
+        (WebKit::WebVideoFullscreenManager::exitVideoFullscreenToModeWithoutAnimation):
+        (WebKit::WebVideoFullscreenManager::didSetupFullscreen):
+        (WebKit::WebVideoFullscreenManager::didEnterFullscreen):
+        (WebKit::WebVideoFullscreenManager::didExitFullscreen):
+        (WebKit::WebVideoFullscreenManager::didCleanupFullscreen):
+        (WebKit::WebVideoFullscreenManager::setVideoLayerFrameFenced):
+
+2017-07-17  Konstantin Tokarev  <annulen@yandex.ru>
+
+        [CMake] Create targets before WEBKIT_INCLUDE_CONFIG_FILES_IF_EXISTS is called
+        https://bugs.webkit.org/show_bug.cgi?id=174557
+
+        Reviewed by Michael Catanzaro.
+
+        * CMakeLists.txt:
+
+2017-07-17  Carlos Garcia Campos  <cgarcia@igalia.com>
+
+        Web Automation: link and partial link queries don't work if the link contains formatting tags
+        https://bugs.webkit.org/show_bug.cgi?id=174498
+
+        Reviewed by Brian Burg.
+
+        So, for example, if we find links with text "Foo" and there's a link like <a href=""><bA>Foo</b></a> we fail
+        with no such element error. This causes test test_Link_With_Formatting_Tags to fail.
+
+        * UIProcess/Automation/atoms/FindNodes.js:
+        (switch): Use descendant-or-self::text() instead of just text() in the links xpath expressions.
+
+2017-07-16  Carlos Garcia Campos  <cgarcia@igalia.com>
+
+        Web Automation: FindNodes should throw an error in case of invalid strategy
+        https://bugs.webkit.org/show_bug.cgi?id=174497
+
+        Reviewed by Brian Burg.
+
+        We are currently returning null or empty list. According to the spec in 12.2 Find Element and 12.3 Find
+        Elements, step 4: "If location strategy is not present as a keyword in the table of location strategies, return
+        error with error code invalid argument.".
+        https://www.w3.org/TR/webdriver/#find-element.
+
+        This is causing test test_should_throw_an_error_if_user_passes_in_invalid_by_when_find_elements to fail.
+
+        * UIProcess/Automation/atoms/FindNodes.js:
+        (switch): Throw an error in case of unknown strategy.
+        * WebProcess/Automation/WebAutomationSessionProxy.cpp:
+        (WebKit::WebAutomationSessionProxy::evaluateJavaScriptFunction): Handle InvalidParameter exceptions.
+
 2017-07-16  Brady Eidson  <beidson@apple.com>
 
         Crash when a WKHTTPCookieStore outlives its owning WKWebsiteDataStore.

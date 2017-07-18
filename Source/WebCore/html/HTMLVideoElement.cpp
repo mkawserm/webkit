@@ -45,7 +45,6 @@
 #include "ScriptController.h"
 #include "Settings.h"
 #include "TextStream.h"
-#include <wtf/NeverDestroyed.h>
 
 #if ENABLE(VIDEO_PRESENTATION_MODE)
 #include "WebVideoFullscreenModel.h"
@@ -308,6 +307,7 @@ NativeImagePtr HTMLVideoElement::nativeImageForCurrentTime()
 
 ExceptionOr<void> HTMLVideoElement::webkitEnterFullscreen()
 {
+    LOG(Media, "HTMLVideoElement::webkitEnterFullscreen(%p)", this);
     if (isFullscreen())
         return { };
 
@@ -322,6 +322,7 @@ ExceptionOr<void> HTMLVideoElement::webkitEnterFullscreen()
 
 void HTMLVideoElement::webkitExitFullscreen()
 {
+    LOG(Media, "HTMLVideoElement::webkitExitFullscreen(%p)", this);
     if (isFullscreen())
         exitFullscreen();
 }
@@ -431,6 +432,7 @@ static inline HTMLMediaElementEnums::VideoFullscreenMode toFullscreenMode(HTMLVi
 
 void HTMLVideoElement::webkitSetPresentationMode(VideoPresentationMode mode)
 {
+    LOG(Media, "HTMLVideoElement::webkitSetPresentationMode(%p) - %d", this, mode);
     setFullscreenMode(toFullscreenMode(mode));
 }
 

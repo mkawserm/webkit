@@ -1,3 +1,44 @@
+2017-07-18  Andy Estes  <aestes@apple.com>
+
+        [Xcode] Enable CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING
+        https://bugs.webkit.org/show_bug.cgi?id=174631
+
+        Reviewed by Darin Adler.
+
+        * Configurations/Base.xcconfig:
+
+2017-07-17  Sam Weinig  <sam@webkit.org>
+
+        [WebIDL] Remove custom bindings that require non-caching JS strings
+        https://bugs.webkit.org/show_bug.cgi?id=174552
+
+        Reviewed by Darin Adler.
+
+        * DOM/DOMHTMLCanvasElement.mm:
+        (-[DOMHTMLCanvasElement toDataURL:]):
+        Update to account for implementation now returning an UncachedString.
+
+2017-07-17  Darin Adler  <darin@apple.com>
+
+        Improve use of NeverDestroyed
+        https://bugs.webkit.org/show_bug.cgi?id=174348
+
+        Reviewed by Sam Weinig.
+
+        * Misc/WebStringTruncator.mm:
+        (+[WebStringTruncator centerTruncateString:toWidth:]): Replace
+        NeverDestroyed<RetainPtr> with just an NSFont * global.
+
+        * Plugins/Hosted/NetscapePluginHostManager.h: Removed unneeded include of
+        NeverDestroyed.h.
+        * Storage/WebDatabaseManager.mm: Ditto.
+        * WebCoreSupport/WebFrameNetworkingContext.mm: Ditto.
+        * WebCoreSupport/WebPlatformStrategies.mm: Ditto.
+
+        * WebView/WebView.mm: Removed unneeded include of NetworkStateNotifier.h.
+        (aeDescFromJSValue): Removed double hashing by using the return value from
+        add rather than calling contains before calling add.
+
 2017-07-14  Jer Noble  <jer.noble@apple.com>
 
         Allow clients to override their own hardware media requirements where no fallback media exists.
