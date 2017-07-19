@@ -26,14 +26,13 @@
 #include "config.h"
 #include "Threading.h"
 
-#include "dtoa.h"
-#include "dtoa/cached-powers.h"
 #include <algorithm>
 #include <cmath>
 #include <cstring>
 #include <wtf/DateMath.h>
 #include <wtf/PrintStream.h>
 #include <wtf/RandomNumberSeed.h>
+#include <wtf/ThreadGroup.h>
 #include <wtf/ThreadHolder.h>
 #include <wtf/ThreadMessage.h>
 #include <wtf/ThreadingPrimitives.h>
@@ -46,12 +45,17 @@
 
 namespace WTF {
 
-struct NewThreadContext {
-    WTF_MAKE_FAST_ALLOCATED;
-public:
+enum class Stage {
+    Start, EstablishedHandle, Initialized
+};
+
+struct Thread::NewThreadContext {
     const char* name;
     Function<void()> entryPoint;
-    Mutex creationMutex;
+    Stage stage;
+    Mutex mutex;
+    ThreadCondition condition;
+    Thread& thread;
 };
 
 const char* Thread::normalizeThreadName(const char* threadName)
@@ -81,40 +85,116 @@ const char* Thread::normalizeThreadName(const char* threadName)
 #endif
 }
 
-static void threadEntryPoint(void* contextData)
+void Thread::entryPoint(NewThreadContext* context)
 {
-    NewThreadContext* context = static_cast<NewThreadContext*>(contextData);
-
-    // Block until our creating thread has completed any extra setup work, including
-    // establishing ThreadIdentifier.
+    Function<void()> function;
     {
-        MutexLocker locker(context->creationMutex);
+        // Block until our creating thread has completed any extra setup work, including establishing ThreadIdentifier.
+        MutexLocker locker(context->mutex);
+        ASSERT(context->stage == Stage::EstablishedHandle);
+
+        // Initialize thread holder with established ID.
+        ThreadHolder::initialize(context->thread);
+
+        Thread::initializeCurrentThreadInternal(context->thread, context->name);
+        function = WTFMove(context->entryPoint);
+
+        // Ack completion of initialization to the creating thread.
+        context->stage = Stage::Initialized;
+        context->condition.signal();
     }
-
-    Thread::initializeCurrentThreadInternal(context->name);
-
-    auto entryPoint = WTFMove(context->entryPoint);
-
-    // Delete the context before starting the thread.
-    delete context;
-
-    entryPoint();
+    function();
 }
 
 RefPtr<Thread> Thread::create(const char* name, Function<void()>&& entryPoint)
 {
-    NewThreadContext* context = new NewThreadContext { name, WTFMove(entryPoint), { } };
+    Ref<Thread> thread = adoptRef(*new Thread());
+    NewThreadContext context { name, WTFMove(entryPoint), Stage::Start, { }, { }, thread.get() };
+    MutexLocker locker(context.mutex);
+    if (!thread->establishHandle(&context))
+        return nullptr;
+    context.stage = Stage::EstablishedHandle;
+    // After establishing Thread, release the mutex and wait for completion of initialization.
+    while (context.stage != Stage::Initialized)
+        context.condition.wait(context.mutex);
+    return WTFMove(thread);
+}
 
-    // Prevent the thread body from executing until we've established the thread identifier.
-    MutexLocker locker(context->creationMutex);
+Thread* Thread::currentMayBeNull()
+{
+    ThreadHolder* data = ThreadHolder::current();
+    if (data)
+        return &data->thread();
+    return nullptr;
+}
 
-    return Thread::createInternal(threadEntryPoint, context, name);
+void Thread::initialize()
+{
+    m_stack = StackBounds::currentThreadStackBounds();
+}
+
+static bool shouldRemoveThreadFromThreadGroup()
+{
+#if OS(WINDOWS)
+    // On Windows the thread specific destructor is also called when the
+    // main thread is exiting. This may lead to the main thread waiting
+    // forever for the thread group lock when exiting, if the sampling
+    // profiler thread was terminated by the system while holding the
+    // thread group lock.
+    if (WTF::isMainThread())
+        return false;
+#endif
+    return true;
 }
 
 void Thread::didExit()
 {
+    if (shouldRemoveThreadFromThreadGroup()) {
+        Vector<std::shared_ptr<ThreadGroup>> threadGroups;
+        {
+            std::lock_guard<std::mutex> locker(m_mutex);
+            for (auto& threadGroup : m_threadGroups) {
+                // If ThreadGroup is just being destroyed,
+                // we do not need to perform unregistering.
+                if (auto retained = threadGroup.lock())
+                    threadGroups.append(WTFMove(retained));
+            }
+            m_isShuttingDown = true;
+        }
+        for (auto& threadGroup : threadGroups) {
+            std::lock_guard<std::mutex> threadGroupLocker(threadGroup->getLock());
+            std::lock_guard<std::mutex> locker(m_mutex);
+            threadGroup->m_threads.remove(*this);
+        }
+    }
+    // We would like to say "thread is exited" after unregistering threads from thread groups.
+    // So we need to separate m_isShuttingDown from m_didExit.
     std::lock_guard<std::mutex> locker(m_mutex);
     m_didExit = true;
+}
+
+bool Thread::addToThreadGroup(const std::lock_guard<std::mutex>& threadGroupLocker, ThreadGroup& threadGroup)
+{
+    UNUSED_PARAM(threadGroupLocker);
+    std::lock_guard<std::mutex> locker(m_mutex);
+    if (m_isShuttingDown)
+        return false;
+    if (threadGroup.m_threads.add(*this).isNewEntry)
+        m_threadGroups.append(threadGroup.weakFromThis());
+    return true;
+}
+
+void Thread::removeFromThreadGroup(const std::lock_guard<std::mutex>& threadGroupLocker, ThreadGroup& threadGroup)
+{
+    UNUSED_PARAM(threadGroupLocker);
+    std::lock_guard<std::mutex> locker(m_mutex);
+    if (m_isShuttingDown)
+        return;
+    m_threadGroups.removeFirstMatching([&] (auto weakPtr) {
+        if (auto sharedPtr = weakPtr.lock())
+            return sharedPtr.get() == &threadGroup;
+        return false;
+    });
 }
 
 void Thread::setCurrentThreadIsUserInteractive(int relativePriority)
@@ -166,9 +246,6 @@ void initializeThreading()
     static std::once_flag initializeKey;
     std::call_once(initializeKey, [] {
         ThreadHolder::initializeOnce();
-        // StringImpl::empty() does not construct its static string in a threadsafe fashion,
-        // so ensure it has been initialized from here.
-        StringImpl::empty();
         initializeRandomNumberGenerator();
         wtfThreadData();
         initializeDates();

@@ -1,3 +1,445 @@
+2017-07-19  Yusuke Suzuki  <utatane.tea@gmail.com>
+
+        [WTF] Implement WTF::ThreadGroup
+        https://bugs.webkit.org/show_bug.cgi?id=174081
+
+        Reviewed by Mark Lam.
+
+        * page/ResourceUsageThread.h:
+
+2017-07-18  Andy Estes  <aestes@apple.com>
+
+        [Xcode] Enable CLANG_WARN_RANGE_LOOP_ANALYSIS
+        https://bugs.webkit.org/show_bug.cgi?id=174631
+
+        Reviewed by Tim Horton.
+
+        * Configurations/Base.xcconfig:
+        * rendering/Grid.cpp:
+        (WebCore::Grid::insert):
+        * rendering/RenderTreeAsText.cpp:
+        (WebCore::write):
+        * rendering/SimpleLineLayoutCoverage.cpp:
+        (WebCore::SimpleLineLayout::printSimpleLineLayoutCoverage):
+
+2017-07-18  Yusuke Suzuki  <utatane.tea@gmail.com>
+
+        WTF::Thread should have the threads stack bounds.
+        https://bugs.webkit.org/show_bug.cgi?id=173975
+
+        Reviewed by Mark Lam.
+
+        When creating WebThread, we first allocate WebCore::ThreadGlobalData in UI thread
+        and share it with WebThread.
+        The problem is that WebCore::ThreadGlobalData has CachedResourceRequestInitiators.
+        It allocates AtomicString, which requires WTFThreadData.
+
+        In this patch, we call WTF::initializeThreading() before allocating WebCore::ThreadGlobalData.
+        And we also call AtomicString::init() before calling WebCore::ThreadGlobalData since
+        WebCore::ThreadGlobalData allocates AtomicString.
+
+        * platform/ios/wak/WebCoreThread.mm:
+        (StartWebThread):
+
+2017-07-18  Myles C. Maxfield  <mmaxfield@apple.com>
+
+        Setting the minimum font size preference doesn’t affect absolute line-height values, so lines overlap
+        https://bugs.webkit.org/show_bug.cgi?id=174406
+        <rdar://problem/10139227>
+
+        Reviewed by Simon Fraser.
+
+        When the minimumFontSize API preference is set, we will increase the font size without increasing
+        the line height. If the content specifies line-height as an absolute value, there can be two
+        unfortunate results:
+
+        - Adjacent lines in a paragraph can overlap
+        - If the paragraph (or containin block or whatever) uses overflow: hidden, the first and last lines
+        can be cut off and potentially indecipherable.
+
+        Instead, we should use the minimum font size preference as a signal that we should increase the
+        line-height as well as the font-size. Eventually, we will want to increase it by an amount
+        proportional to the increase in font-size (which can be due to minimumFontSize, minimumLogicalFontSize,
+        text autosizing, etc.). However, because minimumLogicalFontSize is on by default, this would cause
+        a behavior change on many webpages which use small text, so such a change would be too risky right now.
+        Instead, we can pretend that minimumFontSize is the only cause that text increases, and use this as the
+        only signal to boost the corresponding line-height.
+
+        Tests: fast/text/line-height-minimumFontSize-text-zoom.html
+               fast/text/line-height-minimumFontSize-visual.html
+               fast/text/line-height-minimumFontSize-zoom.html
+               fast/text/line-height-minimumFontSize.html
+               fast/text/line-height-minimumFontSize-autosize.html
+
+        * css/StyleBuilderCustom.h:
+        (WebCore::computeBaseSpecifiedFontSize):
+        (WebCore::computeLineHeightMultiplierDueToFontSize):
+        (WebCore::StyleBuilderCustom::applyValueLineHeight):
+        (WebCore::StyleBuilderCustom::applyValueFill):
+        (WebCore::StyleBuilderCustom::applyValueStroke):
+        (WebCore::StyleBuilderCustom::applyValueContent):
+        * rendering/TextAutoSizing.cpp:
+
+2017-07-18  Zalan Bujtas  <zalan@apple.com>
+
+        Media controls are missing content in fullscreen when document has scroll offset.
+        https://bugs.webkit.org/show_bug.cgi?id=174644
+        <rdar://problem/32415323>
+
+        Reviewed by Simon Fraser.
+
+        If a non-user initiated scrolling (result of resize for example) is processed asynchronously, it might
+        leapfrog other, programatic scrollings and trigger unintentional scroll offsets (and turn into unwanted clippings). 
+        This patch ensures that both resize and top content inset change are translated into programatic scrolling. 
+
+        Unable to test full screen video.
+
+        * page/FrameView.cpp:
+        (WebCore::FrameView::setFrameRect):
+        (WebCore::FrameView::topContentInsetDidChange):
+
+2017-07-18  Andy Estes  <aestes@apple.com>
+
+        [Xcode] Enable CLANG_WARN_OBJC_LITERAL_CONVERSION
+        https://bugs.webkit.org/show_bug.cgi?id=174631
+
+        Reviewed by Sam Weinig.
+
+        * Configurations/Base.xcconfig:
+        * platform/ios/PlatformPasteboardIOS.mm:
+        (WebCore::PlatformPasteboard::write):
+
+2017-07-18  Ali Juma  <ajuma@chromium.org>
+
+        Align quirky number parsing with other browsers
+        https://bugs.webkit.org/show_bug.cgi?id=155874
+
+        Reviewed by Simon Fraser.
+
+        Parse unit-less non-zero values for animation-duration and transition-duration
+        as invalid time values in quirks mode.
+
+        Test: fast/css/animation-transition-duration-quirksmode.html
+
+        * css/parser/CSSPropertyParser.cpp:
+        (WebCore::consumeAnimationValue):
+
+2017-07-18  Chris Dumez  <cdumez@apple.com>
+
+        HysteresisActivity cannot be used in the UIProcess
+        https://bugs.webkit.org/show_bug.cgi?id=174643
+        <rdar://problem/33086442>
+
+        Reviewed by Tim Horton.
+
+        Port HysteresisActivity to RunLoop::Timer so that it can safely be used in
+        the UIProcess as well.
+
+        * platform/HysteresisActivity.h:
+
+2017-07-18  Joseph Pecoraro  <pecoraro@apple.com>
+
+        Web Inspector: Modernize InjectedScriptSource
+        https://bugs.webkit.org/show_bug.cgi?id=173890
+
+        Reviewed by Brian Burg.
+
+        Covered by existing tests.
+
+        * inspector/CommandLineAPIModuleSource.js:
+        (CommandLineAPIImpl.prototype.copy):
+        (CommandLineAPIImpl.prototype._inspect):
+        Use RemoteObject, a new parameter.
+
+2017-07-18  Ryosuke Niwa  <rniwa@webkit.org>
+
+        REGRESSION(r218910): Crash when password field changes to text field
+        https://bugs.webkit.org/show_bug.cgi?id=174560
+
+        Reviewed by Zalan Bujtas.
+
+        The crash was caused by textMarkerDataForFirstPositionInTextControl accessing a nullptr returned by getOrCreate.
+        Unfortunately, in order to this fix bug while preserving the exact behavior would require synchronously creating
+        a renderer for the editing host when the input type changed since we can't create an accessbility object out of
+        a renderer-less node.
+
+        Instead, revert back to pre-r218910 behavior of always using the text control element's axID when notifying
+        the value change. While this is inconsistent with the way editing commands report content changes, I've since
+        learned that VoiceOver has code to deal with this exact situation.
+
+        Test: accessibility/mac/input-type-change-crash-2.html
+
+        * accessibility/AXObjectCache.cpp:
+        (WebCore::AXObjectCache::textMarkerDataForFirstPositionInTextControl):
+
+2017-07-18  Matt Baker  <mattbaker@apple.com>
+
+        Web Inspector: Refactoring: replace InspectorCanvasAgent::CanvasEntry with a helper class
+        https://bugs.webkit.org/show_bug.cgi?id=174311
+
+        Reviewed by Devin Rousso.
+
+        This patch adds a helper class for tracking canvases and their data. The
+        current approach of defining a helper structure in the agent's header is
+        awkward to use and maintain, and won't scale well as more canvas instrumentation
+        points and data are added.
+
+        * CMakeLists.txt:
+        * WebCore.xcodeproj/project.pbxproj:
+        New file.
+
+        * inspector/InspectorCanvas.cpp: Added.
+        (WebCore::InspectorCanvas::create):
+        (WebCore::InspectorCanvas::InspectorCanvas):
+        (WebCore::InspectorCanvas::buildObjectForCanvas):
+        * inspector/InspectorCanvas.h: Added.
+
+        * inspector/InspectorCanvasAgent.cpp:
+        (WebCore::InspectorCanvasAgent::InspectorCanvasAgent):
+        (WebCore::InspectorCanvasAgent::enable):
+        (WebCore::InspectorCanvasAgent::requestNode):
+        (WebCore::InspectorCanvasAgent::requestContent):
+        (WebCore::InspectorCanvasAgent::requestCSSCanvasClientNodes):
+        (WebCore::InspectorCanvasAgent::resolveCanvasContext):
+        (WebCore::InspectorCanvasAgent::frameNavigated):
+        (WebCore::InspectorCanvasAgent::didCreateCSSCanvas):
+        (WebCore::InspectorCanvasAgent::didChangeCSSCanvasClientNodes):
+        (WebCore::InspectorCanvasAgent::didCreateCanvasRenderingContext):
+        (WebCore::InspectorCanvasAgent::didChangeCanvasMemory):
+        (WebCore::InspectorCanvasAgent::canvasDestroyed):
+        (WebCore::InspectorCanvasAgent::canvasDestroyedTimerFired):
+        (WebCore::InspectorCanvasAgent::clearCanvasData):
+        (WebCore::InspectorCanvasAgent::unbindCanvas):
+        (WebCore::InspectorCanvasAgent::assertInspectorCanvas):
+        (WebCore::InspectorCanvasAgent::findInspectorCanvas):
+        (WebCore::InspectorCanvasAgent::getCanvasEntry): Deleted.
+        (WebCore::InspectorCanvasAgent::buildObjectForCanvas): Deleted.
+        * inspector/InspectorCanvasAgent.h:
+
+        * inspector/InspectorController.cpp:
+        (WebCore::InspectorController::InspectorController):
+        Remove unused constructor argument.
+
+2017-07-18  Basuke Suzuki  <Basuke.Suzuki@sony.com>
+
+        [Curl] Move detail implementation from ResourceHandle to ResourceHandleInternal
+        https://bugs.webkit.org/show_bug.cgi?id=174641
+
+        After moving stuff from ResourceHandleManager to ResourceHandle on 
+        https://bugs.webkit.org/show_bug.cgi?id=173630, still there're many violation
+        remains between ResourceHandle and ResourceHandleInternal classes.
+        Many of implementation detail should be move to ResourceHandleInternal
+        to improve build speed.
+
+        Reviewed by Alex Christensen.
+
+        * platform/network/ResourceHandle.h:
+        * platform/network/ResourceHandleInternal.h:
+        (WebCore::ResourceHandleInternal::ResourceHandleInternal):
+        * platform/network/curl/ResourceHandleCurl.cpp:
+        (WebCore::ResourceHandleInternal::~ResourceHandleInternal):
+        (WebCore::ResourceHandle::start):
+        (WebCore::ResourceHandle::cancel):
+        (WebCore::ResourceHandleInternal::initialize):
+        (WebCore::ResourceHandleInternal::applyAuthentication):
+        (WebCore::ResourceHandleInternal::setupPUT):
+        (WebCore::ResourceHandleInternal::setupPOST):
+        (WebCore::ResourceHandleInternal::setupFormData):
+        (WebCore::ResourceHandle::platformSetDefersLoading):
+        (WebCore::ResourceHandleInternal::didFinish):
+        (WebCore::ResourceHandleInternal::didFail):
+        (WebCore::ResourceHandleInternal::calculateWebTimingInformations):
+        (WebCore::ResourceHandleInternal::handleLocalReceiveResponse):
+        (WebCore::ResourceHandleInternal::willPrepareSendData):
+        (WebCore::ResourceHandleInternal::didReceiveHeaderLine):
+        (WebCore::ResourceHandleInternal::didReceiveAllHeaders):
+        (WebCore::ResourceHandleInternal::didReceiveContentData):
+        (WebCore::ResourceHandleInternal::readCallback):
+        (WebCore::ResourceHandleInternal::headerCallback):
+        (WebCore::ResourceHandleInternal::writeCallback):
+        (WebCore::ResourceHandle::platformLoadResourceSynchronously):
+        (WebCore::ResourceHandleInternal::dispatchSynchronousJob):
+        (WebCore::ResourceHandleInternal::handleDataURL):
+        (WebCore::ResourceHandle::initialize): Deleted.
+        (WebCore::ResourceHandle::applyAuthentication): Deleted.
+        (WebCore::ResourceHandle::setupPUT): Deleted.
+        (WebCore::ResourceHandle::setupPOST): Deleted.
+        (WebCore::ResourceHandle::setupFormData): Deleted.
+        (WebCore::ResourceHandle::didFinish): Deleted.
+        (WebCore::ResourceHandle::didFail): Deleted.
+        (WebCore::ResourceHandle::calculateWebTimingInformations): Deleted.
+        (WebCore::ResourceHandle::handleLocalReceiveResponse): Deleted.
+        (WebCore::ResourceHandle::willPrepareSendData): Deleted.
+        (WebCore::ResourceHandle::didReceiveHeaderLine): Deleted.
+        (WebCore::ResourceHandle::didReceiveAllHeaders): Deleted.
+        (WebCore::ResourceHandle::didReceiveContentData): Deleted.
+        (WebCore::ResourceHandle::readCallback): Deleted.
+        (WebCore::ResourceHandle::headerCallback): Deleted.
+        (WebCore::ResourceHandle::writeCallback): Deleted.
+        (WebCore::ResourceHandle::dispatchSynchronousJob): Deleted.
+        (WebCore::ResourceHandle::handleDataURL): Deleted.
+
+2017-07-18  Andy Estes  <aestes@apple.com>
+
+        [Xcode] Enable CLANG_WARN_NON_LITERAL_NULL_CONVERSION
+        https://bugs.webkit.org/show_bug.cgi?id=174631
+
+        Reviewed by Dan Bernstein.
+
+        * Configurations/Base.xcconfig:
+
+2017-07-18  Antoine Quint  <graouts@apple.com>
+
+        [macOS] Mouse pointer does not hide during fullscreen playback
+        https://bugs.webkit.org/show_bug.cgi?id=174638
+        <rdar://problem/33244399>
+
+        Reviewed by Dean Jackson.
+
+        Test: media/modern-media-controls/css/webkit-cursor-visibility-auto-hide.html
+
+        The user-agent stylesheet sets the "-webkit-cursor-visibility" to "auto-hide" for fullscreen <video>
+        elements. Since we reset the page styles, including UA styles, on .media-controls-container, we need
+        to explicitly inherit this style property from the page to ensure the mouse pointer automatically
+        hides in fullscreen.
+
+        * Modules/modern-media-controls/controls/media-controls.css:
+        (.media-controls-container):
+
+2017-07-18  Sam Weinig  <sam@webkit.org>
+
+        [WebIDL] Remove custom bindings for MockContentFilterSettings
+        https://bugs.webkit.org/show_bug.cgi?id=174606
+
+        Reviewed by Andy Estes.
+
+        * PlatformMac.cmake:
+        * WebCore.xcodeproj/project.pbxproj:
+        * bindings/js/JSMockContentFilterSettingsCustom.cpp: Removed.
+        Remove JSMockContentFilterSettingsCustom.
+
+        * testing/MockContentFilterSettings.h:
+        * testing/MockContentFilterSettings.idl:
+        Switch from constants to IDL enums to make the bindings and tests simpler.
+
+2017-07-18  Sam Weinig  <sam@webkit.org>
+
+        [WebIDL] Replace some custom bindings code in JSCSSStyleDeclarationCustom.cpp with named getters/setters
+        https://bugs.webkit.org/show_bug.cgi?id=174529
+
+        Reviewed by Chris Dumez.
+
+        * CMakeLists.txt:
+        * WebCore.xcodeproj/project.pbxproj:
+        * css/CSSAllInOne.cpp:
+        Add CSSStyleDeclaration.cpp
+
+        * bindings/js/JSCSSStyleDeclarationCustom.cpp:
+        Move getter / setter / getOwnProperties logic from here to CSSStyleDeclaration.cpp.
+
+        * bindings/scripts/CodeGeneratorJS.pm:
+        (GenerateGetOwnPropertySlot):
+        (GenerateGetOwnPropertySlotByIndex):
+        (InstanceOverridesGetOwnPropertySlot):
+        (GenerateHeader):
+        Remove support for no longer needed [CustomGetOwnPropertySlotAndDescriptor].
+        Add support for [PutOnlyForSupportedProperties], which allows named setters to behave
+        a bit more like normal setters by allowing the implementation to note which properties
+        are supported which in turn, allows the bindings to continue down the normal put path
+        for unsupported properties. This is necessary to mimic the behavior of CSSStyleDeclaration
+        which is using named setters in place hundreds of additional properties.
+
+        (InstanceOverridesDefineOwnProperty):
+        Add [DefaultDefineOwnProperty] to allow disabling defineOwnProperty overriding that comes
+        automatically with named setters. We need this for CSSStyleDeclaration since the named
+        setter usage modeling real properties, not a dictionary style setter. We may want to 
+        revisit this, and add support for DefineOwnProperty here, but this allows us to maintain
+        the status quo.
+
+        (GenerateDefineOwnProperty):
+        Fix the case when you have a named setter, an indexed getter, but no indexed setter. In that
+        case, we would get a compile error, due to the index variable being unused.
+
+        * bindings/scripts/IDLAttributes.json:
+        Remove support for no longer needed [CustomGetOwnPropertySlotAndDescriptor], add
+        [PutOnlyForSupportedProperties] and [DefaultDefineOwnProperty].
+
+        * css/CSSStyleDeclaration.h:
+        * css/CSSStyleDeclaration.cpp: Added.
+        (WebCore::CSSStyleDeclaration::namedItem):
+        (WebCore::CSSStyleDeclaration::setNamedItem):
+        (WebCore::CSSStyleDeclaration::isSupportedPropertyName):
+        (WebCore::CSSStyleDeclaration::supportedPropertyNames):
+        Use standard getter / setter functions to implement CSS property name getting and setting.
+        Convert from Identifier to AtomicString, which are now bridgeable.
+
+        * css/CSSStyleDeclaration.idl:
+        Add named getter and setter. Remove [CustomGetOwnPropertyNames], [CustomGetOwnPropertySlotAndDescriptor]
+        and [CustomPut], add [DefaultDefineOwnProperty].
+
+        * bindings/scripts/test/JS/JSTestNamedSetterWithIndexedGetter.cpp: Added.
+        * bindings/scripts/test/JS/JSTestNamedSetterWithIndexedGetter.h: Added.
+        * bindings/scripts/test/JS/JSTestNamedSetterWithIndexedGetterAndSetter.cpp: Added.
+        * bindings/scripts/test/JS/JSTestNamedSetterWithIndexedGetterAndSetter.h: Added.
+        * bindings/scripts/test/TestNamedSetterWithIndexedGetter.idl: Added.
+        * bindings/scripts/test/TestNamedSetterWithIndexedGetterAndSetter.idl: Added.
+        Add tests for improved behavior when using named setters with variations of indexed getters and setters as well.
+
+2017-07-18  Antoine Quint  <graouts@apple.com>
+
+        [iOS] WebKit media controls are sometimes shown after exiting full screen on vimeo.com
+        https://bugs.webkit.org/show_bug.cgi?id=174627
+        <rdar://problem/33301005>
+
+        Reviewed by Dean Jackson, provisionally reviewed by Jeremy Jones.
+
+        On iOS 11, both the WebKit media controls and the Vimeo custom controls would appear sometimes when exiting
+        from fullscreen when the video was playing and the user would tap the X button, which would pause the video
+        as well as exit fullscreen.
+
+        The reason this happens is that the ControlsVisibilitySupport object, which governs whether the WebKit media
+        controls should be displayed for a given video, woud listen to "pause" and "webkitfullscreenchange" events
+        and determine whether to show the WebKit media controls. We listen to the "pause" event because when media
+        pauses, and the video has the "controls" attribute set, we should show the controls and suspend the controls
+        auto-hide timer. And we're interested in knowing when we enter and exit fullscreen because we want to override
+        the "controls" attribute not being set when we enter fullscreen.
+
+        However, on iOS 11, it appears that the "webkitfullscreenchange" event is not reliably fired as the user enters
+        and exits fullscreen, which is tracked by webkit.org/b/174626. So, when the user exits fullscreen, we would be
+        informed of the video being paused via a "pause" event, but not of the video exiting fullscreen. And because
+        media events are asynchronous, the "pause" event would sometimes be fired before we exited fullscreen, and when
+        the _updateControls() would run, we would sometimes determine that we are in fullscreen still and determine
+        that the WebKit media controls should be shown.
+
+        Of course, on iOS, the WebKit media controls are not shown and instead we delegate to AVKit to display media controls.
+        So we could simply disregard this whole logic in iOS. But we choose to instead use the "webkitpresentationmodechanged"
+        when the presentation mode API is supported, as is the case on iOS 11, to determine changes of media fullscreen state.
+        This way, should we ever choose to support fullscreen media controls provided by WebKit on iOS, this logic is already
+        correct and we write less platform-specific code.
+
+        This, alas, cannot be tested since we can't force the X button to be tapped within the AVKit fullscreen controls.
+
+        * Modules/modern-media-controls/media/controls-visibility-support.js:
+        (ControlsVisibilitySupport.prototype.get mediaEvents):
+        * Modules/modern-media-controls/media/media-controller.js:
+        (MediaController):
+        * Modules/modern-media-controls/media/start-support.js:
+        (StartSupport.prototype.get mediaEvents):
+
+2017-07-18  Matt Lewis  <jlewis3@apple.com>
+
+        Unreviewed, rolling out r219610.
+
+        This caused an api failure on all platforms for the test
+        SnapshotImageLargeAsyncDecoding
+
+        Reverted changeset:
+
+        "Async image decoding for large images should be disabled
+        after the first time a tile is painted"
+        https://bugs.webkit.org/show_bug.cgi?id=174451
+        http://trac.webkit.org/changeset/219610
+
 2017-07-18  Devin Rousso  <drousso@apple.com>
 
         Add CanvasRenderingContext2D::getTransform

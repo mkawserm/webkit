@@ -1,3 +1,200 @@
+2017-07-19  Yusuke Suzuki  <utatane.tea@gmail.com>
+
+        [WTF] Implement WTF::ThreadGroup
+        https://bugs.webkit.org/show_bug.cgi?id=174081
+
+        Reviewed by Mark Lam.
+
+        Large part of MachineThreads are now removed and replaced with WTF::ThreadGroup.
+        And SamplingProfiler and others interact with WTF::Thread directly.
+
+        * API/tests/ExecutionTimeLimitTest.cpp:
+        * heap/MachineStackMarker.cpp:
+        (JSC::MachineThreads::MachineThreads):
+        (JSC::captureStack):
+        (JSC::MachineThreads::tryCopyOtherThreadStack):
+        (JSC::MachineThreads::tryCopyOtherThreadStacks):
+        (JSC::MachineThreads::gatherConservativeRoots):
+        (JSC::ActiveMachineThreadsManager::Locker::Locker): Deleted.
+        (JSC::ActiveMachineThreadsManager::add): Deleted.
+        (JSC::ActiveMachineThreadsManager::remove): Deleted.
+        (JSC::ActiveMachineThreadsManager::contains): Deleted.
+        (JSC::ActiveMachineThreadsManager::ActiveMachineThreadsManager): Deleted.
+        (JSC::activeMachineThreadsManager): Deleted.
+        (JSC::MachineThreads::~MachineThreads): Deleted.
+        (JSC::MachineThreads::addCurrentThread): Deleted.
+        (): Deleted.
+        (JSC::MachineThreads::removeThread): Deleted.
+        (JSC::MachineThreads::removeThreadIfFound): Deleted.
+        (JSC::MachineThreads::MachineThread::MachineThread): Deleted.
+        (JSC::MachineThreads::MachineThread::getRegisters): Deleted.
+        (JSC::MachineThreads::MachineThread::Registers::stackPointer): Deleted.
+        (JSC::MachineThreads::MachineThread::Registers::framePointer): Deleted.
+        (JSC::MachineThreads::MachineThread::Registers::instructionPointer): Deleted.
+        (JSC::MachineThreads::MachineThread::Registers::llintPC): Deleted.
+        (JSC::MachineThreads::MachineThread::captureStack): Deleted.
+        * heap/MachineStackMarker.h:
+        (JSC::MachineThreads::addCurrentThread):
+        (JSC::MachineThreads::getLock):
+        (JSC::MachineThreads::threads):
+        (JSC::MachineThreads::MachineThread::suspend): Deleted.
+        (JSC::MachineThreads::MachineThread::resume): Deleted.
+        (JSC::MachineThreads::MachineThread::threadID): Deleted.
+        (JSC::MachineThreads::MachineThread::stackBase): Deleted.
+        (JSC::MachineThreads::MachineThread::stackEnd): Deleted.
+        (JSC::MachineThreads::threadsListHead): Deleted.
+        * runtime/SamplingProfiler.cpp:
+        (JSC::FrameWalker::isValidFramePointer):
+        (JSC::SamplingProfiler::SamplingProfiler):
+        (JSC::SamplingProfiler::takeSample):
+        (JSC::SamplingProfiler::noticeCurrentThreadAsJSCExecutionThread):
+        * runtime/SamplingProfiler.h:
+        * wasm/WasmMachineThreads.cpp:
+        (JSC::Wasm::resetInstructionCacheOnAllThreads):
+
+2017-07-18  Andy Estes  <aestes@apple.com>
+
+        [Xcode] Enable CLANG_WARN_RANGE_LOOP_ANALYSIS
+        https://bugs.webkit.org/show_bug.cgi?id=174631
+
+        Reviewed by Tim Horton.
+
+        * Configurations/Base.xcconfig:
+        * b3/B3FoldPathConstants.cpp:
+        * b3/B3LowerMacros.cpp:
+        * b3/air/AirAllocateRegistersByGraphColoring.cpp:
+        * dfg/DFGByteCodeParser.cpp:
+        (JSC::DFG::ByteCodeParser::check):
+        (JSC::DFG::ByteCodeParser::planLoad):
+
+2017-07-18  Yusuke Suzuki  <utatane.tea@gmail.com>
+
+        WTF::Thread should have the threads stack bounds.
+        https://bugs.webkit.org/show_bug.cgi?id=173975
+
+        Reviewed by Mark Lam.
+
+        There is a site in JSC that try to walk another thread's stack.
+        Currently, stack bounds are stored in WTFThreadData which is located
+        in TLS. Thus, only the thread itself can access its own WTFThreadData.
+        We workaround this situation by holding StackBounds in MachineThread in JSC,
+        but StackBounds should be put in WTF::Thread instead.
+
+        This patch adds StackBounds to WTF::Thread. StackBounds information is tightly
+        coupled with Thread. Thus putting it in WTF::Thread is natural choice.
+
+        * heap/MachineStackMarker.cpp:
+        (JSC::MachineThreads::MachineThread::MachineThread):
+        (JSC::MachineThreads::MachineThread::captureStack):
+        * heap/MachineStackMarker.h:
+        (JSC::MachineThreads::MachineThread::stackBase):
+        (JSC::MachineThreads::MachineThread::stackEnd):
+        * runtime/VMTraps.cpp:
+
+2017-07-18  Andy Estes  <aestes@apple.com>
+
+        [Xcode] Enable CLANG_WARN_OBJC_LITERAL_CONVERSION
+        https://bugs.webkit.org/show_bug.cgi?id=174631
+
+        Reviewed by Sam Weinig.
+
+        * Configurations/Base.xcconfig:
+
+2017-07-18  Joseph Pecoraro  <pecoraro@apple.com>
+
+        Web Inspector: Modernize InjectedScriptSource
+        https://bugs.webkit.org/show_bug.cgi?id=173890
+
+        Reviewed by Brian Burg.
+
+        * inspector/InjectedScript.h:
+        Reorder functions to be slightly better.
+
+        * inspector/InjectedScriptSource.js:
+        - Convert to classes named InjectedScript and RemoteObject
+        - Align InjectedScript's API with the wrapper C++ interfaces
+        - Move some code to RemoteObject where appropriate (subtype, describe)
+        - Move some code to helper functions (isPrimitiveValue, isDefined)
+        - Refactor for readability and modern features
+        - Remove some unused / unnecessary code
+
+2017-07-18  Mark Lam  <mark.lam@apple.com>
+
+        Butterfly storage need not be initialized for indexing type Undecided.
+        https://bugs.webkit.org/show_bug.cgi?id=174516
+
+        Reviewed by Saam Barati.
+
+        While it's not incorrect to initialize the butterfly storage when the
+        indexingType is Undecided, it is inefficient as we'll end up initializing
+        it again later when we convert the storage to a different indexingType.
+        Some of our code already skips initializing Undecided butterflies.
+        This patch makes it the consistent behavior everywhere.
+
+        * dfg/DFGSpeculativeJIT.cpp:
+        (JSC::DFG::SpeculativeJIT::emitAllocateRawObject):
+        * runtime/JSArray.cpp:
+        (JSC::JSArray::tryCreateUninitializedRestricted):
+        * runtime/JSArray.h:
+        (JSC::JSArray::tryCreate):
+        * runtime/JSObject.cpp:
+        (JSC::JSObject::ensureLengthSlow):
+
+2017-07-18  Saam Barati  <sbarati@apple.com>
+
+        AirLowerAfterRegAlloc may incorrectly use a callee save that's live as a scratch register
+        https://bugs.webkit.org/show_bug.cgi?id=174515
+        <rdar://problem/33358092>
+
+        Reviewed by Filip Pizlo.
+
+        AirLowerAfterRegAlloc was computing the set of available scratch
+        registers incorrectly. It was always excluding callee save registers
+        from the set of live registers. It did not guarantee that live callee save
+        registers were not in the set of scratch registers that could
+        get clobbered. That's incorrect as the shuffling code is free
+        to overwrite whatever is in the scratch register it gets passed.
+
+        * b3/air/AirLowerAfterRegAlloc.cpp:
+        (JSC::B3::Air::lowerAfterRegAlloc):
+        * b3/testb3.cpp:
+        (JSC::B3::functionNineArgs):
+        (JSC::B3::testShuffleDoesntTrashCalleeSaves):
+        (JSC::B3::run):
+        * jit/RegisterSet.h:
+
+2017-07-18  Andy Estes  <aestes@apple.com>
+
+        [Xcode] Enable CLANG_WARN_NON_LITERAL_NULL_CONVERSION
+        https://bugs.webkit.org/show_bug.cgi?id=174631
+
+        Reviewed by Dan Bernstein.
+
+        * Configurations/Base.xcconfig:
+
+2017-07-18  Devin Rousso  <drousso@apple.com>
+
+        Web Inspector: Add memoryCost to Inspector Protocol objects
+        https://bugs.webkit.org/show_bug.cgi?id=174478
+
+        Reviewed by Joseph Pecoraro.
+
+        For non-array and non-object InspectorValue, calculate memoryCost as the sizeof the object,
+        plus the memoryCost of the data if it is a string.
+
+        For array InspectorValue, calculate memoryCost as the sum of the memoryCost of all items.
+
+        For object InspectorValue, calculate memoryCost as the sum of the memoryCost of the string
+        key plus the memoryCost of the InspectorValue for each entry.
+
+        Test: TestWebKitAPI/Tests/JavaScriptCore/InspectorValue.cpp
+
+        * inspector/InspectorValues.h:
+        * inspector/InspectorValues.cpp:
+        (Inspector::InspectorValue::memoryCost):
+        (Inspector::InspectorObjectBase::memoryCost):
+        (Inspector::InspectorArrayBase::memoryCost):
+
 2017-07-18  Andy Estes  <aestes@apple.com>
 
         [Xcode] Enable CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING

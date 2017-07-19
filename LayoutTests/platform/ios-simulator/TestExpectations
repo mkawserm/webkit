@@ -88,9 +88,11 @@ media/modern-media-controls/mute-button [ Pass ]
 media/modern-media-controls/mute-support [ Pass ]
 media/modern-media-controls/pip-button [ Pass ]
 media/modern-media-controls/pip-placard [ Pass ]
+media/modern-media-controls/pip-support/ipad [ Pass ]
 media/modern-media-controls/placard [ Pass ]
 media/modern-media-controls/placard-support [ Pass ]
 media/modern-media-controls/play-pause-button [ Pass ]
+media/modern-media-controls/playback-support [ Pass ]
 media/modern-media-controls/rewind-button [ Pass ]
 media/modern-media-controls/scheduler [ Pass ]
 media/modern-media-controls/scrubber [ Pass ]
@@ -112,11 +114,13 @@ media/modern-media-controls/button/button.html [ Skip ]
 media/modern-media-controls/button/button-active-state.html [ Skip ]
 media/modern-media-controls/fullscreen-support/fullscreen-support-press.html [ Skip ]
 media/modern-media-controls/mute-support/mute-support-press-on-button.html [ Skip ]
+media/modern-media-controls/pip-support/ipad/pip-support-tap.html [ Skip ]
 media/modern-media-controls/placard-support/ipad [ Skip ]
 
 # These tests rely on fullscreen which do not use the WebKit media controls on iOS
 media/modern-media-controls/controls-visibility-support/controls-visibility-support-fullscreen-on-parent-element.html [ Skip ]
 media/modern-media-controls/controls-visibility-support/controls-visibility-support-fullscreen-on-video.html [ Skip ]
+media/modern-media-controls/css/webkit-cursor-visibility-auto-hide.html [ Skip ]
 media/modern-media-controls/placard-support/placard-support-airplay-fullscreen.html [ Skip ]
 
 # These tests specifically test iOS-only media controls features
@@ -127,6 +131,7 @@ media/modern-media-controls/button/button-click-on-edges.html [ Skip ]
 media/modern-media-controls/placard-support/placard-support-pip.html [ Skip ]
 media/modern-media-controls/media-documents/media-document-audio-mac-sizing.html [ Skip ]
 media/modern-media-controls/media-documents/media-document-video-mac-sizing.html [ Skip ]
+media/modern-media-controls/playback-support/playback-support-button-click.html [ Skip ]
 
 webkit.org/b/172965 media/track/track-cue-overlap-snap-to-lines-not-set.html [ Failure ]
 

@@ -1356,6 +1356,7 @@ set(WebCore_SOURCES
     css/CSSSelector.cpp
     css/CSSSelectorList.cpp
     css/CSSShadowValue.cpp
+    css/CSSStyleDeclaration.cpp
     css/CSSStyleRule.cpp
     css/CSSStyleSheet.cpp
     css/CSSSupportsRule.cpp
@@ -1900,6 +1901,7 @@ set(WebCore_SOURCES
     inspector/DOMPatchSupport.cpp
     inspector/InspectorApplicationCacheAgent.cpp
     inspector/InspectorCSSAgent.cpp
+    inspector/InspectorCanvas.cpp
     inspector/InspectorCanvasAgent.cpp
     inspector/InspectorClient.cpp
     inspector/InspectorController.cpp

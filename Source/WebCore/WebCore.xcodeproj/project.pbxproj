@@ -2879,6 +2879,8 @@
 		65FEA86909833ADE00BED4AB /* Page.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 65FEA86809833ADE00BED4AB /* Page.cpp */; };
 		69A6CBAC1C6BE42C00B836E9 /* AccessibilitySVGElement.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 697101071C6BE1550018C7F1 /* AccessibilitySVGElement.cpp */; };
 		69A6CBAD1C6BE42C00B836E9 /* AccessibilitySVGElement.h in Headers */ = {isa = PBXBuildFile; fileRef = 697101081C6BE1550018C7F1 /* AccessibilitySVGElement.h */; };
+		6A22E8701F10418600F546C3 /* InspectorCanvas.h in Headers */ = {isa = PBXBuildFile; fileRef = 6A22E86F1F10418600F546C3 /* InspectorCanvas.h */; };
+		6A22E8731F1042C400F546C3 /* InspectorCanvas.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 6A22E8721F1042C400F546C3 /* InspectorCanvas.cpp */; };
 		6A32D7CE1A16D8C000412F0B /* InspectorCanvasAgent.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 6A4B6D6619D225D8006F11D3 /* InspectorCanvasAgent.cpp */; };
 		6A4B6D6519D22519006F11D3 /* InspectorCanvasAgent.h in Headers */ = {isa = PBXBuildFile; fileRef = 6A4B6D6419D22519006F11D3 /* InspectorCanvasAgent.h */; };
 		6B3480940EEF50D400AC1B41 /* NativeImage.h in Headers */ = {isa = PBXBuildFile; fileRef = 6B3480920EEF50D400AC1B41 /* NativeImage.h */; settings = {ATTRIBUTES = (Private, ); }; };
@@ -3281,6 +3283,7 @@
 		7CD0BA051B8F79C9005CEBBE /* ActiveDOMCallbackMicrotask.h in Headers */ = {isa = PBXBuildFile; fileRef = 7CD0BA031B8F79C9005CEBBE /* ActiveDOMCallbackMicrotask.h */; };
 		7CD494CC1A86EB1D000A87EC /* RenderAttachment.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 7CD494CA1A86EB1D000A87EC /* RenderAttachment.cpp */; };
 		7CD494CD1A86EB1D000A87EC /* RenderAttachment.h in Headers */ = {isa = PBXBuildFile; fileRef = 7CD494CB1A86EB1D000A87EC /* RenderAttachment.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		7CDE8EBE1F193BCB00168FE7 /* CSSStyleDeclaration.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 7CDE8EBC1F193BC500168FE7 /* CSSStyleDeclaration.cpp */; };
 		7CE58D4A1DD64A5B00128552 /* SVGPoint.h in Headers */ = {isa = PBXBuildFile; fileRef = 7CE58D491DD64A5B00128552 /* SVGPoint.h */; };
 		7CE58D4E1DD694FE00128552 /* SVGRectTraits.h in Headers */ = {isa = PBXBuildFile; fileRef = 7CE58D4D1DD694FE00128552 /* SVGRectTraits.h */; };
 		7CE58D501DD69A1E00128552 /* SVGNumber.h in Headers */ = {isa = PBXBuildFile; fileRef = 7CE58D4F1DD69A1E00128552 /* SVGNumber.h */; };
@@ -4327,7 +4330,6 @@
 		A1E1154413015C3D0054AC8C /* DistantLightSource.cpp in Sources */ = {isa = PBXBuildFile; fileRef = A1E1154313015C3D0054AC8C /* DistantLightSource.cpp */; };
 		A1E1154613015C4E0054AC8C /* PointLightSource.cpp in Sources */ = {isa = PBXBuildFile; fileRef = A1E1154513015C4E0054AC8C /* PointLightSource.cpp */; };
 		A1E1154813015C5D0054AC8C /* SpotLightSource.cpp in Sources */ = {isa = PBXBuildFile; fileRef = A1E1154713015C5D0054AC8C /* SpotLightSource.cpp */; };
-		A1E5B31F1AAD1DA4006EBEFB /* JSMockContentFilterSettingsCustom.cpp in Sources */ = {isa = PBXBuildFile; fileRef = A1E5B31D1AAD1DA4006EBEFB /* JSMockContentFilterSettingsCustom.cpp */; };
 		A1ED778C1BE3294000DC1791 /* Device.cpp in Sources */ = {isa = PBXBuildFile; fileRef = A1ED778A1BE3293F00DC1791 /* Device.cpp */; };
 		A1ED778D1BE3294000DC1791 /* Device.h in Headers */ = {isa = PBXBuildFile; fileRef = A1ED778B1BE3294000DC1791 /* Device.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		A1ED778F1BE4291800DC1791 /* UIKitSPI.h in Headers */ = {isa = PBXBuildFile; fileRef = A1ED778E1BE4291800DC1791 /* UIKitSPI.h */; };
@@ -10703,6 +10705,8 @@
 		65FEA86809833ADE00BED4AB /* Page.cpp */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.cpp.cpp; path = Page.cpp; sourceTree = "<group>"; };
 		697101071C6BE1550018C7F1 /* AccessibilitySVGElement.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = AccessibilitySVGElement.cpp; sourceTree = "<group>"; };
 		697101081C6BE1550018C7F1 /* AccessibilitySVGElement.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AccessibilitySVGElement.h; sourceTree = "<group>"; };
+		6A22E86F1F10418600F546C3 /* InspectorCanvas.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = InspectorCanvas.h; sourceTree = "<group>"; };
+		6A22E8721F1042C400F546C3 /* InspectorCanvas.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = InspectorCanvas.cpp; sourceTree = "<group>"; };
 		6A4B6D6419D22519006F11D3 /* InspectorCanvasAgent.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = InspectorCanvasAgent.h; sourceTree = "<group>"; };
 		6A4B6D6619D225D8006F11D3 /* InspectorCanvasAgent.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = InspectorCanvasAgent.cpp; sourceTree = "<group>"; };
 		6B3480920EEF50D400AC1B41 /* NativeImage.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; path = NativeImage.h; sourceTree = "<group>"; };
@@ -11354,6 +11358,7 @@
 		7CD0BA031B8F79C9005CEBBE /* ActiveDOMCallbackMicrotask.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = ActiveDOMCallbackMicrotask.h; sourceTree = "<group>"; };
 		7CD494CA1A86EB1D000A87EC /* RenderAttachment.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = RenderAttachment.cpp; sourceTree = "<group>"; };
 		7CD494CB1A86EB1D000A87EC /* RenderAttachment.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = RenderAttachment.h; sourceTree = "<group>"; };
+		7CDE8EBC1F193BC500168FE7 /* CSSStyleDeclaration.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = CSSStyleDeclaration.cpp; sourceTree = "<group>"; };
 		7CE58D491DD64A5B00128552 /* SVGPoint.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = SVGPoint.h; sourceTree = "<group>"; };
 		7CE58D4D1DD694FE00128552 /* SVGRectTraits.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = SVGRectTraits.h; sourceTree = "<group>"; };
 		7CE58D4F1DD69A1E00128552 /* SVGNumber.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = SVGNumber.h; sourceTree = "<group>"; };
@@ -12582,7 +12587,6 @@
 		A1E1154313015C3D0054AC8C /* DistantLightSource.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = DistantLightSource.cpp; sourceTree = "<group>"; };
 		A1E1154513015C4E0054AC8C /* PointLightSource.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = PointLightSource.cpp; sourceTree = "<group>"; };
 		A1E1154713015C5D0054AC8C /* SpotLightSource.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = SpotLightSource.cpp; sourceTree = "<group>"; };
-		A1E5B31D1AAD1DA4006EBEFB /* JSMockContentFilterSettingsCustom.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = JSMockContentFilterSettingsCustom.cpp; sourceTree = "<group>"; };
 		A1ED778A1BE3293F00DC1791 /* Device.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = Device.cpp; sourceTree = "<group>"; };
 		A1ED778B1BE3294000DC1791 /* Device.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = Device.h; sourceTree = "<group>"; };
 		A1ED778E1BE4291800DC1791 /* UIKitSPI.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = UIKitSPI.h; sourceTree = "<group>"; };
@@ -17191,6 +17195,8 @@
 				7A54881514E432A1006AE05A /* DOMPatchSupport.h */,
 				B885E8D211E06DD2009FFBF4 /* InspectorApplicationCacheAgent.cpp */,
 				B885E8D311E06DD2009FFBF4 /* InspectorApplicationCacheAgent.h */,
+				6A22E8721F1042C400F546C3 /* InspectorCanvas.cpp */,
+				6A22E86F1F10418600F546C3 /* InspectorCanvas.h */,
 				6A4B6D6619D225D8006F11D3 /* InspectorCanvasAgent.cpp */,
 				6A4B6D6419D22519006F11D3 /* InspectorCanvasAgent.h */,
 				7A1F2B51126C61B20006A7E6 /* InspectorClient.cpp */,
@@ -23629,7 +23635,6 @@
 				7A74ECBC101839DA00BF939E /* JSInspectorFrontendHostCustom.cpp */,
 				BCE1C43F0D9830F4003B02F2 /* JSLocationCustom.cpp */,
 				410B7E711045FAB000D8224F /* JSMessageEventCustom.cpp */,
-				A1E5B31D1AAD1DA4006EBEFB /* JSMockContentFilterSettingsCustom.cpp */,
 				C6F0917E143A2BB900685849 /* JSMutationObserverCustom.cpp */,
 				A85F22081430377D007CC884 /* JSPopStateEventCustom.cpp */,
 				418C395D1C8F0AAB0051C8A3 /* JSReadableStreamSourceCustom.cpp */,
@@ -25067,6 +25072,7 @@
 				E4C178960EE6903800824D69 /* CSSSelectorList.h */,
 				A80E6CCA0A1989CA007FB8C5 /* CSSShadowValue.cpp */,
 				A80E6CBE0A1989CA007FB8C5 /* CSSShadowValue.h */,
+				7CDE8EBC1F193BC500168FE7 /* CSSStyleDeclaration.cpp */,
 				A80E6E0D0A19911C007FB8C5 /* CSSStyleDeclaration.h */,
 				142011AE0A003117008303F9 /* CSSStyleDeclaration.idl */,
 				A80E6CC50A1989CA007FB8C5 /* CSSStyleRule.cpp */,
@@ -27708,6 +27714,7 @@
 				93309DF0099E64920056E581 /* InsertParagraphSeparatorCommand.h in Headers */,
 				93309DF2099E64920056E581 /* InsertTextCommand.h in Headers */,
 				B885E8D511E06DD2009FFBF4 /* InspectorApplicationCacheAgent.h in Headers */,
+				6A22E8701F10418600F546C3 /* InspectorCanvas.h in Headers */,
 				6A4B6D6519D22519006F11D3 /* InspectorCanvasAgent.h in Headers */,
 				1C81B95C0E97330800266E07 /* InspectorClient.h in Headers */,
 				1C81B95A0E97330800266E07 /* InspectorController.h in Headers */,
@@ -30588,7 +30595,6 @@
 				CD5393D3175E018600C07123 /* JSMemoryInfo.cpp in Sources */,
 				CDF4B7321E03D06000E235A2 /* JSMockCDMFactory.cpp in Sources */,
 				A19AEA221AAA808A00B52B25 /* JSMockContentFilterSettings.cpp in Sources */,
-				A1E5B31F1AAD1DA4006EBEFB /* JSMockContentFilterSettingsCustom.cpp in Sources */,
 				2D4150DE1C1F868C000A3BA2 /* JSMockPageOverlay.cpp in Sources */,
 				EBF5121C1696496C0056BD25 /* JSTypeConversions.cpp in Sources */,
 				CDC26B40160A8CC60026757B /* LegacyMockCDM.cpp in Sources */,
@@ -30816,6 +30822,7 @@
 				49484FC4102CF23C00187DD3 /* CanvasPattern.cpp in Sources */,
 				49C7B9DC1042D32F0009D447 /* CanvasRenderingContext.cpp in Sources */,
 				49484FCA102CF23C00187DD3 /* CanvasRenderingContext2D.cpp in Sources */,
+				7CDE8EBE1F193BCB00168FE7 /* CSSStyleDeclaration.cpp in Sources */,
 				49484FCD102CF23C00187DD3 /* CanvasStyle.cpp in Sources */,
 				072CA86116CB4DC3008AE131 /* CaptionUserPreferences.cpp in Sources */,
 				079D086C162F21F900DB8658 /* CaptionUserPreferencesMediaAF.cpp in Sources */,
@@ -31689,6 +31696,7 @@
 				93309DEF099E64920056E581 /* InsertParagraphSeparatorCommand.cpp in Sources */,
 				93309DF1099E64920056E581 /* InsertTextCommand.cpp in Sources */,
 				B885E8D411E06DD2009FFBF4 /* InspectorApplicationCacheAgent.cpp in Sources */,
+				6A22E8731F1042C400F546C3 /* InspectorCanvas.cpp in Sources */,
 				6A32D7CE1A16D8C000412F0B /* InspectorCanvasAgent.cpp in Sources */,
 				7A1F2B52126C61B20006A7E6 /* InspectorClient.cpp in Sources */,
 				1C81B95B0E97330800266E07 /* InspectorController.cpp in Sources */,

@@ -1,3 +1,195 @@
+2017-07-19  Zan Dobersek  <zdobersek@igalia.com>
+
+        Unreviewed WPE gardening.
+
+        * platform/wpe/TestExpectations:
+        Unskip a bunch of Web Crypto tests that are passing now that
+        the underlying implementation has progressed.
+
+2017-07-18  Myles C. Maxfield  <mmaxfield@apple.com>
+
+        Setting the minimum font size preference doesn’t affect absolute line-height values, so lines overlap
+        https://bugs.webkit.org/show_bug.cgi?id=174406
+        <rdar://problem/10139227>
+
+        Reviewed by Simon Fraser.
+
+        * fast/text/line-height-minimumFontSize-autosize-expected.text: Added.
+        * fast/text/line-height-minimumFontSize-autosize.html: Added.
+        * fast/text/line-height-minimumFontSize-expected.txt: Added.
+        * fast/text/line-height-minimumFontSize-text-zoom-expected.html: Added.
+        * fast/text/line-height-minimumFontSize-text-zoom.html: Added.
+        * fast/text/line-height-minimumFontSize-visual-expected.html: Added.
+        * fast/text/line-height-minimumFontSize-visual.html: Added.
+        * fast/text/line-height-minimumFontSize-zoom-expected.html: Added.
+        * fast/text/line-height-minimumFontSize-zoom.html: Added.
+        * fast/text/line-height-minimumFontSize.html: Added.
+
+2017-07-18  Ali Juma  <ajuma@chromium.org>
+
+        Align quirky number parsing with other browsers
+        https://bugs.webkit.org/show_bug.cgi?id=155874
+
+        Reviewed by Simon Fraser.
+
+        * animations/animation-add-events-in-handler.html:
+        * fast/css/animation-transition-duration-quirksmode-expected.txt: Added.
+        * fast/css/animation-transition-duration-quirksmode.html: Added.
+
+2017-07-18  Joseph Pecoraro  <pecoraro@apple.com>
+
+        Web Inspector: Modernize InjectedScriptSource
+        https://bugs.webkit.org/show_bug.cgi?id=173890
+
+        Reviewed by Brian Burg.
+
+        * inspector/model/remote-object-expected.txt:
+        * inspector/model/stack-trace-expected.txt:
+        Now that we use classes, implicitly strict mode, the call frame
+        for evaluate gets tail call eliminated.
+
+2017-07-18  Ryosuke Niwa  <rniwa@webkit.org>
+
+        REGRESSION(r218910): Crash when password field changes to text field
+        https://bugs.webkit.org/show_bug.cgi?id=174560
+
+        Reviewed by Zalan Bujtas.
+
+        Added a regression test based on the test case provided by Daniel Bates.
+
+        * accessibility/mac/input-type-change-crash-2-expected.txt: Added.
+        * accessibility/mac/input-type-change-crash-2.html: Added.
+
+2017-07-18  Matt Baker  <mattbaker@apple.com>
+
+        Web Inspector: Refactoring: replace InspectorCanvasAgent::CanvasEntry with a helper class
+        https://bugs.webkit.org/show_bug.cgi?id=174311
+
+        Reviewed by Devin Rousso.
+
+        Updated test expectations for new error strings.
+
+        * inspector/canvas/css-canvas-clients-expected.txt:
+        * inspector/canvas/requestContent-2d-expected.txt:
+        * inspector/canvas/requestNode-expected.txt:
+        * inspector/canvas/resolveCanvasContext-2d-expected.txt:
+
+2017-07-18  Antoine Quint  <graouts@apple.com>
+
+        Turn tests at media/modern-media-controls/playback-support back on
+        https://bugs.webkit.org/show_bug.cgi?id=174639
+
+        Reviewed by Dean Jackson.
+
+        * media/modern-media-controls/playback-support/playback-support-button-click.html:
+        * platform/ios-simulator/TestExpectations:
+        * platform/mac/TestExpectations:
+
+2017-07-18  Antoine Quint  <graouts@apple.com>
+
+        Turn tests at media/modern-media-controls/pip-support back on
+        https://bugs.webkit.org/show_bug.cgi?id=174636
+
+        Reviewed by Dean Jackson.
+
+        * media/modern-media-controls/pip-support/ipad/pip-support-tap.html:
+        * platform/ios-simulator/TestExpectations:
+        * platform/mac-elcapitan/TestExpectations:
+        * platform/mac/TestExpectations:
+
+2017-07-18  Matt Lewis  <jlewis3@apple.com>
+
+        Marked http/tests/cache/disk-cache/redirect-chain-limits.html as flaky.
+        https://bugs.webkit.org/show_bug.cgi?id=172662
+
+        Unreviewed test gardening.
+
+        * platform/wk2/TestExpectations:
+
+2017-07-18  Matt Lewis  <jlewis3@apple.com>
+
+        Marked http/tests/cache/disk-cache/disk-cache-vary-cookie.html as flaky.
+        https://bugs.webkit.org/show_bug.cgi?id=172662
+
+        Unreviewed test gardening.
+
+        * platform/wk2/TestExpectations:
+
+2017-07-18  Antoine Quint  <graouts@apple.com>
+
+        [macOS] Mouse pointer does not hide during fullscreen playback
+        https://bugs.webkit.org/show_bug.cgi?id=174638
+        <rdar://problem/33244399>
+
+        Reviewed by Dean Jackson.
+
+        Add a test that checks that the "-webkit-cursor-visibility" is set to "auto-hide" when
+        in fullscreen for the media controls container.
+
+        * media/modern-media-controls/css/webkit-cursor-visibility-auto-hide-expected.txt: Added.
+        * media/modern-media-controls/css/webkit-cursor-visibility-auto-hide.html: Added.
+        * platform/ios-simulator/TestExpectations:
+
+2017-07-18  Sam Weinig  <sam@webkit.org>
+
+        [WebIDL] Remove custom bindings for MockContentFilterSettings
+        https://bugs.webkit.org/show_bug.cgi?id=174606
+
+        Reviewed by Andy Estes.
+
+        * contentfiltering/allow-after-add-data.html:
+        * contentfiltering/allow-after-finished-adding-data.html:
+        * contentfiltering/allow-after-response.html:
+        * contentfiltering/allow-after-will-send-request.html:
+        * contentfiltering/allow-empty-document.html:
+        * contentfiltering/allow-media-document.html:
+        * contentfiltering/allow-never.html:
+        * contentfiltering/block-after-add-data-then-allow-unblock.html:
+        * contentfiltering/block-after-add-data-then-deny-unblock.html:
+        * contentfiltering/block-after-add-data.html:
+        * contentfiltering/block-after-finished-adding-data-then-allow-unblock.html:
+        * contentfiltering/block-after-finished-adding-data-then-deny-unblock.html:
+        * contentfiltering/block-after-finished-adding-data.html:
+        * contentfiltering/block-after-response-then-allow-unblock.html:
+        * contentfiltering/block-after-response-then-deny-unblock.html:
+        * contentfiltering/block-after-response.html:
+        * contentfiltering/block-after-will-send-request-then-allow-unblock.html:
+        * contentfiltering/block-after-will-send-request-then-deny-unblock.html:
+        * contentfiltering/block-after-will-send-request.html:
+        * contentfiltering/block-never.html:
+        * contentfiltering/modify-request-url.html:
+        * contentfiltering/resources/contentfiltering.js:
+        * http/tests/contentfiltering/allow-after-redirect.html:
+        * http/tests/contentfiltering/block-after-redirect.html:
+        * http/tests/contentfiltering/load-substitute-data-from-appcache.html:
+        * http/tests/contentfiltering/modify-redirect-request-url.html:
+        Update tests to use new MockContentFilterSettings enums rather than constants.
+
+2017-07-18  Sam Weinig  <sam@webkit.org>
+
+        [WebIDL] Replace some custom bindings code in JSCSSStyleDeclarationCustom.cpp with named getters/setters
+        https://bugs.webkit.org/show_bug.cgi?id=174529
+
+        Reviewed by Chris Dumez.
+
+        * fast/dom/CSSStyleDeclaration/cssstyledeclaration-properties-descriptor-expected.txt:
+        * fast/dom/CSSStyleDeclaration/cssstyledeclaration-properties-descriptor.html:
+        Update test and result to match standard and other browsers. 
+
+2017-07-18  Matt Lewis  <jlewis3@apple.com>
+
+        Unreviewed, rolling out r219610.
+
+        This caused an api failure on all platforms for the test
+        SnapshotImageLargeAsyncDecoding
+
+        Reverted changeset:
+
+        "Async image decoding for large images should be disabled
+        after the first time a tile is painted"
+        https://bugs.webkit.org/show_bug.cgi?id=174451
+        http://trac.webkit.org/changeset/219610
+
 2017-07-18  Devin Rousso  <drousso@apple.com>
 
         Add CanvasRenderingContext2D::getTransform

@@ -1,3 +1,140 @@
+2017-07-19  Yusuke Suzuki  <utatane.tea@gmail.com>
+
+        [WTF] Implement WTF::ThreadGroup
+        https://bugs.webkit.org/show_bug.cgi?id=174081
+
+        Reviewed by Mark Lam.
+
+        * Shared/AsyncRequest.h:
+
+2017-07-18  Carlos Garcia Campos  <cgarcia@igalia.com>
+
+        WebDriver: handle invalid selector errors
+        https://bugs.webkit.org/show_bug.cgi?id=174619
+
+        Reviewed by Brian Burg.
+
+        We are currently handling only XPathException and only when it's an invalid expression. In the xpath case, the
+        spec also says "If any item in result is not an element return an error with error code invalid selector.", so
+        we should also handle TYPE_ERR (The expression could not be converted to return the specified type.). However,
+        since the spec says "or other error", I think we can simplify this and simply throw InvalidSelector inside the
+        catch, without checking any specific error. This is causing 14 failures in selenium tests.
+
+        §12. Element Retrieval. Step 6: If a DOMException, SyntaxError, XPathException, or other error occurs during the
+        execution of the element location strategy, return error invalid selector.
+        https://www.w3.org/TR/webdriver/#dfn-find
+
+        * UIProcess/Automation/Automation.json: Add InvalidSelector error.
+        * UIProcess/Automation/atoms/FindNodes.js:
+        (tryToFindNode): Raise InvalidSelector in case of error.
+        * WebProcess/Automation/WebAutomationSessionProxy.cpp:
+        (WebKit::WebAutomationSessionProxy::evaluateJavaScriptFunction): Handle InvalidSelector exceptions.
+
+2017-07-18  Carlos Garcia Campos  <cgarcia@igalia.com>
+
+        Web Automation: error details not passed to DidEvaluateJavaScriptFunction message when callback was not called before page unload
+        https://bugs.webkit.org/show_bug.cgi?id=174624
+
+        Reviewed by Brian Burg.
+
+        There's a variable errorMessage, but it's unused.
+
+        * WebProcess/Automation/WebAutomationSessionProxy.cpp:
+        (WebKit::WebAutomationSessionProxy::didClearWindowObjectForFrame): Pass errorMessage instead of String() to DidEvaluateJavaScriptFunction.
+
+2017-07-18  Carlos Garcia Campos  <cgarcia@igalia.com>
+
+        Web Automation: evaluateJavaScriptFunction should always notify the web process before returning early
+        https://bugs.webkit.org/show_bug.cgi?id=174623
+
+        Reviewed by Brian Burg.
+
+        It currently returns early if page, frame or scriptObject are nullptr, in which cases the UI process is not
+        notified. This causes test testShouldNotBeAbleToDoAnythingTheFrameIsDeletedFromUnderUs to hang, because message
+        DidEvaluateJavaScriptFunction is never sent when the given frame no longer exists. We should send
+        DidEvaluateJavaScriptFunction with WindowNotFound in case of page is nullptr and FrameNotFound if the frame is
+        nullptr. The scriptObject early return is actually wrong, because scriptObjectForFrame creates a new script if
+        there's isn't one for the given frame.
+
+        * WebProcess/Automation/WebAutomationSessionProxy.cpp:
+        (WebKit::WebAutomationSessionProxy::evaluateJavaScriptFunction):
+
+2017-07-18  Carlos Garcia Campos  <cgarcia@igalia.com>
+
+        Web Automation: pending evaluate script callbacks are stored with the wrong frame ID when using the default main frame
+        https://bugs.webkit.org/show_bug.cgi?id=174622
+
+        Reviewed by Brian Burg.
+
+        The frameHandle argument is optional in evaluateJavaScriptFunction(), when not provided we pass 0 to the web
+        process. The proxy gets the web page main frame when received frame ID is 0, but the given frameID is
+        still used as key of m_webFramePendingEvaluateJavaScriptCallbacksMap and also passed to the javascript function
+        as argument. I think r203442 was actually a workaround to this bug, making it even more hidden. Both
+        m_webFrameScriptObjectMap and m_webFramePendingEvaluateJavaScriptCallbacksMap should never have 0 as a
+        key, since they always use a frame ID, and the frame identifier counter starts at 1. This is causing test
+        testShouldDetectPageLoadsWhileWaitingOnAnAsyncScriptAndReturnAnError to hang, because when the page is unloaded
+        and didClearWindowObjectForFrame is called, we try to get the pending callbacks of frame 1, but they were stored
+        as frame 0 so DidEvaluateJavaScriptFunction message is never sent to the UI process.
+
+        * WebProcess/Automation/WebAutomationSessionProxy.cpp:
+        (WebKit::WebAutomationSessionProxy::evaluateJavaScriptFunction): Use always the actual frameID from the WebFrame
+        we are using.
+        * WebProcess/Automation/WebAutomationSessionProxy.h: Do not allow 0 as a key of
+        m_webFramePendingEvaluateJavaScriptCallbacksMap and m_webFrameScriptObjectMap.
+
+2017-07-18  Andy Estes  <aestes@apple.com>
+
+        [Xcode] Enable CLANG_WARN_RANGE_LOOP_ANALYSIS
+        https://bugs.webkit.org/show_bug.cgi?id=174631
+
+        Reviewed by Tim Horton.
+
+        * Configurations/Base.xcconfig:
+        * Shared/API/APIArray.cpp:
+        (API::Array::toStringVector):
+        * UIProcess/Plugins/PlugInAutoStartProvider.cpp:
+        (WebKit::PlugInAutoStartProvider::setAutoStartOriginsArray):
+        * UIProcess/UserContent/WebUserContentControllerProxy.cpp:
+        (WebKit::WebUserContentControllerProxy::addProcess):
+        (WebKit::WebUserContentControllerProxy::removeAllUserScripts):
+        (WebKit::WebUserContentControllerProxy::removeAllUserStyleSheets):
+        * UIProcess/ios/forms/WKFileUploadPanel.mm:
+        (-[WKFileUploadPanel presentWithParameters:resultListener:]):
+        * WebProcess/InjectedBundle/InjectedBundlePageEditorClient.cpp:
+        (WebKit::InjectedBundlePageEditorClient::getPasteboardDataForRange):
+
+2017-07-18  Andy Estes  <aestes@apple.com>
+
+        [Xcode] Enable CLANG_WARN_OBJC_LITERAL_CONVERSION
+        https://bugs.webkit.org/show_bug.cgi?id=174631
+
+        Reviewed by Sam Weinig.
+
+        * Configurations/Base.xcconfig:
+
+2017-07-18  Andy Estes  <aestes@apple.com>
+
+        [Xcode] Enable CLANG_WARN_NON_LITERAL_NULL_CONVERSION
+        https://bugs.webkit.org/show_bug.cgi?id=174631
+
+        Reviewed by Dan Bernstein.
+
+        * Configurations/Base.xcconfig:
+
+2017-07-18  Matt Lewis  <jlewis3@apple.com>
+
+        Unreviewed, rolling out r219610.
+
+        This caused an api failure on all platforms for the test
+        SnapshotImageLargeAsyncDecoding
+
+        Reverted changeset:
+
+        "Async image decoding for large images should be disabled
+        after the first time a tile is painted"
+        https://bugs.webkit.org/show_bug.cgi?id=174451
+        http://trac.webkit.org/changeset/219610
+
 2017-07-18  Andy Estes  <aestes@apple.com>
 
         [Xcode] Enable CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING
