@@ -1,3 +1,208 @@
+2017-07-14  Filip Pizlo  <fpizlo@apple.com>
+
+        It should be easy to decide how WebKit yields
+        https://bugs.webkit.org/show_bug.cgi?id=174298
+
+        Reviewed by Saam Barati.
+        
+        Created a Thread::yield() abstraction for sched_yield(), and made WTF use it everywhere that it
+        had previously used std::this_thread::yield().
+        
+        To make it less annoying to experiment with changes to the lock algorithm in the future, this also
+        moves the meat of the algorithm into LockAlgorithmInlines.h. Only two files include that header.
+        Since LockAlgorithm.h no longer includes ParkingLot.h, a bunch of files in WK now need to include
+        timing headers (Seconds, MonotonicTime, etc) manually.
+
+        * WTF.xcodeproj/project.pbxproj:
+        * benchmarks/ToyLocks.h:
+        * wtf/CMakeLists.txt:
+        * wtf/Lock.cpp:
+        * wtf/LockAlgorithm.h:
+        (WTF::LockAlgorithm::lockSlow): Deleted.
+        (WTF::LockAlgorithm::unlockSlow): Deleted.
+        * wtf/LockAlgorithmInlines.h: Added.
+        (WTF::hasParkedBit>::lockSlow):
+        (WTF::hasParkedBit>::unlockSlow):
+        * wtf/MainThread.cpp:
+        * wtf/RunLoopTimer.h:
+        * wtf/Threading.cpp:
+        * wtf/Threading.h:
+        * wtf/ThreadingPthreads.cpp:
+        (WTF::Thread::yield):
+        * wtf/ThreadingWin.cpp:
+        (WTF::Thread::yield):
+        * wtf/WordLock.cpp:
+        (WTF::WordLockBase::lockSlow):
+        (WTF::WordLockBase::unlockSlow):
+
+2017-07-22  Yusuke Suzuki  <utatane.tea@gmail.com>
+
+        [WTF] Extend ThreadGroup::add results from bool to ThreadGroupAddResult
+        https://bugs.webkit.org/show_bug.cgi?id=174705
+
+        Reviewed by Mark Lam.
+
+        After starting using ThreadGroup to bookkeep active threads for Signals,
+        we would like to know tristate of ThreadGroup::add result, NewlyAdded, AlreadyAdded, NotAdded.
+        This patch extends the result of ThreadGroup::add from bool to ThreadGroupAddResult tristate.
+        Note that NotAdded is returned if the target thread is dying.
+
+        * wtf/ThreadGroup.cpp:
+        (WTF::ThreadGroup::add):
+        (WTF::ThreadGroup::addCurrentThread):
+        * wtf/ThreadGroup.h:
+        * wtf/Threading.cpp:
+        (WTF::Thread::addToThreadGroup):
+        * wtf/Threading.h:
+        * wtf/threads/Signals.cpp:
+        (WTF::registerThreadForMachExceptionHandling):
+
+2017-07-21  Commit Queue  <commit-queue@webkit.org>
+
+        Unreviewed, rolling out r219732.
+        https://bugs.webkit.org/show_bug.cgi?id=174748
+
+        static is not threadsafe in WebKit tree (Requested by
+        yusukesuzuki on #webkit).
+
+        Reverted changeset:
+
+        "[WTF] Drop initializeDate"
+        https://bugs.webkit.org/show_bug.cgi?id=174714
+        http://trac.webkit.org/changeset/219732
+
+2017-07-21  Yusuke Suzuki  <utatane.tea@gmail.com>
+
+        [WTF] Drop initializeDate
+        https://bugs.webkit.org/show_bug.cgi?id=174714
+
+        Reviewed by Darin Adler.
+
+        minYear static variable will be initialized in an exclusive manner, which is ensured by C++ "static" semantics.
+        Thus, we do not need to call initializeDate() explicitly.
+
+        * wtf/DateMath.cpp:
+        (WTF::equivalentYearForDST):
+        (WTF::initializeDates): Deleted.
+        * wtf/Threading.cpp:
+        (WTF::initializeThreading):
+
+2017-07-21  Yusuke Suzuki  <utatane.tea@gmail.com>
+
+        [JSC] Introduce static symbols
+        https://bugs.webkit.org/show_bug.cgi?id=158863
+
+        Reviewed by Darin Adler.
+
+        We add a new class StaticSymbolImpl. StaticSymbolImpl can offer
+        the way to create static SymbolImpl. It can be shared between
+        multiple VMs and multiple threads.
+
+        * wtf/text/SymbolImpl.h:
+        (WTF::SymbolImpl::StaticSymbolImpl::StaticSymbolImpl):
+        (WTF::SymbolImpl::StaticSymbolImpl::operator SymbolImpl&):
+        For StaticSymbolImpl's hashForSymbol, we use usual string hash value.
+        Since all the SymbolImpls are unique, basically, any value is OK here.
+        Non-confilicting to the other SymbolImpls is ideal.
+
+2017-07-21  Yusuke Suzuki  <utatane.tea@gmail.com>
+
+        [WTF] Newly added AtomicStringImpl should use BufferInternal static string if StringImpl is static
+        https://bugs.webkit.org/show_bug.cgi?id=174501
+
+        Reviewed by Darin Adler.
+
+        When creating AtomicStringImpl from static StringImpl, we can just use createWithoutCopying
+        to create a BufferInternal AtomicStringImpl which m_data{8,16} is static string's one.
+
+        * wtf/text/AtomicStringImpl.cpp:
+        (WTF::CStringTranslator::hash):
+        (WTF::CStringTranslator::equal):
+        (WTF::CStringTranslator::translate):
+        (WTF::AtomicStringImpl::add):
+        (WTF::HashTranslatorCharBuffer::HashTranslatorCharBuffer):
+        (WTF::UCharBufferTranslator::hash):
+        (WTF::UCharBufferTranslator::equal):
+        (WTF::UCharBufferTranslator::translate):
+        (WTF::LCharBufferTranslator::hash):
+        (WTF::LCharBufferTranslator::equal):
+        (WTF::LCharBufferTranslator::translate):
+        (WTF::BufferFromStaticDataTranslator::hash):
+        (WTF::BufferFromStaticDataTranslator::equal):
+        (WTF::BufferFromStaticDataTranslator::translate):
+        (WTF::AtomicStringImpl::addLiteral):
+        (WTF::addSymbol):
+        (WTF::addStatic):
+        (WTF::AtomicStringImpl::addSlowCase):
+        (WTF::AtomicStringImpl::lookUp):
+        (WTF::CharBufferFromLiteralDataTranslator::hash): Deleted.
+        (WTF::CharBufferFromLiteralDataTranslator::equal): Deleted.
+        (WTF::CharBufferFromLiteralDataTranslator::translate): Deleted.
+        (WTF::addSubstring): Deleted.
+        * wtf/text/StringImpl.h:
+
+2017-07-21  Konstantin Tokarev  <annulen@yandex.ru>
+
+       [cmake] Unreviewed, add definitions necessary to use ICU shipped with macOS
+
+       macOS system ICU libraries are built with U_DISABLE_RENAMING=1 and
+       U_SHOW_CPLUSPLUS_API=0. After r219155 we have to pass this definitons
+       explicitly, because ICU headers in the tree are not modified anymore.
+
+        * wtf/PlatformMac.cmake: Rely on ICU_LIBRARIES instead of passing ICU
+        library name explicitly in WTF_LIBRARIES.
+
+2017-07-20  Chris Dumez  <cdumez@apple.com>
+
+        Replace calls to Vector::resize() with calls to more efficient shrink() / grow() when applicable
+        https://bugs.webkit.org/show_bug.cgi?id=174660
+
+        Reviewed by Geoffrey Garen.
+
+        Replace calls to Vector::resize() with calls to more efficient shrink() / grow() when applicable.
+        This essentially replaces a branch to figure out if the new size is less or greater than the
+        current size by an assertion.
+
+        * wtf/IndexSparseSet.h:
+        (WTF::OverflowHandler>::IndexSparseSet):
+        (WTF::OverflowHandler>::clear):
+        * wtf/Insertion.h:
+        (WTF::executeInsertions):
+        * wtf/RangeSet.h:
+        (WTF::RangeSet::compact):
+        * wtf/Vector.h:
+        (WTF::removeRepeatedElements):
+        * wtf/persistence/Coders.h:
+
+2017-07-20  Yusuke Suzuki  <utatane.tea@gmail.com>
+
+        [WTF] Use ThreadGroup to bookkeep active threads for Mach exception
+        https://bugs.webkit.org/show_bug.cgi?id=174678
+
+        Reviewed by Mark Lam.
+
+        We can use ThreadGroup to bookkeep active threads for Mach exceptions.
+        When the thread dies, it is automatically removed from the thread groups.
+        So we do not need to call unregisterThreadForMachExceptionHandling.
+
+        * wtf/ThreadGroup.cpp:
+        (WTF::ThreadGroup::~ThreadGroup):
+        (WTF::ThreadGroup::add):
+        * wtf/ThreadGroup.h:
+        * wtf/ThreadHolder.cpp:
+        (WTF::ThreadHolder::~ThreadHolder):
+        * wtf/Threading.cpp:
+        (WTF::Thread::addToThreadGroup):
+        (WTF::Thread::removeFromThreadGroup):
+        * wtf/Threading.h:
+        * wtf/threads/Signals.cpp:
+        (WTF::setExceptionPorts):
+        (WTF::activeThreads):
+        (WTF::registerThreadForMachExceptionHandling):
+        (WTF::installSignalHandler):
+        (WTF::unregisterThreadForMachExceptionHandling): Deleted.
+        * wtf/threads/Signals.h:
+
 2017-07-19  Yusuke Suzuki  <utatane.tea@gmail.com>
 
         [WTF] Remove unnecessary indirection of WTF::Thread entry point

@@ -55,7 +55,6 @@
 #include "WebsiteDataType.h"
 #include <JavaScriptCore/RemoteInspector.h>
 #include <WebCore/FileSystem.h>
-#include <WebCore/IconDatabase.h>
 #include <WebCore/Language.h>
 #include <glib/gi18n-lib.h>
 #include <libintl.h>
@@ -896,12 +895,12 @@ void webkit_web_context_set_favicon_database_directory(WebKitWebContext* context
     // Use default if 0 is passed as parameter.
     String directoryPath = WebCore::stringFromFileSystemRepresentation(path);
     priv->faviconDatabaseDirectory = directoryPath.isEmpty()
-        ? priv->processPool->iconDatabasePath().utf8()
+        ? ""
         : directoryPath.utf8();
 
     // Build the full path to the icon database file on disk.
     GUniquePtr<gchar> faviconDatabasePath(g_build_filename(priv->faviconDatabaseDirectory.data(),
-        WebCore::IconDatabase::defaultDatabaseFilename().utf8().data(), nullptr));
+        "WebpageIcons.db", nullptr));
 
     // Setting the path will cause the icon database to be opened.
     webkitFaviconDatabaseOpen(priv->faviconDatabase.get(), WebCore::stringFromFileSystemRepresentation(faviconDatabasePath.get()));

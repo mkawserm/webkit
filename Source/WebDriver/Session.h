@@ -66,6 +66,7 @@ public:
         std::optional<Seconds> implicit;
     };
 
+    void waitForNavigationToComplete(Function<void (CommandResult&&)>&&);
     void createTopLevelBrowsingContext(Function<void (CommandResult&&)>&&);
     void close(Function<void (CommandResult&&)>&&);
     void getTimeouts(Function<void (CommandResult&&)>&&);
@@ -103,6 +104,9 @@ public:
 
 private:
     Session(std::unique_ptr<SessionHost>&&);
+
+    void switchToTopLevelBrowsingContext(std::optional<String>);
+    void switchToBrowsingContext(std::optional<String>);
 
     RefPtr<Inspector::InspectorObject> createElement(RefPtr<Inspector::InspectorValue>&&);
     RefPtr<Inspector::InspectorObject> createElement(const String& elementID);

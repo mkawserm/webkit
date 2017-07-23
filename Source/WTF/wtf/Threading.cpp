@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008, 2009, 2014 Apple Inc. All rights reserved.
+ * Copyright (C) 2008-2017 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -29,6 +29,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <thread>
 #include <wtf/DateMath.h>
 #include <wtf/PrintStream.h>
 #include <wtf/RandomNumberSeed.h>
@@ -173,18 +174,20 @@ void Thread::didExit()
     m_didExit = true;
 }
 
-bool Thread::addToThreadGroup(const std::lock_guard<std::mutex>& threadGroupLocker, ThreadGroup& threadGroup)
+ThreadGroupAddResult Thread::addToThreadGroup(const AbstractLocker& threadGroupLocker, ThreadGroup& threadGroup)
 {
     UNUSED_PARAM(threadGroupLocker);
     std::lock_guard<std::mutex> locker(m_mutex);
     if (m_isShuttingDown)
-        return false;
-    if (threadGroup.m_threads.add(*this).isNewEntry)
+        return ThreadGroupAddResult::NotAdded;
+    if (threadGroup.m_threads.add(*this).isNewEntry) {
         m_threadGroups.append(threadGroup.weakFromThis());
-    return true;
+        return ThreadGroupAddResult::NewlyAdded;
+    }
+    return ThreadGroupAddResult::AlreadyAdded;
 }
 
-void Thread::removeFromThreadGroup(const std::lock_guard<std::mutex>& threadGroupLocker, ThreadGroup& threadGroup)
+void Thread::removeFromThreadGroup(const AbstractLocker& threadGroupLocker, ThreadGroup& threadGroup)
 {
     UNUSED_PARAM(threadGroupLocker);
     std::lock_guard<std::mutex> locker(m_mutex);

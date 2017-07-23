@@ -46,7 +46,7 @@ using namespace WebCore;
 namespace WebKit {
 
 constexpr unsigned operatingDatesWindow { 30 };
-constexpr unsigned statisticsModelVersion { 7 };
+constexpr unsigned statisticsModelVersion { 9 };
 constexpr unsigned maxImportance { 3 };
 
 template<typename T> static inline String isolatedPrimaryDomain(const T& value)
@@ -204,27 +204,35 @@ void WebResourceLoadStatisticsStore::removeDataRecords()
     });
 }
 
+void WebResourceLoadStatisticsStore::scheduleStatisticsAndDataRecordsProcessing()
+{
+    ASSERT(RunLoop::isMain());
+    m_statisticsQueue->dispatch([this, protectedThis = makeRef(*this)] {
+        processStatisticsAndDataRecords();
+    });
+}
+
 void WebResourceLoadStatisticsStore::processStatisticsAndDataRecords()
 {
-    m_statisticsQueue->dispatch([this, protectedThis = makeRef(*this)] () {
-        if (m_parameters.shouldClassifyResourcesBeforeDataRecordsRemoval) {
-            for (auto& resourceStatistic : m_resourceStatisticsMap.values()) {
-                if (!resourceStatistic.isPrevalentResource && m_resourceLoadStatisticsClassifier.hasPrevalentResourceCharacteristics(resourceStatistic))
-                    resourceStatistic.isPrevalentResource = true;
-            }
-        }
-        removeDataRecords();
-        
-        pruneStatisticsIfNeeded();
+    ASSERT(!RunLoop::isMain());
 
-        if (m_parameters.shouldNotifyPagesWhenDataRecordsWereScanned) {
-            RunLoop::main().dispatch([] {
-                WebProcessProxy::notifyPageStatisticsAndDataRecordsProcessed();
-            });
+    if (m_parameters.shouldClassifyResourcesBeforeDataRecordsRemoval) {
+        for (auto& resourceStatistic : m_resourceStatisticsMap.values()) {
+            if (!resourceStatistic.isPrevalentResource && m_resourceLoadStatisticsClassifier.hasPrevalentResourceCharacteristics(resourceStatistic))
+                resourceStatistic.isPrevalentResource = true;
         }
+    }
+    removeDataRecords();
 
-        m_persistentStorage.scheduleOrWriteMemoryStore();
-    });
+    pruneStatisticsIfNeeded();
+
+    if (m_parameters.shouldNotifyPagesWhenDataRecordsWereScanned) {
+        RunLoop::main().dispatch([] {
+            WebProcessProxy::notifyPageStatisticsAndDataRecordsProcessed();
+        });
+    }
+
+    m_persistentStorage.scheduleOrWriteMemoryStore();
 }
 
 void WebResourceLoadStatisticsStore::resourceLoadStatisticsUpdated(Vector<WebCore::ResourceLoadStatistics>&& origins)
@@ -273,7 +281,9 @@ void WebResourceLoadStatisticsStore::performDailyTasks()
 {
     ASSERT(RunLoop::isMain());
 
-    includeTodayAsOperatingDateIfNecessary();
+    m_statisticsQueue->dispatch([this, protectedThis = makeRef(*this)] {
+        includeTodayAsOperatingDateIfNecessary();
+    });
     if (m_parameters.shouldSubmitTelemetry)
         submitTelemetry();
 }
@@ -724,6 +734,8 @@ Vector<String> WebResourceLoadStatisticsStore::topPrivatelyControlledDomainsToRe
 
 void WebResourceLoadStatisticsStore::includeTodayAsOperatingDateIfNecessary()
 {
+    ASSERT(!RunLoop::isMain());
+
     auto today = OperatingDate::today();
     if (!m_operatingDates.isEmpty() && today <= m_operatingDates.last())
         return;

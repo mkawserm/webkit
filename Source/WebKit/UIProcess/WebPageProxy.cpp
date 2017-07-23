@@ -3189,6 +3189,24 @@ void WebPageProxy::didReceiveServerRedirectForProvisionalLoadForFrame(uint64_t f
         m_loaderClient->didReceiveServerRedirectForProvisionalLoadForFrame(*this, *frame, navigation.get(), m_process->transformHandlesToObjects(userData.object()).get());
 }
 
+void WebPageProxy::didPerformClientRedirectForLoadForFrame(uint64_t frameID, uint64_t navigationID)
+{
+    PageClientProtector protector(m_pageClient);
+
+    WebFrameProxy* frame = m_process->webFrame(frameID);
+    MESSAGE_CHECK(frame);
+
+    // FIXME: We should message check that navigationID is not zero here, but it's currently zero for some navigations through the page cache.
+    RefPtr<API::Navigation> navigation;
+    if (frame->isMainFrame() && navigationID)
+        navigation = &navigationState().navigation(navigationID);
+
+    if (m_navigationClient) {
+        if (frame->isMainFrame())
+            m_navigationClient->didPerformClientRedirectForNavigation(*this, navigation.get());
+    }
+}
+
 void WebPageProxy::didChangeProvisionalURLForFrame(uint64_t frameID, uint64_t, const String& url)
 {
     PageClientProtector protector(m_pageClient);
@@ -3373,9 +3391,9 @@ void WebPageProxy::didFinishLoadForFrame(uint64_t frameID, uint64_t navigationID
     if (isMainFrame)
         m_pageLoadState.didFinishLoad(transaction);
 
-    if (isMainFrame && m_controlledByAutomation) {
+    if (m_controlledByAutomation) {
         if (auto* automationSession = process().processPool().automationSession())
-            automationSession->navigationOccurredForPage(*this);
+            automationSession->navigationOccurredForFrame(*frame);
     }
 
     frame->didFinishLoad();
@@ -3414,9 +3432,9 @@ void WebPageProxy::didFailLoadForFrame(uint64_t frameID, uint64_t navigationID, 
     if (isMainFrame)
         m_pageLoadState.didFailLoad(transaction);
 
-    if (isMainFrame && m_controlledByAutomation) {
+    if (m_controlledByAutomation) {
         if (auto* automationSession = process().processPool().automationSession())
-            automationSession->navigationOccurredForPage(*this);
+            automationSession->navigationOccurredForFrame(*frame);
     }
 
     frame->didFailLoad();
@@ -3451,9 +3469,9 @@ void WebPageProxy::didSameDocumentNavigationForFrame(uint64_t frameID, uint64_t 
     if (isMainFrame)
         m_pageLoadState.didSameDocumentNavigation(transaction, url);
 
-    if (isMainFrame && m_controlledByAutomation) {
+    if (m_controlledByAutomation) {
         if (auto* automationSession = process().processPool().automationSession())
-            automationSession->navigationOccurredForPage(*this);
+            automationSession->navigationOccurredForFrame(*frame);
     }
 
     m_pageLoadState.clearPendingAPIRequestURL(transaction);

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2007, 2008, 2010, 2014 Apple Inc. All rights reserved.
+ * Copyright (C) 2007-2017 Apple Inc. All rights reserved.
  * Copyright (C) 2007 Justin Haygood <jhaygood@reaktix.com>
  * Copyright (C) 2017 Yusuke Suzuki <utatane.tea@gmail.com>
  *
@@ -51,6 +51,8 @@ namespace WTF {
 
 class AbstractLocker;
 class ThreadMessageData;
+
+enum class ThreadGroupAddResult;
 
 using ThreadIdentifier = uint32_t;
 typedef void (*ThreadFunction)(void* argument);
@@ -114,6 +116,9 @@ public:
     // Helpful for platforms where the thread name must be set from within the thread.
     static void initializeCurrentThreadInternal(Thread&, const char* threadName);
     static void initializeCurrentThreadEvenIfNonWTFCreated(Thread&);
+    
+    WTF_EXPORT_PRIVATE static const unsigned lockSpinLimit;
+    WTF_EXPORT_PRIVATE static void yield();
 
     WTF_EXPORT_PRIVATE void dump(PrintStream& out) const;
 
@@ -182,8 +187,8 @@ protected:
     bool hasExited() { return m_didExit; }
 
     // These functions are only called from ThreadGroup.
-    bool addToThreadGroup(const std::lock_guard<std::mutex>& threadGroupLocker, ThreadGroup&);
-    void removeFromThreadGroup(const std::lock_guard<std::mutex>& threadGroupLocker, ThreadGroup&);
+    ThreadGroupAddResult addToThreadGroup(const AbstractLocker& threadGroupLocker, ThreadGroup&);
+    void removeFromThreadGroup(const AbstractLocker& threadGroupLocker, ThreadGroup&);
 
     // WordLock & Lock rely on ThreadSpecific. But Thread object can be destroyed even after ThreadSpecific things are destroyed.
     std::mutex m_mutex;

@@ -100,7 +100,6 @@
 #include "HashChangeEvent.h"
 #include "History.h"
 #include "HitTestResult.h"
-#include "IconController.h"
 #include "ImageLoader.h"
 #include "InspectorInstrumentation.h"
 #include "JSCustomElementInterface.h"
@@ -378,13 +377,12 @@ static Widget* widgetForElement(Element* focusedElement)
     return downcast<RenderWidget>(*renderer).widget();
 }
 
-static bool acceptsEditingFocus(Node* node)
+static bool acceptsEditingFocus(const Element& element)
 {
-    ASSERT(node);
-    ASSERT(node->hasEditableStyle());
+    ASSERT(element.hasEditableStyle());
 
-    Node* root = node->rootEditableElement();
-    Frame* frame = node->document().frame();
+    auto* root = element.rootEditableElement();
+    Frame* frame = element.document().frame();
     if (!frame || !root)
         return false;
 
@@ -2717,11 +2715,8 @@ void Document::implicitClose()
     // ramifications, and we need to decide what is the Right Thing To Do(tm)
     Frame* f = frame();
     if (f) {
-        if (f->loader().client().useIconLoadingClient()) {
-            if (auto* documentLoader = loader())
-                documentLoader->startIconLoading();
-        } else
-            f->loader().icon().startLoader();
+        if (auto* documentLoader = loader())
+            documentLoader->startIconLoading();
 
         f->animation().startAnimationsIfNotSuspended(this);
 
@@ -3785,7 +3780,7 @@ bool Document::setFocusedElement(Element* element, FocusDirection direction, Foc
     }
 
     if (newFocusedElement && newFocusedElement->isFocusable()) {
-        if (newFocusedElement->isRootEditableElement() && !acceptsEditingFocus(newFocusedElement.get())) {
+        if (newFocusedElement->isRootEditableElement() && !acceptsEditingFocus(*newFocusedElement)) {
             // delegate blocks focus change
             focusChangeBlocked = true;
             goto SetFocusedNodeDone;
@@ -6557,6 +6552,23 @@ void Document::convertAbsoluteToClientQuads(Vector<FloatQuad>& quads, const Rend
             quad.scale(inverseFrameScale);
 
         quad.move(documentToClientOffset);
+    }
+}
+    
+void Document::convertAbsoluteToClientRects(Vector<FloatRect>& rects, const RenderStyle& style)
+{
+    if (!view())
+        return;
+    
+    auto& frameView = *view();
+    float inverseFrameScale = frameView.absoluteToDocumentScaleFactor(style.effectiveZoom());
+    auto documentToClientOffset = frameView.documentToClientOffset();
+    
+    for (auto& rect : rects) {
+        if (inverseFrameScale != 1)
+            rect.scale(inverseFrameScale);
+        
+        rect.move(documentToClientOffset);
     }
 }
 

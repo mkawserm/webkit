@@ -23,24 +23,20 @@
 #include "JSDOMExceptionHandling.h"
 
 #include "CachedScript.h"
+#include "DOMException.h"
 #include "DOMWindow.h"
 #include "ExceptionCodeDescription.h"
-#include "ExceptionHeaders.h"
-#include "ExceptionInterfaces.h"
+#include "JSDOMException.h"
 #include "JSDOMPromiseDeferred.h"
 #include "JSDOMWindow.h"
 #include "JSDynamicDowncast.h"
-#include "JSExceptionBase.h"
+#include "ScriptExecutionContext.h"
 #include <inspector/ScriptCallStack.h>
 #include <inspector/ScriptCallStackFactory.h>
 #include <runtime/ErrorHandlingScope.h>
 #include <runtime/Exception.h>
 #include <runtime/ExceptionHelpers.h>
 #include <wtf/text/StringBuilder.h>
-
-#if ENABLE(INDEXED_DATABASE)
-#include "IDBDatabaseException.h"
-#endif
 
 using namespace JSC;
 
@@ -62,9 +58,6 @@ void reportException(ExecState* exec, JSValue exceptionValue, CachedScript* cach
 
 String retrieveErrorMessage(ExecState& state, VM& vm, JSValue exception, CatchScope& catchScope)
 {
-    if (auto* exceptionBase = toExceptionBase(vm, exception))
-        return exceptionBase->toString();
-
     // FIXME: <http://webkit.org/b/115087> Web Inspector: WebCore::reportException should not evaluate JavaScript handling exceptions
     // If this is a custom exception object, call toString on it to try and get a nice string representation for the exception.
     String errorMessage;
@@ -166,27 +159,7 @@ static JSValue createDOMException(ExecState* exec, ExceptionCode ec, const Strin
         description.description = messageCString.data();
     }
 
-    JSValue errorObject;
-    switch (description.type) {
-    case DOMCoreExceptionType:
-#if ENABLE(INDEXED_DATABASE)
-    case IDBDatabaseExceptionType:
-#endif
-        errorObject = toJS(exec, globalObject, DOMCoreException::create(description));
-        break;
-    case FileExceptionType:
-        errorObject = toJS(exec, globalObject, FileException::create(description));
-        break;
-    case SQLExceptionType:
-        errorObject = toJS(exec, globalObject, SQLException::create(description));
-        break;
-    case SVGExceptionType:
-        errorObject = toJS(exec, globalObject, SVGException::create(description));
-        break;
-    case XPathExceptionType:
-        errorObject = toJS(exec, globalObject, XPathException::create(description));
-        break;
-    }
+    JSValue errorObject = toJS(exec, globalObject, DOMException::create(description));
     
     ASSERT(errorObject);
     addErrorInfo(exec, asObject(errorObject), true);

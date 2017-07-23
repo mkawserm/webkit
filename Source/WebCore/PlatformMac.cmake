@@ -1,11 +1,10 @@
 if ("${CURRENT_OSX_VERSION}" MATCHES "10.9")
-set(WEBKITSYSTEMINTERFACE_LIBRARY libWebKitSystemInterfaceMavericks.a)
-elif ("${CURRENT_OSX_VERSION}" MATCHES "10.10")
-set(WEBKITSYSTEMINTERFACE_LIBRARY libWebKitSystemInterfaceYosemite.a)
+    set(WEBKITSYSTEMINTERFACE_LIBRARY ../../WebKitLibraries/libWebKitSystemInterfaceMavericks.a)
+elseif ("${CURRENT_OSX_VERSION}" MATCHES "10.10")
+    set(WEBKITSYSTEMINTERFACE_LIBRARY ../../WebKitLibraries/libWebKitSystemInterfaceYosemite.a)
 else ()
-set(WEBKITSYSTEMINTERFACE_LIBRARY libWebKitSystemInterfaceElCapitan.a)
+    set(WEBKITSYSTEMINTERFACE_LIBRARY ../../WebKitLibraries/libWebKitSystemInterfaceElCapitan.a)
 endif ()
-link_directories(../../WebKitLibraries)
 
 find_library(ACCELERATE_LIBRARY accelerate)
 find_library(APPLICATIONSERVICES_LIBRARY ApplicationServices)
@@ -174,40 +173,6 @@ list(APPEND WebCore_SOURCES
     bridge/objc/objc_utility.mm
 
     crypto/CommonCryptoUtilities.cpp
-    crypto/CryptoAlgorithm.cpp
-    crypto/CryptoAlgorithmRegistry.cpp
-    crypto/CryptoKey.cpp
-    crypto/SubtleCrypto.cpp
-    crypto/WebKitSubtleCrypto.cpp
-
-    crypto/algorithms/CryptoAlgorithmAES_CBC.cpp
-    crypto/algorithms/CryptoAlgorithmAES_CFB.cpp
-    crypto/algorithms/CryptoAlgorithmAES_CTR.cpp
-    crypto/algorithms/CryptoAlgorithmAES_GCM.cpp
-    crypto/algorithms/CryptoAlgorithmAES_KW.cpp
-    crypto/algorithms/CryptoAlgorithmECDH.cpp
-    crypto/algorithms/CryptoAlgorithmECDSA.cpp
-    crypto/algorithms/CryptoAlgorithmHKDF.cpp
-    crypto/algorithms/CryptoAlgorithmHMAC.cpp
-    crypto/algorithms/CryptoAlgorithmPBKDF2.cpp
-    crypto/algorithms/CryptoAlgorithmRSAES_PKCS1_v1_5.cpp
-    crypto/algorithms/CryptoAlgorithmRSASSA_PKCS1_v1_5.cpp
-    crypto/algorithms/CryptoAlgorithmRSA_OAEP.cpp
-    crypto/algorithms/CryptoAlgorithmRSA_PSS.cpp
-    crypto/algorithms/CryptoAlgorithmSHA1.cpp
-    crypto/algorithms/CryptoAlgorithmSHA224.cpp
-    crypto/algorithms/CryptoAlgorithmSHA256.cpp
-    crypto/algorithms/CryptoAlgorithmSHA384.cpp
-    crypto/algorithms/CryptoAlgorithmSHA512.cpp
-
-    crypto/keys/CryptoKeyAES.cpp
-    crypto/keys/CryptoKeyDataOctetSequence.cpp
-    crypto/keys/CryptoKeyDataRSAComponents.cpp
-    crypto/keys/CryptoKeyEC.cpp
-    crypto/keys/CryptoKeyHMAC.cpp
-    crypto/keys/CryptoKeyRSA.cpp
-    crypto/keys/CryptoKeyRaw.cpp
-    crypto/keys/CryptoKeySerializationRaw.cpp
 
     crypto/mac/CommonCryptoDERUtilities.cpp
     crypto/mac/CryptoAlgorithmAES_CBCMac.cpp

@@ -1,3 +1,289 @@
+2017-07-14  Filip Pizlo  <fpizlo@apple.com>
+
+        It should be easy to decide how WebKit yields
+        https://bugs.webkit.org/show_bug.cgi?id=174298
+
+        Reviewed by Saam Barati.
+        
+        Use the new WTF::Thread::yield() function for yielding instead of the C++ function.
+
+        * heap/Heap.cpp:
+        (JSC::Heap::resumeThePeriphery):
+        * heap/VisitingTimeout.h:
+        * runtime/JSCell.cpp:
+        (JSC::JSCell::lockSlow):
+        (JSC::JSCell::unlockSlow):
+        * runtime/JSCell.h:
+        * runtime/JSCellInlines.h:
+        (JSC::JSCell::lock):
+        (JSC::JSCell::unlock):
+        * runtime/JSLock.cpp:
+        (JSC::JSLock::grabAllLocks):
+        * runtime/SamplingProfiler.cpp:
+
+2017-07-21  Mark Lam  <mark.lam@apple.com>
+
+        Refactor MASM probe CPUState to use arrays for register storage.
+        https://bugs.webkit.org/show_bug.cgi?id=174694
+
+        Reviewed by Keith Miller.
+
+        Using arrays for register storage in CPUState allows us to do away with the
+        huge switch statements to decode each register id.  We can now simply index into
+        the arrays.
+
+        With this patch, we now:
+
+        1. Remove the need for macros for defining the list of CPU registers.
+           We can go back to simple enums.  This makes the code easier to read.
+
+        2. Make the assembler the authority on register names.
+           Most of this code is moved into the assembler from GPRInfo and FPRInfo.
+           GPRInfo and FPRInfo now forwards to the assembler.
+
+        3. Make the assembler the authority on the number of registers of each type.
+
+        4. Fix a "bug" in ARMv7's lastRegister().  It was previously omitting lr and pc.
+           This is inconsistent with how every other CPU architecture implements
+           lastRegister().  This patch fixes it to return the true last GPR i.e. pc, but
+           updates RegisterSet::reservedHardwareRegisters() to exclude those registers.
+
+        * assembler/ARM64Assembler.h:
+        (JSC::ARM64Assembler::numberOfRegisters):
+        (JSC::ARM64Assembler::firstSPRegister):
+        (JSC::ARM64Assembler::lastSPRegister):
+        (JSC::ARM64Assembler::numberOfSPRegisters):
+        (JSC::ARM64Assembler::numberOfFPRegisters):
+        (JSC::ARM64Assembler::gprName):
+        (JSC::ARM64Assembler::sprName):
+        (JSC::ARM64Assembler::fprName):
+        * assembler/ARMAssembler.h:
+        (JSC::ARMAssembler::numberOfRegisters):
+        (JSC::ARMAssembler::firstSPRegister):
+        (JSC::ARMAssembler::lastSPRegister):
+        (JSC::ARMAssembler::numberOfSPRegisters):
+        (JSC::ARMAssembler::numberOfFPRegisters):
+        (JSC::ARMAssembler::gprName):
+        (JSC::ARMAssembler::sprName):
+        (JSC::ARMAssembler::fprName):
+        * assembler/ARMv7Assembler.h:
+        (JSC::ARMv7Assembler::lastRegister):
+        (JSC::ARMv7Assembler::numberOfRegisters):
+        (JSC::ARMv7Assembler::firstSPRegister):
+        (JSC::ARMv7Assembler::lastSPRegister):
+        (JSC::ARMv7Assembler::numberOfSPRegisters):
+        (JSC::ARMv7Assembler::numberOfFPRegisters):
+        (JSC::ARMv7Assembler::gprName):
+        (JSC::ARMv7Assembler::sprName):
+        (JSC::ARMv7Assembler::fprName):
+        * assembler/AbstractMacroAssembler.h:
+        (JSC::AbstractMacroAssembler::numberOfRegisters):
+        (JSC::AbstractMacroAssembler::gprName):
+        (JSC::AbstractMacroAssembler::firstSPRegister):
+        (JSC::AbstractMacroAssembler::lastSPRegister):
+        (JSC::AbstractMacroAssembler::numberOfSPRegisters):
+        (JSC::AbstractMacroAssembler::sprName):
+        (JSC::AbstractMacroAssembler::numberOfFPRegisters):
+        (JSC::AbstractMacroAssembler::fprName):
+        * assembler/MIPSAssembler.h:
+        (JSC::MIPSAssembler::numberOfRegisters):
+        (JSC::MIPSAssembler::firstSPRegister):
+        (JSC::MIPSAssembler::lastSPRegister):
+        (JSC::MIPSAssembler::numberOfSPRegisters):
+        (JSC::MIPSAssembler::numberOfFPRegisters):
+        (JSC::MIPSAssembler::gprName):
+        (JSC::MIPSAssembler::sprName):
+        (JSC::MIPSAssembler::fprName):
+        * assembler/MacroAssembler.h:
+        (JSC::MacroAssembler::CPUState::gprName):
+        (JSC::MacroAssembler::CPUState::sprName):
+        (JSC::MacroAssembler::CPUState::fprName):
+        (JSC::MacroAssembler::CPUState::gpr):
+        (JSC::MacroAssembler::CPUState::spr):
+        (JSC::MacroAssembler::CPUState::fpr):
+        (JSC::MacroAssembler::CPUState::pc):
+        (JSC::MacroAssembler::CPUState::fp):
+        (JSC::MacroAssembler::CPUState::sp):
+        (JSC::ProbeContext::gpr):
+        (JSC::ProbeContext::spr):
+        (JSC::ProbeContext::fpr):
+        (JSC::ProbeContext::gprName):
+        (JSC::ProbeContext::sprName):
+        (JSC::ProbeContext::fprName):
+        (JSC::MacroAssembler::numberOfRegisters): Deleted.
+        (JSC::MacroAssembler::numberOfFPRegisters): Deleted.
+        * assembler/MacroAssemblerARM.cpp:
+        * assembler/MacroAssemblerARM64.cpp:
+        (JSC::arm64ProbeTrampoline):
+        * assembler/MacroAssemblerARMv7.cpp:
+        * assembler/MacroAssemblerPrinter.cpp:
+        (JSC::Printer::nextID):
+        (JSC::Printer::printAllRegisters):
+        (JSC::Printer::printPCRegister):
+        (JSC::Printer::printRegisterID):
+        (JSC::Printer::printAddress):
+        * assembler/MacroAssemblerX86Common.cpp:
+        * assembler/X86Assembler.h:
+        (JSC::X86Assembler::numberOfRegisters):
+        (JSC::X86Assembler::firstSPRegister):
+        (JSC::X86Assembler::lastSPRegister):
+        (JSC::X86Assembler::numberOfSPRegisters):
+        (JSC::X86Assembler::numberOfFPRegisters):
+        (JSC::X86Assembler::gprName):
+        (JSC::X86Assembler::sprName):
+        (JSC::X86Assembler::fprName):
+        * jit/FPRInfo.h:
+        (JSC::FPRInfo::debugName):
+        * jit/GPRInfo.h:
+        (JSC::GPRInfo::debugName):
+        * jit/RegisterSet.cpp:
+        (JSC::RegisterSet::reservedHardwareRegisters):
+
+2017-07-21  Yusuke Suzuki  <utatane.tea@gmail.com>
+
+        [JSC] Introduce static symbols
+        https://bugs.webkit.org/show_bug.cgi?id=158863
+
+        Reviewed by Darin Adler.
+
+        We use StaticSymbolImpl to initialize PrivateNames and builtin Symbols.
+        As a result, we can share the same Symbol values between VMs and threads.
+        And we do not need to allocate Ref<SymbolImpl> for these symbols at runtime.
+
+        * CMakeLists.txt:
+        * JavaScriptCore.xcodeproj/project.pbxproj:
+        * builtins/BuiltinNames.cpp: Added.
+        Suppress warning C4307, integral constant overflow. It is intentional in constexpr hash value calculation.
+
+        * builtins/BuiltinNames.h:
+        (JSC::BuiltinNames::BuiltinNames):
+        * builtins/BuiltinUtils.h:
+
+2017-07-21  Yusuke Suzuki  <utatane.tea@gmail.com>
+
+        [FTL] Arguments elimination is suppressed by unreachable blocks
+        https://bugs.webkit.org/show_bug.cgi?id=174352
+
+        Reviewed by Filip Pizlo.
+
+        If we do not execute `op_get_by_id`, our value profiling tells us unpredictable and DFG emits ForceOSRExit.
+        The problem is that arguments elimination phase checks escaping even when ForceOSRExit preceeds.
+        Since GetById without information can escape arguments if it is specified, non-executed code including
+        op_get_by_id with arguments can escape arguments.
+
+        For example,
+
+            function test(flag)
+            {
+                if (flag) {
+                    // This is not executed, but emits GetById with arguments.
+                    // It prevents us from eliminating materialization.
+                    return arguments.length;
+                }
+                return arguments.length;
+            }
+            noInline(test);
+            while (true)
+                test(false);
+
+        We do not perform CFA and dead-node clipping yet when performing arguments elimination phase.
+        So this GetById exists and escapes arguments.
+
+        To solve this problem, our arguments elimination phase checks preceding pseudo-terminal nodes.
+        If it is shown, following GetById does not escape arguments. Compared to performing AI, it is
+        lightweight. But it catches much of typical cases we failed to perform arguments elimination.
+
+        * dfg/DFGArgumentsEliminationPhase.cpp:
+        * dfg/DFGNode.h:
+        (JSC::DFG::Node::isPseudoTerminal):
+        * dfg/DFGValidate.cpp:
+
+2017-07-20  Chris Dumez  <cdumez@apple.com>
+
+        Replace calls to Vector::resize() with calls to more efficient shrink() / grow() when applicable
+        https://bugs.webkit.org/show_bug.cgi?id=174660
+
+        Reviewed by Geoffrey Garen.
+
+        Replace calls to Vector::resize() with calls to more efficient shrink() / grow() when applicable.
+        This essentially replaces a branch to figure out if the new size is less or greater than the
+        current size by an assertion.
+
+        * b3/B3BasicBlockUtils.h:
+        (JSC::B3::clearPredecessors):
+        * b3/B3InferSwitches.cpp:
+        * b3/B3LowerToAir.cpp:
+        (JSC::B3::Air::LowerToAir::finishAppendingInstructions):
+        * b3/B3ReduceStrength.cpp:
+        * b3/B3SparseCollection.h:
+        (JSC::B3::SparseCollection::packIndices):
+        * b3/B3UseCounts.cpp:
+        (JSC::B3::UseCounts::UseCounts):
+        * b3/air/AirAllocateRegistersAndStackByLinearScan.cpp:
+        * b3/air/AirEmitShuffle.cpp:
+        (JSC::B3::Air::emitShuffle):
+        * b3/air/AirLowerAfterRegAlloc.cpp:
+        (JSC::B3::Air::lowerAfterRegAlloc):
+        * b3/air/AirOptimizeBlockOrder.cpp:
+        (JSC::B3::Air::optimizeBlockOrder):
+        * bytecode/Operands.h:
+        (JSC::Operands::ensureLocals):
+        * bytecode/PreciseJumpTargets.cpp:
+        (JSC::computePreciseJumpTargetsInternal):
+        * dfg/DFGBlockInsertionSet.cpp:
+        (JSC::DFG::BlockInsertionSet::execute):
+        * dfg/DFGBlockMapInlines.h:
+        (JSC::DFG::BlockMap<T>::BlockMap):
+        * dfg/DFGByteCodeParser.cpp:
+        (JSC::DFG::ByteCodeParser::processSetLocalQueue):
+        (JSC::DFG::ByteCodeParser::clearCaches):
+        * dfg/DFGDisassembler.cpp:
+        (JSC::DFG::Disassembler::Disassembler):
+        * dfg/DFGFlowIndexing.cpp:
+        (JSC::DFG::FlowIndexing::recompute):
+        * dfg/DFGGraph.cpp:
+        (JSC::DFG::Graph::registerFrozenValues):
+        * dfg/DFGInPlaceAbstractState.cpp:
+        (JSC::DFG::setLiveValues):
+        * dfg/DFGLICMPhase.cpp:
+        (JSC::DFG::LICMPhase::run):
+        * dfg/DFGLivenessAnalysisPhase.cpp:
+        * dfg/DFGNaturalLoops.cpp:
+        (JSC::DFG::NaturalLoops::NaturalLoops):
+        * dfg/DFGStoreBarrierClusteringPhase.cpp:
+        * ftl/FTLLowerDFGToB3.cpp:
+        (JSC::FTL::DFG::LowerDFGToB3::compileNode):
+        * heap/CodeBlockSet.cpp:
+        (JSC::CodeBlockSet::deleteUnmarkedAndUnreferenced):
+        * heap/MarkedSpace.cpp:
+        (JSC::MarkedSpace::sweepLargeAllocations):
+        * inspector/ContentSearchUtilities.cpp:
+        (Inspector::ContentSearchUtilities::findMagicComment):
+        * interpreter/ShadowChicken.cpp:
+        (JSC::ShadowChicken::update):
+        * parser/ASTBuilder.h:
+        (JSC::ASTBuilder::shrinkOperandStackBy):
+        * parser/Lexer.h:
+        (JSC::Lexer::setOffset):
+        * runtime/RegExpInlines.h:
+        (JSC::RegExp::matchInline):
+        * runtime/RegExpPrototype.cpp:
+        (JSC::genericSplit):
+        * yarr/RegularExpression.cpp:
+        (JSC::Yarr::RegularExpression::match):
+
+2017-07-20  Yusuke Suzuki  <utatane.tea@gmail.com>
+
+        [WTF] Use ThreadGroup to bookkeep active threads for Mach exception
+        https://bugs.webkit.org/show_bug.cgi?id=174678
+
+        Reviewed by Mark Lam.
+
+        Use Thread& instead.
+
+        * runtime/JSLock.cpp:
+        (JSC::JSLock::didAcquireLock):
+
 2017-07-19  Yusuke Suzuki  <utatane.tea@gmail.com>
 
         [WTF] Implement WTF::ThreadGroup

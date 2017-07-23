@@ -704,13 +704,13 @@ inline void StyleBuilderCustom::applyValueLineHeight(StyleResolver& styleResolve
     else {
         auto& primitiveValue = downcast<CSSPrimitiveValue>(value);
         auto multiplier = computeLineHeightMultiplierDueToFontSize(styleResolver.document(), *styleResolver.style(), primitiveValue);
-        std::optional<Length> lineHeightLength;
         if (multiplier == 1)
-            lineHeightLength = lineHeight;
-        else
-            lineHeightLength = StyleBuilderConverter::convertLineHeight(styleResolver, value, multiplier);
-        ASSERT(static_cast<bool>(lineHeightLength));
-        computedLineHeight = lineHeight.value();
+            computedLineHeight = lineHeight.value();
+        else {
+            std::optional<Length> lineHeight = StyleBuilderConverter::convertLineHeight(styleResolver, value, multiplier);
+            ASSERT(static_cast<bool>(lineHeight));
+            computedLineHeight = lineHeight.value();
+        }
     }
 
     styleResolver.style()->setLineHeight(WTFMove(computedLineHeight));

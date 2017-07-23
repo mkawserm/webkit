@@ -32,21 +32,27 @@ namespace WTF {
 
 ThreadGroup::~ThreadGroup()
 {
-    std::lock_guard<std::mutex> locker(m_lock);
+    auto locker = holdLock(m_lock);
     for (auto& thread : m_threads)
         thread->removeFromThreadGroup(locker, *this);
 }
 
-bool ThreadGroup::add(Thread& thread)
+ThreadGroupAddResult ThreadGroup::add(const AbstractLocker& locker, Thread& thread)
 {
-    std::lock_guard<std::mutex> locker(m_lock);
     return thread.addToThreadGroup(locker, *this);
 }
 
-void ThreadGroup::addCurrentThread()
+ThreadGroupAddResult ThreadGroup::add(Thread& thread)
 {
-    bool isAdded = add(Thread::current());
-    ASSERT_UNUSED(isAdded, isAdded);
+    auto locker = holdLock(m_lock);
+    return add(locker, thread);
+}
+
+ThreadGroupAddResult ThreadGroup::addCurrentThread()
+{
+    auto result = add(Thread::current());
+    ASSERT(result != ThreadGroupAddResult::NotAdded);
+    return result;
 }
 
 } // namespace WTF
