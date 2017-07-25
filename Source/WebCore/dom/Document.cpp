@@ -186,6 +186,7 @@
 #include "TextNodeTraversal.h"
 #include "TransformSource.h"
 #include "TreeWalker.h"
+#include "UserGestureIndicator.h"
 #include "ValidationMessageClient.h"
 #include "VisibilityChangeClient.h"
 #include "VisitedLinkState.h"
@@ -738,7 +739,7 @@ HTMLImageElement* Document::imageElementByUsemap(const AtomicStringImpl& name) c
 ExceptionOr<SelectorQuery&> Document::selectorQueryForString(const String& selectorString)
 {
     if (selectorString.isEmpty())
-        return Exception { SYNTAX_ERR };
+        return Exception { SyntaxError };
     if (!m_selectorQueryCache)
         m_selectorQueryCache = std::make_unique<SelectorQueryCache>();
     return m_selectorQueryCache->add(selectorString, *this);
@@ -873,7 +874,7 @@ static ExceptionOr<Ref<Element>> createHTMLElementWithNameValidation(Document& d
     }
 
     if (UNLIKELY(!isValidHTMLElementName(name)))
-        return Exception { INVALID_CHARACTER_ERR };
+        return Exception { InvalidCharacterError };
 
     return Ref<Element> { createUpgradeCandidateElement(document, name) };
 }
@@ -887,7 +888,7 @@ ExceptionOr<Ref<Element>> Document::createElementForBindings(const AtomicString&
         return createHTMLElementWithNameValidation(*this, name);
 
     if (!isValidName(name))
-        return Exception { INVALID_CHARACTER_ERR };
+        return Exception { InvalidCharacterError };
 
     return createElement(QualifiedName(nullAtom(), name, nullAtom()), false);
 }
@@ -910,17 +911,17 @@ Ref<Comment> Document::createComment(const String& data)
 ExceptionOr<Ref<CDATASection>> Document::createCDATASection(const String& data)
 {
     if (isHTMLDocument())
-        return Exception { NOT_SUPPORTED_ERR };
+        return Exception { NotSupportedError };
     return CDATASection::create(*this, data);
 }
 
 ExceptionOr<Ref<ProcessingInstruction>> Document::createProcessingInstruction(const String& target, const String& data)
 {
     if (!isValidName(target))
-        return Exception { INVALID_CHARACTER_ERR };
+        return Exception { InvalidCharacterError };
 
     if (data.contains("?>"))
-        return Exception { INVALID_CHARACTER_ERR };
+        return Exception { InvalidCharacterError };
 
     return ProcessingInstruction::create(*this, target, data);
 }
@@ -959,7 +960,7 @@ ExceptionOr<Ref<Node>> Document::importNode(Node& nodeToImport, bool deep)
         break;
     }
 
-    return Exception { NOT_SUPPORTED_ERR };
+    return Exception { NotSupportedError };
 }
 
 
@@ -969,7 +970,7 @@ ExceptionOr<Ref<Node>> Document::adoptNode(Node& source)
 
     switch (source.nodeType()) {
     case DOCUMENT_NODE:
-        return Exception { NOT_SUPPORTED_ERR };
+        return Exception { NotSupportedError };
     case ATTRIBUTE_NODE: {
         auto& attr = downcast<Attr>(source);
         if (auto* element = attr.ownerElement()) {
@@ -982,12 +983,12 @@ ExceptionOr<Ref<Node>> Document::adoptNode(Node& source)
     default:
         if (source.isShadowRoot()) {
             // ShadowRoot cannot disconnect itself from the host node.
-            return Exception { HIERARCHY_REQUEST_ERR };
+            return Exception { HierarchyRequestError };
         }
         if (is<HTMLFrameOwnerElement>(source)) {
             auto& frameOwnerElement = downcast<HTMLFrameOwnerElement>(source);
             if (frame() && frame()->tree().isDescendantOf(frameOwnerElement.contentFrame()))
-                return Exception { HIERARCHY_REQUEST_ERR };
+                return Exception { HierarchyRequestError };
         }
         auto result = source.remove();
         if (result.hasException())
@@ -1194,7 +1195,7 @@ ExceptionOr<Ref<Element>> Document::createElementNS(const AtomicString& namespac
         return parseResult.releaseException();
     QualifiedName parsedName { parseResult.releaseReturnValue() };
     if (!hasValidNamespaceForElements(parsedName))
-        return Exception { NAMESPACE_ERR };
+        return Exception { NamespaceError };
 
     if (parsedName.namespaceURI() == xhtmlNamespaceURI)
         return createHTMLElementWithNameValidation(*this, parsedName);
@@ -1351,7 +1352,7 @@ void Document::setContentLanguage(const String& language)
 ExceptionOr<void> Document::setXMLVersion(const String& version)
 {
     if (!XMLDocumentParser::supportsXMLVersion(version))
-        return Exception { NOT_SUPPORTED_ERR };
+        return Exception { NotSupportedError };
 
     m_xmlVersion = version;
     return { };
@@ -2503,7 +2504,7 @@ ScriptableDocumentParser* Document::scriptableDocumentParser() const
 ExceptionOr<RefPtr<DOMWindow>> Document::openForBindings(DOMWindow& activeWindow, DOMWindow& firstWindow, const String& url, const AtomicString& name, const String& features)
 {
     if (!m_domWindow)
-        return Exception { INVALID_ACCESS_ERR };
+        return Exception { InvalidAccessError };
 
     return m_domWindow->open(activeWindow, firstWindow, url, name, features);
 }
@@ -2512,7 +2513,7 @@ ExceptionOr<RefPtr<DOMWindow>> Document::openForBindings(DOMWindow& activeWindow
 ExceptionOr<Document&> Document::openForBindings(Document* responsibleDocument, const String&, const String&)
 {
     if (!isHTMLDocument())
-        return Exception { INVALID_STATE_ERR };
+        return Exception { InvalidStateError };
 
     // FIXME: This should also throw if "document's throw-on-dynamic-markup-insertion counter is greater than 0".
 
@@ -2613,14 +2614,14 @@ HTMLElement* Document::bodyOrFrameset() const
 ExceptionOr<void> Document::setBodyOrFrameset(RefPtr<HTMLElement>&& newBody)
 {
     if (!is<HTMLBodyElement>(newBody.get()) && !is<HTMLFrameSetElement>(newBody.get()))
-        return Exception { HIERARCHY_REQUEST_ERR };
+        return Exception { HierarchyRequestError };
 
     auto* currentBody = bodyOrFrameset();
     if (newBody == currentBody)
         return { };
 
     if (!m_documentElement)
-        return Exception { HIERARCHY_REQUEST_ERR };
+        return Exception { HierarchyRequestError };
 
     if (currentBody)
         return m_documentElement->replaceChild(*newBody, *currentBody);
@@ -2649,7 +2650,7 @@ ExceptionOr<void> Document::closeForBindings()
     //        http://www.whatwg.org/specs/web-apps/current-work/#dom-document-close
 
     if (!isHTMLDocument())
-        return Exception { INVALID_STATE_ERR };
+        return Exception { InvalidStateError };
 
     // FIXME: This should also throw if "document's throw-on-dynamic-markup-insertion counter is greater than 0".
 
@@ -2874,7 +2875,7 @@ void Document::write(Document* responsibleDocument, SegmentedString&& text)
 ExceptionOr<void> Document::write(Document* responsibleDocument, Vector<String>&& strings)
 {
     if (!isHTMLDocument())
-        return Exception { INVALID_STATE_ERR };
+        return Exception { InvalidStateError };
 
     // FIXME: This should also throw if "document's throw-on-dynamic-markup-insertion counter is greater than 0".
 
@@ -2890,7 +2891,7 @@ ExceptionOr<void> Document::write(Document* responsibleDocument, Vector<String>&
 ExceptionOr<void> Document::writeln(Document* responsibleDocument, Vector<String>&& strings)
 {
     if (!isHTMLDocument())
-        return Exception { INVALID_STATE_ERR };
+        return Exception { InvalidStateError };
 
     // FIXME: This should also throw if "document's throw-on-dynamic-markup-insertion counter is greater than 0".
 
@@ -3093,14 +3094,17 @@ bool Document::canNavigate(Frame* targetFrame)
     if (!targetFrame)
         return true;
 
-    // Cases (i) and (ii) pass the tests from the specifications but might not pass the "security origin" tests.
-    // Hence they are kept for backward compatibility.
+    // Cases (i), (ii) and (iii) pass the tests from the specifications but might not pass the "security origin" tests.
 
     // i. A frame can navigate its top ancestor when its 'allow-top-navigation' flag is set (sometimes known as 'frame-busting').
     if (!isSandboxed(SandboxTopNavigation) && targetFrame == &m_frame->tree().top())
         return true;
 
-    // ii. A sandboxed frame can always navigate its descendants.
+    // ii. A frame can navigate its top ancestor when its 'allow-top-navigation-by-user-activation' flag is set and navigation is triggered by user activation.
+    if (!isSandboxed(SandboxTopNavigationByUserActivation) && UserGestureIndicator::processingUserGesture() && targetFrame == &m_frame->tree().top())
+        return true;
+
+    // iii. A sandboxed frame can always navigate its descendants.
     if (isSandboxed(SandboxNavigation) && targetFrame->tree().isDescendantOf(m_frame))
         return true;
 
@@ -3112,11 +3116,19 @@ bool Document::canNavigate(Frame* targetFrame)
         return false;
     }
 
-    // 2. Otherwise, if B is a top-level browsing context, and is one of the ancestor browsing contexts of A, and A's active document's active sandboxing flag set has its sandboxed
-    // top-level navigation browsing context flag set, then abort these steps negatively.
-    if (m_frame != targetFrame && targetFrame == &m_frame->tree().top() && isSandboxed(SandboxTopNavigation)) {
-        printNavigationErrorMessage(targetFrame, url(), ASCIILiteral("The frame attempting navigation of the top-level window is sandboxed, but the 'allow-top-navigation' flag is not set."));
-        return false;
+    // 2. Otherwise, if B is a top-level browsing context, and is one of the ancestor browsing contexts of A, then:
+    if (m_frame != targetFrame && targetFrame == &m_frame->tree().top()) {
+        bool triggeredByUserActivation = UserGestureIndicator::processingUserGesture();
+        // 1. If this algorithm is triggered by user activation and A's active document's active sandboxing flag set has its sandboxed top-level navigation with user activation browsing context flag set, then abort these steps negatively.
+        if (triggeredByUserActivation && isSandboxed(SandboxTopNavigationByUserActivation)) {
+            printNavigationErrorMessage(targetFrame, url(), ASCIILiteral("The frame attempting navigation of the top-level window is sandboxed, but the 'allow-top-navigation-by-user-activation' flag is not set and navigation is not triggered by user activation."));
+            return false;
+        }
+        // 2. Otherwise, If this algorithm is not triggered by user activation and A's active document's active sandboxing flag set has its sandboxed top-level navigation without user activation browsing context flag set, then abort these steps negatively.
+        if (!triggeredByUserActivation && isSandboxed(SandboxTopNavigation)) {
+            printNavigationErrorMessage(targetFrame, url(), ASCIILiteral("The frame attempting navigation of the top-level window is sandboxed, but the 'allow-top-navigation' flag is not set."));
+            return false;
+        }
     }
 
     // 3. Otherwise, if B is a top-level browsing context, and is neither A nor one of the ancestor browsing contexts of A, and A's Document's active sandboxing flag set has its
@@ -4280,7 +4292,7 @@ ExceptionOr<Ref<Event>> Document::createEvent(const String& type)
         return Ref<Event> { DeviceOrientationEvent::createForBindings() };
 #endif
 
-    return Exception { NOT_SUPPORTED_ERR };
+    return Exception { NotSupportedError };
 }
 
 bool Document::hasListenerTypeForEventType(PlatformEvent::Type eventType) const
@@ -4376,7 +4388,7 @@ ExceptionOr<String> Document::cookie()
         return String();
 
     if (!securityOrigin().canAccessCookies())
-        return Exception { SECURITY_ERR };
+        return Exception { SecurityError };
 
     URL cookieURL = this->cookieURL();
     if (cookieURL.isEmpty())
@@ -4397,7 +4409,7 @@ ExceptionOr<void> Document::setCookie(const String& value)
         return { };
 
     if (!securityOrigin().canAccessCookies())
-        return Exception { SECURITY_ERR };
+        return Exception { SecurityError };
 
     URL cookieURL = this->cookieURL();
     if (cookieURL.isEmpty())
@@ -4428,7 +4440,7 @@ String Document::domain() const
 ExceptionOr<void> Document::setDomain(const String& newDomain)
 {
     if (SchemeRegistry::isDomainRelaxationForbiddenForURLScheme(securityOrigin().protocol()))
-        return Exception { SECURITY_ERR };
+        return Exception { SecurityError };
 
     // Both NS and IE specify that changing the domain is only allowed when
     // the new domain is a suffix of the old domain.
@@ -4452,17 +4464,17 @@ ExceptionOr<void> Document::setDomain(const String& newDomain)
     unsigned oldLength = oldDomain.length();
     unsigned newLength = newDomain.length();
     if (newLength >= oldLength)
-        return Exception { SECURITY_ERR };
+        return Exception { SecurityError };
 
     auto ipAddressSetting = settings().treatIPAddressAsDomain() ? OriginAccessEntry::TreatIPAddressAsDomain : OriginAccessEntry::TreatIPAddressAsIPAddress;
     OriginAccessEntry accessEntry { securityOrigin().protocol(), newDomain, OriginAccessEntry::AllowSubdomains, ipAddressSetting };
     if (!accessEntry.matchesOrigin(securityOrigin()))
-        return Exception { SECURITY_ERR };
+        return Exception { SecurityError };
 
     if (oldDomain[oldLength - newLength - 1] != '.')
-        return Exception { SECURITY_ERR };
+        return Exception { SecurityError };
     if (StringView { oldDomain }.substring(oldLength - newLength) != newDomain)
-        return Exception { SECURITY_ERR };
+        return Exception { SecurityError };
 
     securityOrigin().setDomainFromDOM(newDomain);
     return { };
@@ -4570,7 +4582,7 @@ ExceptionOr<std::pair<AtomicString, AtomicString>> Document::parseQualifiedName(
     unsigned length = qualifiedName.length();
 
     if (!length)
-        return Exception { INVALID_CHARACTER_ERR };
+        return Exception { InvalidCharacterError };
 
     bool nameStart = true;
     bool sawColon = false;
@@ -4581,17 +4593,17 @@ ExceptionOr<std::pair<AtomicString, AtomicString>> Document::parseQualifiedName(
         U16_NEXT(qualifiedName, i, length, c)
         if (c == ':') {
             if (sawColon)
-                return Exception { INVALID_CHARACTER_ERR };
+                return Exception { InvalidCharacterError };
             nameStart = true;
             sawColon = true;
             colonPosition = i - 1;
         } else if (nameStart) {
             if (!isValidNameStart(c))
-                return Exception { INVALID_CHARACTER_ERR };
+                return Exception { InvalidCharacterError };
             nameStart = false;
         } else {
             if (!isValidNamePart(c))
-                return Exception { INVALID_CHARACTER_ERR };
+                return Exception { InvalidCharacterError };
         }
     }
 
@@ -4599,7 +4611,7 @@ ExceptionOr<std::pair<AtomicString, AtomicString>> Document::parseQualifiedName(
         return std::pair<AtomicString, AtomicString> { { }, { qualifiedName } };
 
     if (!colonPosition || length - colonPosition <= 1)
-        return Exception { INVALID_CHARACTER_ERR };
+        return Exception { InvalidCharacterError };
 
     return std::pair<AtomicString, AtomicString> { StringView { qualifiedName }.substring(0, colonPosition).toAtomicString(), StringView { qualifiedName }.substring(colonPosition + 1).toAtomicString() };
 }
@@ -5048,7 +5060,7 @@ ExceptionOr<Ref<Attr>> Document::createAttributeNS(const AtomicString& namespace
         return parseResult.releaseException();
     QualifiedName parsedName { parseResult.releaseReturnValue() };
     if (!shouldIgnoreNamespaceChecks && !hasValidNamespaceForAttributes(parsedName))
-        return Exception { NAMESPACE_ERR };
+        return Exception { NamespaceError };
     return Attr::create(*this, parsedName, emptyString());
 }
 

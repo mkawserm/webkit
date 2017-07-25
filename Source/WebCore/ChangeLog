@@ -1,3 +1,413 @@
+2017-07-25  Konstantin Tokarev  <annulen@yandex.ru>
+
+        Unreviewed, fix Mac CMake build after r219567
+
+        * PlatformMac.cmake:
+
+2017-07-23  Darin Adler  <darin@apple.com>
+
+        More NeverDestroyed and related cleanup
+        https://bugs.webkit.org/show_bug.cgi?id=174745
+
+        Reviewed by Alex Christensen.
+
+        * bindings/js/JSCustomElementInterface.cpp:
+        (WebCore::JSCustomElementInterface::constructElementWithFallback):
+        Use isNull() rather than comparing against nullAtom() since it's
+        slightly more efficient.
+
+        * css/MediaQueryEvaluator.cpp:
+        (WebCore::prefersReducedMotionEvaluate): Use a switch statement for the
+        three states of forcedPrefersReducedMotionAccessibilityValue. Also update
+        to use Theme::singleton() instead of platformTheme().
+
+        * dom/QualifiedName.h: Removed some unneeded includes, minor style tweaks,
+        and use isNull() rather than comparing against nullAtom() since it's
+        slightly more efficient.
+
+        * html/Autofill.cpp:
+        (WebCore::AutofillData::createFromHTMLFormControlElement): Use isNull()
+        rather than comparing against nullAtom() since it's slightly more efficient.
+
+        * html/HTMLDocument.cpp:
+        (WebCore::addLocalNameToSet): Deleted.
+        (WebCore::createHtmlCaseInsensitiveAttributesSet): Deleted.
+        (WebCore::HTMLDocument::isCaseSensitiveAttribute): Moved the case-sensitive
+        attribute set in here and made it use makeNeverDestroyed.
+
+        * html/HTMLNameCollection.cpp:
+        (WebCore::WindowNameCollection::elementMatchesIfNameAttributeMatch):
+        Formatted vertically and sorted so it's easier to see what it does.
+        (WebCore::WindowNameCollection::elementMatches): Use boolean logic instead
+        of multiple return statements to make this a little more straightforward.
+        (WebCore::isObjectElementForDocumentNameCollection): Added. Calls the new
+        isExposed function. The old code called this isDocNamedItem.
+        (WebCore::DocumentNameCollection::elementMatchesIfIdAttributeMatch):
+        Use isObjectElementForDocumentNameCollection to clean up logic. Also
+        sorted classes.
+        (WebCore::DocumentNameCollection::elementMatchesIfNameAttributeMatch):
+        Use isObjectElementForDocumentNameCollection to clean up logic. Also
+        sorted classes and formatted vertically.
+        (WebCore::DocumentNameCollection::elementMatches): Write in terms of
+        above functions for clarity. Efficiency is roughly the same.
+
+        * html/HTMLObjectElement.cpp:
+        (WebCore::HTMLObjectElement::HTMLObjectElement): Initialize data members
+        in class definition instead of here.
+        (WebCore::HTMLObjectElement::childrenChanged): Update for name change;
+        function is now called updateExposedState rather than updateDocNamedItem.
+        Also use m_useFallbackContent directly instead of through a function.
+        (WebCore::HTMLObjectElement::renderFallbackContent): Ditto.
+        (WebCore::preventsParentObjectFromExposure): Added. Replaces the old
+        isRecognizedTagName function, and does almost the same thing, but the
+        argument type is different and the param tag is now one of the tags
+        exempted here. Also broke up into two overloads so we can handle the
+        Element, Text, and other Node cases.
+        (WebCore::shouldBeExposed): Added. Helper for the updateExposedState
+        function that handles the logic of when the element should be exposed,
+        separating it from what to do when the state changes.
+        (WebCore::HTMLObjectElement::updateExposedState): Renamed from
+        updateDocNamedItem.
+
+        * html/HTMLObjectElement.h: Renamed isDocNamedItem -> isExposed,
+        m_docNamedItem -> m_isExposed, updateDocNamedItem -> updateExposedState,
+        stopped using bit fields for the two boolean data members, and
+        initialized those data members here in the class definition.
+
+        * platform/Theme.cpp:
+        (WebCore::Theme::baselinePositionAdjustment): Moved here from header.
+        (WebCore::Theme::controlFont): Ditto.
+        (WebCore::Theme::controlSize): Ditto.
+        (WebCore::Theme::minimumControlSize): Ditto.
+        (WebCore::Theme::controlRequiresPreWhiteSpace): Ditto.
+        (WebCore::Theme::paint): Ditto.
+        (WebCore::Theme::inflateControlPaintRect): Ditto.
+        (WebCore::Theme::userPrefersReducedMotion): Ditto.
+        (WebCore::Theme::controlBorder): Fixed switch statement indentation.
+        (WebCore::Theme::controlPadding): Ditto.
+
+        * platform/Theme.h: Removed the many unnecessary includes. The one
+        I was really after here was FontCascade.h. Replaced the platformTheme
+        function with a singleton function, following our normal style. Also
+        changed the return type to a reference rather than a pointer.
+        Removed many unused function and data members.
+
+        * platform/cocoa/ThemeCocoa.h: Tightened up implementation, removing
+        unnecessary members and making overrides private.
+        * platform/cocoa/ThemeCocoa.mm: Moved include in here.
+
+        * platform/gamepad/glib/GamepadsGlib.cpp:
+        (WebCore::sampleGamepads): Use NeverDestroyed instead of
+        DEPRECATED_DEFINE_STATIC_LOCAL.
+
+        * platform/graphics/FontCascade.cpp:
+        (WebCore::useBackslashAsYenSignForFamily): Build the set in a cleaner
+        way and use a NeverDestroyed set instead of a heap-allocated one.
+        (WebCore::FontCascade::FontCascade): Moved initialization of data members
+        to the class definition.
+
+        * platform/graphics/FontCascade.h: Initialize GlyphOverflow and
+        FonstCascade data members in the class definition. Remove the constructor
+        for GlyphOverflow entirely. Added FIXME about the peculiar != operator we
+        defined for GlyphOverflow.
+
+        * platform/graphics/NamedImageGeneratedImage.cpp:
+        (WebCore::NamedImageGeneratedImage::draw): Use Theme::singleton() instead
+        of platformTheme().
+        (WebCore::NamedImageGeneratedImage::drawPattern): Ditto.
+
+        * platform/graphics/avfoundation/cf/MediaPlayerPrivateAVFoundationCF.cpp:
+        (WebCore::CMTimeRangeStartKey): Use CFSTR directly instead of using
+        DEPRECATED_DEFINE_STATIC_LOCAL.
+        (WebCore::CMTimeRangeDurationKey): Ditto.
+        (WebCore::CACFContextNeedsFlushNotification): Ditto.
+
+        * platform/graphics/ca/win/LayerChangesFlusher.cpp:
+        (WebCore::LayerChangesFlusher::singleton): Use NeverDestroyed instead of
+        DEPRECATED_DEFINE_STATIC_LOCAL.
+        * platform/graphics/ca/win/LayerChangesFlusher.h: Ditto.
+
+        * platform/graphics/cg/ImageSourceCGWin.cpp:
+        (WebCore::preferredExtensionForImageSourceType): Use HashMap constructor
+        instead of writing out a lot of add calls.
+
+        * platform/graphics/harfbuzz/HarfBuzzFace.cpp:
+        (WebCore::harfBuzzFaceCache): Use NeverDestroyed instead of
+        DEPRECATED_DEFINE_STATIC_LOCAL.
+        * platform/graphics/win/FontCacheWin.cpp:
+        (WebCore::FontCache::lastResortFallbackFont): Ditto.
+
+        * platform/ios/ThemeIOS.h: Tightened up implementation, removing
+        unnecessary members and making overrides private.
+        * platform/ios/ThemeIOS.mm:
+        (WebCore::Theme::singleton): Renamed from platformTheme.
+
+        * platform/mac/ThemeMac.h: Tightened up implementation, removing
+        unnecessary members and making overrides private. Removed unneeded
+        WTF_MAKE_FAST_ALLOCATED since this is never allocated on the heap.
+        Removed unused -[NSFont webCoreFamilyName] method.
+        * platform/mac/ThemeMac.mm:
+        (-[NSFont webCoreFamilyName]): Deleted.
+        (WebCore::Theme::singleton): Renamed from platformTheme.
+
+        * platform/mediastream/mac/MockRealtimeAudioSourceMac.h:
+        Removed unneeded include of FontCascade.h.
+        * platform/mediastream/mac/MockRealtimeVideoSourceMac.h:
+        Ditto.
+        * platform/mock/MockRealtimeAudioSource.h: Ditto.
+
+        * platform/network/win/DownloadBundleWin.cpp:
+        (WebCore::DownloadBundle::fileExtension): Use NeverDestroyed
+        instead of DEPRECATED_DEFINE_STATIC_LOCAL.
+
+        * platform/win/ClipboardUtilitiesWin.cpp:
+        (WebCore::replaceNewlinesWithWindowsStyleNewlines): Use
+        appendLiteral instead of DEPRECATED_DEFINE_STATIC_LOCAL.
+
+        * platform/win/FileSystemWin.cpp:
+        (WebCore::bundleName): Use NeverDestroyed instead of
+        DEPRECATED_DEFINE_STATIC_LOCAL, and used a lambda to initialize
+        rather than a boolean to control one-time code.
+        (WebCore::storageDirectory): Removed unneeded use of
+        DEPRECATED_DEFINE_STATIC_LOCAL for a prefix we are appending to
+        a String. The + operator can handle a literal just as efficiently
+        without first storing it in a String.
+
+        * platform/wpe/ThemeWPE.cpp:
+        (WebCore::Theme::singleton): Renamed from platformTheme.
+        * platform/wpe/ThemeWPE.h: Tightened up implementation, removing
+        unnecessary members and making overrides private.
+
+        * rendering/RenderTheme.cpp:
+        (WebCore::RenderTheme::RenderTheme): No need to initialize m_theme.
+        (WebCore::RenderTheme::adjustStyle): Use Theme::singleton() instead
+        of accessing it through m_theme.
+        (WebCore::RenderTheme::paint): Ditto.
+        (WebCore::RenderTheme::baselinePosition): Ditto.
+        (WebCore::RenderTheme::adjustRepaintRect): Ditto.
+        (WebCore::RenderTheme::setCustomFocusRingColor): Ditto.
+        (WebCore::RenderTheme::platformTapHighlightColor): Ditto.
+
+        * rendering/RenderTheme.h: Removed unneded m_theme and unneeded
+        inclusion of Theme.h.
+
+        * rendering/line/LineBreaker.h: Removed unneeded include of
+        FontCascade.h.
+
+2017-07-24  Chris Dumez  <cdumez@apple.com>
+
+        ExceptionCode enumeration should use modern exception names
+        https://bugs.webkit.org/show_bug.cgi?id=174794
+
+        Reviewed by Geoffrey Garen.
+
+        ExceptionCode enumeration should use modern exception names consistently.
+        This makes the code nicer and closer to the text of the specification.
+
+2017-07-24  Andy Estes  <aestes@apple.com>
+
+        Consider implementing W3C Payment Request API
+        https://bugs.webkit.org/show_bug.cgi?id=174796
+
+        Reviewed by Daniel Bates.
+
+        Add Payment Request to features.json as "Under Consideration".
+
+        * features.json:
+
+2017-07-24  Konstantin Tokarev  <annulen@yandex.ru>
+
+        Unreviewed attempt to fix Mac cmake build
+
+        * PlatformMac.cmake:
+
+2017-07-24  Chris Dumez  <cdumez@apple.com>
+
+        Make ExceptionCode a proper enumeration
+        https://bugs.webkit.org/show_bug.cgi?id=174771
+
+        Reviewed by Sam Weinig.
+
+        Make ExceptionCode a proper enumeration instead of a typedef to uint8_t.
+
+        * Modules/fetch/FetchBody.h:
+        (WebCore::FetchBody::formData):
+        * Modules/indexeddb/shared/IDBError.h:
+        (WebCore::IDBError::encode):
+        (WebCore::IDBError::decode):
+        * bindings/js/JSSubtleCryptoCustom.cpp:
+        (WebCore::rejectWithException):
+        * dom/Exception.h:
+        * dom/ExceptionCode.h:
+        * fileapi/FileReaderSync.cpp:
+        (WebCore::errorCodeToExceptionCode):
+        * html/canvas/WebGLRenderingContextBase.cpp:
+        (WebCore::WebGLRenderingContextBase::texSubImage2D):
+        (WebCore::WebGLRenderingContextBase::texImage2D):
+        * xml/XMLHttpRequest.cpp:
+        (WebCore::XMLHttpRequest::createRequest):
+        * xml/XMLHttpRequest.h:
+
+2017-07-24  Simon Fraser  <simon.fraser@apple.com>
+
+        Change "client" coordinates back to match scrolling coordinates
+        https://bugs.webkit.org/show_bug.cgi?id=174734
+        rdar://problem/33336930
+
+        Reviewed by Tim Horton.
+
+        Baidu.com (which uses jQuery), and various iOS apps make the assumption that getBoundingClientRect() returns a rectangle
+        that can be used to set or compare with the scroll position. With visual viewports, that assumption is no longer valid
+        when the page is zoomed, or when the keyboard has caused the visual viewport to detach from the layout viewport.
+
+        At this point the compatibility cost of shipping layout viewport-based client rects seems higher than the gain, so revert
+        to the shipping behavior. This reverts r216803, and will re-introduce bugs that occurred on zoomed pages on macOS,
+        many of which are noted in webkit.org/b/170981.
+
+        * page/FrameView.cpp:
+        (WebCore::FrameView::documentToClientOffset):
+
+2017-07-24  Zan Dobersek  <zdobersek@igalia.com>
+
+        [WPE] libepoxy headers can use EGL_CAST, which might not be defined by eglplatform.h
+        https://bugs.webkit.org/show_bug.cgi?id=174780
+
+        Reviewed by Carlos Garcia Campos.
+
+        Newer versions of libepoxy provide EGL definitions that already use the EGL_CAST macro.
+        We'd like to compile on systems where the eglplatform.h header doesn't yet provide
+        that macro that was added only recently (e.g. it's available in Mesa 17.1, but not
+        before).
+
+        To address that, the EpoxyEGL.h header is added that first includes the libepoxy's EGL
+        header and then provides the EGL_CAST definition in case the eglplatform.h header doesn't.
+        This header should be included in place of <epoxy/egl.h> (which is included in this new
+        header).
+
+        The EpoxyEGL.h and EpoxyShims.h headers are also moved under the platform/graphics/epoxy/
+        directory, with the new directory added to the list of inclusion paths for WPE.
+
+        * PlatformWPE.cmake:
+        * platform/graphics/PlatformDisplay.cpp:
+        * platform/graphics/cairo/CairoUtilities.cpp:
+        * platform/graphics/cairo/ImageBufferCairo.cpp:
+        * platform/graphics/egl/GLContextEGL.cpp:
+        * platform/graphics/egl/GLContextEGLWPE.cpp:
+        * platform/graphics/epoxy/EpoxyEGL.h: Added.
+        * platform/graphics/epoxy/EpoxyShims.h: Renamed from Source/WebCore/platform/graphics/EpoxyShims.h.
+        * platform/graphics/opengl/Extensions3DOpenGLES.cpp:
+        * platform/graphics/wpe/PlatformDisplayWPE.cpp:
+
+2017-07-24  Zan Dobersek  <zdobersek@igalia.com>
+
+        [CoordinatedGraphics] Remove unused GLDefs.h header
+        https://bugs.webkit.org/show_bug.cgi?id=174712
+
+        Reviewed by Michael Catanzaro.
+
+        * platform/graphics/opengl/GLDefs.h: Remove this unused header.
+        As far as my recollection goes it was used in the IPC-based
+        CoordinatedGraphics subsystem, which has been removed already.
+
+2017-07-11  Frederic Wang  <fwang@igalia.com>
+
+        Add attribute allow-top-navigation-by-user-activation to iframe sandbox
+        https://bugs.webkit.org/show_bug.cgi?id=171327
+
+        Reviewed by Chris Dumez.
+
+        Tests: http/tests/security/frameNavigation/sandbox-ALLOWED-top-navigation-with-user-gesture-1.html
+               http/tests/security/frameNavigation/sandbox-ALLOWED-top-navigation-with-user-gesture-2.html
+               imported/w3c/web-platform-tests/html/semantics/embedded-content/the-iframe-element/iframe_sandbox_allow_top_navigation_by_user_activation_without_user_gesture-expected.txt
+               imported/w3c/web-platform-tests/html/semantics/embedded-content/the-iframe-element/iframe_sandbox_allow_top_navigation-3-expected.txt
+
+        * dom/Document.cpp:
+        (WebCore::Document::canNavigate): Case 2 of conformance verification is refined to match the
+        current specification: Top navigation is allowed when it is triggered by user activation and
+        when allow-top-navigation-by-user-activation is set. Because we have additional "security
+        origin" rules with respect to the specification we also add some early return to ensure that
+        navigation is really allowed for this new case.
+        * dom/SecurityContext.cpp:
+        (WebCore::SecurityContext::isSupportedSandboxPolicy): Add allow-top-navigation-by-user-activation flag.
+        (WebCore::SecurityContext::parseSandboxPolicy): Parse the new flag to allow top user
+        navigation by user activation. Also, make sure that allow-top-navigation allows such
+        navigation as defined by the specification.
+        * dom/SecurityContext.h: Declare new sandboxing flag.
+
+2017-07-23  Wenson Hsieh  <wenson_hsieh@apple.com>
+
+        [iOS WK2] 5 DataInteractionTests are failing: observed selection rects after dropping don't match expected values
+        https://bugs.webkit.org/show_bug.cgi?id=174769
+        <rdar://problem/33478864>
+
+        Reviewed by Tim Horton.
+
+        These tests began failing after r219541, due to a change in behavior of whether or not we call
+        setIgnoreSelectionChanges(false, RevealSelection::No) or setIgnoreSelectionChanges(false, RevealSelection::Yes)
+        when performing a text editing drop.
+
+        Before r219541, we would not reveal the selection when performing an edit drag operation. This is because in
+        WebPage::performDragControllerAction, we would begin ignoring selection changes by calling
+        setIgnoreSelectionChanges(true). However, while taking a text indicator snapshot, we would stop ignoring
+        selection in TextIndicator::createWithRange due to us calling setIgnoreSelectionChanges(false,
+        RevealSelection::No) at the end of the function. Then, when we return to the scope of
+        WebPage::performDragControllerAction and try to setIgnoreSelectionChanges(false), this is a no-op because we've
+        already stopped ignoring selection changes.
+
+        After r219541, switching to using TemporarySelectionChange means that TextIndicator::createWithRange now means
+        we respect whether or not we were already ignoring selection before taking the snapshot, so we won't always
+        setIgnoreSelectionChanges(false) at the end. This means that selection changes will now be correctly ignored
+        when performing a drag operation, but this also means that we'll try to reveal the selection, since
+        WebPage::performDragControllerAction calls setIgnoreSelectionChanges(false), for which RevealSelection::Yes
+        is used by default.
+
+        Revealing the selection in WebPage::performDragControllerAction was unintended in the first place, so we should
+        revert to calling setIgnoreSelectionChanges(false, RevealSelection::No). To ensure this, we adopt
+        TemporarySelectionChange here and pass only TemporarySelectionOptionIgnoreSelectionChanges, so that we won't
+        additionally try to reveal selection after the drop. This is consistent with behavior prior to macOS 10.13 and
+        iOS 11. Additionally, this patch also moves the call to ignore selection change from WebKit into WebCore, so
+        that whether we ignore selection is consistent across both WebKit1 and WebKit2.
+
+        * page/DragController.cpp:
+        (WebCore::DragController::performDragOperation):
+
+2017-07-23  Chris Dumez  <cdumez@apple.com>
+
+        Drop ExceptionCodeDescription class
+        https://bugs.webkit.org/show_bug.cgi?id=174757
+
+        Reviewed by Darin Adler.
+
+        Drop ExceptionCodeDescription class now that there is only one exception
+        type: DOMException. Instead, we now have static methods on DOMException
+        to get the name / message for a given exception code.
+
+        * CMakeLists.txt:
+        * Modules/indexeddb/shared/IDBError.cpp:
+        (WebCore::IDBError::name):
+        (WebCore::IDBError::message):
+        * Modules/quota/StorageErrorCallback.cpp:
+        (WebCore::StorageErrorCallback::CallbackTask::CallbackTask):
+        * WebCore.xcodeproj/project.pbxproj:
+        * bindings/js/JSDOMExceptionHandling.cpp:
+        (WebCore::createDOMException):
+        * dom/DOMAllInOne.cpp:
+        * dom/DOMException.cpp:
+        (WebCore::errorCodeFromName):
+        (WebCore::DOMException::create):
+        (WebCore::DOMException::DOMException):
+        (WebCore::DOMException::name):
+        (WebCore::DOMException::message):
+        * dom/DOMException.h:
+        * dom/ExceptionCodeDescription.cpp: Removed.
+        * dom/ExceptionCodeDescription.h: Removed.
+        * inspector/DOMEditor.cpp:
+        (WebCore::populateErrorString):
+        * inspector/InspectorDOMAgent.cpp:
+        (WebCore::InspectorDOMAgent::toErrorString):
+        * inspector/InspectorDOMStorageAgent.cpp:
+        (WebCore::InspectorDOMStorageAgent::setDOMStorageItem):
+
 2017-07-22  Dan Bernstein  <mitz@apple.com>
 
         Fixed building for macOS 10.12 with the macOS 10.13 SDK after r219644.

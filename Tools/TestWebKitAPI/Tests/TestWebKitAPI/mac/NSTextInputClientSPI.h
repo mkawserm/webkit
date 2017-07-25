@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 Intel Corporation. All rights reserved.
+ * Copyright (C) 2017 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -23,52 +23,20 @@
  * THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef GLDefs_h
-#define GLDefs_h
+#if PLATFORM(MAC)
 
-#define GL_GLEXT_PROTOTYPES 1
+#if USE(APPLE_INTERNAL_SDK)
 
-#if USE(OPENGL_ES_2)
-#include "Extensions3DOpenGLES.h"
-#include "OpenGLESShims.h"
-#include <GLES2/gl2.h>
-#include <GLES2/gl2ext.h>
+#import <AppKit/NSTextInputClient_Private.h>
+
 #else
-#include "Extensions3DOpenGL.h"
-#include "OpenGLShims.h"
-#include <GL/gl.h>
-#include <GL/glext.h>
-#if USE(GLX)
-#define GLX_GLXEXT_PROTOTYPES 1
-#include <GL/glx.h>
-#include <GL/glxext.h>
-#endif
-#endif
 
-#if USE(EGL)
-#define EGL_EGLEXT_PROTOTYPES 1
-#include <EGL/egl.h>
-#include <EGL/eglext.h>
-#endif
-
-namespace WebCore {
-
-typedef uint32_t PlatformBufferHandle;
-
-#if USE(GLX)
-typedef GLXContext PlatformContext;
-typedef GLXFBConfig PlatformSurfaceConfig;
-typedef GLXDrawable PlatformDrawable;
-#elif USE(EGL)
-typedef EGLContext PlatformContext;
-typedef EGLConfig PlatformSurfaceConfig;
-typedef EGLSurface PlatformDrawable;
-#else
-typedef void* PlatformContext;
-typedef void* PlatformSurfaceConfig;
-typedef void* PlatformDrawable;
-#endif
-
-}
+@protocol NSTextInputClient_Async
+- (void)selectedRangeWithCompletionHandler:(void(^)(NSRange selectedRange))completionHandler;
+- (void)markedRangeWithCompletionHandler:(void(^)(NSRange markedRange))completionHandler;
+- (void)hasMarkedTextWithCompletionHandler:(void(^)(BOOL hasMarkedText))completionHandler;
+@end
 
 #endif
+
+#endif // PLATFORM(MAC)

@@ -29,7 +29,6 @@
 #if ENABLE(INDEXED_DATABASE)
 
 #include "Document.h"
-#include "ExceptionCode.h"
 #include "IDBBindingUtilities.h"
 #include "IDBConnectionProxy.h"
 #include "IDBDatabaseIdentifier.h"
@@ -91,7 +90,7 @@ ExceptionOr<Ref<IDBOpenDBRequest>> IDBFactory::openInternal(ScriptExecutionConte
         return Exception { TypeError, ASCIILiteral("IDBFactory.open() called without a database name") };
 
     if (shouldThrowSecurityException(context))
-        return Exception { SECURITY_ERR, ASCIILiteral("IDBFactory.open() called in an invalid security context") };
+        return Exception { SecurityError, ASCIILiteral("IDBFactory.open() called in an invalid security context") };
 
     ASSERT(context.securityOrigin());
     IDBDatabaseIdentifier databaseIdentifier(name, *context.securityOrigin(), context.topOrigin());
@@ -111,7 +110,7 @@ ExceptionOr<Ref<IDBOpenDBRequest>> IDBFactory::deleteDatabase(ScriptExecutionCon
         return Exception { TypeError, ASCIILiteral("IDBFactory.deleteDatabase() called without a database name") };
 
     if (shouldThrowSecurityException(context))
-        return Exception { SECURITY_ERR, ASCIILiteral("IDBFactory.deleteDatabase() called in an invalid security context") };
+        return Exception { SecurityError, ASCIILiteral("IDBFactory.deleteDatabase() called in an invalid security context") };
 
     ASSERT(context.securityOrigin());
     IDBDatabaseIdentifier databaseIdentifier(name, *context.securityOrigin(), context.topOrigin());

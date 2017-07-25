@@ -26,7 +26,6 @@
 #include "config.h"
 #include "JSDOMPromiseDeferred.h"
 
-#include "ExceptionCode.h"
 #include "JSDOMError.h"
 #include "JSDOMWindow.h"
 #include <builtins/BuiltinNames.h>
@@ -196,7 +195,7 @@ void fulfillPromiseWithJSON(Ref<DeferredPromise>&& promise, const String& data)
 {
     JSC::JSValue value = parseAsJSON(promise->globalObject()->globalExec(), data);
     if (!value)
-        promise->reject(SYNTAX_ERR);
+        promise->reject(SyntaxError);
     else
         promise->resolve<IDLAny>(value);
 }

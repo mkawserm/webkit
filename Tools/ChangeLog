@@ -1,3 +1,289 @@
+2017-07-25  Carlos Garcia Campos  <cgarcia@igalia.com>
+
+        [GTK] TestWebKitAPI tests are no longer built since the WebKit2 rename
+        https://bugs.webkit.org/show_bug.cgi?id=174815
+
+        Reviewed by Carlos Alberto Lopez Perez.
+
+        Only WebKitGTK specific tests are built, but not WebKit2, WTF nor WebCore ones. We are still checking
+        ENABLE_WEBKIT2 in the makefile, that was renamed to ENABLE_WEBKIT. Also, all WebKit2 test paths were updated to
+        use WebKit dir, while the tests are still in WebKit2 directory. This patch also removes
+        TestWebKitAPIInjectedBundle_PATH that is unused and now makes the configure to fail (it used to be a warning, I
+        think), probably because of a newer CMake version.
+
+        * CMakeLists.txt:
+        * TestWebKitAPI/CMakeLists.txt:
+        * TestWebKitAPI/PlatformGTK.cmake:
+
+2017-07-24  Matthew Stewart  <matthew_r_stewart@apple.com>
+
+        Fix BenchmarkRunner to only import selenium when needed
+        https://bugs.webkit.org/show_bug.cgi?id=174808
+
+        Reviewed by Stephanie Lewis.
+
+        * Scripts/webkitpy/benchmark_runner/browser_driver/linux_chrome_driver.py:
+        (LinuxChromeDriver.launch_driver):
+        * Scripts/webkitpy/benchmark_runner/browser_driver/linux_firefox_driver.py:
+        (LinuxFirefoxDriver.launch_driver):
+        * Scripts/webkitpy/benchmark_runner/browser_driver/osx_chrome_driver.py:
+        (OSXChromeDriver.launch_driver):
+        (OSXChromeCanaryDriver.launch_driver):
+        (create_chrome_options):
+        * Scripts/webkitpy/benchmark_runner/browser_driver/osx_firefox_driver.py:
+        (OSXFirefoxDriver.launch_driver):
+        (OSXFirefoxNightlyDriver.launch_driver):
+        * Scripts/webkitpy/benchmark_runner/browser_driver/osx_safari_driver.py:
+        (OSXSafariDriver.launch_driver):
+        * Scripts/webkitpy/benchmark_runner/webdriver_benchmark_runner.py:
+        (WebDriverBenchmarkRunner._run_one_test):
+
+2017-07-23  Darin Adler  <darin@apple.com>
+
+        More NeverDestroyed and related cleanup
+        https://bugs.webkit.org/show_bug.cgi?id=174745
+
+        Reviewed by Alex Christensen.
+
+        * DumpRenderTree/JavaScriptThreading.cpp:
+        (javaScriptThreadsMutex): Use NeverDestroyed instead of
+        DEPRECATED_DEFINE_STATIC_LOCAL.
+        (javaScriptThreads): Ditto.
+
+2017-07-24  Matthew Stewart  <matthew_r_stewart@apple.com>
+
+        Subclass Benchmark Runner script for WebDriver support
+        https://bugs.webkit.org/show_bug.cgi?id=174390
+
+        Reviewed by Dewei Zhu, Stephanie Lewis.
+
+        Add WebServerBenchmarkRunner and WebDriverBenchmarkRunner subclasses.
+
+        * Scripts/webkitpy/benchmark_runner/benchmark_builder.py:
+        (BenchmarkBuilder.__init__):
+        * Scripts/webkitpy/benchmark_runner/benchmark_runner.py:
+        (BenchmarkRunner.__init__):
+        (BenchmarkRunner._find_plan_file):
+        (BenchmarkRunner._run_one_test.and):
+        (BenchmarkRunner.execute):
+        (BenchmarkRunner._get_result): Deleted.
+        * Scripts/webkitpy/benchmark_runner/run_benchmark.py:
+        (parse_args):
+        (start):
+        * Scripts/webkitpy/benchmark_runner/webdriver_benchmark_runner.py: Added.
+        (WebDriverBenchmarkRunner):
+        (WebDriverBenchmarkRunner._get_result):
+        (WebDriverBenchmarkRunner._run_one_test):
+        * Scripts/webkitpy/benchmark_runner/webserver_benchmark_runner.py: Added.
+        (WebServerBenchmarkRunner):
+        (WebServerBenchmarkRunner.__init__):
+        (WebServerBenchmarkRunner._get_result):
+        (WebServerBenchmarkRunner._run_one_test):
+
+2017-07-24  Matthew Stewart  <matthew_r_stewart@apple.com>
+
+        Add BenchmarkRunner patches with WebDriver support for each testing plan
+        https://bugs.webkit.org/show_bug.cgi?id=174443
+
+        Reviewed by Dewei Zhu, Stephanie Lewis.
+
+        * Scripts/webkitpy/benchmark_runner/benchmark_builder.py:
+        (BenchmarkBuilder.__enter__):
+        * Scripts/webkitpy/benchmark_runner/data/patches/webdriver/ARES-6.patch:
+        * Scripts/webkitpy/benchmark_runner/data/patches/webdriver/ContentAnimation.patch:
+        * Scripts/webkitpy/benchmark_runner/data/patches/webdriver/Dromaeo.patch:
+        * Scripts/webkitpy/benchmark_runner/data/patches/webdriver/JSBench.patch:
+        * Scripts/webkitpy/benchmark_runner/data/patches/webdriver/JetStream.patch:
+        * Scripts/webkitpy/benchmark_runner/data/patches/webdriver/Kraken.patch:
+        * Scripts/webkitpy/benchmark_runner/data/patches/webdriver/MotionMark.patch:
+        * Scripts/webkitpy/benchmark_runner/data/patches/webdriver/Octane.patch:
+        * Scripts/webkitpy/benchmark_runner/data/patches/webdriver/Speedometer.patch:
+        * Scripts/webkitpy/benchmark_runner/data/patches/webdriver/SunSpider.patch:
+        * Scripts/webkitpy/benchmark_runner/data/patches/webserver/ARES-6.patch:
+        * Scripts/webkitpy/benchmark_runner/data/patches/webserver/Animometer.patch:
+        * Scripts/webkitpy/benchmark_runner/data/patches/webserver/ContentAnimation.patch:
+        * Scripts/webkitpy/benchmark_runner/data/patches/webserver/Dromaeo.patch:
+        * Scripts/webkitpy/benchmark_runner/data/patches/webserver/JSBench.patch:
+        * Scripts/webkitpy/benchmark_runner/data/patches/webserver/JetStream.patch:
+        * Scripts/webkitpy/benchmark_runner/data/patches/webserver/Kraken.patch:
+        * Scripts/webkitpy/benchmark_runner/data/patches/webserver/MotionMark.patch:
+        * Scripts/webkitpy/benchmark_runner/data/patches/webserver/Octane.patch:
+        * Scripts/webkitpy/benchmark_runner/data/patches/webserver/Speedometer.patch:
+        * Scripts/webkitpy/benchmark_runner/data/patches/webserver/SunSpider.patch:
+        * Scripts/webkitpy/benchmark_runner/data/plans/ares6.plan:
+        * Scripts/webkitpy/benchmark_runner/data/plans/content-animation.plan:
+        * Scripts/webkitpy/benchmark_runner/data/plans/dromaeo-cssquery.plan:
+        * Scripts/webkitpy/benchmark_runner/data/plans/dromaeo-dom.plan:
+        * Scripts/webkitpy/benchmark_runner/data/plans/dromaeo-jslib.plan:
+        * Scripts/webkitpy/benchmark_runner/data/plans/jetstream.plan:
+        * Scripts/webkitpy/benchmark_runner/data/plans/jsbench.plan:
+        * Scripts/webkitpy/benchmark_runner/data/plans/kraken.plan:
+        * Scripts/webkitpy/benchmark_runner/data/plans/motionmark.plan:
+        * Scripts/webkitpy/benchmark_runner/data/plans/octane.plan:
+        * Scripts/webkitpy/benchmark_runner/data/plans/speedometer.plan:
+        * Scripts/webkitpy/benchmark_runner/data/plans/sunspider.plan:
+
+2017-07-24  Matthew Stewart  <matthew_r_stewart@apple.com>
+
+        Add functions to autoinstaller needed for Benchmark Runner script
+        https://bugs.webkit.org/show_bug.cgi?id=174331
+
+        Reviewed by Dean Johnson, Dewei Zhu, Stephanie Lewis.
+
+        Adds autoinstaller functions to install selenium and webdriver binaries
+        which will be used by the browser driver part of Benchmark Runner.
+
+        * Scripts/webkitpy/benchmark_runner/browser_driver/browser_driver.py:
+        (BrowserDriver.restore_env):
+        (BrowserDriver):
+        (BrowserDriver.get_webdriver_binary_path):
+        * Scripts/webkitpy/benchmark_runner/browser_driver/linux_chrome_driver.py:
+        (LinuxChromeDriver.launch_driver):
+        * Scripts/webkitpy/benchmark_runner/browser_driver/linux_firefox_driver.py:
+        (LinuxFirefoxDriver.launch_driver):
+        * Scripts/webkitpy/benchmark_runner/browser_driver/osx_chrome_driver.py:
+        (OSXChromeDriver.launch_driver):
+        (OSXChromeCanaryDriver.launch_driver):
+        * Scripts/webkitpy/benchmark_runner/browser_driver/osx_firefox_driver.py:
+        (OSXFirefoxDriver.launch_driver):
+        (OSXFirefoxNightlyDriver.launch_driver):
+        * Scripts/webkitpy/benchmark_runner/browser_driver/osx_safari_driver.py:
+        * Scripts/webkitpy/benchmark_runner/utils.py:
+        (get_driver_binary_path):
+        * Scripts/webkitpy/common/system/autoinstall.py:
+        (AutoInstaller._unzip):
+        * Scripts/webkitpy/thirdparty/__init__.py:
+        (AutoinstallImportHook.find_module):
+        (AutoinstallImportHook._install_selenium):
+        (AutoinstallImportHook):
+        (AutoinstallImportHook._install_chromedriver):
+        (AutoinstallImportHook._install_geckodriver):
+        (AutoinstallImportHook.get_latest_pypi_url):
+        (AutoinstallImportHook.install_binary):
+        (autoinstall_everything):
+        (get_driver_filename):
+        (get_os_info):
+
+2017-07-24  Matthew Stewart  <matthew_r_stewart@apple.com>
+
+        Add WebDriver support in browser driver part of BenchmarkRunner
+        https://bugs.webkit.org/show_bug.cgi?id=174445
+
+        Reviewed by Stephanie Lewis.
+
+        Adds a launch_driver function to each BrowserDriver subclass. This
+        function sets up the arguments for the webdriver and launches the
+        webdriver specific to that browser.
+
+        * Scripts/webkitpy/benchmark_runner/browser_driver/browser_driver.py:
+        (BrowserDriver.launch_webdriver):
+        (BrowserDriver):
+        * Scripts/webkitpy/benchmark_runner/browser_driver/linux_browser_driver.py:
+        (LinuxBrowserDriver.launch_webdriver):
+        * Scripts/webkitpy/benchmark_runner/browser_driver/linux_chrome_driver.py:
+        (LinuxChromeDriver.launch_url):
+        (LinuxChromeDriver):
+        (LinuxChromeDriver.launch_driver):
+        * Scripts/webkitpy/benchmark_runner/browser_driver/linux_epiphany_driver.py:
+        (EpiphanyBrowserDriver.launch_url):
+        (EpiphanyBrowserDriver):
+        (EpiphanyBrowserDriver.launch_driver):
+        * Scripts/webkitpy/benchmark_runner/browser_driver/linux_firefox_driver.py:
+        (LinuxFirefoxDriver):
+        (LinuxFirefoxDriver.launch_url):
+        (LinuxFirefoxDriver.launch_driver):
+        * Scripts/webkitpy/benchmark_runner/browser_driver/linux_minibrowsergtk_driver.py:
+        (GTKMiniBrowserDriver.launch_url):
+        (GTKMiniBrowserDriver):
+        (GTKMiniBrowserDriver.launch_driver):
+        * Scripts/webkitpy/benchmark_runner/browser_driver/osx_browser_driver.py:
+        (OSXBrowserDriver._launch_webdriver):
+        (OSXBrowserDriver):
+        (OSXBrowserDriver._screen_size):
+        (OSXBrowserDriver._insert_url):
+        * Scripts/webkitpy/benchmark_runner/browser_driver/osx_chrome_driver.py:
+        (OSXChromeDriver):
+        (OSXChromeDriver.launch_url):
+        (OSXChromeDriver.launch_driver):
+        (OSXChromeCanaryDriver):
+        (OSXChromeCanaryDriver.launch_url):
+        (OSXChromeCanaryDriver.launch_driver):
+        * Scripts/webkitpy/benchmark_runner/browser_driver/osx_firefox_driver.py:
+        (OSXFirefoxDriver):
+        (OSXFirefoxDriver.launch_url):
+        (OSXFirefoxDriver.launch_driver):
+        (OSXFirefoxNightlyDriver):
+        (OSXFirefoxNightlyDriver.launch_url):
+        (OSXFirefoxNightlyDriver.launch_driver):
+        * Scripts/webkitpy/benchmark_runner/browser_driver/osx_safari_driver.py:
+        (OSXSafariDriver.launch_driver):
+
+2017-07-24  Wenson Hsieh  <wenson_hsieh@apple.com>
+
+        [Mac WK2] Add an API test to cover r219765 (null dereference in [WKWebView dealloc])
+        https://bugs.webkit.org/show_bug.cgi?id=174793
+
+        Reviewed by Tim Horton.
+
+        Adds a new unit test that invokes some asynchronous NSTextInputClient SPI methods as the web view is tearing
+        down. Without r219765, this test will dereference null and crash.
+
+        * TestWebKitAPI/TestWebKitAPI.xcodeproj/project.pbxproj:
+        * TestWebKitAPI/Tests/TestWebKitAPI/mac/NSTextInputClientSPI.h: Added.
+        * TestWebKitAPI/Tests/mac/WKWebViewSelectionTests.mm:
+        (TEST):
+
+2017-07-24  Basuke Suzuki  <Basuke.Suzuki@sony.com>
+
+        [Win] Implement Authentication dialog in MiniBrowser
+        https://bugs.webkit.org/show_bug.cgi?id=174662
+
+        Reviewed by Alex Christensen.
+
+        * MiniBrowser/win/Common.cpp:
+        (CustomUserAgent):
+        (DisplayAuthDialog):
+        (AuthDialogProc):
+        * MiniBrowser/win/MiniBrowserLib.rc:
+        * MiniBrowser/win/MiniBrowserLibResource.h:
+        * MiniBrowser/win/ResourceLoadDelegate.cpp:
+        (ResourceLoadDelegate::didReceiveAuthenticationChallenge):
+
+2017-07-24  Jonathan Bedard  <jbedard@apple.com>
+
+        Handle case where line_numbers is None instead of an array of line numbers
+        https://bugs.webkit.org/show_bug.cgi?id=174775
+
+        Reviewed by Aakash Jain.
+
+        Added files set line_numbers to None in process_file.
+
+        * Scripts/webkitpy/style/filereader.py:
+        (TextFileReader.process_file): Handle case where line_number is set to None.
+        * Scripts/webkitpy/style/main_unittest.py:
+        (ExpectationLinterInStyleCheckerTest.test_linter_added_file_with_error): Test case of an added file.
+
+2017-07-24  Zan Dobersek  <zdobersek@igalia.com>
+
+        [WPE] Add libepoxy to the Jhbuild moduleset
+        https://bugs.webkit.org/show_bug.cgi?id=174711
+
+        Reviewed by Carlos Alberto Lopez Perez.
+
+        * wpe/jhbuild.modules: Add libepoxy 1.4.3 to WPE's Jhbuild moduleset.
+
+2017-07-24  Zan Dobersek  <zdobersek@igalia.com>
+
+        [WPE] libepoxy headers can use EGL_CAST, which might not be defined by eglplatform.h
+        https://bugs.webkit.org/show_bug.cgi?id=174780
+
+        Reviewed by Carlos Garcia Campos.
+
+        * WebKitTestRunner/wpe/HeadlessViewBackend.cpp:
+        Manually define the EGL_CAST macro to the C++ version that uses static_cast<>
+        in case the eglplatform.h header doesn't provide that macro. This replicates
+        the work in WebCore's EpoxyEGL.h header, but we can't include that header here.
+
 2017-07-22  Wenson Hsieh  <wenson_hsieh@apple.com>
 
         [iOS WK2] Remove _WKDraggableElementInfo and fold PositionInformationTests into WKRequestActivatedElementInfo

@@ -90,16 +90,16 @@ void Session::setTimeouts(const Timeouts& timeouts, Function<void (CommandResult
 void Session::switchToTopLevelBrowsingContext(std::optional<String> toplevelBrowsingContext)
 {
     m_toplevelBrowsingContext = toplevelBrowsingContext;
-    m_browsingContext = std::nullopt;
+    m_currentBrowsingContext = std::nullopt;
 }
 
 void Session::switchToBrowsingContext(std::optional<String> browsingContext)
 {
     // Automation sends empty strings for main frame.
     if (!browsingContext || browsingContext.value().isEmpty())
-        m_browsingContext = std::nullopt;
+        m_currentBrowsingContext = std::nullopt;
     else
-        m_browsingContext = browsingContext;
+        m_currentBrowsingContext = browsingContext;
 }
 
 void Session::createTopLevelBrowsingContext(Function<void (CommandResult&&)>&& completionHandler)
@@ -132,6 +132,8 @@ void Session::go(const String& url, Function<void (CommandResult&&)>&& completio
     RefPtr<InspectorObject> parameters = InspectorObject::create();
     parameters->setString(ASCIILiteral("handle"), m_toplevelBrowsingContext.value());
     parameters->setString(ASCIILiteral("url"), url);
+    if (m_timeouts.pageLoad)
+        parameters->setInteger(ASCIILiteral("pageLoadTimeout"), m_timeouts.pageLoad.value().millisecondsAs<int>());
     m_host->sendCommandToBackend(ASCIILiteral("navigateBrowsingContext"), WTFMove(parameters), [this, protectedThis = makeRef(*this), completionHandler = WTFMove(completionHandler)](SessionHost::CommandResponse&& response) {
         if (response.isError) {
             completionHandler(CommandResult::fail(WTFMove(response.responseObject)));
@@ -179,6 +181,8 @@ void Session::back(Function<void (CommandResult&&)>&& completionHandler)
 
     RefPtr<InspectorObject> parameters = InspectorObject::create();
     parameters->setString(ASCIILiteral("handle"), m_toplevelBrowsingContext.value());
+    if (m_timeouts.pageLoad)
+        parameters->setInteger(ASCIILiteral("pageLoadTimeout"), m_timeouts.pageLoad.value().millisecondsAs<int>());
     m_host->sendCommandToBackend(ASCIILiteral("goBackInBrowsingContext"), WTFMove(parameters), [this, protectedThis = makeRef(*this), completionHandler = WTFMove(completionHandler)](SessionHost::CommandResponse&& response) {
         if (response.isError) {
             completionHandler(CommandResult::fail(WTFMove(response.responseObject)));
@@ -198,6 +202,8 @@ void Session::forward(Function<void (CommandResult&&)>&& completionHandler)
 
     RefPtr<InspectorObject> parameters = InspectorObject::create();
     parameters->setString(ASCIILiteral("handle"), m_toplevelBrowsingContext.value());
+    if (m_timeouts.pageLoad)
+        parameters->setInteger(ASCIILiteral("pageLoadTimeout"), m_timeouts.pageLoad.value().millisecondsAs<int>());
     m_host->sendCommandToBackend(ASCIILiteral("goForwardInBrowsingContext"), WTFMove(parameters), [this, protectedThis = makeRef(*this), completionHandler = WTFMove(completionHandler)](SessionHost::CommandResponse&& response) {
         if (response.isError) {
             completionHandler(CommandResult::fail(WTFMove(response.responseObject)));
@@ -217,6 +223,8 @@ void Session::refresh(Function<void (CommandResult&&)>&& completionHandler)
 
     RefPtr<InspectorObject> parameters = InspectorObject::create();
     parameters->setString(ASCIILiteral("handle"), m_toplevelBrowsingContext.value());
+    if (m_timeouts.pageLoad)
+        parameters->setInteger(ASCIILiteral("pageLoadTimeout"), m_timeouts.pageLoad.value().millisecondsAs<int>());
     m_host->sendCommandToBackend(ASCIILiteral("reloadBrowsingContext"), WTFMove(parameters), [this, protectedThis = makeRef(*this), completionHandler = WTFMove(completionHandler)](SessionHost::CommandResponse&& response) {
         if (response.isError) {
             completionHandler(CommandResult::fail(WTFMove(response.responseObject)));
@@ -362,8 +370,8 @@ void Session::switchToFrame(RefPtr<InspectorValue>&& frameID, Function<void (Com
 
     RefPtr<InspectorObject> parameters = InspectorObject::create();
     parameters->setString(ASCIILiteral("browsingContextHandle"), m_toplevelBrowsingContext.value());
-    if (m_browsingContext)
-        parameters->setString(ASCIILiteral("frameHandle"), m_browsingContext.value());
+    if (m_currentBrowsingContext)
+        parameters->setString(ASCIILiteral("frameHandle"), m_currentBrowsingContext.value());
 
     int frameIndex;
     if (frameID->asInteger(frameIndex)) {
@@ -408,14 +416,14 @@ void Session::switchToParentFrame(Function<void (CommandResult&&)>&& completionH
         return;
     }
 
-    if (!m_browsingContext) {
+    if (!m_currentBrowsingContext) {
         completionHandler(CommandResult::success());
         return;
     }
 
     RefPtr<InspectorObject> parameters = InspectorObject::create();
     parameters->setString(ASCIILiteral("browsingContextHandle"), m_toplevelBrowsingContext.value());
-    parameters->setString(ASCIILiteral("frameHandle"), m_browsingContext.value());
+    parameters->setString(ASCIILiteral("frameHandle"), m_currentBrowsingContext.value());
     m_host->sendCommandToBackend(ASCIILiteral("resolveParentFrameHandle"), WTFMove(parameters), [this, protectedThis = makeRef(*this), completionHandler = WTFMove(completionHandler)](SessionHost::CommandResponse&& response) {
         if (response.isError || !response.responseObject) {
             completionHandler(CommandResult::fail(WTFMove(response.responseObject)));
@@ -578,7 +586,7 @@ void Session::computeElementLayout(const String& elementID, OptionSet<ElementLay
 
     RefPtr<InspectorObject> parameters = InspectorObject::create();
     parameters->setString(ASCIILiteral("browsingContextHandle"), m_toplevelBrowsingContext.value());
-    parameters->setString(ASCIILiteral("frameHandle"), m_browsingContext.value());
+    parameters->setString(ASCIILiteral("frameHandle"), m_currentBrowsingContext.value());
     parameters->setString(ASCIILiteral("nodeHandle"), elementID);
     parameters->setBoolean(ASCIILiteral("scrollIntoViewIfNeeded"), options.contains(ElementLayoutOption::ScrollIntoViewIfNeeded));
     parameters->setBoolean(ASCIILiteral("useViewportCoordinates"), options.contains(ElementLayoutOption::UseViewportCoordinates));
@@ -645,8 +653,8 @@ void Session::findElements(const String& strategy, const String& selector, FindE
 
     RefPtr<InspectorObject> parameters = InspectorObject::create();
     parameters->setString(ASCIILiteral("browsingContextHandle"), m_toplevelBrowsingContext.value());
-    if (m_browsingContext)
-        parameters->setString(ASCIILiteral("frameHandle"), m_browsingContext.value());
+    if (m_currentBrowsingContext)
+        parameters->setString(ASCIILiteral("frameHandle"), m_currentBrowsingContext.value());
     parameters->setString(ASCIILiteral("function"), FindNodesJavaScript);
     parameters->setArray(ASCIILiteral("arguments"), WTFMove(arguments));
     parameters->setBoolean(ASCIILiteral("expectsImplicitCallbackArgument"), true);
@@ -712,8 +720,8 @@ void Session::isElementSelected(const String& elementID, Function<void (CommandR
 
     RefPtr<InspectorObject> parameters = InspectorObject::create();
     parameters->setString(ASCIILiteral("browsingContextHandle"), m_toplevelBrowsingContext.value());
-    if (m_browsingContext)
-        parameters->setString(ASCIILiteral("frameHandle"), m_browsingContext.value());
+    if (m_currentBrowsingContext)
+        parameters->setString(ASCIILiteral("frameHandle"), m_currentBrowsingContext.value());
     parameters->setString(ASCIILiteral("function"), ElementAttributeJavaScript);
     parameters->setArray(ASCIILiteral("arguments"), WTFMove(arguments));
     m_host->sendCommandToBackend(ASCIILiteral("evaluateJavaScriptFunction"), WTFMove(parameters), [this, protectedThis = makeRef(*this), completionHandler = WTFMove(completionHandler)](SessionHost::CommandResponse&& response) {
@@ -756,8 +764,8 @@ void Session::getElementText(const String& elementID, Function<void (CommandResu
 
     RefPtr<InspectorObject> parameters = InspectorObject::create();
     parameters->setString(ASCIILiteral("browsingContextHandle"), m_toplevelBrowsingContext.value());
-    if (m_browsingContext)
-        parameters->setString(ASCIILiteral("frameHandle"), m_browsingContext.value());
+    if (m_currentBrowsingContext)
+        parameters->setString(ASCIILiteral("frameHandle"), m_currentBrowsingContext.value());
     // FIXME: Add an atom to properly implement this instead of just using innerText.
     parameters->setString(ASCIILiteral("function"), ASCIILiteral("function(element) { return element.innerText.replace(/^[^\\S\\xa0]+|[^\\S\\xa0]+$/g, '') }"));
     parameters->setArray(ASCIILiteral("arguments"), WTFMove(arguments));
@@ -792,8 +800,8 @@ void Session::getElementTagName(const String& elementID, Function<void (CommandR
 
     RefPtr<InspectorObject> parameters = InspectorObject::create();
     parameters->setString(ASCIILiteral("browsingContextHandle"), m_toplevelBrowsingContext.value());
-    if (m_browsingContext)
-        parameters->setString(ASCIILiteral("frameHandle"), m_browsingContext.value());
+    if (m_currentBrowsingContext)
+        parameters->setString(ASCIILiteral("frameHandle"), m_currentBrowsingContext.value());
     parameters->setString(ASCIILiteral("function"), ASCIILiteral("function(element) { return element.tagName.toLowerCase() }"));
     parameters->setArray(ASCIILiteral("arguments"), WTFMove(arguments));
     m_host->sendCommandToBackend(ASCIILiteral("evaluateJavaScriptFunction"), WTFMove(parameters), [this, protectedThis = makeRef(*this), completionHandler = WTFMove(completionHandler)](SessionHost::CommandResponse&& response) {
@@ -848,8 +856,8 @@ void Session::isElementEnabled(const String& elementID, Function<void (CommandRe
 
     RefPtr<InspectorObject> parameters = InspectorObject::create();
     parameters->setString(ASCIILiteral("browsingContextHandle"), m_toplevelBrowsingContext.value());
-    if (m_browsingContext)
-        parameters->setString(ASCIILiteral("frameHandle"), m_browsingContext.value());
+    if (m_currentBrowsingContext)
+        parameters->setString(ASCIILiteral("frameHandle"), m_currentBrowsingContext.value());
     parameters->setString(ASCIILiteral("function"), ASCIILiteral("function(element) { return element.disabled === undefined ? true : !element.disabled }"));
     parameters->setArray(ASCIILiteral("arguments"), WTFMove(arguments));
     m_host->sendCommandToBackend(ASCIILiteral("evaluateJavaScriptFunction"), WTFMove(parameters), [this, protectedThis = makeRef(*this), completionHandler = WTFMove(completionHandler)](SessionHost::CommandResponse&& response) {
@@ -883,8 +891,8 @@ void Session::isElementDisplayed(const String& elementID, Function<void (Command
 
     RefPtr<InspectorObject> parameters = InspectorObject::create();
     parameters->setString(ASCIILiteral("browsingContextHandle"), m_toplevelBrowsingContext.value());
-    if (m_browsingContext)
-        parameters->setString(ASCIILiteral("frameHandle"), m_browsingContext.value());
+    if (m_currentBrowsingContext)
+        parameters->setString(ASCIILiteral("frameHandle"), m_currentBrowsingContext.value());
     parameters->setString(ASCIILiteral("function"), ElementDisplayedJavaScript);
     parameters->setArray(ASCIILiteral("arguments"), WTFMove(arguments));
     m_host->sendCommandToBackend(ASCIILiteral("evaluateJavaScriptFunction"), WTFMove(parameters), [this, protectedThis = makeRef(*this), completionHandler = WTFMove(completionHandler)](SessionHost::CommandResponse&& response) {
@@ -919,8 +927,8 @@ void Session::getElementAttribute(const String& elementID, const String& attribu
 
     RefPtr<InspectorObject> parameters = InspectorObject::create();
     parameters->setString(ASCIILiteral("browsingContextHandle"), m_toplevelBrowsingContext.value());
-    if (m_browsingContext)
-        parameters->setString(ASCIILiteral("frameHandle"), m_browsingContext.value());
+    if (m_currentBrowsingContext)
+        parameters->setString(ASCIILiteral("frameHandle"), m_currentBrowsingContext.value());
     parameters->setString(ASCIILiteral("function"), ElementAttributeJavaScript);
     parameters->setArray(ASCIILiteral("arguments"), WTFMove(arguments));
     m_host->sendCommandToBackend(ASCIILiteral("evaluateJavaScriptFunction"), WTFMove(parameters), [this, protectedThis = makeRef(*this), completionHandler = WTFMove(completionHandler)](SessionHost::CommandResponse&& response) {
@@ -951,8 +959,10 @@ void Session::waitForNavigationToComplete(Function<void (CommandResult&&)>&& com
 
     RefPtr<InspectorObject> parameters = InspectorObject::create();
     parameters->setString(ASCIILiteral("browsingContextHandle"), m_toplevelBrowsingContext.value());
-    if (m_browsingContext)
-        parameters->setString(ASCIILiteral("frameHandle"), m_browsingContext.value());
+    if (m_currentBrowsingContext)
+        parameters->setString(ASCIILiteral("frameHandle"), m_currentBrowsingContext.value());
+    if (m_timeouts.pageLoad)
+        parameters->setInteger(ASCIILiteral("pageLoadTimeout"), m_timeouts.pageLoad.value().millisecondsAs<int>());
     m_host->sendCommandToBackend(ASCIILiteral("waitForNavigationToComplete"), WTFMove(parameters), [this, protectedThis = makeRef(*this), completionHandler = WTFMove(completionHandler)](SessionHost::CommandResponse&& response) {
         if (response.isError) {
             auto result = CommandResult::fail(WTFMove(response.responseObject));
@@ -1003,8 +1013,8 @@ void Session::elementClear(const String& elementID, Function<void (CommandResult
 
     RefPtr<InspectorObject> parameters = InspectorObject::create();
     parameters->setString(ASCIILiteral("browsingContextHandle"), m_toplevelBrowsingContext.value());
-    if (m_browsingContext)
-        parameters->setString(ASCIILiteral("frameHandle"), m_browsingContext.value());
+    if (m_currentBrowsingContext)
+        parameters->setString(ASCIILiteral("frameHandle"), m_currentBrowsingContext.value());
     parameters->setString(ASCIILiteral("function"), FormElementClearJavaScript);
     parameters->setArray(ASCIILiteral("arguments"), WTFMove(arguments));
     m_host->sendCommandToBackend(ASCIILiteral("evaluateJavaScriptFunction"), WTFMove(parameters), [this, protectedThis = makeRef(*this), completionHandler = WTFMove(completionHandler)](SessionHost::CommandResponse&& response) {
@@ -1165,8 +1175,8 @@ void Session::elementSendKeys(const String& elementID, Vector<String>&& keys, Fu
     arguments->pushString(createElement(elementID)->toJSONString());
     RefPtr<InspectorObject> parameters = InspectorObject::create();
     parameters->setString(ASCIILiteral("browsingContextHandle"), m_toplevelBrowsingContext.value());
-    if (m_browsingContext)
-        parameters->setString(ASCIILiteral("frameHandle"), m_browsingContext.value());
+    if (m_currentBrowsingContext)
+        parameters->setString(ASCIILiteral("frameHandle"), m_currentBrowsingContext.value());
     parameters->setString(ASCIILiteral("function"), focusScript);
     parameters->setArray(ASCIILiteral("arguments"), WTFMove(arguments));
     m_host->sendCommandToBackend(ASCIILiteral("evaluateJavaScriptFunction"), WTFMove(parameters), [this, protectedThis = makeRef(*this), keys = WTFMove(keys), completionHandler = WTFMove(completionHandler)](SessionHost::CommandResponse&& response) mutable {
@@ -1224,8 +1234,8 @@ void Session::elementSubmit(const String& elementID, Function<void (CommandResul
 
     RefPtr<InspectorObject> parameters = InspectorObject::create();
     parameters->setString(ASCIILiteral("browsingContextHandle"), m_toplevelBrowsingContext.value());
-    if (m_browsingContext)
-        parameters->setString(ASCIILiteral("frameHandle"), m_browsingContext.value());
+    if (m_currentBrowsingContext)
+        parameters->setString(ASCIILiteral("frameHandle"), m_currentBrowsingContext.value());
     parameters->setString(ASCIILiteral("function"), FormSubmitJavaScript);
     parameters->setArray(ASCIILiteral("arguments"), WTFMove(arguments));
     m_host->sendCommandToBackend(ASCIILiteral("evaluateJavaScriptFunction"), WTFMove(parameters), [this, protectedThis = makeRef(*this), completionHandler = WTFMove(completionHandler)](SessionHost::CommandResponse&& response) {
@@ -1283,8 +1293,8 @@ void Session::executeScript(const String& script, RefPtr<InspectorArray>&& argum
 
     RefPtr<InspectorObject> parameters = InspectorObject::create();
     parameters->setString(ASCIILiteral("browsingContextHandle"), m_toplevelBrowsingContext.value());
-    if (m_browsingContext)
-        parameters->setString(ASCIILiteral("frameHandle"), m_browsingContext.value());
+    if (m_currentBrowsingContext)
+        parameters->setString(ASCIILiteral("frameHandle"), m_currentBrowsingContext.value());
     parameters->setString(ASCIILiteral("function"), "function(){" + script + '}');
     parameters->setArray(ASCIILiteral("arguments"), WTFMove(arguments));
     if (mode == ExecuteScriptMode::Async) {

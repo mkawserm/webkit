@@ -1,3 +1,159 @@
+2017-07-24  Per Arne Vollan  <pvollan@apple.com>
+
+        [Win] The tests fast/text/line-height-minimumFontSize*.html are failing.
+        https://bugs.webkit.org/show_bug.cgi?id=174801
+
+        Unreviewed test gardening, update test expectations for failing tests.
+
+        * platform/win/TestExpectations:
+
+2017-07-24  Matt Lewis  <jlewis3@apple.com>
+
+        Marked tests as failures.
+        <rdar://problem/33437597>
+        
+        Unreviewed test gardening.
+
+        * platform/mac-highsierra/TestExpectations:
+
+2017-07-24  Matt Lewis  <jlewis3@apple.com>
+
+        Fixed typo in test expectations.
+        https://bugs.webkit.org/show_bug.cgi?id=173010
+
+        Unreviewed gardening.
+        * platform/ios-simulator-wk2/TestExpectations:
+
+2017-07-24  Per Arne Vollan  <pvollan@apple.com>
+
+        [Win] Async image tests are failing.
+        https://bugs.webkit.org/show_bug.cgi?id=174653
+
+        Unreviewed test gardening, update test expectations for async image tests.
+
+        * platform/win/TestExpectations:
+
+2017-07-24  Simon Fraser  <simon.fraser@apple.com>
+
+        Rebaseline this test. The previous result was generated using an older iOS SDK.
+
+        * fast/events/ios/no-touch-events-when-stopping-momentum-scroll-in-mainframe-expected.txt:
+
+2017-07-24  Per Arne Vollan  <pvollan@apple.com>
+
+        Mark Skia font test as image only failure on Windows.
+
+        Unreviewed test gardening.
+
+        * platform/win/TestExpectations:
+
+2017-07-24  Jeremy Jones  <jeremyj@apple.com>
+
+        LayoutTest userscripts/user-script-audio-document.html failing on High Sierra
+        https://bugs.webkit.org/show_bug.cgi?id=174726
+        rdar://problem/30059973
+
+        Reviewed by Alexey Proskuryakov.
+
+        Underlying issue has been resolved.
+        Re-enable test: userscripts/user-script-audio-document.html
+
+        * platform/mac-highsierra/TestExpectations:
+
+2017-07-24  Simon Fraser  <simon.fraser@apple.com>
+
+        Fix typo (Timout -> Timeout).
+
+        * platform/mac-wk2/TestExpectations:
+
+2017-07-24  Jeremy Jones  <jeremyj@apple.com>
+
+        5 wav media layoutTest timeouts on High Sierra
+        https://bugs.webkit.org/show_bug.cgi?id=174725
+        rdar://problem/30182218
+
+        Reviewed by Andreas Kling.
+
+        Underlying issue is fixed. Re-enable tests on High Sierra.
+
+        media/audio-controls-timeline-in-media-document.html
+        media/audio-data-url.html
+        media/media-document-audio-controls-visible.html
+        media/media-document-audio-repaint.html
+        media/media-document-audio-size.html
+
+        * platform/mac-highsierra/TestExpectations:
+
+2017-07-24  Simon Fraser  <simon.fraser@apple.com>
+
+        Revert "client" coordinates to be in scrolling coordinates
+        https://bugs.webkit.org/show_bug.cgi?id=174734
+        rdar://problem/33336930
+
+        Reviewed by Tim Horton.
+        
+        Rebaseline.
+
+        * fast/events/ios/no-touch-events-when-stopping-momentum-scroll-in-mainframe-expected.txt:
+        * fast/visual-viewport/client-coordinates-relative-to-layout-viewport-expected.txt:
+        * fast/visual-viewport/client-rects-relative-to-layout-viewport-expected.txt:
+        * fast/visual-viewport/zoomed-fixed-expected.txt:
+        * fast/visual-viewport/zoomed-fixed-header-and-footer-expected.txt:
+        * fast/zooming/client-rect-in-fixed-zoomed-expected.txt:
+        * platform/ios-wk2/fast/visual-viewport/client-rects-relative-to-layout-viewport-expected.txt:
+        * platform/ios-wk2/imported/w3c/web-platform-tests/cssom-view/elementFromPoint-expected.txt: Added.
+        * platform/ios/fast/visual-viewport/zoomed-fixed-expected.txt:
+        * platform/ios/fast/visual-viewport/zoomed-fixed-header-and-footer-expected.txt:
+
+2017-07-24  Matt Lewis  <jlewis3@apple.com>
+
+        Marked tiled-drawing/scrolling/scroll-snap/scroll-snap-mandatory-mainframe-vertical.html as failure.
+        https://bugs.webkit.org/show_bug.cgi?id=172148
+
+        Unreviewed test gardening.
+
+        * platform/mac-wk2/TestExpectations:
+
+2017-07-23  Darin Adler  <darin@apple.com>
+
+        Remove race from one plug-in test
+        https://bugs.webkit.org/show_bug.cgi?id=130653
+
+        Reviewed by Antti Koivisto.
+
+        * plugins/plugin-remove-readystatechange.html: Updated test to use waitUntilDone/notifyDone
+        rather than racing. Added a computation of offsetLeft to trigger layout and adding a long
+        comment explaining why this is both needed and potentially insufficient in the long run.
+
+2017-07-11  Frederic Wang  <fwang@igalia.com>
+
+        Add attribute allow-top-navigation-by-user-activation to iframe sandbox
+        https://bugs.webkit.org/show_bug.cgi?id=171327
+
+        Reviewed by Chris Dumez.
+
+        This patch adds tests to verify that a sandboxed iframe with the flag
+        'allow-top-navigation-by-user-activation' or 'allow-top-navigation' can navigate the top
+        level page, if navigation is triggered by a user gesture. This is based on a test from the
+        Chromium repository.
+        It also verifies that navigation fails when 'allow-top-navigation-by-user-activation' is
+        absent, even when it is triggered by a user gesture.
+
+        * http/tests/security/frameNavigation/resources/iframe-that-performs-parent-navigation-with-user-activation.html: Added. This is similar to iframe-that-performs-parent-navigation.html but it
+        performs navigation of its parent using user activation.
+        * http/tests/security/frameNavigation/sandbox-ALLOWED-top-navigation-with-user-gesture-1.html: Added.
+        Test top navigation for a sandboxed frame with 'allow-top-navigation-by-user-activation'
+        * http/tests/security/frameNavigation/sandbox-ALLOWED-top-navigation-with-user-gesture-1-expected.txt: Added.
+        Add PASS expectation.
+        * http/tests/security/frameNavigation/sandbox-ALLOWED-top-navigation-with-user-gesture-2.html: Added.
+        Test top navigation for a sandboxed frame with 'allow-top-navigation'.
+        * http/tests/security/frameNavigation/sandbox-ALLOWED-top-navigation-with-user-gesture-2-expected.txt: Added.
+        Add PASS expectation.
+        * http/tests/security/frameNavigation/sandbox-DENIED-top-navigation-with-user-gesture.html: Added.
+        Test user-triggered navigation for a sandboxed frame without 'allow-top-navigation-by-user-activation'.
+        * http/tests/security/frameNavigation/sandbox-DENIED-top-navigation-with-user-gesture-expected.txt: Added.
+        Add reference with navigation failure.
+
 2017-07-22  Chris Dumez  <cdumez@apple.com>
 
         Merge ExceptionBase into DOMException and drop custom toString

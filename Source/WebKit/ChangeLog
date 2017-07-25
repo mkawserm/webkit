@@ -1,3 +1,531 @@
+2017-07-25  Carlos Garcia Campos  <cgarcia@igalia.com>
+
+        REGRESSION(r218629): [GTK] ASSERTION FAILED: m_eglDisplay == EGL_NO_DISPLAY in WebCore::PlatformDisplay::~PlatformDisplay
+        https://bugs.webkit.org/show_bug.cgi?id=174789
+
+        Reviewed by Žan Doberšek.
+
+        Before r218629, the wayland nested compositor display was a singleton created on demand by
+        AcceleratedSurfaceWayland, but now it's created unconditionally on web process creation when a valid display
+        name is received from the UI process. The side effect of this is that now the shared display is created after
+        the nested compositor display that is not a singleton anymore. The atexit used by PlatformDisplay to shutdown
+        egl display assumes that it will be registered by the shared display. Since we switched to on demand AC mode,
+        the shared display is only used in the web process when entering AC mode, that's why it only crashes when we
+        have entered AC at least once. We just need to ensure that the shared display is created before the nested
+        compositor display.
+
+        * WebProcess/gtk/WaylandCompositorDisplay.cpp:
+        (WebKit::WaylandCompositorDisplay::create): Check we are under wayland before creating the WaylandCompositorDisplay.
+
+2017-07-24  Michael Catanzaro  <mcatanzaro@igalia.com>
+
+        [GTK] ASSERTION FAILED: client in WebKit::IconDatabase::setClient
+        https://bugs.webkit.org/show_bug.cgi?id=174788
+
+        Reviewed by Carlos Garcia Campos.
+
+        IconDatabase ensures that setClient is never called with nullptr, but WebKitFaviconDatabase
+        does exactly that. First, ensure it's safe to unset the client. Next, we can either remove
+        the assertions from setClient or else automatically unset the client in IconDatabase::close.
+        I opted to do both.
+
+        * UIProcess/API/glib/IconDatabase.cpp:
+        (WebKit::IconDatabase::close):
+        (WebKit::IconDatabase::setIconDataForIconURL):
+        (WebKit::IconDatabase::setIconURLForPageURL):
+        * UIProcess/API/glib/WebKitFaviconDatabase.cpp:
+        (_WebKitFaviconDatabasePrivate::~_WebKitFaviconDatabasePrivate): Deleted.
+        (webkitFaviconDatabaseDispose): Deleted.
+
+2017-07-24  Michael Catanzaro  <mcatanzaro@igalia.com>
+
+        [GTK][WPE] Remove useless conditional in IconDatabase::setIconDataForIconURL
+        https://bugs.webkit.org/show_bug.cgi?id=174792
+
+        Reviewed by Carlos Garcia Campos.
+
+        We have in IconDatabase::setIconDataForIconURL some code in a conditional to check if it's
+        not being executed on the icon sync thread. But at the top of the function is an assertion
+        to ensure the code is never executed on the icon sync thread. The condition is therefore
+        useless and the code should be executed unconditionally.
+
+        * UIProcess/API/glib/IconDatabase.cpp:
+        (WebKit::IconDatabase::setIconDataForIconURL):
+
+2017-07-24  Carlos Garcia Campos  <cgarcia@igalia.com>
+
+        [GTK] Icon database error and crash
+        https://bugs.webkit.org/show_bug.cgi?id=174760
+
+        Reviewed by Michael Catanzaro.
+
+        The crash is a debug ASSERT that happens when the IconRecord image is created in one thread and destroyed in
+        another one. IconDatabase creates and destroys IconRecord objects in both database and main thread. The
+        IconRecord is destroyed when the icon is no longer retained, and we only release icons when we fail to get the
+        image data (including pages that don't have a favicon). We can prevent this crash from happening if we ensure we
+        never create an Image for an IconRecord when the given image data is nullptr.
+
+        * UIProcess/API/glib/IconDatabase.cpp:
+        (WebKit::IconDatabase::IconRecord::setImageData):
+
+2017-07-24  Chris Dumez  <cdumez@apple.com>
+
+        [WK2][Cocoa] Allow overriding the ITP data removal internal using a default
+        https://bugs.webkit.org/show_bug.cgi?id=174802
+        <rdar://problem/33497898>
+
+        Reviewed by Sam Weinig.
+
+        Allow overriding the ITP data removal internal using a default to facilitate testing.
+        Can be used like so:
+        defaults write -g ResourceLoadStatisticsMinimumTimeBetweenDataRecordsRemoval 60
+
+        Will cause us to write every 60 seconds instead of 3600.
+
+        * Shared/WebPreferencesDefinitions.h:
+        * UIProcess/Cocoa/WebResourceLoadStatisticsStoreCocoa.mm:
+        (WebKit::WebResourceLoadStatisticsStore::registerUserDefaultsIfNeeded):
+
+2017-07-24  Simon Fraser  <simon.fraser@apple.com>
+
+        [iOS WK2] Crash under PageOverlayController::uninstallPageOverlay when doing multiple finds
+        https://bugs.webkit.org/show_bug.cgi?id=174806
+        rdar://problem/33501664
+
+        Reviewed by Tim Horton.
+        
+        Calling TextIndicator::createWithSelectionInFrame can trigger layout via VisibleSelection code,
+        which can re-enter FindController::updateFindIndicator which has by now removed m_findIndicatorOverlay
+        from pageOverlayController's map, but not deleted it. The second call to uninstallPageOverlay()
+        thus crashes at m_overlayGraphicsLayers.take(&overlay)->removeFromParent().
+        
+        Fix by nulling out m_findIndicatorOverlay as soon as we uninstall it.
+
+        * WebProcess/WebPage/ios/FindControllerIOS.mm:
+        (WebKit::FindController::updateFindIndicator):
+
+2017-07-24  Chris Dumez  <cdumez@apple.com>
+
+        Fix lifetime management issue in ResourceLoadStatisticsPersistentStorage::scheduleOrWriteMemoryStore()
+        https://bugs.webkit.org/show_bug.cgi?id=174790
+
+        Reviewed by Brady Eidson.
+
+        Fix lifetime management issue in ResourceLoadStatisticsPersistentStorage::scheduleOrWriteMemoryStore().
+        WorkQueue::dispatchAfter() keeps the WorkQueue alive because its implementation keeps a strong ref to
+        |this|. As a result, the lambda passed to dispatchAfter(), which calls writeMemoryStoreToDisk(), can
+        get executed after the store is gone.
+
+        To address the issue, we now use a RunLoop::Timer to schedule the write, instead of a
+        WorkQueue::dispatchAfter() call. This way, we are guaranteed that the callback will not get called
+        after the store has been destroyed.
+
+        * UIProcess/Storage/ResourceLoadStatisticsPersistentStorage.cpp:
+        (WebKit::ResourceLoadStatisticsPersistentStorage::ResourceLoadStatisticsPersistentStorage):
+        (WebKit::ResourceLoadStatisticsPersistentStorage::asyncWriteTimerFired):
+        (WebKit::ResourceLoadStatisticsPersistentStorage::scheduleOrWriteMemoryStore):
+        (WebKit::ResourceLoadStatisticsPersistentStorage::finishAllPendingWorkSynchronously):
+        (WebKit::ResourceLoadStatisticsPersistentStorage::ref):
+        (WebKit::ResourceLoadStatisticsPersistentStorage::deref):
+        * UIProcess/Storage/ResourceLoadStatisticsPersistentStorage.h:
+
+2017-07-24  Chris Dumez  <cdumez@apple.com>
+
+        Unreviewed, rolling out r219828.
+
+        Causes debug assertions to be hit on iOS
+
+        Reverted changeset:
+
+        "Fix lifetime management issue in
+        ResourceLoadStatisticsPersistentStorage::scheduleOrWriteMemoryStore()"
+        https://bugs.webkit.org/show_bug.cgi?id=174790
+        http://trac.webkit.org/changeset/219828
+
+2017-07-24  Michael Catanzaro  <mcatanzaro@igalia.com>
+
+        [GTK][WPE] Stop using AutodrainedPool in IconDatabase
+        https://bugs.webkit.org/show_bug.cgi?id=174791
+
+        Reviewed by Alex Christensen.
+
+        AutodrainedPool seems to be some NS garbage collection thing that has no implementation on
+        other platforms. Now that IconDatabase is used only by GTK and WPE, we can stop using it.
+
+        * UIProcess/API/glib/IconDatabase.cpp:
+        (WebKit::IconDatabase::setIconDataForIconURL):
+        (WebKit::IconDatabase::setIconURLForPageURL):
+        (WebKit::IconDatabase::iconDatabaseSyncThread):
+        (WebKit::IconDatabase::performURLImport):
+        (WebKit::IconDatabase::readFromDatabase):
+
+2017-07-24  Chris Dumez  <cdumez@apple.com>
+
+        Fix lifetime management issue in ResourceLoadStatisticsPersistentStorage::scheduleOrWriteMemoryStore()
+        https://bugs.webkit.org/show_bug.cgi?id=174790
+
+        Reviewed by Brady Eidson.
+
+        Fix lifetime management issue in ResourceLoadStatisticsPersistentStorage::scheduleOrWriteMemoryStore().
+        WorkQueue::dispatchAfter() keeps the WorkQueue alive because its implementation keeps a strong ref to
+        |this|. As a result, the lambda passed to dispatchAfter(), which calls writeMemoryStoreToDisk(), can
+        get executed after the store is gone.
+
+        * UIProcess/Storage/ResourceLoadStatisticsPersistentStorage.cpp:
+        (WebKit::ResourceLoadStatisticsPersistentStorage::ResourceLoadStatisticsPersistentStorage):
+        (WebKit::ResourceLoadStatisticsPersistentStorage::scheduleOrWriteMemoryStore):
+        * UIProcess/Storage/ResourceLoadStatisticsPersistentStorage.h:
+        (WebKit::ResourceLoadStatisticsPersistentStorage::createWeakPtr):
+
+2017-07-23  Carlos Garcia Campos  <cgarcia@igalia.com>
+
+        Unreviewed. REGRESSION(r219713): [GTK][WPE] Fix default favicon database patch.
+
+        When nullptr is passed to webkit_web_context_set_favicon_database_directory() the default database directory was
+        taken from WebProcessPool::platformDefaultIconDatabasePath(), that has been removed in r219713 without properly
+        replacing it, now it uses an empty string. This causes that the current directory is used to create the favicon
+        database.
+
+        * UIProcess/API/glib/WebKitWebContext.cpp:
+        (webkit_web_context_set_favicon_database_directory): Use the default icon database directory instead of an empty
+        string when nullptr is passed.
+
+2017-07-23  Wenson Hsieh  <wenson_hsieh@apple.com>
+
+        [iOS WK2] 5 DataInteractionTests are failing: observed selection rects after dropping don't match expected values
+        https://bugs.webkit.org/show_bug.cgi?id=174769
+        <rdar://problem/33478864>
+
+        Reviewed by Tim Horton.
+
+        Fixes several API tests in the DataInteractionTests suite. See Source/WebCore/ChangeLog for more details.
+
+        * WebProcess/WebPage/WebPage.cpp:
+        (WebKit::WebPage::performDragControllerAction):
+
+2017-07-20  Carlos Garcia Campos  <cgarcia@igalia.com>
+
+        WebDriver: implement page load timeout
+        https://bugs.webkit.org/show_bug.cgi?id=174672
+
+        Reviewed by Brian Burg.
+
+        Always start a timer when waiting for a navigation to complete. When the timer fires, pending callbacks for
+        navigations are removed and invoked with a timeout error. If navigation completes before the timer is fired,
+        then the timer is stopped. All navigation commands now receive the page load strategy and timeout as optional
+        parameters, when not provided the default timeout (300 seconds) is used.
+
+        * UIProcess/Automation/Automation.json:
+        * UIProcess/Automation/WebAutomationSession.cpp:
+        (WebKit::WebAutomationSession::WebAutomationSession):
+        (WebKit::WebAutomationSession::waitForNavigationToComplete):
+        (WebKit::WebAutomationSession::waitForNavigationToCompleteOnPage):
+        (WebKit::WebAutomationSession::waitForNavigationToCompleteOnFrame):
+        (WebKit::WebAutomationSession::loadTimerFired):
+        (WebKit::WebAutomationSession::navigateBrowsingContext):
+        (WebKit::WebAutomationSession::goBackInBrowsingContext):
+        (WebKit::WebAutomationSession::goForwardInBrowsingContext):
+        (WebKit::WebAutomationSession::reloadBrowsingContext):
+        (WebKit::WebAutomationSession::navigationOccurredForFrame):
+        * UIProcess/Automation/WebAutomationSession.h:
+
+2017-07-23  Takuro Ashie  <ashie@clear-code.com>
+
+        [GTK] Correct a typo in the reference manual of WebKitWebInspector
+        https://bugs.webkit.org/show_bug.cgi?id=174767
+
+        Reviewed by Michael Catanzaro.
+
+        * UIProcess/API/gtk/WebKitWebInspector.cpp:
+
+2017-07-23  Chris Dumez  <cdumez@apple.com>
+
+        Drop ExceptionCodeDescription class
+        https://bugs.webkit.org/show_bug.cgi?id=174757
+
+        Reviewed by Darin Adler.
+
+        Update GTK bindings to use new API on DOMException instead of
+        ExceptionCodeDescription.
+
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMAttr.cpp:
+        (webkit_dom_attr_dispatch_event):
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMBlob.cpp:
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMCDATASection.cpp:
+        (webkit_dom_cdata_section_dispatch_event):
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMCSSRule.cpp:
+        (webkit_dom_css_rule_set_css_text):
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMCSSRuleList.cpp:
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMCSSStyleDeclaration.cpp:
+        (webkit_dom_css_style_declaration_set_property):
+        (webkit_dom_css_style_declaration_set_css_text):
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMCSSStyleSheet.cpp:
+        (webkit_dom_css_style_sheet_insert_rule):
+        (webkit_dom_css_style_sheet_delete_rule):
+        (webkit_dom_css_style_sheet_add_rule):
+        (webkit_dom_css_style_sheet_remove_rule):
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMCSSValue.cpp:
+        (webkit_dom_css_value_set_css_text):
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMCharacterData.cpp:
+        (webkit_dom_character_data_dispatch_event):
+        (webkit_dom_character_data_insert_data):
+        (webkit_dom_character_data_delete_data):
+        (webkit_dom_character_data_replace_data):
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMClientRect.cpp:
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMClientRectList.cpp:
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMComment.cpp:
+        (webkit_dom_comment_dispatch_event):
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMDOMImplementation.cpp:
+        (webkit_dom_dom_implementation_create_document_type):
+        (webkit_dom_dom_implementation_create_document):
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMDOMSelection.cpp:
+        (webkit_dom_dom_selection_collapse_to_end):
+        (webkit_dom_dom_selection_collapse_to_start):
+        (webkit_dom_dom_selection_extend):
+        (webkit_dom_dom_selection_get_range_at):
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMDOMTokenList.cpp:
+        (webkit_dom_dom_token_list_add):
+        (webkit_dom_dom_token_list_remove):
+        (webkit_dom_dom_token_list_toggle):
+        (webkit_dom_dom_token_list_replace):
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMDOMWindow.cpp:
+        (webkit_dom_dom_window_dispatch_event):
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMDeprecated.cpp:
+        (webkit_dom_node_set_prefix):
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMDocument.cpp:
+        (webkit_dom_document_dispatch_event):
+        (webkit_dom_document_create_element):
+        (webkit_dom_document_create_cdata_section):
+        (webkit_dom_document_create_processing_instruction):
+        (webkit_dom_document_create_attribute):
+        (webkit_dom_document_import_node):
+        (webkit_dom_document_create_element_ns):
+        (webkit_dom_document_create_attribute_ns):
+        (webkit_dom_document_adopt_node):
+        (webkit_dom_document_create_event):
+        (webkit_dom_document_create_expression):
+        (webkit_dom_document_evaluate):
+        (webkit_dom_document_query_selector):
+        (webkit_dom_document_query_selector_all):
+        (webkit_dom_document_set_xml_version):
+        (webkit_dom_document_set_cookie):
+        (webkit_dom_document_set_body):
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMDocumentFragment.cpp:
+        (webkit_dom_document_fragment_dispatch_event):
+        (webkit_dom_document_fragment_query_selector):
+        (webkit_dom_document_fragment_query_selector_all):
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMDocumentType.cpp:
+        (webkit_dom_document_type_dispatch_event):
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMElement.cpp:
+        (webkit_dom_element_dispatch_event):
+        (webkit_dom_element_set_attribute):
+        (webkit_dom_element_set_attribute_node):
+        (webkit_dom_element_remove_attribute_node):
+        (webkit_dom_element_set_attribute_ns):
+        (webkit_dom_element_set_attribute_node_ns):
+        (webkit_dom_element_matches):
+        (webkit_dom_element_closest):
+        (webkit_dom_element_insert_adjacent_element):
+        (webkit_dom_element_insert_adjacent_html):
+        (webkit_dom_element_insert_adjacent_text):
+        (webkit_dom_element_remove):
+        (webkit_dom_element_query_selector):
+        (webkit_dom_element_query_selector_all):
+        (webkit_dom_element_set_inner_html):
+        (webkit_dom_element_set_outer_html):
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMEvent.cpp:
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMFile.cpp:
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMFileList.cpp:
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMHTMLAnchorElement.cpp:
+        (webkit_dom_html_anchor_element_dispatch_event):
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMHTMLAppletElement.cpp:
+        (webkit_dom_html_applet_element_dispatch_event):
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMHTMLAreaElement.cpp:
+        (webkit_dom_html_area_element_dispatch_event):
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMHTMLBRElement.cpp:
+        (webkit_dom_html_br_element_dispatch_event):
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMHTMLBaseElement.cpp:
+        (webkit_dom_html_base_element_dispatch_event):
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMHTMLBodyElement.cpp:
+        (webkit_dom_html_body_element_dispatch_event):
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMHTMLButtonElement.cpp:
+        (webkit_dom_html_button_element_dispatch_event):
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMHTMLCanvasElement.cpp:
+        (webkit_dom_html_canvas_element_dispatch_event):
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMHTMLCollection.cpp:
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMHTMLDListElement.cpp:
+        (webkit_dom_html_d_list_element_dispatch_event):
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMHTMLDirectoryElement.cpp:
+        (webkit_dom_html_directory_element_dispatch_event):
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMHTMLDivElement.cpp:
+        (webkit_dom_html_div_element_dispatch_event):
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMHTMLDocument.cpp:
+        (webkit_dom_html_document_dispatch_event):
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMHTMLElement.cpp:
+        (webkit_dom_html_element_dispatch_event):
+        (webkit_dom_html_element_set_inner_text):
+        (webkit_dom_html_element_set_outer_text):
+        (webkit_dom_html_element_set_content_editable):
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMHTMLEmbedElement.cpp:
+        (webkit_dom_html_embed_element_dispatch_event):
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMHTMLFieldSetElement.cpp:
+        (webkit_dom_html_field_set_element_dispatch_event):
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMHTMLFontElement.cpp:
+        (webkit_dom_html_font_element_dispatch_event):
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMHTMLFormElement.cpp:
+        (webkit_dom_html_form_element_dispatch_event):
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMHTMLFrameElement.cpp:
+        (webkit_dom_html_frame_element_dispatch_event):
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMHTMLFrameSetElement.cpp:
+        (webkit_dom_html_frame_set_element_dispatch_event):
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMHTMLHRElement.cpp:
+        (webkit_dom_html_hr_element_dispatch_event):
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMHTMLHeadElement.cpp:
+        (webkit_dom_html_head_element_dispatch_event):
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMHTMLHeadingElement.cpp:
+        (webkit_dom_html_heading_element_dispatch_event):
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMHTMLHtmlElement.cpp:
+        (webkit_dom_html_html_element_dispatch_event):
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMHTMLIFrameElement.cpp:
+        (webkit_dom_html_iframe_element_dispatch_event):
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMHTMLImageElement.cpp:
+        (webkit_dom_html_image_element_dispatch_event):
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMHTMLInputElement.cpp:
+        (webkit_dom_html_input_element_dispatch_event):
+        (webkit_dom_html_input_element_set_max_length):
+        (webkit_dom_html_input_element_set_size):
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMHTMLLIElement.cpp:
+        (webkit_dom_html_li_element_dispatch_event):
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMHTMLLabelElement.cpp:
+        (webkit_dom_html_label_element_dispatch_event):
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMHTMLLegendElement.cpp:
+        (webkit_dom_html_legend_element_dispatch_event):
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMHTMLLinkElement.cpp:
+        (webkit_dom_html_link_element_dispatch_event):
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMHTMLMapElement.cpp:
+        (webkit_dom_html_map_element_dispatch_event):
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMHTMLMarqueeElement.cpp:
+        (webkit_dom_html_marquee_element_dispatch_event):
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMHTMLMenuElement.cpp:
+        (webkit_dom_html_menu_element_dispatch_event):
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMHTMLMetaElement.cpp:
+        (webkit_dom_html_meta_element_dispatch_event):
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMHTMLModElement.cpp:
+        (webkit_dom_html_mod_element_dispatch_event):
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMHTMLOListElement.cpp:
+        (webkit_dom_html_o_list_element_dispatch_event):
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMHTMLObjectElement.cpp:
+        (webkit_dom_html_object_element_dispatch_event):
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMHTMLOptGroupElement.cpp:
+        (webkit_dom_html_opt_group_element_dispatch_event):
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMHTMLOptionElement.cpp:
+        (webkit_dom_html_option_element_dispatch_event):
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMHTMLOptionsCollection.cpp:
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMHTMLParagraphElement.cpp:
+        (webkit_dom_html_paragraph_element_dispatch_event):
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMHTMLParamElement.cpp:
+        (webkit_dom_html_param_element_dispatch_event):
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMHTMLPreElement.cpp:
+        (webkit_dom_html_pre_element_dispatch_event):
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMHTMLQuoteElement.cpp:
+        (webkit_dom_html_quote_element_dispatch_event):
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMHTMLScriptElement.cpp:
+        (webkit_dom_html_script_element_dispatch_event):
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMHTMLSelectElement.cpp:
+        (webkit_dom_html_select_element_dispatch_event):
+        (webkit_dom_html_select_element_add):
+        (webkit_dom_html_select_element_set_length):
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMHTMLStyleElement.cpp:
+        (webkit_dom_html_style_element_dispatch_event):
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMHTMLTableCaptionElement.cpp:
+        (webkit_dom_html_table_caption_element_dispatch_event):
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMHTMLTableCellElement.cpp:
+        (webkit_dom_html_table_cell_element_dispatch_event):
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMHTMLTableColElement.cpp:
+        (webkit_dom_html_table_col_element_dispatch_event):
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMHTMLTableElement.cpp:
+        (webkit_dom_html_table_element_dispatch_event):
+        (webkit_dom_html_table_element_insert_row):
+        (webkit_dom_html_table_element_delete_row):
+        (webkit_dom_html_table_element_set_caption):
+        (webkit_dom_html_table_element_set_t_head):
+        (webkit_dom_html_table_element_set_t_foot):
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMHTMLTableRowElement.cpp:
+        (webkit_dom_html_table_row_element_dispatch_event):
+        (webkit_dom_html_table_row_element_insert_cell):
+        (webkit_dom_html_table_row_element_delete_cell):
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMHTMLTableSectionElement.cpp:
+        (webkit_dom_html_table_section_element_dispatch_event):
+        (webkit_dom_html_table_section_element_insert_row):
+        (webkit_dom_html_table_section_element_delete_row):
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMHTMLTextAreaElement.cpp:
+        (webkit_dom_html_text_area_element_dispatch_event):
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMHTMLTitleElement.cpp:
+        (webkit_dom_html_title_element_dispatch_event):
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMHTMLUListElement.cpp:
+        (webkit_dom_html_u_list_element_dispatch_event):
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMKeyboardEvent.cpp:
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMMediaList.cpp:
+        (webkit_dom_media_list_delete_medium):
+        (webkit_dom_media_list_append_medium):
+        (webkit_dom_media_list_set_media_text):
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMMouseEvent.cpp:
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMNamedNodeMap.cpp:
+        (webkit_dom_named_node_map_set_named_item):
+        (webkit_dom_named_node_map_remove_named_item):
+        (webkit_dom_named_node_map_remove_named_item_ns):
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMNode.cpp:
+        (webkit_dom_node_dispatch_event):
+        (webkit_dom_node_insert_before):
+        (webkit_dom_node_replace_child):
+        (webkit_dom_node_remove_child):
+        (webkit_dom_node_append_child):
+        (webkit_dom_node_clone_node_with_error):
+        (webkit_dom_node_set_node_value):
+        (webkit_dom_node_set_text_content):
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMNodeIterator.cpp:
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMNodeList.cpp:
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMProcessingInstruction.cpp:
+        (webkit_dom_processing_instruction_dispatch_event):
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMRange.cpp:
+        (webkit_dom_range_set_start):
+        (webkit_dom_range_set_end):
+        (webkit_dom_range_set_start_before):
+        (webkit_dom_range_set_start_after):
+        (webkit_dom_range_set_end_before):
+        (webkit_dom_range_set_end_after):
+        (webkit_dom_range_select_node):
+        (webkit_dom_range_select_node_contents):
+        (webkit_dom_range_compare_boundary_points):
+        (webkit_dom_range_delete_contents):
+        (webkit_dom_range_extract_contents):
+        (webkit_dom_range_clone_contents):
+        (webkit_dom_range_insert_node):
+        (webkit_dom_range_surround_contents):
+        (webkit_dom_range_create_contextual_fragment):
+        (webkit_dom_range_compare_node):
+        (webkit_dom_range_intersects_node):
+        (webkit_dom_range_compare_point):
+        (webkit_dom_range_is_point_in_range):
+        (webkit_dom_range_expand):
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMStyleSheet.cpp:
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMStyleSheetList.cpp:
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMText.cpp:
+        (webkit_dom_text_dispatch_event):
+        (webkit_dom_text_split_text):
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMTreeWalker.cpp:
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMUIEvent.cpp:
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMWheelEvent.cpp:
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMXPathExpression.cpp:
+        (webkit_dom_xpath_expression_evaluate):
+        * WebProcess/InjectedBundle/API/gtk/DOM/WebKitDOMXPathResult.cpp:
+        (webkit_dom_xpath_result_iterate_next):
+        (webkit_dom_xpath_result_snapshot_item):
+        (webkit_dom_xpath_result_get_number_value):
+        (webkit_dom_xpath_result_get_boolean_value):
+        (webkit_dom_xpath_result_get_single_node_value):
+        (webkit_dom_xpath_result_get_snapshot_length):
+
 2017-07-22  Wenson Hsieh  <wenson_hsieh@apple.com>
 
         [iOS WK2] Remove _WKDraggableElementInfo and fold PositionInformationTests into WKRequestActivatedElementInfo

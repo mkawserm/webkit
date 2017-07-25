@@ -1,6 +1,5 @@
 /*
- * Copyright (C) 2011-2017 Apple Inc. All rights reserved.
- * Copyright (C) 2011 Google Inc. All rights reserved.
+ * Copyright (C) 2017 Igalia S.L.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -24,19 +23,15 @@
  * THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "config.h"
-#include "ExceptionCodeDescription.h"
+#pragma once
 
-#include "DOMException.h"
+#include <epoxy/egl.h>
 
-namespace WebCore {
-
-ExceptionCodeDescription::ExceptionCodeDescription(ExceptionCode ec)
-{
-    ASSERT(ec);
-    if (DOMException::initializeDescription(ec, this))
-        return;
-    ASSERT_NOT_REACHED();
-}
-
-} // namespace WebCore
+// Provide the EGL_CAST macro in case the eglplatform.h header doesn't define it already.
+#ifndef EGL_CAST
+#if defined(__cplusplus)
+#define EGL_CAST(type, value) (static_cast<type>(value))
+#else
+#define EGL_CAST(type, value) ((type) (value))
+#endif
+#endif
