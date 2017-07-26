@@ -1,3 +1,249 @@
+2017-07-26  Zan Dobersek  <zdobersek@igalia.com>
+
+        Unreviewed. Fix a compiler warning that springs up when
+        building the WPE port with Clang.
+
+        * UIProcess/API/wpe/ScrollGestureController.h:
+        Let ScrollGestureController be a class, and not a struct.
+        This fits the usual pattern, and also matches the forward
+        declaration used in WPE's PageClientImpl.h.
+
+2017-07-26  Carlos Garcia Campos  <cgarcia@igalia.com>
+
+        Unreviewed. Update OptionsGTK.cmake and NEWS for 2.17.5 release.
+
+        * gtk/NEWS: Add release notes for 2.17.5.
+
+2017-07-25  Carlos Garcia Campos  <cgarcia@igalia.com>
+
+        Icon loader error on startup
+        https://bugs.webkit.org/show_bug.cgi?id=174787
+
+        Reviewed by Brady Eidson.
+
+        Ignore non HTTP favicons in glib API.
+
+        * UIProcess/API/glib/WebKitIconLoadingClient.cpp:
+
+2017-07-25  Brady Eidson  <beidson@apple.com>
+
+        ResourceLoadStatistics grandfathering happens much too often.
+        <rdar://problem/32655834> and https://bugs.webkit.org/show_bug.cgi?id=174825
+
+        Reviewed by Chris Dumez.
+
+        The ResourceLoadStatistics grandfathering procedure happens too often.
+        - With an empty memory store, even though an empty memory store is a perfectly valid state.
+        - On each launch, even if grandfathering happened on the last launch - because grandfathering
+          data would not automatically be saved to disk.
+        - After clearing all website data, at which point no grandfathering can possibly be relevant
+          because there is no data to grandfather.
+
+        This patch fixes those cases and adds API tests to verify they remain fixed.
+
+        * Shared/WebsiteData/WebsiteDataType.h:
+
+        * UIProcess/API/Cocoa/WKWebsiteDataStore.mm:
+        (+[WKWebsiteDataStore _allWebsiteDataTypesIncludingPrivate]): allWebsiteDataTypes, but even with the private ones.
+        (-[WKWebsiteDataStore _resourceLoadStatisticsClearInMemoryAndPersistentStore]): If the types being cleared cover all of 
+          the types that ResourceLoadStatistics care about, don't grandfather afterwards.
+        (-[WKWebsiteDataStore _resourceLoadStatisticsClearInMemoryAndPersistentStoreModifiedSinceHours:]): Ditto.
+        (-[WKWebsiteDataStore _setResourceLoadStatisticsTestingCallback:]):
+        * UIProcess/API/Cocoa/WKWebsiteDataStorePrivate.h:
+
+        * UIProcess/Storage/ResourceLoadStatisticsPersistentStorage.cpp:
+        (WebKit::ResourceLoadStatisticsPersistentStorage::populateMemoryStoreFromDisk): Don't grandfather if the store read from 
+          disk is empty (as being empty is perfectly fine), and also log the event of "populated without grandfathering".
+        * UIProcess/Storage/ResourceLoadStatisticsPersistentStorage.h:
+
+        * UIProcess/WebProcessProxy.cpp:
+        (WebKit::WebProcessProxy::topPrivatelyControlledDomainsWithWebsiteData):
+
+        * UIProcess/WebResourceLoadStatisticsStore.cpp:
+        (WebKit::WebResourceLoadStatisticsStore::monitoredDataTypes):
+        (WebKit::WebResourceLoadStatisticsStore::WebResourceLoadStatisticsStore):
+        (WebKit::WebResourceLoadStatisticsStore::~WebResourceLoadStatisticsStore):
+        (WebKit::WebResourceLoadStatisticsStore::removeDataRecords): 
+        (WebKit::WebResourceLoadStatisticsStore::grandfatherExistingWebsiteData): Schedule a write right away so we don't re-grandfather
+          on next launch, and also log the grandfathering event.
+        (WebKit::WebResourceLoadStatisticsStore::scheduleClearInMemoryAndPersistent): Takes a ShouldGrandfather flag
+          to tell whether or not data should be re-grandfathered after the store is cleared.
+        (WebKit::WebResourceLoadStatisticsStore::logTestingEvent): Log the event to the testing client.
+        (WebKit::dataTypesToRemove): Deleted.
+        * UIProcess/WebResourceLoadStatisticsStore.h:
+
+        * UIProcess/WebsiteData/WebsiteDataStore.cpp:
+        (WebKit::WebsiteDataStore::removeData):
+        (WebKit::WebsiteDataStore::setResourceLoadStatisticsEnabled):
+        (WebKit::WebsiteDataStore::enableResourceLoadStatisticsAndSetTestingCallback): Handles enabling ResourceLoadStatistics both
+          with and without a testing callback.
+        * UIProcess/WebsiteData/WebsiteDataStore.h:
+
+2017-07-25  Andy Estes  <aestes@apple.com>
+
+        [Apple Pay] Add "carteBancaire" as a supported payment network
+        https://bugs.webkit.org/show_bug.cgi?id=174841
+        <rdar://problem/31935596>
+
+        Reviewed by Alex Christensen.
+
+        * UIProcess/ApplePay/cocoa/WebPaymentCoordinatorProxyCocoa.mm:
+        (WebKit::toSupportedNetwork):
+
+2017-07-25  Brian Burg  <bburg@apple.com>
+
+        Use SandboxExtension::HandleArray when sending extensions for file uploads to the web process
+        https://bugs.webkit.org/show_bug.cgi?id=174828
+
+        Reviewed by Tim Horton.
+
+        Send all of the sandbox extension handles in a single message, rather than
+        one message per extension. Update message name and parameter types to match.
+
+        * UIProcess/WebPageProxy.cpp:
+        (WebKit::WebPageProxy::didChooseFilesForOpenPanelWithDisplayStringAndIcon):
+        (WebKit::WebPageProxy::didChooseFilesForOpenPanel):
+        * WebProcess/WebPage/WebPage.cpp:
+        (WebKit::WebPage::extendSandboxForFilesFromOpenPanel):
+        (WebKit::WebPage::extendSandboxForFileFromOpenPanel): Deleted.
+        * WebProcess/WebPage/WebPage.h:
+        * WebProcess/WebPage/WebPage.messages.in:
+
+2017-07-25  Alex Christensen  <achristensen@webkit.org>
+
+        Fix API tests after r219871.
+        https://bugs.webkit.org/show_bug.cgi?id=174807
+
+        WebKit2.OpenAndCloseWindowAsync and WebKit2.OpenAsyncWithNil API tests are fixed.
+
+        * UIProcess/WebPageProxy.cpp:
+        (WebKit::WebPageProxy::createNewPage):
+        createNewPageAsync or createNewPage should be called, not both.
+
+2017-07-25  Said Abou-Hallawa  <sabouhallawa@apple.com>
+
+        Async image decoding for large images should be disabled after the first time a tile is painted
+        https://bugs.webkit.org/show_bug.cgi?id=174451
+        <rdar://problem/31246421>
+
+        Reviewed by Simon Fraser.
+
+        * Shared/mac/RemoteLayerBackingStore.mm:
+        (WebKit::RemoteLayerBackingStore::drawInContext):
+        * WebProcess/InjectedBundle/DOM/InjectedBundleNodeHandle.cpp:
+        (WebKit::imageForRect):
+        * WebProcess/InjectedBundle/DOM/InjectedBundleRangeHandle.cpp:
+        (WebKit::InjectedBundleRangeHandle::renderedImage):
+        * WebProcess/WebPage/CoordinatedGraphics/CompositingCoordinator.cpp:
+        (WebKit::CompositingCoordinator::paintContents):
+        * WebProcess/WebPage/CoordinatedGraphics/CompositingCoordinator.h:
+
+2017-07-25  Brian Burg  <bburg@apple.com>
+
+        Web Automation: add support for uploading files
+        https://bugs.webkit.org/show_bug.cgi?id=174797
+        <rdar://problem/28485063>
+
+        Reviewed by Joseph Pecoraro.
+
+        The general strategy is to have automation clients set the list of files they want
+        to select ahead of time. Then, the client simulates a click on the <input type="file"> element.
+        When that causes WebPageProxy to ask the UI delegate to runOpenPanel, it instead
+        gives WebAutomationSession a chance to select files if the page is under control of
+        automation. WebAutomationSession validates its file list and selects the files if valid.
+
+        * CMakeLists.txt: Add frontend dispatcher files.
+        * DerivedSources.make:
+        Add frontend dispatcher code generator scripts as dependencies of the generated code.
+        Add generated frontend dispatcher files to the list of output files.
+
+        * UIProcess/Automation/Automation.json:
+        Add a command to set the canned list of files that should be selected when prompted.
+        If no files are selected, then the effect is as if the user had clicked "cancel" in
+        the file chooser dialog.
+
+        Add an event to signal to the WebDriver service that the file selection request has
+        been either fulfilled or cancelled. This event is necessary because otherwise remotes
+        cannot distinguish whether selecting the files failed for some reason, or if the
+        UIProcess has not yet selected the files and sent them to the web content process.
+        In either case, the input element's "files" attribute would return an empty FileList.
+
+        * UIProcess/Automation/WebAutomationSession.h:
+        * UIProcess/Automation/WebAutomationSession.cpp:
+        (WebKit::WebAutomationSession::WebAutomationSession):
+        Add the frontend dispatcher for Automation domain. This is named m_domainNotifier since
+        m_domainDispatcher is already being used for the backend command dispatcher.
+
+        (WebKit::WebAutomationSession::handleRunOpenPanel):
+        Validate that the files-to-select list has valid entries and select the files if so.
+        If anything goes wrong, pretend to cancel out of the file chooser. Either way, notify the
+        frontend with an event that the file chooser was dismissed due to selecting files or cancelling.
+        Automation protocol clients may implement additional strategies to further restrict
+        the conditions upon which local files can be uploaded.
+
+        (WebKit::WebAutomationSession::setFilesToSelectForFileUpload): Added.
+        Store the list of files as a vector of strings. The file list is always replaced.
+
+        * UIProcess/WebPageProxy.cpp:
+        (WebKit::WebPageProxy::runOpenPanel):
+        If the page is under automation, delegating the runOpenPanel is likely to hang
+        because WebDriver cannot interact directly with the file chooser dialog. Instead,
+        give WebAutomationSession a chance to select files and don't tell the delegate.
+
+        * WebKit.xcodeproj/project.pbxproj:
+        Add frontend dispatcher files to "Derived Sources" group.
+
+2017-07-25  Alex Christensen  <achristensen@webkit.org>
+
+        Modernize NavigationAction code
+        https://bugs.webkit.org/show_bug.cgi?id=174807
+
+        Reviewed by Darin Adler.
+
+        Mostly just use more move semantics.
+
+        * Platform/IPC/HandleMessage.h:
+        (IPC::callMemberFunctionImpl):
+        * Shared/API/APIURLRequest.h:
+        * Shared/NavigationActionData.h:
+        * UIProcess/API/APINavigation.cpp:
+        (API::Navigation::Navigation):
+        * UIProcess/API/APINavigation.h:
+        (API::Navigation::create):
+        * UIProcess/API/APINavigationAction.h:
+        * UIProcess/API/APINavigationClient.h:
+        (API::NavigationClient::decidePolicyForNavigationAction):
+        * UIProcess/API/APIPolicyClient.h:
+        * UIProcess/API/APIUIClient.h:
+        (API::UIClient::createNewPage):
+        (API::UIClient::createNewPageAsync):
+        (API::UIClient::canCreateNewPageAsync):
+        * UIProcess/API/C/WKPage.cpp:
+        (WKPageLoadURLRequest):
+        (WKPageLoadURLRequestWithUserData):
+        (WKPageSetPageUIClient):
+        (WKPageSetPageNavigationClient):
+        * UIProcess/Cocoa/NavigationState.h:
+        * UIProcess/Cocoa/NavigationState.mm:
+        (WebKit::NavigationState::NavigationClient::decidePolicyForNavigationAction):
+        * UIProcess/Cocoa/UIDelegate.h:
+        * UIProcess/Cocoa/UIDelegate.mm:
+        (WebKit::UIDelegate::UIClient::createNewPageCommon):
+        (WebKit::UIDelegate::UIClient::createNewPage):
+        (WebKit::UIDelegate::UIClient::canCreateNewPageAsync):
+        (WebKit::UIDelegate::UIClient::createNewPageAsync):
+        * UIProcess/WebInspectorProxy.cpp:
+        (WebKit::decidePolicyForNavigationAction):
+        * UIProcess/WebNavigationState.cpp:
+        (WebKit::WebNavigationState::createLoadRequestNavigation):
+        * UIProcess/WebNavigationState.h:
+        * UIProcess/WebPageProxy.cpp:
+        (WebKit::WebPageProxy::loadRequest):
+        (WebKit::WebPageProxy::decidePolicyForNavigationAction):
+        (WebKit::WebPageProxy::decidePolicyForNewWindowAction):
+        (WebKit::WebPageProxy::createNewPage):
+        * UIProcess/WebPageProxy.h:
+
 2017-07-25  Carlos Garcia Campos  <cgarcia@igalia.com>
 
         REGRESSION(r218629): [GTK] ASSERTION FAILED: m_eglDisplay == EGL_NO_DISPLAY in WebCore::PlatformDisplay::~PlatformDisplay

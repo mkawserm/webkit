@@ -1,3 +1,578 @@
+2017-07-26  Chris Dumez  <cdumez@apple.com>
+
+        Pressing the Escape key should not be a valid user gesture to enter fullscreen
+        https://bugs.webkit.org/show_bug.cgi?id=174864
+        <rdar://problem/33009088>
+
+        Reviewed by Geoffrey Garen.
+
+        Pressing the Escape key should not be a valid user gesture to enter fullscreen since this
+        is the gesture to exit fullscreen already.
+
+        Test: fullscreen/requestFullscreen-escape-key.html
+
+        * dom/Document.cpp:
+        (WebCore::Document::requestFullScreenForElement):
+        * dom/UserGestureIndicator.cpp:
+        (WebCore::UserGestureIndicator::UserGestureIndicator):
+        * dom/UserGestureIndicator.h:
+        (WebCore::UserGestureToken::create):
+        (WebCore::UserGestureToken::gestureType):
+        (WebCore::UserGestureToken::UserGestureToken):
+        * page/EventHandler.cpp:
+        (WebCore::EventHandler::internalKeyEvent):
+
+2017-07-26  Nan Wang  <n_wang@apple.com>
+
+        AX: Incorrect range from index and length in contenteditable with <p> tags
+        https://bugs.webkit.org/show_bug.cgi?id=174856
+
+        Reviewed by Chris Fleizach.
+
+        When asking for the string inside a text control with a given range, we sometimes get
+        a wrong string at the line boundary due to a bad plain range to text marker conversion.
+        To fix this, we should use the exsisting method on text controls to avoid this issue. 
+
+        Updated the test to test the problematic case.
+
+        * accessibility/mac/WebAccessibilityObjectWrapperMac.mm:
+        (-[WebAccessibilityObjectWrapper accessibilityAttributeValue:forParameter:]):
+
+2017-07-26  Daewoong Jang  <daewoong.jang@navercorp.com>
+
+        [Curl] Bug fix after r219606
+        https://bugs.webkit.org/show_bug.cgi?id=174845
+
+        Reviewed by Alex Christensen.
+
+        * platform/network/curl/CurlContext.h:
+        (WebCore::CurlSList::isEmpty):
+        * platform/network/curl/ResourceHandleCurl.cpp:
+        (WebCore::ResourceHandleInternal::didReceiveHeaderLine):
+        (WebCore::ResourceHandleInternal::headerCallback):
+
+2017-07-26  Zan Dobersek  <zdobersek@igalia.com>
+
+        [EME][GStreamer] Multi-key support in the GStreamer ClearKey decryptor
+        https://bugs.webkit.org/show_bug.cgi?id=174779
+
+        Reviewed by Xabier Rodriguez-Calvar.
+
+        In the CENC decryptor, the key ID value is retrieved from the info structure
+        on the GstProtectionMeta object. GstBuffer for that value is retrieved and
+        passed to the setupCipher() function.
+
+        In the ClearKey decryptor (which extends the CENC decryptor), the single
+        GstBuffer object on the private instance that holds the key value is replaced
+        with a Vector object that holds pairs of key ID and value GstBuffers. In the
+        handleKeyResponse() implementation that Vector is emptied and then refilled
+        with key ID and value pairs that are passed in through the drm-cipher-clearkey
+        structure that's attached to the GstEvent that signalled new key information.
+
+        In the ClearKey decryptor's setupCipher() implementation the passed-in key ID
+        buffer is used to find a matching key ID and value pair stored on the private
+        instance. If not found, an error is thrown. If found, the matching key value
+        is used for decryption.
+
+        * platform/graphics/gstreamer/eme/WebKitClearKeyDecryptorGStreamer.cpp:
+        (webKitMediaClearKeyDecryptorHandleKeyResponse):
+        (webKitMediaClearKeyDecryptorSetupCipher):
+        * platform/graphics/gstreamer/eme/WebKitCommonEncryptionDecryptorGStreamer.cpp:
+        (webkitMediaCommonEncryptionDecryptTransformInPlace):
+        (webKitMediaCommonEncryptionDecryptDefaultSetupCipher):
+        * platform/graphics/gstreamer/eme/WebKitCommonEncryptionDecryptorGStreamer.h:
+
+2017-07-26  Zan Dobersek  <zdobersek@igalia.com>
+
+        [EME][GStreamer] Handle ClearKey as a supported key system
+        https://bugs.webkit.org/show_bug.cgi?id=174778
+
+        Reviewed by Xabier Rodriguez-Calvar.
+
+        * platform/graphics/gstreamer/MediaPlayerPrivateGStreamerBase.cpp:
+        (WebCore::MediaPlayerPrivateGStreamerBase::supportsKeySystem):
+        Return true for the 'org.w3.clearkey' key system when building with
+        ENCRYPTED_MEDIA enabled. The underlying implementation will follow.
+
+2017-07-26  Claudio Saavedra  <csaavedra@igalia.com>
+
+        [WPE] Fix a potential crash in the platform pasteboard when reading a string
+        https://bugs.webkit.org/show_bug.cgi?id=174859
+
+        Reviewed by Žan Doberšek.
+
+        We shouldn't assume that the wpe_pasteboard_string struct will be
+        filled in, so initialize it.
+
+        * platform/wpe/PlatformPasteboardWPE.cpp:
+        (WebCore::PlatformPasteboard::readString): Initialize the struct
+        before passing it to wpe and early return if it's still empty.
+
+2017-07-26  Javier Fernandez  <jfernandez@igalia.com>
+
+        InsertOrderedList command applied to table cells inserts an extra BR before the table
+        https://bugs.webkit.org/show_bug.cgi?id=174593
+
+        Reviewed by Darin Adler.
+
+        Don't add BR when pruning empty blocks if it's the start of a paragraph.
+
+        The function MoveParagraph is used for several operations and editing
+        commands, like 'insertOrderedList'. When moving paragraphs we check out
+        whether we should add a 'br' element to avoid undesired block collapse.
+
+        However, we shouldn't do this when destination is the start of a
+        paragraph.
+
+        Tests: editing/inserting/insert-list-in-table-cell-01.html
+               editing/inserting/insert-list-in-table-cell-02.html
+               editing/inserting/insert-list-in-table-cell-03.html
+               editing/inserting/insert-list-in-table-cell-04.html
+               editing/inserting/insert-list-in-table-cell-05.html
+               editing/inserting/insert-list-in-table-cell-06.html
+               editing/inserting/insert-list-in-table-cell-07.html
+               editing/inserting/insert-list-in-table-cell-08.html
+
+        * editing/CompositeEditCommand.cpp:
+        (WebCore::CompositeEditCommand::moveParagraphs):
+
+2017-07-26  Zan Dobersek  <zdobersek@igalia.com>
+
+        [WPE] WebGL2 support
+        https://bugs.webkit.org/show_bug.cgi?id=174249
+
+        Reviewed by Alex Christensen.
+
+        Implement WebGL2 support in GraphicsContext3DCairo for the WPE port, but keep
+        the implementation specific to libepoxy (which WPE leverages by default).
+
+        In the GraphicsContext3D::create() method, we first construct the
+        GraphicsContext3D object that also ensures a current GL context on this thread.
+        Only then can we determine through libepoxy whether the underlying GL library
+        is able to support WebGL2.
+
+        For WebGL2, the GLES3 support is required. The initial libepoxy implementation
+        ensures this only in case of 'non-desktop GL' library of minimum version 3.0.
+        This effectively translates to the only supported configuration being the
+        EGL and OpenGL ES 3.0 (or higher) combination. If this cannot be ensured, we
+        discard the existing GraphicsContext3D object and return null.
+
+        WebGL2 can also be supported via OpenGL (i.e. 'desktop GL'), but this hasn't
+        been tested yet. Implementation will in the future be extended to support that
+        as required.
+
+        In the GraphicsContext3D constructor itself, the ANGLEWebKitBridge constructor
+        has to now receive the second argument, the desired shader specification that's
+        used when parsing the provided shaders. This should be SH_WEBGL_SPEC for WebGL1,
+        and SH_WEBGL2_SPEC for WebGL2.
+
+        No new tests -- a small set of existing WebGL2 tests is unskipped and passing.
+
+        * platform/graphics/cairo/GraphicsContext3DCairo.cpp:
+        (WebCore::GraphicsContext3D::create):
+        (WebCore::GraphicsContext3D::GraphicsContext3D):
+        * platform/graphics/opengl/GraphicsContext3DOpenGLCommon.cpp:
+        Add WebGL2-specific methods to the build.
+
+2017-07-26  Nan Wang  <n_wang@apple.com>
+
+        AX: should dispatch accessibilityPerformPressAction async on MacOS
+        https://bugs.webkit.org/show_bug.cgi?id=174849
+
+        Reviewed by Chris Fleizach.
+
+        If performing the accessibility press action results in a modal alert being displayed,
+        it can cause VoiceOver to hang. To fix it, we should dispatch the action asynchronously.
+
+        Updated tests to adapt to this change.
+
+        * accessibility/mac/WebAccessibilityObjectWrapperMac.mm:
+        (-[WebAccessibilityObjectWrapper accessibilityPerformPressAction]):
+        (-[WebAccessibilityObjectWrapper _accessibilityPerformPressAction]):
+
+2017-07-25  Carlos Garcia Campos  <cgarcia@igalia.com>
+
+        Icon loader error on startup
+        https://bugs.webkit.org/show_bug.cgi?id=174787
+
+        Reviewed by Brady Eidson.
+
+        This is a regression of the new icon loading, it happens with pages that shouldn't have a favicon, like about
+        pages. IconController::startLoader() did several checks before starting the load that
+        DocumentLoader::startIconLoading() is not doing. It checked that the frame is the main one, the document can have
+        an icon (document url is not empty and not about:blank) and that favicon url is in HTTP family. We should do the
+        same checks now before starting to load icons.
+
+        * loader/DocumentLoader.cpp:
+        (WebCore::DocumentLoader::startIconLoading):
+
+2017-07-25  Sam Weinig  <sam@webkit.org>
+
+        [WebIDL] Remove custom bindings for HTMLCanvasElement
+        https://bugs.webkit.org/show_bug.cgi?id=174847
+
+        Reviewed by Darin Adler.
+
+        * CMakeLists.txt:
+        * WebCore.xcodeproj/project.pbxproj:
+        * bindings/js/JSBindingsAllInOne.cpp:
+        * bindings/js/JSHTMLCanvasElementCustom.cpp: Removed.
+        Remove JSHTMLCanvasElementCustom.
+
+        * html/HTMLCanvasElement.cpp:
+        (WebCore::HTMLCanvasElement::getContext):
+        (WebCore::HTMLCanvasElement::getContext2d):
+        (WebCore::HTMLCanvasElement::getContextWebGL):
+        (WebCore::HTMLCanvasElement::getContextWebGPU):
+        * html/HTMLCanvasElement.h:
+        * html/HTMLCanvasElement.idl:
+        Move context picking code to HTMLCanvasElement. Give more
+        exact types to remaining context getters.
+
+2017-07-25  Chris Dumez  <cdumez@apple.com>
+
+        Clean up ExceptionCode enumeration
+        https://bugs.webkit.org/show_bug.cgi?id=174812
+
+        Reviewed by Darin Adler.
+
+        Clean up ExceptionCode enumeration:
+        - Updated comments to reflect the latest WebIDL specification
+        - Drop special values given to some exception codes. Those legacy codes are already in the
+          table inside DOMException.cpp. This also allows us to drop empty rows in the DOMException
+          table
+        - Drop NoException value in the enumeration and use std::optional<ExceptionCode> when needed
+          instead.
+
+        * Modules/indexeddb/shared/IDBError.cpp:
+        (WebCore::IDBError::IDBError):
+        (WebCore::IDBError::name):
+        (WebCore::IDBError::message):
+        * Modules/indexeddb/shared/IDBError.h:
+        (WebCore::IDBError::code):
+        (WebCore::IDBError::encode):
+        (WebCore::IDBError::decode):
+        * dom/DOMException.cpp:
+        * dom/ExceptionCode.h:
+        * fileapi/FileReaderSync.cpp:
+        (WebCore::errorCodeToException):
+        (WebCore::FileReaderSync::startLoading):
+        * xml/XMLHttpRequest.cpp:
+        (WebCore::XMLHttpRequest::createRequest):
+        * xml/XMLHttpRequest.h:
+
+2017-07-25  Andy Estes  <aestes@apple.com>
+
+        [Apple Pay] Add "carteBancaire" as a supported payment network
+        https://bugs.webkit.org/show_bug.cgi?id=174841
+        <rdar://problem/31935596>
+
+        Reviewed by Alex Christensen.
+
+        Tests: http/tests/ssl/applepay/ApplePaySession.html
+               http/tests/ssl/applepay/ApplePaySessionV3.html
+
+        * Modules/applepay/PaymentRequest.cpp:
+        (WebCore::PaymentRequest::isValidSupportedNetwork):
+
+2017-07-25  Daniel Bates  <dabates@apple.com>
+
+        Make StyleResolver::isValid{Cue, Region}StyleProperty() static, inline, non-member functions
+        https://bugs.webkit.org/show_bug.cgi?id=174827
+
+        Reviewed by Simon Fraser.
+
+        StyleResolver::isValid{Cue, Region}StyleProperty() access neither instance nor
+        class data. Moreover, they are private member functions and hence cannot be
+        used outside of StyleResolver's implementation. So, make these static, inline,
+        non-member functions.
+
+        * css/StyleResolver.cpp:
+        (WebCore::isValidRegionStyleProperty):
+        (WebCore::isValidCueStyleProperty):
+        (WebCore::StyleResolver::CascadedProperties::addMatch):
+        (WebCore::StyleResolver::isValidRegionStyleProperty): Deleted.
+        (WebCore::StyleResolver::isValidCueStyleProperty): Deleted.
+        * css/StyleResolver.h:
+
+2017-07-25  Per Arne Vollan  <pvollan@apple.com>
+
+        Dragged links are blurry on 1x displays.
+        https://bugs.webkit.org/show_bug.cgi?id=174831
+        <rdar://problem/33519698>
+
+        Reviewed by Simon Fraser.
+
+        When the width and height of the drag image is a multiple of 2, the drag image is not blurry
+        on a 1x display. This is a workaround which should be removed when <rdar://problem/33059739>
+        is fixed.
+
+        No new tests, since this is not straightforward to test with a layout test.
+
+        * platform/mac/DragImageMac.mm:
+        (WebCore::LinkImageLayout::LinkImageLayout):
+
+2017-07-25  Matt Baker  <mattbaker@apple.com>
+
+        Web Inspector: Refactoring: extract async stack trace logic from InspectorInstrumentation
+        https://bugs.webkit.org/show_bug.cgi?id=174738
+
+        Reviewed by Brian Burg.
+
+        Relocate AsyncCallType from InspectorInstrumentation to the debugger
+        agent. Plumbing for `requestAnimationFrame` notifications has been added
+        to PageDebuggerAgent, which is responsible for managing async stack traces. 
+
+        * dom/ScriptedAnimationController.cpp:
+        (WebCore::ScriptedAnimationController::registerCallback):
+        (WebCore::ScriptedAnimationController::cancelCallback):
+        (WebCore::ScriptedAnimationController::serviceScriptedAnimations):
+
+        * inspector/InspectorInstrumentation.cpp:
+        (WebCore::InspectorInstrumentation::didInstallTimerImpl):
+        (WebCore::InspectorInstrumentation::didRemoveTimerImpl):
+        (WebCore::InspectorInstrumentation::willFireTimerImpl):
+        (WebCore::InspectorInstrumentation::didRequestAnimationFrameImpl):
+        (WebCore::InspectorInstrumentation::didCancelAnimationFrameImpl):
+        (WebCore::InspectorInstrumentation::willFireAnimationFrameImpl):
+        (): Deleted.
+        (WebCore::didScheduleAsyncCall): Deleted.
+
+        * inspector/InspectorInstrumentation.h:
+        (WebCore::InspectorInstrumentation::didRequestAnimationFrame):
+        (WebCore::InspectorInstrumentation::didCancelAnimationFrame):
+        (WebCore::InspectorInstrumentation::willFireAnimationFrame):
+        Replaced Frame and Document pointers with references and moved
+        pointer validation upstream.
+
+        * inspector/PageDebuggerAgent.cpp:
+        (WebCore::PageDebuggerAgent::didRequestAnimationFrame):
+        (WebCore::PageDebuggerAgent::willFireAnimationFrame):
+        (WebCore::PageDebuggerAgent::didCancelAnimationFrame):
+        * inspector/PageDebuggerAgent.h:
+
+2017-07-25  Said Abou-Hallawa  <sabouhallawa@apple.com>
+
+        Async image decoding for large images should be disabled after the first time a tile is painted
+        https://bugs.webkit.org/show_bug.cgi?id=174451
+        <rdar://problem/31246421>
+
+        Reviewed by Simon Fraser.
+
+        Flashing because of DOM mutation can be fixed by disabling the asynchronous
+        image decoding after the first time a tile was painted.
+
+        We can detect this by consulting the tile repaintCount. If it is zero, then
+        it is safe to use asynchronous image decoded. If the tile repaintCount is
+        greater than zero, we are not sure if the renderer rectangle has an image
+        drawn in it already or not. In this case we have to use the synchronous
+        image decoding to avoid causing a flash.
+
+        Tests: fast/images/async-image-background-change.html
+               fast/images/async-image-src-change.html
+               http/tests/multipart/multipart-async-image.html
+
+        * html/shadow/MediaControlElements.cpp:
+        (WebCore::MediaControlTextTrackContainerElement::createTextTrackRepresentationImage):
+        * page/FrameView.cpp:
+        (WebCore::FrameView::willPaintContents):
+        (WebCore::FrameView::paintContentsForSnapshot):
+        * page/PageOverlayController.cpp:
+        (WebCore::PageOverlayController::paintContents):
+        * page/PageOverlayController.h:
+        * page/linux/ResourceUsageOverlayLinux.cpp:
+        * page/mac/ServicesOverlayController.h:
+        * page/mac/ServicesOverlayController.mm:
+        (WebCore::ServicesOverlayController::Highlight::paintContents):
+        * platform/graphics/BitmapImage.cpp:
+        (WebCore::BitmapImage::draw):
+        * platform/graphics/BitmapImage.h:
+        * platform/graphics/GraphicsLayer.cpp:
+        (WebCore::GraphicsLayer::paintGraphicsLayerContents):
+        * platform/graphics/GraphicsLayer.h:
+        * platform/graphics/GraphicsLayerClient.h:
+        (WebCore::GraphicsLayerClient::paintContents):
+        * platform/graphics/avfoundation/cf/MediaPlayerPrivateAVFoundationCF.cpp:
+        (WebCore::LayerClient::platformCALayerPaintContents):
+        * platform/graphics/ca/GraphicsLayerCA.cpp:
+        (WebCore::GraphicsLayerCA::platformCALayerPaintContents):
+        * platform/graphics/ca/GraphicsLayerCA.h:
+        * platform/graphics/ca/PlatformCALayer.h:
+        * platform/graphics/ca/PlatformCALayerClient.h:
+        (WebCore::PlatformCALayerClient::platformCALayerRepaintCount):
+        * platform/graphics/ca/TileCoverageMap.cpp:
+        (WebCore::TileCoverageMap::platformCALayerPaintContents):
+        * platform/graphics/ca/TileCoverageMap.h:
+        * platform/graphics/ca/TileGrid.cpp:
+        (WebCore::TileGrid::platformCALayerPaintContents):
+        (WebCore::TileGrid::platformCALayerRepaintCount):
+        * platform/graphics/ca/TileGrid.h:
+        * platform/graphics/ca/cocoa/PlatformCALayerCocoa.mm:
+        (PlatformCALayer::drawLayerContents):
+        * platform/graphics/ca/win/PlatformCALayerWin.cpp:
+        (PlatformCALayer::drawLayerContents):
+        * platform/graphics/ca/win/PlatformCALayerWinInternal.cpp:
+        (PlatformCALayerWinInternal::displayCallback):
+        * platform/graphics/ca/win/WebTiledBackingLayerWin.cpp:
+        (WebTiledBackingLayerWin::displayCallback):
+        * platform/graphics/mac/WebLayer.mm:
+        (-[WebLayer drawInContext:]):
+        (-[WebSimpleLayer drawInContext:]):
+        * rendering/PaintPhase.h:
+        * rendering/RenderBoxModelObject.cpp:
+        (WebCore::RenderBoxModelObject::decodingModeForImageDraw):
+        * rendering/RenderElement.h:
+        * rendering/RenderLayer.cpp:
+        (WebCore::RenderLayer::paintLayerContents):
+        (WebCore::RenderLayer::paintForegroundForFragments):
+        * rendering/RenderLayerBacking.cpp:
+        (WebCore::RenderLayerBacking::paintContents):
+        * rendering/RenderLayerBacking.h:
+        * rendering/RenderLayerCompositor.cpp:
+        (WebCore::RenderLayerCompositor::paintContents):
+        * rendering/RenderLayerCompositor.h:
+        * rendering/RenderWidget.cpp:
+        (WebCore::RenderWidget::paintContents):
+        * testing/Internals.cpp:
+        (WebCore::imageFromImageElement):
+        (WebCore::bitmapImageFromImageElement):
+        (WebCore::Internals::imageFrameIndex):
+        (WebCore::Internals::setImageFrameDecodingDuration):
+        (WebCore::Internals::resetImageAnimation):
+        (WebCore::Internals::isImageAnimating):
+        (WebCore::Internals::setClearDecoderAfterAsyncFrameRequestForTesting):
+        (WebCore::Internals::imageDecodeCount):
+        (WebCore::Internals::setLargeImageAsyncDecodingEnabledForTesting):
+        * testing/Internals.h:
+        * testing/Internals.idl:
+
+2017-07-23  Sam Weinig  <sam@webkit.org>
+
+        [WebIDL] Add support for generating timer bindings
+        https://bugs.webkit.org/show_bug.cgi?id=174766
+
+        Reviewed by Darin Adler.
+
+        Adds a new non-standard type, ScheduledAction, which stands in for the
+        standard (DOMString or Function). It would be good to move to that in
+        future, but for now, this allows for forward momentum on removing custom
+        bindings.
+
+        * WebCore.xcodeproj/project.pbxproj:
+        Add JSDOMConvertScheduledAction.h.
+
+        * bindings/IDLTypes.h:
+        Add IDLScheduledAction.
+
+        * bindings/js/JSDOMConvertScheduledAction.h: Added.
+        (WebCore::Converter<IDLScheduledAction>::convert):
+        Add conversion from JSValue -> ScheduledAction. This is moved from the old ScheduledAction
+        create function.
+
+        * bindings/js/JSDOMConvertVariadic.h:
+        (WebCore::convertVariadicArguments):
+        (WebCore::Detail::VariadicConverterBase::convert): Deleted.
+        (WebCore::Detail::VariadicConverterBase<IDLInterface<T>>::convert): Deleted.
+        * bindings/js/JSDOMConvertBase.h:
+        * bindings/js/JSDOMConvertAny.h:
+        (WebCore::VariadicConverter<IDLAny>::convert):
+        * bindings/js/JSDOMConvertInterface.h:
+        (WebCore::VariadicConverter<IDLInterface<T>>::convert):
+        Rename VariadicConverter to VariadicConverterDetails, and remove base class. Rename 
+        VariadicConverterBase to VariadicConverter, and move specializations to the file
+        containing the base converter for that IDL type 
+
+        * bindings/js/JSDOMWindowCustom.cpp:
+        (WebCore::JSDOMWindow::setTimeout): Deleted.
+        (WebCore::JSDOMWindow::setInterval): Deleted.
+        * bindings/js/JSWorkerGlobalScopeCustom.cpp:
+        (WebCore::JSWorkerGlobalScope::setTimeout): Deleted.
+        (WebCore::JSWorkerGlobalScope::setInterval): Deleted.
+        Remove custom implementations of setTimeout and setInterval.
+
+        * bindings/js/ScheduledAction.cpp:
+        (WebCore::ScheduledAction::create):
+        (WebCore::ScheduledAction::ScheduledAction):
+        (WebCore::ScheduledAction::~ScheduledAction):
+        (WebCore::ScheduledAction::addArguments):
+        (WebCore::ScheduledAction::executeFunctionInContext):
+        * bindings/js/ScheduledAction.h:
+        (WebCore::ScheduledAction::ScheduledAction): Deleted.
+        Rework ScheduledAction. Now has two create functions, one for the function
+        form, one for the string form. These are now called by the Converter. Also,
+        rather than extracting the arguments directly from the ExecState, allow the
+        bindings to work as designed, and have the arguments come in as variadic 
+        arguments to setTimeout/setInterval and get added to the ScheduledAction if
+        needed. Also, move ContentSecurityPolicy check out of construction, and into
+        setTimeout/setInterval.
+
+        * bindings/scripts/CodeGenerator.pm:
+        (IsBuiltinType):
+        Add ScheduledAction to the builtin list.
+
+        * bindings/scripts/CodeGeneratorJS.pm:
+        (AddToIncludesForIDLType):
+        Add the correct include when ScheduledAction is used.
+
+        (GenerateParametersCheck):
+        Remove rule disallowing optional arguments before variadic arguments. That works
+        just fine.
+
+        (GetBaseIDLType):
+        Add mapping of ScheduledAction -> IDLScheduledAction.
+
+        (JSValueToNativeDOMConvertNeedsGlobalObject):
+        Add ScheduledAction to the list of types that need a global object
+        for conversion.
+
+        * page/WindowOrWorkerGlobalScope.idl:
+        Update interface to match spec and add FIXMEs for moving to TimerHandler.
+
+        * page/DOMWindow.cpp:
+        (WebCore::DOMWindow::setTimeout):
+        (WebCore::DOMWindow::setInterval):
+        * page/DOMWindow.h:
+        * workers/WorkerGlobalScope.cpp:
+        (WebCore::WorkerGlobalScope::setTimeout):
+        (WebCore::WorkerGlobalScope::setInterval):
+        * workers/WorkerGlobalScope.h:
+        Update for new signatures. WorkerGlobalScope now has to return ExceptionOr<int>
+        even though it never throws, due to having one IDL file defining these. This is 
+        unfortunate and something we should look at addressing the future.
+
+2017-07-25  Yoshiaki Jitsukawa  <Yoshiaki.Jitsukawa@sony.com>
+
+        [WinCairo] Fix build with AllInOnes disabled
+        https://bugs.webkit.org/show_bug.cgi?id=174784
+        <rdar://problem/33488914>
+
+        Reviewed by Alex Christensen.
+
+        * PlatformWin.cmake:
+        Add RenderThemeWin.cpp to WebCore_SOURCES
+
+        * rendering/RenderingAllInOne.cpp:
+        Remove #include "RenderThemeWin.cpp"
+
+        * testing/MemoryInfo.h:
+        Remove #include "JSDomWindow.h"
+
+        * bindings/js/JSDOMGlobalObject.cpp:
+        * bindings/js/JSDOMPromiseDeferred.cpp:
+        * bindings/js/JSDOMWrapper.cpp:
+        * bindings/js/JSImageDataCustom.cpp:
+        * bindings/scripts/CodeGeneratorJS.pm:
+        (GenerateCallWith):
+        * dom/ScriptExecutionContext.cpp:
+        * inspector/InspectorController.cpp:
+        * inspector/InspectorTimelineAgent.cpp:
+        * rendering/RenderMediaControls.cpp:
+        * rendering/RenderMediaControls.h:
+        * rendering/RenderThemeWin.cpp:
+
+        * bindings/scripts/test/JS/JSTestObj.cpp:
+        Update test results.
+
 2017-07-25  Konstantin Tokarev  <annulen@yandex.ru>
 
         Unreviewed, fix Mac CMake build after r219567

@@ -1,3 +1,254 @@
+2017-07-26  Chris Dumez  <cdumez@apple.com>
+
+        Pressing the Escape key should not be a valid user gesture to enter fullscreen
+        https://bugs.webkit.org/show_bug.cgi?id=174864
+        <rdar://problem/33009088>
+
+        Reviewed by Geoffrey Garen.
+
+        Add layout test coverage.
+
+        * fullscreen/requestFullscreen-escape-key-expected.txt: Added.
+        * fullscreen/requestFullscreen-escape-key.html: Added.
+
+2017-07-26  Nan Wang  <n_wang@apple.com>
+
+        AX: Incorrect range from index and length in contenteditable with <p> tags
+        https://bugs.webkit.org/show_bug.cgi?id=174856
+
+        Reviewed by Chris Fleizach.
+
+        * accessibility/mac/range-for-contenteditable-newline-expected.txt:
+        * accessibility/mac/range-for-contenteditable-newline.html:
+
+2017-07-26  Ms2ger  <Ms2ger@igalia.com>
+
+        Remove obsolete failure annotation for bad-charset-alias.html.
+        https://bugs.webkit.org/show_bug.cgi?id=145048
+
+        Reviewed by Carlos Garcia Campos.
+
+        This appears to have been fixed in r204850.
+
+        * platform/gtk/TestExpectations:
+
+2017-07-26  Ms2ger  <Ms2ger@igalia.com>
+
+        Remove obsolete failure expectations for 2d.fillStyle.parse.{rgb,rgba}-eof.
+        https://bugs.webkit.org/show_bug.cgi?id=174857
+
+        Reviewed by Žan Doberšek.
+
+        These tests started passing in r209666.
+
+        * platform/gtk/TestExpectations:
+
+2017-07-26  Javier Fernandez  <jfernandez@igalia.com>
+
+        InsertOrderedList command applied to table cells inserts an extra BR before the table
+        https://bugs.webkit.org/show_bug.cgi?id=174593
+
+        Reviewed by Darin Adler.
+
+        Tests to verify that the insertOrderedList command works as expected when applied
+        in table cells.
+
+        * editing/inserting/insert-list-in-table-cell-01.html: Added.
+        * editing/inserting/insert-list-in-table-cell-01-expected.txt: Added.
+        * editing/inserting/insert-list-in-table-cell-02.html: Added.
+        * editing/inserting/insert-list-in-table-cell-02-expected.txt: Added.
+        * editing/inserting/insert-list-in-table-cell-03.html: Added.
+        * editing/inserting/insert-list-in-table-cell-03-expected.txt: Added.
+        * editing/inserting/insert-list-in-table-cell-04.html: Added.
+        * editing/inserting/insert-list-in-table-cell-04-expected.txt: Added.
+        * editing/inserting/insert-list-in-table-cell-05.html: Added.
+        * editing/inserting/insert-list-in-table-cell-05-expected.txt: Added.
+        * editing/inserting/insert-list-in-table-cell-06.html: Added.
+        * editing/inserting/insert-list-in-table-cell-06-expected.txt: Added.
+        * editing/inserting/insert-list-in-table-cell-07.html: Added.
+        * editing/inserting/insert-list-in-table-cell-07-expected.txt: Added.
+        * editing/inserting/insert-list-in-table-cell-08.html: Added.
+        * editing/inserting/insert-list-in-table-cell-08-expected.txt: Added.
+
+2017-07-26  Ms2ger  <Ms2ger@igalia.com>
+
+        Fix an incorrect check in 2d.missingargs.html.
+        https://bugs.webkit.org/show_bug.cgi?id=174854
+
+        Reviewed by Carlos Garcia Campos.
+
+        The check was introduced without explanation in r168302. This change reverts
+        it to the previous, correct check.
+
+        * canvas/philip/tests/2d.missingargs-expected.txt:
+        * canvas/philip/tests/2d.missingargs.html:
+        * platform/gtk/TestExpectations:
+        * platform/ios/TestExpectations:
+        * platform/mac/canvas/philip/tests/2d.missingargs-expected.txt: Removed.
+        * platform/wpe/TestExpectations:
+
+2017-07-26  Claudio Saavedra  <csaavedra@igalia.com>
+
+        [WPE] Enable KeyboardEvent key and code attributes
+        https://bugs.webkit.org/show_bug.cgi?id=174822
+
+        Reviewed by Žan Doberšek.
+
+        * platform/wpe/TestExpectations: Mark
+        fast/events/constructors/keyboard-event-constructor.html as passing.
+
+2017-07-26  Zan Dobersek  <zdobersek@igalia.com>
+
+        [WPE] WebGL2 support
+        https://bugs.webkit.org/show_bug.cgi?id=174249
+
+        Reviewed by Alex Christensen.
+
+        * platform/wpe/TestExpectations:
+        Unskip WebGL2 tests under the webgl/ directory. More tests under fast/canvas/webgl2/
+        will be unskipped later.
+
+2017-07-26  Nan Wang  <n_wang@apple.com>
+
+        AX: should dispatch accessibilityPerformPressAction async on MacOS
+        https://bugs.webkit.org/show_bug.cgi?id=174849
+
+        Reviewed by Chris Fleizach.
+
+        * accessibility/file-upload-button-with-axpress.html:
+        * accessibility/mac/html5-input-number.html:
+        * accessibility/mac/search-field-cancel-button.html:
+        * accessibility/press-target-uses-text-descendant-node.html:
+        * accessibility/press-targets-center-point.html:
+        * accessibility/press-works-on-control-types.html:
+
+2017-07-25  Andy Estes  <aestes@apple.com>
+
+        [Apple Pay] Add "carteBancaire" as a supported payment network
+        https://bugs.webkit.org/show_bug.cgi?id=174841
+        <rdar://problem/31935596>
+
+        Reviewed by Alex Christensen.
+
+        * http/tests/ssl/applepay/ApplePaySession-expected.txt:
+        * http/tests/ssl/applepay/ApplePaySession.html:
+        * http/tests/ssl/applepay/ApplePaySessionV3.html:
+
+2017-07-25  Matt Lewis  <jlewis3@apple.com>
+
+        Marked multiple fast/ tests as crashing on High Sierra WK1.
+        <rdar://problem/33522420>
+
+        Unreviewed test gardening.
+
+        * platform/mac-highsierra-wk1/TestExpectations:
+
+2017-07-25  Matt Lewis  <jlewis3@apple.com>
+
+        Marked imported/w3c/web-platform-tests/XMLHttpRequest/send-blob-with-no-mime-type.html as failing.
+        <rdar://problem/33251388>
+
+        Unreviewed test gardening.
+
+        * platform/mac-highsierra/TestExpectations:
+
+2017-07-25  Matt Lewis  <jlewis3@apple.com>
+
+        Rebaselined the test http/tests/quicklook/top-navigation-blocked.html
+        https://bugs.webkit.org/show_bug.cgi?id=174755
+
+        Unreviewed test gardening.
+
+        * http/tests/quicklook/top-navigation-blocked-expected.txt:
+
+2017-07-25  Matt Lewis  <jlewis3@apple.com>
+
+        Rebaselined missed test.
+        https://bugs.webkit.org/show_bug.cgi?id=174734
+
+        Unreviewed test gardening.
+
+        * fast/events/touch/ios/touches-client-coords-after-zoom-expected.txt:
+
+2017-07-25  Said Abou-Hallawa  <sabouhallawa@apple.com>
+
+        Async image decoding for large images should be disabled after the first time a tile is painted
+        https://bugs.webkit.org/show_bug.cgi?id=174451
+        <rdar://problem/31246421>
+
+        Reviewed by Simon Fraser.
+
+        To test async image decoding for large images, we have to create the <img>
+        element dynamically so we can listen to the load and webkitImageFrameReady
+        events and know reliably when to end the test. But with this patch the async
+        image decoding for large images will be disabled after the first paint. 
+        That means async image decoding for large images will be disabled always
+        unless we force the async image decoding till the image is painted for the
+        first time. We use Internals::setLargeImageAsyncDecodingEnabledForTesting()
+        to force the async image decoding. So painting an image in this case will
+        require multiple paints; in all of them the async image decoding will be
+        enabled. But this is okay because it resembles the case where the <img> is
+        created from a static <img> tag in the HTML file.
+
+        For new tests, where we want to make sure that mutating the DOM will not
+        cause a flash, async image decoding will be forced till the image is drawn
+        for the first time. After that the async image decoding is enabled but not
+        forced.
+
+        Disable new tests for WK1 because the async image decoding is always enabled
+        because tiling does not necessarily exist in WK1 . But eventually the async
+        image decoding for large images will be always disabled for WK1.
+
+        * fast/images/async-image-background-change-expected.html: Added.
+        * fast/images/async-image-background-change.html: Added.
+        * fast/images/async-image-background-image-repeated.html:
+        * fast/images/async-image-background-image.html:
+        * fast/images/async-image-body-background-image.html:
+        * fast/images/async-image-multiple-clients-repaint.html:
+        * fast/images/async-image-src-change-expected.html: Added.
+        * fast/images/async-image-src-change.html: Added.
+        * fast/images/resources/green-400x400.png: Added.
+        * fast/images/resources/red-100x100.png: Added.
+        * fast/images/resources/red-400x400.png: Added.
+        * fast/images/sprite-sheet-image-draw.html:
+        * http/tests/multipart/multipart-async-image-expected.txt: Added.
+        * http/tests/multipart/multipart-async-image.html: Added.
+        * platform/ios-wk1/TestExpectations:
+        * platform/mac-wk1/TestExpectations:
+
+2017-07-25  Charlie Turner  <cturner@igalia.com>
+
+        [GTK] Unreviewed test gardening
+        https://bugs.webkit.org/show_bug.cgi?id=174820
+
+        Unreviewed gardening.
+
+        * platform/gtk/TestExpectations:
+
+2017-07-25  Devin Rousso  <drousso@apple.com>
+        Web Inspector: add context menu item for taking a screenshot of a node
+        https://bugs.webkit.org/show_bug.cgi?id=174754
+
+        Reviewed by Brian Burg.
+
+        * inspector/unit-tests/number-utilities-expected.txt:
+        * inspector/unit-tests/number-utilities.html:
+        Add test for Number.zeroPad.
+
+        Drive-by: Change tests to use expectEqual for better output on failure.
+
+2017-07-25  Claudio Saavedra  <csaavedra@igalia.com>
+
+        REGRESSION (r143068): fast/events/clientXY-in-zoom-and-scroll.html failing on GTK, Qt
+        https://bugs.webkit.org/show_bug.cgi?id=110090
+
+        Unreviewed gardening.
+
+        This test only needed the expectation to be updated.
+
+        * platform/gtk/TestExpectations: Remove test below.
+        * platform/gtk/fast/events/clientXY-in-zoom-and-scroll-expected.txt: Added.
+
 2017-07-24  Per Arne Vollan  <pvollan@apple.com>
 
         [Win] The tests fast/text/line-height-minimumFontSize*.html are failing.

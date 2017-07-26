@@ -1,3 +1,99 @@
+2017-07-26  Chris Dumez  <cdumez@apple.com>
+
+        Pressing the Escape key should not be a valid user gesture to enter fullscreen
+        https://bugs.webkit.org/show_bug.cgi?id=174864
+        <rdar://problem/33009088>
+
+        Reviewed by Geoffrey Garen.
+
+        Add support for eventSender.keyDown('escape') in DRT to match the behavior of
+        WKTR.
+
+        * DumpRenderTree/mac/EventSendingController.mm:
+        (-[EventSendingController keyDown:withModifiers:withLocation:]):
+
+2017-07-26  Romain Bellessort  <romain.bellessort@crf.canon.fr>
+
+        Unreviewed, added Romain Bellessort to contributors.json.
+
+        * Scripts/webkitpy/common/config/contributors.json:
+
+2017-07-26  Zan Dobersek  <zdobersek@igalia.com>
+
+        [WPE] WebGL2 support
+        https://bugs.webkit.org/show_bug.cgi?id=174249
+
+        Reviewed by Alex Christensen.
+
+        * Scripts/webkitperl/FeatureList.pm:
+        Enable WebGL2 for WPE when building through build-webkit.
+
+2017-07-26  Carlos Garcia Campos  <cgarcia@igalia.com>
+
+        Unreviewed. Fix GTK distcheck.
+
+        * gtk/make-dist.py:
+        (ensure_version_if_possible): Use the right pkg-config filename, it's webkit2gtk not webkitgtk.
+
+2017-07-25  Brady Eidson  <beidson@apple.com>
+
+        ResourceLoadStatistics grandfathering happens much too often.
+        <rdar://problem/32655834> and https://bugs.webkit.org/show_bug.cgi?id=174825
+
+        Reviewed by Chris Dumez.
+
+        * TestWebKitAPI/TestWebKitAPI.xcodeproj/project.pbxproj:
+        * TestWebKitAPI/Tests/WebKit2Cocoa/EmptyGrandfatheredResourceLoadStatistics.plist: Added.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/ResourceLoadStatistics.mm: Added.
+        (TEST):
+
+2017-07-25  Matthew Stewart  <matthew_r_stewart@apple.com>
+
+        Fix autoinstaller failing on autoinstall_everything
+        https://bugs.webkit.org/show_bug.cgi?id=174830
+
+        Reviewed by Joseph Pecoraro.
+
+        * Scripts/webkitpy/thirdparty/__init__.py:
+        (AutoinstallImportHook.find_module):
+        (AutoinstallImportHook.install_chromedriver):
+        (AutoinstallImportHook.install_geckodriver):
+        (AutoinstallImportHook._install_chromedriver): Deleted.
+        (AutoinstallImportHook._install_geckodriver): Deleted.
+
+2017-07-25  Jonathan Bedard  <jbedard@apple.com>
+
+        Replace --runtime with something for both ios-simulator and ios-device
+        https://bugs.webkit.org/show_bug.cgi?id=173775
+        <rdar://problem/32952164>
+
+        Reviewed by Aakash Jain.
+
+        Add --version flag for both iOS simulator and iOS device.
+
+        * Scripts/webkitpy/layout_tests/run_webkit_tests.py:
+        (parse_args): Add --version flag and move --no-install.
+        * Scripts/webkitpy/port/factory.py:
+        (platform_options): Move --no-intall to run_webkit_tests.py.
+        * Scripts/webkitpy/port/ios.py:
+        (IOSPort):
+        (IOSPort._is_valid_ios_version): Check that the provided version string is legal.
+        (IOSPort.get_option): If accessing the iOS version, check that it is a valid version string.
+        * Scripts/webkitpy/port/ios_device.py:
+        (IOSDevicePort.ios_version): Consult --version flag before checking connected
+        devices for iOS version.
+        * Scripts/webkitpy/port/ios_device_unittest.py:
+        (IOSDeviceTest.make_port): Set --version option so that we can generate test
+        expectation paths without devices connected.
+        (IOSDeviceTest.test_additional_platform_directory): Deleted.
+        (IOSDeviceTest.test_baseline_searchpath): Deleted.
+        (IOSDeviceTest.test_expectations_ordering): Deleted.
+        * Scripts/webkitpy/port/ios_simulator.py:
+        (IOSSimulatorPort.simulator_runtime): If no runtime is specified, use the --version
+        flag to specify a runtime.
+        (IOSSimulatorPort.ios_version): First check the --version flag, then the --runtime
+        flag and then use the default runtime.
+
 2017-07-25  Carlos Garcia Campos  <cgarcia@igalia.com>
 
         [GTK] TestWebKitAPI tests are no longer built since the WebKit2 rename

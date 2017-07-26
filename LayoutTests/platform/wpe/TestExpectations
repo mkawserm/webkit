@@ -76,7 +76,6 @@ Bug(WPE) canvas/philip/tests/2d.composite.operation.darker.html [ Failure ]
 Bug(WPE) canvas/philip/tests/2d.drawImage.animated.poster.html [ Failure ]
 Bug(WPE) canvas/philip/tests/2d.drawImage.broken.html [ Failure ]
 Bug(WPE) canvas/philip/tests/2d.drawImage.outsidesource.html [ Failure ]
-Bug(WPE) canvas/philip/tests/2d.missingargs.html [ Failure ]
 Bug(WPE) canvas/philip/tests/2d.pattern.animated.gif.html [ Failure ]
 Bug(WPE) canvas/philip/tests/2d.text.draw.baseline.bottom.html [ Failure ]
 Bug(WPE) canvas/philip/tests/2d.text.draw.baseline.hanging.html [ Failure ]
@@ -179,11 +178,6 @@ webkit.org/b/169917 webgl/1.0.2/conformance/glsl/misc/shader-uniform-packing-res
 webkit.org/b/169917 webgl/1.0.2/conformance/glsl/misc/shader-with-non-reserved-words.html [ Slow ]
 webkit.org/b/169917 webgl/1.0.3/conformance/rendering/many-draw-calls.html [ Slow ]
 
-# WebGL2
-Bug(WPE) webgl/webgl-vertex-array-object-defined.html [ Failure ]
-Bug(WPE) webgl/webgl2-rendering-context-defined.html [ Failure ]
-Bug(WPE) webgl/webgl2-rendering-context-obtain.html [ Failure ]
-
 # security/
 # Require EventSender support
 Bug(WPE) security/contentSecurityPolicy/image-with-blob-url-allowed-by-img-src-star-with-AllowContentSecurityPolicySourceStarToMatchAnyProtocol-enabled.html [ Skip ]
@@ -225,6 +219,8 @@ Bug(WPE) fast/dynamic/window-resize-scrollbars-test.html [ Timeout ]
 
 Bug(WPE) fast/encoding [ Pass ]
 Bug(WPE) fast/encoding/mailto-always-utf-8.html [ Timeout ]
+
+fast/events/constructors/keyboard-event-constructor.html [ Pass ]
 
 Bug(WPE) fast/innerHTML [ Pass ]
 Bug(WPE) fast/innerHTML/001.html [ ImageOnlyFailure ]
