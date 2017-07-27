@@ -1,3 +1,179 @@
+2017-07-26  Brady Eidson  <beidson@apple.com>
+
+        ResourceLoadStatistics API tests fail on El Capitan.
+        https://bugs.webkit.org/show_bug.cgi?id=174877
+
+        Reviewed by Chris Dumez.
+
+        Always install the testing callback.
+
+        * UIProcess/WebsiteData/WebsiteDataStore.cpp:
+        (WebKit::WebsiteDataStore::enableResourceLoadStatisticsAndSetTestingCallback):
+
+2017-07-26  Tim Horton  <timothy_horton@apple.com>
+
+        REGRESSION (r211160): Can't pinch to zoom unlocked encrypted PDFs in WKWebView
+        https://bugs.webkit.org/show_bug.cgi?id=174881
+        <rdar://problem/33556312>
+
+        Reviewed by Andy Estes.
+
+        * UIProcess/API/Cocoa/WKWebView.mm:
+        (-[WKWebView _hidePasswordView]):
+        WKPasswordView saves and restores a bunch of scroll view properties, including
+        those relating to zoom limits. The restoration happens in -[WKPasswordView hide],
+        which is never called. Instead, the code added in r211160 just calls
+        removeFromSuperview after unlocking, never restoring the old zoom limits,
+        causing the then fully unlocked PDF to not be zoomable. Fix this by calling
+        -hide instead of -removeFromSuperview (which -hide also calls).
+
+2017-07-26  Brady Eidson  <beidson@apple.com>
+
+        Rename {Web/UI}Process/Storage to {Web/UI}Process/WebStorage.
+        https://bugs.webkit.org/show_bug.cgi?id=174871
+
+        Reviewed by Chris Dumez.
+
+        The standard these directories help implement is the "Web Storage" standard.
+        "Storage" is too general of a word that we have plans to start using in other contexts soon.
+
+        * CMakeLists.txt:
+        * DerivedSources.make:
+        * PlatformGTK.cmake:
+        * PlatformMac.cmake:
+        * PlatformWPE.cmake:
+        * WebKit.xcodeproj/project.pbxproj:
+
+        * UIProcess/ResourceLoadStatisticsPersistentStorage.cpp: Renamed from Source/WebKit/UIProcess/Storage/ResourceLoadStatisticsPersistentStorage.cpp.
+        * UIProcess/ResourceLoadStatisticsPersistentStorage.h: Renamed from Source/WebKit/UIProcess/Storage/ResourceLoadStatisticsPersistentStorage.h.
+        * UIProcess/WebStorage/LocalStorageDatabase.cpp: Renamed from Source/WebKit/UIProcess/Storage/LocalStorageDatabase.cpp.
+        * UIProcess/WebStorage/LocalStorageDatabase.h: Renamed from Source/WebKit/UIProcess/Storage/LocalStorageDatabase.h.
+        * UIProcess/WebStorage/LocalStorageDatabaseTracker.cpp: Renamed from Source/WebKit/UIProcess/Storage/LocalStorageDatabaseTracker.cpp.
+        * UIProcess/WebStorage/LocalStorageDatabaseTracker.h: Renamed from Source/WebKit/UIProcess/Storage/LocalStorageDatabaseTracker.h.
+        * UIProcess/WebStorage/StorageManager.cpp: Renamed from Source/WebKit/UIProcess/Storage/StorageManager.cpp.
+        * UIProcess/WebStorage/StorageManager.h: Renamed from Source/WebKit/UIProcess/Storage/StorageManager.h.
+        * UIProcess/WebStorage/StorageManager.messages.in: Renamed from Source/WebKit/UIProcess/Storage/StorageManager.messages.in.
+        * UIProcess/WebStorage/ios/LocalStorageDatabaseTrackerIOS.mm: Renamed from Source/WebKit/UIProcess/Storage/ios/LocalStorageDatabaseTrackerIOS.mm.
+        * UIProcess/ios/ResourceLoadStatisticsPersistentStorageIOS.mm: Renamed from Source/WebKit/UIProcess/Storage/ios/ResourceLoadStatisticsPersistentStorageIOS.mm.
+
+        * WebProcess/WebStorage/StorageAreaImpl.cpp: Renamed from Source/WebKit/WebProcess/Storage/StorageAreaImpl.cpp.
+        * WebProcess/WebStorage/StorageAreaImpl.h: Renamed from Source/WebKit/WebProcess/Storage/StorageAreaImpl.h.
+        * WebProcess/WebStorage/StorageAreaMap.cpp: Renamed from Source/WebKit/WebProcess/Storage/StorageAreaMap.cpp.
+        * WebProcess/WebStorage/StorageAreaMap.h: Renamed from Source/WebKit/WebProcess/Storage/StorageAreaMap.h.
+        * WebProcess/WebStorage/StorageAreaMap.messages.in: Renamed from Source/WebKit/WebProcess/Storage/StorageAreaMap.messages.in.
+        * WebProcess/WebStorage/StorageNamespaceImpl.cpp: Renamed from Source/WebKit/WebProcess/Storage/StorageNamespaceImpl.cpp.
+        * WebProcess/WebStorage/StorageNamespaceImpl.h: Renamed from Source/WebKit/WebProcess/Storage/StorageNamespaceImpl.h.
+        * WebProcess/WebStorage/WebStorageNamespaceProvider.cpp: Renamed from Source/WebKit/WebProcess/Storage/WebStorageNamespaceProvider.cpp.
+        * WebProcess/WebStorage/WebStorageNamespaceProvider.h: Renamed from Source/WebKit/WebProcess/Storage/WebStorageNamespaceProvider.h.
+
+2017-07-26  Brady Eidson  <beidson@apple.com>
+
+        Remove DATABASE_PROCESS build flag.
+        https://bugs.webkit.org/show_bug.cgi?id=174868
+
+        Reviewed by Andy Estes.
+
+        * CMakeLists.txt:
+        * DatabaseProcess/DatabaseProcess.cpp:
+        * DatabaseProcess/DatabaseProcess.h:
+        * DatabaseProcess/DatabaseProcess.messages.in:
+        * DatabaseProcess/DatabaseToWebProcessConnection.cpp:
+        * DatabaseProcess/DatabaseToWebProcessConnection.h:
+        * DatabaseProcess/DatabaseToWebProcessConnection.messages.in:
+        * DatabaseProcess/IndexedDB/WebIDBConnectionToClient.messages.in:
+        * DatabaseProcess/gtk/DatabaseProcessMainGtk.cpp:
+        * DatabaseProcess/ios/DatabaseProcessIOS.mm:
+        * DatabaseProcess/mac/DatabaseProcessMac.mm:
+        * DatabaseProcess/unix/DatabaseProcessMainUnix.h:
+        * Shared/Databases/DatabaseProcessCreationParameters.cpp:
+        * Shared/Databases/DatabaseProcessCreationParameters.h:
+        * Shared/ProcessExecutablePath.h:
+        * Shared/gtk/ProcessExecutablePathGtk.cpp:
+        (WebKit::executablePathOfDatabaseProcess):
+        * Shared/wpe/ProcessExecutablePathWPE.cpp:
+        (WebKit::executablePathOfDatabaseProcess):
+        * UIProcess/ChildProcessProxy.cpp:
+        (WebKit::ChildProcessProxy::getLaunchOptions):
+        * UIProcess/Databases/DatabaseProcessProxy.cpp:
+        * UIProcess/Databases/DatabaseProcessProxy.h:
+        * UIProcess/Databases/DatabaseProcessProxy.messages.in:
+        * UIProcess/Launcher/ProcessLauncher.h:
+        * UIProcess/Launcher/gtk/ProcessLauncherGtk.cpp:
+        (WebKit::ProcessLauncher::launchProcess):
+        * UIProcess/Launcher/mac/ProcessLauncherMac.mm:
+        (WebKit::serviceName):
+        * UIProcess/Launcher/wpe/ProcessLauncherWPE.cpp:
+        (WebKit::ProcessLauncher::launchProcess):
+        * UIProcess/Network/NetworkProcessProxy.cpp:
+        (WebKit::NetworkProcessProxy::grantSandboxExtensionsToDatabaseProcessForBlobs):
+        * UIProcess/WebProcessPool.cpp:
+        (WebKit::WebProcessPool::databaseProcessCrashed):
+        (WebKit::WebProcessPool::databaseProcessIdentifier):
+        (WebKit::WebProcessPool::terminateDatabaseProcess):
+        * UIProcess/WebProcessPool.h:
+        (WebKit::WebProcessPool::sendToDatabaseProcessRelaunchingIfNecessary):
+        * UIProcess/WebProcessProxy.cpp:
+        (WebKit::WebProcessProxy::getDatabaseProcessConnection):
+        * UIProcess/WebProcessProxy.h:
+        * UIProcess/WebProcessProxy.messages.in:
+        * UIProcess/WebsiteData/WebsiteDataStore.cpp:
+        (WebKit::WebsiteDataStore::fetchDataAndApply):
+        (WebKit::WebsiteDataStore::removeData):
+        * WebKit2Prefix.h:
+        * WebProcess/Databases/IndexedDB/WebIDBConnectionToServer.messages.in:
+        * WebProcess/Databases/WebToDatabaseProcessConnection.cpp:
+        * WebProcess/Databases/WebToDatabaseProcessConnection.h:
+        * WebProcess/WebProcess.cpp:
+        * WebProcess/WebProcess.h:
+
+2017-07-26  Brady Eidson  <beidson@apple.com>
+
+        Add test to verify certain child processes are not launched as a side effect of enabling ResourceLoadStatistics.
+        https://bugs.webkit.org/show_bug.cgi?id=174851
+
+        Reviewed by Chris Dumez.
+
+        * UIProcess/API/Cocoa/WKProcessPool.mm:
+        (-[WKProcessPool _databaseProcessIdentifier]):
+        (-[WKProcessPool _pluginProcessCount]):
+        * UIProcess/API/Cocoa/WKProcessPoolPrivate.h:
+
+        * UIProcess/Plugins/PluginProcessManager.h:
+        (WebKit::PluginProcessManager::pluginProcesses):
+
+2017-07-26  Brian Burg  <bburg@apple.com>
+
+        Remove WEB_TIMING feature flag
+        https://bugs.webkit.org/show_bug.cgi?id=174795
+
+        Reviewed by Alex Christensen.
+
+        * Configurations/FeatureDefines.xcconfig:
+        * NetworkProcess/soup/NetworkDataTaskSoup.cpp:
+        (WebKit::NetworkDataTaskSoup::NetworkDataTaskSoup):
+        (WebKit::NetworkDataTaskSoup::createRequest):
+        (WebKit::NetworkDataTaskSoup::didSendRequest):
+        (WebKit::NetworkDataTaskSoup::dispatchDidReceiveResponse):
+        (WebKit::NetworkDataTaskSoup::dispatchDidCompleteWithError):
+        (WebKit::NetworkDataTaskSoup::continueHTTPRedirection):
+        (WebKit::NetworkDataTaskSoup::didGetHeaders):
+        (WebKit::NetworkDataTaskSoup::didRestart):
+        * NetworkProcess/soup/NetworkDataTaskSoup.h:
+
+2017-07-26  Brian Burg  <bburg@apple.com>
+
+        Use SandboxExtension::HandleArray when sending extensions for file uploads to the web process
+        https://bugs.webkit.org/show_bug.cgi?id=174828
+
+        Reviewed by Tim Horton.
+
+        In the previous change I forgot to hoist the HandleArray and message-send out of the
+        loop, so the code wasn't actually sending fewer messages. That's fixed now.
+
+        * UIProcess/WebPageProxy.cpp:
+        (WebKit::WebPageProxy::didChooseFilesForOpenPanelWithDisplayStringAndIcon):
+        (WebKit::WebPageProxy::didChooseFilesForOpenPanel):
+
 2017-07-26  Zan Dobersek  <zdobersek@igalia.com>
 
         Unreviewed. Fix a compiler warning that springs up when

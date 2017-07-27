@@ -1,3 +1,82 @@
+2017-07-26  Devin Rousso  <drousso@apple.com>
+
+        Uncaught Exception: undefined is not an object (evaluating 'this._memoryRow.value = Number.bytesToString(this._canvas.memoryCost)')
+        https://bugs.webkit.org/show_bug.cgi?id=174823
+
+        Reviewed by Joseph Pecoraro.
+
+        * UserInterface/Views/CanvasDetailsSidebarPanel.js:
+        (WebInspector.CanvasDetailsSidebarPanel.prototype._refreshIdentitySection):
+        (WebInspector.CanvasDetailsSidebarPanel.prototype._refreshSourceSection):
+        (WebInspector.CanvasDetailsSidebarPanel.prototype._refreshAttributesSection):
+        (WebInspector.CanvasDetailsSidebarPanel.prototype._refreshCSSCanvasSection):
+        (WebInspector.CanvasDetailsSidebarPanel.prototype._formatMemoryRow):
+        Early return if the view has not called initialLayout, as the rows might not have been
+        constructed yet.
+
+        * UserInterface/Views/View.js:
+        (WebInspector.View.prototype.get didInitialLayout): Added.
+
+2017-07-26  Devin Rousso  <drousso@apple.com>
+
+        Web Inspector: create protocol for recording Canvas contexts
+        https://bugs.webkit.org/show_bug.cgi?id=174481
+
+        Reviewed by Joseph Pecoraro.
+
+        Create model objects that effectively mirror the protocol objects sent for Canvas recordings.
+
+        * .eslintrc:
+        * UserInterface/Main.html:
+        * UserInterface/Test.html:
+
+        * UserInterface/Controllers/CanvasManager.js:
+        (WebInspector.CanvasManager.prototype.recordingFinished):
+        * UserInterface/Protocol/CanvasObserver.js:
+        (WebInspector.CanvasObserver.prototype.recordingFinished):
+
+        * UserInterface/Models/Recording.js: Added.
+        (WebInspector.Recording):
+        (WebInspector.Recording.fromPayload):
+        (WebInspector.Recording.prototype.get type):
+        (WebInspector.Recording.prototype.get initialState):
+        (WebInspector.Recording.prototype.get frames):
+        (WebInspector.Recording.prototype.get data):
+        (WebInspector.Recording.prototype.toJSON):
+
+        * UserInterface/Models/RecordingAction.js: Added.
+        (WebInspector.RecordingAction):
+        (WebInspector.RecordingAction.fromPayload):
+        (WebInspector.RecordingAction.prototype.get name):
+        (WebInspector.RecordingAction.prototype.get parameters):
+        (WebInspector.RecordingAction.prototype.toJSON):
+
+        * UserInterface/Models/RecordingFrame.js: Added.
+        (WebInspector.RecordingFrame):
+        (WebInspector.RecordingFrame.fromPayload):
+        (WebInspector.RecordingFrame.prototype.get actions):
+        (WebInspector.RecordingFrame.prototype.get incomplete):
+        (WebInspector.RecordingFrame.prototype.toJSON):
+
+2017-07-26  Brian Burg  <bburg@apple.com>
+
+        Remove WEB_TIMING feature flag
+        https://bugs.webkit.org/show_bug.cgi?id=174795
+
+        Reviewed by Alex Christensen.
+
+        Remove fallback for ports that lack WEB_TIMING.
+
+        * UserInterface/Base/Utilities.js:
+        (timestamp): Deleted.
+        * UserInterface/Protocol/Connection.js:
+        (InspectorBackend.Connection.prototype._dispatchResponse):
+        (InspectorBackend.Connection.prototype._dispatchEvent):
+        (InspectorBackend.Connection.prototype._sendCommandToBackendWithCallback):
+        (InspectorBackend.Connection.prototype._sendCommandToBackendExpectingPromise):
+        * UserInterface/Protocol/MessageDispatcher.js:
+        (WebInspector.dispatchNextQueuedMessageFromBackend):
+
 2017-07-25  Joseph Pecoraro  <pecoraro@apple.com>
 
         Web Inspector: Don't output "No message" for multi-value logs like console.log(x, y)
