@@ -152,9 +152,9 @@
 #if PLATFORM(COCOA)
 #include "RemoteLayerTreeDrawingAreaProxy.h"
 #include "RemoteLayerTreeScrollingPerformanceData.h"
+#include "VideoFullscreenManagerProxy.h"
+#include "VideoFullscreenManagerProxyMessages.h"
 #include "ViewSnapshotStore.h"
-#include "WebVideoFullscreenManagerProxy.h"
-#include "WebVideoFullscreenManagerProxyMessages.h"
 #include <WebCore/MachSendRight.h>
 #include <WebCore/RunLoopObserver.h>
 #include <WebCore/TextIndicatorWindow.h>
@@ -180,7 +180,7 @@
 #endif
 
 #if PLATFORM(IOS) || (PLATFORM(MAC) && ENABLE(VIDEO_PRESENTATION_MODE))
-#include "WebPlaybackSessionManagerProxy.h"
+#include "PlaybackSessionManagerProxy.h"
 #endif
 
 #if ENABLE(MEDIA_STREAM)
@@ -394,8 +394,8 @@ WebPageProxy::WebPageProxy(PageClient& pageClient, WebProcessProxy& process, uin
     m_fullScreenManager = WebFullScreenManagerProxy::create(*this, m_pageClient.fullScreenManagerProxyClient());
 #endif
 #if PLATFORM(IOS) && HAVE(AVKIT) || (PLATFORM(MAC) && ENABLE(VIDEO_PRESENTATION_MODE))
-    m_playbackSessionManager = WebPlaybackSessionManagerProxy::create(*this);
-    m_videoFullscreenManager = WebVideoFullscreenManagerProxy::create(*this, *m_playbackSessionManager);
+    m_playbackSessionManager = PlaybackSessionManagerProxy::create(*this);
+    m_videoFullscreenManager = VideoFullscreenManagerProxy::create(*this, *m_playbackSessionManager);
 #endif
 
 #if ENABLE(APPLE_PAY)
@@ -636,8 +636,8 @@ void WebPageProxy::reattachToWebProcess()
     m_fullScreenManager = WebFullScreenManagerProxy::create(*this, m_pageClient.fullScreenManagerProxyClient());
 #endif
 #if PLATFORM(IOS) && HAVE(AVKIT) || (PLATFORM(MAC) && ENABLE(VIDEO_PRESENTATION_MODE))
-    m_playbackSessionManager = WebPlaybackSessionManagerProxy::create(*this);
-    m_videoFullscreenManager = WebVideoFullscreenManagerProxy::create(*this, *m_playbackSessionManager);
+    m_playbackSessionManager = PlaybackSessionManagerProxy::create(*this);
+    m_videoFullscreenManager = VideoFullscreenManagerProxy::create(*this, *m_playbackSessionManager);
 #endif
 
 #if ENABLE(APPLE_PAY)
@@ -781,6 +781,8 @@ void WebPageProxy::close()
     // Make sure we don't hold a process assertion after getting closed.
     m_activityToken = nullptr;
 #endif
+
+    stopAllURLSchemeTasks();
 }
 
 bool WebPageProxy::tryClose()
@@ -4325,12 +4327,12 @@ void WebPageProxy::setFullscreenClient(std::unique_ptr<API::FullscreenClient>&& 
 #endif
     
 #if (PLATFORM(IOS) && HAVE(AVKIT)) || (PLATFORM(MAC) && ENABLE(VIDEO_PRESENTATION_MODE))
-WebPlaybackSessionManagerProxy* WebPageProxy::playbackSessionManager()
+PlaybackSessionManagerProxy* WebPageProxy::playbackSessionManager()
 {
     return m_playbackSessionManager.get();
 }
 
-WebVideoFullscreenManagerProxy* WebPageProxy::videoFullscreenManager()
+VideoFullscreenManagerProxy* WebPageProxy::videoFullscreenManager()
 {
     return m_videoFullscreenManager.get();
 }
@@ -5355,6 +5357,18 @@ void WebPageProxy::processDidTerminate(ProcessTerminationReason reason)
         if (auto* automationSession = process().processPool().automationSession())
             automationSession->terminate();
     }
+
+    stopAllURLSchemeTasks();
+}
+
+void WebPageProxy::stopAllURLSchemeTasks()
+{
+    HashSet<WebURLSchemeHandler*> handlers;
+    for (auto& handler : m_urlSchemeHandlersByScheme.values())
+        handlers.add(handler.ptr());
+
+    for (auto* handler : handlers)
+        handler->stopAllTasksForPage(*this);
 }
 
 #if PLATFORM(IOS)

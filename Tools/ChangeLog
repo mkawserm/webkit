@@ -1,3 +1,135 @@
+2017-07-28  JF Bastien  <jfbastien@apple.com>
+
+        Using "auto <function()> -> returnType" breaks prepare-ChangeLog
+        https://bugs.webkit.org/show_bug.cgi?id=174930
+
+        Reviewed by Daniel Bates.
+
+        Teach prepare-ChangeLog about C++ auto arrow return, and while I'm
+        here also teach it about const and volatile overloads. I didn't do
+        reference and rvalue reference overloads because we don't really
+        use them, and the current parser throws away those characters and
+        it doesn't seem worth making it more complex.
+
+        * Scripts/prepare-ChangeLog:
+        (get_function_line_ranges_for_cpp):
+        * Scripts/webkitperl/prepare-ChangeLog_unittest/resources/cpp_unittests-expected.txt:
+        * Scripts/webkitperl/prepare-ChangeLog_unittest/resources/cpp_unittests.cpp:
+        (Foo::Arrow::arrow):
+        (Foo::Arrow::otherArrow):
+        (Foo::Arrow::otherArrow const):
+        (Foo::Arrow::otherArrow volatile):
+        (Foo::Arrow::otherArrow const volatile):
+
+2017-07-28  Adrian Perez de Castro  <aperez@igalia.com>
+
+        [GTK] Building with ENABLE_VIDEO=OFF fails
+        https://bugs.webkit.org/show_bug.cgi?id=174940
+
+        Reviewed by Alex Christensen.
+
+        When GStreamer usage is completely disabled at build time, CMake does not query pkg-config for the GStreamer.
+        This adds missing USE(GSTREAMER) guards in order to make testing code buildable when GStreamer usage is disabled.
+
+        * TestWebKitAPI/Tests/WebKitGLib/WebExtensionTest.cpp:
+        (methodCallCallback): Add missing USE(GSTREAMER) guard.
+
+2017-07-28  Claudio Saavedra  <csaavedra@igalia.com>
+
+        [WPE] Implement EventSenderProxy in WTR
+        https://bugs.webkit.org/show_bug.cgi?id=173419
+
+        Reviewed by Žan Doberšek.
+
+        Add the implementation of EventSenderProxy to the WTR. This
+        allows us to extend the coverage of the test suite in WKWPE.
+
+        * WebKitTestRunner/EventSenderProxy.h:
+        * WebKitTestRunner/PlatformWPE.cmake: Add dependency on
+        libxkbcommon needed to deal with key events.
+        * WebKitTestRunner/wpe/EventSenderProxyWPE.cpp:
+        (WTR::EventSenderProxy::EventSenderProxy):
+        (WTR::senderButtonToWPEButton):
+        (WTR::EventSenderProxy::mouseDown):
+        (WTR::EventSenderProxy::mouseUp):
+        (WTR::EventSenderProxy::mouseMoveTo):
+        (WTR::EventSenderProxy::mouseScrollBy):
+        (WTR::EventSenderProxy::mouseScrollByWithWheelAndMomentumPhases):
+        (WTR::EventSenderProxy::leapForward):
+        (WTR::wkEventModifiersToWPE):
+        (WTR::getXKBKeySymForKeyRef):
+        (WTR::EventSenderProxy::keyDown):
+        (WTR::EventSenderProxy::addTouchPoint):
+        (WTR::EventSenderProxy::updateTouchPoint):
+        (WTR::EventSenderProxy::setTouchModifier):
+        (WTR::EventSenderProxy::setTouchPointRadius):
+        (WTR::EventSenderProxy::getUpdatedTouchEvents):
+        (WTR::EventSenderProxy::removeUpdatedTouchEvents):
+        (WTR::EventSenderProxy::prepareAndDispatchTouchEvent):
+        (WTR::EventSenderProxy::touchStart):
+        (WTR::EventSenderProxy::touchMove):
+        (WTR::EventSenderProxy::touchEnd):
+        (WTR::EventSenderProxy::touchCancel):
+        (WTR::EventSenderProxy::clearTouchPoints):
+        (WTR::EventSenderProxy::releaseTouchPoint):
+        (WTR::EventSenderProxy::cancelTouchPoint):
+
+2017-07-27  Brady Eidson  <beidson@apple.com>
+
+        Part 2 of: Rename DatabaseProcess to StorageProcess.
+        https://bugs.webkit.org/show_bug.cgi?id=174880
+
+        Reviewed by Andy Estes.
+
+        * TestWebKitAPI/Tests/WebKit2Cocoa/IDBDeleteRecovery.mm:
+        * TestWebKitAPI/Tests/WebKit2Cocoa/IDBIndexUpgradeToV2.mm:
+        * TestWebKitAPI/Tests/WebKit2Cocoa/IndexedDBDatabaseProcessKill.mm:
+        * TestWebKitAPI/Tests/WebKit2Cocoa/IndexedDBMultiProcess.mm:
+        * TestWebKitAPI/Tests/WebKit2Cocoa/IndexedDBPersistence.mm:
+        * TestWebKitAPI/Tests/WebKit2Cocoa/ResourceLoadStatistics.mm:
+        * TestWebKitAPI/Tests/WebKit2Cocoa/WebProcessKillIDBCleanup.mm:
+        * TestWebKitAPI/Tests/WebKit2Cocoa/WebsiteDataStoreCustomPaths.mm:
+
+2017-07-26  Mark Lam  <mark.lam@apple.com>
+
+        Add ability to only run specific tests in run-javascriptcore-tests.
+        https://bugs.webkit.org/show_bug.cgi?id=174884
+
+        Reviewed by Saam Barati.
+
+        For example, if we only want to run testapi, we can do so as follows:
+            $ run-javascriptcore-tests --testapi
+
+        Previously, specifying --testapi effectively does nothing because we run all tests
+        by default.  Only --no-testapi had the effect of disabling the test set.  This
+        old behavior for --testapi is not very useful or meaningful.  We're now changing
+        it to mean that we will only run that test.
+
+        With this change, we can also run more than one set of tests.  For example, if we
+        only want to run testmasm and testair, we can do so as follows:
+            $ run-javascriptcore-tests --testmasm --testair
+
+        By default, if no specific test option is specified, run-javascriptcore-tests will
+        run all tests.
+
+        Note that the jsc stress tests (--jsc-stress) are a different set of tests than
+        the mozilla tests (--mozilla-tests) even though both are run via the lower level
+        run-jsc-stress-tests test harness.  Hence, if you only specify one of the tests,
+        the other set will not run.  For example, the following only runs the mozilla tests:
+            $ run-javascriptcore-tests --mozilla-tests
+
+        Note also that --jit-stress-tests is not for choosing a different set of tests.
+        Instead, it is used for determining whether we run JIT'ed test configurations
+        on the jsc stress tests and mozilla tests.  As a result, specifying
+        --jit-stress-tests will not omit other tests.  For example, the following still
+        runs all tests:
+            $ run-javascriptcore-tests --jit-stress-tests
+
+        * Scripts/run-javascriptcore-tests:
+        (defaultStringForTestState):
+        (enableTestOrNot):
+        (runJSCStressTests):
+
 2017-07-26  Mark Lam  <mark.lam@apple.com>
 
         Make run-javascriptcore-test run testair, testb3, and testmasm.

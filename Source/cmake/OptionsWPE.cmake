@@ -2,7 +2,7 @@ include(GNUInstallDirs)
 
 set(PROJECT_VERSION_MAJOR 0)
 set(PROJECT_VERSION_MINOR 0)
-set(PROJECT_VERSION_PATCH 20170427)
+set(PROJECT_VERSION_PATCH 20170728)
 set(PROJECT_VERSION ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH})
 set(WPE_API_VERSION 0.1)
 
@@ -55,7 +55,7 @@ set(WebCore_LIBRARY_TYPE STATIC)
 set(WebKit2_OUTPUT_NAME WPEWebKit)
 set(WebKit2_WebProcess_OUTPUT_NAME WPEWebProcess)
 set(WebKit2_NetworkProcess_OUTPUT_NAME WPENetworkProcess)
-set(WebKit2_DatabaseProcess_OUTPUT_NAME WPEDatabaseProcess)
+set(WebKit2_StorageProcess_OUTPUT_NAME WPEStorageProcess)
 
 find_package(ICU REQUIRED)
 find_package(Threads REQUIRED)

@@ -1,3 +1,758 @@
+2017-07-28  Myles C. Maxfield  <mmaxfield@apple.com>
+
+        [macOS] Reeder's defaults font is Times instead of San Francisco
+        https://bugs.webkit.org/show_bug.cgi?id=174885
+        <rdar://problem/33462483>
+
+        Reviewed by Simon Fraser.
+
+        Reeder uses explicit dot-prefixed names in its source code. Within Core Text,
+        dot-prefixed names cannot be matched case insensitively. The solution is to
+        not case-fold these family names, and to make our caches case sensitive for
+        these special names.
+
+        Tests: fast/text/font-lookup-dot-prefix-case-sensitive-2.html
+               fast/text/font-lookup-dot-prefix-case-sensitive.html
+
+        * platform/graphics/FontCache.cpp:
+        (WebCore::FontPlatformDataCacheKey::operator==):
+        (WebCore::FontPlatformDataCacheKeyHash::hash):
+        * platform/graphics/FontCascade.cpp:
+        (WebCore::keysMatch):
+        (WebCore::computeFontCascadeCacheHash):
+        * platform/graphics/FontDescription.cpp:
+        (WebCore::FontCascadeDescription::familyNamesAreEqual):
+        (WebCore::FontCascadeDescription::familyNameHash):
+        (WebCore::FontCascadeDescription::foldedFamilyName):
+        * platform/graphics/FontDescription.h:
+        * platform/graphics/cocoa/FontCacheCoreText.cpp:
+        (WebCore::FontDatabase::fontForPostScriptName):
+
+2017-07-28  Devin Rousso  <drousso@apple.com>
+
+        Web Inspector: Record actions performed on CanvasRenderingContext2D
+        https://bugs.webkit.org/show_bug.cgi?id=174482
+
+        Reviewed by Joseph Pecoraro.
+
+        Tests: inspector/canvas/recording-2d.html
+               inspector/canvas/recording.html
+
+        * html/canvas/CanvasRenderingContext2D.idl:
+        Add CallTracingCallback to interface to record all API calls.
+
+        * html/HTMLCanvasElement.cpp:
+        (WebCore::HTMLCanvasElement::paint):
+        If a recording is active, mark the current frame as completed.
+
+        * bindings/scripts/CodeGeneratorJS.pm:
+        (GenerateAttributeGetterBodyDefinition):
+        (GenerateAttributeSetterBodyDefinition):
+        (GenerateImplementationFunctionCall):
+        (GenerateCallTracerParameter):
+        (GenerateCallTracer):
+        * bindings/scripts/test/TestCallTracer.idl:
+        * bindings/scripts/test/JS/JSTestCallTracer.cpp:
+        (WebCore::setJSTestCallTracerTestAttributeInterfaceSetter):
+        (WebCore::setJSTestCallTracerTestAttributeSpecifiedSetter):
+        (WebCore::jsTestCallTracerTestAttributeWithVariantGetter):
+        (WebCore::jsTestCallTracerTestAttributeWithVariant):
+        (WebCore::setJSTestCallTracerTestAttributeWithVariantSetter):
+        (WebCore::setJSTestCallTracerTestAttributeWithVariant):
+        (WebCore::jsTestCallTracerPrototypeFunctionTestOperationInterfaceBody):
+        (WebCore::jsTestCallTracerPrototypeFunctionTestOperationSpecifiedBody):
+        (WebCore::jsTestCallTracerPrototypeFunctionTestOperationWithArgumentsBody):
+        (WebCore::jsTestCallTracerPrototypeFunctionTestOperationWithNullableArgumentBody):
+        (WebCore::jsTestCallTracerPrototypeFunctionTestOperationWithVariantArgumentBody):
+        (WebCore::jsTestCallTracerPrototypeFunctionTestOperationWithVariantArgument):
+        * inspector/InspectorCanvas.h:
+        * inspector/InspectorCanvas.cpp:
+        (WebCore::InspectorCanvas::recordAction):
+        (WebCore::InspectorCanvas::buildAction):
+        Change CallTracer IDL generation to flatten any variants so that all types for the
+        parameters of an action are able to be listed in a single variant. This prevents possible
+        ambiguity when constructing the variant, as they require that exactly one type be
+        constructible and a sub-variant might not satisfy that condition. This was only an issue for
+        older mac SDKs.
+
+        * bindings/js/CallTracer.h:
+        * bindings/js/CallTracer.cpp:
+        (WebCore::CallTracer::recordCanvasAction):
+        * bindings/js/CallTracerTypes.h:
+        * inspector/InspectorCanvasAgent.h:
+        * inspector/InspectorCanvasAgent.cpp:
+        (WebCore::InspectorCanvasAgent::recordCanvasAction):
+        * inspector/InspectorInstrumentation.h:
+        * inspector/InspectorInstrumentation.cpp:
+        (WebCore::InspectorInstrumentation::recordCanvasAction):
+        (WebCore::InspectorInstrumentation::recordCanvasActionImpl):
+        Rename CanvasActionParameterVariant to RecordCanvasActionVariant to match what is expected by
+        the IDL generator. Also remove unnecessary includes now that they are in CallTracerTypes.h.
+
+        * CMakeLists.txt:
+        * bindings/js/JSBindingsAllInOne.cpp:
+        Add CallTracer for CMake builds.
+
+2017-07-28  Sam Weinig  <sam@webkit.org>
+
+        [WebIDL] Split-up and cleanup Fetch IDL files in preparation for removing unnecessary js builtins
+        https://bugs.webkit.org/show_bug.cgi?id=174915
+
+        Reviewed by Alex Christensen.
+
+        - Split FetchRequest enums and Init dictionary out of FetchRequest so they
+          can be used from other files like WorkerGlobalScopeFetch and DOMWindowFetch.
+        - Add missing FetchResponseInit. Currently unused but will be in a subsequent patch.
+        - Add and update comments about missing properties and functions.
+
+        * CMakeLists.txt:
+        * DerivedSources.make:
+        * WebCore.xcodeproj/project.pbxproj:
+        * Modules/fetch/DOMWindowFetch.idl:
+        * Modules/fetch/FetchBody.idl:
+        * Modules/fetch/FetchBodyOwner.h:
+        * Modules/fetch/FetchHeaders.h:
+        * Modules/fetch/FetchHeaders.idl:
+        * Modules/fetch/FetchReferrerPolicy.h: Added.
+        * Modules/fetch/FetchReferrerPolicy.idl: Added.
+        * Modules/fetch/FetchRequest.h:
+        * Modules/fetch/FetchRequest.idl:
+        * Modules/fetch/FetchRequestCache.h: Added.
+        * Modules/fetch/FetchRequestCache.idl: Added.
+        * Modules/fetch/FetchRequestCredentials.h: Added.
+        * Modules/fetch/FetchRequestCredentials.idl: Added.
+        * Modules/fetch/FetchRequestInit.h: Added.
+        * Modules/fetch/FetchRequestInit.idl: Added.
+        * Modules/fetch/FetchRequestMode.h: Added.
+        * Modules/fetch/FetchRequestMode.idl: Added.
+        * Modules/fetch/FetchRequestRedirect.h: Added.
+        * Modules/fetch/FetchRequestRedirect.idl: Added.
+        * Modules/fetch/FetchResponse.h:
+        * Modules/fetch/FetchResponse.idl:
+        * Modules/fetch/WorkerGlobalScopeFetch.idl:
+
+2017-07-28  Myles C. Maxfield  <mmaxfield@apple.com>
+
+        REGRESSION(r216944): Fallback fonts erroneously visible when the primary font is loading
+        https://bugs.webkit.org/show_bug.cgi?id=174772
+        <rdar://problem/33267643>
+
+        Reviewed by Simon Fraser.
+
+        During a font load, we try pretty hard to find a font to use that isn't the
+        last resort font (which happens to be Times). We do this by iterating through
+        all the fonts in the font-family list, as well as through all the relevant
+        @font-face blocks which share the requested font family name. 
+
+        Unfortunately, if we find one of these fallback fonts, we were simply using it
+        directly, which means that it was being drawn as visible (because the
+        visibility setting lives inside the Font object). Instead, we should carry the
+        invisibility setting from the interstitial font to this used fallback font.
+
+        This patch is an extension of r219221, which fixed the problem only for system
+        fallback fonts. This patch adopts the same methodology to all fallback fonts.
+
+        Test: http/tests/webfont/font-loading-system-fallback-visibility-FontRanges.html
+
+        * platform/graphics/FontCascadeFonts.cpp:
+        (WebCore::FontCascadeFonts::glyphDataForVariant):
+        (WebCore::glyphPageFromFontRanges):
+        * platform/graphics/FontRanges.cpp:
+        (WebCore::FontRanges::glyphDataForCharacter):
+
+2017-07-28  Frederic Wang  <fwang@igalia.cpm>
+
+        Fix typo in scrollPositionChangedViaDelegatedScrolling
+        https://bugs.webkit.org/show_bug.cgi?id=174937
+
+        Reviewed by Wenson Hsieh.
+
+        No new tests, fix typo in the inUserInteraction parameter.
+
+        * page/scrolling/ScrollingTree.cpp:
+        (WebCore::ScrollingTree::scrollPositionChangedViaDelegatedScrolling):
+        * page/scrolling/ScrollingTree.h:
+
+2017-07-28  Wenson Hsieh  <wenson_hsieh@apple.com>
+
+        [iOS DnD] [WK1] Snapshots generated using -[DOMRange renderImageForcingBlackText:] are upside down
+        https://bugs.webkit.org/show_bug.cgi?id=174928
+        <rdar://problem/33584280>
+
+        Reviewed by Tim Horton.
+
+        Pulls the implementation of createDragImageForRange out into DragImageIOS, and use TextIndicator to generate a
+        snapshot instead of FrameSelection's snapshotting utilities. This makes snapshotting a DOMRange behave the same
+        way as snapshotting a dragged selection.
+
+        No way of testing TextIndicator-based snapshotting yet.
+
+        * platform/DragImage.cpp:
+
+        Guard createDragImageForRange for !PLATFORM(IOS).
+
+        * platform/ios/DragImageIOS.mm:
+        (WebCore::createDragImageForSelection):
+
+        Add a FIXME to point out that having an additional context flip inside the UIGraphicsImageRenderer block results
+        in an upside-down drag image being returned from createDragImageFromImage. This image is being flipped elsewhere
+        in drag initiation code, which eventually results in the correct orientation; we'll need further investigation
+        to remove this extraneous flip.
+
+        (WebCore::createDragImageForRange):
+
+2017-07-28  Jeremy Jones  <jeremyj@apple.com>
+
+        Remove Web prefix from WebVideoFullscreen and WebPlaybackSession classes.
+        https://bugs.webkit.org/show_bug.cgi?id=174437
+
+        Reviewed by Darin Adler.
+
+        No new tests because no behavior change.
+
+        Remove redundant Web- prefix from classes in WebCore namespace.
+
+        * WebCore.xcodeproj/project.pbxproj:
+        * html/HTMLMediaElement.cpp:
+        * html/HTMLVideoElement.cpp:
+        * platform/cocoa/PlaybackSessionInterface.h: Renamed from Source/WebCore/platform/cocoa/WebPlaybackSessionInterface.h.
+        (WebCore::PlaybackSessionInterface::~PlaybackSessionInterface):
+        * platform/cocoa/PlaybackSessionModel.h: Renamed from Source/WebCore/platform/cocoa/WebPlaybackSessionModel.h.
+        (WebCore::PlaybackSessionModel::~PlaybackSessionModel):
+        (WebCore::PlaybackSessionModelClient::~PlaybackSessionModelClient):
+        (WebCore::PlaybackSessionModelClient::externalPlaybackChanged):
+        * platform/cocoa/PlaybackSessionModelMediaElement.h: Renamed from Source/WebCore/platform/cocoa/WebPlaybackSessionModelMediaElement.h.
+        * platform/cocoa/PlaybackSessionModelMediaElement.mm: Renamed from Source/WebCore/platform/cocoa/WebPlaybackSessionModelMediaElement.mm.
+        * platform/cocoa/VideoFullscreenChangeObserver.h: Renamed from Source/WebCore/platform/cocoa/WebVideoFullscreenChangeObserver.h.
+        (WebCore::VideoFullscreenChangeObserver::~VideoFullscreenChangeObserver):
+        * platform/cocoa/VideoFullscreenModel.h: Renamed from Source/WebCore/platform/cocoa/WebVideoFullscreenModel.h.
+        (WebCore::VideoFullscreenModel::~VideoFullscreenModel):
+        (WebCore::VideoFullscreenModelClient::~VideoFullscreenModelClient):
+        * platform/cocoa/VideoFullscreenModelVideoElement.h: Renamed from Source/WebCore/platform/cocoa/WebVideoFullscreenModelVideoElement.h.
+        (WebCore::VideoFullscreenModelVideoElement::create):
+        * platform/cocoa/VideoFullscreenModelVideoElement.mm: Renamed from Source/WebCore/platform/cocoa/WebVideoFullscreenModelVideoElement.mm.
+        * platform/ios/PlaybackSessionInterfaceAVKit.h: Renamed from Source/WebCore/platform/ios/WebPlaybackSessionInterfaceAVKit.h.
+        * platform/ios/PlaybackSessionInterfaceAVKit.mm: Renamed from Source/WebCore/platform/ios/WebPlaybackSessionInterfaceAVKit.mm.
+        * platform/ios/VideoFullscreenInterfaceAVKit.h: Renamed from Source/WebCore/platform/ios/WebVideoFullscreenInterfaceAVKit.h.
+        * platform/ios/VideoFullscreenInterfaceAVKit.mm: Renamed from Source/WebCore/platform/ios/WebVideoFullscreenInterfaceAVKit.mm.
+        * platform/ios/WebAVPlayerController.h:
+        * platform/ios/WebAVPlayerController.mm:
+        * platform/ios/WebVideoFullscreenControllerAVKit.mm:
+        * platform/mac/PlaybackSessionInterfaceMac.h: Renamed from Source/WebCore/platform/mac/WebPlaybackSessionInterfaceMac.h.
+        * platform/mac/PlaybackSessionInterfaceMac.mm: Renamed from Source/WebCore/platform/mac/WebPlaybackSessionInterfaceMac.mm.
+        * platform/mac/VideoFullscreenInterfaceMac.h: Renamed from Source/WebCore/platform/mac/WebVideoFullscreenInterfaceMac.h.
+        * platform/mac/VideoFullscreenInterfaceMac.mm: Renamed from Source/WebCore/platform/mac/WebVideoFullscreenInterfaceMac.mm.
+        * platform/mac/WebPlaybackControlsManager.h:
+        * platform/mac/WebPlaybackControlsManager.mm:
+
+2017-07-27  Jeremy Jones  <jeremyj@apple.com>
+
+        Don't override _allowsMediaDocumentInlinePlayback in MediaDocument with playsinlineAttr.
+        https://bugs.webkit.org/show_bug.cgi?id=174850
+        rdar://problem/33449903
+
+        Reviewed by Jon Lee.
+
+        This change removes playsinlineAttr from MediaDocument so that it doesn't override the setting
+        from _allowsMediaDocumentInlinePlayback. In its place is an update to requiresFullscreenForVideoPlayback
+        that implements the details of exactly which media documents are still allowed to play inlne.
+
+        Media documents always use a video element; but when there are no video tracks, it has behavior like 
+        an audio element. See media-controller.js isAudio().
+
+        This change preserves this behavior with respect to fullscreen requirements for media document by
+        mirroring the isAudio() check in requiresFullscreenForVideoPlayback.
+
+        * html/MediaDocument.cpp:
+        (WebCore::MediaDocumentParser::createDocumentStructure):
+        * html/MediaElementSession.cpp:
+        (WebCore::MediaElementSession::requiresFullscreenForVideoPlayback):
+
+2017-07-27  Jeremy Jones  <jeremyj@apple.com>
+
+        MediaDocument fullscreen pinch gesture should trigger navigate back.
+        https://bugs.webkit.org/show_bug.cgi?id=174914
+
+        Reviewed by Jon Lee.
+
+        No new tests because only effect is from interaction with platform.
+
+        For media documents, pressing the "done" button on fullscreen video navigates back
+        to the previous page. The same should happen for other gestures that pause playback
+        when returning to inline. This allows the gesture to have the same behavior as the
+        button.
+
+        * platform/ios/WebVideoFullscreenInterfaceAVKit.mm:
+        (WebVideoFullscreenInterfaceAVKit::shouldExitFullscreenWithReason):
+
+2017-07-27  Aaron Chu  <aaron_chu@apple.com>
+
+        AX: VoiceOver silent or skipping over time values on media player.
+        https://bugs.webkit.org/show_bug.cgi?id=174324
+        <rdar://problem/32021784>
+
+        Reviewed by Antoine Quint.
+
+        Added role attribute to modern media controls time lable class so that VoiceOver can access the time label when the media is playing.
+
+        Test Updated: media/modern-media-controls/time-label/time-label.html
+        Test Added: media/modern-media-controls/time-label/ios-time-label.html
+        
+        * Modules/modern-media-controls/controls/time-label.js:
+
+2017-07-27  Yusuke Suzuki  <utatane.tea@gmail.com>
+
+        Hoist DOM binding attribute getter prologue into JavaScriptCore taking advantage of DOMJIT / CheckSubClass
+        https://bugs.webkit.org/show_bug.cgi?id=171637
+
+        Reviewed by Darin Adler.
+
+        We use DOMAttribute. When DOMAttribute is specified, ClassInfo check is performed by JSC side.
+        So, we can drop ClassInfo check from the actual function.
+
+        We also simplify DOMJIT::GetterSetter to make it smaller size.
+
+        WebCore size comparison
+            Before: 48443292
+            After:  48087800 (0.7% reduction)
+
+        Speedometer Scores show 0.8% improvement.
+            Before: 158.9 +- 0.46
+            After:  160.2 +- 0.36
+
+        Dromaeo DOM core Scores show 5.8% improvement.
+                                        Before                   After
+            Total Score:         8424.12runs/s ±1.38%     8911.60runs/s ±1.47%
+              DOM Attributes    12627.27runs/s ±1.87%    14023.17runs/s ±1.87%
+              DOM Modification   1207.82runs/s ±2.48%     1204.21runs/s ±3.05%
+              DOM Query         68068.82runs/s ±0.63%    74273.38runs/s ±0.69%
+              DOM Traversal      1240.07runs/s ±1.96%     1256.64runs/s ±1.77%
+
+        Performance improvement can be explained by the following optimizations.
+
+        1. Type checks are typically eliminated in all the JIT tiers. IC / DFG / FTL can
+           drop type checks since get_by_id operation already performs a structure check
+           which subsumes this type check.
+        2. Direct getter call by CallDOMGetter without creating IC in DFG and FTL.
+
+        * bindings/js/JSDOMAttribute.h:
+        (WebCore::IDLAttribute::get):
+        Add CastedThisErrorBehavior::Assert case. When this is specified, we perform casting without using jsDynamicCast.
+
+        * bindings/scripts/CodeGeneratorJS.pm:
+        (IsAcceleratedDOMAttribute):
+        (GetJSCAttributesForAttribute):
+        (GenerateHeader):
+        (GeneratePropertiesHashTable):
+        (GenerateImplementation):
+        (GenerateAttributeGetterTrampolineDefinition):
+        (GenerateAttributeGetterDefinition):
+        (GenerateCallbackImplementationContent):
+        (GenerateHashTableValueArray):
+        (GenerateHashTable):
+        (GenerateConstructorHelperMethods):
+        Update CodeGeneratorJS to emit DOMAttribute. And DOMJIT::GetterSetter becomes changed to be smaller size.
+
+        * bindings/scripts/test/JS/JSInterfaceName.cpp:
+        (WebCore::JSInterfaceNamePrototype::finishCreation):
+        * bindings/scripts/test/JS/JSMapLike.cpp:
+        (WebCore::JSMapLikePrototype::finishCreation):
+        * bindings/scripts/test/JS/JSReadOnlyMapLike.cpp:
+        (WebCore::JSReadOnlyMapLikePrototype::finishCreation):
+        * bindings/scripts/test/JS/JSTestActiveDOMObject.cpp:
+        (WebCore::JSTestActiveDOMObjectPrototype::finishCreation):
+        (WebCore::jsTestActiveDOMObjectExcitingAttr):
+        * bindings/scripts/test/JS/JSTestCEReactions.cpp:
+        (WebCore::JSTestCEReactionsPrototype::finishCreation):
+        (WebCore::jsTestCEReactionsAttributeWithCEReactions):
+        (WebCore::jsTestCEReactionsReflectAttributeWithCEReactions):
+        (WebCore::jsTestCEReactionsStringifierAttribute):
+        * bindings/scripts/test/JS/JSTestCEReactionsStringifier.cpp:
+        (WebCore::JSTestCEReactionsStringifierPrototype::finishCreation):
+        (WebCore::jsTestCEReactionsStringifierValue):
+        * bindings/scripts/test/JS/JSTestCallTracer.cpp:
+        (WebCore::JSTestCallTracerPrototype::finishCreation):
+        (WebCore::jsTestCallTracerTestAttributeInterface):
+        (WebCore::jsTestCallTracerTestAttributeSpecified):
+        * bindings/scripts/test/JS/JSTestCallbackInterface.cpp:
+        (WebCore::JSTestCallbackInterfaceConstructor::initializeProperties):
+        * bindings/scripts/test/JS/JSTestClassWithJSBuiltinConstructor.cpp:
+        (WebCore::JSTestClassWithJSBuiltinConstructorPrototype::finishCreation):
+        * bindings/scripts/test/JS/JSTestCustomConstructorWithNoInterfaceObject.cpp:
+        (WebCore::JSTestCustomConstructorWithNoInterfaceObjectPrototype::finishCreation):
+        * bindings/scripts/test/JS/JSTestDOMJIT.cpp:
+        (WebCore::JSTestDOMJITPrototype::finishCreation):
+        (WebCore::TestDOMJITAnyAttrDOMJIT::TestDOMJITAnyAttrDOMJIT): Deleted.
+        (WebCore::domJITGetterSetterForTestDOMJITAnyAttr): Deleted.
+        (WebCore::TestDOMJITBooleanAttrDOMJIT::TestDOMJITBooleanAttrDOMJIT): Deleted.
+        (WebCore::domJITGetterSetterForTestDOMJITBooleanAttr): Deleted.
+        (WebCore::TestDOMJITByteAttrDOMJIT::TestDOMJITByteAttrDOMJIT): Deleted.
+        (WebCore::domJITGetterSetterForTestDOMJITByteAttr): Deleted.
+        (WebCore::TestDOMJITOctetAttrDOMJIT::TestDOMJITOctetAttrDOMJIT): Deleted.
+        (WebCore::domJITGetterSetterForTestDOMJITOctetAttr): Deleted.
+        (WebCore::TestDOMJITShortAttrDOMJIT::TestDOMJITShortAttrDOMJIT): Deleted.
+        (WebCore::domJITGetterSetterForTestDOMJITShortAttr): Deleted.
+        (WebCore::TestDOMJITUnsignedShortAttrDOMJIT::TestDOMJITUnsignedShortAttrDOMJIT): Deleted.
+        (WebCore::domJITGetterSetterForTestDOMJITUnsignedShortAttr): Deleted.
+        (WebCore::TestDOMJITLongAttrDOMJIT::TestDOMJITLongAttrDOMJIT): Deleted.
+        (WebCore::domJITGetterSetterForTestDOMJITLongAttr): Deleted.
+        (WebCore::TestDOMJITUnsignedLongAttrDOMJIT::TestDOMJITUnsignedLongAttrDOMJIT): Deleted.
+        (WebCore::domJITGetterSetterForTestDOMJITUnsignedLongAttr): Deleted.
+        (WebCore::TestDOMJITLongLongAttrDOMJIT::TestDOMJITLongLongAttrDOMJIT): Deleted.
+        (WebCore::domJITGetterSetterForTestDOMJITLongLongAttr): Deleted.
+        (WebCore::TestDOMJITUnsignedLongLongAttrDOMJIT::TestDOMJITUnsignedLongLongAttrDOMJIT): Deleted.
+        (WebCore::domJITGetterSetterForTestDOMJITUnsignedLongLongAttr): Deleted.
+        (WebCore::TestDOMJITFloatAttrDOMJIT::TestDOMJITFloatAttrDOMJIT): Deleted.
+        (WebCore::domJITGetterSetterForTestDOMJITFloatAttr): Deleted.
+        (WebCore::TestDOMJITUnrestrictedFloatAttrDOMJIT::TestDOMJITUnrestrictedFloatAttrDOMJIT): Deleted.
+        (WebCore::domJITGetterSetterForTestDOMJITUnrestrictedFloatAttr): Deleted.
+        (WebCore::TestDOMJITDoubleAttrDOMJIT::TestDOMJITDoubleAttrDOMJIT): Deleted.
+        (WebCore::domJITGetterSetterForTestDOMJITDoubleAttr): Deleted.
+        (WebCore::TestDOMJITUnrestrictedDoubleAttrDOMJIT::TestDOMJITUnrestrictedDoubleAttrDOMJIT): Deleted.
+        (WebCore::domJITGetterSetterForTestDOMJITUnrestrictedDoubleAttr): Deleted.
+        (WebCore::TestDOMJITDomStringAttrDOMJIT::TestDOMJITDomStringAttrDOMJIT): Deleted.
+        (WebCore::domJITGetterSetterForTestDOMJITDomStringAttr): Deleted.
+        (WebCore::TestDOMJITByteStringAttrDOMJIT::TestDOMJITByteStringAttrDOMJIT): Deleted.
+        (WebCore::domJITGetterSetterForTestDOMJITByteStringAttr): Deleted.
+        (WebCore::TestDOMJITUsvStringAttrDOMJIT::TestDOMJITUsvStringAttrDOMJIT): Deleted.
+        (WebCore::domJITGetterSetterForTestDOMJITUsvStringAttr): Deleted.
+        (WebCore::TestDOMJITNodeAttrDOMJIT::TestDOMJITNodeAttrDOMJIT): Deleted.
+        (WebCore::domJITGetterSetterForTestDOMJITNodeAttr): Deleted.
+        (WebCore::TestDOMJITBooleanNullableAttrDOMJIT::TestDOMJITBooleanNullableAttrDOMJIT): Deleted.
+        (WebCore::domJITGetterSetterForTestDOMJITBooleanNullableAttr): Deleted.
+        (WebCore::TestDOMJITByteNullableAttrDOMJIT::TestDOMJITByteNullableAttrDOMJIT): Deleted.
+        (WebCore::domJITGetterSetterForTestDOMJITByteNullableAttr): Deleted.
+        (WebCore::TestDOMJITOctetNullableAttrDOMJIT::TestDOMJITOctetNullableAttrDOMJIT): Deleted.
+        (WebCore::domJITGetterSetterForTestDOMJITOctetNullableAttr): Deleted.
+        (WebCore::TestDOMJITShortNullableAttrDOMJIT::TestDOMJITShortNullableAttrDOMJIT): Deleted.
+        (WebCore::domJITGetterSetterForTestDOMJITShortNullableAttr): Deleted.
+        (WebCore::TestDOMJITUnsignedShortNullableAttrDOMJIT::TestDOMJITUnsignedShortNullableAttrDOMJIT): Deleted.
+        (WebCore::domJITGetterSetterForTestDOMJITUnsignedShortNullableAttr): Deleted.
+        (WebCore::TestDOMJITLongNullableAttrDOMJIT::TestDOMJITLongNullableAttrDOMJIT): Deleted.
+        (WebCore::domJITGetterSetterForTestDOMJITLongNullableAttr): Deleted.
+        (WebCore::TestDOMJITUnsignedLongNullableAttrDOMJIT::TestDOMJITUnsignedLongNullableAttrDOMJIT): Deleted.
+        (WebCore::domJITGetterSetterForTestDOMJITUnsignedLongNullableAttr): Deleted.
+        (WebCore::TestDOMJITLongLongNullableAttrDOMJIT::TestDOMJITLongLongNullableAttrDOMJIT): Deleted.
+        (WebCore::domJITGetterSetterForTestDOMJITLongLongNullableAttr): Deleted.
+        (WebCore::TestDOMJITUnsignedLongLongNullableAttrDOMJIT::TestDOMJITUnsignedLongLongNullableAttrDOMJIT): Deleted.
+        (WebCore::domJITGetterSetterForTestDOMJITUnsignedLongLongNullableAttr): Deleted.
+        (WebCore::TestDOMJITFloatNullableAttrDOMJIT::TestDOMJITFloatNullableAttrDOMJIT): Deleted.
+        (WebCore::domJITGetterSetterForTestDOMJITFloatNullableAttr): Deleted.
+        (WebCore::TestDOMJITUnrestrictedFloatNullableAttrDOMJIT::TestDOMJITUnrestrictedFloatNullableAttrDOMJIT): Deleted.
+        (WebCore::domJITGetterSetterForTestDOMJITUnrestrictedFloatNullableAttr): Deleted.
+        (WebCore::TestDOMJITDoubleNullableAttrDOMJIT::TestDOMJITDoubleNullableAttrDOMJIT): Deleted.
+        (WebCore::domJITGetterSetterForTestDOMJITDoubleNullableAttr): Deleted.
+        (WebCore::TestDOMJITUnrestrictedDoubleNullableAttrDOMJIT::TestDOMJITUnrestrictedDoubleNullableAttrDOMJIT): Deleted.
+        (WebCore::domJITGetterSetterForTestDOMJITUnrestrictedDoubleNullableAttr): Deleted.
+        (WebCore::TestDOMJITDomStringNullableAttrDOMJIT::TestDOMJITDomStringNullableAttrDOMJIT): Deleted.
+        (WebCore::domJITGetterSetterForTestDOMJITDomStringNullableAttr): Deleted.
+        (WebCore::TestDOMJITByteStringNullableAttrDOMJIT::TestDOMJITByteStringNullableAttrDOMJIT): Deleted.
+        (WebCore::domJITGetterSetterForTestDOMJITByteStringNullableAttr): Deleted.
+        (WebCore::TestDOMJITUsvStringNullableAttrDOMJIT::TestDOMJITUsvStringNullableAttrDOMJIT): Deleted.
+        (WebCore::domJITGetterSetterForTestDOMJITUsvStringNullableAttr): Deleted.
+        (WebCore::TestDOMJITNodeNullableAttrDOMJIT::TestDOMJITNodeNullableAttrDOMJIT): Deleted.
+        (WebCore::domJITGetterSetterForTestDOMJITNodeNullableAttr): Deleted.
+        * bindings/scripts/test/JS/JSTestDOMJIT.h:
+        * bindings/scripts/test/JS/JSTestEventConstructor.cpp:
+        (WebCore::JSTestEventConstructorPrototype::finishCreation):
+        (WebCore::jsTestEventConstructorAttr1):
+        (WebCore::jsTestEventConstructorAttr2):
+        (WebCore::jsTestEventConstructorAttr3):
+        * bindings/scripts/test/JS/JSTestEventTarget.cpp:
+        (WebCore::JSTestEventTargetPrototype::finishCreation):
+        * bindings/scripts/test/JS/JSTestException.cpp:
+        (WebCore::JSTestExceptionPrototype::finishCreation):
+        (WebCore::jsTestExceptionName):
+        * bindings/scripts/test/JS/JSTestGenerateIsReachable.cpp:
+        (WebCore::JSTestGenerateIsReachablePrototype::finishCreation):
+        (WebCore::jsTestGenerateIsReachableASecretAttribute):
+        * bindings/scripts/test/JS/JSTestGlobalObject.cpp:
+        (WebCore::jsTestGlobalObjectRegularAttribute):
+        * bindings/scripts/test/JS/JSTestIndexedSetterNoIdentifier.cpp:
+        (WebCore::JSTestIndexedSetterNoIdentifierPrototype::finishCreation):
+        * bindings/scripts/test/JS/JSTestIndexedSetterThrowingException.cpp:
+        (WebCore::JSTestIndexedSetterThrowingExceptionPrototype::finishCreation):
+        * bindings/scripts/test/JS/JSTestIndexedSetterWithIdentifier.cpp:
+        (WebCore::JSTestIndexedSetterWithIdentifierPrototype::finishCreation):
+        * bindings/scripts/test/JS/JSTestInterface.cpp:
+        (WebCore::JSTestInterfaceConstructor::initializeProperties):
+        (WebCore::JSTestInterfacePrototype::finishCreation):
+        (WebCore::jsTestInterfaceImplementsStr1):
+        (WebCore::jsTestInterfaceImplementsStr2):
+        (WebCore::jsTestInterfaceImplementsStr3):
+        (WebCore::jsTestInterfaceImplementsNode):
+        (WebCore::jsTestInterfaceSupplementalStr1):
+        (WebCore::jsTestInterfaceSupplementalStr2):
+        (WebCore::jsTestInterfaceSupplementalStr3):
+        (WebCore::jsTestInterfaceSupplementalNode):
+        * bindings/scripts/test/JS/JSTestInterfaceLeadingUnderscore.cpp:
+        (WebCore::JSTestInterfaceLeadingUnderscorePrototype::finishCreation):
+        (WebCore::jsTestInterfaceLeadingUnderscoreReadonly):
+        * bindings/scripts/test/JS/JSTestIterable.cpp:
+        (WebCore::JSTestIterablePrototype::finishCreation):
+        * bindings/scripts/test/JS/JSTestJSBuiltinConstructor.cpp:
+        (WebCore::JSTestJSBuiltinConstructorPrototype::finishCreation):
+        (WebCore::jsTestJSBuiltinConstructorTestAttributeCustom):
+        (WebCore::jsTestJSBuiltinConstructorTestAttributeRWCustom):
+        * bindings/scripts/test/JS/JSTestMediaQueryListListener.cpp:
+        (WebCore::JSTestMediaQueryListListenerPrototype::finishCreation):
+        * bindings/scripts/test/JS/JSTestNamedAndIndexedSetterNoIdentifier.cpp:
+        (WebCore::JSTestNamedAndIndexedSetterNoIdentifierPrototype::finishCreation):
+        * bindings/scripts/test/JS/JSTestNamedAndIndexedSetterThrowingException.cpp:
+        (WebCore::JSTestNamedAndIndexedSetterThrowingExceptionPrototype::finishCreation):
+        * bindings/scripts/test/JS/JSTestNamedAndIndexedSetterWithIdentifier.cpp:
+        (WebCore::JSTestNamedAndIndexedSetterWithIdentifierPrototype::finishCreation):
+        * bindings/scripts/test/JS/JSTestNamedConstructor.cpp:
+        (WebCore::JSTestNamedConstructorPrototype::finishCreation):
+        * bindings/scripts/test/JS/JSTestNamedDeleterNoIdentifier.cpp:
+        (WebCore::JSTestNamedDeleterNoIdentifierPrototype::finishCreation):
+        * bindings/scripts/test/JS/JSTestNamedDeleterThrowingException.cpp:
+        (WebCore::JSTestNamedDeleterThrowingExceptionPrototype::finishCreation):
+        * bindings/scripts/test/JS/JSTestNamedDeleterWithIdentifier.cpp:
+        (WebCore::JSTestNamedDeleterWithIdentifierPrototype::finishCreation):
+        * bindings/scripts/test/JS/JSTestNamedDeleterWithIndexedGetter.cpp:
+        (WebCore::JSTestNamedDeleterWithIndexedGetterPrototype::finishCreation):
+        * bindings/scripts/test/JS/JSTestNamedGetterCallWith.cpp:
+        (WebCore::JSTestNamedGetterCallWithPrototype::finishCreation):
+        * bindings/scripts/test/JS/JSTestNamedGetterNoIdentifier.cpp:
+        (WebCore::JSTestNamedGetterNoIdentifierPrototype::finishCreation):
+        * bindings/scripts/test/JS/JSTestNamedGetterWithIdentifier.cpp:
+        (WebCore::JSTestNamedGetterWithIdentifierPrototype::finishCreation):
+        * bindings/scripts/test/JS/JSTestNamedSetterNoIdentifier.cpp:
+        (WebCore::JSTestNamedSetterNoIdentifierPrototype::finishCreation):
+        * bindings/scripts/test/JS/JSTestNamedSetterThrowingException.cpp:
+        (WebCore::JSTestNamedSetterThrowingExceptionPrototype::finishCreation):
+        * bindings/scripts/test/JS/JSTestNamedSetterWithIdentifier.cpp:
+        (WebCore::JSTestNamedSetterWithIdentifierPrototype::finishCreation):
+        * bindings/scripts/test/JS/JSTestNamedSetterWithIndexedGetter.cpp:
+        (WebCore::JSTestNamedSetterWithIndexedGetterPrototype::finishCreation):
+        * bindings/scripts/test/JS/JSTestNamedSetterWithIndexedGetterAndSetter.cpp:
+        (WebCore::JSTestNamedSetterWithIndexedGetterAndSetterPrototype::finishCreation):
+        * bindings/scripts/test/JS/JSTestNamedSetterWithOverrideBuiltins.cpp:
+        (WebCore::JSTestNamedSetterWithOverrideBuiltinsPrototype::finishCreation):
+        * bindings/scripts/test/JS/JSTestNamedSetterWithUnforgableProperties.cpp:
+        (WebCore::JSTestNamedSetterWithUnforgablePropertiesPrototype::finishCreation):
+        (WebCore::jsTestNamedSetterWithUnforgablePropertiesUnforgeableAttribute):
+        * bindings/scripts/test/JS/JSTestNamedSetterWithUnforgablePropertiesAndOverrideBuiltins.cpp:
+        (WebCore::JSTestNamedSetterWithUnforgablePropertiesAndOverrideBuiltinsPrototype::finishCreation):
+        (WebCore::jsTestNamedSetterWithUnforgablePropertiesAndOverrideBuiltinsUnforgeableAttribute):
+        * bindings/scripts/test/JS/JSTestNode.cpp:
+        (WebCore::JSTestNodePrototype::finishCreation):
+        (WebCore::jsTestNodeName):
+        * bindings/scripts/test/JS/JSTestObj.cpp:
+        (WebCore::JSTestObjConstructor::initializeProperties):
+        (WebCore::JSTestObjPrototype::finishCreation):
+        (WebCore::jsTestObjReadOnlyLongAttr):
+        (WebCore::jsTestObjReadOnlyStringAttr):
+        (WebCore::jsTestObjReadOnlyTestObjAttr):
+        (WebCore::jsTestObjEnumAttr):
+        (WebCore::jsTestObjByteAttr):
+        (WebCore::jsTestObjOctetAttr):
+        (WebCore::jsTestObjShortAttr):
+        (WebCore::jsTestObjClampedShortAttr):
+        (WebCore::jsTestObjEnforceRangeShortAttr):
+        (WebCore::jsTestObjUnsignedShortAttr):
+        (WebCore::jsTestObjLongAttr):
+        (WebCore::jsTestObjLongLongAttr):
+        (WebCore::jsTestObjUnsignedLongLongAttr):
+        (WebCore::jsTestObjStringAttr):
+        (WebCore::jsTestObjUsvstringAttr):
+        (WebCore::jsTestObjTestObjAttr):
+        (WebCore::jsTestObjTestNullableObjAttr):
+        (WebCore::jsTestObjUnforgeableAttr):
+        (WebCore::jsTestObjStringAttrTreatingNullAsEmptyString):
+        (WebCore::jsTestObjUsvstringAttrTreatingNullAsEmptyString):
+        (WebCore::jsTestObjByteStringAttrTreatingNullAsEmptyString):
+        (WebCore::jsTestObjStringLongRecordAttr):
+        (WebCore::jsTestObjUsvstringLongRecordAttr):
+        (WebCore::jsTestObjStringObjRecordAttr):
+        (WebCore::jsTestObjStringNullableObjRecordAttr):
+        (WebCore::jsTestObjDictionaryAttr):
+        (WebCore::jsTestObjNullableDictionaryAttr):
+        (WebCore::jsTestObjAnnotatedTypeInUnionAttr):
+        (WebCore::jsTestObjAnnotatedTypeInSequenceAttr):
+        (WebCore::jsTestObjImplementationEnumAttr):
+        (WebCore::jsTestObjXMLObjAttr):
+        (WebCore::jsTestObjCreate):
+        (WebCore::jsTestObjReflectedStringAttr):
+        (WebCore::jsTestObjReflectedUSVStringAttr):
+        (WebCore::jsTestObjReflectedIntegralAttr):
+        (WebCore::jsTestObjReflectedUnsignedIntegralAttr):
+        (WebCore::jsTestObjReflectedBooleanAttr):
+        (WebCore::jsTestObjReflectedURLAttr):
+        (WebCore::jsTestObjReflectedUSVURLAttr):
+        (WebCore::jsTestObjReflectedCustomIntegralAttr):
+        (WebCore::jsTestObjReflectedCustomBooleanAttr):
+        (WebCore::jsTestObjReflectedCustomURLAttr):
+        (WebCore::jsTestObjEnabledAtRuntimeAttribute):
+        (WebCore::jsTestObjEnabledBySettingAttribute):
+        (WebCore::jsTestObjTypedArrayAttr):
+        (WebCore::jsTestObjAttributeWithGetterException):
+        (WebCore::jsTestObjAttributeWithSetterException):
+        (WebCore::jsTestObjStringAttrWithGetterException):
+        (WebCore::jsTestObjStringAttrWithSetterException):
+        (WebCore::jsTestObjCustomAttr):
+        (WebCore::jsTestObjOnfoo):
+        (WebCore::jsTestObjOnwebkitfoo):
+        (WebCore::jsTestObjWithScriptStateAttribute):
+        (WebCore::jsTestObjWithCallWithAndSetterCallWithAttribute):
+        (WebCore::jsTestObjWithScriptExecutionContextAttribute):
+        (WebCore::jsTestObjWithScriptStateAttributeRaises):
+        (WebCore::jsTestObjWithScriptExecutionContextAttributeRaises):
+        (WebCore::jsTestObjWithScriptExecutionContextAndScriptStateAttribute):
+        (WebCore::jsTestObjWithScriptExecutionContextAndScriptStateAttributeRaises):
+        (WebCore::jsTestObjWithScriptExecutionContextAndScriptStateWithSpacesAttribute):
+        (WebCore::jsTestObjConditionalAttr1):
+        (WebCore::jsTestObjConditionalAttr2):
+        (WebCore::jsTestObjConditionalAttr3):
+        (WebCore::jsTestObjCachedAttribute1):
+        (WebCore::jsTestObjCachedAttribute2):
+        (WebCore::jsTestObjAnyAttribute):
+        (WebCore::jsTestObjObjectAttribute):
+        (WebCore::jsTestObjContentDocument):
+        (WebCore::jsTestObjMutablePoint):
+        (WebCore::jsTestObjStrawberry):
+        (WebCore::jsTestObjDescription):
+        (WebCore::jsTestObjId):
+        (WebCore::jsTestObjHash):
+        (WebCore::jsTestObjReplaceableAttribute):
+        (WebCore::jsTestObjNullableDoubleAttribute):
+        (WebCore::jsTestObjNullableLongAttribute):
+        (WebCore::jsTestObjNullableBooleanAttribute):
+        (WebCore::jsTestObjNullableStringAttribute):
+        (WebCore::jsTestObjNullableLongSettableAttribute):
+        (WebCore::jsTestObjNullableStringSettableAttribute):
+        (WebCore::jsTestObjNullableUSVStringSettableAttribute):
+        (WebCore::jsTestObjNullableByteStringSettableAttribute):
+        (WebCore::jsTestObjNullableStringValue):
+        (WebCore::jsTestObjAttribute):
+        (WebCore::jsTestObjAttributeWithReservedEnumType):
+        (WebCore::jsTestObjPutForwardsAttribute):
+        (WebCore::jsTestObjPutForwardsNullableAttribute):
+        (WebCore::jsTestObjStringifierAttribute):
+        (WebCore::jsTestObjConditionallyReadWriteAttribute):
+        (WebCore::jsTestObjConditionalAndConditionallyReadWriteAttribute):
+        * bindings/scripts/test/JS/JSTestOverloadedConstructors.cpp:
+        (WebCore::JSTestOverloadedConstructorsPrototype::finishCreation):
+        * bindings/scripts/test/JS/JSTestOverloadedConstructorsWithSequence.cpp:
+        (WebCore::JSTestOverloadedConstructorsWithSequencePrototype::finishCreation):
+        * bindings/scripts/test/JS/JSTestOverrideBuiltins.cpp:
+        (WebCore::JSTestOverrideBuiltinsPrototype::finishCreation):
+        * bindings/scripts/test/JS/JSTestPluginInterface.cpp:
+        (WebCore::JSTestPluginInterfacePrototype::finishCreation):
+        * bindings/scripts/test/JS/JSTestPromiseRejectionEvent.cpp:
+        (WebCore::JSTestPromiseRejectionEventPrototype::finishCreation):
+        (WebCore::jsTestPromiseRejectionEventReason):
+        * bindings/scripts/test/JS/JSTestSerialization.cpp:
+        (WebCore::JSTestSerializationPrototype::finishCreation):
+        (WebCore::jsTestSerializationFirstStringAttribute):
+        (WebCore::jsTestSerializationSecondLongAttribute):
+        (WebCore::jsTestSerializationThirdUnserializableAttribute):
+        (WebCore::jsTestSerializationFourthUnrestrictedDoubleAttribute):
+        (WebCore::jsTestSerializationFifthLongAttribute):
+        (WebCore::jsTestSerializationSixthTypedefAttribute):
+        (WebCore::jsTestSerializationSeventhDirectlySerializableAttribute):
+        (WebCore::jsTestSerializationEighthIndirectlyAttribute):
+        * bindings/scripts/test/JS/JSTestSerializationIndirectInheritance.cpp:
+        (WebCore::JSTestSerializationIndirectInheritancePrototype::finishCreation):
+        * bindings/scripts/test/JS/JSTestSerializationInherit.cpp:
+        (WebCore::JSTestSerializationInheritPrototype::finishCreation):
+        (WebCore::jsTestSerializationInheritInheritLongAttribute):
+        * bindings/scripts/test/JS/JSTestSerializationInheritFinal.cpp:
+        (WebCore::JSTestSerializationInheritFinalPrototype::finishCreation):
+        (WebCore::jsTestSerializationInheritFinalFinalLongAttributeFoo):
+        (WebCore::jsTestSerializationInheritFinalFinalLongAttributeBar):
+        * bindings/scripts/test/JS/JSTestSerializedScriptValueInterface.cpp:
+        (WebCore::JSTestSerializedScriptValueInterfacePrototype::finishCreation):
+        (WebCore::jsTestSerializedScriptValueInterfaceValue):
+        (WebCore::jsTestSerializedScriptValueInterfaceReadonlyValue):
+        (WebCore::jsTestSerializedScriptValueInterfaceCachedValue):
+        (WebCore::jsTestSerializedScriptValueInterfacePorts):
+        (WebCore::jsTestSerializedScriptValueInterfaceCachedReadonlyValue):
+        * bindings/scripts/test/JS/JSTestStringifier.cpp:
+        (WebCore::JSTestStringifierPrototype::finishCreation):
+        * bindings/scripts/test/JS/JSTestStringifierAnonymousOperation.cpp:
+        (WebCore::JSTestStringifierAnonymousOperationPrototype::finishCreation):
+        * bindings/scripts/test/JS/JSTestStringifierNamedOperation.cpp:
+        (WebCore::JSTestStringifierNamedOperationPrototype::finishCreation):
+        * bindings/scripts/test/JS/JSTestStringifierOperationImplementedAs.cpp:
+        (WebCore::JSTestStringifierOperationImplementedAsPrototype::finishCreation):
+        * bindings/scripts/test/JS/JSTestStringifierOperationNamedToString.cpp:
+        (WebCore::JSTestStringifierOperationNamedToStringPrototype::finishCreation):
+        * bindings/scripts/test/JS/JSTestStringifierReadOnlyAttribute.cpp:
+        (WebCore::JSTestStringifierReadOnlyAttributePrototype::finishCreation):
+        (WebCore::jsTestStringifierReadOnlyAttributeIdentifier):
+        * bindings/scripts/test/JS/JSTestStringifierReadWriteAttribute.cpp:
+        (WebCore::JSTestStringifierReadWriteAttributePrototype::finishCreation):
+        (WebCore::jsTestStringifierReadWriteAttributeIdentifier):
+        * bindings/scripts/test/JS/JSTestTypedefs.cpp:
+        (WebCore::JSTestTypedefsConstructor::initializeProperties):
+        (WebCore::JSTestTypedefsPrototype::finishCreation):
+        (WebCore::jsTestTypedefsUnsignedLongLongAttr):
+        (WebCore::jsTestTypedefsSerializedScriptValue):
+        (WebCore::jsTestTypedefsAttributeWithClamp):
+        (WebCore::jsTestTypedefsAttributeWithClampInTypedef):
+        (WebCore::jsTestTypedefsAttrWithGetterException):
+        (WebCore::jsTestTypedefsAttrWithSetterException):
+        (WebCore::jsTestTypedefsStringAttrWithGetterException):
+        (WebCore::jsTestTypedefsStringAttrWithSetterException):
+        (WebCore::jsTestTypedefsBufferSourceAttr):
+        (WebCore::jsTestTypedefsDomTimeStampAttr):
+        They are binding test rebaselines.
+
+        * domjit/DOMJITIDLTypeFilter.h:
+        * domjit/JSDocumentDOMJIT.cpp:
+        (WebCore::compileDocumentDocumentElementAttribute):
+        (WebCore::compileDocumentBodyAttribute):
+        (WebCore::DocumentDocumentElementDOMJIT::callDOMGetter): Deleted.
+        (WebCore::DocumentBodyDOMJIT::callDOMGetter): Deleted.
+        * domjit/JSNodeDOMJIT.cpp:
+        (WebCore::compileNodeFirstChildAttribute):
+        (WebCore::compileNodeLastChildAttribute):
+        (WebCore::compileNodeNextSiblingAttribute):
+        (WebCore::compileNodePreviousSiblingAttribute):
+        (WebCore::compileNodeParentNodeAttribute):
+        (WebCore::compileNodeNodeTypeAttribute):
+        (WebCore::compileNodeOwnerDocumentAttribute):
+        (WebCore::NodeFirstChildDOMJIT::callDOMGetter): Deleted.
+        (WebCore::NodeLastChildDOMJIT::callDOMGetter): Deleted.
+        (WebCore::NodeNextSiblingDOMJIT::callDOMGetter): Deleted.
+        (WebCore::NodePreviousSiblingDOMJIT::callDOMGetter): Deleted.
+        (WebCore::NodeParentNodeDOMJIT::callDOMGetter): Deleted.
+        (WebCore::NodeNodeTypeDOMJIT::callDOMGetter): Deleted.
+        (WebCore::NodeOwnerDocumentDOMJIT::callDOMGetter): Deleted.
+        DOMJIT::GetterSetter becomes smaller constexpr data.
+
+2017-07-27  Xabier Rodriguez Calvar  <calvaris@igalia.com>
+
+        [GStreamer][EME] Not having a key id buffer should not always error
+        https://bugs.webkit.org/show_bug.cgi?id=174889
+
+        Reviewed by Žan Doberšek.
+
+        In r219946 we introduced a hard requirement for a key id buffer
+        that does not happen for all CDMs.
+
+        * platform/graphics/gstreamer/eme/WebKitClearKeyDecryptorGStreamer.cpp:
+        (webKitMediaClearKeyDecryptorSetupCipher): Check for key id buffer
+        and error if we didn't get it.
+        * platform/graphics/gstreamer/eme/WebKitCommonEncryptionDecryptorGStreamer.cpp:
+        (webkitMediaCommonEncryptionDecryptTransformInPlace): Soften the
+        requirement for key id buffer.
+
+2017-07-27  Xabier Rodriguez Calvar  <calvaris@igalia.com>
+
+        [GStreamer][EME] Fix phony debug output in player base for supported key system
+        https://bugs.webkit.org/show_bug.cgi?id=174888
+
+        Reviewed by Žan Doberšek.
+
+        The debug output was returning always false because that method
+        was not checking anything before. Now it is and should reflect it.
+
+        * platform/graphics/gstreamer/MediaPlayerPrivateGStreamerBase.cpp:
+        (WebCore::MediaPlayerPrivateGStreamerBase::supportsKeySystem):
+
 2017-07-27  Zan Dobersek  <zdobersek@igalia.com>
 
         [EME][GStreamer] Add barebones CDM interface implementations for ClearKey

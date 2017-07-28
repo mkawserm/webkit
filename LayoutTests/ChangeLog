@@ -1,3 +1,115 @@
+2017-07-28  Myles C. Maxfield  <mmaxfield@apple.com>
+
+        [macOS] Reeder's defaults font is Times instead of San Francisco
+        https://bugs.webkit.org/show_bug.cgi?id=174885
+        <rdar://problem/33462483>
+
+        Reviewed by Simon Fraser.
+
+        * fast/text/font-lookup-dot-prefix-case-sensitive-2-expected.html: Added.
+        * fast/text/font-lookup-dot-prefix-case-sensitive-2.html: Added.
+        * fast/text/font-lookup-dot-prefix-case-sensitive-expected-mismatch.html: Added.
+        * fast/text/font-lookup-dot-prefix-case-sensitive.html: Added.
+
+2017-07-28  Devin Rousso  <drousso@apple.com>
+
+        Web Inspector: Record actions performed on CanvasRenderingContext2D
+        https://bugs.webkit.org/show_bug.cgi?id=174482
+
+        Reviewed by Joseph Pecoraro.
+
+        * inspector/canvas/recording-2d-expected.txt: Added.
+        * inspector/canvas/recording-2d.html: Added.
+        * inspector/canvas/recording-expected.txt: Added.
+        * inspector/canvas/recording.html: Added.
+        Take a recording of all CanvasRenderingContext2D actions and dump the recorded JSON data.
+
+2017-07-28  Per Arne Vollan  <pvollan@apple.com>
+
+        The test imported/w3c/web-platform-tests/cors/allow-headers.htm is slow on Windows.
+
+        Unreviewed test gardening, mark test as slow.
+
+        * platform/win/TestExpectations:
+
+2017-07-28  Myles C. Maxfield  <mmaxfield@apple.com>
+
+        REGRESSION(r216944): Fallback fonts erroneously visible when the primary font is loading
+        https://bugs.webkit.org/show_bug.cgi?id=174772
+        <rdar://problem/33267643>
+
+        Reviewed by Simon Fraser.
+
+        * http/tests/webfont/font-loading-system-fallback-visibility-FontRanges-expected.html: Added.
+        * http/tests/webfont/font-loading-system-fallback-visibility-FontRanges.html: Added.
+
+2017-07-28  Per Arne Vollan  <pvollan@apple.com>
+
+        REGRESSION(r125147): Layout Test svg/dom/SVGScriptElement/script-change-externalResourcesRequired-while-loading.svg is failing
+        https://bugs.webkit.org/show_bug.cgi?id=93589
+
+        Unreviewed test gardening, this test is also a flaky timeout on Windows.
+
+        * platform/win/TestExpectations:
+
+2017-07-28  Claudio Saavedra  <csaavedra@igalia.com>
+
+        [WPE] Implement EventSenderProxy in WTR
+        https://bugs.webkit.org/show_bug.cgi?id=173419
+
+        Reviewed by Žan Doberšek.
+
+        Add the implementation of EventSenderProxy to the WTR. This
+        allows us to extend the coverage of the test suite in WKWPE.
+
+        * platform/wpe/TestExpectations: Unskip fast/events tests, marking failures
+        that are related to features not yet implemented in WPE. Also remove other
+        tests that are now passing thanks to having event injection.
+        * platform/wpe/fast/dom/HTMLTableColElement/resize-table-using-col-width-expected.txt: Update.
+        * platform/wpe/fast/dynamic/layer-hit-test-crash-expected.txt: Update.
+        * platform/wpe/fast/events/clientXY-in-zoom-and-scroll-expected.txt: Added.
+        * platform/wpe/ietestcenter/css3/bordersbackgrounds/background-attachment-local-scrolling-expected.txt: Update.
+
+2017-07-27  Oleksandr Skachkov  <gskachkov@gmail.com>
+
+        [ES] Add support finally to Promise
+        https://bugs.webkit.org/show_bug.cgi?id=174503
+
+        Reviewed by Yusuke Suzuki.
+
+        * js/Promise-types-expected.txt:
+        * js/script-tests/Promise-types.js:
+
+2017-07-27  Aaron Chu  <aaron_chu@apple.com>
+
+        AX: VoiceOver silent or skipping over time values on media player.
+        https://bugs.webkit.org/show_bug.cgi?id=174324
+        <rdar://problem/32021784>
+
+        Reviewed by Antoine Quint.
+
+        Added role attribute to modern media controls time lable class so that VoiceOver can access the time label when the media is playing.
+
+        Updated time-label.html to test role attribute on mac. 
+        Added ios-time-label.html to run time-label test without testing for role since accessibilityController does not expose a role property on iOS.
+
+        * media/modern-media-controls/time-label/ios-time-label-expected.txt: Copied from LayoutTests/media/modern-media-controls/time-label/time-label-expected.txt.
+        * media/modern-media-controls/time-label/ios-time-label.html: Copied from LayoutTests/media/modern-media-controls/time-label/time-label.html.
+        * media/modern-media-controls/time-label/time-label-expected.txt:
+        * media/modern-media-controls/time-label/time-label.html:
+        * platform/ios-simulator/TestExpectations:
+        * platform/mac/TestExpectations:
+
+2017-07-27  Yusuke Suzuki  <utatane.tea@gmail.com>
+
+        Hoist DOM binding attribute getter prologue into JavaScriptCore taking advantage of DOMJIT / CheckSubClass
+        https://bugs.webkit.org/show_bug.cgi?id=171637
+
+        Reviewed by Darin Adler.
+
+        * js/dom/dom-getters-type-check-expected.txt: Added.
+        * js/dom/dom-getters-type-check.html: Added.
+
 2017-07-27  Zan Dobersek  <zdobersek@igalia.com>
 
         [GCrypt] Key serialization support
