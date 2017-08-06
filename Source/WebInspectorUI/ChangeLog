@@ -1,3 +1,525 @@
+2017-08-04  Devin Rousso  <drousso@apple.com>
+
+        Web Inspector: add source view for WebGL shader programs
+        https://bugs.webkit.org/show_bug.cgi?id=138593
+        <rdar://problem/18936194>
+
+        Reviewed by Matt Baker.
+
+        Shader programs are now listed in the Resources sidebar as items within the owner Canvas
+        context. When selected, the shown content view has two editors, one for the Vertex shader
+        and one for the Fragment shader. These editors use CodeMirror's "clike" mode for GLSL syntax.
+
+        * Localizations/en.lproj/localizedStrings.js:
+        * WebInspectorUI.vcxproj/WebInspectorUI.vcxproj:
+        * WebInspectorUI.vcxproj/WebInspectorUI.vcxproj.filters:
+        * UserInterface/Main.html:
+
+        * UserInterface/Controllers/CanvasManager.js:
+        (WI.CanvasManager):
+        (WI.CanvasManager.prototype.canvasRemoved):
+        (WI.CanvasManager.prototype.programCreated):
+        (WI.CanvasManager.prototype.programDeleted):
+        (WI.CanvasManager.prototype._mainResourceDidChange):
+
+        * UserInterface/Models/Collection.js:
+        * UserInterface/Models/Canvas.js:
+        (WI.Canvas.prototype.get shaderProgramCollection)
+
+        * UserInterface/Models/ShaderProgram.js:
+        (WI.ShaderProgram.prototype.requestVertexShaderSource):
+        (WI.ShaderProgram.prototype.requestFragmentShaderSource):
+        (WI.ShaderProgram.prototype._requestShaderSource):
+
+        * UserInterface/Views/CanvasTreeElement.js:
+        (WI.CanvasTreeElement):
+        (WI.CanvasTreeElement.prototype.onattach):
+        (WI.CanvasTreeElement.prototype.ondetach):
+        (WI.CanvasTreeElement.prototype.onpopulate):
+        (WI.CanvasTreeElement.prototype._shaderProgramAdded):
+        (WI.CanvasTreeElement.prototype._shaderProgramRemoved):
+
+        * UserInterface/Views/ShaderProgramTreeElement.js: Added.
+        (WI.ShaderProgramTreeElement):
+
+        * UserInterface/Views/ShaderProgramContentView.js: Added.
+        (WI.ShaderProgramContentView):
+        (WI.ShaderProgramContentView.prototype.shown):
+        (WI.ShaderProgramContentView.prototype.hidden):
+        (WI.ShaderProgramContentView.prototype.closed):
+        (WI.ShaderProgramContentView.prototype.get supportsSave):
+        (WI.ShaderProgramContentView.prototype.get saveData):
+        (WI.ShaderProgramContentView.prototype.get supportsSearch):
+        (WI.ShaderProgramContentView.prototype.get numberOfSearchResults):
+        (WI.ShaderProgramContentView.prototype.get hasPerformedSearch):
+        (WI.ShaderProgramContentView.prototype.set automaticallyRevealFirstSearchResult):
+        (WI.ShaderProgramContentView.prototype.performSearch):
+        (WI.ShaderProgramContentView.prototype.searchCleared):
+        (WI.ShaderProgramContentView.prototype.searchQueryWithSelection):
+        (WI.ShaderProgramContentView.prototype.revealPreviousSearchResult):
+        (WI.ShaderProgramContentView.prototype.revealNextSearchResult):
+        (WI.ShaderProgramContentView.prototype.revealPosition):
+        (WI.ShaderProgramContentView.prototype._editorFocused):
+        (WI.ShaderProgramContentView.prototype._numberOfSearchResultsDidChange):
+        * UserInterface/Views/ShaderProgramContentView.css: Added.
+        (.content-view.shader-program > .text-editor.shader):
+        (body[dir=ltr] .content-view.shader-program > .text-editor.shader.vertex,):
+        (body[dir=ltr] .content-view.shader-program > .text-editor.shader.fragment,):
+        (body[dir=ltr] .content-view.shader-program > .text-editor.shader + .text-editor.shader):
+        (body[dir=rtl] .content-view.shader-program > .text-editor.shader + .text-editor.shader):
+        (.content-view.shader-program > .text-editor.shader > .type-title):
+        (.content-view.shader-program > .text-editor.shader > .CodeMirror):
+
+        * UserInterface/Images/DocumentGL.png: Added.
+        * UserInterface/Images/DocumentGL@2x.png: Added.
+        * UserInterface/Views/ResourceIcons.css:
+        (.shader-program .icon):
+
+        * UserInterface/Base/Main.js:
+        * UserInterface/Views/ContentView.js:
+        (WI.ContentView.createFromRepresentedObject):
+        (WI.ContentView.isViewable):
+        * UserInterface/Views/ResourceSidebarPanel.js:
+        (WI.ResourceSidebarPanel.prototype.matchTreeElementAgainstCustomFilters.match):
+        (WI.ResourceSidebarPanel.prototype.matchTreeElementAgainstCustomFilters):
+        (WI.ResourceSidebarPanel.prototype._treeSelectionDidChange):
+        * UserInterface/Views/ResourcesTabContentView.js:
+        (WI.ResourcesTabContentView.prototype.canShowRepresentedObject):
+        Plumbing for displaying ShaderProgram content.
+
+        * UserInterface/Views/TextEditor.js:
+        (WebInspector.TextEditor):
+        (WebInspector.TextEditor.prototype._editorFocused):
+
+        * Scripts/update-codemirror-resources.rb:
+        * UserInterface/External/CodeMirror/clike.js: Added.
+        Add C-like mode for highlighting GLSL.
+
+2017-08-03  Joseph Pecoraro  <pecoraro@apple.com>
+
+        JSContext Inspector: Scripts sometimes do not show in resources tab
+        https://bugs.webkit.org/show_bug.cgi?id=175153
+        <rdar://problem/33708683>
+
+        Reviewed by Matt Baker.
+
+        * UserInterface/Views/ResourceSidebarPanel.js:
+        (WI.ResourceSidebarPanel.prototype.initialLayout):
+        When the ResourceSidebar is lazily created, be sure to add any scripts
+        to the sidebar that are not backed by Resources.
+
+        (WI.ResourceSidebarPanel.prototype._scriptWasAdded):
+        (WI.ResourceSidebarPanel.prototype._addScript):
+        Extract so it can be used outside of an event handler.
+
+2017-08-03  Devin Rousso  <drousso@apple.com>
+
+        Web Inspector: add button to open Inspector^2
+        https://bugs.webkit.org/show_bug.cgi?id=175108
+
+        Reviewed by Brian Burg.
+
+        * UserInterface/Debug/Bootstrap.js:
+        (updateDebugUI):
+        (WI.runBootstrapOperations):
+
+        * UserInterface/Views/ButtonToolbarItem.js:
+        (WI.ButtonToolbarItem):
+        (WI.ButtonToolbarItem.prototype.get label): Deleted.
+        (WI.ButtonToolbarItem.prototype.set label): Deleted.
+        * UserInterface/Views/ButtonToolbarItem.css:
+        (.toolbar .item.button):
+        (.toolbar .item.button:not(.disabled):active):
+        (.toolbar .item.button:not(.disabled):matches(:focus, .activate.activated)):
+        (.toolbar .item.button:not(.disabled):active:matches(:focus, .activate.activated)):
+        (.toolbar .item.button > .glyph):
+        (.toolbar .item.button:not(.disabled):active > .glyph): Deleted.
+        (.toolbar .item.button:not(.disabled):matches(:focus, .activate.activated) > .glyph): Deleted.
+        (.toolbar .item.button:not(.disabled):active:matches(:focus, .activate.activated) > .glyph): Deleted.
+        (.toolbar .item.button > .label): Deleted.
+        * UserInterface/Views/ActivateButtonToolbarItem.js:
+        (WI.ActivateButtonToolbarItem):
+        (WI.ActivateButtonToolbarItem.prototype.get label): Deleted.
+        (WI.ActivateButtonToolbarItem.prototype.set label): Deleted.
+        * UserInterface/Base/Main.js:
+        (WI.contentLoaded):
+        Remove unused `label` parameter from Toolbar objects.
+
+2017-08-03  Matt Baker  <mattbaker@apple.com>
+
+        Web Inspector: Instrument WebGLProgram created/deleted
+        https://bugs.webkit.org/show_bug.cgi?id=175059
+
+        Reviewed by Devin Rousso.
+
+        This patch adds frontend support for shader program instrumentation.
+        The frontend creates a ShaderProgram model object for each WebGLProgram.
+        Since only canvases with a WebGL context have programs, the Canvas model
+        object does not contain any logic specific to programs. CanvasManager
+        dispatches program added/removed events, and the parent Canvas can be
+        accessed from ShaderProgram but not the other way around.
+
+        * UserInterface/Controllers/CanvasManager.js:
+        (WI.CanvasManager):
+        (WI.CanvasManager.prototype.get shaderPrograms):
+        (WI.CanvasManager.prototype.canvasRemoved):
+        (WI.CanvasManager.prototype.programCreated):
+        (WI.CanvasManager.prototype.programDeleted):
+        (WI.CanvasManager.prototype._mainResourceDidChange):
+        (WI.CanvasManager.prototype._dispatchShaderProgramRemoved):
+
+        * UserInterface/Main.html:
+
+        * UserInterface/Models/Canvas.js:
+        (WI.Canvas.prototype.nextShaderProgramDisplayNumber):
+        (WI.Canvas):
+
+        * UserInterface/Models/ShaderProgram.js: Added.
+        (WI.ShaderProgram):
+        (WI.ShaderProgram.prototype.get identifier):
+        (WI.ShaderProgram.prototype.get canvas):
+        (WI.ShaderProgram.prototype.get displayName):
+
+        * UserInterface/Protocol/CanvasObserver.js:
+        (WI.CanvasObserver.prototype.programCreated):
+        (WI.CanvasObserver.prototype.programDeleted):
+        (WI.CanvasObserver):
+
+        * UserInterface/Test.html:
+
+2017-08-03  Joseph Pecoraro  <pecoraro@apple.com>
+
+        JSContext Inspector: Recording tab should not be available in New Tab picker
+        https://bugs.webkit.org/show_bug.cgi?id=175155
+
+        Reviewed by Brian Burg.
+
+        * UserInterface/Views/RecordingTabContentView.js:
+        (WI.RecordingTabContentView.isTabAllowed):
+        Only allow the Recording Tab if we have a CanvasAgent.
+
+2017-08-02  Devin Rousso  <drousso@apple.com>
+
+        Web Inspector: add stack trace information for each RecordingAction
+        https://bugs.webkit.org/show_bug.cgi?id=174663
+
+        Reviewed by Joseph Pecoraro.
+
+        * Localizations/en.lproj/localizedStrings.js:
+        * UserInterface/Main.html:
+
+        * UserInterface/Models/Recording.js:
+        (WI.Recording.prototype.swizzle):
+        Add Array type for swizzling array values.
+
+        * UserInterface/Models/RecordingAction.js:
+        (WI.RecordingAction):
+        (WI.RecordingAction.fromPayload):
+        (WI.RecordingAction.prototype.get trace):
+        (WI.RecordingAction.prototype.swizzle):
+        (WI.RecordingAction.prototype.toJSON):
+
+        * UserInterface/Views/RecordingTraceDetailsSidebarPanel.js: Added.
+        (WI.RecordingTraceDetailsSidebarPanel):
+        (WI.RecordingTraceDetailsSidebarPanel.disallowInstanceForClass):
+        (WI.RecordingTraceDetailsSidebarPanel.prototype.inspect):
+        (WI.RecordingTraceDetailsSidebarPanel.prototype.set recording):
+        (WI.RecordingTraceDetailsSidebarPanel.prototype.updateActionIndex):
+        * UserInterface/Views/RecordingTraceDetailsSidebarPanel.css: Added.
+        (.sidebar > .panel.details.recording-trace > .content > .call-frame):
+        (.sidebar > .details.recording-trace > .content > .no-trace-data):
+        (.sidebar > .details.recording-trace > .content > .no-trace-data > .message):
+
+        * UserInterface/Views/RecordingTabContentView.js:
+        (WI.RecordingTabContentView):
+
+        * UserInterface/Views/RecordingActionTreeElement.js:
+        (WI.RecordingActionTreeElement.prototype.populateContextMenu):
+
+        * UserInterface/Views/CallFrameView.css:
+        (.call-frame):
+        (body[dir=ltr] .call-frame .icon):
+        (body[dir=rtl] .call-frame .icon):
+        Apply the same trailing margin for CallFrameView icons as TreeElement.
+
+2017-08-02  Devin Rousso  <drousso@apple.com>
+
+        Web Inspector: add TreeElement virtualization for the Recording tab
+        https://bugs.webkit.org/show_bug.cgi?id=174968
+
+        Reviewed by Joseph Pecoraro.
+
+        * UserInterface/Views/RecordingNavigationSidebarPanel.js:
+        (WI.RecordingNavigationSidebarPanel):
+
+        * UserInterface/Views/TreeOutline.js:
+        (WI.TreeOutline):
+        (WI.TreeOutline.prototype.get virtualized):
+        (WI.TreeOutline.prototype.registerScrollVirtualizer):
+        (WI.TreeOutline.prototype.updateVirtualizedElements.walk):
+        (WI.TreeOutline.prototype.updateVirtualizedElements):
+        Add spacer elements before and after the TreeOutline element that will size to ensure that
+        the TreeOutline node still takes up the same amount of space after some of the TreeElements
+        are removed. Whenever the scroll of the container view changes, recalculate the visible area
+        and add/remove TreeElements based on whether they would be in that. This is only possible if
+        every TreeElement has the same vertical height, which is given when setting up the scroll
+        listener on the container view.
+
+        * UserInterface/Views/TreeElement.js:
+        (WI.TreeElement.prototype.set hidden):
+        (WI.TreeElement.prototype._attach):
+        (WI.TreeElement.prototype.collapse):
+        (WI.TreeElement.prototype.expand):
+        (WI.TreeElement.prototype.reveal):
+        If the TreeOutline is being virtualized, don't add each TreeElement's node to the DOM. They
+        will be added at the end of the frame (via setTimeout) if they are within the visible + padding
+        area of the TreeOutline.
+
+2017-08-01  Devin Rousso  <drousso@apple.com>
+
+        Web Inspector: simplify WebInspector with WI
+        https://bugs.webkit.org/show_bug.cgi?id=175058
+
+        Reviewed by Joseph Pecoraro.
+
+        * .eslintrc:
+
+        * Tools/PrettyPrinting/FormatterDebug.js:
+        * Tools/PrettyPrinting/index.html:
+
+        * UserInterface/Main.html:
+        * UserInterface/Test.html:
+
+        * UserInterface/Base/*.js:
+        * UserInterface/Controllers/*.js:
+        * UserInterface/Debug/*.js:
+        * UserInterface/Models/*.js:
+        * UserInterface/Protocol/*.js:
+        * UserInterface/Proxies/*.js:
+        * UserInterface/Test/*.js:
+        * UserInterface/Views/*.js:
+
+2017-08-01  Devin Rousso  <drousso@apple.com>
+
+        Web Inspector: create Recording tab for displaying recordings
+        https://bugs.webkit.org/show_bug.cgi?id=174484
+
+        Reviewed by Joseph Pecoraro.
+
+        * Localizations/en.lproj/localizedStrings.js:
+        * UserInterface/Main.html:
+        * UserInterface/Test.html:
+
+        * UserInterface/Controllers/CanvasManager.js:
+        (WebInspector.CanvasManager.prototype.recordingFinished):
+        * UserInterface/Models/Canvas.js:
+        (WebInspector.Canvas.prototype.toggleRecording):
+
+        * UserInterface/Models/Recording.js:
+        (WebInspector.Recording):
+        (WebInspector.Recording.synthesizeError):
+        (WebInspector.Recording.prototype.get actions):
+        (WebInspector.Recording.prototype.get source):
+        (WebInspector.Recording.prototype.set source):
+        (WebInspector.Recording.prototype.swizzle):
+
+        * UserInterface/Models/RecordingAction.js:
+        (WebInspector.RecordingAction):
+        (WebInspector.RecordingAction.isFunctionForType):
+        (WebInspector.RecordingAction.get name):
+        (WebInspector.RecordingAction.get parameters):
+        (WebInspector.RecordingAction.prototype.get valid):
+        (WebInspector.RecordingAction.prototype.set valid):
+        (WebInspector.RecordingAction.get isFunction):
+        (WebInspector.RecordingAction.get isGetter):
+        (WebInspector.RecordingAction.get isVisual):
+        (WebInspector.RecordingAction.get stateModifiers):
+        (WebInspector.RecordingAction.prototype.swizzle):
+        (WebInspector.RecordingAction.prototype.parameterSwizzleTypeForTypeAtIndex):
+
+        * UserInterface/Models/RecordingInitialStateAction.js: Added.
+        (WebInspector.RecordingInitialStateAction):
+
+        * UserInterface/Views/RecordingTabContentView.js: Added.
+        (WebInspector.RecordingTabContentView):
+        (WebInspector.RecordingTabContentView.tabInfo):
+        (WebInspector.RecordingTabContentView.prototype.get type):
+        (WebInspector.RecordingTabContentView.prototype.canShowRepresentedObject):
+        (WebInspector.RecordingTabContentView.prototype.showRepresentedObject):
+        (WebInspector.RecordingTabContentView.prototype.restoreStateFromCookie):
+        (WebInspector.RecordingTabContentView.prototype.saveStateToCookie):
+        (WebInspector.RecordingTabContentView.prototype.closed):
+        (WebInspector.RecordingTabContentView.prototype._updateActionIndex):
+        (WebInspector.RecordingTabContentView.prototype._scrubberNavigationItemValueChanged):
+        (WebInspector.RecordingTabContentView.prototype._navigationSidebarImport):
+        (WebInspector.RecordingTabContentView.prototype._navigationSidebarTreeOutlineSelectionChanged):
+
+        * UserInterface/Views/RecordingContentView.js: Added.
+        (WebInspector.RecordingContentView):
+        (WebInspector.RecordingContentView.prototype.get navigationItems):
+        (WebInspector.RecordingContentView.prototype.updateActionIndex):
+        (WebInspector.RecordingContentView.prototype.shown):
+        (WebInspector.RecordingContentView.prototype.get supplementalRepresentedObjects):
+        (WebInspector.RecordingContentView.prototype._generateContentCanvas2D):
+        (WebInspector.RecordingContentView.prototype._applyAction):
+        (WebInspector.RecordingContentView.prototype._updateImageGrid):
+        (WebInspector.RecordingContentView.prototype._showGridButtonClicked):
+        * UserInterface/Views/RecordingContentView.css: Copied from Source/WebInspectorUI/UserInterface/Views/CanvasContentView.css.
+        (.content-view:not(.tab).recording):
+        (.content-view:not(.tab).recording > .preview-container):
+        (.content-view:not(.tab).recording canvas):
+
+        * UserInterface/Views/RecordingNavigationSidebarPanel.js: Added.
+        (WebInspector.RecordingNavigationSidebarPanel):
+        (WebInspector.RecordingNavigationSidebarPanel.disallowInstanceForClass):
+        (WebInspector.RecordingNavigationSidebarPanel.prototype.set recording):
+        (WebInspector.RecordingNavigationSidebarPanel.prototype.updateActionIndex):
+        (WebInspector.RecordingNavigationSidebarPanel.prototype.initialLayout):
+        (WebInspector.RecordingNavigationSidebarPanel.prototype._importNavigationItemClicked):
+        (WebInspector.RecordingNavigationSidebarPanel.prototype._exportNavigationItemClicked):
+        * UserInterface/Views/RecordingNavigationSidebarPanel.css: Added.
+        (.sidebar > .panel.navigation.recording > :matches(.content, .empty-content-placeholder)):
+        (.sidebar > .panel.navigation.recording > .content > .tree-outline):
+        (.sidebar > .panel.navigation.recording > .content > .tree-outline > .item.parent:not(.action, .selected).expanded):
+        (.sidebar > .panel.navigation.recording > .content > .tree-outline .item.action:not(.initial-state)::before):
+        (body[dir=ltr] .sidebar > .panel.navigation.recording > .content > .tree-outline .item.action:not(.initial-state)::before):
+        (body[dir=rtl] .sidebar > .panel.navigation.recording > .content > .tree-outline .item.action:not(.initial-state)::before):
+        (.sidebar > .panel.navigation.recording > .content > .tree-outline[data-indent="2"] .item.action:not(.initial-state)::before):
+        (.sidebar > .panel.navigation.recording > .content > .tree-outline[data-indent="3"] .item.action:not(.initial-state)::before):
+        (.sidebar > .panel.navigation.recording > .content > .tree-outline[data-indent="4"] .item.action:not(.initial-state)::before):
+        (.sidebar > .panel.navigation.recording > .content > .tree-outline[data-indent="5"] .item.action:not(.initial-state)::before):
+        (.sidebar > .panel.navigation.recording > .content > .tree-outline[data-indent="6"] .item.action:not(.initial-state)::before):
+        (.sidebar > .panel.navigation.recording > .content > .tree-outline[data-indent="7"] .item.action:not(.initial-state)::before):
+        (.sidebar > .panel.navigation.recording > .content .action > .icon):
+        (.sidebar > .panel.navigation.recording > .content .action.function > .icon):
+        (.sidebar > .panel.navigation.recording > .content .action.attribute.getter > .icon):
+        (.sidebar > .panel.navigation.recording > .content .tree-outline:matches(:focus, .force-focus) .action.attribute.getter.selected > .icon):
+        (.sidebar > .panel.navigation.recording > .content .action.attribute.boolean > .icon):
+        (.sidebar > .panel.navigation.recording > .content .action.attribute.number > .icon):
+        (.sidebar > .panel.navigation.recording > .content .action.attribute.object > .icon):
+        (.sidebar > .panel.navigation.recording > .content .action.attribute.string > .icon):
+        (.sidebar > .panel.navigation.recording > .content > .tree-outline > .item.parent:not(.action) > .icon):
+        (.sidebar > .panel.navigation.recording > .content .action:matches(.invalid, .missing) > .icon):
+        (body[dir=ltr] .sidebar > .panel.navigation.recording > .content .action:not(.initial-state) > .icon):
+        (body[dir=rtl] .sidebar > .panel.navigation.recording > .content .action:not(.initial-state) > .icon):
+        (.sidebar > .panel.navigation.recording > .content .action.visual:not(.selected, .invalid)):
+        (.sidebar > .panel.navigation.recording > .content .action:not(.selected, .initial-state) > .titles .parameter.swizzled):
+        (.sidebar > .panel.navigation.recording > .content .action.invalid:not(.selected, .initial-state) > .titles .name,):
+
+        * UserInterface/Views/RecordingStateDetailsSidebarPanel.js: Added.
+        (WebInspector.RecordingStateDetailsSidebarPanel):
+        (WebInspector.RecordingStateDetailsSidebarPanel.disallowInstanceForClass):
+        (WebInspector.RecordingStateDetailsSidebarPanel.prototype.inspect):
+        (WebInspector.RecordingStateDetailsSidebarPanel.prototype.set recording):
+        (WebInspector.RecordingStateDetailsSidebarPanel.prototype.updateActionIndex):
+        (WebInspector.RecordingStateDetailsSidebarPanel.prototype._generateDetailsCanvas2D):
+        * UserInterface/Views/RecordingStateDetailsSidebarPanel.css: Added.
+        (.sidebar > .panel.details.recording-state > .content > .data-grid):
+        (.sidebar > .panel.details.recording-state > .content > .data-grid tr.modified):
+        (.sidebar > .panel.details.recording-state > .content > .data-grid tr:not(.selected).non-standard):
+        (.sidebar > .panel.details.recording-state > .content > .data-grid tr:not(.selected) .unavailable):
+
+        * UserInterface/Views/RecordingActionTreeElement.js: Added.
+        (WebInspector.RecordingActionTreeElement):
+        (WebInspector.RecordingActionTreeElement._generateDOM):
+        (WebInspector.RecordingActionTreeElement.prototype.get index):
+        (WebInspector.RecordingActionTreeElement.get filterableData):
+        (WebInspector.RecordingActionTreeElement.prototype.get filterableData):
+        (WebInspector.RecordingActionTreeElement.prototype.onattach):
+        (WebInspector.RecordingActionTreeElement.prototype.populateContextMenu):
+
+        * UserInterface/Base/Main.js:
+        (WebInspector.contentLoaded):
+        (WebInspector.instanceForClass):
+
+        * UserInterface/Base/FileUtilites.js: Added.
+        (WebInspector.saveDataToFile): Moved from UserInterface/Base/Main.js
+        (WebInspector.loadDataFromFile):
+
+        * UserInterface/Views/ButtonNavigationItem.js:
+        (WebInspector.ButtonNavigationItem.prototype._mouseClicked):
+        Send the native event as part of the data.
+
+        * UserInterface/Views/CanvasContentView.js:
+        (WebInspector.CanvasContentView):
+        (WebInspector.CanvasContentView.prototype.get navigationItems):
+        (WebInspector.CanvasContentView.prototype.initialLayout):
+        (WebInspector.CanvasContentView.prototype.closed):
+        (WebInspector.CanvasContentView.prototype._toggleRecording):
+        (WebInspector.CanvasContentView.prototype._recordingFinished):
+        * UserInterface/Views/CanvasContentView.css:
+        (.content-view.canvas):
+
+        * UserInterface/Views/CanvasDetailsSidebarPanel.js:
+        (WebInspector.CanvasDetailsSidebarPanel.prototype.inspect):
+
+        * UserInterface/Views/ContentBrowser.js:
+        (WebInspector.ContentBrowser):
+        (WebInspector.ContentBrowser.prototype._updateContentViewNavigationItems):
+        * UserInterface/Views/ContentBrowserTabContentView.js:
+        (WebInspector.ContentBrowserTabContentView):
+        * UserInterface/Views/ContentView.js:
+        (WebInspector.ContentView.createFromRepresentedObject):
+        (WebInspector.ContentView.isViewable):
+        * UserInterface/Views/ScrubberNavigationItem.js: Added.
+        (WebInspector.ScrubberNavigationItem):
+        (WebInspector.ScrubberNavigationItem.prototype.get value):
+        (WebInspector.ScrubberNavigationItem.prototype.set value):
+        (WebInspector.ScrubberNavigationItem.prototype.get min):
+        (WebInspector.ScrubberNavigationItem.prototype.set min):
+        (WebInspector.ScrubberNavigationItem.prototype.get max):
+        (WebInspector.ScrubberNavigationItem.prototype.set max):
+        (WebInspector.ScrubberNavigationItem.prototype.set disabled):
+        (WebInspector.ScrubberNavigationItem.prototype.get additionalClassNames):
+        (WebInspector.ScrubberNavigationItem.prototype._sliderChanged):
+        * UserInterface/Views/ScrubberNavigationItem.css: Added.
+        (.navigation-bar .item.scrubber):
+        (.navigation-bar .item.scrubber > input):
+        (.navigation-bar .item.scrubber > input[disabled]):
+        Allow the flexible space to be replaced with a navigation item at construction.
+
+        * UserInterface/Views/DataGridNode.js:
+        (WebInspector.DataGridNode):
+        (WebInspector.DataGridNode.prototype.get element):
+        Allow a list of CSS classes to be added to the node's element.
+
+        * UserInterface/Views/SettingsTabContentView.js:
+        (WebInspector.SettingsTabContentView.prototype.initialLayout):
+        (WebInspector.SettingsTabContentView.prototype._createExperimentalSettingsView.listenForChange):
+        (WebInspector.SettingsTabContentView.prototype._createExperimentalSettingsView):
+        (WebInspector.SettingsTabContentView.prototype._createDebugSettingsView):
+        Move experimental settings to their own panel.
+
+        * UserInterface/Views/TabContentView.js:
+        (WebInspector.TabContentView.prototype.get navigationSidebarPanel):
+        Save the NavigationSidebarPanel after it's constructed.
+
+        * UserInterface/Base/Utilities.js:
+        (Number.countDigits):
+
+        * UserInterface/Images/Recording.svg: Added.
+        * UserInterface/Images/RenderingFrame.svg: Renamed from Source/WebInspectorUI/UserInterface/Images/TimelineRecordRenderingFrame.svg.
+        * UserInterface/Images/gtk/RenderingFrame.svg: Renamed from Source/WebInspectorUI/UserInterface/Images/gtk/TimelineRecordRenderingFrame.svg.
+        * UserInterface/Views/TimelineIcons.css:
+        (.rendering-frame-record .icon):
+
+        * UserInterface/Views/DOMTreeOutline.css:
+        (@keyframes node-state-changed):
+        * UserInterface/Views/Main.css:
+        (:matches(img, canvas).show-grid):
+        (img.show-grid): Deleted.
+        * UserInterface/Views/NavigationBar.css:
+        (.navigation-bar):
+        * UserInterface/Views/NetworkSidebarPanel.css:
+        (.sidebar > .panel.navigation.network.network-grid-content-view-showing > .content > .tree-outline):
+        * UserInterface/Views/TimelineTabContentView.css:
+        (.timeline.tab.content-view .navigation-bar > .item.radio):
+        * UserInterface/Views/TimelineView.css:
+        (.panel.navigation.timeline.timeline-recording-content-view-showing > .content > .tree-outline):
+        * UserInterface/Views/Variables.css:
+        (:root):
+        Create CSS variables for the DOM modification flash color and the color striping.
+
 2017-07-28  Devin Rousso  <drousso@apple.com>
 
         Web Inspector: Cleanup unused/invalid parameters for TreeElements

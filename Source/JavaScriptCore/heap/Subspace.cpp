@@ -54,10 +54,12 @@ struct DestroyFunc {
 
 } // anonymous namespace
 
-Subspace::Subspace(CString name, Heap& heap, AllocatorAttributes attributes)
+Subspace::Subspace(CString name, Heap& heap, AllocatorAttributes attributes, AlignedMemoryAllocator* alignedMemoryAllocator)
     : m_space(heap.objectSpace())
     , m_name(name)
     , m_attributes(attributes)
+    , m_alignedMemoryAllocator(alignedMemoryAllocator)
+    , m_allocatorForEmptyAllocation(m_space.firstAllocator())
 {
     // It's remotely possible that we're GCing right now even if the client is careful to only
     // create subspaces right after VM creation, since collectContinuously (and probably other
@@ -133,6 +135,29 @@ void* Subspace::tryAllocate(GCDeferralContext* deferralContext, size_t size)
         result = tryAllocateSlow(deferralContext, size);
     didAllocate(result);
     return result;
+}
+
+void Subspace::prepareForAllocation()
+{
+    forEachAllocator(
+        [&] (MarkedAllocator& allocator) {
+            allocator.prepareForAllocation();
+        });
+
+    m_allocatorForEmptyAllocation = m_space.firstAllocator();
+}
+
+MarkedBlock::Handle* Subspace::findEmptyBlockToSteal()
+{
+    for (; m_allocatorForEmptyAllocation; m_allocatorForEmptyAllocation = m_allocatorForEmptyAllocation->nextAllocator()) {
+        Subspace* otherSubspace = m_allocatorForEmptyAllocation->subspace();
+        if (otherSubspace->alignedMemoryAllocator() != alignedMemoryAllocator())
+            continue;
+        
+        if (MarkedBlock::Handle* block = m_allocatorForEmptyAllocation->findEmptyBlockToSteal())
+            return block;
+    }
+    return nullptr;
 }
 
 MarkedAllocator* Subspace::allocatorForSlow(size_t size)

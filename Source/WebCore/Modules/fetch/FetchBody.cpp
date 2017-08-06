@@ -29,8 +29,6 @@
 #include "config.h"
 #include "FetchBody.h"
 
-#if ENABLE(FETCH_API)
-
 #include "Document.h"
 #include "FetchBodyOwner.h"
 #include "FetchHeaders.h"
@@ -42,7 +40,7 @@
 
 namespace WebCore {
 
-FetchBody FetchBody::extract(ScriptExecutionContext& context, BindingDataType&& value, String& contentType)
+FetchBody FetchBody::extract(ScriptExecutionContext& context, Init&& value, String& contentType)
 {
     if (WTF::holds_alternative<RefPtr<Blob>>(value)) {
         Ref<const Blob> blob = WTF::get<RefPtr<Blob>>(value).releaseNonNull();
@@ -273,5 +271,3 @@ FetchBody FetchBody::clone() const
 }
 
 }
-
-#endif // ENABLE(FETCH_API)

@@ -26,6 +26,7 @@
 #include "config.h"
 #include "MarkedBlock.h"
 
+#include "AlignedMemoryAllocator.h"
 #include "FreeListInlines.h"
 #include "JSCell.h"
 #include "JSDestructibleObject.h"
@@ -43,23 +44,24 @@ const size_t MarkedBlock::blockSize;
 static const bool computeBalance = false;
 static size_t balance;
 
-MarkedBlock::Handle* MarkedBlock::tryCreate(Heap& heap)
+MarkedBlock::Handle* MarkedBlock::tryCreate(Heap& heap, AlignedMemoryAllocator* alignedMemoryAllocator)
 {
     if (computeBalance) {
         balance++;
         if (!(balance % 10))
             dataLog("MarkedBlock Balance: ", balance, "\n");
     }
-    void* blockSpace = tryFastAlignedMalloc(blockSize, blockSize);
+    void* blockSpace = alignedMemoryAllocator->tryAllocateAlignedMemory(blockSize, blockSize);
     if (!blockSpace)
         return nullptr;
     if (scribbleFreeCells())
         scribble(blockSpace, blockSize);
-    return new Handle(heap, blockSpace);
+    return new Handle(heap, alignedMemoryAllocator, blockSpace);
 }
 
-MarkedBlock::Handle::Handle(Heap& heap, void* blockSpace)
-    : m_weakSet(heap.vm(), CellContainer())
+MarkedBlock::Handle::Handle(Heap& heap, AlignedMemoryAllocator* alignedMemoryAllocator, void* blockSpace)
+    : m_alignedMemoryAllocator(alignedMemoryAllocator)
+    , m_weakSet(heap.vm(), CellContainer())
     , m_newlyAllocatedVersion(MarkedSpace::nullVersion)
 {
     m_block = new (NotNull, blockSpace) MarkedBlock(*heap.vm(), *this);
@@ -79,7 +81,7 @@ MarkedBlock::Handle::~Handle()
     }
     removeFromAllocator();
     m_block->~MarkedBlock();
-    fastAlignedFree(m_block);
+    m_alignedMemoryAllocator->freeAlignedMemory(m_block);
     heap.didFreeBlock(blockSize);
 }
 
@@ -328,6 +330,8 @@ void MarkedBlock::Handle::didAddToAllocator(MarkedAllocator* allocator, size_t i
 {
     ASSERT(m_index == std::numeric_limits<size_t>::max());
     ASSERT(!m_allocator);
+    
+    RELEASE_ASSERT(allocator->subspace()->alignedMemoryAllocator() == m_alignedMemoryAllocator);
     
     m_index = index;
     m_allocator = allocator;

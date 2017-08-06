@@ -1,3 +1,728 @@
+2017-08-05  Filip Pizlo  <fpizlo@apple.com>
+
+        REGRESSION (r219895-219897): Number of leaks on Open Source went from 9240 to 235983 and is now at 302372
+        https://bugs.webkit.org/show_bug.cgi?id=175083
+
+        Reviewed by Oliver Hunt.
+        
+        Leaks results are super confusing if leaks runs while some VMs are destructing. This calls a new SPI
+        to wait for VM destructions to finish before running the next test. This makes it easier to 
+        understand leaks results from workers tests, and leads to fewer reported leaks.
+
+        * DumpRenderTree/mac/DumpRenderTree.mm:
+        (runTest):
+
+2017-08-05  Yoshiaki Jitsukawa  <Yoshiaki.Jitsukawa@sony.com>
+
+        check-webkit-style: fix path-specific rules for WebKit2 rename
+        https://bugs.webkit.org/show_bug.cgi?id=175182
+
+        Reviewed by David Kilzer.
+
+        * Scripts/webkitpy/style/checker.py:
+
+2017-08-04  Youenn Fablet  <youenn@apple.com>
+
+        [Cache API] Add Cache and CacheStorage IDL definitions
+        https://bugs.webkit.org/show_bug.cgi?id=175201
+
+        Reviewed by Brady Eidson.
+
+        * DumpRenderTree/mac/DumpRenderTree.mm:
+        (enableExperimentalFeatures):
+        (resetWebPreferencesToConsistentValues):
+        * WebKitTestRunner/InjectedBundle/InjectedBundle.cpp:
+        (WTR::InjectedBundle::beginTesting):
+        * WebKitTestRunner/InjectedBundle/TestRunner.cpp:
+        (WTR::TestRunner::setCacheAPIEnabled):
+        * WebKitTestRunner/InjectedBundle/TestRunner.h:
+
+2017-08-04  John Wilander  <wilander@apple.com>
+
+        Resource Load Statistics: Report user interaction immediately, but only when needed
+        https://bugs.webkit.org/show_bug.cgi?id=175090
+        <rdar://problem/33685546>
+
+        Reviewed by Chris Dumez.
+
+        * WebKitTestRunner/InjectedBundle/InjectedBundle.cpp:
+        (WTR::InjectedBundle::beginTesting):
+            Now calls WebCore::ResourceLoadObserver::clearState().
+
+2017-08-04  Tim Horton  <timothy_horton@apple.com>
+
+        Add an API test for r220286
+        https://bugs.webkit.org/show_bug.cgi?id=175206
+
+        Reviewed by Simon Fraser.
+
+        * TestWebKitAPI/Tests/WebKit2Cocoa/AnimatedResize.mm:
+        (-[AnimatedResizeWebView _webView:didChangeSafeAreaShouldAffectObscuredInsets:]):
+        (createAnimatedResizeWebView):
+        (TEST):
+        Add a test to ensure that we don't call
+        _webView:didChangeSafeAreaShouldAffectObscuredInsets: during an
+        animated resize.
+
+2017-08-04  Stephan Szabo  <stephan.szabo@sony.com>
+
+        [XCode] webkit-patch should run sort-Xcode-project-file
+        https://bugs.webkit.org/show_bug.cgi?id=174036
+
+        Reviewed by Simon Fraser.
+
+        * Scripts/webkitpy/common/config/ports.py:
+        * Scripts/webkitpy/tool/commands/download.py:
+        * Scripts/webkitpy/tool/commands/upload.py:
+        * Scripts/webkitpy/tool/steps/__init__.py:
+        * Scripts/webkitpy/tool/steps/options.py:
+        * Scripts/webkitpy/tool/steps/sortxcodeprojectfiles.py: Added.
+
+2017-08-04  Carlos Alberto Lopez Perez  <clopez@igalia.com>
+
+        REGRESSION(r219857): run-benchmark --allplans broken
+        https://bugs.webkit.org/show_bug.cgi?id=175186
+
+        Reviewed by Saam Barati.
+
+        r219857 forgot to update also the calls to BenchmarkRunner() that
+        is done when the script is run with --allplans.
+
+        To fix this (and avoid future issues like this), let's factorize
+        the calls to the benchhmark runner in a run_benchmark_plan()
+        function.
+
+        * Scripts/webkitpy/benchmark_runner/run_benchmark.py:
+        (run_benchmark_plan):
+        (start):
+
+2017-08-04  Aakash Jain  <aakash_jain@apple.com>
+
+        Dashboard bubbles sometimes show failure count instead of crash count
+        https://bugs.webkit.org/show_bug.cgi?id=175157
+        <rdar://problem/33709009>
+
+        Reviewed by Alexey Proskuryakov.
+
+        * BuildSlaveSupport/build.webkit.org-config/public_html/dashboard/Scripts/BuildbotTestResults.js:
+        (BuildbotTestResults.prototype.resultSummarizer): Use the regex for the precise match first.
+
+2017-08-04  Joseph Pecoraro  <pecoraro@apple.com>
+
+        Add tests for NeverDestroyed
+        https://bugs.webkit.org/show_bug.cgi?id=175146
+
+        Reviewed by Darin Adler.
+
+        * CMakeLists.txt:
+        * TestWebKitAPI/TestWebKitAPI.xcodeproj/project.pbxproj:
+        New files and sort.
+
+        * TestWebKitAPI/Tests/WTF/Logger.h:
+        * TestWebKitAPI/Tests/WTF/Logger.cpp:
+        (TestWebKitAPI::log):
+        (TestWebKitAPI::takeLogStr):
+        * TestWebKitAPI/Tests/WTF/RefLogger.h:
+        * TestWebKitAPI/Tests/WTF/RefLogger.cpp:
+        (TestWebKitAPI::log): Deleted.
+        (TestWebKitAPI::takeLogStr): Deleted.
+        Extract log() / takeLogStr() from RefLogger to a general Logger.h/cpp.
+
+        * TestWebKitAPI/Tests/WTF/LifecycleLogger.h:
+        * TestWebKitAPI/Tests/WTF/LifecycleLogger.cpp: Added.
+        (TestWebKitAPI::LifecycleLogger::LifecycleLogger):
+        (TestWebKitAPI::LifecycleLogger::operator=):
+        (TestWebKitAPI::LifecycleLogger::~LifecycleLogger):
+        (TestWebKitAPI::LifecycleLogger::setName):
+        (TestWebKitAPI::TEST):
+        Add a class that logs construction / assignment / modifications.
+
+        * TestWebKitAPI/Tests/WTF/NeverDestroyed.cpp: Added.
+        (TestWebKitAPI::TEST):
+        (TestWebKitAPI::list):
+        Test construction behavior is as expected both directly and using makeNeverDestroyed.
+
+2017-08-04  Lucas Forschler  <lforschler@apple.com>
+
+        minification logic is not implemented for ios builds
+        <rdar://problem/33726561>
+
+        Reviewed by Dean Johnson
+
+        * BuildSlaveSupport/built-product-archive:
+        (minifyDirectory): refactor minifySource -> minifyDirectory
+        (archiveBuiltProduct): add ios minification logic
+        (minifySource): Deleted.
+
+2017-08-04  Matt Lewis  <jlewis3@apple.com>
+
+        Unreviewed, rolling out r220271.
+
+        Rolling out due to Layout Test failing on iOS Simulator.
+
+        Reverted changeset:
+
+        "Remove STREAMS_API compilation guard"
+        https://bugs.webkit.org/show_bug.cgi?id=175165
+        http://trac.webkit.org/changeset/220271
+
+2017-08-04  Ryan Haddad  <ryanhaddad@apple.com>
+
+        Unreviewed, rolling out r220268.
+
+        This change caused assertion failures on macOS and iOS Debug
+        WK2.
+
+        Reverted changeset:
+
+        "Resource Load Statistics: Report user interaction
+        immediately, but only when needed"
+        https://bugs.webkit.org/show_bug.cgi?id=175090
+        http://trac.webkit.org/changeset/220268
+
+2017-08-04  Youenn Fablet  <youenn@apple.com>
+
+        Remove STREAMS_API compilation guard
+        https://bugs.webkit.org/show_bug.cgi?id=175165
+
+        Reviewed by Darin Adler.
+
+        * TestWebKitAPI/Configurations/FeatureDefines.xcconfig:
+
+2017-08-04  John Wilander  <wilander@apple.com>
+
+        Resource Load Statistics: Report user interaction immediately, but only when needed
+        https://bugs.webkit.org/show_bug.cgi?id=175090
+        <rdar://problem/33685546>
+
+        Reviewed by Chris Dumez.
+
+        * WebKitTestRunner/InjectedBundle/InjectedBundle.cpp:
+        (WTR::InjectedBundle::beginTesting):
+            Now calls WebCore::ResourceLoadObserver::clearState().
+
+2017-08-03  Brian Burg  <bburg@apple.com>
+
+        Remove ENABLE(WEB_SOCKET) guards
+        https://bugs.webkit.org/show_bug.cgi?id=167044
+
+        Reviewed by Joseph Pecoraro.
+
+        * Scripts/webkitperl/FeatureList.pm:
+        * TestWebKitAPI/Configurations/FeatureDefines.xcconfig:
+
+2017-08-03  Carlos Alberto Lopez Perez  <clopez@igalia.com>
+
+        REGRESSION(r219850): run-benchmark script broken on Linux
+        https://bugs.webkit.org/show_bug.cgi?id=175126
+
+        Reviewed by Stephanie Lewis.
+
+        The run-benchmark script dynamically generates the list of supported
+        browsers and platforms (currently Linux and OSX) by loading all
+        python files from Tools/Scripts/webkitpy/benchmark_runner/browser_driver
+        and getting the browser_name and platform variables from the
+        classes defined there.
+
+        This means that this classes should not raise an exception when
+        loaded on other platforms or otherwise they will broke the whole
+        script. Its fine if they raise an exception when executing any of
+        the methods they implement, but not when just loading/importing
+        the class.
+
+        Move the argument variable definitions that call on the platform
+        specific OSXBrowserDriver._screen_size() function from beeing
+        variables that are evaluated when loading the file, to be functions
+        that are only evaluated when the actual functionality needs to be
+        executed.
+
+        * Scripts/webkitpy/benchmark_runner/browser_driver/osx_chrome_driver.py:
+        (OSXChromeDriver.launch_url):
+        (OSXChromeCanaryDriver.launch_url):
+        (create_args):
+        (create_chrome_options):
+        (create_window_size_arg):
+        * Scripts/webkitpy/benchmark_runner/browser_driver/osx_firefox_driver.py:
+        (OSXFirefoxDriver.launch_url):
+        (OSXFirefoxNightlyDriver.launch_url):
+        (OSXFirefoxNightlyDriver.launch_driver):
+        (create_args):
+
+2017-08-03  Yoshiaki Jitsukawa  <jitsu@rd.scei.sony.co.jp>
+
+        [PAL] Move spi/cf directory into PAL
+        https://bugs.webkit.org/show_bug.cgi?id=175057
+
+        Reviewed by Antti Koivisto.
+
+        * Scripts/webkitpy/style/checker.py:
+        * Scripts/webkitpy/style/checker_unittest.py:
+        (GlobalVariablesTest.test_path_rules_specifier):
+
+        Ignore "readability/naming/underscores" style errors for sources
+        under the WebCore/PAL/pal/spi directory.
+
+        * TestWebKitAPI/Tests/WebKit2Cocoa/CookieAcceptPolicy.mm:
+
+2017-08-03  Youenn Fablet  <youenn@apple.com>
+
+        Remove FETCH_API compilation guard
+        https://bugs.webkit.org/show_bug.cgi?id=175154
+
+        Reviewed by Chris Dumez.
+
+        * TestWebKitAPI/Configurations/FeatureDefines.xcconfig:
+
+2017-08-03  Lucas Forschler  <lforschler@apple.com>
+
+        Enable archive minification on iOS builds
+        https://bugs.webkit.org/show_bug.cgi?id=174718
+        
+        Reviewed by Aakash Jain.
+
+        * BuildSlaveSupport/build.webkit.org-config/master.cfg:
+        (BuildFactory.__init__):
+
+2017-08-03  Carlos Alberto Lopez Perez  <clopez@igalia.com>
+
+        [GTK][WKE] Pass the --memory-limited option on the GTK and WPE buildbots for the JSC tests.
+        https://bugs.webkit.org/show_bug.cgi?id=175140
+
+        Reviewed by Alexey Proskuryakov.
+
+        We are having lately issues with JSC tests causing problems on
+        the GTK+ and WPE bots due to the high amount of memory some tests
+        need to run.
+
+        The best thing we can do now is to workaround this by disabling
+        all the tests marked as memoryLimited on the GTK and WPE bots.
+        We may revise this on the future.
+
+        * BuildSlaveSupport/build.webkit.org-config/master.cfg:
+        (RunJavaScriptCoreTests.start):
+
+2017-08-03  Brady Eidson  <beidson@apple.com>
+
+        Add SW IDLs and stub out basic functionality.
+        https://bugs.webkit.org/show_bug.cgi?id=175115
+
+        Reviewed by Chris Dumez.
+
+        * TestWebKitAPI/Configurations/FeatureDefines.xcconfig:
+
+        * Scripts/webkitpy/bindings/main.py:
+
+2017-08-03  Per Arne Vollan  <pvollan@apple.com>
+
+        [Win] The test http/tests/security/contentSecurityPolicy/upgrade-insecure-requests/basic-upgrade.https.html is failing.
+        https://bugs.webkit.org/show_bug.cgi?id=159510
+
+        Reviewed by Daniel Bates.
+
+        Allow any https certificate when running tests.
+
+        * DumpRenderTree/win/DumpRenderTree.cpp:
+        (runTest):
+
+2017-08-02  Youenn Fablet  <youenn@apple.com>
+
+        HTTP tests with 'https' suffix are only run over HTTPS for WK2, not WK1
+        https://bugs.webkit.org/show_bug.cgi?id=175089
+
+        Reviewed by Chris Dumez.
+
+        * DumpRenderTree/TestOptions.mm:
+        (TestOptions::TestOptions): Using absolutePath if available.
+        * DumpRenderTree/mac/DumpRenderTree.mm:
+        (computeTestURL): Removing http/tests/ specific URL computation.
+        * Scripts/webkitpy/port/driver.py:
+        (Driver._command_from_driver_input): Making webkitpy passing HTTP urls for HTTP served tests to all test runners, including WK1.
+
+2017-08-02  Lucas Forschler  <lforschler@apple.com>
+
+        download-built-product should allow for a proxy option
+        https://bugs.webkit.org/show_bug.cgi?id=174875
+
+        Reviewed by Aakash Jain, Alexey Proskuryakov, Dean Johnson
+
+        * BuildSlaveSupport/build.webkit.org-config/master.cfg:
+        (DownloadBuiltProduct.start): Teach buildbot to pass along proxy for Apple bots
+        
+
+2017-08-02  Jonathan Bedard  <jbedard@apple.com>
+
+        check-webkit-style: deleting lines in a file runs the linter on the whole file
+        https://bugs.webkit.org/show_bug.cgi?id=175078
+
+        Reviewed by David Kilzer.
+
+        Deleting lines in a file should not cause linter errors to be blamed on the patch.
+        <https://bugs.webkit.org/show_bug.cgi?id=86142> is an example of this happening.
+
+        * Scripts/webkitpy/style/checkers/test_expectations.py:
+        (TestExpectationsChecker._should_log_linter_warning): Do not log a linter error if the file it is associated with only has deleted lines
+        * Scripts/webkitpy/style/main_unittest.py:
+        (ExpectationLinterInStyleCheckerTest.test_linter_duplicate_line): Added files should have every line number in the file when processing.
+        (ExpectationLinterInStyleCheckerTest.test_linter_duplicate_line_only_deletes): Test case where the file with the linter errors only contained deletes.
+        (ExpectationLinterInStyleCheckerTest.test_linter_added_file_with_error): Added files should have every line number in the file when processing.
+
+2017-08-02  Jonathan Bedard  <jbedard@apple.com>
+
+        webkitpy: Allow caller to specify response to unicode encode/decode error in filesystem
+        https://bugs.webkit.org/show_bug.cgi?id=175075
+
+        Reviewed by David Kilzer.
+
+        We have no way of handling text files with illegal unicode characters. Allow the callers of
+        filesystem.read_text_file to specify one of Python 2.7's supported responses ('strict', 'ignore', or
+        'replace'). See https://docs.python.org/2/howto/unicode.html for details on these responses.
+
+        * Scripts/webkitpy/common/system/filesystem.py:
+        (FileSystem.read_text_file): Allow caller to specify unicode error handling.
+        (FileSystem.write_text_file): Ditto.
+        * Scripts/webkitpy/common/system/filesystem_mock.py:
+        (MockFileSystem.read_text_file): Allow caller to specify unicode error handling.
+        (MockFileSystem.write_text_file): Ditto.
+        * Scripts/webkitpy/common/system/filesystem_unittest.py:
+        (RealFileSystemTest.test_read_text_file_unicode_decode_error): Test reading a file with illegal unicode content.
+        (RealFileSystemTest.test_write_text_file_unicode_encode_error): Test writing illegal unicode content to a file.
+
+2017-08-02  Aakash Jain  <aakash_jain@apple.com>
+
+        Intermittent exception in buildPageURLForIteration for Buildbot 0.9 dashboard
+        https://bugs.webkit.org/show_bug.cgi?id=175072
+
+        Reviewed by Alexey Proskuryakov.
+
+        * BuildSlaveSupport/build.webkit.org-config/public_html/dashboard/Scripts/Buildbot.js:
+        (Buildbot): Make sure this._builderNameToIDMap is always defined for Buildbot 0.9.
+
+2017-08-02  Michael Catanzaro  <mcatanzaro@igalia.com>
+
+        [CMake] Remove obsolete code in TestWebKitAPI/CMakeLists.txt
+        https://bugs.webkit.org/show_bug.cgi?id=175019
+
+        Reviewed by Darin Adler.
+
+        * TestWebKitAPI/CMakeLists.txt:
+
+2017-08-01  Csaba Osztrogonác  <ossy@webkit.org>
+
+        Enabling uploading archives to S3
+        https://bugs.webkit.org/show_bug.cgi?id=174198
+
+        Unreviewed unit test fix after r219235.
+
+        * BuildSlaveSupport/build.webkit.org-config/mastercfg_unittest.py:
+
+2017-08-01  Csaba Osztrogonác  <ossy@webkit.org>
+
+        Fix JSCOnly ARM buildbots after r220047
+        https://bugs.webkit.org/show_bug.cgi?id=174993
+
+        Unreviewed fix after r220087.
+
+        * BuildSlaveSupport/build.webkit.org-config/master.cfg:
+        (BuildAndRemoteJSCTestsFactory.__init__):
+
+2017-08-01  Chris Dumez  <cdumez@apple.com>
+
+        Add initial support for navigator.sendBeacon
+        https://bugs.webkit.org/show_bug.cgi?id=175007
+        <rdar://problem/33547728>
+
+        Reviewed by Sam Weinig.
+
+        Enable the Beacon API at runtime in the context of layout tests since the
+        feature is currently disabled by default.
+
+        * DumpRenderTree/mac/DumpRenderTree.mm:
+        (enableExperimentalFeatures):
+        * WebKitTestRunner/InjectedBundle/InjectedBundle.cpp:
+        (WTR::InjectedBundle::beginTesting):
+        * WebKitTestRunner/InjectedBundle/TestRunner.cpp:
+        (WTR::TestRunner::setModernMediaControlsEnabled):
+        (WTR::TestRunner::setBeaconAPIEnabled):
+        * WebKitTestRunner/InjectedBundle/TestRunner.h:
+
+2017-08-01  Aakash Jain  <aakash_jain@apple.com>
+
+        Update Bot Watcher's Dashboard for Buildbot 0.9
+        https://bugs.webkit.org/show_bug.cgi?id=174777
+
+        Reviewed by Daniel Bates.
+
+        * BuildSlaveSupport/build.webkit.org-config/public_html/dashboard/Scripts/Buildbot.js:
+        (Buildbot): Check if USE_BUILDBOT_VERSION_LESS_THAN_09 is passed.
+        (Buildbot.prototype._computeBuilderNameToIDMap): Fetch the builder name to ID mapping from buidbot and store
+        in a dictionary.
+        (Buildbot.prototype.buildPageURLForIteration): Updated URL as per Buildbot 0.9 format. Buildbot 0.9 currently does not support
+        builder name in the build url. See <https://github.com/buildbot/buildbot/issues/3465>.
+        * BuildSlaveSupport/build.webkit.org-config/public_html/dashboard/Scripts/BuildbotIteration.js:
+        (isMultiCodebaseGotRevisionProperty): Adapting to new data format.
+        (parseRevisionProperty): Ditto.
+        (BuildbotIteration.prototype.failureLogURL): Return the URL to build page if precise failure url is not available. For
+        Buildbot 0.9, build page URL would be appropriate in most cases as per the new UI.
+        (BuildbotIteration.prototype._parseData): Parsing the data as per new data format. Many variable names and data types
+        have changed in Buildbot 0.9.
+        (BuildbotIteration.prototype._adjustBuildDataForBuildbot09): Adjust the Buildbot 0.8 data to new format.
+        (BuildbotIteration.prototype._updateIfDataAvailable): Update method for Buildbot 0.9 data. We are performing two API calls, 
+        one for build information, another for step information of that build. We need to wait until data from both REST API calls are available.
+        (BuildbotIteration.prototype._deprecatedUpdateWithData): Renamed from _updateWithData, used for Buildbot 0.8 data.
+        (BuildbotIteration.prototype.get buildURL): URL to fetch build information from Buildbot. Also fetches got_revision property.
+        (BuildbotIteration.prototype.get buildStepsURL): URL to fetch the steps information from Buildbot.
+        (BuildbotIteration.prototype.urlFailedToLoad): Callback method to be used when URL fails to load. Made it a separate function now.
+        (BuildbotIteration.prototype.update): Modified to support both Buildbot 0.9 and 0.8 data format.
+        (BuildbotIteration.prototype.actualUpdate): Update method for Buildbot 0.9 data.
+        (BuildbotIteration.prototype.deprecatedUpdate): Update method for Buildbot 0.8 data.
+        * BuildSlaveSupport/build.webkit.org-config/public_html/dashboard/Scripts/BuildbotQueue.js:
+        (BuildbotQueue.prototype.get baseURL): Updated URL as per Buildbot 0.9 format.
+        (BuildbotQueue.prototype.get allIterationsURL): Ditto.
+        (BuildbotQueue.prototype.get overviewURL): Ditto.
+        (BuildbotQueue.prototype.get buildsURL): URL to fetch builds data in Buildbot 0.9.
+        (BuildbotQueue.prototype.get buildsInfoURL): Returns the appropriate URL to use to fetch builds information from
+        Buildbot 0.8 or 0.9.
+        (BuildbotQueue.prototype.getBuilds): Method compatible with both Buildbot 0.8 and 0.9 to get build information from data
+        fetched from Buildbot. Also, reversing the Buildbot 0.8 data to make it similar to 0.9 data format.
+        (BuildbotQueue.prototype.isBuildComplete): Method compatible with both Buildbot 0.8 and 0.9 to check if the build has completed.
+        (BuildbotQueue.prototype.getIterationID):  Method compatible with both Buildbot 0.8 and 0.9 to get the Iteration ID.
+        (BuildbotQueue.prototype.update): Supports both Buildbot 0.8 and 0.9. Buildbot 0.9 REST API doesn't have cachedBuilds and currentBuilds. 
+        Therefore we are fetching information for fixed number of build. 
+        Also iterating the loop incrementally since the build data is already reverse sorted.
+        * BuildSlaveSupport/build.webkit.org-config/public_html/dashboard/Scripts/BuildbotTestResults.js:
+        (BuildbotTestResults.prototype._parseResults): Updated as per Buildbot 0.9 format. Note that we do not
+        need to worry about 0.8 or 0.9 data format here, since the data is already converted to 0.9 format.
+        * BuildSlaveSupport/build.webkit.org-config/public_html/dashboard/Scripts/WebKitBuildbot.js:
+        (WebKitBuildbot): Pass the USE_BUILDBOT_VERSION_LESS_THAN_09 flag.
+
+2017-08-01  Devin Rousso  <drousso@apple.com>
+
+        Web Inspector: simplify WebInspector with WI
+        https://bugs.webkit.org/show_bug.cgi?id=175058
+
+        Reviewed by Joseph Pecoraro.
+
+        * Scripts/check-inspector-strings:
+        (extract_ui_strings):
+        * Scripts/extract-localizable-js-strings:
+
+2017-08-01  Youenn Fablet  <youenn@apple.com>
+
+        Layout tests with 'https' suffix should be run over HTTPS
+        https://bugs.webkit.org/show_bug.cgi?id=174992
+
+        Reviewed by Chris Dumez.
+
+        Updating the test-name <-> uri conversion routines to use https when test names contain ".https." in them.
+        This covers WPT tests, WPT WebKit tests and HTTP layout tests.
+        Covered by corresponding unit tests.
+
+        * Scripts/webkitpy/layout_tests/servers/run_webkit_httpd.py:
+        (run_server):
+        * Scripts/webkitpy/layout_tests/servers/web_platform_test_server.py:
+        (base_http_url):
+        (base_https_url):
+        (base_url): Deleted.
+        * Scripts/webkitpy/port/base.py:
+        (Port.to.web_platform_test_server_base_http_url):
+        (Port.to):
+        (Port.to.web_platform_test_server_base_https_url):
+        (Port.to.web_platform_test_server_base_url): Deleted.
+        * Scripts/webkitpy/port/driver.py:
+        (Driver.__init__):
+        (Driver.wpt_test_path_to_uri):
+        (Driver):
+        (Driver.http_test_path_to_uri):
+        (Driver.test_to_uri):
+        (Driver.uri_to_test):
+        * Scripts/webkitpy/port/driver_unittest.py:
+        (DriverTest.test_test_to_uri):
+        (DriverTest.test_uri_to_test):
+
+2017-07-26  Jiewen Tan  <jiewen_tan@apple.com>
+
+        Add tests to detect mistakes in backward compatibility when the structured clone algorithm is changed in the future
+        https://bugs.webkit.org/show_bug.cgi?id=173998
+
+        Reviewed by Darin Adler.
+
+        Since the structured clone algorithm is used for data stored in persistent databases, we need tests to help us
+        detect mistakes in backward compatibility in the future when we change it.
+
+        The way it works is to read from a pre-baked database and see if all the values are matched with the expectations.
+        Surprisedly, some of structured clonable objects cannot be stored into the indexedDB. Those are FileList,
+        ObjectReference, MessagePortReference, ArrayBufferView, ArrayBufferTransfer, NonMapProperties, NonSetProperties,
+        SharedArrayBuffer, WasmModule, DOMPointReadOnly, DOMPoint, DOMRectReadOnly, DOMRect, DOMMatrixReadOnly, DOMMatrix,
+        DOMQuad and Error. CryptoKey objects are not included as well as they need new API for encrypting/decrypting the
+        internal key data slot.
+
+        * TestWebKitAPI/TestWebKitAPI.xcodeproj/project.pbxproj:
+        * TestWebKitAPI/Tests/WebKit2Cocoa/IndexedDBStructuredCloneBackwardCompatibility.mm: Added.
+        (-[IndexedDBStructuredCloneBackwardCompatibilityMessageHandler userContentController:didReceiveScriptMessage:]):
+        (getNextMessage):
+        (TEST):
+        Here is the API test that moves the pre-baked database to the location where TestWebKitAPI can read from.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/IndexedDBStructuredCloneBackwardCompatibility.sqlite3: Added.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/IndexedDBStructuredCloneBackwardCompatibility.sqlite3-shm: Added.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/IndexedDBStructuredCloneBackwardCompatibility.sqlite3-wal: Added.
+        These are the pre-baked databases.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/IndexedDBStructuredCloneBackwardCompatibilityRead.html: Added.
+        This is the actual test that do all the reads and comparisons.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/IndexedDBStructuredCloneBackwardCompatibilityWrite.html: Added.
+        This is the page that bakes the database. It never runs automatically. It is for someone who needs to teach
+        IndexedDB new stuffs. Then it can be used to bake the database again.
+
+2017-08-01  Brady Eidson  <beidson@apple.com>
+
+        API test URLSchemeHandler.Exceptions is Exiting out early on macOS Debug..
+        https://bugs.webkit.org/show_bug.cgi?id=175030
+
+        Reviewed by Andy Estes.
+
+        * TestWebKitAPI/Tests/WebKit2Cocoa/WKURLSchemeHandler-1.mm:
+        (-[TaskSchemeHandler webView:startURLSchemeTask:]): Stop calling an invalid NSError constructor.
+
+2017-08-01  Brady Eidson  <beidson@apple.com>
+
+        Part 2 of: Rename DatabaseProcess to StorageProcess.
+        https://bugs.webkit.org/show_bug.cgi?id=174880
+
+        Reviewed by Andy Estes.
+
+        * TestWebKitAPI/Tests/WebKit2Cocoa/IDBDeleteRecovery.mm:
+        * TestWebKitAPI/Tests/WebKit2Cocoa/IDBIndexUpgradeToV2.mm:
+        * TestWebKitAPI/Tests/WebKit2Cocoa/IndexedDBDatabaseProcessKill.mm:
+        * TestWebKitAPI/Tests/WebKit2Cocoa/IndexedDBMultiProcess.mm:
+        * TestWebKitAPI/Tests/WebKit2Cocoa/IndexedDBPersistence.mm:
+        * TestWebKitAPI/Tests/WebKit2Cocoa/ResourceLoadStatistics.mm:
+        * TestWebKitAPI/Tests/WebKit2Cocoa/WebProcessKillIDBCleanup.mm:
+        * TestWebKitAPI/Tests/WebKit2Cocoa/WebsiteDataStoreCustomPaths.mm:
+
+2017-07-31  Csaba Osztrogonác  <ossy@webkit.org>
+
+        Fix JSCOnly ARM buildbots after r220047
+        https://bugs.webkit.org/show_bug.cgi?id=174993
+
+        Reviewed by Saam Barati.
+
+        * BuildSlaveSupport/build.webkit.org-config/master.cfg:
+        (BuildAndRemoteJSCTestsFactory.__init__):
+
+2017-07-30  Yusuke Suzuki  <utatane.tea@gmail.com>
+
+        [WTF] Introduce Private Symbols
+        https://bugs.webkit.org/show_bug.cgi?id=174935
+
+        Reviewed by Darin Adler.
+
+        * TestWebKitAPI/Tests/WTF/StringImpl.cpp:
+        (TestWebKitAPI::TEST):
+
+2017-07-30  Darin Adler  <darin@apple.com>
+
+        Remove code in HTMLObjectElement attribute parsing that forces style resolution and layout
+        https://bugs.webkit.org/show_bug.cgi?id=130653
+
+        Reviewed by Antti Koivisto.
+
+        * WebKitTestRunner/InjectedBundle/InjectedBundlePage.cpp:
+        (WTR::InjectedBundlePage::didFinishLoadForFrame): Omit now-unneeded "shouldDump" argument
+        when calling frameDidChangeLocation.
+        (WTR::InjectedBundlePage::frameDidChangeLocation): Removed "shouldDump" argument. This was
+        causing WebKitTestRunner to not dump anything in cases where DumpRenderTree will dump, and
+        thus causing mysterious failures of a couple of tests. There are two remaining issues:
+        1) WebKitTestRunner won't run its dump code if there is no "page", and there is no such
+        consideration in DumpRenderTree and 2) Both DumpRenderTree and WebKitTestRunner share the
+        same logic flaw that causes "top loading frame" to get set to one of the subframes in
+        tests where  the following sequence occurs: test calls waitUntilDone, main frame finishes
+        loading, subframe starts loading. It would be good to clean that up some day, but for now
+        this patch makes the two work identically rather than changing both.
+        * WebKitTestRunner/InjectedBundle/InjectedBundlePage.h: Updated for change above.
+
+2017-07-30  Wenson Hsieh  <wenson_hsieh@apple.com>
+
+        [WK2] Replace RetainPtr<> with auto when adopting allocated ObjC objects in DataInteractionTests
+        https://bugs.webkit.org/show_bug.cgi?id=174963
+
+        Reviewed by Darin Adler.
+
+        Replaces several uses of RetainPtr<>s with auto. Some test cases in this file use auto, while other test cases declare using
+        RetainPtr<>. This patch changes them to all use auto.
+
+        * TestWebKitAPI/Tests/ios/DataInteractionTests.mm:
+        (TestWebKitAPI::TEST):
+
+2017-07-30  Brady Eidson  <beidson@apple.com>
+
+        Add URLSchemeHandler API tests that verify the lack of URLSchemeTask object leaks.
+        https://bugs.webkit.org/show_bug.cgi?id=174958
+
+        Reviewed by Darin Adler.
+
+        * TestWebKitAPI/TestWebKitAPI.xcodeproj/project.pbxproj:
+        * TestWebKitAPI/Tests/WebKit2Cocoa/WKURLSchemeHandler-leaks.mm: Added.
+        (-[LeakSchemeHandler webView:startURLSchemeTask:]):
+        (-[LeakSchemeHandler webView:stopURLSchemeTask:]):
+        (runUntilTasksInFlight):
+        (TEST):
+
+2017-07-28  Commit Queue  <commit-queue@webkit.org>
+
+        Unreviewed, rolling out r219990.
+        https://bugs.webkit.org/show_bug.cgi?id=174961
+
+        "broke PLT on iOS (rdar://problem/33602751)" (Requested by
+        estes on #webkit).
+
+        Reverted changeset:
+
+        "Part 2 of: Rename DatabaseProcess to StorageProcess."
+        https://bugs.webkit.org/show_bug.cgi?id=174880
+        http://trac.webkit.org/changeset/219990
+
+2017-07-28  Brady Eidson  <beidson@apple.com>
+
+        API tests that use URLSchemeHandler are failing.
+        https://bugs.webkit.org/show_bug.cgi?id=174950
+
+        Reviewed by Alex Christensen.
+
+        Fix the NoMIMEType test to be correct.
+
+        * TestWebKitAPI/Tests/WebKit2Cocoa/WKURLSchemeHandler-1.mm:
+        (-[SchemeHandler initWithData:mimeType:]):
+        (-[SchemeHandler webView:startURLSchemeTask:]):
+        (TEST):
+
+2017-07-28  Daniel Bates  <dabates@apple.com>
+
+        prepare-ChangeLog should not list added layout tests in PAL ChangeLog
+        https://bugs.webkit.org/show_bug.cgi?id=174876
+
+        Reviewed by Alex Christensen.
+
+        Do not list added layout tests in the PAL ChangeLog as such tests are unlikely to be related
+        to a PAL change. Unit tests are more appropriate for PAL changes than layout tests because
+        they provide a more direct way to test the platform abstraction.
+
+        As a side effect of this change we no longer list added layout tests in WebCore/platform/gtk/po/ChangeLog.
+
+        * Scripts/prepare-ChangeLog:
+        (generateNewChangeLogs): Only list added layout tests in the WebCore ChangeLog regardless
+        of the current working directory.
+
+2017-07-28  Jonathan Bedard  <jbedard@apple.com>
+
+        Using "auto <function()> -> returnType" breaks prepare-ChangeLog
+        https://bugs.webkit.org/show_bug.cgi?id=174930
+
+        Unreviewed test fix.
+
+        We need to check parentheses before printing 'const' or 'volatile' in the ChangeLog. 
+
+        * Scripts/prepare-ChangeLog:
+        (get_function_line_ranges_for_cpp):
+
 2017-07-28  JF Bastien  <jfbastien@apple.com>
 
         Using "auto <function()> -> returnType" breaks prepare-ChangeLog

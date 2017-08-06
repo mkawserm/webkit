@@ -336,6 +336,7 @@ set(JavaScriptCore_SOURCES
     dfg/DFGEpoch.cpp
     dfg/DFGFailedFinalizer.cpp
     dfg/DFGFinalizer.cpp
+    dfg/DFGFixedButterflyAccessUncagingPhase.cpp
     dfg/DFGFixupPhase.cpp
     dfg/DFGFlowIndexing.cpp
     dfg/DFGFlushFormat.cpp
@@ -376,9 +377,6 @@ set(JavaScriptCore_SOURCES
     dfg/DFGOSREntrypointCreationPhase.cpp
     dfg/DFGOSRExit.cpp
     dfg/DFGOSRExitBase.cpp
-    dfg/DFGOSRExitCompiler.cpp
-    dfg/DFGOSRExitCompiler32_64.cpp
-    dfg/DFGOSRExitCompiler64.cpp
     dfg/DFGOSRExitCompilerCommon.cpp
     dfg/DFGOSRExitFuzz.cpp
     dfg/DFGOSRExitJumpPlaceholder.cpp
@@ -489,6 +487,7 @@ set(JavaScriptCore_SOURCES
     ftl/FTLThunks.cpp
     ftl/FTLValueRange.cpp
 
+    heap/AlignedMemoryAllocator.cpp
     heap/AllocatorAttributes.cpp
     heap/CellContainer.cpp
     heap/CodeBlockSet.cpp
@@ -498,12 +497,14 @@ set(JavaScriptCore_SOURCES
     heap/DeferGC.cpp
     heap/DestructionMode.cpp
     heap/EdenGCActivityCallback.cpp
+    heap/FastMallocAlignedMemoryAllocator.cpp
     heap/FullGCActivityCallback.cpp
     heap/FreeList.cpp
     heap/GCActivityCallback.cpp
     heap/GCConductor.cpp
     heap/GCLogging.cpp
     heap/GCRequest.cpp
+    heap/GigacageAlignedMemoryAllocator.cpp
     heap/HandleSet.cpp
     heap/HandleStack.cpp
     heap/Heap.cpp

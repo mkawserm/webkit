@@ -13,6 +13,7 @@ set(WTF_HEADERS
     BumpPointerAllocator.h
     ByteOrder.h
     CPUTime.h
+    CagedPtr.h
     ClockType.h
     CompilationThread.h
     Compiler.h
@@ -38,6 +39,7 @@ set(WTF_HEADERS
     Forward.h
     FunctionDispatcher.h
     GetPtr.h
+    Gigacage.h
     GlobalVersion.h
     GraphNodeWorklist.h
     GregorianDateTime.h
@@ -108,6 +110,7 @@ set(WTF_HEADERS
     Range.h
     RangeSet.h
     RawPointer.h
+    ReadWriteLock.h
     RecursiveLockAdapter.h
     RedBlackTree.h
     Ref.h
@@ -135,7 +138,6 @@ set(WTF_HEADERS
     SystemFree.h
     SystemTracing.h
     ThreadGroup.h
-    ThreadHolder.cpp
     ThreadMessage.h
     ThreadSafeRefCounted.h
     ThreadSpecific.h
@@ -150,7 +152,6 @@ set(WTF_HEADERS
     Variant.h
     Vector.h
     VectorTraits.h
-    WTFThreadData.h
     WallTime.h
     WeakPtr.h
     WordLock.h
@@ -219,6 +220,7 @@ set(WTF_SOURCES
     FastMalloc.cpp
     FilePrintStream.cpp
     FunctionDispatcher.cpp
+    Gigacage.cpp
     GlobalVersion.cpp
     GregorianDateTime.cpp
     HashTable.cpp
@@ -240,6 +242,7 @@ set(WTF_SOURCES
     RAMSize.cpp
     RandomDevice.cpp
     RandomNumber.cpp
+    ReadWriteLock.cpp
     RefCountedLeakCounter.cpp
     RunLoop.cpp
     SHA1.cpp
@@ -254,7 +257,6 @@ set(WTF_SOURCES
     Threading.cpp
     TimeWithDynamicClockType.cpp
     UUID.cpp
-    WTFThreadData.cpp
     WallTime.cpp
     WordLock.cpp
     WorkQueue.cpp
@@ -346,7 +348,6 @@ list(APPEND WTF_LIBRARIES
 if (WIN32)
     list(APPEND WTF_SOURCES
         OSAllocatorWin.cpp
-        ThreadHolderWin.cpp
         ThreadSpecificWin.cpp
         ThreadingWin.cpp
     )
@@ -356,7 +357,6 @@ if (WIN32)
 else ()
     list(APPEND WTF_SOURCES
         OSAllocatorPosix.cpp
-        ThreadHolderPthreads.cpp
         ThreadingPthreads.cpp
     )
 endif ()

@@ -23,8 +23,8 @@
 
 #include "BaseXPCService.xcconfig"
 
-WK_XPC_SERVICE_IOS_ENTITLEMENTS_BASE = Storage-iOS;
+WK_XPC_SERVICE_IOS_ENTITLEMENTS_BASE = Databases-iOS;
 
-PRODUCT_NAME = com.apple.WebKit.Storage;
+PRODUCT_NAME = com.apple.WebKit.Databases;
 PRODUCT_BUNDLE_IDENTIFIER = $(PRODUCT_NAME);
 INFOPLIST_FILE = StorageProcess/EntryPoint/mac/XPCService/StorageService/Info.plist;

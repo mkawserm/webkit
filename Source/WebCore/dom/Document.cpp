@@ -501,9 +501,7 @@ Document::Document(Frame* frame, const URL& url, unsigned documentClasses, unsig
     , m_fontSelector(CSSFontSelector::create(*this))
     , m_didAssociateFormControlsTimer(*this, &Document::didAssociateFormControlsTimerFired)
     , m_cookieCacheExpiryTimer(*this, &Document::invalidateDOMCookieCache)
-#if ENABLE(WEB_SOCKETS)
     , m_socketProvider(page() ? &page()->socketProvider() : nullptr)
-#endif
     , m_isSynthesized(constructionFlags & Synthesized)
     , m_isNonRenderedPlaceholder(constructionFlags & NonRenderedPlaceholder)
     , m_orientationNotifier(currentOrientation(frame))
@@ -3058,7 +3056,6 @@ void Document::disableWebAssembly(const String& errorMessage)
 }
 
 #if ENABLE(INDEXED_DATABASE)
-
 IDBClient::IDBConnectionProxy* Document::idbConnectionProxy()
 {
     if (!m_idbConnectionProxy) {
@@ -3069,17 +3066,12 @@ IDBClient::IDBConnectionProxy* Document::idbConnectionProxy()
     }
     return m_idbConnectionProxy.get();
 }
-
 #endif
-
-#if ENABLE(WEB_SOCKETS)
 
 SocketProvider* Document::socketProvider()
 {
     return m_socketProvider.get();
 }
-
-#endif
     
 bool Document::canNavigate(Frame* targetFrame)
 {
@@ -3377,19 +3369,27 @@ void Document::processReferrerPolicy(const String& policy)
         return;
 #endif
 
-    // Note that we're supporting both the standard and legacy keywords for referrer
-    // policies, as defined by http://www.w3.org/TR/referrer-policy/#referrer-policy-delivery-meta
+    // "never" / "default" / "always" are legacy keywords that we will support. They were defined in:
+    // https://www.w3.org/TR/2014/WD-referrer-policy-20140807/#referrer-policy-delivery-meta
     if (equalLettersIgnoringASCIICase(policy, "no-referrer") || equalLettersIgnoringASCIICase(policy, "never"))
-        setReferrerPolicy(ReferrerPolicy::Never);
+        setReferrerPolicy(ReferrerPolicy::NoReferrer);
     else if (equalLettersIgnoringASCIICase(policy, "unsafe-url") || equalLettersIgnoringASCIICase(policy, "always"))
-        setReferrerPolicy(ReferrerPolicy::Always);
+        setReferrerPolicy(ReferrerPolicy::UnsafeUrl);
     else if (equalLettersIgnoringASCIICase(policy, "origin"))
         setReferrerPolicy(ReferrerPolicy::Origin);
+    else if (equalLettersIgnoringASCIICase(policy, "origin-when-cross-origin"))
+        setReferrerPolicy(ReferrerPolicy::OriginWhenCrossOrigin);
+    else if (equalLettersIgnoringASCIICase(policy, "same-origin"))
+        setReferrerPolicy(ReferrerPolicy::SameOrigin);
+    else if (equalLettersIgnoringASCIICase(policy, "strict-origin"))
+        setReferrerPolicy(ReferrerPolicy::StrictOrigin);
+    else if (equalLettersIgnoringASCIICase(policy, "strict-origin-when-cross-origin"))
+        setReferrerPolicy(ReferrerPolicy::StrictOriginWhenCrossOrigin);
     else if (equalLettersIgnoringASCIICase(policy, "no-referrer-when-downgrade") || equalLettersIgnoringASCIICase(policy, "default"))
-        setReferrerPolicy(ReferrerPolicy::Default);
+        setReferrerPolicy(ReferrerPolicy::NoReferrerWhenDowngrade);
     else {
-        addConsoleMessage(MessageSource::Rendering, MessageLevel::Error, "Failed to set referrer policy: The value '" + policy + "' is not one of 'no-referrer', 'origin', 'no-referrer-when-downgrade', or 'unsafe-url'. Defaulting to 'no-referrer'.");
-        setReferrerPolicy(ReferrerPolicy::Never);
+        addConsoleMessage(MessageSource::Rendering, MessageLevel::Error, "Failed to set referrer policy: The value '" + policy + "' is not one of 'no-referrer', 'no-referrer-when-downgrade', 'same-origin', 'origin', 'strict-origin', 'origin-when-cross-origin', 'strict-origin-when-cross-origin' or 'unsafe-url'. Defaulting to 'no-referrer'.");
+        setReferrerPolicy(ReferrerPolicy::NoReferrer);
     }
 }
 
@@ -3629,6 +3629,9 @@ void Document::updateIsPlayingMedia(uint64_t sourceElementID)
         }
     }
 #endif
+
+    if (m_userHasInteractedWithMediaElement)
+        state |= MediaProducer::HasUserInteractedWithMediaElement;
 
     if (state == m_mediaState)
         return;
@@ -5160,7 +5163,7 @@ void Document::finishedParsing()
     if (!m_documentTiming.domContentLoadedEventEnd)
         m_documentTiming.domContentLoadedEventEnd = MonotonicTime::now();
 
-    if (RefPtr<Frame> f = frame()) {
+    if (RefPtr<Frame> frame = this->frame()) {
         // FrameLoader::finishedParsing() might end up calling Document::implicitClose() if all
         // resource loads are complete. HTMLObjectElements can start loading their resources from
         // post attach callbacks triggered by resolveStyle(). This means if we parse out an <object>
@@ -5170,9 +5173,8 @@ void Document::finishedParsing()
         // See https://bugs.webkit.org/show_bug.cgi?id=36864 starting around comment 35.
         updateStyleIfNeeded();
 
-        f->loader().finishedParsing();
-
-        InspectorInstrumentation::domContentLoadedEventFired(*f);
+        frame->loader().finishedParsing();
+        InspectorInstrumentation::domContentLoadedEventFired(*frame);
     }
 
     // Schedule dropping of the DocumentSharedObjectPool. We keep it alive for a while after parsing finishes
@@ -6223,7 +6225,13 @@ void Document::decrementLoadEventDelayCount()
 
 void Document::loadEventDelayTimerFired()
 {
+    // FIXME: Should the call to FrameLoader::checkLoadComplete be moved inside Document::checkCompleted?
+    // FIXME: Should this also call DocumentLoader::checkLoadComplete?
+    // FIXME: Not obvious why checkCompleted needs to go first. The order these are called is
+    // visible to WebKit clients, but it's more like a race than a well-defined relationship.
     checkCompleted();
+    if (auto* frame = this->frame())
+        frame->loader().checkLoadComplete();
 }
 
 void Document::checkCompleted()
@@ -6606,7 +6614,7 @@ void Document::decrementActiveParserCount()
     if (!frame())
         return;
 
-    // FIXME: We should call loader()->checkLoadComplete() as well here,
+    // FIXME: We should call DocumentLoader::checkLoadComplete as well here,
     // but it seems to cause http/tests/security/feed-urls-from-remote.html
     // to timeout on Mac WK1; see http://webkit.org/b/110554 and http://webkit.org/b/110401.
     frame()->loader().checkLoadComplete();
@@ -7031,7 +7039,9 @@ void Document::applyQuickLookSandbox()
     // The sandbox directive is only allowed if the policy is from an HTTP header.
     contentSecurityPolicy()->didReceiveHeader(quickLookCSP, ContentSecurityPolicyHeaderType::Enforce, ContentSecurityPolicy::PolicyFrom::HTTPHeader);
 
-    setReferrerPolicy(ReferrerPolicy::Never);
+    disableSandboxFlags(SandboxNavigation);
+
+    setReferrerPolicy(ReferrerPolicy::NoReferrer);
 }
 #endif
 
@@ -7052,7 +7062,7 @@ void Document::applyContentDispositionAttachmentSandbox()
 {
     ASSERT(shouldEnforceContentDispositionAttachmentSandbox());
 
-    setReferrerPolicy(ReferrerPolicy::Never);
+    setReferrerPolicy(ReferrerPolicy::NoReferrer);
     if (!isMediaDocument())
         enforceSandboxFlags(SandboxAll);
     else

@@ -158,8 +158,7 @@ template<class MessageType> void WebIDBConnectionToClient::handleGetResult(const
     }
 
 #if ENABLE(SANDBOX_EXTENSIONS)
-    RefPtr<WebIDBConnectionToClient> protector(this);
-    StorageProcess::singleton().getSandboxExtensionsForBlobFiles(blobFilePaths, [protector, this, resultData](SandboxExtension::HandleArray&& handles) {
+    StorageProcess::singleton().getSandboxExtensionsForBlobFiles(blobFilePaths, [protectedThis = makeRef(*this), this, resultData](SandboxExtension::HandleArray&& handles) {
         send(MessageType({ resultData, WTFMove(handles) }));
     });
 #else

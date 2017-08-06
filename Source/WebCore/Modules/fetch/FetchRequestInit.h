@@ -25,6 +25,8 @@
 
 #pragma once
 
+#include "FetchBody.h"
+#include "FetchHeaders.h"
 #include "FetchOptions.h"
 #include <runtime/JSCJSValue.h>
 #include <wtf/Optional.h>
@@ -34,10 +36,10 @@ namespace WebCore {
 
 struct FetchRequestInit {
     String method;
-    // FIXME: Should add: HeadersInit headers;
-    // FIXME: Should add: BodyInit? body;
+    std::optional<FetchHeaders::Init> headers;
+    std::optional<FetchBody::Init> body;
     String referrer;
-    std::optional<FetchOptions::ReferrerPolicy> referrerPolicy;
+    std::optional<ReferrerPolicy> referrerPolicy;
     std::optional<FetchOptions::Mode> mode;
     std::optional<FetchOptions::Credentials> credentials;
     std::optional<FetchOptions::Cache> cache;

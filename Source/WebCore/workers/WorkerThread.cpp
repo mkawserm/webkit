@@ -106,15 +106,10 @@ WorkerThread::WorkerThread(const URL& scriptURL, const String& identifier, const
 #if ENABLE(INDEXED_DATABASE)
     , m_idbConnectionProxy(connectionProxy)
 #endif
-#if ENABLE(WEB_SOCKETS)
     , m_socketProvider(socketProvider)
-#endif
 {
 #if !ENABLE(INDEXED_DATABASE)
     UNUSED_PARAM(connectionProxy);
-#endif
-#if !ENABLE(WEB_SOCKETS)
-    UNUSED_PARAM(socketProvider);
 #endif
 
     std::lock_guard<StaticLock> lock(threadSetMutex);
@@ -216,7 +211,7 @@ void WorkerThread::workerThread()
     // We cannot let any objects survive past thread exit, because no other thread will run GC or otherwise destroy them.
     workerGlobalScopeToDelete = nullptr;
 
-    // Clean up WebCore::ThreadGlobalData before WTF::WTFThreadData goes away!
+    // Clean up WebCore::ThreadGlobalData before WTF::Thread goes away!
     threadGlobalData().destroy();
 
     // The thread object may be already destroyed from notification now, don't try to access "this".
@@ -307,11 +302,7 @@ IDBClient::IDBConnectionProxy* WorkerThread::idbConnectionProxy()
 
 SocketProvider* WorkerThread::socketProvider()
 {
-#if ENABLE(WEB_SOCKETS)
     return m_socketProvider.get();
-#else
-    return nullptr;
-#endif
 }
 
 } // namespace WebCore

@@ -93,6 +93,8 @@ public:
 
     enum class AsyncCallType {
         DOMTimer,
+        EventListener,
+        PostMessage,
         RequestAnimationFrame,
     };
 
@@ -135,6 +137,7 @@ protected:
     virtual String sourceMapURLForScript(const Script&);
 
     void didClearGlobalObject();
+    virtual void didClearAsyncStackTraceData() { }
 
 private:
     Ref<Inspector::Protocol::Array<Inspector::Protocol::Debugger::CallFrame>> currentCallFrames(const InjectedScript&);

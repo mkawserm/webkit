@@ -25,7 +25,7 @@
 	<key>LSFileQuarantineEnabled</key>
 	<true/>
 	<key>WebKitEntryPoint</key>
-	<string>StorageServiceInitializer</string>
+	<string>DatabaseServiceInitializer</string>
 	<key>LSUIElement</key>
 	<true/>
 	<key>XPCService</key>

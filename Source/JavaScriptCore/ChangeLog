@@ -1,3 +1,992 @@
+2017-08-05  Filip Pizlo  <fpizlo@apple.com>
+
+        REGRESSION (r219895-219897): Number of leaks on Open Source went from 9240 to 235983 and is now at 302372
+        https://bugs.webkit.org/show_bug.cgi?id=175083
+
+        Reviewed by Oliver Hunt.
+        
+        This fixes the leak by making MarkedBlock::specializedSweep call destructors when the block is empty,
+        even if we are using the pop path.
+        
+        Also, this fixes HeapCellInlines.h to no longer include MarkedBlockInlines.h. That's pretty
+        important, since MarkedBlockInlines.h is the GC's internal guts - we don't want to have to recompile
+        the world just because we changed it.
+        
+        Finally, this adds a new testing SPI for waiting for all VMs to finish destructing. This makes it
+        easier to debug leaks.
+
+        * bytecode/AccessCase.cpp:
+        * bytecode/PolymorphicAccess.cpp:
+        * heap/HeapCell.cpp:
+        (JSC::HeapCell::isLive):
+        * heap/HeapCellInlines.h:
+        (JSC::HeapCell::isLive): Deleted.
+        * heap/MarkedAllocator.cpp:
+        (JSC::MarkedAllocator::tryAllocateWithoutCollecting):
+        (JSC::MarkedAllocator::endMarking):
+        * heap/MarkedBlockInlines.h:
+        (JSC::MarkedBlock::Handle::specializedSweep):
+        * jit/AssemblyHelpers.cpp:
+        * jit/Repatch.cpp:
+        * runtime/TestRunnerUtils.h:
+        * runtime/VM.cpp:
+        (JSC::waitForVMDestruction):
+        (JSC::VM::~VM):
+
+2017-08-05  Mark Lam  <mark.lam@apple.com>
+
+        Move DFG::OSRExitCompiler methods into DFG::OSRExit [step 3].
+        https://bugs.webkit.org/show_bug.cgi?id=175228
+        <rdar://problem/33735737>
+
+        Reviewed by Saam Barati.
+
+        Merge the 32-bit OSRExit::compileExit() method into the 64-bit version, and
+        delete OSRExit32_64.cpp.
+
+        * CMakeLists.txt:
+        * JavaScriptCore.xcodeproj/project.pbxproj:
+        * dfg/DFGOSRExit.cpp:
+        (JSC::DFG::OSRExit::compileExit):
+        * dfg/DFGOSRExit32_64.cpp: Removed.
+        * jit/GPRInfo.h:
+        (JSC::JSValueSource::payloadGPR const):
+
+2017-08-04  Youenn Fablet  <youenn@apple.com>
+
+        [Cache API] Add Cache and CacheStorage IDL definitions
+        https://bugs.webkit.org/show_bug.cgi?id=175201
+
+        Reviewed by Brady Eidson.
+
+        * runtime/CommonIdentifiers.h:
+
+2017-08-04  Mark Lam  <mark.lam@apple.com>
+
+        Fix typo in testmasm.cpp: ENABLE(JSVALUE64) should be USE(JSVALUE64).
+        https://bugs.webkit.org/show_bug.cgi?id=175230
+        <rdar://problem/33735857>
+
+        Reviewed by Saam Barati.
+
+        * assembler/testmasm.cpp:
+        (JSC::testProbeReadsArgumentRegisters):
+        (JSC::testProbeWritesArgumentRegisters):
+
+2017-08-04  Mark Lam  <mark.lam@apple.com>
+
+        Move DFG::OSRExitCompiler methods into DFG::OSRExit [step 2].
+        https://bugs.webkit.org/show_bug.cgi?id=175214
+        <rdar://problem/33733308>
+
+        Rubber-stamped by Michael Saboff.
+
+        Copy the 64-bit and common methods into DFGOSRExit.cpp, and delete the unused
+        DFGOSRExitCompiler files.
+
+        Also renamed DFGOSRExitCompiler32_64.cpp to DFGOSRExit32_64.cpp.
+
+        Also move debugOperationPrintSpeculationFailure() into DFGOSRExit.cpp.  It's only
+        used by compileOSRExit(), and will be changed to not be a DFG operation function
+        when we use JIT probes for DFG OSR exits later in
+        https://bugs.webkit.org/show_bug.cgi?id=175144.
+
+        * CMakeLists.txt:
+        * JavaScriptCore.xcodeproj/project.pbxproj:
+        * dfg/DFGJITCompiler.cpp:
+        * dfg/DFGOSRExit.cpp:
+        (JSC::DFG::OSRExit::emitRestoreArguments):
+        (JSC::DFG::OSRExit::compileOSRExit):
+        (JSC::DFG::OSRExit::compileExit):
+        (JSC::DFG::OSRExit::debugOperationPrintSpeculationFailure):
+        * dfg/DFGOSRExit.h:
+        * dfg/DFGOSRExit32_64.cpp: Copied from Source/JavaScriptCore/dfg/DFGOSRExitCompiler32_64.cpp.
+        * dfg/DFGOSRExitCompiler.cpp: Removed.
+        * dfg/DFGOSRExitCompiler.h: Removed.
+        * dfg/DFGOSRExitCompiler32_64.cpp: Removed.
+        * dfg/DFGOSRExitCompiler64.cpp: Removed.
+        * dfg/DFGOperations.cpp:
+        * dfg/DFGOperations.h:
+        * dfg/DFGThunks.cpp:
+
+2017-08-04  Matt Baker  <mattbaker@apple.com>
+
+        Web Inspector: capture async stack trace when workers/main context posts a message
+        https://bugs.webkit.org/show_bug.cgi?id=167084
+        <rdar://problem/30033673>
+
+        Reviewed by Brian Burg.
+
+        * inspector/agents/InspectorDebuggerAgent.h:
+        Add `PostMessage` async call type.
+
+2017-08-04  Mark Lam  <mark.lam@apple.com>
+
+        Move DFG::OSRExitCompiler methods into DFG::OSRExit [step 1].
+        https://bugs.webkit.org/show_bug.cgi?id=175208
+        <rdar://problem/33732402>
+
+        Reviewed by Saam Barati.
+
+        This will minimize the code diff and make it easier to review the patch for
+        https://bugs.webkit.org/show_bug.cgi?id=175144 later.  We'll do this patch in 3
+        steps:
+
+        1. Do the code changes to move methods into OSRExit.
+        2. Copy the 64-bit and common methods into DFGOSRExit.cpp, and delete the unused DFGOSRExitCompiler files.
+        3. Merge the 32-bit OSRExitCompiler methods into the 64-bit version, and delete DFGOSRExitCompiler32_64.cpp.
+
+        Splitting this refactoring into these 3 steps also makes it easier to review this
+        patch and understand what is being changed.
+
+        * dfg/DFGOSRExit.h:
+        * dfg/DFGOSRExitCompiler.cpp:
+        (JSC::DFG::OSRExit::emitRestoreArguments):
+        (JSC::DFG::OSRExit::compileOSRExit):
+        (JSC::DFG::OSRExitCompiler::emitRestoreArguments): Deleted.
+        (): Deleted.
+        * dfg/DFGOSRExitCompiler.h:
+        (JSC::DFG::OSRExitCompiler::OSRExitCompiler): Deleted.
+        (): Deleted.
+        * dfg/DFGOSRExitCompiler32_64.cpp:
+        (JSC::DFG::OSRExit::compileExit):
+        (JSC::DFG::OSRExitCompiler::compileExit): Deleted.
+        * dfg/DFGOSRExitCompiler64.cpp:
+        (JSC::DFG::OSRExit::compileExit):
+        (JSC::DFG::OSRExitCompiler::compileExit): Deleted.
+        * dfg/DFGThunks.cpp:
+        (JSC::DFG::osrExitGenerationThunkGenerator):
+
+2017-08-04  Devin Rousso  <drousso@apple.com>
+
+        Web Inspector: add source view for WebGL shader programs
+        https://bugs.webkit.org/show_bug.cgi?id=138593
+        <rdar://problem/18936194>
+
+        Reviewed by Matt Baker.
+
+        * inspector/protocol/Canvas.json:
+         - Add `ShaderType` enum that contains "vertex" and "fragment".
+         - Add `requestShaderSource` command that will return the original source code for a given
+           shader program and shader type.
+
+2017-08-03  Filip Pizlo  <fpizlo@apple.com>
+
+        The allocator used to allocate memory for MarkedBlocks and LargeAllocations should not be the Subspace itself
+        https://bugs.webkit.org/show_bug.cgi?id=175141
+
+        Reviewed by Mark Lam.
+        
+        To make it easier to have multiple gigacages and maybe even fancier methods of allocating, this
+        decouples the allocator used to allocate memory from the GC Subspace. This means we no longer have
+        to create a new Subspace subclass to allocate memory a different way. Instead, the allocator is now
+        determined by the AlignedMemoryAllocator object.
+        
+        This also simplifies trading of blocks. Before, Subspaces had to determine if other Subspaces could
+        trade blocks with them using canTradeBlocksWith(). This makes it difficult for two different
+        Subspaces that both use the same underlying allocator to realize that they can trade blocks with
+        each other. Now, you just need to ask the block being stolen and the subspace doing the stealing if
+        they use the same AlignedMemoryAllocator.
+
+        * CMakeLists.txt:
+        * JavaScriptCore.xcodeproj/project.pbxproj:
+        * heap/AlignedMemoryAllocator.cpp: Added.
+        (JSC::AlignedMemoryAllocator::AlignedMemoryAllocator):
+        (JSC::AlignedMemoryAllocator::~AlignedMemoryAllocator):
+        * heap/AlignedMemoryAllocator.h: Added.
+        * heap/FastMallocAlignedMemoryAllocator.cpp: Added.
+        (JSC::FastMallocAlignedMemoryAllocator::singleton):
+        (JSC::FastMallocAlignedMemoryAllocator::FastMallocAlignedMemoryAllocator):
+        (JSC::FastMallocAlignedMemoryAllocator::~FastMallocAlignedMemoryAllocator):
+        (JSC::FastMallocAlignedMemoryAllocator::tryAllocateAlignedMemory):
+        (JSC::FastMallocAlignedMemoryAllocator::freeAlignedMemory):
+        (JSC::FastMallocAlignedMemoryAllocator::dump const):
+        * heap/FastMallocAlignedMemoryAllocator.h: Added.
+        * heap/GigacageAlignedMemoryAllocator.cpp: Added.
+        (JSC::GigacageAlignedMemoryAllocator::singleton):
+        (JSC::GigacageAlignedMemoryAllocator::GigacageAlignedMemoryAllocator):
+        (JSC::GigacageAlignedMemoryAllocator::~GigacageAlignedMemoryAllocator):
+        (JSC::GigacageAlignedMemoryAllocator::tryAllocateAlignedMemory):
+        (JSC::GigacageAlignedMemoryAllocator::freeAlignedMemory):
+        (JSC::GigacageAlignedMemoryAllocator::dump const):
+        * heap/GigacageAlignedMemoryAllocator.h: Added.
+        * heap/GigacageSubspace.cpp: Removed.
+        * heap/GigacageSubspace.h: Removed.
+        * heap/LargeAllocation.cpp:
+        (JSC::LargeAllocation::tryCreate):
+        (JSC::LargeAllocation::destroy):
+        * heap/MarkedAllocator.cpp:
+        (JSC::MarkedAllocator::tryAllocateWithoutCollecting):
+        * heap/MarkedBlock.cpp:
+        (JSC::MarkedBlock::tryCreate):
+        (JSC::MarkedBlock::Handle::Handle):
+        (JSC::MarkedBlock::Handle::~Handle):
+        (JSC::MarkedBlock::Handle::didAddToAllocator):
+        (JSC::MarkedBlock::Handle::subspace const):
+        * heap/MarkedBlock.h:
+        (JSC::MarkedBlock::Handle::alignedMemoryAllocator const):
+        (JSC::MarkedBlock::Handle::subspace const): Deleted.
+        * heap/Subspace.cpp:
+        (JSC::Subspace::Subspace):
+        (JSC::Subspace::findEmptyBlockToSteal):
+        (JSC::Subspace::canTradeBlocksWith): Deleted.
+        (JSC::Subspace::tryAllocateAlignedMemory): Deleted.
+        (JSC::Subspace::freeAlignedMemory): Deleted.
+        * heap/Subspace.h:
+        (JSC::Subspace::name const):
+        (JSC::Subspace::alignedMemoryAllocator const):
+        * runtime/JSDestructibleObjectSubspace.cpp:
+        (JSC::JSDestructibleObjectSubspace::JSDestructibleObjectSubspace):
+        * runtime/JSDestructibleObjectSubspace.h:
+        * runtime/JSSegmentedVariableObjectSubspace.cpp:
+        (JSC::JSSegmentedVariableObjectSubspace::JSSegmentedVariableObjectSubspace):
+        * runtime/JSSegmentedVariableObjectSubspace.h:
+        * runtime/JSStringSubspace.cpp:
+        (JSC::JSStringSubspace::JSStringSubspace):
+        * runtime/JSStringSubspace.h:
+        * runtime/VM.cpp:
+        (JSC::VM::VM):
+        * runtime/VM.h:
+        * wasm/js/JSWebAssemblyCodeBlockSubspace.cpp:
+        (JSC::JSWebAssemblyCodeBlockSubspace::JSWebAssemblyCodeBlockSubspace):
+        * wasm/js/JSWebAssemblyCodeBlockSubspace.h:
+
+2017-08-04  Oleksandr Skachkov  <gskachkov@gmail.com>
+
+        [ESNext] Async iteration - update feature.json
+        https://bugs.webkit.org/show_bug.cgi?id=175197
+
+        Reviewed by Yusuke Suzuki.
+
+        Update feature.json to add status of the Async Iteration
+
+        * features.json:
+
+2017-08-04  Matt Lewis  <jlewis3@apple.com>
+
+        Unreviewed, rolling out r220271.
+
+        Rolling out due to Layout Test failing on iOS Simulator.
+
+        Reverted changeset:
+
+        "Remove STREAMS_API compilation guard"
+        https://bugs.webkit.org/show_bug.cgi?id=175165
+        http://trac.webkit.org/changeset/220271
+
+2017-08-04  Youenn Fablet  <youenn@apple.com>
+
+        Remove STREAMS_API compilation guard
+        https://bugs.webkit.org/show_bug.cgi?id=175165
+
+        Reviewed by Darin Adler.
+
+        * Configurations/FeatureDefines.xcconfig:
+
+2017-08-04  Oleksandr Skachkov  <gskachkov@gmail.com>
+
+        [EsNext] Async iteration - Add feature flag
+        https://bugs.webkit.org/show_bug.cgi?id=166694
+
+        Reviewed by Yusuke Suzuki.
+
+        Add feature flag to JSC to switch on/off Async Iterator
+
+        * runtime/Options.h:
+
+2017-08-03  Brian Burg  <bburg@apple.com>
+
+        Remove ENABLE(WEB_SOCKET) guards
+        https://bugs.webkit.org/show_bug.cgi?id=167044
+
+        Reviewed by Joseph Pecoraro.
+
+        * Configurations/FeatureDefines.xcconfig:
+
+2017-08-03  Youenn Fablet  <youenn@apple.com>
+
+        Remove FETCH_API compilation guard
+        https://bugs.webkit.org/show_bug.cgi?id=175154
+
+        Reviewed by Chris Dumez.
+
+        * Configurations/FeatureDefines.xcconfig:
+
+2017-08-03  Matt Baker  <mattbaker@apple.com>
+
+        Web Inspector: Instrument WebGLProgram created/deleted
+        https://bugs.webkit.org/show_bug.cgi?id=175059
+
+        Reviewed by Devin Rousso.
+
+        Extend the Canvas protocol with types/events for tracking WebGLPrograms.
+
+        * inspector/protocol/Canvas.json:
+
+2017-08-03  Brady Eidson  <beidson@apple.com>
+
+        Add SW IDLs and stub out basic functionality.
+        https://bugs.webkit.org/show_bug.cgi?id=175115
+
+        Reviewed by Chris Dumez.
+
+        * Configurations/FeatureDefines.xcconfig:
+
+        * runtime/CommonIdentifiers.h:
+
+2017-08-03  Mark Lam  <mark.lam@apple.com>
+
+        Rename ScratchBuffer::activeLengthPtr to addressOfActiveLength.
+        https://bugs.webkit.org/show_bug.cgi?id=175142
+        <rdar://problem/33704528>
+
+        Reviewed by Filip Pizlo.
+
+        The convention in the rest of of JSC for such methods which return the address of
+        a field is to name them "addressOf<field name>".  We'll rename
+        ScratchBuffer::activeLengthPtr to be consistent with this convention.
+
+        * dfg/DFGSpeculativeJIT.cpp:
+        (JSC::DFG::SpeculativeJIT::compileNewArrayWithSpread):
+        * dfg/DFGSpeculativeJIT32_64.cpp:
+        (JSC::DFG::SpeculativeJIT::compile):
+        * dfg/DFGSpeculativeJIT64.cpp:
+        (JSC::DFG::SpeculativeJIT::compile):
+        * dfg/DFGThunks.cpp:
+        (JSC::DFG::osrExitGenerationThunkGenerator):
+        * ftl/FTLLowerDFGToB3.cpp:
+        (JSC::FTL::DFG::LowerDFGToB3::compileNewArray):
+        (JSC::FTL::DFG::LowerDFGToB3::compileNewArrayWithSpread):
+        * ftl/FTLThunks.cpp:
+        (JSC::FTL::genericGenerationThunkGenerator):
+        * jit/AssemblyHelpers.cpp:
+        (JSC::AssemblyHelpers::debugCall):
+        * jit/ScratchRegisterAllocator.cpp:
+        (JSC::ScratchRegisterAllocator::preserveUsedRegistersToScratchBufferForCall):
+        (JSC::ScratchRegisterAllocator::restoreUsedRegistersFromScratchBufferForCall):
+        * runtime/VM.h:
+        (JSC::ScratchBuffer::addressOfActiveLength):
+        (JSC::ScratchBuffer::activeLengthPtr): Deleted.
+        * wasm/WasmBinding.cpp:
+        (JSC::Wasm::wasmToJs):
+
+2017-08-02  Devin Rousso  <drousso@apple.com>
+
+        Web Inspector: add stack trace information for each RecordingAction
+        https://bugs.webkit.org/show_bug.cgi?id=174663
+
+        Reviewed by Joseph Pecoraro.
+
+        * inspector/ScriptCallFrame.h:
+        Add `operator==` so that when a ScriptCallFrame object is held in a Vector, calling `find`
+        with an existing value doesn't need require a functor and can use existing code.
+
+        * interpreter/StackVisitor.h:
+        * interpreter/StackVisitor.cpp:
+        (JSC::StackVisitor::Frame::isWasmFrame const): Inlined in header.
+
+2017-08-02  Yusuke Suzuki  <utatane.tea@gmail.com>
+
+        Merge WTFThreadData to Thread::current
+        https://bugs.webkit.org/show_bug.cgi?id=174716
+
+        Reviewed by Mark Lam.
+
+        Use Thread::current() instead.
+
+        * API/JSContext.mm:
+        (+[JSContext currentContext]):
+        (+[JSContext currentThis]):
+        (+[JSContext currentCallee]):
+        (+[JSContext currentArguments]):
+        (-[JSContext beginCallbackWithData:calleeValue:thisValue:argumentCount:arguments:]):
+        (-[JSContext endCallbackWithData:]):
+        * heap/Heap.cpp:
+        (JSC::Heap::requestCollection):
+        * runtime/Completion.cpp:
+        (JSC::checkSyntax):
+        (JSC::checkModuleSyntax):
+        (JSC::evaluate):
+        (JSC::loadAndEvaluateModule):
+        (JSC::loadModule):
+        (JSC::linkAndEvaluateModule):
+        (JSC::importModule):
+        * runtime/Identifier.cpp:
+        (JSC::Identifier::checkCurrentAtomicStringTable):
+        * runtime/InitializeThreading.cpp:
+        (JSC::initializeThreading):
+        * runtime/JSLock.cpp:
+        (JSC::JSLock::didAcquireLock):
+        (JSC::JSLock::willReleaseLock):
+        (JSC::JSLock::dropAllLocks):
+        (JSC::JSLock::grabAllLocks):
+        * runtime/JSLock.h:
+        * runtime/VM.cpp:
+        (JSC::VM::VM):
+        (JSC::VM::updateStackLimits):
+        (JSC::VM::committedStackByteCount):
+        * runtime/VM.h:
+        (JSC::VM::isSafeToRecurse const):
+        * runtime/VMEntryScope.cpp:
+        (JSC::VMEntryScope::VMEntryScope):
+        * runtime/VMInlines.h:
+        (JSC::VM::ensureStackCapacityFor):
+        * yarr/YarrPattern.cpp:
+        (JSC::Yarr::YarrPatternConstructor::isSafeToRecurse const):
+
+2017-08-02  Filip Pizlo  <fpizlo@apple.com>
+
+        LLInt should do pointer caging
+        https://bugs.webkit.org/show_bug.cgi?id=175036
+
+        Reviewed by Keith Miller.
+
+        Implementing this in the LLInt was challenging because offlineasm did not previously know
+        how to load from globals. This teaches it how to do that on Darwin/x86_64, which happens
+        to be where the Gigacage is enabled right now.
+
+        * llint/LLIntOfflineAsmConfig.h:
+        * llint/LowLevelInterpreter64.asm:
+        * offlineasm/ast.rb:
+        * offlineasm/x86.rb:
+
+2017-08-02  Filip Pizlo  <fpizlo@apple.com>
+
+        Sweeping should only scribble when sweeping to free list
+        https://bugs.webkit.org/show_bug.cgi?id=175105
+
+        Reviewed by Saam Barati.
+        
+        I just saw a crash on the bots where a destructor call attempt dereferenced scribbled memory. This
+        can happen because the bump path of specializedSweep will scribble in SweepOnly, which replaces the
+        zap word (i.e. 0) with the scribble word (i.e. 0xbadbeef0). This is a recent regression, since we
+        didn't used to do destruction on the bump path. No destruction, no zapping. Looking at the pop
+        path, we only scribble when we SweepToFreeList. This ensures that we only overwrite the zap word
+        when it doesn't matter anyway because we're building a free list.
+        
+        This is a fix for those crashes on the bots because it means that we'll no longer scribble over the
+        zap.
+
+        * heap/MarkedBlockInlines.h:
+        (JSC::MarkedBlock::Handle::specializedSweep):
+
+2017-08-02  Filip Pizlo  <fpizlo@apple.com>
+
+        All C++ accesses to JSObject::m_butterfly should do caging
+        https://bugs.webkit.org/show_bug.cgi?id=175039
+
+        Reviewed by Keith Miller.
+        
+        Makes JSObject::m_butterfly a AuxiliaryBarrier<CagedPtr<Butterfly>> and adopts the CagedPtr<> API.
+        This ensures that you can't cause C++ code to access a butterfly that has been rewired to point
+        outside the gigacage.
+
+        * runtime/JSArray.cpp:
+        (JSC::JSArray::setLength):
+        (JSC::JSArray::pop):
+        (JSC::JSArray::push):
+        (JSC::JSArray::shiftCountWithAnyIndexingType):
+        (JSC::JSArray::unshiftCountWithAnyIndexingType):
+        (JSC::JSArray::fillArgList):
+        (JSC::JSArray::copyToArguments):
+        * runtime/JSObject.cpp:
+        (JSC::JSObject::heapSnapshot):
+        (JSC::JSObject::createInitialIndexedStorage):
+        (JSC::JSObject::createArrayStorage):
+        (JSC::JSObject::convertUndecidedToInt32):
+        (JSC::JSObject::convertUndecidedToDouble):
+        (JSC::JSObject::convertUndecidedToContiguous):
+        (JSC::JSObject::convertInt32ToDouble):
+        (JSC::JSObject::convertInt32ToArrayStorage):
+        (JSC::JSObject::convertDoubleToContiguous):
+        (JSC::JSObject::convertDoubleToArrayStorage):
+        (JSC::JSObject::convertContiguousToArrayStorage):
+        (JSC::JSObject::defineOwnIndexedProperty):
+        (JSC::JSObject::putByIndexBeyondVectorLengthWithoutAttributes):
+        (JSC::JSObject::ensureLengthSlow):
+        (JSC::JSObject::allocateMoreOutOfLineStorage):
+        * runtime/JSObject.h:
+        (JSC::JSObject::canGetIndexQuickly):
+        (JSC::JSObject::getIndexQuickly):
+        (JSC::JSObject::tryGetIndexQuickly const):
+        (JSC::JSObject::canSetIndexQuickly):
+        (JSC::JSObject::setIndexQuickly):
+        (JSC::JSObject::initializeIndex):
+        (JSC::JSObject::initializeIndexWithoutBarrier):
+        (JSC::JSObject::butterfly const):
+        (JSC::JSObject::butterfly):
+
+2017-08-02  Filip Pizlo  <fpizlo@apple.com>
+
+        We should be OK with the gigacage being disabled on gmalloc
+        https://bugs.webkit.org/show_bug.cgi?id=175082
+
+        Reviewed by Michael Saboff.
+
+        * jsc.cpp:
+        (jscmain):
+
+2017-08-02  Saam Barati  <sbarati@apple.com>
+
+        On memory-constrained iOS devices, reduce the rate at which the JS heap grows before a GC to try to keep more memory available for the system
+        https://bugs.webkit.org/show_bug.cgi?id=175041
+        <rdar://problem/33659370>
+
+        Reviewed by Filip Pizlo.
+
+        The testing I have done shows that this new function is a ~10%
+        progression running JetStream on 1GB iOS devices. I've also tried
+        this on a few > 1GB iOS devices, and the testing shows this is either neutral
+        or a regression. Right now, we'll just enable this for <= 1GB devices
+        since it's a win. In the future, we might want to either look into
+        tweaking these parameters or coming up with a new function for > 1GB
+        devices.
+
+        * heap/Heap.cpp:
+        * runtime/Options.h:
+
+2017-08-01  Filip Pizlo  <fpizlo@apple.com>
+
+        Bmalloc and GC should put auxiliaries (butterflies, typed array backing stores) in a gigacage (separate multi-GB VM region)
+        https://bugs.webkit.org/show_bug.cgi?id=174727
+
+        Reviewed by Mark Lam.
+        
+        This adopts the Gigacage for the GigacageSubspace, which we use for Auxiliary allocations. Also, in
+        one place in the code - the FTL codegen for butterfly and typed array access - we "cage" the accesses
+        themselves. Basically, we do masking to ensure that the pointer points into the gigacage.
+        
+        This is neutral on JetStream.
+
+        * CMakeLists.txt:
+        * JavaScriptCore.xcodeproj/project.pbxproj:
+        * b3/B3InsertionSet.cpp:
+        (JSC::B3::InsertionSet::execute):
+        * dfg/DFGAbstractInterpreterInlines.h:
+        (JSC::DFG::AbstractInterpreter<AbstractStateType>::executeEffects):
+        * dfg/DFGArgumentsEliminationPhase.cpp:
+        * dfg/DFGClobberize.cpp:
+        (JSC::DFG::readsOverlap):
+        * dfg/DFGClobberize.h:
+        (JSC::DFG::clobberize):
+        * dfg/DFGDoesGC.cpp:
+        (JSC::DFG::doesGC):
+        * dfg/DFGFixedButterflyAccessUncagingPhase.cpp: Added.
+        (JSC::DFG::performFixedButterflyAccessUncaging):
+        * dfg/DFGFixedButterflyAccessUncagingPhase.h: Added.
+        * dfg/DFGFixupPhase.cpp:
+        (JSC::DFG::FixupPhase::fixupNode):
+        * dfg/DFGHeapLocation.cpp:
+        (WTF::printInternal):
+        * dfg/DFGHeapLocation.h:
+        * dfg/DFGNodeType.h:
+        * dfg/DFGPlan.cpp:
+        (JSC::DFG::Plan::compileInThreadImpl):
+        * dfg/DFGPredictionPropagationPhase.cpp:
+        * dfg/DFGSafeToExecute.h:
+        (JSC::DFG::safeToExecute):
+        * dfg/DFGSpeculativeJIT.cpp:
+        (JSC::DFG::SpeculativeJIT::compileGetButterfly):
+        * dfg/DFGSpeculativeJIT32_64.cpp:
+        (JSC::DFG::SpeculativeJIT::compile):
+        * dfg/DFGSpeculativeJIT64.cpp:
+        (JSC::DFG::SpeculativeJIT::compile):
+        * dfg/DFGTypeCheckHoistingPhase.cpp:
+        (JSC::DFG::TypeCheckHoistingPhase::identifyRedundantStructureChecks):
+        (JSC::DFG::TypeCheckHoistingPhase::identifyRedundantArrayChecks):
+        * ftl/FTLCapabilities.cpp:
+        (JSC::FTL::canCompile):
+        * ftl/FTLLowerDFGToB3.cpp:
+        (JSC::FTL::DFG::LowerDFGToB3::compileNode):
+        (JSC::FTL::DFG::LowerDFGToB3::compileGetButterfly):
+        (JSC::FTL::DFG::LowerDFGToB3::compileGetIndexedPropertyStorage):
+        (JSC::FTL::DFG::LowerDFGToB3::compileGetByVal):
+        (JSC::FTL::DFG::LowerDFGToB3::compileStringCharAt):
+        (JSC::FTL::DFG::LowerDFGToB3::compileStringCharCodeAt):
+        (JSC::FTL::DFG::LowerDFGToB3::compileGetMapBucket):
+        (JSC::FTL::DFG::LowerDFGToB3::compileGetDirectPname):
+        (JSC::FTL::DFG::LowerDFGToB3::compileToLowerCase):
+        (JSC::FTL::DFG::LowerDFGToB3::caged):
+        * heap/GigacageSubspace.cpp: Added.
+        (JSC::GigacageSubspace::GigacageSubspace):
+        (JSC::GigacageSubspace::~GigacageSubspace):
+        (JSC::GigacageSubspace::tryAllocateAlignedMemory):
+        (JSC::GigacageSubspace::freeAlignedMemory):
+        (JSC::GigacageSubspace::canTradeBlocksWith):
+        * heap/GigacageSubspace.h: Added.
+        * heap/Heap.cpp:
+        (JSC::Heap::Heap):
+        (JSC::Heap::lastChanceToFinalize):
+        (JSC::Heap::finalize):
+        (JSC::Heap::sweepInFinalize):
+        (JSC::Heap::updateAllocationLimits):
+        (JSC::Heap::shouldDoFullCollection):
+        (JSC::Heap::collectIfNecessaryOrDefer):
+        (JSC::Heap::reportWebAssemblyFastMemoriesAllocated): Deleted.
+        (JSC::Heap::webAssemblyFastMemoriesThisCycleAtThreshold const): Deleted.
+        (JSC::Heap::sweepLargeAllocations): Deleted.
+        (JSC::Heap::didAllocateWebAssemblyFastMemories): Deleted.
+        * heap/Heap.h:
+        * heap/LargeAllocation.cpp:
+        (JSC::LargeAllocation::tryCreate):
+        (JSC::LargeAllocation::destroy):
+        * heap/MarkedAllocator.cpp:
+        (JSC::MarkedAllocator::tryAllocateWithoutCollecting):
+        (JSC::MarkedAllocator::tryAllocateBlock):
+        * heap/MarkedBlock.cpp:
+        (JSC::MarkedBlock::tryCreate):
+        (JSC::MarkedBlock::Handle::Handle):
+        (JSC::MarkedBlock::Handle::~Handle):
+        (JSC::MarkedBlock::Handle::didAddToAllocator):
+        (JSC::MarkedBlock::Handle::subspace const): Deleted.
+        * heap/MarkedBlock.h:
+        (JSC::MarkedBlock::Handle::subspace const):
+        * heap/MarkedSpace.cpp:
+        (JSC::MarkedSpace::~MarkedSpace):
+        (JSC::MarkedSpace::freeMemory):
+        (JSC::MarkedSpace::prepareForAllocation):
+        (JSC::MarkedSpace::addMarkedAllocator):
+        (JSC::MarkedSpace::findEmptyBlockToSteal): Deleted.
+        * heap/MarkedSpace.h:
+        (JSC::MarkedSpace::firstAllocator const):
+        (JSC::MarkedSpace::allocatorForEmptyAllocation const): Deleted.
+        * heap/Subspace.cpp:
+        (JSC::Subspace::Subspace):
+        (JSC::Subspace::canTradeBlocksWith):
+        (JSC::Subspace::tryAllocateAlignedMemory):
+        (JSC::Subspace::freeAlignedMemory):
+        (JSC::Subspace::prepareForAllocation):
+        (JSC::Subspace::findEmptyBlockToSteal):
+        * heap/Subspace.h:
+        (JSC::Subspace::didCreateFirstAllocator):
+        * heap/SubspaceInlines.h:
+        (JSC::Subspace::forEachAllocator):
+        (JSC::Subspace::forEachMarkedBlock):
+        (JSC::Subspace::forEachNotEmptyMarkedBlock):
+        * jit/JITPropertyAccess.cpp:
+        (JSC::JIT::emitDoubleLoad):
+        (JSC::JIT::emitContiguousLoad):
+        (JSC::JIT::emitArrayStorageLoad):
+        (JSC::JIT::emitGenericContiguousPutByVal):
+        (JSC::JIT::emitArrayStoragePutByVal):
+        (JSC::JIT::emit_op_get_from_scope):
+        (JSC::JIT::emit_op_put_to_scope):
+        (JSC::JIT::emitIntTypedArrayGetByVal):
+        (JSC::JIT::emitFloatTypedArrayGetByVal):
+        (JSC::JIT::emitIntTypedArrayPutByVal):
+        (JSC::JIT::emitFloatTypedArrayPutByVal):
+        * jsc.cpp:
+        (fillBufferWithContentsOfFile):
+        (functionReadFile):
+        (gigacageDisabled):
+        (jscmain):
+        * llint/LowLevelInterpreter64.asm:
+        * runtime/ArrayBuffer.cpp:
+        (JSC::ArrayBufferContents::tryAllocate):
+        (JSC::ArrayBuffer::createAdopted):
+        (JSC::ArrayBuffer::createFromBytes):
+        (JSC::ArrayBuffer::tryCreate):
+        * runtime/IndexingHeader.h:
+        * runtime/InitializeThreading.cpp:
+        (JSC::initializeThreading):
+        * runtime/JSArrayBuffer.cpp:
+        * runtime/JSArrayBufferView.cpp:
+        (JSC::JSArrayBufferView::ConstructionContext::ConstructionContext):
+        (JSC::JSArrayBufferView::finalize):
+        * runtime/JSLock.cpp:
+        (JSC::JSLock::didAcquireLock):
+        * runtime/JSObject.h:
+        * runtime/Options.cpp:
+        (JSC::recomputeDependentOptions):
+        * runtime/Options.h:
+        * runtime/ScopedArgumentsTable.h:
+        * runtime/VM.cpp:
+        (JSC::VM::VM):
+        (JSC::VM::~VM):
+        (JSC::VM::gigacageDisabledCallback):
+        (JSC::VM::gigacageDisabled):
+        * runtime/VM.h:
+        (JSC::VM::fireGigacageEnabledIfNecessary):
+        (JSC::VM::gigacageEnabled):
+        * wasm/WasmB3IRGenerator.cpp:
+        (JSC::Wasm::B3IRGenerator::B3IRGenerator):
+        (JSC::Wasm::B3IRGenerator::emitCheckAndPreparePointer):
+        * wasm/WasmCodeBlock.cpp:
+        (JSC::Wasm::CodeBlock::isSafeToRun):
+        * wasm/WasmMemory.cpp:
+        (JSC::Wasm::makeString):
+        (JSC::Wasm::Memory::create):
+        (JSC::Wasm::Memory::~Memory):
+        (JSC::Wasm::Memory::addressIsInActiveFastMemory):
+        (JSC::Wasm::Memory::grow):
+        (JSC::Wasm::Memory::initializePreallocations): Deleted.
+        (JSC::Wasm::Memory::maxFastMemoryCount): Deleted.
+        * wasm/WasmMemory.h:
+        * wasm/js/JSWebAssemblyInstance.cpp:
+        (JSC::JSWebAssemblyInstance::create):
+        * wasm/js/JSWebAssemblyMemory.cpp:
+        (JSC::JSWebAssemblyMemory::grow):
+        (JSC::JSWebAssemblyMemory::finishCreation):
+        * wasm/js/JSWebAssemblyMemory.h:
+        (JSC::JSWebAssemblyMemory::subspaceFor):
+
+2017-07-31  Mark Lam  <mark.lam@apple.com>
+
+        Added some UNLIKELYs to operationOptimize().
+        https://bugs.webkit.org/show_bug.cgi?id=174976
+
+        Reviewed by JF Bastien.
+
+        * jit/JITOperations.cpp:
+
+2017-07-31  Keith Miller  <keith_miller@apple.com>
+
+        Make more things LLInt constexprs
+        https://bugs.webkit.org/show_bug.cgi?id=174994
+
+        Reviewed by Saam Barati.
+
+        This patch makes more const values in the LLInt constexprs.
+        It also deletes all of the no longer necessary static_asserts in
+        LLIntData.cpp. Finally, it fixes a typo in parser.rb.
+
+        * interpreter/ShadowChicken.h:
+        (JSC::ShadowChicken::Packet::tailMarker):
+        * llint/LLIntData.cpp:
+        (JSC::LLInt::Data::performAssertions):
+        * llint/LowLevelInterpreter.asm:
+        * offlineasm/generate_offset_extractor.rb:
+        * offlineasm/parser.rb:
+
+2017-07-31  Matt Lewis  <jlewis3@apple.com>
+
+        Unreviewed, rolling out r220060.
+
+        This broke our internal builds. Contact reviewer of patch for
+        more information.
+
+        Reverted changeset:
+
+        "Merge WTFThreadData to Thread::current"
+        https://bugs.webkit.org/show_bug.cgi?id=174716
+        http://trac.webkit.org/changeset/220060
+
+2017-07-31  Yusuke Suzuki  <utatane.tea@gmail.com>
+
+        [JSC] Support optional catch binding
+        https://bugs.webkit.org/show_bug.cgi?id=174981
+
+        Reviewed by Saam Barati.
+
+        This patch implements optional catch binding proposal[1], which is now stage 3.
+        This proposal adds a new `catch` brace with no error value binding.
+
+            ```
+                try {
+                    ...
+                } catch {
+                    ...
+                }
+            ```
+
+        Sometimes we do not need to get error value actually. For example, the function returns
+        boolean which means whether the function succeeds.
+
+            ```
+            function parse(result) // -> bool
+            {
+                 try {
+                     parseInner(result);
+                 } catch {
+                     return false;
+                 }
+                 return true;
+            }
+            ```
+
+        In the above case, we are not interested in the actual error value. Without this syntax,
+        we always need to introduce a binding for an error value that is just ignored.
+
+        [1]: https://michaelficarra.github.io/optional-catch-binding-proposal/
+
+        * bytecompiler/NodesCodegen.cpp:
+        (JSC::TryNode::emitBytecode):
+        * parser/Parser.cpp:
+        (JSC::Parser<LexerType>::parseTryStatement):
+
+2017-07-31  Yusuke Suzuki  <utatane.tea@gmail.com>
+
+        Merge WTFThreadData to Thread::current
+        https://bugs.webkit.org/show_bug.cgi?id=174716
+
+        Reviewed by Sam Weinig.
+
+        Use Thread::current() instead.
+
+        * API/JSContext.mm:
+        (+[JSContext currentContext]):
+        (+[JSContext currentThis]):
+        (+[JSContext currentCallee]):
+        (+[JSContext currentArguments]):
+        (-[JSContext beginCallbackWithData:calleeValue:thisValue:argumentCount:arguments:]):
+        (-[JSContext endCallbackWithData:]):
+        * heap/Heap.cpp:
+        (JSC::Heap::requestCollection):
+        * runtime/Completion.cpp:
+        (JSC::checkSyntax):
+        (JSC::checkModuleSyntax):
+        (JSC::evaluate):
+        (JSC::loadAndEvaluateModule):
+        (JSC::loadModule):
+        (JSC::linkAndEvaluateModule):
+        (JSC::importModule):
+        * runtime/Identifier.cpp:
+        (JSC::Identifier::checkCurrentAtomicStringTable):
+        * runtime/InitializeThreading.cpp:
+        (JSC::initializeThreading):
+        * runtime/JSLock.cpp:
+        (JSC::JSLock::didAcquireLock):
+        (JSC::JSLock::willReleaseLock):
+        (JSC::JSLock::dropAllLocks):
+        (JSC::JSLock::grabAllLocks):
+        * runtime/JSLock.h:
+        * runtime/VM.cpp:
+        (JSC::VM::VM):
+        (JSC::VM::updateStackLimits):
+        (JSC::VM::committedStackByteCount):
+        * runtime/VM.h:
+        (JSC::VM::isSafeToRecurse const):
+        * runtime/VMEntryScope.cpp:
+        (JSC::VMEntryScope::VMEntryScope):
+        * runtime/VMInlines.h:
+        (JSC::VM::ensureStackCapacityFor):
+        * yarr/YarrPattern.cpp:
+        (JSC::Yarr::YarrPatternConstructor::isSafeToRecurse const):
+
+2017-07-30  Yusuke Suzuki  <utatane.tea@gmail.com>
+
+        [WTF] Introduce Private Symbols
+        https://bugs.webkit.org/show_bug.cgi?id=174935
+
+        Reviewed by Darin Adler.
+
+        Use SymbolImpl::isPrivate().
+
+        * builtins/BuiltinNames.cpp:
+        * builtins/BuiltinNames.h:
+        (JSC::BuiltinNames::isPrivateName): Deleted.
+        * builtins/BuiltinUtils.h:
+        * bytecode/BytecodeIntrinsicRegistry.cpp:
+        (JSC::BytecodeIntrinsicRegistry::lookup):
+        * runtime/CommonIdentifiers.cpp:
+        (JSC::CommonIdentifiers::isPrivateName): Deleted.
+        * runtime/CommonIdentifiers.h:
+        * runtime/ExceptionHelpers.cpp:
+        (JSC::createUndefinedVariableError):
+        * runtime/Identifier.h:
+        (JSC::Identifier::isPrivateName):
+        * runtime/IdentifierInlines.h:
+        (JSC::identifierToSafePublicJSValue):
+        * runtime/ObjectConstructor.cpp:
+        (JSC::objectConstructorAssign):
+        (JSC::defineProperties):
+        (JSC::setIntegrityLevel):
+        (JSC::testIntegrityLevel):
+        (JSC::ownPropertyKeys):
+        * runtime/PrivateName.h:
+        (JSC::PrivateName::PrivateName):
+        * runtime/PropertyName.h:
+        (JSC::PropertyName::isPrivateName):
+        * runtime/ProxyObject.cpp:
+        (JSC::performProxyGet):
+        (JSC::ProxyObject::performInternalMethodGetOwnProperty):
+        (JSC::ProxyObject::performHasProperty):
+        (JSC::ProxyObject::performPut):
+        (JSC::ProxyObject::performDelete):
+        (JSC::ProxyObject::performDefineOwnProperty):
+
+2017-07-29  Keith Miller  <keith_miller@apple.com>
+
+        LLInt offsets extractor should be able to handle C++ constexprs
+        https://bugs.webkit.org/show_bug.cgi?id=174964
+
+        Reviewed by Saam Barati.
+
+        This patch adds new syntax to the offline asm language. The new keyword,
+        constexpr, takes the subsequent identifier and maps it to a C++ constexpr
+        expression. Additionally, if the value is not an identifier you can wrap it in
+        parentheses. e.g. constexpr (myConstexprFunction() + OBJECT_OFFSET(Foo, bar)),
+        which will get converted into:
+        static_cast<int64_t>(myConstexprFunction() + OBJECT_OFFSET(Foo, bar));
+
+        This patch also changes the data format the LLIntOffsetsExtractor
+        binary produces.  Previously, it would produce unsigned values,
+        after this patch every value is an int64_t.  Using an int64_t is
+        useful because it means that we can represent any constant needed.
+        int32_t masks are sign extended then passed then converted to a
+        negative literal sting in the assembler so it will be the constant
+        expected.
+
+        * llint/LLIntOffsetsExtractor.cpp:
+        (JSC::LLIntOffsetsExtractor::dummy):
+        * llint/LowLevelInterpreter.asm:
+        * llint/LowLevelInterpreter64.asm:
+        * offlineasm/asm.rb:
+        * offlineasm/ast.rb:
+        * offlineasm/generate_offset_extractor.rb:
+        * offlineasm/offsets.rb:
+        * offlineasm/parser.rb:
+        * offlineasm/transform.rb:
+
+2017-07-28  Matt Baker  <mattbaker@apple.com>
+
+        Web Inspector: capture an async stack trace when web content calls addEventListener
+        https://bugs.webkit.org/show_bug.cgi?id=174739
+        <rdar://problem/33468197>
+
+        Reviewed by Brian Burg.
+
+        Allow debugger agents to perform custom logic when asynchronous stack
+        trace data is cleared. For example, the PageDebuggerAgent would clear
+        its list of registered listeners for which call stacks have been recorded.
+
+        * inspector/agents/InspectorDebuggerAgent.cpp:
+        (Inspector::InspectorDebuggerAgent::clearAsyncStackTraceData):
+        * inspector/agents/InspectorDebuggerAgent.h:
+
+2017-07-28  Mark Lam  <mark.lam@apple.com>
+
+        ObjectToStringAdaptiveStructureWatchpoint should not fire if it's dying imminently.
+        https://bugs.webkit.org/show_bug.cgi?id=174948
+        <rdar://problem/33495680>
+
+        Reviewed by Filip Pizlo.
+
+        ObjectToStringAdaptiveStructureWatchpoint is owned by StructureRareData.  If its
+        owner StructureRareData is already known to be dead (in terms of GC liveness) but
+        hasn't been destructed yet (i.e. not swept by the GC yet), we should ignore all
+        requests to fire this watchpoint.
+
+        If the GC had the chance to sweep the StructureRareData, thereby destructing the
+        ObjectToStringAdaptiveStructureWatchpoint, it (the watchpoint) would have removed
+        itself from the WatchpointSet it was on.  Hence, it would not have been fired.
+
+        But since the watchpoint hasn't been destructed yet, it still remains on the
+        WatchpointSet and needs to guard against being fired in this state.  The fix is
+        to simply return early if its owner StructureRareData is not live.  This has the
+        effect of the watchpoint fire being a no-op, which is equivalent to the watchpoint
+        not firing as we would expect.
+
+        This patch also removes some cargo cult copying of watchpoint code which
+        instantiates a StringFireDetail.  In a few cases, that StringFireDetail is never
+        used.  This patch removes these unnecessary instantiations.
+
+        * bytecode/LLIntPrototypeLoadAdaptiveStructureWatchpoint.cpp:
+        (JSC::LLIntPrototypeLoadAdaptiveStructureWatchpoint::fireInternal):
+        * runtime/StructureRareData.cpp:
+        (JSC::ObjectToStringAdaptiveStructureWatchpoint::fireInternal):
+        (JSC::ObjectToStringAdaptiveInferredPropertyValueWatchpoint::handleFire):
+
 2017-07-28  Yusuke Suzuki  <utatane.tea@gmail.com>
 
         ASSERTION FAILED: candidate->op() == PhantomCreateRest || candidate->op() == PhantomDirectArguments || candidate->op() == PhantomClonedArguments || candidate->op() == PhantomSpread || candidate->op() == PhantomNewArrayWithSpread

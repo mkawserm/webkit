@@ -39,6 +39,8 @@
 
 namespace JSC {
 
+static constexpr bool tradeDestructorBlocks = true;
+
 MarkedAllocator::MarkedAllocator(Heap* heap, Subspace* subspace, size_t cellSize)
     : m_freeList(cellSize)
     , m_currentBlock(0)
@@ -102,8 +104,11 @@ void* MarkedAllocator::tryAllocateWithoutCollecting()
             return result;
     }
     
-    if (Options::stealEmptyBlocksFromOtherAllocators()) {
-        if (MarkedBlock::Handle* block = markedSpace().findEmptyBlockToSteal()) {
+    if (Options::stealEmptyBlocksFromOtherAllocators()
+        && (tradeDestructorBlocks || !needsDestruction())) {
+        if (MarkedBlock::Handle* block = m_subspace->findEmptyBlockToSteal()) {
+            RELEASE_ASSERT(block->alignedMemoryAllocator() == m_subspace->alignedMemoryAllocator());
+            
             block->sweep(nullptr);
             
             // It's good that this clears canAllocateButNotEmpty as well as all other bits,
@@ -240,7 +245,7 @@ MarkedBlock::Handle* MarkedAllocator::tryAllocateBlock()
 {
     SuperSamplerScope superSamplerScope(false);
     
-    MarkedBlock::Handle* handle = MarkedBlock::tryCreate(*m_heap);
+    MarkedBlock::Handle* handle = MarkedBlock::tryCreate(*m_heap, subspace()->alignedMemoryAllocator());
     if (!handle)
         return nullptr;
     
@@ -379,8 +384,14 @@ void MarkedAllocator::endMarking()
     // know what kind of collection it is. That knowledge is already encoded in the m_markingXYZ
     // vectors.
     
-    m_empty = m_live & ~m_markingNotEmpty;
-    m_canAllocateButNotEmpty = m_live & m_markingNotEmpty & ~m_markingRetired;
+    if (!tradeDestructorBlocks && needsDestruction()) {
+        ASSERT(m_empty.isEmpty());
+        m_canAllocateButNotEmpty = m_live & ~m_markingRetired;
+    } else {
+        m_empty = m_live & ~m_markingNotEmpty;
+        m_canAllocateButNotEmpty = m_live & m_markingNotEmpty & ~m_markingRetired;
+    }
+    
     if (needsDestruction()) {
         // There are some blocks that we didn't allocate out of in the last cycle, but we swept them. This
         // will forget that we did that and we will end up sweeping them again and attempting to call their

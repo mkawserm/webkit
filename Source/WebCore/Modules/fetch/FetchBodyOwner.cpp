@@ -29,8 +29,6 @@
 #include "config.h"
 #include "FetchBodyOwner.h"
 
-#if ENABLE(FETCH_API)
-
 #include "FetchLoader.h"
 #include "HTTPParsers.h"
 #include "JSBlob.h"
@@ -90,7 +88,7 @@ void FetchBodyOwner::arrayBuffer(Ref<DeferredPromise>&& promise)
 void FetchBodyOwner::blob(Ref<DeferredPromise>&& promise)
 {
     if (isBodyNull()) {
-        promise->resolve<IDLInterface<Blob>>(Blob::create({ }, Blob::normalizedContentType(extractMIMETypeFromMediaType(m_contentType))).get());
+        promise->resolve<IDLInterface<Blob>>(Blob::create({ }, Blob::normalizedContentType(extractMIMETypeFromMediaType(m_contentType))));
         return;
     }
     if (isDisturbedOrLocked()) {
@@ -109,7 +107,7 @@ void FetchBodyOwner::cloneBody(const FetchBodyOwner& owner)
     m_body = owner.m_body->clone();
 }
 
-void FetchBodyOwner::extractBody(ScriptExecutionContext& context, FetchBody::BindingDataType&& value)
+void FetchBodyOwner::extractBody(ScriptExecutionContext& context, FetchBody::Init&& value)
 {
     m_body = FetchBody::extract(context, WTFMove(value), m_contentType);
 }
@@ -133,6 +131,27 @@ void FetchBodyOwner::consumeOnceLoadingFinished(FetchBodyConsumer::Type type, Re
     }
     m_isDisturbed = true;
     m_body->consumeOnceLoadingFinished(type, WTFMove(promise), m_contentType);
+}
+
+void FetchBodyOwner::consumeNullBody(FetchBodyConsumer::Type consumerType, Ref<DeferredPromise>&& promise)
+{
+    switch (consumerType) {
+    case FetchBodyConsumer::Type::ArrayBuffer:
+        fulfillPromiseWithArrayBuffer(WTFMove(promise), nullptr, 0);
+        return;
+    case FetchBodyConsumer::Type::Blob:
+        promise->resolve<IDLInterface<Blob>>(Blob::create({ }, String()));
+        return;
+    case FetchBodyConsumer::Type::JSON:
+        promise->reject(SyntaxError);
+        return;
+    case FetchBodyConsumer::Type::Text:
+        promise->resolve<IDLDOMString>({ });
+        return;
+    case FetchBodyConsumer::Type::None:
+        ASSERT_NOT_REACHED();
+        return;
+    }
 }
 
 void FetchBodyOwner::formData(Ref<DeferredPromise>&& promise)
@@ -269,5 +288,3 @@ void FetchBodyOwner::BlobLoader::didFail()
 }
 
 } // namespace WebCore
-
-#endif // ENABLE(FETCH_API)

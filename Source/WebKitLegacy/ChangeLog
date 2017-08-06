@@ -1,3 +1,37 @@
+2017-08-03  Per Arne Vollan  <pvollan@apple.com>
+
+        [Win] WebKit COM header file is not placed in the correct location.
+        https://bugs.webkit.org/show_bug.cgi?id=175101
+
+        Reviewed by Brent Fulgham.
+
+        After the transition to WebKitLegacy, the generated WebKit header files should still
+        be placed in the WebKit folder, so WebKit clients will find the header files in the
+        same place.
+
+        * WebKitLegacy.vcxproj/WebKitLegacy.proj:
+
+2017-08-02  Matthew Hanson  <matthew_hanson@apple.com>
+
+        Build-fix for Windows in Visual Studio after directory rename.
+
+        Reviewed by Per Arne Vollan.
+
+        * WebKitLegacy.vcxproj/WebKitLegacy.proj:
+        We still build WebKit.dll, not WebKitLegacy.dll.
+
+2017-07-31  Sam Weinig  <sam@webkit.org>
+
+        Remove unnecessary exceptions from storage code
+        https://bugs.webkit.org/show_bug.cgi?id=174572
+
+        Reviewed by Chris Dumez.
+
+        * Storage/StorageAreaImpl.cpp:
+        (WebKit::StorageAreaImpl::canAccessStorage): Deleted.
+        * Storage/StorageAreaImpl.h:
+        Remove canAccessStorage. It is no longer called.
+
 2017-07-14  Filip Pizlo  <fpizlo@apple.com>
 
         It should be easy to decide how WebKit yields

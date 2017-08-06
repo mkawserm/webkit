@@ -577,6 +577,16 @@ static _WKStorageBlockingPolicy toAPI(WebCore::SecurityOrigin::StorageBlockingPo
     _preferences->setMockCaptureDevicesEnabled(enabled);
 }
 
+- (BOOL)_mockCaptureDevicesPromptEnabled
+{
+    return _preferences->mockCaptureDevicesPromptEnabled();
+}
+
+- (void)_setMockCaptureDevicesPromptEnabled:(BOOL)enabled
+{
+    _preferences->setMockCaptureDevicesPromptEnabled(enabled);
+}
+
 - (BOOL)_mediaCaptureRequiresSecureConnection
 {
     return _preferences->mediaCaptureRequiresSecureConnection();
@@ -597,7 +607,7 @@ static _WKStorageBlockingPolicy toAPI(WebCore::SecurityOrigin::StorageBlockingPo
     _preferences->setEnumeratingAllNetworkInterfacesEnabled(enabled);
 }
 
-- (BOOL)_iceCandidateFiltertingEnabled
+- (BOOL)_iceCandidateFilteringEnabled
 {
     return _preferences->iceCandidateFilteringEnabled();
 }
@@ -635,16 +645,6 @@ static _WKStorageBlockingPolicy toAPI(WebCore::SecurityOrigin::StorageBlockingPo
 - (BOOL)_domPasteAllowed
 {
     return _preferences->domPasteAllowed();
-}
-
-- (void)_setMediaDocumentEntersFullscreenAutomatically:(BOOL)mediaDocumentEntersFullscreenAutomatically
-{
-    _preferences->setMediaDocumentEntersFullscreenAutomatically(mediaDocumentEntersFullscreenAutomatically);
-}
-
-- (BOOL)_mediaDocumentEntersFullscreenAutomatically
-{
-    return _preferences->mediaDocumentEntersFullscreenAutomatically();
 }
 
 @end

@@ -28,8 +28,6 @@
 
 #pragma once
 
-#if ENABLE(FETCH_API)
-
 #include "DOMFormData.h"
 #include "FetchBodyConsumer.h"
 #include "FormData.h"
@@ -63,8 +61,8 @@ public:
     bool isText() const { return WTF::holds_alternative<String>(m_data); }
     bool isReadableStream() const { return m_isReadableStream; }
 
-    using BindingDataType = Variant<RefPtr<Blob>, RefPtr<ArrayBufferView>, RefPtr<ArrayBuffer>, RefPtr<DOMFormData>, RefPtr<URLSearchParams>, String>;
-    static FetchBody extract(ScriptExecutionContext&, BindingDataType&&, String&);
+    using Init = Variant<RefPtr<Blob>, RefPtr<ArrayBufferView>, RefPtr<ArrayBuffer>, RefPtr<DOMFormData>, RefPtr<URLSearchParams>, String>;
+    static FetchBody extract(ScriptExecutionContext&, Init&&, String&);
     static FetchBody loadingBody() { return { }; }
     static FetchBody readableStreamBody();
 
@@ -117,5 +115,3 @@ private:
 };
 
 } // namespace WebCore
-
-#endif // ENABLE(FETCH_API)

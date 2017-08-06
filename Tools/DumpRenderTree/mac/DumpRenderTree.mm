@@ -847,11 +847,13 @@ static void enableExperimentalFeatures(WebPreferences* preferences)
     [preferences setMediaPreloadingEnabled:YES];
     // FIXME: InputEvents
     [preferences setWebAnimationsEnabled:YES];
+    [preferences setBeaconAPIEnabled:YES];
     [preferences setWebGL2Enabled:YES];
     [preferences setWebGPUEnabled:YES];
     // FIXME: AsyncFrameScrollingEnabled
     [preferences setWebRTCLegacyAPIEnabled:YES];
     [preferences setCredentialManagementEnabled:YES];
+    [preferences setCacheAPIEnabled:NO];
     [preferences setReadableByteStreamAPIEnabled:YES];
     [preferences setWritableStreamAPIEnabled:YES];
 }
@@ -965,6 +967,8 @@ static void resetWebPreferencesToConsistentValues()
     [preferences setModernMediaControlsEnabled:YES];
     [preferences setResourceTimingEnabled:YES];
     [preferences setUserTimingEnabled:YES];
+
+    [preferences setCacheAPIEnabled:NO];
 
     [WebPreferences _clearNetworkLoaderSession];
     [WebPreferences _setCurrentNetworkLoaderSessionCookieAcceptPolicy:NSHTTPCookieAcceptPolicyOnlyFromMainDocumentDomain];
@@ -1906,28 +1910,7 @@ static NSURL *computeTestURL(NSString *pathOrURLString, NSString **relativeTestP
         return [NSURL fileURLWithPath:absolutePath];
 
     *relativeTestPath = [absolutePath substringFromIndex:NSMaxRange(layoutTestsRange)];
-
-    // Convert file URLs in LayoutTests/http/tests to HTTP URLs, except for file URLs in LayoutTests/http/tests/local.
-
-    NSRange httpTestsRange = [absolutePath rangeOfString:@"/LayoutTests/http/tests/"];
-    if (httpTestsRange.location == NSNotFound || [absolutePath rangeOfString:@"/LayoutTests/http/tests/local/"].location != NSNotFound)
-        return [NSURL fileURLWithPath:absolutePath];
-
-    auto components = adoptNS([[NSURLComponents alloc] init]);
-    [components setPath:[absolutePath substringFromIndex:NSMaxRange(httpTestsRange) - 1]];
-    [components setHost:@"127.0.0.1"];
-
-    // Paths under /ssl/ should be loaded using HTTPS.
-    BOOL isSecure = [[components path] hasPrefix:@"/ssl/"];
-    if (isSecure) {
-        [components setScheme:@"https"];
-        [components setPort:@(8443)];
-    } else {
-        [components setScheme:@"http"];
-        [components setPort:@(8000)];
-    }
-
-    return [components URL];
+    return [NSURL fileURLWithPath:absolutePath];
 }
 
 static void runTest(const string& inputLine)
@@ -2105,6 +2088,8 @@ static void runTest(const string& inputLine)
 
     if (gcBetweenTests)
         [WebCoreStatistics garbageCollectJavaScriptObjects];
+    
+    JSC::waitForVMDestruction();
 
     fputs("#EOF\n", stderr);
     fflush(stderr);

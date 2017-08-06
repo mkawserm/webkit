@@ -23,15 +23,16 @@
  * THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-WebInspector.CanvasManager = class CanvasManager extends WebInspector.Object
+WI.CanvasManager = class CanvasManager extends WI.Object
 {
     constructor()
     {
         super();
 
-        WebInspector.Frame.addEventListener(WebInspector.Frame.Event.MainResourceDidChange, this._mainResourceDidChange, this);
+        WI.Frame.addEventListener(WI.Frame.Event.MainResourceDidChange, this._mainResourceDidChange, this);
 
         this._canvasIdentifierMap = new Map;
+        this._shaderProgramIdentifierMap = new Map;
 
         if (window.CanvasAgent)
             CanvasAgent.enable();
@@ -44,37 +45,47 @@ WebInspector.CanvasManager = class CanvasManager extends WebInspector.Object
         return [...this._canvasIdentifierMap.values()];
     }
 
+    get shaderPrograms()
+    {
+        return [...this._shaderProgramIdentifierMap.values()];
+    }
+
     canvasAdded(canvasPayload)
     {
-        // Called from WebInspector.CanvasObserver.
+        // Called from WI.CanvasObserver.
 
         console.assert(!this._canvasIdentifierMap.has(canvasPayload.canvasId), `Canvas already exists with id ${canvasPayload.canvasId}.`);
 
-        let canvas = WebInspector.Canvas.fromPayload(canvasPayload);
+        let canvas = WI.Canvas.fromPayload(canvasPayload);
         this._canvasIdentifierMap.set(canvas.identifier, canvas);
 
         canvas.frame.canvasCollection.add(canvas);
 
-        this.dispatchEventToListeners(WebInspector.CanvasManager.Event.CanvasWasAdded, {canvas});
+        this.dispatchEventToListeners(WI.CanvasManager.Event.CanvasWasAdded, {canvas});
     }
 
     canvasRemoved(canvasIdentifier)
     {
-        // Called from WebInspector.CanvasObserver.
+        // Called from WI.CanvasObserver.
 
         let canvas = this._canvasIdentifierMap.take(canvasIdentifier);
         console.assert(canvas);
         if (!canvas)
             return;
 
+        for (let program of canvas.shaderProgramCollection.items) {
+            this._shaderProgramIdentifierMap.delete(program.identifier);
+            this._dispatchShaderProgramRemoved(program);
+        }
+
         canvas.frame.canvasCollection.remove(canvas);
 
-        this.dispatchEventToListeners(WebInspector.CanvasManager.Event.CanvasWasRemoved, {canvas});
+        this.dispatchEventToListeners(WI.CanvasManager.Event.CanvasWasRemoved, {canvas});
     }
 
     canvasMemoryChanged(canvasIdentifier, memoryCost)
     {
-        // Called from WebInspector.CanvasObserver.
+        // Called from WI.CanvasObserver.
 
         let canvas = this._canvasIdentifierMap.get(canvasIdentifier);
         console.assert(canvas);
@@ -86,7 +97,7 @@ WebInspector.CanvasManager = class CanvasManager extends WebInspector.Object
 
     cssCanvasClientNodesChanged(canvasIdentifier)
     {
-        // Called from WebInspector.CanvasObserver.
+        // Called from WI.CanvasObserver.
 
         let canvas = this._canvasIdentifierMap.get(canvasIdentifier);
         console.assert(canvas);
@@ -98,37 +109,81 @@ WebInspector.CanvasManager = class CanvasManager extends WebInspector.Object
 
     recordingFinished(canvasIdentifier, recordingPayload)
     {
-        // Called from WebInspector.CanvasObserver.
+        // Called from WI.CanvasObserver.
 
         let canvas = this._canvasIdentifierMap.get(canvasIdentifier);
         console.assert(canvas);
         if (!canvas)
             return;
 
-        let recording = WebInspector.Recording.fromPayload(recordingPayload);
-        this.dispatchEventToListeners(WebInspector.CanvasManager.Event.RecordingFinished, {canvas, recording});
+        let recording = WI.Recording.fromPayload(recordingPayload);
+        recording.source = canvas;
+
+        this.dispatchEventToListeners(WI.CanvasManager.Event.RecordingFinished, {canvas, recording});
+    }
+
+    programCreated(canvasIdentifier, programIdentifier)
+    {
+        // Called from WI.CanvasObserver.
+
+        let canvas = this._canvasIdentifierMap.get(canvasIdentifier);
+        console.assert(canvas);
+        if (!canvas)
+            return;
+
+        console.assert(!this._shaderProgramIdentifierMap.has(programIdentifier), `ShaderProgram already exists with id ${programIdentifier}.`);
+
+        let program = new WI.ShaderProgram(programIdentifier, canvas);
+        this._shaderProgramIdentifierMap.set(program.identifier, program);
+
+        canvas.shaderProgramCollection.add(program);
+
+        this.dispatchEventToListeners(WI.CanvasManager.Event.ShaderProgramAdded, {program});
+    }
+
+    programDeleted(programIdentifier)
+    {
+        // Called from WI.CanvasObserver.
+
+        let program = this._shaderProgramIdentifierMap.take(programIdentifier);
+        console.assert(program);
+        if (!program)
+            return;
+
+        program.canvas.shaderProgramCollection.remove(program);
+
+        this._dispatchShaderProgramRemoved(program);
     }
 
     // Private
 
     _mainResourceDidChange(event)
     {
-        console.assert(event.target instanceof WebInspector.Frame);
+        console.assert(event.target instanceof WI.Frame);
         if (!event.target.isMainFrame())
             return;
 
-        WebInspector.Canvas.resetUniqueDisplayNameNumbers();
+        WI.Canvas.resetUniqueDisplayNameNumbers();
+
+        this._shaderProgramIdentifierMap.clear();
 
         if (this._canvasIdentifierMap.size) {
             this._canvasIdentifierMap.clear();
-            this.dispatchEventToListeners(WebInspector.CanvasManager.Event.Cleared);
+            this.dispatchEventToListeners(WI.CanvasManager.Event.Cleared);
         }
+    }
+
+    _dispatchShaderProgramRemoved(program)
+    {
+        this.dispatchEventToListeners(WI.CanvasManager.Event.ShaderProgramRemoved, {program});
     }
 };
 
-WebInspector.CanvasManager.Event = {
+WI.CanvasManager.Event = {
     Cleared: "canvas-manager-cleared",
     CanvasWasAdded: "canvas-manager-canvas-was-added",
     CanvasWasRemoved: "canvas-manager-canvas-was-removed",
     RecordingFinished: "canvas-managger-recording-finished",
+    ShaderProgramAdded: "canvas-manager-shader-program-added",
+    ShaderProgramRemoved: "canvas-manager-shader-program-removed",
 };

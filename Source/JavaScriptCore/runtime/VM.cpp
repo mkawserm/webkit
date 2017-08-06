@@ -44,10 +44,12 @@
 #include "EvalCodeBlock.h"
 #include "Exception.h"
 #include "FTLThunks.h"
+#include "FastMallocAlignedMemoryAllocator.h"
 #include "FunctionCodeBlock.h"
 #include "FunctionConstructor.h"
 #include "GCActivityCallback.h"
 #include "GetterSetter.h"
+#include "GigacageAlignedMemoryAllocator.h"
 #include "HasOwnPropertyCache.h"
 #include "Heap.h"
 #include "HeapIterationScope.h"
@@ -99,6 +101,7 @@
 #include "StrictEvalActivation.h"
 #include "StrongInlines.h"
 #include "StructureInlines.h"
+#include "TestRunnerUtils.h"
 #include "ThunkGenerators.h"
 #include "TypeProfiler.h"
 #include "TypeProfilerLog.h"
@@ -111,10 +114,10 @@
 #include "WeakMapData.h"
 #include <wtf/CurrentTime.h>
 #include <wtf/ProcessID.h>
+#include <wtf/ReadWriteLock.h>
 #include <wtf/SimpleStats.h>
 #include <wtf/StringPrintStream.h>
 #include <wtf/Threading.h>
-#include <wtf/WTFThreadData.h>
 #include <wtf/text/AtomicStringTable.h>
 #include <wtf/text/SymbolRegistry.h>
 
@@ -162,21 +165,22 @@ VM::VM(VMType vmType, HeapType heapType)
     , m_runLoop(CFRunLoopGetCurrent())
 #endif // USE(CF)
     , heap(this, heapType)
-    , auxiliarySpace("Auxiliary", heap, AllocatorAttributes(DoesNotNeedDestruction, HeapCell::Auxiliary))
-    , cellSpace("JSCell", heap, AllocatorAttributes(DoesNotNeedDestruction, HeapCell::JSCell))
-    , destructibleCellSpace("Destructible JSCell", heap, AllocatorAttributes(NeedsDestruction, HeapCell::JSCell))
-    , stringSpace("JSString", heap)
-    , destructibleObjectSpace("JSDestructibleObject", heap)
-    , segmentedVariableObjectSpace("JSSegmentedVariableObjectSpace", heap)
+    , auxiliarySpace("Auxiliary", heap, AllocatorAttributes(DoesNotNeedDestruction, HeapCell::Auxiliary), &GigacageAlignedMemoryAllocator::instance())
+    , cellSpace("JSCell", heap, AllocatorAttributes(DoesNotNeedDestruction, HeapCell::JSCell), &FastMallocAlignedMemoryAllocator::instance())
+    , destructibleCellSpace("Destructible JSCell", heap, AllocatorAttributes(NeedsDestruction, HeapCell::JSCell), &FastMallocAlignedMemoryAllocator::instance())
+    , stringSpace("JSString", heap, &FastMallocAlignedMemoryAllocator::instance())
+    , destructibleObjectSpace("JSDestructibleObject", heap, &FastMallocAlignedMemoryAllocator::instance())
+    , eagerlySweptDestructibleObjectSpace("Eagerly Swept JSDestructibleObject", heap, &FastMallocAlignedMemoryAllocator::instance())
+    , segmentedVariableObjectSpace("JSSegmentedVariableObjectSpace", heap, &FastMallocAlignedMemoryAllocator::instance())
 #if ENABLE(WEBASSEMBLY)
-    , webAssemblyCodeBlockSpace("JSWebAssemblyCodeBlockSpace", heap)
+    , webAssemblyCodeBlockSpace("JSWebAssemblyCodeBlockSpace", heap, &FastMallocAlignedMemoryAllocator::instance())
 #endif
     , vmType(vmType)
     , clientData(0)
     , topVMEntryFrame(nullptr)
     , topCallFrame(CallFrame::noCaller())
     , promiseDeferredTimer(std::make_unique<PromiseDeferredTimer>(*this))
-    , m_atomicStringTable(vmType == Default ? wtfThreadData().atomicStringTable() : new AtomicStringTable)
+    , m_atomicStringTable(vmType == Default ? Thread::current().atomicStringTable() : new AtomicStringTable)
     , propertyNames(nullptr)
     , emptyList(new ArgList)
     , machineCodeBytesPerBytecodeWordForBaselineJIT(std::make_unique<SimpleStats>())
@@ -207,17 +211,18 @@ VM::VM(VMType vmType, HeapType heapType)
     , m_codeCache(std::make_unique<CodeCache>())
     , m_builtinExecutables(std::make_unique<BuiltinExecutables>(*this))
     , m_typeProfilerEnabledCount(0)
+    , m_gigacageEnabled(IsWatched)
     , m_controlFlowProfilerEnabledCount(0)
     , m_shadowChicken(std::make_unique<ShadowChicken>())
 {
     interpreter = new Interpreter(*this);
-    StackBounds stack = wtfThreadData().stack();
+    StackBounds stack = Thread::current().stack();
     updateSoftReservedZoneSize(Options::softReservedZoneSize());
     setLastStackTop(stack.origin());
 
     // Need to be careful to keep everything consistent here
     JSLockHolder lock(this);
-    AtomicStringTable* existingEntryAtomicStringTable = wtfThreadData().setCurrentAtomicStringTable(m_atomicStringTable);
+    AtomicStringTable* existingEntryAtomicStringTable = Thread::current().setCurrentAtomicStringTable(m_atomicStringTable);
     propertyNames = new CommonIdentifiers(this);
     structureStructure.set(*this, Structure::createStructure(*this));
     structureRareDataStructure.set(*this, StructureRareData::createStructure(*this, 0, jsNull()));
@@ -270,7 +275,7 @@ VM::VM(VMType vmType, HeapType heapType)
     nativeStdFunctionCellStructure.set(*this, NativeStdFunctionCell::createStructure(*this, 0, jsNull()));
     smallStrings.initializeCommonStrings(*this);
 
-    wtfThreadData().setCurrentAtomicStringTable(existingEntryAtomicStringTable);
+    Thread::current().setCurrentAtomicStringTable(existingEntryAtomicStringTable);
 
 #if ENABLE(JIT)
     jitStubs = std::make_unique<JITThunks>();
@@ -284,6 +289,8 @@ VM::VM(VMType vmType, HeapType heapType)
 #if ENABLE(JIT)
     initializeHostCallReturnValue(); // This is needed to convince the linker not to drop host call return support.
 #endif
+    
+    Gigacage::addDisableCallback(gigacageDisabledCallback, this);
 
     heap.notifyIsSafeToCollect();
     
@@ -336,8 +343,18 @@ VM::VM(VMType vmType, HeapType heapType)
     VMInspector::instance().add(this);
 }
 
+static StaticReadWriteLock s_destructionLock;
+
+void waitForVMDestruction()
+{
+    auto locker = holdLock(s_destructionLock.write());
+}
+
 VM::~VM()
 {
+    auto destructionLocker = holdLock(s_destructionLock.read());
+    
+    Gigacage::removeDisableCallback(gigacageDisabledCallback, this);
     promiseDeferredTimer->stopRunningTasks();
 #if ENABLE(WEBASSEMBLY)
     if (Wasm::existingWorklistOrNull())
@@ -404,6 +421,23 @@ VM::~VM()
     for (unsigned i = 0; i < scratchBuffers.size(); ++i)
         fastFree(scratchBuffers[i]);
 #endif
+}
+
+void VM::gigacageDisabledCallback(void* argument)
+{
+    static_cast<VM*>(argument)->gigacageDisabled();
+}
+
+void VM::gigacageDisabled()
+{
+    if (m_apiLock->currentThreadIsHoldingLock()) {
+        m_gigacageEnabled.fireAll(*this, "Gigacage disabled");
+        return;
+    }
+ 
+    // This is totally racy, and that's OK. The point is, it's up to the user to ensure that they pass the
+    // uncaged buffer in a nicely synchronized manner.
+    m_needToFireGigacageEnabled = true;
 }
 
 void VM::setLastStackTop(void* lastStackTop)
@@ -672,7 +706,7 @@ inline void VM::updateStackLimits()
     void* lastSoftStackLimit = m_softStackLimit;
 #endif
 
-    const StackBounds& stack = wtfThreadData().stack();
+    const StackBounds& stack = Thread::current().stack();
     size_t reservedZoneSize = Options::reservedZoneSize();
     // We should have already ensured that Options::reservedZoneSize() >= minimumReserveZoneSize at
     // options initialization time, and the option value should not have been changed thereafter.
@@ -886,9 +920,9 @@ size_t VM::committedStackByteCount()
 #if ENABLE(JIT)
     // When using the C stack, we don't know how many stack pages are actually
     // committed. So, we use the current stack usage as an estimate.
-    ASSERT(wtfThreadData().stack().isGrowingDownward());
+    ASSERT(Thread::current().stack().isGrowingDownward());
     int8_t* current = reinterpret_cast<int8_t*>(&current);
-    int8_t* high = reinterpret_cast<int8_t*>(wtfThreadData().stack().origin());
+    int8_t* high = reinterpret_cast<int8_t*>(Thread::current().stack().origin());
     return high - current;
 #else
     return CLoopStack::committedByteCount();

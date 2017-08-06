@@ -275,7 +275,6 @@ set(WebKit2_SOURCES
     StorageProcess/StorageToWebProcessConnection.cpp
 
     StorageProcess/IndexedDB/WebIDBConnectionToClient.cpp
-
     UIProcess/BackgroundProcessResponsivenessTimer.cpp
     UIProcess/ChildProcessProxy.cpp
     UIProcess/DrawingAreaProxy.cpp
