@@ -712,9 +712,11 @@ set(WebCore_NON_SVG_IDL_FILES
     workers/ServiceWorkerContainer.idl
     workers/ServiceWorkerGlobalScope.idl
     workers/ServiceWorkerRegistration.idl
+    workers/ServiceWorkerUpdateViaCache.idl
     workers/Worker.idl
     workers/WorkerGlobalScope.idl
     workers/WorkerLocation.idl
+    workers/WorkerType.idl
 
     xml/DOMParser.idl
     xml/XMLHttpRequest.idl
@@ -1179,8 +1181,6 @@ set(WebCore_SOURCES
     bindings/js/JSDOMConvertWebGL.cpp
     bindings/js/JSDOMIterator.cpp
     bindings/js/JSDeprecatedCSSOMValueCustom.cpp
-    bindings/js/JSFontFaceCustom.cpp
-    bindings/js/JSFontFaceSetCustom.cpp
     bindings/js/JSCallbackData.cpp
     bindings/js/JSCanvasRenderingContext2DCustom.cpp
     bindings/js/JSCryptoAlgorithmBuilder.cpp
@@ -1230,7 +1230,6 @@ set(WebCore_SOURCES
     bindings/js/JSLazyEventListener.cpp
     bindings/js/JSLocationCustom.cpp
     bindings/js/JSMainThreadExecState.cpp
-    bindings/js/JSMediaKeySessionCustom.cpp
     bindings/js/JSMediaStreamTrackCustom.cpp
     bindings/js/JSMessageChannelCustom.cpp
     bindings/js/JSMessageEventCustom.cpp
@@ -1245,7 +1244,6 @@ set(WebCore_SOURCES
     bindings/js/JSReadableStreamPrivateConstructors.cpp
     bindings/js/JSReadableStreamSourceCustom.cpp
     bindings/js/JSSVGPathSegCustom.cpp
-    bindings/js/JSServiceWorkerContainerCustom.cpp
     bindings/js/JSStyleSheetCustom.cpp
     bindings/js/JSSubtleCryptoCustom.cpp
     bindings/js/JSTextCustom.cpp
@@ -1258,7 +1256,6 @@ set(WebCore_SOURCES
     bindings/js/JSVideoTrackListCustom.cpp
     bindings/js/JSWebGL2RenderingContextCustom.cpp
     bindings/js/JSWebGLRenderingContextCustom.cpp
-    bindings/js/JSWebGPUCommandBufferCustom.cpp
     bindings/js/JSWebGPURenderPassAttachmentDescriptorCustom.cpp
     bindings/js/JSWebGPURenderingContextCustom.cpp
     bindings/js/JSWebKitSubtleCryptoCustom.cpp
@@ -3386,34 +3383,6 @@ if (ENABLE_GRAPHICS_CONTEXT_3D)
     # For platforms that want to use system-provided OpenGL (ES) / EGL headers,
     # these include directories, libraries or definitions need to be
     # added before the ANGLE directories.
-    if (USE_OPENGL AND NOT USE_LIBEPOXY)
-        list(APPEND WebCore_SYSTEM_INCLUDE_DIRECTORIES
-            ${OPENGL_INCLUDE_DIRS}
-        )
-        list(APPEND WebCore_LIBRARIES
-            ${OPENGL_LIBRARIES}
-        )
-        add_definitions(${OPENGL_DEFINITIONS})
-    elseif (USE_OPENGL_ES_2 AND NOT USE_LIBEPOXY)
-        list(APPEND WebCore_SYSTEM_INCLUDE_DIRECTORIES
-            ${OPENGLES2_INCLUDE_DIRS}
-        )
-        list(APPEND WebCore_LIBRARIES
-            ${OPENGLES2_LIBRARIES}
-        )
-        add_definitions(${OPENGLES2_DEFINITIONS})
-    endif ()
-
-    if (USE_EGL AND NOT USE_LIBEPOXY)
-        list(APPEND WebCore_SYSTEM_INCLUDE_DIRECTORIES
-            ${EGL_INCLUDE_DIRS}
-        )
-        list(APPEND WebCore_LIBRARIES
-            ${EGL_LIBRARIES}
-        )
-        add_definitions(${EGL_DEFINITIONS})
-    endif ()
-
     if (USE_LIBEPOXY)
         list(APPEND WebCore_SYSTEM_INCLUDE_DIRECTORIES
             ${LIBEPOXY_INCLUDE_DIRS}
@@ -3421,6 +3390,34 @@ if (ENABLE_GRAPHICS_CONTEXT_3D)
         list(APPEND WebCore_LIBRARIES
             ${LIBEPOXY_LIBRARIES}
         )
+    else ()
+        if (USE_OPENGL)
+            list(APPEND WebCore_SYSTEM_INCLUDE_DIRECTORIES
+                ${OPENGL_INCLUDE_DIRS}
+            )
+            list(APPEND WebCore_LIBRARIES
+                ${OPENGL_LIBRARIES}
+            )
+            add_definitions(${OPENGL_DEFINITIONS})
+        elseif (USE_OPENGL_ES_2)
+            list(APPEND WebCore_SYSTEM_INCLUDE_DIRECTORIES
+                ${OPENGLES2_INCLUDE_DIRS}
+            )
+            list(APPEND WebCore_LIBRARIES
+                ${OPENGLES2_LIBRARIES}
+            )
+            add_definitions(${OPENGLES2_DEFINITIONS})
+        endif ()
+
+        if (USE_EGL)
+            list(APPEND WebCore_SYSTEM_INCLUDE_DIRECTORIES
+                ${EGL_INCLUDE_DIRS}
+            )
+            list(APPEND WebCore_LIBRARIES
+                ${EGL_LIBRARIES}
+            )
+            add_definitions(${EGL_DEFINITIONS})
+        endif ()
     endif ()
 
     list(APPEND WebCore_INCLUDE_DIRECTORIES
@@ -4018,7 +4015,7 @@ endif ()
 # See https://bugs.webkit.org/show_bug.cgi?id=146440
 string(TOLOWER ${CMAKE_HOST_SYSTEM_PROCESSOR} LOWERCASE_CMAKE_HOST_SYSTEM_PROCESSOR)
 if (CMAKE_COMPILER_IS_GNUCXX AND "${LOWERCASE_CMAKE_HOST_SYSTEM_PROCESSOR}" MATCHES "(i[3-6]86|x86)$")
-    WEBKIT_ADD_TARGET_PROPERTIES(WebCore COMPILE_FLAGS "-fno-tree-sra")
+    WEBKIT_ADD_TARGET_CXX_FLAGS(WebCore -fno-tree-sra)
 endif ()
 
 if (MSVC)
@@ -4040,11 +4037,6 @@ endif ()
 if (ENABLE_GRAPHICS_CONTEXT_3D AND NOT WIN32)
     add_library(ANGLESupport STATIC ${ANGLESupport_SOURCES})
 
-    # Suppress null conversion warnings for sources in Source/ThirdParty/ANGLE
-    if (COMPILER_IS_CLANG)
-        WEBKIT_ADD_TARGET_PROPERTIES(ANGLESupport COMPILE_FLAGS "-Wno-null-conversion")
-    endif ()
-
     # Enable the ESSL and GLSL translators.
     set_property(TARGET ANGLESupport
         PROPERTY COMPILE_DEFINITIONS
@@ -4060,7 +4052,14 @@ if (ENABLE_GRAPHICS_CONTEXT_3D AND NOT WIN32)
         "${THIRDPARTY_DIR}/ANGLE/src/common/third_party/numerics"
     )
     list(APPEND WebCore_LIBRARIES ANGLESupport)
-    WEBKIT_SET_EXTRA_COMPILER_FLAGS(ANGLESupport IGNORECXX_WARNINGS)
+
+    if (COMPILER_IS_GCC_OR_CLANG)
+        WEBKIT_ADD_TARGET_CXX_FLAGS(ANGLESupport -Wno-implicit-fallthrough
+                                                 -Wno-null-conversion
+                                                 -Wno-suggest-attribute=format
+                                                 -Wno-unused-function
+                                                 -Wno-unused-parameter)
+    endif ()
 endif ()
 
 target_link_libraries(WebCore ${WebCore_LIBRARIES})

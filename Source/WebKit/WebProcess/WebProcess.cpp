@@ -146,11 +146,6 @@ static const Seconds nonVisibleProcessCleanupDelay { 10_s };
 
 namespace WebKit {
 
-static void gigacageDisabled(void*)
-{
-    UNREACHABLE_FOR_PLATFORM();
-}
-
 WebProcess& WebProcess::singleton()
 {
     static WebProcess& process = *new WebProcess;
@@ -202,8 +197,7 @@ WebProcess::WebProcess()
         parentProcessConnection()->send(Messages::WebResourceLoadStatisticsStore::ResourceLoadStatisticsUpdated(WTFMove(statistics)), 0);
     });
 
-    if (Gigacage::shouldBeEnabled())
-        Gigacage::addDisableCallback(gigacageDisabled, nullptr);
+    Gigacage::disableDisablingPrimitiveGigacageIfShouldBeEnabled();
 }
 
 WebProcess::~WebProcess()
@@ -1449,6 +1443,11 @@ void WebProcess::nonVisibleProcessCleanupTimerFired()
 void WebProcess::setResourceLoadStatisticsEnabled(bool enabled)
 {
     WebCore::Settings::setResourceLoadStatisticsEnabled(enabled);
+}
+
+void WebProcess::clearResourceLoadStatistics()
+{
+    ResourceLoadObserver::shared().clearState();
 }
 
 RefPtr<API::Object> WebProcess::transformHandlesToObjects(API::Object* object)

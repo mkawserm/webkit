@@ -27,7 +27,10 @@
 
 #if ENABLE(SERVICE_WORKER)
 
+#include "ActiveDOMObject.h"
+#include "DOMPromiseProxy.h"
 #include "EventTarget.h"
+#include "ServiceWorkerRegistration.h"
 
 namespace WebCore {
 
@@ -35,22 +38,25 @@ class DeferredPromise;
 class NavigatorBase;
 class ServiceWorker;
 
-class ServiceWorkerContainer final : public EventTargetWithInlineData {
+enum class ServiceWorkerUpdateViaCache;
+enum class WorkerType;
+
+class ServiceWorkerContainer final : public EventTargetWithInlineData, public ActiveDOMObject {
 public:
-    static std::unique_ptr<ServiceWorkerContainer> create(NavigatorBase& navigator)
-    {
-        return std::make_unique<ServiceWorkerContainer>(navigator);
-    }
-    explicit ServiceWorkerContainer(NavigatorBase&);
+    ServiceWorkerContainer(ScriptExecutionContext&, NavigatorBase&);
     virtual ~ServiceWorkerContainer() = default;
 
     struct RegistrationOptions {
         String scope;
+        WorkerType type;
+        ServiceWorkerUpdateViaCache updateViaCache;
     };
 
     ServiceWorker* controller() const;
 
-    void ready(Ref<DeferredPromise>&&);
+    using ReadyPromise = DOMPromiseProxy<IDLInterface<ServiceWorkerRegistration>>;
+    ReadyPromise& ready() { return m_readyPromise; }
+
     void addRegistration(const String& scriptURL, const RegistrationOptions&, Ref<DeferredPromise>&&);
     void getRegistration(const String& url, Ref<DeferredPromise>&&);
     void getRegistrations(Ref<DeferredPromise>&&);
@@ -58,10 +64,14 @@ public:
     void startMessages();
 
 private:
-    virtual EventTargetInterface eventTargetInterface() const;
-    virtual ScriptExecutionContext* scriptExecutionContext() const;
+    const char* activeDOMObjectName() const final;
+    bool canSuspendForDocumentSuspension() const final;
+    ScriptExecutionContext* scriptExecutionContext() const final { return ActiveDOMObject::scriptExecutionContext(); }
+    EventTargetInterface eventTargetInterface() const final { return ServiceWorkerContainerEventTargetInterfaceType; }
     void refEventTarget() final;
     void derefEventTarget() final;
+
+    ReadyPromise m_readyPromise;
 
     NavigatorBase& m_navigator;
 };

@@ -37,13 +37,17 @@
     readonly attribute ServiceWorker? active;
 
     readonly attribute USVString scope;
-
-    // FIXME: Implement when ready.
-    // readonly attribute ServiceWorkerUpdateViaCache updateViaCache;
+    readonly attribute ServiceWorkerUpdateViaCache updateViaCache;
 
     [NewObject] Promise<void> update();
     [NewObject] Promise<boolean> unregister();
 
     // event
     attribute EventHandler onupdatefound;
+};
+
+enum ServiceWorkerUpdateViaCache {
+    "imports",
+    "all",
+    "none"
 };

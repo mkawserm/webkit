@@ -786,8 +786,12 @@ Navigator* DOMWindow::navigator() const
 {
     if (!isCurrentlyDisplayedInFrame())
         return nullptr;
-    if (!m_navigator)
-        m_navigator = Navigator::create(*m_frame);
+
+    if (!m_navigator) {
+        ASSERT(scriptExecutionContext());
+        m_navigator = Navigator::create(*scriptExecutionContext(), *m_frame);
+    }
+
     return m_navigator.get();
 }
 
@@ -956,8 +960,6 @@ ExceptionOr<void> DOMWindow::postMessage(JSC::ExecState& state, DOMWindow& incum
     auto* timer = new PostMessageTimer(*this, message.releaseReturnValue(), sourceOrigin, incumbentWindow, channels.releaseReturnValue(), WTFMove(target), WTFMove(stackTrace));
     timer->startOneShot(0_s);
 
-    InspectorInstrumentation::didPostMessage(*m_frame, *timer, state);
-
     return { };
 }
 
@@ -976,17 +978,11 @@ void DOMWindow::postMessageTimerFired(PostMessageTimer& timer)
                 else
                     pageConsole->addMessage(MessageSource::Security, MessageLevel::Error, message);
             }
-
-            InspectorInstrumentation::didFailPostMessage(*m_frame, timer);
             return;
         }
     }
 
-    InspectorInstrumentation::willDispatchPostMessage(*m_frame, timer);
-
     dispatchEvent(timer.event(*document()));
-
-    InspectorInstrumentation::didDispatchPostMessage(*m_frame, timer);
 }
 
 DOMSelection* DOMWindow::getSelection()

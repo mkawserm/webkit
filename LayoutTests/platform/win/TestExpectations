@@ -1916,6 +1916,7 @@ inspector/canvas/resolveCanvasContext-webgl.html [ Skip ]
 inspector/canvas/resolveCanvasContext-webgl2.html [ Skip ]
 inspector/canvas/shaderProgram-add-remove-webgl.html [ Skip ]
 inspector/canvas/shaderProgram-add-remove-webgl2.html [ Skip ]
+inspector/canvas/updateShader.html [ Skip ]
 ################################################################################
 #################          End WebGL Issues              #######################
 ################################################################################
@@ -4045,6 +4046,9 @@ svg/animations/animated-svg-image-outside-viewport-paused.html [ Skip ]
 
 # This test requires Skia, which isn't available on Windows.
 webkit.org/b/174079 fast/text/variations/skia-postscript-name.html [ ImageOnlyFailure ]
+
+# CORS-preflighting for Beacon is not supported on WK1.
+webkit.org/b/175330 http/wpt/beacon/cors/ [ Skip ]
 
 # Async image tests are currently failing on Windows.
 webkit.org/b/174653 fast/images/async-image-background-image-repeated.html [ Timeout ]

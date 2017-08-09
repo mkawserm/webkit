@@ -1,3 +1,321 @@
+2017-08-09  Ms2ger  <Ms2ger@igalia.com>
+
+        [GTK] [WPE] Update expectations for global-constructors-attributes.html.
+        https://bugs.webkit.org/show_bug.cgi?id=175373
+
+        Unreviewed test gardening.
+
+        * platform/gtk/js/dom/global-constructors-attributes-expected.txt:
+        * platform/wpe/js/dom/global-constructors-attributes-expected.txt:
+
+2017-08-08  Wenson Hsieh  <wenson_hsieh@apple.com>
+
+        Unreviewed, rolling out r220393.
+
+        This patch regresses the performance of WebPage::editorState.
+
+        Reverted changeset:
+
+        "[iOS WK2] WKWebView schedules nonstop layout after pressing
+        cmb+b,i,u inside a contenteditable div"
+        https://bugs.webkit.org/show_bug.cgi?id=175116
+        http://trac.webkit.org/changeset/220393
+
+2017-08-08  Chris Dumez  <cdumez@apple.com>
+
+        [Beacon] Add support for CORS-preflighting for WK2 / NETWORK_SESSION
+        https://bugs.webkit.org/show_bug.cgi?id=175264
+        <rdar://problem/33547793>
+
+        Reviewed by Youenn Fablet.
+
+        Add layout test coverage.
+
+        * http/wpt/beacon/cors/cors-preflight-arraybufferview-failure-expected.txt: Added.
+        * http/wpt/beacon/cors/cors-preflight-arraybufferview-failure.html: Added.
+        * http/wpt/beacon/cors/cors-preflight-arraybufferview-success-expected.txt: Added.
+        * http/wpt/beacon/cors/cors-preflight-arraybufferview-success.html: Added.
+        * http/wpt/beacon/cors/cors-preflight-blob-failure-expected.txt: Added.
+        * http/wpt/beacon/cors/cors-preflight-blob-failure.html: Added.
+        * http/wpt/beacon/cors/cors-preflight-blob-success-expected.txt: Added.
+        * http/wpt/beacon/cors/cors-preflight-blob-success.html: Added.
+        * http/wpt/beacon/cors/cors-preflight-cookie-expected.txt: Added.
+        * http/wpt/beacon/cors/cors-preflight-cookie.html: Added.
+        * http/wpt/beacon/resources/beacon-preflight.py: Added.
+        (respondToCORSPreflight):
+        (main):
+        * http/wpt/beacon/resources/set-cookie.py: Added.
+        (main):
+        * platform/mac-wk1/TestExpectations:
+        * platform/mac-wk2/TestExpectations:
+        * platform/win/TestExpectations:
+
+2017-08-08  Devin Rousso  <drousso@apple.com>
+
+        Web Inspector: Canvas: support editing WebGL shaders
+        https://bugs.webkit.org/show_bug.cgi?id=124211
+        <rdar://problem/15448958>
+
+        Reviewed by Matt Baker.
+
+        * inspector/canvas/updateShader-expected.txt: Added.
+        * inspector/canvas/updateShader.html: Added.
+
+        * platform/win/TestExpectations:
+
+2017-08-08  Ryan Haddad  <ryanhaddad@apple.com>
+
+        Mark media/modern-media-controls/css/webkit-cursor-visibility-auto-hide.html as flaky.
+        https://bugs.webkit.org/show_bug.cgi?id=175195
+
+        Unreviewed test gardening.
+
+        * platform/mac-wk1/TestExpectations:
+
+2017-08-08  Brent Fulgham  <bfulgham@apple.com>
+
+        Sandbox flags do not support document.domain control
+        https://bugs.webkit.org/show_bug.cgi?id=175281
+        <rdar://problem/33778936>
+
+        Reviewed by Chris Dumez.
+
+        * fast/frames/resources/sandboxed-iframe-set-domain.html: Added.
+        * fast/frames/sandboxed-iframe-domain.html: Added.
+        * fast/frames/sandboxed-iframe-domain-expected.txt: Added.
+
+2017-08-08  Matt Lewis  <jlewis3@apple.com>
+
+        Skipping imported/w3c/IndexedDB-private-browsing/idbfactory_open12.html
+        <rdar://problem/33555052>
+
+        Unreviewed test gardening.
+
+        * platform/ios-wk2/TestExpectations:
+        * platform/mac-highsierra/TestExpectations:
+
+2017-08-08  Ryan Haddad  <ryanhaddad@apple.com>
+
+        Skip plugins/crash-restoring-plugin-page-from-page-cache.html on macOS debug.
+        https://bugs.webkit.org/show_bug.cgi?id=175270
+
+        Unreviewed test gardening.
+
+        * platform/mac-wk2/TestExpectations:
+
+2017-08-08  Ryan Haddad  <ryanhaddad@apple.com>
+
+        Mark fast/images/async-image-body-background-image.html as flaky on macOS.
+        https://bugs.webkit.org/show_bug.cgi?id=175193
+
+        Unreviewed test gardening.
+
+        * platform/mac/TestExpectations:
+
+2017-08-08  Jeremy Jones  <jeremyj@apple.com>
+
+        Change fast seek logic to prevent ping-ponging.
+        https://bugs.webkit.org/show_bug.cgi?id=175167
+        rdar://problem/32936116
+
+        Reviewed by Jer Noble.
+
+        Test now requires forward fast seek result to be between current time and the target time,
+        and a backward seek to be before the seek time.
+
+        * media/video-fast-seek.html:
+        * media/media-source/media-source-fastseek.html:
+
+2017-08-08  Ms2ger  <Ms2ger@igalia.com>
+
+        Remove obsolete failure expectations for event_loadedmetadata.html.
+        https://bugs.webkit.org/show_bug.cgi?id=175027
+
+        Unreviewed test gardening.
+
+        * TestExpectations:
+
+2017-08-08  John Wilander  <wilander@apple.com>
+
+        Resource Load Statistics: Clear web processes' state on history removal
+        https://bugs.webkit.org/show_bug.cgi?id=175271
+        <rdar://problem/33756560>
+
+        Reviewed by Chris Dumez.
+
+        * http/tests/loading/resourceLoadStatistics/user-interaction-reported-after-website-data-removal-expected.txt: Added.
+        * http/tests/loading/resourceLoadStatistics/user-interaction-reported-after-website-data-removal.html: Added.
+        * platform/mac-wk2/TestExpectations:
+            user-interaction-reported-after-website-data-removal.html marked as [ Pass ].
+
+2017-08-08  Ryan Haddad  <ryanhaddad@apple.com>
+
+        Fix baseline for http/tests/security/set-domain-remove-subdomain-for-ip-address.html.
+
+        Unreviewed test gardening.
+
+        * http/tests/security/set-domain-remove-subdomain-for-ip-address-expected.txt:
+
+2017-08-08  Matt Lewis  <jlewis3@apple.com>
+
+        Fixed rebaselined expectations for js/dom/global-constructors-attributes.html.
+        https://bugs.webkit.org/show_bug.cgi?id=175201
+
+        Unreviewed test gardening.
+
+        * platform/mac-elcapitan-wk2/js/dom/global-constructors-attributes-expected.txt: Renamed from LayoutTests/platform/mac-elcapitan-wk2/js/dom/global-constructors-attributes-dedicated-worker-expected.txt.
+
+2017-08-08  Brent Fulgham  <bfulgham@apple.com>
+
+        Unreviewed test results fix after r220376.
+
+        Rebaseline for new SecurityException message text.
+
+        * fast/dom/Document/invalid-domain-change-throws-exception-expected.txt:
+        * http/tests/dom/document-attributes-null-handling-expected.txt:
+        * http/tests/security/set-domain-remove-subdomain-for-ip-address-expected.txt:
+        * http/tests/security/xss-DENIED-invalid-domain-change-expected.txt:
+
+2017-08-08  Javier Fernandez  <jfernandez@igalia.com>
+
+        Not possible to remove the 'li' element inside the table cell
+        https://bugs.webkit.org/show_bug.cgi?id=173148
+
+        Reviewed by Ryosuke Niwa.
+
+        Regression tests for different scenarios of list items removal.
+
+        * editing/deleting/delete-list-items-in-table-cell-1-expected.txt: Added.
+        * editing/deleting/delete-list-items-in-table-cell-1.html: Added.
+        * editing/deleting/delete-list-items-in-table-cell-2-expected.txt: Added.
+        * editing/deleting/delete-list-items-in-table-cell-2.html: Added.
+        * editing/deleting/delete-list-items-in-table-cell-3-expected.txt: Added.
+        * editing/deleting/delete-list-items-in-table-cell-3.html: Added.
+        * editing/deleting/delete-list-items-in-table-cell-4-expected.txt: Added.
+        * editing/deleting/delete-list-items-in-table-cell-4.html: Added.
+        * editing/deleting/delete-list-items-in-table-cell-5-expected.txt: Added.
+        * editing/deleting/delete-list-items-in-table-cell-5.html: Added.
+        * editing/deleting/delete-list-items-in-table-cell-6-expected.txt: Added.
+        * editing/deleting/delete-list-items-in-table-cell-6.html: Added.
+        * editing/deleting/delete-list-items-in-table-cell-7-expected.txt: Added.
+        * editing/deleting/delete-list-items-in-table-cell-7.html: Added.
+        * editing/deleting/delete-list-items-in-table-cell-8-expected.txt: Added.
+        * editing/deleting/delete-list-items-in-table-cell-8.html: Added.
+
+2017-08-08  Wenson Hsieh  <wenson_hsieh@apple.com>
+
+        [iOS WK2] WKWebView schedules nonstop layout after pressing cmb+b,i,u inside a contenteditable div
+        https://bugs.webkit.org/show_bug.cgi?id=175116
+        <rdar://problem/28279301>
+
+        Reviewed by Darin Adler and Ryosuke Niwa.
+
+        Rebaseline some iOS WK2 LayoutTest expectations. These tests currently expect an empty anonymous RenderBlock to
+        be inserted into the render tree, but this is only a result of us adding and removing a temporary <span> when
+        computing a RenderStyle in WebPage::editorState -- this patch removes these empty RenderBlocks, making these
+        expectations' RenderTrees consistent with WebKit1.
+
+        * platform/ios-wk2/editing/inserting/insert-div-024-expected.txt:
+        * platform/ios-wk2/editing/inserting/insert-div-026-expected.txt:
+        * platform/ios-wk2/editing/style/5084241-expected.txt:
+        * platform/ios-wk2/editing/style/unbold-in-bold-expected.txt:
+
+2017-08-07  Matt Lewis  <jlewis3@apple.com>
+
+        Marked media/modern-media-controls/fullscreen-support/fullscreen-support-press.html as flaky.
+        https://bugs.webkit.org/show_bug.cgi?id=173946
+
+        Unreviewed test gardening.
+
+        * platform/mac-wk2/TestExpectations:
+
+2017-08-07  Matt Lewis  <jlewis3@apple.com>
+
+        Rebaselined js/dom/global-constructors-attributes.html on El Capitan.
+        https://bugs.webkit.org/show_bug.cgi?id=175201
+
+        Unreviewed test gardening.
+        * platform/mac-elcapitan-wk2/js/dom/global-constructors-attributes-dedicated-worker-expected.txt: Added.
+
+2017-08-07  Matt Lewis  <jlewis3@apple.com>
+
+        Changed expectations for webrtc/video-rotation.html.
+        https://bugs.webkit.org/show_bug.cgi?id=175305
+
+        Unreviewed test gardening.
+
+        * TestExpectations:
+
+2017-08-07  Devin Rousso  <drousso@apple.com>
+
+        Web Inspector: Preview Canvas path when viewing a recording
+        https://bugs.webkit.org/show_bug.cgi?id=174967
+
+        Reviewed by Brian Burg.
+
+        * fast/canvas/2d.currentPoint-expected.txt: Added.
+        * fast/canvas/2d.currentPoint.html: Added.
+        * fast/canvas/2d.getPath.modification-expected.txt: Added.
+        * fast/canvas/2d.getPath.modification.html: Added.
+        * fast/canvas/2d.getPath.newobject-expected.txt: Added.
+        * fast/canvas/2d.getPath.newobject.html: Added.
+        * fast/canvas/2d.setPath-expected.txt: Added.
+        * fast/canvas/2d.setPath.html: Added.
+
+        * inspector/canvas/recording-2d-expected.txt:
+        * inspector/canvas/recording-2d.html:
+        Updated for additional deduplication in InitialState.
+
+2017-08-07  Ryan Haddad  <ryanhaddad@apple.com>
+
+        Skip workers/wasm-hashset-many.html and workers/wasm-hashset-many-2.html on El Capitan.
+        https://bugs.webkit.org/show_bug.cgi?id=175102
+
+        Unreviewed test gardening.
+
+        * platform/mac/TestExpectations:
+
+2017-08-07  Ryan Haddad  <ryanhaddad@apple.com>
+
+        Marking imported/w3c/web-platform-tests/html/browsers/windows/noreferrer-window-name.html as failing on iOS.
+        https://bugs.webkit.org/show_bug.cgi?id=175273
+
+        Unreviewed test gardening.
+
+        * platform/ios/TestExpectations:
+
+2017-08-07  Ryan Haddad  <ryanhaddad@apple.com>
+
+        Rebaseline js/dom/global-constructors-attributes.html.
+
+        Unreviewed test gardening.
+
+        * platform/mac-elcapitan/js/dom/global-constructors-attributes-expected.txt:
+        * platform/mac/js/dom/global-constructors-attributes-expected.txt:
+
+2017-08-07  Ryan Haddad  <ryanhaddad@apple.com>
+
+        Unreviewed, rolling out r220299.
+
+        This change caused LayoutTest inspector/dom-debugger/dom-
+        breakpoints.html to fail.
+
+        Reverted changeset:
+
+        "Web Inspector: capture async stack trace when workers/main
+        context posts a message"
+        https://bugs.webkit.org/show_bug.cgi?id=167084
+        http://trac.webkit.org/changeset/220299
+
+2017-08-07  Ms2ger  <Ms2ger@igalia.com>
+
+        Remove obsolete failure expectations for wpt browsers tests.
+        https://bugs.webkit.org/show_bug.cgi?id=175073
+
+        Unreviewed test gardening.
+
+        * TestExpectations:
+
 2017-08-05  Youenn Fablet  <youenn@apple.com>
 
         [Fetch API] Response should keep all ResourceResponse information

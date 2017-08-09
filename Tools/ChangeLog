@@ -1,3 +1,332 @@
+2017-08-08  Wenson Hsieh  <wenson_hsieh@apple.com>
+
+        Unreviewed, rolling out r220393.
+
+        This patch regresses the performance of WebPage::editorState.
+
+        Reverted changeset:
+
+        "[iOS WK2] WKWebView schedules nonstop layout after pressing
+        cmb+b,i,u inside a contenteditable div"
+        https://bugs.webkit.org/show_bug.cgi?id=175116
+        http://trac.webkit.org/changeset/220393
+
+2017-08-08  obinna obike  <oobike@apple.com>
+
+        Created Individual EWS Pages
+        https://bugs.webkit.org/show_bug.cgi?id=174477
+
+        Reviewed by Aakash Jain.
+
+        Created individual pages for each EWS. Changed the link within each status bubble
+        to go directly to the individual EWS page. Also added a link to original status page showing all EWSes.
+
+        * QueueStatusServer/handlers/patch.py:
+        (Patch.get): Handles the case for individual ews queue as well as for all EWS queues.
+        * QueueStatusServer/handlers/statusbubble.py:
+        (StatusBubble._build_bubble): Updated url for specific EWS.
+        * QueueStatusServer/main.py: Added a link to the individual ews in the routes dictionary.
+        * QueueStatusServer/templates/patch.html: Added a link to go directly to the page with
+        all ews queues.
+        * QueueStatusServer/templates/statusbubble.html: If you click on a statusbubble it
+        takes you directly to the individual ews page.
+
+2017-08-08  Stephan Szabo  <stephan.szabo@sony.com>
+
+        Separate jsc stress test script writer from run-jsc-stress-tests
+        https://bugs.webkit.org/show_bug.cgi?id=175216
+
+        Reviewed by Mark Lam.
+
+        * Scripts/run-jsc-stress-tests:
+        * Scripts/webkitruby/jsc-stress-test-writer-default.rb: Added.
+
+2017-08-08  Michael Catanzaro  <mcatanzaro@igalia.com>
+
+        Unreviewed, fix Ubuntu LTS build
+        https://bugs.webkit.org/show_bug.cgi?id=174490
+
+        * TestWebKitAPI/Tests/WebKitGLib/TestAutomationSession.cpp:
+
+2017-08-08  Wenson Hsieh  <wenson_hsieh@apple.com>
+
+        [Mac WK2] WebViewImpl should hold a weak pointer to its WKWebView or WKView
+        https://bugs.webkit.org/show_bug.cgi?id=175302
+        <rdar://problem/33762116>
+
+        Reviewed by Tim Horton.
+
+        Adds a new unit test checking that delayed event processing in text input context does not cause unwanted behaviors.
+        See WebKit ChangeLog for more details.
+
+        * TestWebKitAPI/TestWebKitAPI.xcodeproj/project.pbxproj:
+        * TestWebKitAPI/Tests/TestWebKitAPI/mac/AppKitSPI.h: Renamed from Tools/TestWebKitAPI/Tests/TestWebKitAPI/mac/NSTextInputClientSPI.h.
+        * TestWebKitAPI/Tests/mac/WKWebViewMacEditingTests.mm: Renamed from Tools/TestWebKitAPI/Tests/mac/WKWebViewSelectionTests.mm.
+        (-[SlowTextInputContext handleEventByInputMethod:completionHandler:]):
+        (-[SlowTextInputContext handleEvent:completionHandler:]):
+        (-[SlowInputWebView inputContext]):
+        (-[SlowInputWebView _web_superInputContext]):
+        (TEST):
+
+2017-08-08  John Wilander  <wilander@apple.com>
+
+        Resource Load Statistics: Clear web processes' state on history removal
+        https://bugs.webkit.org/show_bug.cgi?id=175271
+        <rdar://problem/33756560>
+
+        Reviewed by Chris Dumez.
+
+        Test infrastructure for asynchronous tests of website data
+        removal for _WKWebsiteDataTypeResourceLoadStatistics.
+
+        * WebKitTestRunner/InjectedBundle/Bindings/TestRunner.idl:
+        * WebKitTestRunner/InjectedBundle/InjectedBundle.cpp:
+        (WTR::InjectedBundle::didReceiveMessageToPage):
+        * WebKitTestRunner/InjectedBundle/TestRunner.cpp:
+        (WTR::TestRunner::statisticsClearThroughWebsiteDataRemoval):
+        (WTR::TestRunner::statisticsCallClearThroughWebsiteDataRemovalCallback):
+        * WebKitTestRunner/InjectedBundle/TestRunner.h:
+        * WebKitTestRunner/TestController.cpp:
+        (WTR::TestController::statisticsClearThroughWebsiteDataRemoval):
+        * WebKitTestRunner/TestController.h:
+        * WebKitTestRunner/TestInvocation.cpp:
+        (WTR::TestInvocation::didReceiveSynchronousMessageFromInjectedBundle):
+        (WTR::TestInvocation::didClearStatisticsThroughWebsiteDataRemoval):
+        * WebKitTestRunner/TestInvocation.h:
+        * WebKitTestRunner/cocoa/TestControllerCocoa.mm:
+        (WTR::TestController::statisticsClearThroughWebsiteDataRemoval):
+
+2017-08-08  Alicia Boya García  <aboya@igalia.com>
+
+        Add Alicia Boya García as contributor
+        https://bugs.webkit.org/show_bug.cgi?id=175326
+
+        Reviewed by Michael Catanzaro.
+
+        * Scripts/webkitpy/common/config/contributors.json:
+
+2017-08-08  Michael Catanzaro  <mcatanzaro@igalia.com>
+
+        [CMake] Properly test if compiler supports compiler flags
+        https://bugs.webkit.org/show_bug.cgi?id=174490
+
+        Reviewed by Konstantin Tokarev.
+
+        * DumpRenderTree/TestNetscapePlugIn/CMakeLists.txt:
+        * MiniBrowser/gtk/CMakeLists.txt:
+        * TestRunnerShared/Bindings/JSWrapper.cpp:
+        (WTR::JSWrapper::initialize):
+        * TestWebKitAPI/CMakeLists.txt:
+        * TestWebKitAPI/PlatformGTK.cmake:
+        * TestWebKitAPI/Tests/WTF/CheckedArithmeticOperations.cpp:
+        (TestWebKitAPI::CheckedArithmeticTester::run):
+        * TestWebKitAPI/Tests/WebKitGLib/TestAutomationSession.cpp:
+        * TestWebKitAPI/Tests/WebKitGLib/TestWebExtensions.cpp:
+        * TestWebKitAPI/Tests/WebKitGLib/WebExtensionTest.cpp:
+        (formControlsAssociatedCallback):
+        * TestWebKitAPI/glib/CMakeLists.txt:
+        * TestWebKitAPI/glib/WebKitGLib/TestMain.h:
+        (Test::getResourcesDir):
+        * WebKitTestRunner/CMakeLists.txt:
+        * WebKitTestRunner/InjectedBundle/EventSendingController.cpp:
+        (WTR::menuItemClickCallback):
+        (WTR::staticConvertMenuItemToType):
+        * WebKitTestRunner/InjectedBundle/TestRunner.cpp:
+        (WTR::TestRunner::setUseDashboardCompatibilityMode):
+        * WebKitTestRunner/InjectedBundle/atk/AccessibilityNotificationHandlerAtk.cpp:
+        (WTR::AccessibilityNotificationHandler::disconnectAccessibilityCallbacks):
+        * WebKitTestRunner/InjectedBundle/atk/AccessibilityUIElementAtk.cpp:
+        (WTR::AccessibilityUIElement::helpText const):
+        (WTR::AccessibilityUIElement::attributedStringForRange):
+        * WebKitTestRunner/gtk/EventSenderProxyGtk.cpp:
+        (WTR::EventSenderProxy::updateTouchPoint):
+        (WTR::EventSenderProxy::releaseTouchPoint):
+
+2017-08-08  Wenson Hsieh  <wenson_hsieh@apple.com>
+
+        [iOS WK2] WKWebView schedules nonstop layout after pressing cmb+b,i,u inside a contenteditable div
+        https://bugs.webkit.org/show_bug.cgi?id=175116
+        <rdar://problem/28279301>
+
+        Reviewed by Darin Adler and Ryosuke Niwa.
+
+        Introduces new testing infrastructure and API tests to test EditorState updates in the UI process. The new
+        EditorStateTests run on both iOS and Mac.
+
+        * TestWebKitAPI/EditingTestHarness.h: Added.
+        * TestWebKitAPI/EditingTestHarness.mm: Added.
+
+        EditingTestHarness is a helper object that API tests may use to apply editing commands and store EditorState
+        history. This test harness adds sugaring around various editing commands, and simplifies the process of checking
+        the state of the latest observed EditorState.
+
+        (-[EditingTestHarness initWithWebView:]):
+        (-[EditingTestHarness dealloc]):
+        (-[EditingTestHarness webView]):
+        (-[EditingTestHarness latestEditorState]):
+        (-[EditingTestHarness editorStateHistory]):
+        (-[EditingTestHarness insertText:andExpectEditorStateWith:]):
+        (-[EditingTestHarness insertHTML:andExpectEditorStateWith:]):
+        (-[EditingTestHarness selectAllAndExpectEditorStateWith:]):
+        (-[EditingTestHarness moveBackwardAndExpectEditorStateWith:]):
+        (-[EditingTestHarness moveWordBackwardAndExpectEditorStateWith:]):
+        (-[EditingTestHarness toggleBold]):
+        (-[EditingTestHarness toggleItalic]):
+        (-[EditingTestHarness toggleUnderline]):
+        (-[EditingTestHarness setForegroundColor:]):
+        (-[EditingTestHarness alignJustifiedAndExpectEditorStateWith:]):
+        (-[EditingTestHarness alignLeftAndExpectEditorStateWith:]):
+        (-[EditingTestHarness alignCenterAndExpectEditorStateWith:]):
+        (-[EditingTestHarness alignRightAndExpectEditorStateWith:]):
+        (-[EditingTestHarness insertParagraphAndExpectEditorStateWith:]):
+        (-[EditingTestHarness deleteBackwardAndExpectEditorStateWith:]):
+        (-[EditingTestHarness _execCommand:argument:expectEntries:]):
+
+        Dispatches an editing command to the web process, and blocks until a response is received. If an expected
+        entries dictionary is given, this will additionally verify that the latest EditorState contains all the expected
+        keys and values.
+
+        (-[EditingTestHarness latestEditorStateContains:]):
+        (-[EditingTestHarness _webView:editorStateDidChange:]):
+        * TestWebKitAPI/TestWebKitAPI.xcodeproj/project.pbxproj:
+        * TestWebKitAPI/Tests/WebKit2Cocoa/EditorStateTests.mm: Added.
+        (TestWebKitAPI::setUpEditorStateTestHarness):
+        (TestWebKitAPI::TEST):
+        * TestWebKitAPI/Tests/WebKit2Cocoa/editor-state-test-harness.html: Added.
+
+2017-08-04  Brent Fulgham  <bfulgham@apple.com>
+
+        Prevent domain from being set to a TLD
+        https://bugs.webkit.org/show_bug.cgi?id=175226
+        <rdar://problem/11079948>
+
+        Reviewed by Chris Dumez.
+
+        Extend the public suffix tests to include cases used by the
+        Public Domain 'Public Suffix List'.
+
+        * TestWebKitAPI/Tests/mac/PublicSuffix.cpp: 
+        (TestWebKitAPI::TEST):
+
+2017-08-07  Stephan Szabo  <stephan.szabo@sony.com>
+
+        [XCode] webkit-patch should run sort-Xcode-project-file
+        https://bugs.webkit.org/show_bug.cgi?id=174036
+        <rdar://problem/33732709>
+
+        Reviewed by Simon Fraser.
+
+        * Scripts/webkitpy/common/config/ports.py:
+        * Scripts/webkitpy/tool/commands/download.py:
+        * Scripts/webkitpy/tool/commands/download_unittest.py:
+        * Scripts/webkitpy/tool/commands/upload.py:
+        * Scripts/webkitpy/tool/commands/upload_unittest.py:
+        * Scripts/webkitpy/tool/steps/__init__.py:
+        * Scripts/webkitpy/tool/steps/options.py:
+        * Scripts/webkitpy/tool/steps/sortxcodeprojectfiles.py: Added.
+
+2017-08-07  Devin Rousso  <drousso@apple.com>
+
+        Web Inspector: Preview Canvas path when viewing a recording
+        https://bugs.webkit.org/show_bug.cgi?id=174967
+
+        Reviewed by Brian Burg.
+
+        * DumpRenderTree/TestOptions.h:
+        * DumpRenderTree/TestOptions.mm:
+        (TestOptions::TestOptions):
+        * DumpRenderTree/mac/DumpRenderTree.mm:
+        (setWebPreferencesForTestOptions):
+        * WebKitTestRunner/TestController.cpp:
+        (WTR::TestController::resetPreferencesToConsistentValues):
+        (WTR::updateTestOptionsFromTestHeader):
+        * WebKitTestRunner/TestOptions.h:
+        (WTR::TestOptions::hasSameInitializationOptions const):
+        Add plumbing for new InspectorAdditions runtime flag.
+
+2017-08-07  obinna obike  <oobike@apple.com>
+
+        Sorted EWS Queues on Patch page
+        https://bugs.webkit.org/show_bug.cgi?id=173667
+
+        Reviewed by Aakash Jain.
+
+        * QueueStatusServer/handlers/patch.py:
+        (Patch.get): Sorted queue_status.
+        * QueueStatusServer/templates/patch.html:
+        Changed queue_status.items to queue_status because it's a list.
+
+2017-08-07  Yoshiaki Jitsukawa  <Yoshiaki.Jitsukawa@sony.com>
+
+        check-webkit-style: NS_ERROR_ENUM and NS_OPTIONS should not be handled as function definitions.
+        https://bugs.webkit.org/show_bug.cgi?id=175286
+
+        Reviewed by Myles C. Maxfield.
+
+        * Scripts/webkitpy/style/checkers/cpp.py:
+        (check_braces):
+        * Scripts/webkitpy/style/checkers/cpp_unittest.py:
+        (WebKitStyleTest.test_braces.NS_ERROR_ENUM):
+        (WebKitStyleTest.test_braces):
+        (WebKitStyleTest.test_braces.NS_OPTIONS):
+
+2017-08-07  Brian Burg  <bburg@apple.com>
+
+        Remove CANVAS_PATH compilation guard
+        https://bugs.webkit.org/show_bug.cgi?id=175207
+
+        Reviewed by Sam Weinig.
+
+        * Scripts/webkitperl/FeatureList.pm:
+        * TestWebKitAPI/Configurations/FeatureDefines.xcconfig:
+
+2017-08-07  Per Arne Vollan  <pvollan@apple.com>
+
+        [Win] Use Visual Studio 2017 if installed.
+        https://bugs.webkit.org/show_bug.cgi?id=175188
+
+        Reviewed by Sam Weinig.
+
+        If installed, use VS2017 to build WebKit. If not, fall back to VS2015.
+
+        * Scripts/webkitdirs.pm:
+        (visualStudioInstallDir):
+        (msBuildInstallDir):
+
+2017-08-05  Carlos Garcia Campos  <cgarcia@igalia.com>
+
+        [GTK][WPE] Add API to provide browser information required by automation
+        https://bugs.webkit.org/show_bug.cgi?id=175130
+
+        Reviewed by Michael Catanzaro.
+
+        * MiniBrowser/gtk/main.c:
+        (automationStartedCallback): Set browser information when a new automation session is started.
+        * TestWebKitAPI/Tests/WebKitGLib/TestAutomationSession.cpp:
+        (testAutomationSessionApplicationInfo):
+        (beforeAll):
+
+2017-08-06  Ryan Haddad  <ryanhaddad@apple.com>
+
+        Unreviewed, rolling out r220295.
+
+        This change introduced 4 errors in webkitpy tests.
+
+        Reverted changeset:
+
+        "[XCode] webkit-patch should run sort-Xcode-project-file"
+        https://bugs.webkit.org/show_bug.cgi?id=174036
+        http://trac.webkit.org/changeset/220295
+
+2017-08-04  Ryan Haddad  <ryanhaddad@apple.com>
+
+        Disable API test NowPlayingControlsTests.NowPlayingControlsIOS.
+
+        Unreviewed test gardening.
+
+        * TestWebKitAPI/Tests/WebKit2Cocoa/NowPlayingControlsTests.mm:
+        (TestWebKitAPI::TEST):
+
 2017-08-05  Filip Pizlo  <fpizlo@apple.com>
 
         REGRESSION (r219895-219897): Number of leaks on Open Source went from 9240 to 235983 and is now at 302372

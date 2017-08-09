@@ -360,6 +360,9 @@ css3/viewport-percentage-lengths/vh-auto-size.html [ Skip ]
 
 webkit.org/b/170877 [ Debug ] webgl/1.0.2/conformance/glsl/misc/shader-with-reserved-words.html [ Pass Timeout ]
 
+# CORS-preflighting for Beacon is not supported on WK1.
+webkit.org/b/175330 http/wpt/beacon/cors/ [ Skip ]
+
 # This was a WK2-only fix.
 http/tests/css/filters-on-iframes.html [ Skip ]
 
@@ -377,6 +380,7 @@ webkit.org/b/172807 imported/w3c/web-platform-tests/css/selectors4/focus-display
 webkit.org/b/172807 imported/w3c/web-platform-tests/css/selectors4/focus-within-display-none-001.html [ Pass Failure ]
 
 webkit.org/b/168409 media/modern-media-controls/airplay-button/airplay-button.html [ Pass Timeout ]
+webkit.org/b/175195 media/modern-media-controls/css/webkit-cursor-visibility-auto-hide.html [ Pass Failure ]
 webkit.org/b/168265 media/modern-media-controls/forward-button/forward-button.html [ Pass Timeout ]
 
 webkit.org/b/173432 [ Debug ] imported/w3c/web-platform-tests/fetch/nosniff/importscripts.html [ Pass Crash ]

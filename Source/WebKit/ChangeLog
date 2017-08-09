@@ -1,3 +1,560 @@
+2017-08-08  Wenson Hsieh  <wenson_hsieh@apple.com>
+
+        Unreviewed, rolling out r220393.
+
+        This patch regresses the performance of WebPage::editorState.
+
+        Reverted changeset:
+
+        "[iOS WK2] WKWebView schedules nonstop layout after pressing
+        cmb+b,i,u inside a contenteditable div"
+        https://bugs.webkit.org/show_bug.cgi?id=175116
+        http://trac.webkit.org/changeset/220393
+
+2017-08-08  Chris Dumez  <cdumez@apple.com>
+
+        [Beacon] Add support for CORS-preflighting for WK2 / NETWORK_SESSION
+        https://bugs.webkit.org/show_bug.cgi?id=175264
+        <rdar://problem/33547793>
+
+        Reviewed by Youenn Fablet.
+
+        Implement CORS-preflighting for beacons with a payload that has a non
+        safelisted MIME type, as per:
+        - https://w3c.github.io/beacon/#privacy
+        - https://www.w3.org/TR/beacon/#sec-processing-model
+
+        CORS-preflighting is completely handled on Network Process side because
+        a beacon request can outlive its page and therefore its WebContent
+        process. This requires us to pass a little more information to the
+        Network process, in particular the source origin and the corsMode.
+
+        The current implementation does not currently deal with CORS preflights
+        needed upon a redirect. This will be added in a follow-up.
+
+        * CMakeLists.txt:
+        * NetworkProcess/NetworkCORSPreflightChecker.cpp: Added.
+        (WebKit::NetworkCORSPreflightChecker::NetworkCORSPreflightChecker):
+        (WebKit::NetworkCORSPreflightChecker::~NetworkCORSPreflightChecker):
+        (WebKit::NetworkCORSPreflightChecker::startPreflight):
+        (WebKit::NetworkCORSPreflightChecker::willPerformHTTPRedirection):
+        (WebKit::NetworkCORSPreflightChecker::didReceiveChallenge):
+        (WebKit::NetworkCORSPreflightChecker::didReceiveResponseNetworkSession):
+        (WebKit::NetworkCORSPreflightChecker::didReceiveData):
+        (WebKit::NetworkCORSPreflightChecker::didCompleteWithError):
+        (WebKit::NetworkCORSPreflightChecker::didSendData):
+        (WebKit::NetworkCORSPreflightChecker::wasBlocked):
+        (WebKit::NetworkCORSPreflightChecker::cannotShowURL):
+        * NetworkProcess/NetworkCORSPreflightChecker.h: Added.
+        * NetworkProcess/NetworkConnectionToWebProcess.cpp:
+        (WebKit::NetworkConnectionToWebProcess::loadPing):
+        * NetworkProcess/NetworkConnectionToWebProcess.h:
+        * NetworkProcess/NetworkResourceLoadParameters.cpp:
+        (WebKit::NetworkResourceLoadParameters::encode const):
+        (WebKit::NetworkResourceLoadParameters::decode):
+        * NetworkProcess/NetworkResourceLoadParameters.h:
+        * NetworkProcess/PingLoad.cpp: Added.
+        (WebKit::PingLoad::PingLoad):
+        (WebKit::PingLoad::~PingLoad):
+        (WebKit::PingLoad::startNetworkLoad):
+        (WebKit::PingLoad::willPerformHTTPRedirection):
+        (WebKit::PingLoad::didReceiveChallenge):
+        (WebKit::PingLoad::didReceiveResponseNetworkSession):
+        (WebKit::PingLoad::didReceiveData):
+        (WebKit::PingLoad::didCompleteWithError):
+        (WebKit::PingLoad::didSendData):
+        (WebKit::PingLoad::wasBlocked):
+        (WebKit::PingLoad::cannotShowURL):
+        (WebKit::PingLoad::timeoutTimerFired):
+        (WebKit::PingLoad::needsCORSPreflight const):
+        (WebKit::PingLoad::doCORSPreflight):
+        * NetworkProcess/PingLoad.h:
+        * WebKit.xcodeproj/project.pbxproj:
+        * WebProcess/Network/WebLoaderStrategy.cpp:
+        (WebKit::WebLoaderStrategy::createPingHandle):
+        * WebProcess/Network/WebLoaderStrategy.h:
+
+2017-08-08  Megan Gardner  <megan_gardner@apple.com>
+
+        Remove old and unused pointIsInAssistedNode definition
+        https://bugs.webkit.org/show_bug.cgi?id=175335
+
+        Stage removal here to allow removal from UIKit.
+        Replaced by textInteractionGesture:shouldBeginAtPoint:
+
+        Reviewed by Tim Horton.
+
+        * Platform/spi/ios/UIKitSPI.h:
+        * UIProcess/ios/WKContentViewInteraction.mm:
+        (-[WKContentView pointIsInAssistedNode:]): Deleted.
+
+2017-08-08  Michael Catanzaro  <mcatanzaro@igalia.com>
+
+        Unreviewed, fix Ubuntu LTS build
+        https://bugs.webkit.org/show_bug.cgi?id=174490
+
+        * UIProcess/glib/RemoteInspectorClient.cpp:
+        (WebKit::RemoteInspectorClient::RemoteInspectorClient):
+
+2017-08-08  Wenson Hsieh  <wenson_hsieh@apple.com>
+
+        Unreviewed, fix the Mac debug build after r220418.
+
+        * UIProcess/Cocoa/WebViewImpl.mm:
+        (WebKit::WebViewImpl::prepareForMoveToWindow):
+
+2017-08-08  Wenson Hsieh  <wenson_hsieh@apple.com>
+
+        [Mac WK2] WebViewImpl should hold a weak pointer to its WKWebView or WKView
+        https://bugs.webkit.org/show_bug.cgi?id=175302
+        <rdar://problem/33762116>
+
+        Reviewed by Tim Horton.
+
+        Refactor WebViewImpl's m_view from a raw pointer to a WeakObjCPtr to ensure that it is automatically cleared out
+        when the WKWebView or WKView are destroyed, and also changes several places where we implicitly block capture
+        the WebViewImpl to only capture a WeakPtr to the WebViewImpl. Most of the changes here are boilerplate
+        adjustments for how m_view is now a weak pointer.
+
+        Test: WKWebViewMacEditingTests.DoNotCrashWhenInterpretingKeyEventWhileDeallocatingView.
+
+        * Shared/mac/WeakObjCPtr.h:
+        (WebKit::WeakObjCPtr::operator ValueType * const):
+        * UIProcess/Cocoa/WebViewImpl.h:
+        * UIProcess/Cocoa/WebViewImpl.mm:
+        (WebKit::WebViewImpl::updateTouchBar):
+        (WebKit::WebViewImpl::updateMediaTouchBar):
+        (WebKit::WebViewImpl::WebViewImpl):
+        (WebKit::WebViewImpl::~WebViewImpl):
+        (WebKit::WebViewImpl::window):
+        (WebKit::WebViewImpl::resignFirstResponder):
+        (WebKit::WebViewImpl::isFocused const):
+        (WebKit::WebViewImpl::renewGState):
+        (WebKit::WebViewImpl::setFrameAndScrollBy):
+        (WebKit::WebViewImpl::updateWindowAndViewFrames):
+        (WebKit::WebViewImpl::updateLayer):
+        (WebKit::WebViewImpl::printOperationWithPrintInfo):
+        (WebKit::WebViewImpl::updateContentInsetsIfAutomatic):
+        (WebKit::WebViewImpl::setLayoutMode):
+        (WebKit::WebViewImpl::intrinsicDeviceScaleFactor const):
+        (WebKit::WebViewImpl::windowDidBecomeKey):
+        (WebKit::WebViewImpl::windowDidResignKey):
+        (WebKit::WebViewImpl::windowDidChangeScreen):
+        (WebKit::WebViewImpl::mightBeginDragWhileInactive):
+        (WebKit::WebViewImpl::acceptsFirstMouse):
+        (WebKit::WebViewImpl::shouldDelayWindowOrderingForEvent):
+        (WebKit::WebViewImpl::windowResizeMouseLocationIsInVisibleScrollerThumb):
+        (WebKit::WebViewImpl::viewWillMoveToWindow):
+        (WebKit::WebViewImpl::viewDidMoveToWindow):
+        (WebKit::WebViewImpl::viewDidChangeBackingProperties):
+        (WebKit::WebViewImpl::hitTest):
+        (WebKit::WebViewImpl::postFakeMouseMovedEventForFlagsChangedEvent):
+        (WebKit::WebViewImpl::colorSpace):
+        (WebKit::WebViewImpl::prepareForMoveToWindow):
+        (WebKit::WebViewImpl::notifyInputContextAboutDiscardedComposition):
+        (WebKit::WebViewImpl::pressureChangeWithEvent):
+        (WebKit::WebViewImpl::fullScreenWindowController):
+        (WebKit::WebViewImpl::executeSavedCommandBySelector):
+        (WebKit::WebViewImpl::validRequestorForSendAndReturnTypes):
+        (WebKit::WebViewImpl::handleRequestedCandidates):
+        (WebKit::WebViewImpl::preferencesDidChange):
+        (WebKit::WebViewImpl::setTextIndicator):
+        (WebKit::WebViewImpl::dismissContentRelativeChildWindowsFromViewOnly):
+        (WebKit::WebViewImpl::accessibilityRegisterUIProcessTokens):
+        (WebKit::WebViewImpl::sendToolTipMouseExited):
+        (WebKit::WebViewImpl::sendToolTipMouseEntered):
+        (WebKit::WebViewImpl::toolTipChanged):
+        (WebKit::WebViewImpl::setAcceleratedCompositingRootLayer):
+        (WebKit::WebViewImpl::updateThumbnailViewLayer):
+        (WebKit::WebViewImpl::setInspectorAttachmentView):
+        (WebKit::WebViewImpl::inspectorAttachmentView):
+        (WebKit::WebViewImpl::draggedImage):
+        (WebKit::WebViewImpl::draggingEntered):
+        (WebKit::WebViewImpl::draggingUpdated):
+        (WebKit::WebViewImpl::draggingExited):
+        (WebKit::WebViewImpl::performDragOperation):
+        (WebKit::WebViewImpl::hitTestForDragTypes):
+        (WebKit::WebViewImpl::startWindowDrag):
+        (WebKit::WebViewImpl::dragImageForView):
+        (WebKit::WebViewImpl::setPromisedDataForImage):
+        (WebKit::WebViewImpl::setPromisedDataForAttachment):
+        (WebKit::WebViewImpl::takeViewSnapshot):
+        (WebKit::WebViewImpl::scrollWheel):
+        (WebKit::WebViewImpl::magnifyWithEvent):
+        (WebKit::WebViewImpl::rotateWithEvent):
+        (WebKit::WebViewImpl::doneWithKeyEvent):
+        (WebKit::WebViewImpl::interpretKeyEvent):
+        (WebKit::WebViewImpl::firstRectForCharacterRange):
+        (WebKit::WebViewImpl::characterIndexForPoint):
+        (WebKit::WebViewImpl::performKeyEquivalent):
+        (WebKit::WebViewImpl::keyUp):
+        (WebKit::WebViewImpl::keyDown):
+        (WebKit::WebViewImpl::mouseMoved):
+        (WebKit::WebViewImpl::windowIsFrontWindowUnderMouse):
+        (WebKit::WebViewImpl::userInterfaceLayoutDirection):
+
+2017-08-08  Filip Pizlo  <fpizlo@apple.com>
+
+        Baseline JIT should do caging
+        https://bugs.webkit.org/show_bug.cgi?id=175037
+
+        Reviewed by Mark Lam.
+        
+        Use a better API to disable disabling the primitive gigacage.
+
+        * WebProcess/WebProcess.cpp:
+        (WebKit::m_webSQLiteDatabaseTracker):
+        (WebKit::primitiveGigacageDisabled): Deleted.
+
+2017-08-08  John Wilander  <wilander@apple.com>
+
+        Resource Load Statistics: Clear web processes' state on history removal
+        https://bugs.webkit.org/show_bug.cgi?id=175271
+        <rdar://problem/33756560>
+
+        Reviewed by Chris Dumez.
+
+        https://bugs.webkit.org/show_bug.cgi?id=175090 introduced state
+        in the web process and that state needs to be cleared when the
+        UI process' statistics are cleared as part of history removal.
+
+        * UIProcess/WebProcessPool.cpp:
+        (WebKit::WebProcessPool::clearResourceLoadStatistics):
+        * UIProcess/WebProcessPool.h:
+        * UIProcess/WebsiteData/WebsiteDataStore.cpp:
+        (WebKit::WebsiteDataStore::removeData):
+        (WebKit::WebsiteDataStore::clearResourceLoadStatisticsInWebProcesses):
+        * UIProcess/WebsiteData/WebsiteDataStore.h:
+        * WebProcess/WebProcess.cpp:
+        (WebKit::WebProcess::clearResourceLoadStatistics):
+        * WebProcess/WebProcess.h:
+        * WebProcess/WebProcess.messages.in:
+
+2017-08-08  Adrian Perez de Castro  <aperez@igalia.com>
+
+        [WPE] Implement WebsiteDataStore::defaultApplicationCacheDirectory() and friends
+        https://bugs.webkit.org/show_bug.cgi?id=175322
+
+        Reviewed by Carlos Garcia Campos.
+
+        This makes WPE use the same implementation as the GTK+ port, with a preprocessor switch to choose the name of
+        the base directory inside the user XDG cache directory.
+
+        * PlatformGTK.cmake: Add APIWebsiteDataStoreGLib.cpp to the build sources and remove APIWebsiteDataStoreGtk.cpp.
+        * PlatformWPE.cmake: Add APIWebsiteDataStoreGLib.cpp to the built sources.
+        * UIProcess/API/APIWebsiteDataStore.cpp: Remove now dead code.
+        * UIProcess/API/glib/APIWebsiteDataStoreGLib.cpp: Renamed from Source/WebKit/UIProcess/API/gtk/APIWebsiteDataStoreGtk.cpp.
+        (API::WebsiteDataStore::defaultApplicationCacheDirectory):
+        (API::WebsiteDataStore::defaultIndexedDBDatabaseDirectory):
+        (API::WebsiteDataStore::defaultLocalStorageDirectory):
+        (API::WebsiteDataStore::defaultMediaKeysStorageDirectory):
+        (API::WebsiteDataStore::defaultWebSQLDatabaseDirectory):
+        (API::WebsiteDataStore::defaultResourceLoadStatisticsDirectory):
+
+2017-08-08  Ryan Haddad  <ryanhaddad@apple.com>
+
+        Unreviewed, rolling out r220368.
+
+        This change caused WK1 tests to exit early with crashes.
+
+        Reverted changeset:
+
+        "Baseline JIT should do caging"
+        https://bugs.webkit.org/show_bug.cgi?id=175037
+        http://trac.webkit.org/changeset/220368
+
+2017-08-08  Michael Catanzaro  <mcatanzaro@igalia.com>
+
+        [CMake] Properly test if compiler supports compiler flags
+        https://bugs.webkit.org/show_bug.cgi?id=174490
+
+        Reviewed by Konstantin Tokarev.
+
+        * CMakeLists.txt:
+        * PlatformGTK.cmake:
+
+2017-08-07  Carlos Garcia Campos  <cgarcia@igalia.com>
+
+        Web Automation: setUserInputForCurrentJavaScriptPrompt should fail if current dialog is not a prompt
+        https://bugs.webkit.org/show_bug.cgi?id=175261
+
+        Reviewed by Brian Burg.
+
+        According to the spec, send alert text command should fail if the current dialog is not a prompt. This patch
+        adds JavaScriptDialogType enum to API::AutomationSessionClient and a new virtual method to ask the client about
+        the type of the current dialog. WebAutomationSession::setUserInputForCurrentJavaScriptPrompt() uses the new
+        client method to check the type of the current dialog and fail in case it's not a prompt. Cocoa needs an
+        implementation, for now it always returns Prompt as the type to keep compatibility.
+
+        18.4 Send Alert Text.
+        https://w3c.github.io/webdriver/webdriver-spec.html#send-alert-text
+
+        This fixes selenium test testSettingTheValueOfAnAlertThrows.
+
+        * UIProcess/API/APIAutomationSessionClient.h:
+        (API::AutomationSessionClient::typeOfCurrentJavaScriptDialogOnPage):
+        * UIProcess/API/glib/WebKitAutomationSession.cpp:
+        * UIProcess/API/glib/WebKitWebView.cpp:
+        (webkitWebViewGetCurrentScriptDialogType):
+        * UIProcess/API/glib/WebKitWebViewPrivate.h:
+        * UIProcess/Automation/Automation.json:
+        * UIProcess/Automation/WebAutomationSession.cpp:
+        (WebKit::WebAutomationSession::setUserInputForCurrentJavaScriptPrompt):
+        * UIProcess/Cocoa/AutomationSessionClient.h:
+        * UIProcess/Cocoa/AutomationSessionClient.mm:
+        (WebKit::AutomationSessionClient::typeOfCurrentJavaScriptDialogOnPage):
+
+2017-08-08  Wenson Hsieh  <wenson_hsieh@apple.com>
+
+        [iOS WK2] WKWebView schedules nonstop layout after pressing cmb+b,i,u inside a contenteditable div
+        https://bugs.webkit.org/show_bug.cgi?id=175116
+        <rdar://problem/28279301>
+
+        Reviewed by Darin Adler and Ryosuke Niwa.
+
+        Refactors WebPage::editorState to only use the StyleProperties derived from EditingStyle, instead of inserting
+        and removing a temporary node to figure out the style. Also adds hooks to notify the UI delegate of EditorState
+        changes.
+
+        * UIProcess/API/Cocoa/WKUIDelegatePrivate.h:
+        * UIProcess/API/Cocoa/WKWebView.mm:
+        (nsTextAlignment):
+        (dictionaryRepresentationForEditorState):
+        (-[WKWebView _didChangeEditorState]):
+
+        Alerts the private UI delegate of UI-side EditorState updates.
+
+        (-[WKWebView _web_editorStateDidChange]):
+        (-[WKWebView _executeEditCommand:argument:completion:]):
+        * UIProcess/API/Cocoa/WKWebViewInternal.h:
+        * UIProcess/API/Cocoa/WKWebViewPrivate.h:
+        * UIProcess/API/mac/WKView.mm:
+        (-[WKView _web_editorStateDidChange]):
+        * UIProcess/Cocoa/WebViewImpl.h:
+        * UIProcess/Cocoa/WebViewImpl.mm:
+        (WebKit::WebViewImpl::selectionDidChange):
+        * UIProcess/WebPageProxy.cpp:
+        (WebKit::WebPageProxy::executeEditCommand):
+
+        Change executeEditCommand(name, callback) to executeEditCommand(name, argument, callback) and lift out of iOS
+        platform code and into WebPage.cpp.
+
+        * UIProcess/WebPageProxy.h:
+        * UIProcess/ios/WKContentViewInteraction.mm:
+        (-[WKContentView executeEditCommandWithCallback:]):
+        (-[WKContentView _selectionChanged]):
+        * UIProcess/ios/WebPageProxyIOS.mm:
+        (WebKit::WebPageProxy::executeEditCommand): Deleted.
+
+        Move the iOS-specific implementation of executeEditCommand that invokes a callback when the web process responds
+        out of WebPageProxyIOS, and into cross-platform WebPageProxy code. Additionally, add a parameter for the edit
+        command's argument.
+
+        * WebProcess/WebPage/WebPage.cpp:
+        (WebKit::WebPage::editorState const):
+
+        Use EditingStyle::styleAtSelectionStart instead of Editor::styleForSelectionStart when computing an EditorState.
+        Tweak bold, italic and underline to use EditingStyle TriStates.
+
+        (WebKit::shouldEnsureEditorStateUpdateAfterExecutingCommand):
+        (WebKit::WebPage::executeEditCommandWithCallback):
+        * WebProcess/WebPage/WebPage.h:
+        * WebProcess/WebPage/WebPage.messages.in:
+        * WebProcess/WebPage/ios/WebPageIOS.mm:
+        (WebKit::WebPage::executeEditCommandWithCallback): Deleted.
+
+2017-08-08  Zan Dobersek  <zdobersek@igalia.com>
+
+        [TexMap] Don't expose GraphicsContext3D object
+        https://bugs.webkit.org/show_bug.cgi?id=175310
+
+        Reviewed by Carlos Garcia Campos.
+
+        * Shared/CoordinatedGraphics/CoordinatedGraphicsScene.cpp:
+        (WebKit::CoordinatedGraphicsScene::paintToCurrentGLContext):
+        Stop using GraphicsContext3D directly and instead use the
+        TextureMapper::clearColor() method to achieve the same result.
+
+2017-08-07  Carlos Garcia Campos  <cgarcia@igalia.com>
+
+        [GTK] Implement JavaScript dialog methods of API::AutomationSessionClient
+        https://bugs.webkit.org/show_bug.cgi?id=175259
+
+        Reviewed by Michael Catanzaro.
+
+        Move the default implementation of WebKitScriptDialog from WebKitWebView platform specific files to their own
+        files. Implement all JavaScript dialog methods of API::AutomationSessionClient in WebKitAutomationSession. For
+        now it only works when the user doesn't override WebKitWebView::script-dialog signal and default implementation
+        is used.
+
+        * PlatformGTK.cmake: Add new files to compilation.
+        * PlatformWPE.cmake: Ditto.
+        * UIProcess/API/glib/WebKitAutomationSession.cpp:
+        (webkitAutomationSessionCreate): Pass the WebKitWebContext to the constructor and keep a pointer to it in session.
+        * UIProcess/API/glib/WebKitAutomationSessionPrivate.h:
+        * UIProcess/API/glib/WebKitScriptDialogPrivate.h:
+        * UIProcess/API/glib/WebKitWebContext.cpp:
+        * UIProcess/API/glib/WebKitWebView.cpp:
+        (webkitWebViewRunJavaScriptAlert): Set the currently script dialog for the scope of the function.
+        (webkitWebViewRunJavaScriptConfirm): Ditto.
+        (webkitWebViewRunJavaScriptPrompt): Ditto.
+        (webkitWebViewRunJavaScriptBeforeUnloadConfirm): Ditto.
+        (webkitWebViewIsShowingScriptDialog): Ask current dialog if there's one.
+        (webkitWebViewGetCurrentScriptDialogMessage): Ditto.
+        (webkitWebViewSetCurrentScriptDialogUserInput): Ditto.
+        (webkitWebViewAcceptCurrentScriptDialog): Ditto.
+        (webkitWebViewDismissCurrentScriptDialog): Ditto.
+        * UIProcess/API/glib/WebKitWebViewPrivate.h:
+        * UIProcess/API/gtk/WebKitScriptDialogGtk.cpp: Added.
+        (webkitWebViewCreateJavaScriptDialog): Moved from WebKitWebViewGtk.cpp.
+        (webkitScriptDialogRun): Run the dialog, this code is moved from WebKitWebViewGtk.cpp.
+        (webkitScriptDialogIsRunning): Return true if the script dialog has a native dialog running.
+        (webkitScriptDialogAccept): Send Ok or Close response to the native dialog depending on the dialog type.
+        (webkitScriptDialogDismiss): Send Close response to the native dialog.
+        (webkitScriptDialogSetUserInput): Set the given text on the prompt dialog entry.
+        * UIProcess/API/gtk/WebKitWebViewGtk.cpp:
+        (webkitWebViewScriptDialog): Simply call webkitScriptDialogRun() now.
+        * UIProcess/API/wpe/WebKitScriptDialogWPE.cpp: Copied from Source/WebKit/UIProcess/API/glib/WebKitAutomationSessionPrivate.h.
+        (webkitScriptDialogRun):
+        (webkitScriptDialogIsRunning):
+        (webkitScriptDialogAccept):
+        (webkitScriptDialogDismiss):
+        (webkitScriptDialogSetUserInput):
+
+2017-08-07  Devin Rousso  <drousso@apple.com>
+
+        Web Inspector: Preview Canvas path when viewing a recording
+        https://bugs.webkit.org/show_bug.cgi?id=174967
+
+        Reviewed by Brian Burg.
+
+        * Shared/WebPreferencesDefinitions.h:
+        * UIProcess/API/C/WKPreferencesRefPrivate.h:
+        * UIProcess/API/C/WKPreferences.cpp:
+        (WKPreferencesSetInspectorAdditionsEnabled):
+        (WKPreferencesGetInspectorAdditionsEnabled):
+        * WebProcess/WebPage/WebPage.cpp:
+        (WebKit::WebPage::updatePreferences):
+        Add plumbing for new InspectorAdditions runtime flag.
+
+        * WebProcess/WebPage/WebInspectorUI.cpp:
+        (WebKit::WebInspectorUI::WebInspectorUI):
+        Enable InspectorAdditions by default in the WebInspector page.
+
+2017-08-07  Filip Pizlo  <fpizlo@apple.com>
+
+        Baseline JIT should do caging
+        https://bugs.webkit.org/show_bug.cgi?id=175037
+
+        Reviewed by Mark Lam.
+        
+        Use a better API to disable disabling the primitive gigacage.
+
+        * WebProcess/WebProcess.cpp:
+        (WebKit::m_webSQLiteDatabaseTracker):
+        (WebKit::primitiveGigacageDisabled): Deleted.
+
+2017-08-06  Filip Pizlo  <fpizlo@apple.com>
+
+        Primitive auxiliaries and JSValue auxiliaries should have separate gigacages
+        https://bugs.webkit.org/show_bug.cgi?id=174919
+
+        Reviewed by Keith Miller.
+        
+        The disable callback is all about the primitive gigacage.
+
+        * WebProcess/WebProcess.cpp:
+        (WebKit::primitiveGigacageDisabled):
+        (WebKit::m_webSQLiteDatabaseTracker):
+        (WebKit::gigacageDisabled): Deleted.
+
+2017-08-07  Brian Burg  <bburg@apple.com>
+
+        Remove CANVAS_PATH compilation guard
+        https://bugs.webkit.org/show_bug.cgi?id=175207
+
+        Reviewed by Sam Weinig.
+
+        * Configurations/FeatureDefines.xcconfig:
+
+2017-08-07  Carlos Alberto Lopez Perez  <clopez@igalia.com>
+
+        [WPE][CMake] Only pass pkg-config CFLAGS from (E)GL when not using libepoxy.
+        https://bugs.webkit.org/show_bug.cgi?id=175125
+
+        Reviewed by Michael Catanzaro.
+
+        * CMakeLists.txt: When using libepoxy avoid passing the CFLAGS from (E)GL,
+        and instead pass the libepoxy ones.
+
+2017-08-07  Carlos Alberto Lopez Perez  <clopez@igalia.com>
+
+        [GTK][WPE] CFLAGS from pkg-config for (E)GL are not passed to WebKit
+        https://bugs.webkit.org/show_bug.cgi?id=175125
+
+        Unreviewed follow-up fix after r220326.
+
+        * CMakeLists.txt: Move the block appending to WebKit2_LIBRARIES
+        below where the list itself is created.
+
+2017-08-05  Carlos Garcia Campos  <cgarcia@igalia.com>
+
+        [GTK][WPE] Add API to provide browser information required by automation
+        https://bugs.webkit.org/show_bug.cgi?id=175130
+
+        Reviewed by Michael Catanzaro.
+
+        When a new automation session is started, the web driver receives some required capabilities from the client,
+        like browser name and version. The session should be rejected if those required capabilities don't match with
+        the actual browser that is launched. We don't know that information in WebKit, so we need to add API so that
+        users can provide it when a new session request is made. This patch adds boxed object WebKitApplicationInfo that
+        can be used to set the application name and version. This object can be set to a WebKitAutomationSession when
+        WebKitWebContext::automation-started signal is emitted.
+
+        * PlatformGTK.cmake:
+        * PlatformWPE.cmake:
+        * UIProcess/API/glib/WebKitApplicationInfo.cpp: Added.
+        (webkit_application_info_new):
+        (webkit_application_info_ref):
+        (webkit_application_info_unref):
+        (webkit_application_info_set_name):
+        (webkit_application_info_get_name):
+        (webkit_application_info_set_version):
+        (webkit_application_info_get_version):
+        * UIProcess/API/glib/WebKitAutomationSession.cpp:
+        (webkitAutomationSessionDispose):
+        (webkit_automation_session_class_init):
+        (webkitAutomationSessionGetBrowserName):
+        (webkitAutomationSessionGetBrowserVersion):
+        (webkit_automation_session_set_application_info):
+        (webkit_automation_session_get_application_info):
+        * UIProcess/API/glib/WebKitAutomationSessionPrivate.h:
+        * UIProcess/API/glib/WebKitWebContext.cpp:
+        * UIProcess/API/gtk/WebKitApplicationInfo.h: Added.
+        * UIProcess/API/gtk/WebKitAutomationSession.h:
+        * UIProcess/API/gtk/docs/webkit2gtk-4.0-sections.txt:
+        * UIProcess/API/gtk/docs/webkit2gtk-docs.sgml:
+        * UIProcess/API/gtk/webkit2.h:
+        * UIProcess/API/wpe/WebKitApplicationInfo.h: Added.
+        * UIProcess/API/wpe/WebKitAutomationSession.h:
+        * UIProcess/API/wpe/webkit.h:
+
+2017-08-06  Carlos Alberto Lopez Perez  <clopez@igalia.com>
+
+        [GTK][WPE] CFLAGS from pkg-config for (E)GL are not passed to WebKit
+        https://bugs.webkit.org/show_bug.cgi?id=175125
+
+        Reviewed by Michael Catanzaro.
+
+        Some platforms define cflags on the (E)GL pkg-config files that we
+        need to pass to the build system when including the (E)GL headers.
+        And we are already doing this when building WebCore (after r184954).
+
+        But now we need to do this also on WebKit (former WebKit2) because
+        we include (E)GL headers (and make use of them) on the UIProcess.
+
+        * CMakeLists.txt:
+
 2017-08-05  Carlos Garcia Campos  <cgarcia@igalia.com>
 
         WebDriver: Implement page load strategy

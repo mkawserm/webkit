@@ -1,3 +1,124 @@
+2017-08-08  Michael Catanzaro  <mcatanzaro@igalia.com>
+
+        Unreviewed, fix Ubuntu LTS build
+        https://bugs.webkit.org/show_bug.cgi?id=174490
+
+        * glib/SessionHostGlib.cpp:
+
+2017-08-08  Michael Catanzaro  <mcatanzaro@igalia.com>
+
+        [CMake] Properly test if compiler supports compiler flags
+        https://bugs.webkit.org/show_bug.cgi?id=174490
+
+        Reviewed by Konstantin Tokarev.
+
+        * WebDriverService.cpp:
+        (WebDriver::WebDriverService::run):
+        * glib/SessionHostGlib.cpp:
+
+2017-08-07  Carlos Garcia Campos  <cgarcia@igalia.com>
+
+        Web Automation: setUserInputForCurrentJavaScriptPrompt should fail if current dialog is not a prompt
+        https://bugs.webkit.org/show_bug.cgi?id=175261
+
+        Reviewed by Brian Burg.
+
+        * CommandResult.cpp:
+        (WebDriver::CommandResult::CommandResult): Handle ElementNotInteractable protocol error.
+
+2017-08-07  Carlos Garcia Campos  <cgarcia@igalia.com>
+
+        WebDriver: implement unhandled prompt behavior
+        https://bugs.webkit.org/show_bug.cgi?id=175184
+
+        Reviewed by Brian Burg.
+
+        Handle user prompts before running some of the commands according to the specification.
+
+        * Capabilities.h: Add UnhandledPromptBehavior capability.
+        * CommandResult.cpp:
+        (WebDriver::CommandResult::httpStatusCode const): Add UnexpectedAlertOpen error.
+        (WebDriver::CommandResult::errorString const): Ditto.
+        * CommandResult.h:
+        (WebDriver::CommandResult::setAdditonalErrorData): New method to set an additional data object that will be sent
+        as part of the result error message.
+        (WebDriver::CommandResult::additionalErrorData const): Return the additional data object.
+        * Session.cpp:
+        (WebDriver::Session::handleUserPrompts): Check if there's an active JavaScript dialog and deal with it depeding
+        on the unhandled prompt behavior.
+        (WebDriver::Session::reportUnexpectedAlertOpen): Generate an error message with UnexpectedAlertOpen error and
+        including the alert text as additional error data.
+        (WebDriver::Session::go): Handle user prompts before running the command.
+        (WebDriver::Session::getCurrentURL): Ditto.
+        (WebDriver::Session::back): Ditto.
+        (WebDriver::Session::forward): Ditto.
+        (WebDriver::Session::refresh): Ditto.
+        (WebDriver::Session::getTitle): Ditto.
+        (WebDriver::Session::closeWindow): Ditto.
+        (WebDriver::Session::switchToFrame): Ditto.
+        (WebDriver::Session::switchToParentFrame): Ditto.
+        (WebDriver::Session::isElementSelected): Ditto.
+        (WebDriver::Session::getElementText): Ditto.
+        (WebDriver::Session::getElementTagName): Ditto.
+        (WebDriver::Session::getElementRect): Ditto.
+        (WebDriver::Session::isElementEnabled): Ditto.
+        (WebDriver::Session::isElementDisplayed): Ditto.
+        (WebDriver::Session::getElementAttribute): Ditto.
+        (WebDriver::Session::elementSendKeys): Ditto.
+        (WebDriver::Session::elementSubmit): Ditto.
+        (WebDriver::Session::executeScript): Ditto.
+        * Session.h:
+        * WebDriverService.cpp:
+        (WebDriver::WebDriverService::sendResponse const): Send data object as part of the result error message if present.
+        (WebDriver::deserializeUnhandledPromptBehavior):
+        (WebDriver::WebDriverService::parseCapabilities const):
+        (WebDriver::WebDriverService::validatedCapabilities const):
+        (WebDriver::WebDriverService::newSession):
+
+2017-08-07  Carlos Garcia Campos  <cgarcia@igalia.com>
+
+        WebDriver: implement user prompt commands
+        https://bugs.webkit.org/show_bug.cgi?id=174614
+
+        Reviewed by Brian Burg.
+
+        * CommandResult.cpp:
+        (WebDriver::CommandResult::CommandResult): Handle NoJavaScriptDialog protocol error.
+        (WebDriver::CommandResult::httpStatusCode const): Add NoSuchAlert.
+        (WebDriver::CommandResult::errorString const): Ditto.
+        * CommandResult.h:
+        * Session.cpp:
+        (WebDriver::Session::dismissAlert):
+        (WebDriver::Session::acceptAlert):
+        (WebDriver::Session::getAlertText):
+        (WebDriver::Session::sendAlertText):
+        * Session.h:
+        * WebDriverService.cpp:
+        (WebDriver::WebDriverService::dismissAlert):
+        (WebDriver::WebDriverService::acceptAlert):
+        (WebDriver::WebDriverService::getAlertText):
+        (WebDriver::WebDriverService::sendAlertText):
+        * WebDriverService.h:
+
+2017-08-05  Carlos Garcia Campos  <cgarcia@igalia.com>
+
+        [GTK][WPE] Add API to provide browser information required by automation
+        https://bugs.webkit.org/show_bug.cgi?id=175130
+
+        Reviewed by Brian Burg.
+
+        * Session.cpp:
+        (WebDriver::Session::createTopLevelBrowsingContext): Check if startAutomationSession and complete the command
+        with error in that case.
+        * SessionHost.h:
+        * glib/SessionHostGlib.cpp:
+        (WebDriver::SessionHost::matchCapabilities): Match the capabilities that are known only after the browser has
+        been launched.
+        (WebDriver::SessionHost::startAutomationSession): Handle the StartAutomationSession response, extracting the
+        capabilities and calling matchCapabilities() to match them.
+        (WebDriver::SessionHost::setTargetList): Return early if the session was rejected before due to invalid
+        capabilities.
+
 2017-08-05  Carlos Garcia Campos  <cgarcia@igalia.com>
 
         WebDriver: Implement page load strategy
