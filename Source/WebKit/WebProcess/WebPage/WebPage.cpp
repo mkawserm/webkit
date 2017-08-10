@@ -234,8 +234,8 @@
 #if PLATFORM(IOS)
 #include "RemoteLayerTreeDrawingArea.h"
 #include <CoreGraphics/CoreGraphics.h>
-#include <WebCore/CoreTextSPI.h>
 #include <WebCore/Icon.h>
+#include <pal/spi/cocoa/CoreTextSPI.h>
 #endif
 
 #ifndef NDEBUG
@@ -3366,7 +3366,10 @@ void WebPage::updatePreferences(const WebPreferencesStore& store)
     }
 
     settings.setSubresourceIntegrityEnabled(store.getBoolValueForKey(WebPreferencesKey::subresourceIntegrityEnabledKey()));
+
+#if ENABLE(BEACON_API)
     settings.setBeaconAPIEnabled(store.getBoolValueForKey(WebPreferencesKey::beaconAPIEnabledKey()));
+#endif
 
     platformPreferencesDidChange(store);
 
