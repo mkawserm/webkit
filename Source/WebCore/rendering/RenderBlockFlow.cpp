@@ -24,6 +24,7 @@
 #include "config.h"
 #include "RenderBlockFlow.h"
 
+#include "AXObjectCache.h"
 #include "Editor.h"
 #include "FloatingObjects.h"
 #include "Frame.h"
@@ -2352,6 +2353,9 @@ FloatingObject* RenderBlockFlow::insertFloatingObject(RenderBox& floatBox)
     }
 
     setLogicalWidthForFloat(*floatingObject, logicalWidthForChild(floatBox) + marginStartForChild(floatBox) + marginEndForChild(floatBox));
+    
+    if (AXObjectCache* cache = document().existingAXObjectCache())
+        cache->childrenChanged(this);
 
     return m_floatingObjects->add(WTFMove(floatingObject));
 }
@@ -2389,6 +2393,9 @@ void RenderBlockFlow::removeFloatingObject(RenderBox& floatBox)
                 markLinesDirtyInBlockRange(0, logicalBottom);
             }
             m_floatingObjects->remove(&floatingObject);
+            
+            if (AXObjectCache* cache = document().existingAXObjectCache())
+                cache->childrenChanged(this);
         }
     }
 }
@@ -3771,7 +3778,7 @@ void RenderBlockFlow::ensureLineBoxes()
 }
 
 #if ENABLE(TREE_DEBUGGING)
-void RenderBlockFlow::outputLineTreeAndMark(TextStream& stream, const InlineBox* markedBox, int depth) const
+void RenderBlockFlow::outputLineTreeAndMark(WTF::TextStream& stream, const InlineBox* markedBox, int depth) const
 {
     for (const RootInlineBox* root = firstRootBox(); root; root = root->nextRootBox())
         root->outputLineTreeAndMark(stream, markedBox, depth);

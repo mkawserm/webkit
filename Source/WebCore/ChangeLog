@@ -1,3 +1,643 @@
+2017-08-09  Don Olmstead  <don.olmstead@sony.com>
+
+        [WTF] Move TextStream into WTF
+        https://bugs.webkit.org/show_bug.cgi?id=175211
+
+        Reviewed by Myles C. Maxfield.
+
+        No new tests. No change in behavior.
+
+        * CMakeLists.txt:
+        * WebCore.xcodeproj/project.pbxproj:
+        * dom/ComposedTreeIterator.cpp:
+        * dom/Position.cpp:
+        * dom/Position.h:
+        * dom/Range.cpp:
+        (WebCore::operator<<):
+        * dom/Range.h:
+        * dom/ViewportArguments.cpp:
+        * dom/ViewportArguments.h:
+        * editing/VisiblePosition.cpp:
+        * editing/VisiblePosition.h:
+        * editing/VisibleSelection.cpp:
+        * editing/VisibleSelection.h:
+        * html/HTMLVideoElement.cpp:
+        * html/canvas/CanvasRenderingContext2D.cpp:
+        * page/FrameView.cpp:
+        * page/ViewportConfiguration.cpp:
+        * page/ViewportConfiguration.h:
+        * page/WheelEventDeltaFilter.cpp:
+        * page/animation/CSSPropertyAnimation.cpp:
+        * page/scrolling/AsyncScrollingCoordinator.cpp:
+        * page/scrolling/ScrollingConstraints.cpp:
+        * page/scrolling/ScrollingConstraints.h:
+        * page/scrolling/ScrollingCoordinator.cpp:
+        * page/scrolling/ScrollingCoordinator.h:
+        * page/scrolling/ScrollingStateFixedNode.cpp:
+        * page/scrolling/ScrollingStateFixedNode.h:
+        * page/scrolling/ScrollingStateFrameScrollingNode.cpp:
+        * page/scrolling/ScrollingStateFrameScrollingNode.h:
+        * page/scrolling/ScrollingStateNode.cpp:
+        * page/scrolling/ScrollingStateNode.h:
+        * page/scrolling/ScrollingStateOverflowScrollingNode.cpp:
+        * page/scrolling/ScrollingStateOverflowScrollingNode.h:
+        * page/scrolling/ScrollingStateScrollingNode.cpp:
+        * page/scrolling/ScrollingStateScrollingNode.h:
+        * page/scrolling/ScrollingStateStickyNode.cpp:
+        * page/scrolling/ScrollingStateStickyNode.h:
+        * page/scrolling/ScrollingTree.cpp:
+        * page/scrolling/ScrollingTreeFrameScrollingNode.cpp:
+        * page/scrolling/ScrollingTreeFrameScrollingNode.h:
+        * page/scrolling/ScrollingTreeNode.cpp:
+        * page/scrolling/ScrollingTreeNode.h:
+        * page/scrolling/ScrollingTreeScrollingNode.cpp:
+        * page/scrolling/ScrollingTreeScrollingNode.h:
+        * page/scrolling/mac/ScrollingTreeFixedNode.h:
+        * page/scrolling/mac/ScrollingTreeFixedNode.mm:
+        * page/scrolling/mac/ScrollingTreeFrameScrollingNodeMac.mm:
+        * page/scrolling/mac/ScrollingTreeStickyNode.h:
+        * page/scrolling/mac/ScrollingTreeStickyNode.mm:
+        * platform/CalculationValue.cpp:
+        * platform/CalculationValue.h:
+        * platform/LayoutUnit.cpp:
+        * platform/LayoutUnit.h:
+        * platform/Length.cpp:
+        * platform/Length.h:
+        * platform/LengthBox.cpp:
+        * platform/LengthBox.h:
+        * platform/LengthPoint.cpp:
+        * platform/LengthPoint.h:
+        * platform/LengthSize.cpp:
+        * platform/LengthSize.h:
+        * platform/LogMacros.h:
+        * platform/ScrollView.cpp:
+        * platform/ScrollableArea.cpp:
+        * platform/animation/TimingFunction.cpp:
+        * platform/animation/TimingFunction.h:
+        * platform/graphics/BitmapImage.cpp:
+        * platform/graphics/BitmapImage.h:
+        * platform/graphics/Color.cpp:
+        * platform/graphics/Color.h:
+        * platform/graphics/CrossfadeGeneratedImage.cpp:
+        * platform/graphics/CrossfadeGeneratedImage.h:
+        * platform/graphics/FloatPoint.cpp:
+        * platform/graphics/FloatPoint.h:
+        * platform/graphics/FloatPoint3D.cpp:
+        * platform/graphics/FloatPoint3D.h:
+        * platform/graphics/FloatRect.cpp:
+        * platform/graphics/FloatRect.h:
+        * platform/graphics/FloatRoundedRect.cpp:
+        * platform/graphics/FloatRoundedRect.h:
+        * platform/graphics/FloatSize.cpp:
+        * platform/graphics/FloatSize.h:
+        * platform/graphics/FontTaggedSettings.cpp:
+        * platform/graphics/FontTaggedSettings.h:
+        * platform/graphics/GradientImage.cpp:
+        (WebCore::GradientImage::dump const):
+        * platform/graphics/GradientImage.h:
+        * platform/graphics/GraphicsContext.cpp:
+        * platform/graphics/GraphicsContext.h:
+        * platform/graphics/GraphicsLayer.cpp:
+        * platform/graphics/GraphicsLayer.h:
+        (WebCore::GraphicsLayer::dumpAdditionalProperties const):
+        * platform/graphics/GraphicsTypes.cpp:
+        * platform/graphics/GraphicsTypes.h:
+        * platform/graphics/Image.cpp:
+        * platform/graphics/Image.h:
+        * platform/graphics/ImageSource.h:
+        * platform/graphics/IntPoint.cpp:
+        * platform/graphics/IntPoint.h:
+        * platform/graphics/IntRect.cpp:
+        * platform/graphics/IntRect.h:
+        * platform/graphics/IntSize.cpp:
+        * platform/graphics/IntSize.h:
+        * platform/graphics/LayoutPoint.cpp:
+        * platform/graphics/LayoutPoint.h:
+        * platform/graphics/LayoutRect.cpp:
+        * platform/graphics/LayoutRect.h:
+        * platform/graphics/LayoutSize.cpp:
+        * platform/graphics/LayoutSize.h:
+        * platform/graphics/NamedImageGeneratedImage.cpp:
+        * platform/graphics/NamedImageGeneratedImage.h:
+        * platform/graphics/Path.cpp:
+        * platform/graphics/Path.h:
+        * platform/graphics/ca/GraphicsLayerCA.cpp:
+        * platform/graphics/ca/GraphicsLayerCA.h:
+        * platform/graphics/ca/PlatformCAAnimation.cpp:
+        * platform/graphics/ca/PlatformCAAnimation.h:
+        * platform/graphics/ca/PlatformCALayer.cpp:
+        * platform/graphics/ca/PlatformCALayer.h:
+        * platform/graphics/ca/TileController.cpp:
+        * platform/graphics/ca/TileGrid.cpp:
+        * platform/graphics/cg/GraphicsContextCG.cpp:
+        * platform/graphics/cg/PDFDocumentImage.cpp:
+        * platform/graphics/cg/PDFDocumentImage.h:
+        * platform/graphics/cocoa/IOSurface.h:
+        * platform/graphics/cocoa/IOSurface.mm:
+        * platform/graphics/displaylists/DisplayList.cpp:
+        (WebCore::DisplayList::DisplayList::description const):
+        * platform/graphics/displaylists/DisplayList.h:
+        * platform/graphics/displaylists/DisplayListItems.cpp:
+        * platform/graphics/displaylists/DisplayListItems.h:
+        * platform/graphics/displaylists/DisplayListRecorder.cpp:
+        * platform/graphics/displaylists/DisplayListReplayer.cpp:
+        * platform/graphics/filters/DistantLightSource.cpp:
+        * platform/graphics/filters/DistantLightSource.h:
+        * platform/graphics/filters/FEBlend.cpp:
+        * platform/graphics/filters/FEBlend.h:
+        * platform/graphics/filters/FEColorMatrix.cpp:
+        * platform/graphics/filters/FEColorMatrix.h:
+        * platform/graphics/filters/FEComponentTransfer.cpp:
+        * platform/graphics/filters/FEComponentTransfer.h:
+        * platform/graphics/filters/FEComposite.cpp:
+        * platform/graphics/filters/FEComposite.h:
+        * platform/graphics/filters/FEConvolveMatrix.cpp:
+        * platform/graphics/filters/FEConvolveMatrix.h:
+        * platform/graphics/filters/FEDiffuseLighting.cpp:
+        * platform/graphics/filters/FEDiffuseLighting.h:
+        * platform/graphics/filters/FEDisplacementMap.cpp:
+        * platform/graphics/filters/FEDisplacementMap.h:
+        * platform/graphics/filters/FEDropShadow.cpp:
+        * platform/graphics/filters/FEDropShadow.h:
+        * platform/graphics/filters/FEFlood.cpp:
+        * platform/graphics/filters/FEFlood.h:
+        * platform/graphics/filters/FEGaussianBlur.cpp:
+        * platform/graphics/filters/FEGaussianBlur.h:
+        * platform/graphics/filters/FEMerge.cpp:
+        * platform/graphics/filters/FEMerge.h:
+        * platform/graphics/filters/FEMorphology.cpp:
+        * platform/graphics/filters/FEMorphology.h:
+        * platform/graphics/filters/FEOffset.cpp:
+        * platform/graphics/filters/FEOffset.h:
+        * platform/graphics/filters/FESpecularLighting.cpp:
+        * platform/graphics/filters/FESpecularLighting.h:
+        * platform/graphics/filters/FETile.cpp:
+        * platform/graphics/filters/FETile.h:
+        * platform/graphics/filters/FETurbulence.cpp:
+        * platform/graphics/filters/FETurbulence.h:
+        * platform/graphics/filters/FilterEffect.cpp:
+        * platform/graphics/filters/FilterEffect.h:
+        * platform/graphics/filters/FilterOperation.cpp:
+        * platform/graphics/filters/FilterOperation.h:
+        * platform/graphics/filters/FilterOperations.cpp:
+        * platform/graphics/filters/FilterOperations.h:
+        * platform/graphics/filters/LightSource.h:
+        * platform/graphics/filters/PointLightSource.cpp:
+        * platform/graphics/filters/PointLightSource.h:
+        * platform/graphics/filters/SourceAlpha.cpp:
+        * platform/graphics/filters/SourceAlpha.h:
+        * platform/graphics/filters/SourceGraphic.cpp:
+        * platform/graphics/filters/SourceGraphic.h:
+        * platform/graphics/filters/SpotLightSource.cpp:
+        * platform/graphics/filters/SpotLightSource.h:
+        * platform/graphics/transforms/AffineTransform.cpp:
+        * platform/graphics/transforms/AffineTransform.h:
+        * platform/graphics/transforms/IdentityTransformOperation.h:
+        * platform/graphics/transforms/Matrix3DTransformOperation.cpp:
+        * platform/graphics/transforms/Matrix3DTransformOperation.h:
+        * platform/graphics/transforms/MatrixTransformOperation.cpp:
+        * platform/graphics/transforms/MatrixTransformOperation.h:
+        * platform/graphics/transforms/PerspectiveTransformOperation.cpp:
+        * platform/graphics/transforms/PerspectiveTransformOperation.h:
+        * platform/graphics/transforms/RotateTransformOperation.cpp:
+        * platform/graphics/transforms/RotateTransformOperation.h:
+        * platform/graphics/transforms/ScaleTransformOperation.cpp:
+        * platform/graphics/transforms/ScaleTransformOperation.h:
+        * platform/graphics/transforms/SkewTransformOperation.cpp:
+        * platform/graphics/transforms/SkewTransformOperation.h:
+        * platform/graphics/transforms/TransformOperation.cpp:
+        * platform/graphics/transforms/TransformOperation.h:
+        * platform/graphics/transforms/TransformOperations.cpp:
+        * platform/graphics/transforms/TransformOperations.h:
+        * platform/graphics/transforms/TransformationMatrix.cpp:
+        * platform/graphics/transforms/TransformationMatrix.h:
+        * platform/graphics/transforms/TranslateTransformOperation.cpp:
+        * platform/graphics/transforms/TranslateTransformOperation.h:
+        * platform/ios/SelectionRect.cpp:
+        (WebCore::operator<<):
+        * platform/ios/SelectionRect.h:
+        * platform/mac/ScrollAnimatorMac.mm:
+        * platform/text/TextAllInOne.cpp:
+        * rendering/InlineBox.cpp:
+        * rendering/InlineBox.h:
+        * rendering/InlineFlowBox.cpp:
+        (WebCore::InlineFlowBox::outputLineTreeAndMark const):
+        * rendering/InlineFlowBox.h:
+        * rendering/InlineTextBox.cpp:
+        * rendering/InlineTextBox.h:
+        * rendering/RenderBlockFlow.cpp:
+        (WebCore::RenderBlockFlow::outputLineTreeAndMark const):
+        * rendering/RenderBlockFlow.h:
+        * rendering/RenderLayer.cpp:
+        * rendering/RenderLayerCompositor.cpp:
+        * rendering/RenderObject.cpp:
+        * rendering/RenderObject.h:
+        * rendering/RenderTreeAsText.cpp:
+        * rendering/RenderTreeAsText.h:
+        * rendering/ScrollAlignment.cpp:
+        * rendering/ScrollAlignment.h:
+        * rendering/SimpleLineLayoutCoverage.cpp:
+        * rendering/SimpleLineLayoutFunctions.cpp:
+        * rendering/SimpleLineLayoutFunctions.h:
+        * rendering/style/FillLayer.cpp:
+        * rendering/style/FillLayer.h:
+        * rendering/style/NinePieceImage.cpp:
+        * rendering/style/NinePieceImage.h:
+        * rendering/style/RenderStyleConstants.cpp:
+        * rendering/style/RenderStyleConstants.h:
+        * rendering/svg/SVGRenderTreeAsText.cpp:
+        (WebCore::operator<<):
+        * rendering/svg/SVGRenderTreeAsText.h:
+        (WebCore::operator<<):
+        * svg/SVGLengthValue.cpp:
+        * svg/SVGLengthValue.h:
+        * svg/graphics/SVGImage.cpp:
+        * svg/graphics/SVGImage.h:
+        * svg/graphics/filters/SVGFEImage.cpp:
+        * svg/graphics/filters/SVGFEImage.h:
+
+2017-08-09  Commit Queue  <commit-queue@webkit.org>
+
+        Unreviewed, rolling out r220466, r220477, and r220487.
+        https://bugs.webkit.org/show_bug.cgi?id=175411
+
+        This change broke existing API tests and follow up fixes did
+        not resolve all the issues. (Requested by ryanhaddad on
+        #webkit).
+
+        Reverted changesets:
+
+        https://bugs.webkit.org/show_bug.cgi?id=175244
+        http://trac.webkit.org/changeset/220466
+
+        "WTF::Function does not allow for reference / non-default
+        constructible return types"
+        https://bugs.webkit.org/show_bug.cgi?id=175244
+        http://trac.webkit.org/changeset/220477
+
+        https://bugs.webkit.org/show_bug.cgi?id=175244
+        http://trac.webkit.org/changeset/220487
+
+2017-08-09  Chris Dumez  <cdumez@apple.com>
+
+        [Beacon][NetworkSession] Support CORS-preflighting on redirects
+        https://bugs.webkit.org/show_bug.cgi?id=175386
+        <rdar://problem/33801370>
+
+        Reviewed by Youenn Fablet.
+
+        Export a couple of WebCore symbols so I can use them in WebKit2.
+
+        Tests: http/wpt/beacon/cors/cors-preflight-redirect-failure.html
+               http/wpt/beacon/cors/cors-preflight-redirect-from-crossorigin-to-sameorigin.html
+               http/wpt/beacon/cors/cors-preflight-redirect-success.html
+
+        * loader/CrossOriginAccessControl.h:
+        * page/SecurityOrigin.h:
+
+2017-08-09  Jeremy Jones  <jeremyj@apple.com>
+
+        Use MPAVRoutingController instead of deprecated versions.
+        https://bugs.webkit.org/show_bug.cgi?id=175063
+
+        Reviewed by Tim Horton.
+
+        No new tests because no behavior change. This uses a different platform class to present
+        an interface.
+
+        Remove deprecated MPAudioVideoRoutingPopoverController and MPAVRoutingSheet
+        Add MPMediaControlsViewController.
+
+        * platform/spi/ios/MediaPlayerSPI.h:
+
+2017-08-09  Myles C. Maxfield  <mmaxfield@apple.com>
+
+        Mark font-display as in development
+        https://bugs.webkit.org/show_bug.cgi?id=175387
+
+        Unreviewed.
+
+        * features.json:
+
+2017-08-09  Commit Queue  <commit-queue@webkit.org>
+
+        Unreviewed, rolling out r219334.
+        https://bugs.webkit.org/show_bug.cgi?id=175398
+
+        Caused bug 175023 (Requested by ap on #webkit).
+
+        Reverted changeset:
+
+        "[SVG] Leak in SVGAnimatedListPropertyTearOff"
+        https://bugs.webkit.org/show_bug.cgi?id=172545
+        http://trac.webkit.org/changeset/219334
+
+2017-08-09  Dave Hyatt  <hyatt@apple.com>
+
+        [Repaint from Layout Removal] Move layer repaint rects into a map
+        https://bugs.webkit.org/show_bug.cgi?id=175393
+
+        Reviewed by Zalan Bujtas.
+
+        Move the two repaint rects held by RenderLayer into a RenderLayerModelObject -> RepaintLayoutRects hash map.
+        RepaintLayoutRects is a new struct that holds both rects.
+
+        Eventually more objects than just self painting layers will be caching repaint rects, so this takes a first
+        step towards having a common cache for these repaint rects. In addition this change saves memory, since
+        layers that aren't self-painting no longer have empty repaint rects taking up space in RenderLayer.
+
+        * rendering/RenderBlockLineLayout.cpp:
+        (WebCore::RenderBlockFlow::layoutRunsAndFloats):
+        * rendering/RenderLayer.cpp:
+        (WebCore::RenderLayer::RenderLayer):
+        (WebCore::RenderLayer::updateLayerPositions):
+        (WebCore::RenderLayer::repaintRectIncludingNonCompositingDescendants):
+        (WebCore::RenderLayer::computeRepaintRects):
+        (WebCore::RenderLayer::clearRepaintRects):
+        (WebCore::RenderLayer::updateLayerPositionsAfterScroll):
+        (WebCore::RenderLayer::scrollTo):
+        * rendering/RenderLayer.h:
+        * rendering/RenderLayerModelObject.cpp:
+        (WebCore::RepaintLayoutRects::RepaintLayoutRects):
+        (WebCore::RenderLayerModelObject::willBeDestroyed):
+        (WebCore::RenderLayerModelObject::destroyLayer):
+        (WebCore::RenderLayerModelObject::styleDidChange):
+        (WebCore::RenderLayerModelObject::hasRepaintLayoutRects):
+        (WebCore::RenderLayerModelObject::setRepaintLayoutRects):
+        (WebCore::RenderLayerModelObject::clearRepaintLayoutRects):
+        (WebCore::RenderLayerModelObject::repaintLayoutRects):
+        (WebCore::RenderLayerModelObject::computeRepaintLayoutRects):
+        * rendering/RenderLayerModelObject.h:
+        (WebCore::RepaintLayoutRects::RepaintLayoutRects):
+
+2017-08-09  Sam Weinig  <sam@webkit.org>
+
+        WTF::Function does not allow for reference / non-default constructible return types
+        https://bugs.webkit.org/show_bug.cgi?id=175244
+
+        Reviewed by Chris Dumez.
+
+        * bindings/js/JSCustomElementInterface.h:
+        (WebCore::JSCustomElementInterface::invokeCallback):
+        Update the default value for the addArguments parameter to be an empty lambda, rather than
+        default initialization, which leads to a null WTF::Function. This allows us to remove support
+        for calling null WTF::Function. No change in behavior.
+
+2017-08-09  Brady Eidson  <beidson@apple.com>
+
+        Teach ScriptExecutionContexts about their SessionID.
+        https://bugs.webkit.org/show_bug.cgi?id=175391
+
+        Reviewed by Andy Estes.
+
+        No new tests (No current change in behavior).
+
+        Turns out that Workers need to know their SessionID for future feature development.
+        So let's teach it to them.
+
+        * dom/ScriptExecutionContext.h: Expose a pure virtual SessionID accessor.
+
+        * dom/Document.cpp:
+        (WebCore::Document::sessionID const):
+        * dom/Document.h:
+
+        * page/SessionID.cpp:
+        (WebCore::SessionID::isolatedCopy const):
+        * page/SessionID.h:
+
+        * workers/DedicatedWorkerGlobalScope.cpp:
+        (WebCore::DedicatedWorkerGlobalScope::create):
+        (WebCore::DedicatedWorkerGlobalScope::DedicatedWorkerGlobalScope):
+        * workers/DedicatedWorkerGlobalScope.h:
+
+        * workers/DedicatedWorkerThread.cpp:
+        (WebCore::DedicatedWorkerThread::DedicatedWorkerThread):
+        (WebCore::DedicatedWorkerThread::createWorkerGlobalScope):
+        * workers/DedicatedWorkerThread.h:
+
+        * workers/Worker.cpp:
+        (WebCore::Worker::notifyFinished):
+
+        * workers/WorkerGlobalScope.cpp:
+        (WebCore::WorkerGlobalScope::WorkerGlobalScope):
+        * workers/WorkerGlobalScope.h:
+
+        * workers/WorkerGlobalScopeProxy.h:
+
+        * workers/WorkerMessagingProxy.cpp:
+        (WebCore::WorkerMessagingProxy::startWorkerGlobalScope):
+        * workers/WorkerMessagingProxy.h:
+
+        * workers/WorkerThread.cpp:
+        (WebCore::WorkerThreadStartupData::WorkerThreadStartupData):
+        (WebCore::WorkerThread::WorkerThread):
+        (WebCore::WorkerThread::workerThread):
+        * workers/WorkerThread.h:
+
+2017-08-09  Wenson Hsieh  <wenson_hsieh@apple.com>
+
+        [iOS DnD] ENABLE_DRAG_SUPPORT should be turned off for iOS 10 and enabled by default
+        https://bugs.webkit.org/show_bug.cgi?id=175392
+        <rdar://problem/33783207>
+
+        Reviewed by Tim Horton and Megan Gardner.
+
+        Tweak FeatureDefines to enable drag and drop by default, and disable only on unsupported platforms (i.e. iOS 10).
+        No change in behavior.
+
+        * Configurations/FeatureDefines.xcconfig:
+
+2017-08-09  Kirill Ovchinnikov  <kirill.ovchinnikov@lge.com>
+
+        Old subtitle track is not deleted on 'src' attribute change event
+        https://bugs.webkit.org/show_bug.cgi?id=175031
+
+        Reviewed by Eric Carlson.
+
+        Test: media/track/text-track-src-change.html
+
+        * html/HTMLMediaElement.cpp:
+        (WebCore::HTMLMediaElement::textTrackReadyStateChanged):
+        * html/HTMLTrackElement.cpp:
+        (WebCore::HTMLTrackElement::loadTimerFired):
+        * html/shadow/MediaControls.cpp:
+        (WebCore::MediaControls::clearTextDisplayContainer):
+        * html/shadow/MediaControls.h:
+
+2017-08-09  Ryan Haddad  <ryanhaddad@apple.com>
+
+        Unreviewed, rolling out r220457.
+
+        This change introduced API test failures.
+
+        Reverted changeset:
+
+        "WTF::Function does not allow for reference / non-default
+        constructible return types"
+        https://bugs.webkit.org/show_bug.cgi?id=175244
+        http://trac.webkit.org/changeset/220457
+
+2017-08-09  Don Olmstead  <don.olmstead@sony.com>
+
+        [WinCairo] Fix build after rev 220399
+        https://bugs.webkit.org/show_bug.cgi?id=175360
+
+        Reviewed by Žan Doberšek.
+
+        No new tests. No change in behavior.
+
+        * platform/graphics/texmap/TextureMapperGLHeaders.h:
+
+2017-08-09  Nan Wang  <n_wang@apple.com>
+
+        AX: crash at WebCore::AccessibilityObject::supportsARIALiveRegion() const + 24
+        https://bugs.webkit.org/show_bug.cgi?id=175340
+        <rdar://problem/33782159>
+
+        Reviewed by Chris Fleizach.
+
+        When adding a psuedo element child to a RenderBlockFlow element, there might be a chance where
+        the element has already been layed out but we are still holding onto its stale children. Fixed it
+        by notifying AX correctly when inserting/removing children during layout.
+
+        Test: accessibility/add-children-pseudo-element.html
+
+        * rendering/RenderBlockFlow.cpp:
+        (WebCore::RenderBlockFlow::insertFloatingObject):
+        (WebCore::RenderBlockFlow::removeFloatingObject):
+
+2017-08-09  Charlie Turner  <cturner@igalia.com>
+
+        [GStreamer][MSE] Add missing lock around getStreamByTrackId
+        https://bugs.webkit.org/show_bug.cgi?id=175323
+
+        Reviewed by Xabier Rodriguez-Calvar.
+
+        Covered by existing tests.
+
+        * platform/graphics/gstreamer/mse/PlaybackPipeline.cpp:
+        (WebCore::PlaybackPipeline::enqueueSample): Ensure the media source
+        lock is taken before modifiying the track queues indirectly via the
+        iterator use in getTrackId.
+
+2017-08-09  Daniel Bates  <dabates@apple.com>
+
+        REGRESSION (r219013): OAuth flows are broken when redirecting back to application after authentication
+        https://bugs.webkit.org/show_bug.cgi?id=175247
+        <rdar://problem/33679804>
+
+        Reviewed by Brady Eidson.
+
+        Add SPI so that Safari can differentiate between a form submission and a redirected form submission
+        and have PolicyCheck notify the frame loader client if the navigation was in response to receiving a
+        redirect response. This is the WebKit portion to fix an issue when a native app makes use of an OAuth
+        OAuth flow that bounces to Safari for user login and then bounce back to the app. Microsoft Graph's
+        OAuth flow is one example.
+
+        Safari was differentiating between a form submission and a redirected form submission based on the
+        nullity of WKNavigationAction.sourceFrame because in both cases the navigation type was WKNavigationTypeFormSubmitted.
+        The navigation type is the same for both navigations because WebKit always used the navigation
+        action from the original request for the redirect request when the original request redirected.
+        Prior to r219013, WKNavigationAction.sourceFrame would be nil for a form submission that redirects.
+        Following r219013, WKNavigationAction.sourceFrame is non-nil unless the navigation was initiated by
+        API. In particular, WKNavigationAction.sourceFrame is non-nil for the redirect navigation corresponding
+        to a form submission that redirects.
+
+        * loader/EmptyClients.cpp:
+        (WebCore::EmptyFrameLoaderClient::dispatchDecidePolicyForNavigationAction):
+        * loader/FrameLoaderClient.h:
+        Have dispatchDecidePolicyForNavigationAction() take a boolean as to whether the navigation was in
+        response to receiving a redirect response.
+        * loader/PolicyChecker.cpp:
+        (WebCore::PolicyChecker::checkNavigationPolicy): Notify the frame loader client whether the navigation
+        is in response to receiving a redirect response.
+
+2017-08-09  Sam Weinig  <sam@webkit.org>
+
+        WTF::Function does not allow for reference / non-default constructible return types
+        https://bugs.webkit.org/show_bug.cgi?id=175244
+
+        Reviewed by Chris Dumez.
+
+        * bindings/js/JSCustomElementInterface.h:
+        (WebCore::JSCustomElementInterface::invokeCallback):
+        Update the default value for the addArguments parameter to be an empty lambda, rather than
+        default initialization, which leads to a null WTF::Function. This allows us to remove support
+        for calling null WTF::Function. No change in behavior.
+
+2017-08-09  Andy Estes  <aestes@apple.com>
+
+        [QuickLook] Use case-insensitive comparison of preview MIME types
+        https://bugs.webkit.org/show_bug.cgi?id=175350
+        <rdar://problem/33761159>
+
+        Reviewed by Brady Eidson.
+
+        MIME types are case-insensitive, but PreviewLoader was using a case-sensitive comparison to
+        determine if a MIME type was supported by QLPreviewConverter. As a result we would fail to
+        preview Excel macro-enabled workbooks, since CFNetwork would sniff a MIME type of
+        "application/vnd.ms-excel.sheet.macroEnabled.12" but QuickLook contained
+        "application/vnd.ms-excel.sheet.macroenabled.12" in its set of supported MIME type strings.
+
+        Fix this by copying the QuickLook supported MIME type set into a HashSet using
+        ASCIICaseInsensitiveHash and using that HashSet for MIME type checks.
+
+        Test: quicklook/excel-macro-enabled.html
+
+        * loader/ios/PreviewLoader.mm:
+        (WebCore::PreviewLoader::shouldCreateForMIMEType):
+
+2017-08-09  Ms2ger  <Ms2ger@igalia.com>
+
+        Remove unnecessary copies of PlatformMediaSessionManager::m_sessions
+        https://bugs.webkit.org/show_bug.cgi?id=175375
+
+        Reviewed by Sam Weinig.
+
+        Remove unnecessary copies of PlatformMediaSessionManager::m_sessions.
+
+        These should have been removed in r207688.
+
+        No new tests: no behavior change.
+
+        * platform/audio/PlatformMediaSessionManager.cpp:
+        (WebCore::PlatformMediaSessionManager::applicationWillBecomeInactive const):
+        (WebCore::PlatformMediaSessionManager::applicationDidBecomeActive const):
+        (WebCore::PlatformMediaSessionManager::applicationDidEnterBackground const):
+        (WebCore::PlatformMediaSessionManager::applicationWillEnterForeground const):
+
+2017-08-09  Chris Dumez  <cdumez@apple.com>
+
+        Reinstate active flag for iterators
+        https://bugs.webkit.org/show_bug.cgi?id=175312
+
+        Reviewed by Sam Weinig.
+
+        NodeIterator / TreeWalker should no longer allow recursive filters
+        after the following change to the DOM specification:
+        - https://github.com/whatwg/dom/pull/359
+
+        This patch aligns our behavior with the latest specification.
+
+        No new tests, updated existing tests.
+
+        * dom/NodeIterator.cpp:
+        (WebCore::NodeIterator::nextNode):
+        (WebCore::NodeIterator::previousNode):
+        Note that we now also call m_candidateNode.clear() before returning an
+        exception. This was a pre-existing bug that we failed to do so in the
+        exception case but it became more obvious after this change now that
+        we throw. This was causing traversal/moz-bug559526.html to fail
+        otherwise (the filter was called one too many times). The test case
+        is passing in Firefox (The filter is called 4 times and they throw
+        each time).
+
+        * dom/Traversal.cpp:
+        (WebCore::NodeIteratorBase::NodeIteratorBase):
+        (WebCore::NodeIteratorBase::acceptNode):
+        * dom/Traversal.h:
+        * dom/TreeWalker.cpp:
+
 2017-08-09  Antti Koivisto  <antti@apple.com>
 
         RenderQuote should not mutate render tree

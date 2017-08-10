@@ -1,3 +1,96 @@
+2017-08-09  Don Olmstead  <don.olmstead@sony.com>
+
+        [WTF] Move TextStream into WTF
+        https://bugs.webkit.org/show_bug.cgi?id=175211
+
+        Reviewed by Myles C. Maxfield.
+
+        * WTF.xcodeproj/project.pbxproj:
+        * wtf/CMakeLists.txt:
+        * wtf/text/TextStream.cpp: Renamed from Source/WebCore/platform/text/TextStream.cpp.
+        (WTF::TextStream::writeIndent):
+        * wtf/text/TextStream.h: Renamed from Source/WebCore/platform/text/TextStream.h.
+        (WTF::TextStream::FormatNumberRespectingIntegers::FormatNumberRespectingIntegers):
+
+2017-08-09  Commit Queue  <commit-queue@webkit.org>
+
+        Unreviewed, rolling out r220466, r220477, and r220487.
+        https://bugs.webkit.org/show_bug.cgi?id=175411
+
+        This change broke existing API tests and follow up fixes did
+        not resolve all the issues. (Requested by ryanhaddad on
+        #webkit).
+
+        Reverted changesets:
+
+        https://bugs.webkit.org/show_bug.cgi?id=175244
+        http://trac.webkit.org/changeset/220466
+
+        "WTF::Function does not allow for reference / non-default
+        constructible return types"
+        https://bugs.webkit.org/show_bug.cgi?id=175244
+        http://trac.webkit.org/changeset/220477
+
+        https://bugs.webkit.org/show_bug.cgi?id=175244
+        http://trac.webkit.org/changeset/220487
+
+2017-08-09  Sam Weinig  <sam@webkit.org>
+
+        WTF::Function does not allow for reference / non-default constructible return types
+        https://bugs.webkit.org/show_bug.cgi?id=175244
+
+        Reviewed by Chris Dumez.
+
+        When Function, then NoncopyableFunction, was templatized to allow non-void return values
+        in r201493, it maintained the behavior of being callable even if the Function was null.
+        To accomplish this, when null, the default construction of the return parameter was used.
+        This means Function can't be used with return types that are not default constructible,
+        such as reference types and Ref.
+
+        This behavior of returning something when null is surprising, as this is not how normal
+        functions behave, and not very useful. Instead, we now assert that the function is not
+        null when being called.
+
+        * wtf/Function.h:
+        (WTF::Function operator(...)):
+        Instead of allowing a null callable wrapper by returning the default construction of
+        the return type, assert that the wrapper is there when calling a Function.
+
+2017-08-09  Ryan Haddad  <ryanhaddad@apple.com>
+
+        Unreviewed, rolling out r220457.
+
+        This change introduced API test failures.
+
+        Reverted changeset:
+
+        "WTF::Function does not allow for reference / non-default
+        constructible return types"
+        https://bugs.webkit.org/show_bug.cgi?id=175244
+        http://trac.webkit.org/changeset/220457
+
+2017-08-09  Sam Weinig  <sam@webkit.org>
+
+        WTF::Function does not allow for reference / non-default constructible return types
+        https://bugs.webkit.org/show_bug.cgi?id=175244
+
+        Reviewed by Chris Dumez.
+
+        When Function, then NoncopyableFunction, was templatized to allow non-void return values
+        in r201493, it maintained the behavior of being callable even if the Function was null.
+        To accomplish this, when null, the default construction of the return parameter was used.
+        This means Function can't be used with return types that are not default constructible,
+        such as reference types and Ref.
+
+        This behavior of returning something when null is surprising, as this is not how normal
+        functions behave, and not very useful. Instead, we now assert that the function is not
+        null when being called.
+
+        * wtf/Function.h:
+        (WTF::Function operator(...)):
+        Instead of allowing a null callable wrapper by returning the default construction of
+        the return type, assert that the wrapper is there when calling a Function.
+
 2017-08-08  Filip Pizlo  <fpizlo@apple.com>
 
         Baseline JIT should do caging
