@@ -87,8 +87,6 @@ set(WebCore_INCLUDE_DIRECTORIES
     "${WEBCORE_DIR}/platform/crypto"
     "${WEBCORE_DIR}/platform/encryptedmedia"
     "${WEBCORE_DIR}/platform/gamepad"
-    "${WEBCORE_DIR}/platform/gamepad/deprecated"
-    "${WEBCORE_DIR}/platform/gamepad/linux"
     "${WEBCORE_DIR}/platform/graphics"
     "${WEBCORE_DIR}/platform/graphics/cpu/arm"
     "${WEBCORE_DIR}/platform/graphics/cpu/arm/filters"
@@ -2981,7 +2979,10 @@ set(WebCore_SOURCES
     workers/ServiceWorker.cpp
     workers/ServiceWorkerContainer.cpp
     workers/ServiceWorkerGlobalScope.cpp
+    workers/ServiceWorkerJob.cpp
+    workers/ServiceWorkerProvider.cpp
     workers/ServiceWorkerRegistration.cpp
+    workers/ServiceWorkerRegistrationParameters.cpp
     workers/Worker.cpp
     workers/WorkerConsoleClient.cpp
     workers/WorkerEventQueue.cpp
@@ -3053,26 +3054,6 @@ if (ENABLE_GAMEPAD)
 
         platform/gamepad/EmptyGamepadProvider.cpp
         platform/gamepad/GamepadProvider.cpp
-    )
-elseif (ENABLE_GAMEPAD_DEPRECATED)
-    list(APPEND WebCore_INCLUDE_DIRECTORIES
-        "${WEBCORE_DIR}/Modules/gamepad/deprecated"
-    )
-
-    list(APPEND WebCore_IDL_INCLUDES
-        Modules/gamepad/deprecated
-    )
-
-    list(APPEND WebCore_NON_SVG_IDL_FILES
-        Modules/gamepad/deprecated/Gamepad.idl
-        Modules/gamepad/deprecated/GamepadList.idl
-        Modules/gamepad/deprecated/NavigatorGamepad.idl
-    )
-
-    list(APPEND WebCore_SOURCES
-        Modules/gamepad/deprecated/Gamepad.cpp
-        Modules/gamepad/deprecated/GamepadList.cpp
-        Modules/gamepad/deprecated/NavigatorGamepad.cpp
     )
 endif ()
 

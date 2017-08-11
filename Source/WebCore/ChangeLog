@@ -1,3 +1,426 @@
+2017-08-10  Dan Bernstein  <mitz@apple.com>
+
+        Fixed building for macOS 10.12 with the macOS 10.13 SDK.
+
+        Suppressed the unguarded-availability-new warning around uses of AVSampleBufferAudioRenderer
+        and AVSampleBufferRenderSynchronizer. Even though the 10.13 SDK declares them as available
+        starting in that release, they have been available as SPI earlier.
+
+        * platform/graphics/avfoundation/objc/CDMSessionMediaSourceAVFObjC.h:
+        * platform/graphics/avfoundation/objc/MediaPlayerPrivateMediaSourceAVFObjC.h:
+        * platform/graphics/avfoundation/objc/MediaPlayerPrivateMediaSourceAVFObjC.mm:
+        (WebCore::MediaPlayerPrivateMediaSourceAVFObjC::setHasAvailableAudioSample):
+        (WebCore::MediaPlayerPrivateMediaSourceAVFObjC::addAudioRenderer):
+        (WebCore::MediaPlayerPrivateMediaSourceAVFObjC::removeAudioRenderer):
+        * platform/graphics/avfoundation/objc/SourceBufferPrivateAVFObjC.h:
+        * platform/graphics/avfoundation/objc/SourceBufferPrivateAVFObjC.mm:
+        (-[WebAVSampleBufferErrorListener beginObservingRenderer:]):
+        (-[WebAVSampleBufferErrorListener stopObservingRenderer:]):
+        (-[WebAVSampleBufferErrorListener observeValueForKeyPath:ofObject:change:context:]):
+        (WebCore::SourceBufferPrivateAVFObjC::trackDidChangeEnabled):
+        (WebCore::SourceBufferPrivateAVFObjC::rendererDidReceiveError):
+        (WebCore::SourceBufferPrivateAVFObjC::flush):
+
+2017-08-10  Brady Eidson  <beidson@apple.com>
+
+        Rename the source files for the WTF persistent coders.
+        https://bugs.webkit.org/show_bug.cgi?id=175441
+
+        Reviewed by Tim Horton.
+
+        * platform/network/NetworkLoadMetrics.h:
+
+2017-08-10  Yusuke Suzuki  <utatane.tea@gmail.com>
+
+        Make ThreadGlobalData RefCounted for web thread
+        https://bugs.webkit.org/show_bug.cgi?id=175439
+
+        Reviewed by Mark Lam.
+
+        When the web thread is enabled, we share ThreadGlobalData between the web thread and the main thread.
+        The problem happens when the main thread is dying. It could start deallocating TLS and the web
+        thread may see the destructed ThreadGlobalData.
+
+        Even though, the current implementation is safe because the main thread do not perform TLS deallocation
+        in the Darwin environment. But this is not true in Windows. And we should not rely on this condition
+        that depends on the platforms.
+
+        In this patch, we make ThreadGlobalData ThreadSafeRefCounted. This type verbosely describes that
+        ThreadGlobalData could be shared between threads when the web thread enabled. And make the life time
+        management simple instead of relying on the platform dependent TLS implementation.
+
+        * platform/ThreadGlobalData.cpp:
+        (WebCore::ThreadGlobalData::setWebCoreThreadData):
+        (WebCore::threadGlobalData):
+        * platform/ThreadGlobalData.h:
+        (WebCore::ThreadGlobalData::cachedResourceRequestInitiators): Deleted.
+        (WebCore::ThreadGlobalData::eventNames): Deleted.
+        (WebCore::ThreadGlobalData::threadTimers): Deleted.
+        (WebCore::ThreadGlobalData::qualifiedNameCache): Deleted.
+        (WebCore::ThreadGlobalData::cachedConverterICU): Deleted.
+        (WebCore::ThreadGlobalData::cachedConverterTEC): Deleted.
+
+2017-08-10  Yusuke Suzuki  <utatane.tea@gmail.com>
+
+        [JSC] Use @toNumber in builtins
+        https://bugs.webkit.org/show_bug.cgi?id=172692
+
+        Reviewed by Sam Weinig.
+
+        Use @toNumber bytecode intrinsic. It emits op_to_number, which efficiently converts
+        a given argument to a number.
+
+        * Modules/streams/ReadableByteStreamInternals.js:
+        (privateInitializeReadableByteStreamController):
+        (readableByteStreamControllerRespond):
+        * Modules/streams/StreamInternals.js:
+        (validateAndNormalizeQueuingStrategy):
+        (enqueueValueWithSize):
+
+2017-08-10  Nan Wang  <n_wang@apple.com>
+
+        AX: crash at WebCore::AccessibilityObject::supportsARIALiveRegion() const + 24
+        https://bugs.webkit.org/show_bug.cgi?id=175340
+        <rdar://problem/33782159>
+
+        Reviewed by Chris Fleizach.
+
+        The issue here is that we manualy set the parent object of the AccessibilitySVGRoot object
+        and there are chances that the parent doesn't detach it properly during the parent's destroying
+        process. Accessing the stale parent object will lead to a crash.
+        Fixed this by making the parent object a weak pointer so we don't access an invalid memory. 
+
+        Test: accessibility/add-children-pseudo-element.html
+
+        * accessibility/AccessibilityRenderObject.cpp:
+        (WebCore::AccessibilityRenderObject::AccessibilityRenderObject):
+        * accessibility/AccessibilityRenderObject.h:
+        (WebCore::AccessibilityRenderObject::createWeakPtr):
+        * accessibility/AccessibilitySVGRoot.cpp:
+        (WebCore::AccessibilitySVGRoot::AccessibilitySVGRoot):
+        (WebCore::AccessibilitySVGRoot::setParent):
+        (WebCore::AccessibilitySVGRoot::parentObject const):
+        * accessibility/AccessibilitySVGRoot.h:
+
+2017-08-10  Chris Dumez  <cdumez@apple.com>
+
+        [Beacon] Do connect-src CSP check on redirects as well
+        https://bugs.webkit.org/show_bug.cgi?id=175410
+        <rdar://problem/33815470>
+
+        Reviewed by Youenn Fablet.
+
+        Pass ContentSecurityPolicy object to createPingHandle so that we can send
+        enough data to the NetworkProcess so do CSP checks for Ping loads such
+        as Beacon. For the IPC, we serialize the ContentSecurityPolicy's response
+        headers. Those headers are now cached in ContentSecurityPolicy for
+        performance reasons. CSP headers are rarely updated in practice but
+        sendBeacon() may get called repeatedly for a given document.
+
+        Tests: http/wpt/beacon/connect-src-beacon-redirect-allowed.sub.html
+               http/wpt/beacon/connect-src-beacon-redirect-blocked.sub.html
+
+        * loader/LoaderStrategy.h:
+        * loader/PingLoader.cpp:
+        (WebCore::PingLoader::loadImage):
+        (WebCore::PingLoader::sendPing):
+        (WebCore::PingLoader::sendViolationReport):
+        (WebCore::PingLoader::startPingLoad):
+        * loader/PingLoader.h:
+        * loader/cache/CachedResource.cpp:
+        (WebCore::CachedResource::load):
+        * page/csp/ContentSecurityPolicy.cpp:
+        (WebCore::ContentSecurityPolicy::responseHeaders const):
+        (WebCore::ContentSecurityPolicy::didReceiveHeader):
+        * page/csp/ContentSecurityPolicy.h:
+        * page/csp/ContentSecurityPolicyResponseHeaders.h:
+        (WebCore::ContentSecurityPolicyResponseHeaders::encode const):
+        (WebCore::ContentSecurityPolicyResponseHeaders::decode):
+
+2017-08-09  Yusuke Suzuki  <utatane.tea@gmail.com>
+
+        [WTF] ThreadSpecific should not introduce additional indirection
+        https://bugs.webkit.org/show_bug.cgi?id=175187
+
+        Reviewed by Mark Lam.
+
+        We drop ThreadSpecific::replace feature which is only used by
+        Web thread. Instead, we use ThreadSpecific<std::unique_ptr<T>> here.
+
+        While this std::unique_ptr<T> shares one instance between main thread
+        and web thread, this is the same to the current implementation. It is
+        safe because the web thread never finishes.
+
+        And for non-web thread implementation, we just use ThreadSpecific<T>,
+        since it is the most efficient.
+
+        * platform/ThreadGlobalData.cpp:
+        (WebCore::ThreadGlobalData::ThreadGlobalData):
+        (WebCore::ThreadGlobalData::setWebCoreThreadData):
+        (WebCore::threadGlobalData):
+        We also drop StringImpl::empty() call since it is not necessary now:
+        StringImpl::empty data is statically initialized by using constexpr.
+
+        * platform/ThreadGlobalData.h:
+        We make it FAST_ALLOCATED since it is previously allocated by fast malloc
+        in ThreadSpecific.
+
+2017-08-10  Michael Catanzaro  <mcatanzaro@igalia.com>
+
+        REGRESSION(r220515) [GTK][CMake] Build with ENABLE_GEOLOCATION fails on Debian Jessie
+        https://bugs.webkit.org/show_bug.cgi?id=175426
+
+        Reviewed by Carlos Alberto Lopez Perez.
+
+        Also stop using GEOCLUE_LIBRARIES and GEOCLUE_INCLUDE_DIRS, since they are empty. Apparently
+        we have not actually been using the client library at all this whole time, only the D-Bus
+        interface.
+
+        * PlatformGTK.cmake:
+
+2017-08-10  Brady Eidson  <beidson@apple.com>
+
+        Add ServiceWorkerJob.
+        https://bugs.webkit.org/show_bug.cgi?id=175241
+
+        Reviewed by Tim Horton.
+
+        Test: http/tests/workers/service/basic-register.html
+
+        This patch does a few things:
+        - Adds the spec concept of a ServiceWorkerJob (in the WebProcess, at least)
+        - Adds a ServiceWorkerProvider interface for WebKit to implement
+        - Actually creates a job for service worker registration and "schedules" it,
+          though it always immediately errors out the promise.
+
+        Actually queuing jobs and executing asynchronously is coming up soon.
+
+        * CMakeLists.txt:
+        * WebCore.xcodeproj/project.pbxproj:
+
+        * dom/Document.cpp:
+        (WebCore::Document::sessionID const):
+        * dom/Document.h:
+
+        * workers/ServiceWorkerContainer.cpp:
+        (WebCore::ServiceWorkerContainer::~ServiceWorkerContainer):
+        (WebCore::ServiceWorkerContainer::addRegistration):
+        (WebCore::ServiceWorkerContainer::scheduleJob):
+        (WebCore::ServiceWorkerContainer::jobDidFinish):
+        * workers/ServiceWorkerContainer.h:
+
+        * workers/ServiceWorkerJob.cpp: Added.
+        (WebCore::ServiceWorkerJob::ServiceWorkerJob):
+        (WebCore::ServiceWorkerJob::~ServiceWorkerJob):
+        (WebCore::ServiceWorkerJob::failedWithException):
+        * workers/ServiceWorkerJob.h: Copied from Source/WebCore/workers/ServiceWorkerContainer.h.
+        (WebCore::ServiceWorkerJob::createRegisterJob):
+        (WebCore::ServiceWorkerJob::identifier const):
+
+        * workers/ServiceWorkerJobClient.h: Added.
+        (WebCore::ServiceWorkerJobClient::~ServiceWorkerJobClient):
+
+        * workers/ServiceWorkerProvider.cpp: Added.
+        (WebCore::ServiceWorkerProvider::singleton):
+        (WebCore::ServiceWorkerProvider::setSharedProvider):
+        * workers/ServiceWorkerProvider.h: Added.
+        * workers/ServiceWorkerRegistrationOptions.h: Copied from Source/WebCore/workers/ServiceWorkerContainer.h.
+        * workers/ServiceWorkerRegistrationParameters.cpp: Added.
+        * workers/ServiceWorkerRegistrationParameters.h: Added.
+
+2017-08-10  Tim Horton  <timothy_horton@apple.com>
+
+        Remove some unused lambda captures so that WebKit builds with -Wunused-lambda-capture
+        https://bugs.webkit.org/show_bug.cgi?id=175436
+        <rdar://problem/33667497>
+
+        Reviewed by Simon Fraser.
+
+        * platform/audio/cocoa/MediaSessionManagerCocoa.cpp:
+        (PlatformMediaSessionManager::updateSessionState):
+        * platform/graphics/cocoa/WebCoreDecompressionSession.mm:
+        (WebCore::WebCoreDecompressionSession::handleDecompressionOutput):
+
+2017-08-10  Commit Queue  <commit-queue@webkit.org>
+
+        Unreviewed, rolling out r220463.
+        https://bugs.webkit.org/show_bug.cgi?id=175435
+
+        unaccepted fix (Requested by n_wang on #webkit).
+
+        Reverted changeset:
+
+        "AX: crash at
+        WebCore::AccessibilityObject::supportsARIALiveRegion() const +
+        24"
+        https://bugs.webkit.org/show_bug.cgi?id=175340
+        http://trac.webkit.org/changeset/220463
+
+2017-08-10  Michael Catanzaro  <mcatanzaro@igalia.com>
+
+        Remove ENABLE_GAMEPAD_DEPRECATED
+        https://bugs.webkit.org/show_bug.cgi?id=175361
+
+        Reviewed by Carlos Garcia Campos.
+
+        * CMakeLists.txt:
+        * Configurations/FeatureDefines.xcconfig:
+        * PlatformGTK.cmake:
+        * PlatformWPE.cmake:
+        * platform/Linux.cmake: Removed.
+        * platform/gamepad/deprecated/Gamepads.h: Removed.
+        * platform/gamepad/glib/GamepadsGlib.cpp: Removed.
+        * platform/gamepad/linux/GamepadDeviceLinux.cpp: Removed.
+        * platform/gamepad/linux/GamepadDeviceLinux.h: Removed.
+
+2017-08-10  Myles C. Maxfield  <mmaxfield@apple.com>
+
+        Addressing post-review comments after r219173.
+        https://bugs.webkit.org/show_bug.cgi?id=174149
+
+        Unreviewed.
+
+        * css/CSSFontStyleValue.h:
+        * editing/EditingStyle.cpp:
+        (WebCore::identifierForStyleProperty):
+
+2017-08-10  Antti Koivisto  <antti@apple.com>
+
+        Try to fix windows build.
+
+        * style/StyleUpdate.h:
+        (WebCore::Style::TextUpdate::TextUpdate):
+
+2017-08-10  Carlos Garcia Campos  <cgarcia@igalia.com>
+
+        [GTK] Crashes in WebCore::PasteboardHelper::fillSelectionData when source file of drag is unavailable
+        https://bugs.webkit.org/show_bug.cgi?id=174161
+
+        Reviewed by Xabier Rodriguez-Calvar.
+
+        In r219385 we changed the early return in fillSelectionData() to check the selection data length instead of the
+        data pointer. However, the gtk_selection_data_get_length() can return -1, so we need to check also if the value
+        less than 0. The case of setting an empty string could be valid depending on the target type, so it's better to
+        return early only when data lenght is less than 0 and handle the 0 length case in each target.
+
+        * platform/gtk/PasteboardHelper.cpp:
+        (WebCore::PasteboardHelper::fillSelectionData):
+
+2017-08-10  Antti Koivisto  <antti@apple.com>
+
+        Text renderer updates should be done by RenderTreeUpdater
+        https://bugs.webkit.org/show_bug.cgi?id=175417
+
+        Reviewed by Andreas Kling.
+
+        All render tree mutations should be done by RenderTreeUpdater. Currently
+        Text::updateRendererAfterContentChange calls RenderText::setTextWithOffset directly.
+
+        * dom/Document.cpp:
+        (WebCore::Document::updateTextRenderer):
+
+            Add range argument.
+
+        * dom/Document.h:
+        * dom/Text.cpp:
+        (WebCore::Text::updateRendererAfterContentChange):
+
+            Remove call to setTextWithOffset and pass the range to updateTextRenderer
+
+        * style/RenderTreeUpdater.cpp:
+        (WebCore::RenderTreeUpdater::updateRenderTree):
+        (WebCore::RenderTreeUpdater::updateTextRenderer):
+
+            Call setTextWithOffset here.
+
+        * style/RenderTreeUpdater.h:
+        * style/StyleTreeResolver.cpp:
+        (WebCore::Style::TreeResolver::resolveComposedTree):
+        * style/StyleUpdate.cpp:
+        (WebCore::Style::Update::textUpdate const):
+        (WebCore::Style::Update::addText):
+
+            Add TextUpdate struct similar to ElementUpdate to pass the range to the RenderTreeUpdater.
+
+        * style/StyleUpdate.h:
+
+2017-08-10  Zan Dobersek  <zdobersek@igalia.com>
+
+        Unreviewed GTK+ build fix for ENABLE_GLES2=ON.
+
+        * platform/graphics/texmap/TextureMapperGLHeaders.h:
+        Define various GL constants that are not provided in GLES2 headers
+        but are only leveraged in OpenGL calls if at runtime the underlying
+        OpenGL is GLES2-capable.
+
+2017-08-10  Zan Dobersek  <zdobersek@igalia.com>
+
+        [TexMap] Remove GraphicsContext3D usage from BitmapTexturePool
+        https://bugs.webkit.org/show_bug.cgi?id=175319
+
+        Reviewed by Carlos Garcia Campos.
+
+        Drop the GraphicsContext3D reference in BitmapTexturePool now
+        that the BitmapTextureGL doesn't require it anymore.
+
+        No new tests -- no change in behavior.
+
+        * platform/graphics/texmap/BitmapTexturePool.cpp:
+        (WebCore::BitmapTexturePool::BitmapTexturePool):
+        * platform/graphics/texmap/BitmapTexturePool.h:
+        * platform/graphics/texmap/TextureMapperGL.cpp:
+        (WebCore::TextureMapperGL::TextureMapperGL):
+
+2017-08-10  Zan Dobersek  <zdobersek@igalia.com>
+
+        [TexMap] Drop GraphicsContext3D usage from BitmapTextureGL
+        https://bugs.webkit.org/show_bug.cgi?id=175317
+
+        Reviewed by Carlos Garcia Campos.
+
+        Have BitmapTextureGL use direct OpenGL API entrypoints and constants
+        instead of leveraging the GraphicsContext3D class. Any GraphicsContext3D
+        object passed to BitmapTextureGL would assume rendering to the GL context
+        that's current on that thread, translating method invocations to the
+        OpenGL API. We can do this by ourselves and benefit by avoiding allocating
+        GraphicsContext3D resources like the ANGLE compiler that are by most useful
+        for WebGL.
+
+        BitmapTextureGL::create() call sites are adjusted to stop passing a
+        GraphicsContext3D reference. BitmapTextureGL::bindAsSurface() doesn't need
+        a replacement for the passed-in GraphicsContext3D object since that object
+        originated from the TextureMapperGL instance, whose GraphicsContext3D is by
+        default of the render-to-current-context nature. Other changes are direct
+        translations of GraphicsContext3D methods to OpenGL API calls, or of
+        GraphicsContext3D values to OpenGL API constants.
+
+        No new tests -- no change in behavior.
+
+        * platform/graphics/gstreamer/MediaPlayerPrivateGStreamerBase.cpp:
+        (WebCore::MediaPlayerPrivateGStreamerBase::pushTextureToCompositor):
+        * platform/graphics/texmap/BitmapTextureGL.cpp:
+        Also remove an unnecessary GraphicsContext.h header inclusion.
+        (WebCore::BitmapTextureGL::BitmapTextureGL):
+        (WebCore::BitmapTextureGL::didReset):
+        (WebCore::BitmapTextureGL::updateContentsNoSwizzle):
+        (WebCore::BitmapTextureGL::updateContents):
+        (WebCore::BitmapTextureGL::initializeStencil):
+        (WebCore::BitmapTextureGL::initializeDepthBuffer):
+        (WebCore::BitmapTextureGL::clearIfNeeded):
+        (WebCore::BitmapTextureGL::createFboIfNeeded):
+        (WebCore::BitmapTextureGL::bindAsSurface):
+        (WebCore::BitmapTextureGL::~BitmapTextureGL):
+        (WebCore::BitmapTextureGL::copyFromExternalTexture):
+        * platform/graphics/texmap/BitmapTextureGL.h:
+        (WebCore::BitmapTextureGL::create):
+        (WebCore::BitmapTextureGL::textureTarget const):
+        (WebCore::BitmapTextureGL::internalFormat const):
+        * platform/graphics/texmap/BitmapTexturePool.cpp:
+        (WebCore::BitmapTexturePool::createTexture):
+        * platform/graphics/texmap/TextureMapperGL.cpp:
+        (WebCore::TextureMapperGL::bindSurface):
+        (WebCore::TextureMapperGL::createTexture):
+
 2017-08-09  Michael Catanzaro  <mcatanzaro@igalia.com>
 
         [GTK] Remove support for geoclue1

@@ -1,3 +1,214 @@
+2017-08-11  Xabier Rodriguez Calvar  <calvaris@igalia.com>
+
+        [GStreamer][GTK][WPE] Unify GStreamer JHBuild moduleset for both GTK+ and WPE
+        https://bugs.webkit.org/show_bug.cgi?id=175428
+
+        Both ports share the GStreamer code as multimedia backend and till
+        not so long they were using different versions. Now they do use
+        the same versions and it does not make any sense anymore (and
+        neither had sense before) to have differences in the modulesets.
+
+        In this patch I created a GStreamer moduleset and referenced it
+        from both GTK+'s and WPE's. GStreamer patches were also moved there.
+
+        Reviewed by Žan Doberšek.
+
+        * gstreamer/jhbuild.modules: Added.
+        * gstreamer/patches/gst-plugins-good-0003-rtpbin-receive-bundle-support.patch: Renamed from Tools/gtk/patches/gst-plugins-good-0003-rtpbin-receive-bundle-support.patch.
+        * gstreamer/patches/gst-plugins-good-0005-souphttpsrc-cookie-jar-and-context-query-support.patch: Renamed from Tools/gtk/patches/gst-plugins-good-0005-souphttpsrc-cookie-jar-and-context-query-support.patch.
+        * gstreamer/patches/gst-plugins-good-0006-qtdemux-add-context-for-a-preferred-protection.patch: Renamed from Tools/gtk/patches/gst-plugins-good-0006-qtdemux-add-context-for-a-preferred-protection.patch.
+        * gstreamer/patches/gst-plugins-good-0008-qtdemux-also-push-buffers-without-encryption-info-in.patch: Renamed from Tools/gtk/patches/gst-plugins-good-0008-qtdemux-also-push-buffers-without-encryption-info-in.patch.
+        * gstreamer/patches/gstreamer-0001-protection-added-function-to-filter-system-ids.patch: Renamed from Tools/gtk/patches/gstreamer-0001-protection-added-function-to-filter-system-ids.patch.
+        * gstreamer/patches/openh264-configure.patch: Renamed from Tools/gtk/patches/openh264-configure.patch.
+        * gtk/jhbuild.modules:
+        * wpe/jhbuild.modules:
+        * wpe/patches/gst-plugins-good-0003-rtpbin-receive-bundle-support.patch: Removed.
+        * wpe/patches/gst-plugins-good-0005-souphttpsrc-cookie-jar-and-context-query-support.patch: Removed.
+        * wpe/patches/gst-plugins-good-0006-qtdemux-add-context-for-a-preferred-protection.patch: Removed.
+        * wpe/patches/gst-plugins-good-0008-qtdemux-also-push-buffers-without-encryption-info-in.patch: Removed.
+        * wpe/patches/gstreamer-0001-protection-added-function-to-filter-system-ids.patch: Removed.
+
+2017-08-10  Don Olmstead  <don.olmstead@sony.com>
+
+        Unreviewed, adding Ross Kirsling to contributors.json
+
+        * Scripts/webkitpy/common/config/contributors.json:
+
+2017-08-10  Yusuke Suzuki  <utatane.tea@gmail.com>
+
+        Unreviewed, attempt to fix build failure with VC2017
+
+        * TestWebKitAPI/Tests/WTF/PriorityQueue.cpp:
+        (TEST):
+
+2017-08-10  Yusuke Suzuki  <utatane.tea@gmail.com>
+
+        Unreviewed, suppress warnings on GCC
+
+        * TestWebKitAPI/Tests/WTF/CheckedArithmeticOperations.cpp:
+        (TestWebKitAPI::CheckedArithmeticTester::run):
+
+2017-08-10  Dan Bernstein  <mitz@apple.com>
+
+        [Xcode] With Xcode 9 developer beta, everything rebuilds when switching between command-line and IDE
+        https://bugs.webkit.org/show_bug.cgi?id=173223
+
+        Reviewed by Tim Horton.
+
+        The rebuilds were happening due to a difference in the compiler options that the IDE and
+        xcodebuild were specifying. Only the IDE was passing the -index-store-path option. To make
+        xcodebuild pass that option, too, set INDEX_ENABLE_DATA_STORE to YES and
+        INDEX_DATA_STORE_DIR to the Index Datastore path specified in Xcode Locations preferences >
+        Advanced when a Custom Absolute path is selected.
+
+        * Scripts/webkitdirs.pm:
+        (determineBaseProductDir):
+
+2017-08-10  Yusuke Suzuki  <utatane.tea@gmail.com>
+
+        Run more WTF tests
+        https://bugs.webkit.org/show_bug.cgi?id=174970
+
+        Reviewed by Michael Catanzaro.
+
+        Some of WTF tests are not executed in non Apple ports while they are generic ones.
+        This patch adds these tests to non-Apple port TestWebKitAPI.
+        Currently, we do not add Signals.cpp since it depends on signal functionality.
+
+        * TestWebKitAPI/CMakeLists.txt:
+        * TestWebKitAPI/TestWebKitAPI.xcodeproj/project.pbxproj:
+        * TestWebKitAPI/Tests/WTF/PriorityQueue.cpp:
+        (isHigherPriority):
+        (TEST):
+        * TestWebKitAPI/Tests/WTF/Signals.cpp: Copied from Tools/TestWebKitAPI/Tests/WTF/ThreadMessages.cpp.
+        (TEST):
+        * TestWebKitAPI/Tests/WTF/ThreadMessages.cpp:
+        (TEST):
+
+2017-08-10  obinna obike  <oobike@apple.com>
+
+        Remove obsolete link from webkit-queues status page
+        https://bugs.webkit.org/show_bug.cgi?id=175337
+
+        Reviewed by Aakash Jain.
+
+        * QueueStatusServer/templates/recentstatus.html:
+        Removed the link to the ews-watcher server.
+
+2017-08-10  Brian Burg  <bburg@apple.com>
+
+        WKPreferences should conform to NSCopying
+        https://bugs.webkit.org/show_bug.cgi?id=175303
+        <rdar://problem/33764939>
+
+        Reviewed by Dan Bernstein.
+
+        Add unit test to make sure a WKPreference and its copy are
+        not aliased to each other or affect each other's properties.
+
+        * TestWebKitAPI/TestWebKitAPI.xcodeproj/project.pbxproj:
+        * TestWebKitAPI/Tests/WebKit2Cocoa/Copying.mm: Added.
+        (TEST):
+
+2017-08-10  Tim Horton  <timothy_horton@apple.com>
+
+        Remove some unused lambda captures so that WebKit builds with -Wunused-lambda-capture
+        https://bugs.webkit.org/show_bug.cgi?id=175436
+        <rdar://problem/33667497>
+
+        Reviewed by Simon Fraser.
+
+        * TestWebKitAPI/Tests/WebCore/FileMonitor.cpp:
+        (TestWebKitAPI::TEST_F):
+
+2017-08-10  Lucas Forschler  <lforschler@apple.com>
+
+        Fix duplicated code in r220534.
+
+        Unreviewed cleanup.
+
+        * Scripts/bisect-builds:
+
+2017-08-08  Jiewen Tan  <jiewen_tan@apple.com>
+
+        [WebCrypto] Enable SerializedCryptoKeyWrapTest in iOS
+        https://bugs.webkit.org/show_bug.cgi?id=175344
+        <rdar://problem/28507240>
+
+        Reviewed by Alexey Proskuryakov.
+
+        Add entitlements to TestWebKitAPI project for iOS. Then add Keychain Access entitlement to the project.
+        Finally enable the existing tests for iOS.
+
+        * TestWebKitAPI/Configurations/TestWebKitAPI-iOS.entitlements: Added.
+        * TestWebKitAPI/Configurations/TestWebKitAPI.xcconfig:
+        * TestWebKitAPI/TestWebKitAPI.xcodeproj/project.pbxproj:
+        * TestWebKitAPI/Tests/WebCore/cocoa/SerializedCryptoKeyWrap.mm:
+
+2017-08-10  Lucas Forschler  <lforschler@apple.com>
+
+        Write a tool to bisect WebKit builds
+        https://bugs.webkit.org/show_bug.cgi?id=174596
+
+        Reviewed by Dean Johnson and Kocsen Chung.
+
+        * Scripts/bisect-builds: Added.
+        (bisect_builds): main bisection algorithm
+        (download_archive):download an archive from S3 using existing tools
+        (extract_archive):extract an archive using existing tools
+        (find_le):Find rightmost value less than or equal to x
+        (find_ge):Find leftmost item greater than or equal to x
+        (get_api_url):generate url for the rest api/database
+        (get_indices_from_revisions):convert revisions to list indexes for bisection
+        (get_sorted_revisions):retrieve sorted revision list
+        (get_s3_location_for_revision):calculate the S3 archive storage location
+        (parse_args):parse command line arguments
+        (pick_next_build):compute the next build to bisect
+        (prompt_did_reproduce):prompt user for direction for bisection
+        (set_webkit_output_dir):set the folder for bisected builds to avoid overwriting engineering build output
+        (test_archive):Platform specific logic to test downloaded archive
+        (minified_platforms):return a list of minified platforms in the database
+        (unminified_platforms):return a list of full platforms in the database
+        (is_supported_platform):check if platform is supported
+        (validate_options):validate command line options
+        (main):
+
+2017-08-10  Lucas Forschler  <lforschler@apple.com>
+
+        Remove bisect-builds script.
+        https://bugs.webkit.org/show_bug.cgi?id=175433
+        
+        Reviewed by Aakash Jain.
+
+        * Scripts/bisect-builds: Removed.
+
+2017-08-10  Michael Catanzaro  <mcatanzaro@igalia.com>
+
+        Remove ENABLE_GAMEPAD_DEPRECATED
+        https://bugs.webkit.org/show_bug.cgi?id=175361
+
+        Reviewed by Carlos Garcia Campos.
+
+        * TestWebKitAPI/Configurations/FeatureDefines.xcconfig:
+
+2017-08-10  Carlos Alberto Lopez Perez  <clopez@igalia.com>
+
+        REGRESSION(r220515) [GTK][CMake] Build with ENABLE_GEOLOCATION fails on Debian Jessie
+        https://bugs.webkit.org/show_bug.cgi?id=175426
+
+        Reviewed by Carlos Garcia Campos.
+
+        * gtk/install-dependencies: libgeoclue-dev packages not really needed on Debian/Ubuntu.
+
+2017-08-10  Ms2ger  <Ms2ger@igalia.com>
+
+        Add Ms2ger as contributor.
+        https://bugs.webkit.org/show_bug.cgi?id=175325
+
+        Reviewed by Carlos Alberto Lopez Perez.
+
+        * Scripts/webkitpy/common/config/contributors.json:
+
 2017-08-09  Dewei Zhu  <dewei_zhu@apple.com>
 
         Fix run-benchmark after r220483.

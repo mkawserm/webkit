@@ -4197,6 +4197,15 @@
          "qinmin@chromium.org"
       ]
    },
+   "Ms2ger" : {
+      "emails" : [
+         "Ms2ger@igalia.com",
+         "Ms2ger@gmail.com"
+      ],
+      "nicks" : [
+         "Ms2ger"
+      ]
+   },
    "Myles C. Maxfield" : {
       "aliases" : [
          "Myles Maxfield"
@@ -4805,6 +4814,14 @@
          "romainb"
       ],
       "status" : "committer"
+   },
+   "Ross Kirsling": {
+      "emails" : [
+         "ross.kirsling@sony.com"
+      ],
+      "nicks" : [
+         "rkirsling"
+      ]
    },
    "Ruth Fong" : {
       "emails" : [

@@ -1,3 +1,112 @@
+2017-08-10  Mark Lam  <mark.lam@apple.com>
+
+        Make the MASM_PROBE mechanism mandatory for DFG and FTL builds.
+        https://bugs.webkit.org/show_bug.cgi?id=175446
+        <rdar://problem/33836545>
+
+        Reviewed by Saam Barati.
+
+        This is needed in order to support https://bugs.webkit.org/show_bug.cgi?id=174645.
+        One consequence of this is that the DFG will now be disabled for the MIPS and
+        Windows ports. See:
+            https://bugs.webkit.org/show_bug.cgi?id=175447
+            https://bugs.webkit.org/show_bug.cgi?id=175449
+
+        Also, we should only ENABLE_SIGNAL_BASED_VM_TRAPS if the DFG is enabled.  It was
+        never meaningful to use SIGNAL_BASED_VM_TRAPS with the baseline JIT anyway.  This
+        is a mis-configuration error that is now fixed.
+
+        * wtf/Platform.h:
+
+2017-08-10  Brady Eidson  <beidson@apple.com>
+
+        Rename the source files for the WTF persistent coders.
+        https://bugs.webkit.org/show_bug.cgi?id=175441
+
+        Reviewed by Tim Horton.
+
+        * WTF.xcodeproj/project.pbxproj:
+        * wtf/CMakeLists.txt:
+
+        * wtf/persistence/PersistentCoder.h: Renamed from Source/WTF/wtf/persistence/Coder.h.
+        * wtf/persistence/PersistentCoders.cpp: Renamed from Source/WTF/wtf/persistence/Coders.cpp.
+        * wtf/persistence/PersistentCoders.h: Renamed from Source/WTF/wtf/persistence/Coders.h.
+        * wtf/persistence/PersistentDecoder.cpp: Renamed from Source/WTF/wtf/persistence/Decoder.cpp.
+        * wtf/persistence/PersistentDecoder.h: Renamed from Source/WTF/wtf/persistence/Decoder.h.
+        * wtf/persistence/PersistentEncoder.cpp: Renamed from Source/WTF/wtf/persistence/Encoder.cpp.
+        * wtf/persistence/PersistentEncoder.h: Renamed from Source/WTF/wtf/persistence/Encoder.h.
+
+2017-08-10  Yusuke Suzuki  <utatane.tea@gmail.com>
+
+        Unreviewed, attempt to fix build failure with VC2017
+
+        * wtf/PriorityQueue.h:
+
+2017-08-10  Yusuke Suzuki  <utatane.tea@gmail.com>
+
+        Run more WTF tests
+        https://bugs.webkit.org/show_bug.cgi?id=174970
+
+        Reviewed by Michael Catanzaro.
+
+        CHAR_BIT is not defined.
+
+        * wtf/LEBDecoder.h:
+
+2017-08-09  Yusuke Suzuki  <utatane.tea@gmail.com>
+
+        [WTF] ThreadSpecific should not introduce additional indirection
+        https://bugs.webkit.org/show_bug.cgi?id=175187
+
+        Reviewed by Mark Lam.
+
+        ThreadSpecific sets Data* to the TLS. And Data holds T*, which
+        is fast allocated actual data. But ideally, we should store T
+        instance directly in Data instead of introducing an additional
+        indirection.
+
+        This patch adds storage in Data in order to embed the instance of T. The constructor
+        for Data will invoke the constructor for T on the embedded storage. We also drop
+        ThreadSpecific::replace which is only used by the web thread to set its thread specific
+        ThreadGlobalData to the one shared from the main thread. The existing implementation
+        relies on the main thread and the web thread never exiting in order for the shared
+        ThreadGlobalData to stay alive. We can achieve the same semantics by using a
+        ThreadSpecific<std::unique_ptr<T>> to hold the ThreadGlobalData instance instead.
+
+        * wtf/ThreadSpecific.h:
+        (WTF::ThreadSpecific::Data::construct):
+        (WTF::ThreadSpecific::Data::Data):
+        We make it fast allocated since we previously allocated ThreadSpecific T data by fastMalloc.
+
+        (WTF::ThreadSpecific::Data::~Data):
+        (WTF::ThreadSpecific::Data::storagePointer const):
+        (WTF::canBeGCThread>::get):
+        We also drop RELEASE_ASSERT from ::get(). We already inserted this assert to setAndConstruct(),
+        so when creating the member to this TLS, we execute this release assert. So it is
+        not necessary to execute this assertion every time we get data from this TLS.
+
+        (WTF::canBeGCThread>::set):
+        (WTF::canBeGCThread>::destroy):
+        (WTF::canBeGCThread>::setAndConstruct):
+        (WTF::T):
+        (WTF::canBeGCThread>::replace): Deleted.
+
+2017-08-10  Tim Horton  <timothy_horton@apple.com>
+
+        Fix a silly typo in Compiler.h
+
+        * wtf/Compiler.h:
+        Heature, indeed.
+
+2017-08-10  Michael Catanzaro  <mcatanzaro@igalia.com>
+
+        Remove ENABLE_GAMEPAD_DEPRECATED
+        https://bugs.webkit.org/show_bug.cgi?id=175361
+
+        Reviewed by Carlos Garcia Campos.
+
+        * wtf/FeatureDefines.h:
+
 2017-08-09  Don Olmstead  <don.olmstead@sony.com>
 
         [WTF] Move TextStream into WTF

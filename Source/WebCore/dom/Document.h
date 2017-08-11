@@ -45,6 +45,7 @@
 #include "Region.h"
 #include "RenderPtr.h"
 #include "ScriptExecutionContext.h"
+#include "SessionID.h"
 #include "StringWithDirection.h"
 #include "Supplementable.h"
 #include "TextResourceDecoder.h"
@@ -1238,7 +1239,7 @@ public:
     bool inStyleRecalc() const { return m_inStyleRecalc; }
     bool inRenderTreeUpdate() const { return m_inRenderTreeUpdate; }
 
-    void updateTextRenderer(Text&);
+    void updateTextRenderer(Text&, unsigned offsetOfReplacedText, unsigned lengthOfReplacedText);
 
     // Return a Locale for the default locale if the argument is null or empty.
     Locale& getCachedLocale(const AtomicString& locale = nullAtom());
@@ -1820,6 +1821,7 @@ private:
 #endif
 
     OrientationNotifier m_orientationNotifier;
+    mutable SessionID m_sessionID;
 
     static bool hasEverCreatedAnAXObjectCache;
 };
