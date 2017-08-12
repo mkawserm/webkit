@@ -3309,6 +3309,8 @@ private:
 
         m_out.appendTo(wastefulCase, continuation);
 
+        // FIXME: This needs to do caging.
+        // https://bugs.webkit.org/show_bug.cgi?id=175366
         LValue vectorPtr = m_out.loadPtr(basePtr, m_heaps.JSArrayBufferView_vector);
         LValue butterflyPtr = m_out.loadPtr(basePtr, m_heaps.JSObject_butterfly);
         LValue arrayBufferPtr = m_out.loadPtr(butterflyPtr, m_heaps.Butterfly_arrayBuffer);
@@ -3514,10 +3516,8 @@ private:
                     index,
                     m_out.load32NonNegative(base, m_heaps.DirectArguments_length)));
 
-            // FIXME: I guess we need to cage DirectArguments?
-            // https://bugs.webkit.org/show_bug.cgi?id=174920
             TypedPointer address = m_out.baseIndex(
-                m_heaps.DirectArguments_storage, base, m_out.zeroExtPtr(index));
+                m_heaps.DirectArguments_storage, caged(Gigacage::JSValue, base), m_out.zeroExtPtr(index));
             setJSValue(m_out.load64(address));
             return;
         }
@@ -3557,10 +3557,9 @@ private:
                 ExoticObjectMode, noValue(), nullptr,
                 m_out.equal(scopeOffset, m_out.constInt32(ScopeOffset::invalidOffset)));
             
-            // FIXME: I guess we need to cage JSEnvironmentRecord?
-            // https://bugs.webkit.org/show_bug.cgi?id=174922
             address = m_out.baseIndex(
-                m_heaps.JSEnvironmentRecord_variables, scope, m_out.zeroExtPtr(scopeOffset));
+                m_heaps.JSEnvironmentRecord_variables, caged(Gigacage::JSValue, scope),
+                m_out.zeroExtPtr(scopeOffset));
             ValueFromBlock namedResult = m_out.anchor(m_out.load64(address));
             m_out.jump(continuation);
             
@@ -11637,6 +11636,8 @@ private:
         // compute here will get reassociated and folded with Gigacage::basePtr. There's a world in which
         // moveConstants() observes that it needs to reassociate in order to hoist the big constants. But
         // it's much easier to just block B3's badness here. That's what we do for now.
+        // FIXME: It would be better if we didn't have to do this hack.
+        // https://bugs.webkit.org/show_bug.cgi?id=175483
         PatchpointValue* patchpoint = m_out.patchpoint(pointerType());
         patchpoint->appendSomeRegister(basePtr);
         patchpoint->appendSomeRegister(masked);

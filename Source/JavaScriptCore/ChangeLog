@@ -1,3 +1,111 @@
+2017-08-11  Filip Pizlo  <fpizlo@apple.com>
+
+        JSLexicalEnvironment needs to be in the JSValue gigacage
+        https://bugs.webkit.org/show_bug.cgi?id=174922
+
+        Reviewed by Michael Saboff.
+        
+        We can sorta random access the JSLexicalEnvironment. So, we put it in the JSValue gigacage and make
+        the only random accesses use pointer caging.
+        
+        We don't need to do anything to normal lexical environment accesses.
+
+        * dfg/DFGSpeculativeJIT.cpp:
+        (JSC::DFG::SpeculativeJIT::compileGetByValOnScopedArguments):
+        * ftl/FTLLowerDFGToB3.cpp:
+        (JSC::FTL::DFG::LowerDFGToB3::compileGetByVal):
+        * runtime/JSEnvironmentRecord.h:
+        (JSC::JSEnvironmentRecord::subspaceFor):
+        (JSC::JSEnvironmentRecord::variables):
+
+2017-08-11  Filip Pizlo  <fpizlo@apple.com>
+
+        DirectArguments should be in the JSValue gigacage
+        https://bugs.webkit.org/show_bug.cgi?id=174920
+
+        Reviewed by Michael Saboff.
+        
+        This puts DirectArguments in a new subspace for cells that want to be in the JSValue gigacage. All
+        indexed accesses to DirectArguments now do caging. get_from_arguments/put_to_arguments are exempted
+        because they always operate on a DirectArguments that is pointed to directly from the stack, they are
+        required to use fixed offsets, and you can only store JSValues.
+
+        * dfg/DFGSpeculativeJIT.cpp:
+        (JSC::DFG::SpeculativeJIT::compileGetByValOnDirectArguments):
+        * ftl/FTLLowerDFGToB3.cpp:
+        (JSC::FTL::DFG::LowerDFGToB3::compileGetByVal):
+        * jit/JITPropertyAccess.cpp:
+        (JSC::JIT::emitDirectArgumentsGetByVal):
+        * runtime/DirectArguments.h:
+        (JSC::DirectArguments::subspaceFor):
+        (JSC::DirectArguments::storage):
+        * runtime/VM.cpp:
+        (JSC::VM::VM):
+        * runtime/VM.h:
+
+2017-08-11  Filip Pizlo  <fpizlo@apple.com>
+
+        Unreviewed, add a FIXME.
+
+        * ftl/FTLLowerDFGToB3.cpp:
+        (JSC::FTL::DFG::LowerDFGToB3::caged):
+
+2017-08-10  Sam Weinig  <sam@webkit.org>
+
+        WTF::Function does not allow for reference / non-default constructible return types
+        https://bugs.webkit.org/show_bug.cgi?id=175244
+
+        Reviewed by Chris Dumez.
+
+        * runtime/ArrayBuffer.cpp:
+        (JSC::ArrayBufferContents::transferTo):
+        Call reset(), rather than clear() to avoid the call to destroy() in clear(). The
+        destroy call needed to be a no-op anyway, since the data is being moved.
+
+2017-08-11  Mark Lam  <mark.lam@apple.com>
+
+        Gardening: fix CLoop build.
+        https://bugs.webkit.org/show_bug.cgi?id=175446
+        <rdar://problem/33836545>
+
+        Not reviewed.
+
+        * assembler/MacroAssemblerPrinter.cpp:
+
+2017-08-08  Filip Pizlo  <fpizlo@apple.com>
+
+        DFG should do caging
+        https://bugs.webkit.org/show_bug.cgi?id=174918
+
+        Reviewed by Saam Barati.
+        
+        Adds the appropriate cage() calls to the DFG, including a cageTypedArrayStorage() helper that does
+        the conditional caging with a watchpoint.
+        
+        This might be a 1% SunSpider slow-down, but it's not clear.
+
+        * dfg/DFGSpeculativeJIT.cpp:
+        (JSC::DFG::SpeculativeJIT::cageTypedArrayStorage):
+        (JSC::DFG::SpeculativeJIT::compileGetIndexedPropertyStorage):
+        (JSC::DFG::SpeculativeJIT::compileGetTypedArrayByteOffset):
+        (JSC::DFG::SpeculativeJIT::compileCreateRest):
+        (JSC::DFG::SpeculativeJIT::compileSpread):
+        (JSC::DFG::SpeculativeJIT::compileNewArrayWithSpread):
+        (JSC::DFG::SpeculativeJIT::compileArraySlice):
+        (JSC::DFG::SpeculativeJIT::compileGetButterfly):
+        * dfg/DFGSpeculativeJIT.h:
+        * dfg/DFGSpeculativeJIT64.cpp:
+        (JSC::DFG::SpeculativeJIT::compile):
+
+2017-08-11  Yusuke Suzuki  <utatane.tea@gmail.com>
+
+        Unreviewed, build fix for x86 GTK port
+        https://bugs.webkit.org/show_bug.cgi?id=175446
+
+        Use pushfl/popfl instead of pushfd/popfd.
+
+        * assembler/MacroAssemblerX86Common.cpp:
+
 2017-08-10  Mark Lam  <mark.lam@apple.com>
 
         Make the MASM_PROBE mechanism mandatory for DFG and FTL builds.

@@ -1,3 +1,200 @@
+2017-08-11  Sam Weinig  <sam@webkit.org>
+
+        [WebIDL] Replace JSCryptoKeyCustom and JSCryptoAlgorithmBuilder with generated code
+        https://bugs.webkit.org/show_bug.cgi?id=175457
+
+        Reviewed by Chris Dumez.
+
+        * CMakeLists.txt:
+        * DerivedSources.make:
+        * WebCore.xcodeproj/project.pbxproj:
+        * bindings/js/JSCryptoAlgorithmBuilder.cpp: Removed.
+        * bindings/js/JSCryptoAlgorithmBuilder.h: Removed.
+        * bindings/js/JSCryptoKeyCustom.cpp: Removed.
+
+            Remove JSCryptoAlgorithmBuilder and JSCryptoKeyCustom, add KeyAlgorithm
+            IDLs and headers.
+
+        * crypto/CryptoKey.cpp:
+        * crypto/CryptoKey.h:
+        * crypto/CryptoKey.idl:
+        
+            Replace custom algorithm attribute with a union of the supported key algorithms.
+        
+        * crypto/keys/CryptoAesKeyAlgorithm.h: Added.
+        * crypto/keys/CryptoAesKeyAlgorithm.idl: Added.
+        * crypto/keys/CryptoEcKeyAlgorithm.h: Added.
+        * crypto/keys/CryptoEcKeyAlgorithm.idl: Added.
+        * crypto/keys/CryptoHmacKeyAlgorithm.h: Added.
+        * crypto/keys/CryptoHmacKeyAlgorithm.idl: Added.
+        * crypto/keys/CryptoKeyAlgorithm.h: Added.
+        * crypto/keys/CryptoKeyAlgorithm.idl: Added.
+        * crypto/keys/CryptoRsaHashedKeyAlgorithm.h: Added.
+        * crypto/keys/CryptoRsaHashedKeyAlgorithm.idl: Added.
+        * crypto/keys/CryptoRsaKeyAlgorithm.h: Added.
+        * crypto/keys/CryptoRsaKeyAlgorithm.idl: Added.
+
+            Add IDLs and headers fo the supported key algorithms.
+
+        * crypto/keys/CryptoKeyAES.h:
+        * crypto/keys/CryptoKeyEC.h:
+        * crypto/keys/CryptoKeyHMAC.h:
+        * crypto/keys/CryptoKeyRSA.h:
+        * crypto/keys/CryptoKeyRaw.h:
+
+            Give each of the existing KeyAlgorithm subclasses a dictionary() function
+            that returns the populated corresponding spec'd dictionary.
+
+2017-08-11  Simon Fraser  <simon.fraser@apple.com>
+
+        Some RenderSVGResource cleanup
+        https://bugs.webkit.org/show_bug.cgi?id=175494
+
+        Reviewed by Zalan Bujtas.
+
+        Use more initializers. Remove spurious use of bitfields that didn't save any space at all.
+        0 -> nullptr.
+
+        No behavior change.
+
+        * rendering/svg/RenderSVGResourceContainer.cpp:
+        (WebCore::RenderSVGResourceContainer::RenderSVGResourceContainer):
+        * rendering/svg/RenderSVGResourceContainer.h:
+        * rendering/svg/RenderSVGResourceGradient.cpp:
+        (WebCore::RenderSVGResourceGradient::RenderSVGResourceGradient):
+        (WebCore::RenderSVGResourceGradient::applyResource):
+        * rendering/svg/RenderSVGResourceGradient.h:
+        * rendering/svg/RenderSVGResourcePattern.cpp:
+        (WebCore::RenderSVGResourcePattern::RenderSVGResourcePattern):
+        * rendering/svg/RenderSVGResourcePattern.h:
+        * rendering/svg/RenderSVGShape.cpp:
+        (WebCore::RenderSVGShape::fillShape):
+        (WebCore::RenderSVGShape::strokeShape):
+        * rendering/svg/SVGRenderingContext.cpp:
+        (WebCore::SVGRenderingContext::~SVGRenderingContext):
+        (WebCore::SVGRenderingContext::prepareToRenderSVGContent):
+        * rendering/svg/SVGRenderingContext.h:
+        (WebCore::SVGRenderingContext::SVGRenderingContext):
+
+2017-08-11  Tim Horton  <timothy_horton@apple.com>
+
+        Fix the build with modern Clang's -Wexpansion-to-defined
+        https://bugs.webkit.org/show_bug.cgi?id=175467
+        <rdar://problem/33667497>
+
+        Reviewed by Simon Fraser.
+
+        * crypto/mac/SerializedCryptoKeyWrapMac.mm:
+
+2017-08-11  Brady Eidson  <beidson@apple.com>
+
+        Crash under ServiceWorkerJob::failedWithException.
+        https://bugs.webkit.org/show_bug.cgi?id=175488
+
+        Reviewed by Tim Horton.
+
+        Covered by existing tests.
+
+        * workers/ServiceWorkerJob.cpp:
+        (WebCore::ServiceWorkerJob::failedWithException): jobDidFinish might cause the Job to be deleted, so make it last.
+
+2017-08-10  Sam Weinig  <sam@webkit.org>
+
+        WTF::Function does not allow for reference / non-default constructible return types
+        https://bugs.webkit.org/show_bug.cgi?id=175244
+
+        Reviewed by Chris Dumez.
+
+        * bindings/js/JSCustomElementInterface.h:
+        (WebCore::JSCustomElementInterface::invokeCallback):
+        Update the default value for the addArguments parameter to be an empty lambda, rather than
+        default initialization, which leads to a null WTF::Function. This allows us to remove support
+        for calling null WTF::Function. No change in behavior.
+
+2017-08-11  Antti Koivisto  <antti@apple.com>
+
+        Remove RenderQuote collection from RenderView
+        https://bugs.webkit.org/show_bug.cgi?id=175479
+
+        Reviewed by Andreas Kling.
+
+        We can do it well enough without maintaining this pointer structure.
+
+        Global updating doesn't work well with future direction for first-letter and similar anyway.
+        We need to update quote immediately when updating its style.
+
+        * rendering/RenderQuote.cpp:
+        (WebCore::RenderQuote::insertedIntoTree):
+        (WebCore::RenderQuote::willBeRemovedFromTree):
+
+            Just tell the view that there are renderers to update.
+
+        (WebCore::RenderQuote::styleDidChange):
+        (WebCore::RenderQuote::isOpen const):
+        (WebCore::RenderQuote::updateRenderer):
+        (WebCore::RenderQuote::updateRenderers): Deleted.
+
+            Update single renderer only. RenderTreeUpdater provides the previous renderer to compute the depth.
+
+        * rendering/RenderQuote.h:
+        * rendering/RenderView.cpp:
+        (WebCore::RenderView::registerQuote): Deleted.
+        (WebCore::RenderView::unregisterQuote): Deleted.
+        (WebCore::RenderView::updateSpecialRenderers): Deleted.
+
+            Remove the quote list.
+
+        * rendering/RenderView.h:
+        * style/RenderTreeUpdater.cpp:
+        (WebCore::RenderTreeUpdater::commit):
+
+            Ensure that all quotes are updated.
+
+        (WebCore::RenderTreeUpdater::updateBeforeOrAfterPseudoElement):
+        (WebCore::RenderTreeUpdater::updateQuotesUpTo):
+
+            Traverse render tree to find quotes to update starting from the previous updated quote.
+
+        * style/RenderTreeUpdater.h:
+
+2017-08-11  Adrian Perez de Castro  <aperez@igalia.com>
+
+        [CMake] Many warning about missing “override” keywords in ANGLE with Clang
+        https://bugs.webkit.org/show_bug.cgi?id=175475
+
+        Reviewed by Michael Catanzaro.
+
+        * CMakeLists.txt: Add "-Wno-inconsistent-missing-override" to the
+        compiler flags using for building the ANGLE sources.
+
+2017-08-11  Adrian Perez de Castro  <aperez@igalia.com>
+
+        [GTK][WPE] Overriden virtual function not marked “override” in ImageBufferDataCairo.h
+        https://bugs.webkit.org/show_bug.cgi?id=175476
+
+        Reviewed by Carlos Garcia Campos.
+
+        * platform/graphics/cairo/ImageBufferDataCairo.h: Add missing "override" qualifier.
+
+2017-08-11  Carlos Garcia Campos  <cgarcia@igalia.com>
+
+        [Soup] Cannot access HTTPS sites using a HTTP proxy that requires authentication
+        https://bugs.webkit.org/show_bug.cgi?id=175378
+
+        Reviewed by Sergio Villar Senin.
+
+        Bring back part of the code removed in r206732, to keep a reference to the SoupMessage in the
+        AuthenticationChallenge since it can be different to the resource message.
+
+        * platform/network/soup/AuthenticationChallenge.h:
+        (WebCore::AuthenticationChallenge::AuthenticationChallenge): Deleted.
+        (WebCore::AuthenticationChallenge::authenticationClient const): Deleted.
+        (WebCore::AuthenticationChallenge::soupAuth const): Deleted.
+        (WebCore::AuthenticationChallenge::setProposedCredential): Deleted.
+        * platform/network/soup/AuthenticationChallengeSoup.cpp:
+        (WebCore::AuthenticationChallenge::AuthenticationChallenge):
+        (WebCore::AuthenticationChallenge::platformCompare):
+
 2017-08-10  Dan Bernstein  <mitz@apple.com>
 
         Fixed building for macOS 10.12 with the macOS 10.13 SDK.

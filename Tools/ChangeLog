@@ -1,3 +1,67 @@
+2017-08-11  Jonathan Bedard  <jbedard@apple.com>
+
+        Create mock ITP data in testing to prevent grandfathering
+        https://bugs.webkit.org/show_bug.cgi?id=174720
+
+        Unreviewed follow-up fix for r220604.
+
+        * WebKitTestRunner/cocoa/TestControllerCocoa.mm:
+        (WTR::TestController::cocoaPlatformInitialize): Release resourceLogPlist.
+
+2017-08-11  Jonathan Bedard  <jbedard@apple.com>
+
+        Create mock ITP data in testing to prevent grandfathering
+        https://bugs.webkit.org/show_bug.cgi?id=174720
+        <rdar://problem/33457779>
+
+        Reviewed by Brent Fulgham.
+
+        We don't need to be triggering grandfathering when each test runner starts. On Mac,
+        this may launch plugins which can cause layout tests to fail later if the test
+        runner does not shut-down before the plugins unload.
+
+        * WebKitTestRunner/TestController.h: Add declaration of cocoaPlatformInitialize.
+        * WebKitTestRunner/cocoa/TestControllerCocoa.mm:
+        (WTR::TestController::cocoaPlatformInitialize): Write the minimum data required to
+        prevent grandfathering from being triggered.
+        * WebKitTestRunner/ios/TestControllerIOS.mm:
+        (WTR::TestController::platformInitialize): Call cocoaPlatformInitialize.
+        * WebKitTestRunner/mac/TestControllerMac.mm:
+        (WTR::TestController::platformInitialize): Ditto.
+
+2017-08-11  Sam Weinig  <sam@webkit.org>
+
+        WTF::Function does not allow for reference / non-default constructible return types
+        https://bugs.webkit.org/show_bug.cgi?id=175244
+        <rdar://problem/33801582>
+
+        Reviewed by Chris Dumez.
+
+        * TestWebKitAPI/Tests/WTF/Function.cpp:
+        (TestWebKitAPI::TEST):
+
+2017-08-11  Carlos Garcia Campos  <cgarcia@igalia.com>
+
+        [Soup] Cannot access HTTPS sites using a HTTP proxy that requires authentication
+        https://bugs.webkit.org/show_bug.cgi?id=175378
+
+        Reviewed by Sergio Villar Senin.
+
+        Add two test cases to check proxy authentication.
+
+        * TestWebKitAPI/Tests/WebKitGLib/TestAuthentication.cpp:
+        (Tunnel::Tunnel):
+        (Tunnel::~Tunnel):
+        (Tunnel::connect):
+        (Tunnel::connected):
+        (serverCallback):
+        (ProxyAuthenticationTest::ProxyAuthenticationTest):
+        (ProxyAuthenticationTest::~ProxyAuthenticationTest):
+        (ProxyAuthenticationTest::proxyServerPortAsString):
+        (testWebViewAuthenticationProxy):
+        (testWebViewAuthenticationProxyHTTPS):
+        (beforeAll):
+
 2017-08-11  Xabier Rodriguez Calvar  <calvaris@igalia.com>
 
         [GStreamer][GTK][WPE] Unify GStreamer JHBuild moduleset for both GTK+ and WPE

@@ -376,6 +376,13 @@ set(WebCore_NON_SVG_IDL_FILES
     crypto/SubtleCrypto.idl
     crypto/WebKitSubtleCrypto.idl
 
+    crypto/keys/CryptoAesKeyAlgorithm.idl
+    crypto/keys/CryptoEcKeyAlgorithm.idl
+    crypto/keys/CryptoHmacKeyAlgorithm.idl
+    crypto/keys/CryptoKeyAlgorithm.idl
+    crypto/keys/CryptoRsaHashedKeyAlgorithm.idl
+    crypto/keys/CryptoRsaKeyAlgorithm.idl
+
     crypto/parameters/AesCbcCfbParams.idl
     crypto/parameters/AesCtrParams.idl
     crypto/parameters/AesGcmParams.idl
@@ -1181,9 +1188,7 @@ set(WebCore_SOURCES
     bindings/js/JSDeprecatedCSSOMValueCustom.cpp
     bindings/js/JSCallbackData.cpp
     bindings/js/JSCanvasRenderingContext2DCustom.cpp
-    bindings/js/JSCryptoAlgorithmBuilder.cpp
     bindings/js/JSCryptoAlgorithmDictionary.cpp
-    bindings/js/JSCryptoKeyCustom.cpp
     bindings/js/JSCryptoKeySerializationJWK.cpp
     bindings/js/JSCryptoOperationData.cpp
     bindings/js/JSCustomElementInterface.cpp
@@ -4035,6 +4040,7 @@ if (ENABLE_GRAPHICS_CONTEXT_3D AND NOT WIN32)
 
     if (COMPILER_IS_GCC_OR_CLANG)
         WEBKIT_ADD_TARGET_CXX_FLAGS(ANGLESupport -Wno-implicit-fallthrough
+                                                 -Wno-inconsistent-missing-override
                                                  -Wno-null-conversion
                                                  -Wno-suggest-attribute=format
                                                  -Wno-unused-function
