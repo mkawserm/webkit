@@ -1,3 +1,168 @@
+2017-08-11  Brady Eidson  <beidson@apple.com>
+
+        Move files inside WebCore/workers to WebCore/workers/service.
+        https://bugs.webkit.org/show_bug.cgi?id=175495
+
+        Rubberstamped by Tim Horton.
+
+        * CMakeLists.txt:
+        * DerivedSources.make:
+        * WebCore.xcodeproj/project.pbxproj:
+
+        * workers/service/ServiceWorker.cpp: Renamed from Source/WebCore/workers/ServiceWorker.cpp.
+        * workers/service/ServiceWorker.h: Renamed from Source/WebCore/workers/ServiceWorker.h.
+        * workers/service/ServiceWorker.idl: Renamed from Source/WebCore/workers/ServiceWorker.idl.
+        * workers/service/ServiceWorkerContainer.cpp: Renamed from Source/WebCore/workers/ServiceWorkerContainer.cpp.
+        * workers/service/ServiceWorkerContainer.h: Renamed from Source/WebCore/workers/ServiceWorkerContainer.h.
+        * workers/service/ServiceWorkerContainer.idl: Renamed from Source/WebCore/workers/ServiceWorkerContainer.idl.
+        * workers/service/ServiceWorkerGlobalScope.cpp: Renamed from Source/WebCore/workers/ServiceWorkerGlobalScope.cpp.
+        * workers/service/ServiceWorkerGlobalScope.h: Renamed from Source/WebCore/workers/ServiceWorkerGlobalScope.h.
+        * workers/service/ServiceWorkerGlobalScope.idl: Renamed from Source/WebCore/workers/ServiceWorkerGlobalScope.idl.
+        * workers/service/ServiceWorkerJob.cpp: Renamed from Source/WebCore/workers/ServiceWorkerJob.cpp.
+        * workers/service/ServiceWorkerJob.h: Renamed from Source/WebCore/workers/ServiceWorkerJob.h.
+        * workers/service/ServiceWorkerJobClient.h: Renamed from Source/WebCore/workers/ServiceWorkerJobClient.h.
+        * workers/service/ServiceWorkerProvider.cpp: Renamed from Source/WebCore/workers/ServiceWorkerProvider.cpp.
+        * workers/service/ServiceWorkerProvider.h: Renamed from Source/WebCore/workers/ServiceWorkerProvider.h.
+        * workers/service/ServiceWorkerRegistration.cpp: Renamed from Source/WebCore/workers/ServiceWorkerRegistration.cpp.
+        * workers/service/ServiceWorkerRegistration.h: Renamed from Source/WebCore/workers/ServiceWorkerRegistration.h.
+        * workers/service/ServiceWorkerRegistration.idl: Renamed from Source/WebCore/workers/ServiceWorkerRegistration.idl.
+        * workers/service/ServiceWorkerRegistrationOptions.h: Renamed from Source/WebCore/workers/ServiceWorkerRegistrationOptions.h.
+        * workers/service/ServiceWorkerRegistrationParameters.cpp: Renamed from Source/WebCore/workers/ServiceWorkerRegistrationParameters.cpp.
+        * workers/service/ServiceWorkerRegistrationParameters.h: Renamed from Source/WebCore/workers/ServiceWorkerRegistrationParameters.h.
+        * workers/service/ServiceWorkerUpdateViaCache.h: Renamed from Source/WebCore/workers/ServiceWorkerUpdateViaCache.h.
+        * workers/service/ServiceWorkerUpdateViaCache.idl: Renamed from Source/WebCore/workers/ServiceWorkerUpdateViaCache.idl.
+
+2017-08-11  Chris Dumez  <cdumez@apple.com>
+
+        Implement quota limitation for keepalive Fetch requests
+        https://bugs.webkit.org/show_bug.cgi?id=175482
+
+        Reviewed by Sam Weinig and Youenn Fablet.
+
+        Implement quota limitation for keepalive Fetch requests as per:
+        - https://fetch.spec.whatwg.org/#http-network-or-cache-fetch (Step 9)
+
+        This partly works for Beacon as well, meaning that no Beacon with a body
+        over 64Kb can be sent. However, we don't keep track about wether or not
+        beacon loads are inflight or not.
+
+        Also update CachedResourceLoader::requestResource() so that the caller
+        can get a ResourceError when it returns null. This is useful for both
+        Fetch and Beacon to return better error messages.
+
+        Test: http/wpt/beacon/beacon-quota.html
+
+        * CMakeLists.txt:
+        * Modules/beacon/NavigatorBeacon.cpp:
+        (WebCore::NavigatorBeacon::sendBeacon):
+        * Modules/fetch/FetchBodyOwner.cpp:
+        (WebCore::FetchBodyOwner::BlobLoader::didReceiveResponse):
+        (WebCore::FetchBodyOwner::BlobLoader::didFail):
+        * Modules/fetch/FetchBodyOwner.h:
+        * Modules/fetch/FetchLoader.cpp:
+        (WebCore::FetchLoader::start):
+        (WebCore::FetchLoader::didFail):
+        * Modules/fetch/FetchLoaderClient.h:
+        * Modules/fetch/FetchResponse.cpp:
+        (WebCore::FetchResponse::BodyLoader::didFail):
+        * Modules/fetch/FetchResponse.h:
+        * WebCore.xcodeproj/project.pbxproj:
+        * loader/DocumentThreadableLoader.cpp:
+        (WebCore::DocumentThreadableLoader::loadRequest):
+        * loader/cache/CachedResource.cpp:
+        (WebCore::CachedResource::load):
+        * loader/cache/CachedResource.h:
+        (WebCore::CachedResource::isMainOrMediaOrIconOrRawResource const):
+        * loader/cache/CachedResourceLoader.cpp:
+        (WebCore::createResource):
+        (WebCore::CachedResourceLoader::requestImage):
+        (WebCore::CachedResourceLoader::requestFont):
+        (WebCore::CachedResourceLoader::requestTextTrack):
+        (WebCore::CachedResourceLoader::requestCSSStyleSheet):
+        (WebCore::CachedResourceLoader::requestUserCSSStyleSheet):
+        (WebCore::CachedResourceLoader::requestScript):
+        (WebCore::CachedResourceLoader::requestXSLStyleSheet):
+        (WebCore::CachedResourceLoader::requestSVGDocument):
+        (WebCore::CachedResourceLoader::requestLinkResource):
+        (WebCore::CachedResourceLoader::requestMedia):
+        (WebCore::CachedResourceLoader::requestIcon):
+        (WebCore::CachedResourceLoader::requestRawResource):
+        (WebCore::CachedResourceLoader::requestBeaconResource):
+        (WebCore::CachedResourceLoader::requestMainResource):
+        (WebCore::CachedResourceLoader::requestResource):
+        (WebCore::CachedResourceLoader::preload):
+        * loader/cache/CachedResourceLoader.h:
+        * loader/cache/KeepaliveRequestTracker.cpp: Added.
+        (WebCore::KeepaliveRequestTracker::~KeepaliveRequestTracker):
+        (WebCore::KeepaliveRequestTracker::canLoadRequest):
+        (WebCore::KeepaliveRequestTracker::registerRequest):
+        (WebCore::KeepaliveRequestTracker::responseReceived):
+        (WebCore::KeepaliveRequestTracker::notifyFinished):
+        (WebCore::KeepaliveRequestTracker::unregisterRequest):
+        * loader/cache/KeepaliveRequestTracker.h: Added.
+        * platform/network/FormData.cpp:
+        (WebCore::FormDataElement::lengthInBytes const):
+        (WebCore::FormData::lengthInBytes const):
+        * platform/network/FormData.h:
+
+2017-08-11  Don Olmstead  <don.olmstead@sony.com>
+
+        [WTF] Move ValueToString into WTF
+        https://bugs.webkit.org/show_bug.cgi?id=175469
+
+        Reviewed by Sam Weinig.
+
+        No new tests. No change in behavior.
+
+        * WebCore.xcodeproj/project.pbxproj:
+        * html/HTMLMediaElement.h:
+        (WTF::ValueToString<WebCore::TextTrackCue::string):
+        (WebCore::ValueToString<TextTrackCue::string): Deleted.
+        (WebCore::ValueToString<MediaTime>::string): Deleted.
+        * platform/LayoutUnit.h:
+        (WTF::ValueToString<WebCore::LayoutUnit>::string):
+        (WebCore::ValueToString<LayoutUnit>::string): Deleted.
+        * platform/PODInterval.h:
+        * platform/PODIntervalTree.h:
+        * platform/PODRedBlackTree.h:
+        * platform/graphics/FloatPolygon.h:
+        (WTF::ValueToString<WebCore::FloatPolygonEdge::string):
+        (WebCore::ValueToString<FloatPolygonEdge::string): Deleted.
+        * rendering/FloatingObjects.h:
+        (WTF::ValueToString<WebCore::FloatingObject::string):
+        (WebCore::ValueToString<FloatingObject::string): Deleted.
+        * rendering/RenderFlowThread.h:
+        (WTF::ValueToString<WebCore::RenderRegion::string):
+        (WebCore::ValueToString<RenderRegion::string): Deleted.
+
+2017-08-11  Sam Weinig  <sam@webkit.org>
+
+        [Bindings] Simplify DOMPromiseProxy now that WTF::Function can return references
+        https://bugs.webkit.org/show_bug.cgi?id=175394
+
+        Reviewed by Chris Dumez.
+
+        * bindings/IDLTypes.h:
+        (WebCore::IDLWrapper::convertToParameterType): Deleted.
+
+            Remove no longer used convertToParameterType.
+
+        * bindings/js/DOMPromiseProxy.h:
+
+            - Replace Variant<Value, Exception> with ExceptionOr<Value> / ExceptionOr<void>.
+            - Update ResolveCallback to have a return type of IDLType::ParameterType, rather than
+              IDLType::ImplementationType, now that WTF::Function supports references as the 
+              return type. This is needed, since the IDLType::ParameterType for an interface T
+              is T&.
+
+        * css/FontFace.cpp:
+        * css/FontFace.h:
+        * css/FontFaceSet.cpp:
+        * css/FontFaceSet.h:
+
+            Update resolve callbacks to return a reference rather than a RefPtr, matching
+            the new signature requirement.
+
 2017-08-11  Sam Weinig  <sam@webkit.org>
 
         [WebIDL] Replace JSCryptoKeyCustom and JSCryptoAlgorithmBuilder with generated code
