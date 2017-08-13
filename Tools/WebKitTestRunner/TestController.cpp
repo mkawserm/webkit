@@ -676,6 +676,7 @@ void TestController::resetPreferencesToConsistentValues(const TestOptions& optio
     WKPreferencesSetTabToLinksEnabled(preferences, false);
     WKPreferencesSetInteractiveFormValidationEnabled(preferences, true);
     WKPreferencesSetDisplayContentsEnabled(preferences, true);
+    WKPreferencesSetDataTransferItemsEnabled(preferences, true);
 
     WKPreferencesSetMockScrollbarsEnabled(preferences, options.useMockScrollbars);
     WKPreferencesSetNeedsSiteSpecificQuirks(preferences, options.needsSiteSpecificQuirks);
@@ -1722,19 +1723,21 @@ void TestController::downloadDidCancel(WKContextRef context, WKDownloadRef downl
 
 void TestController::downloadDidStart(WKContextRef context, WKDownloadRef download)
 {
-    m_currentInvocation->outputText("Download started.\n");
+    if (m_shouldLogDownloadCallbacks)
+        m_currentInvocation->outputText("Download started.\n");
 }
 
 WKStringRef TestController::decideDestinationWithSuggestedFilename(WKContextRef, WKDownloadRef, WKStringRef filename, bool*& allowOverwrite)
 {
     String suggestedFilename = toWTFString(filename);
 
-    StringBuilder builder;
-    builder.append("Downloading URL with suggested filename \"");
-    builder.append(suggestedFilename);
-    builder.append("\"\n");
-
-    m_currentInvocation->outputText(builder.toString());
+    if (m_shouldLogDownloadCallbacks) {
+        StringBuilder builder;
+        builder.append("Downloading URL with suggested filename \"");
+        builder.append(suggestedFilename);
+        builder.append("\"\n");
+        m_currentInvocation->outputText(builder.toString());
+    }
 
     const char* dumpRenderTreeTemp = libraryPathForTesting();
     if (!dumpRenderTreeTemp)
@@ -1750,35 +1753,39 @@ WKStringRef TestController::decideDestinationWithSuggestedFilename(WKContextRef,
 
 void TestController::downloadDidFinish(WKContextRef, WKDownloadRef)
 {
-    m_currentInvocation->outputText("Download completed.\n");
+    if (m_shouldLogDownloadCallbacks)
+        m_currentInvocation->outputText("Download completed.\n");
     m_currentInvocation->notifyDownloadDone();
 }
 
 void TestController::downloadDidFail(WKContextRef, WKDownloadRef, WKErrorRef error)
 {
-    String message = String::format("Download failed.\n");
-    m_currentInvocation->outputText(message);
-    
-    WKRetainPtr<WKStringRef> errorDomain = adoptWK(WKErrorCopyDomain(error));
-    WKRetainPtr<WKStringRef> errorDescription = adoptWK(WKErrorCopyLocalizedDescription(error));
-    int errorCode = WKErrorGetErrorCode(error);
+    if (m_shouldLogDownloadCallbacks) {
+        String message = String::format("Download failed.\n");
+        m_currentInvocation->outputText(message);
 
-    StringBuilder errorBuilder;
-    errorBuilder.append("Failed: ");
-    errorBuilder.append(toWTFString(errorDomain));
-    errorBuilder.append(", code=");
-    errorBuilder.appendNumber(errorCode);
-    errorBuilder.append(", description=");
-    errorBuilder.append(toWTFString(errorDescription));
-    errorBuilder.append("\n");
+        WKRetainPtr<WKStringRef> errorDomain = adoptWK(WKErrorCopyDomain(error));
+        WKRetainPtr<WKStringRef> errorDescription = adoptWK(WKErrorCopyLocalizedDescription(error));
+        int errorCode = WKErrorGetErrorCode(error);
 
-    m_currentInvocation->outputText(errorBuilder.toString());
+        StringBuilder errorBuilder;
+        errorBuilder.append("Failed: ");
+        errorBuilder.append(toWTFString(errorDomain));
+        errorBuilder.append(", code=");
+        errorBuilder.appendNumber(errorCode);
+        errorBuilder.append(", description=");
+        errorBuilder.append(toWTFString(errorDescription));
+        errorBuilder.append("\n");
+
+        m_currentInvocation->outputText(errorBuilder.toString());
+    }
     m_currentInvocation->notifyDownloadDone();
 }
 
 void TestController::downloadDidCancel(WKContextRef, WKDownloadRef)
 {
-    m_currentInvocation->outputText("Download cancelled.\n");
+    if (m_shouldLogDownloadCallbacks)
+        m_currentInvocation->outputText("Download cancelled.\n");
     m_currentInvocation->notifyDownloadDone();
 }
 

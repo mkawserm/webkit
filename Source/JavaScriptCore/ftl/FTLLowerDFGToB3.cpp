@@ -3309,11 +3309,13 @@ private:
 
         m_out.appendTo(wastefulCase, continuation);
 
-        // FIXME: This needs to do caging.
-        // https://bugs.webkit.org/show_bug.cgi?id=175366
-        LValue vectorPtr = m_out.loadPtr(basePtr, m_heaps.JSArrayBufferView_vector);
-        LValue butterflyPtr = m_out.loadPtr(basePtr, m_heaps.JSObject_butterfly);
+        LValue vectorPtr = cagedMayBeNull(
+            Gigacage::Primitive,
+            m_out.loadPtr(basePtr, m_heaps.JSArrayBufferView_vector));
+        LValue butterflyPtr = caged(Gigacage::JSValue, m_out.loadPtr(basePtr, m_heaps.JSObject_butterfly));
         LValue arrayBufferPtr = m_out.loadPtr(butterflyPtr, m_heaps.Butterfly_arrayBuffer);
+        // FIXME: This needs caging.
+        // https://bugs.webkit.org/show_bug.cgi?id=175515
         LValue dataPtr = m_out.loadPtr(arrayBufferPtr, m_heaps.ArrayBuffer_data);
 
         ValueFromBlock wastefulOut = m_out.anchor(m_out.sub(vectorPtr, dataPtr));
@@ -3565,10 +3567,8 @@ private:
             
             m_out.appendTo(overflowCase, continuation);
             
-            // FIXME: I guess we need to cage overflow storage?
-            // https://bugs.webkit.org/show_bug.cgi?id=174923
             address = m_out.baseIndex(
-                m_heaps.ScopedArguments_overflowStorage, base,
+                m_heaps.ScopedArguments_overflowStorage, caged(Gigacage::JSValue, base),
                 m_out.zeroExtPtr(m_out.sub(index, namedLength)));
             LValue overflowValue = m_out.load64(address);
             speculate(ExoticObjectMode, noValue(), nullptr, m_out.isZero64(overflowValue));
@@ -11628,25 +11628,39 @@ private:
         LValue basePtr = m_out.constIntPtr(Gigacage::basePtr(kind));
         LValue mask = m_out.constIntPtr(GIGACAGE_MASK);
         
-        // We don't have to worry about B3 messing up the bitAnd. Also, we want to get B3's excellent
-        // codegen for 2-operand andq on x86-64.
         LValue masked = m_out.bitAnd(ptr, mask);
+        LValue result = m_out.add(masked, basePtr);
+
+        // Make sure that B3 doesn't try to do smart reassociation of these pointer bits.
+        // FIXME: In an ideal world, B3 would not do harmful reassociations, and if it did, it would be able
+        // to undo them during constant hoisting and regalloc. As it stands, if you remove this then Octane
+        // gets 1.6% slower and Kraken gets 5% slower. It's all because the basePtr, which is a constant,
+        // gets reassociated out of the add above and into the address arithmetic. This disables hoisting of
+        // the basePtr constant. Hoisting that constant is worth a lot more perf than the reassociation. One
+        // way to make this all work happily is to combine offset legalization with constant hoisting, and
+        // then teach it reassociation. So, Add(Add(a, b), const) where a is loop-invariant while b isn't
+        // will turn into Add(Add(a, const), b) by the constant hoister. We would have to teach B3 to do this
+        // and possibly other smart things if we want to be able to remove this opaque.
+        // https://bugs.webkit.org/show_bug.cgi?id=175493
+        return m_out.opaque(result);
+    }
+    
+    LValue cagedMayBeNull(Gigacage::Kind kind, LValue ptr)
+    {
+        LBasicBlock notNull = m_out.newBlock();
+        LBasicBlock continuation = m_out.newBlock();
         
-        // But B3 will currently mess up the code generation of this add. Basically, any offset from what we
-        // compute here will get reassociated and folded with Gigacage::basePtr. There's a world in which
-        // moveConstants() observes that it needs to reassociate in order to hoist the big constants. But
-        // it's much easier to just block B3's badness here. That's what we do for now.
-        // FIXME: It would be better if we didn't have to do this hack.
-        // https://bugs.webkit.org/show_bug.cgi?id=175483
-        PatchpointValue* patchpoint = m_out.patchpoint(pointerType());
-        patchpoint->appendSomeRegister(basePtr);
-        patchpoint->appendSomeRegister(masked);
-        patchpoint->setGenerator(
-            [] (CCallHelpers& jit, const StackmapGenerationParams& params) {
-                jit.addPtr(params[1].gpr(), params[2].gpr(), params[0].gpr());
-            });
-        patchpoint->effects = Effects::none();
-        return patchpoint;
+        LBasicBlock lastNext = m_out.insertNewBlocksBefore(notNull);
+        
+        ValueFromBlock nullResult = m_out.anchor(ptr);
+        m_out.branch(ptr, unsure(notNull), unsure(continuation));
+        
+        m_out.appendTo(notNull, continuation);
+        ValueFromBlock notNullResult = m_out.anchor(caged(kind, ptr));
+        m_out.jump(continuation);
+        
+        m_out.appendTo(continuation, lastNext);
+        return m_out.phi(pointerType(), nullResult, notNullResult);
     }
     
     void buildSwitch(SwitchData* data, LType type, LValue switchValue)
