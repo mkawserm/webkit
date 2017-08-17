@@ -41,6 +41,7 @@
 #include "RenderFullScreen.h"
 #include "RenderNamedFlowThread.h"
 #include "RenderQuote.h"
+#include "RenderTreeUpdaterFirstLetter.h"
 #include "StyleResolver.h"
 #include "StyleTreeResolver.h"
 #include <wtf/SystemTracing.h>
@@ -232,7 +233,11 @@ void RenderTreeUpdater::popParent()
     if (parent.element) {
         updateBeforeOrAfterPseudoElement(*parent.element, AFTER);
 
-        if (parent.element->hasCustomStyleResolveCallbacks() && parent.styleChange == Style::Detach && parent.element->renderer())
+        auto* renderer = parent.element->renderer();
+        if (is<RenderBlock>(renderer))
+            FirstLetter::update(downcast<RenderBlock>(*renderer));
+
+        if (parent.element->hasCustomStyleResolveCallbacks() && parent.styleChange == Style::Detach && renderer)
             parent.element->didAttachRenderers();
     }
     m_parentStack.removeLast();

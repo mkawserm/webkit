@@ -34,7 +34,6 @@ set(WebCore_INCLUDE_DIRECTORIES
     "${WEBCORE_DIR}/Modules/navigatorcontentutils"
     "${WEBCORE_DIR}/Modules/notifications"
     "${WEBCORE_DIR}/Modules/plugins"
-    "${WEBCORE_DIR}/Modules/proximity"
     "${WEBCORE_DIR}/Modules/quota"
     "${WEBCORE_DIR}/Modules/speech"
     "${WEBCORE_DIR}/Modules/streams"
@@ -157,7 +156,6 @@ set(WebCore_IDL_INCLUDES
     Modules/mediasession
     Modules/mediastream
     Modules/notifications
-    Modules/proximity
     Modules/quota
     Modules/speech
     Modules/streams
@@ -295,8 +293,6 @@ set(WebCore_NON_SVG_IDL_FILES
     Modules/notifications/Notification.idl
     Modules/notifications/NotificationPermission.idl
     Modules/notifications/NotificationPermissionCallback.idl
-
-    Modules/proximity/DeviceProximityEvent.idl
 
     Modules/speech/DOMWindowSpeechSynthesis.idl
     Modules/speech/SpeechSynthesis.idl
@@ -900,7 +896,9 @@ set(WebCore_SOURCES
 
     Modules/cache/Cache.cpp
     Modules/cache/CacheStorage.cpp
+    Modules/cache/CacheStorageConnection.cpp
     Modules/cache/DOMWindowCaches.cpp
+    Modules/cache/WorkerCacheStorageConnection.cpp
     Modules/cache/WorkerGlobalScopeCaches.cpp
 
     Modules/credentials/BasicCredential.cpp
@@ -1039,9 +1037,6 @@ set(WebCore_SOURCES
 
     Modules/notifications/Notification.cpp
     Modules/notifications/NotificationController.cpp
-
-    Modules/proximity/DeviceProximityController.cpp
-    Modules/proximity/DeviceProximityEvent.cpp
 
     Modules/speech/DOMWindowSpeechSynthesis.cpp
     Modules/speech/SpeechSynthesis.cpp
@@ -1250,7 +1245,6 @@ set(WebCore_SOURCES
     bindings/js/JSReadableStreamSourceCustom.cpp
     bindings/js/JSSVGPathSegCustom.cpp
     bindings/js/JSStyleSheetCustom.cpp
-    bindings/js/JSSubtleCryptoCustom.cpp
     bindings/js/JSTextCustom.cpp
     bindings/js/JSTextTrackCueCustom.cpp
     bindings/js/JSTextTrackCustom.cpp
@@ -2263,9 +2257,7 @@ set(WebCore_SOURCES
     platform/ScrollbarThemeComposite.cpp
     platform/SharedBuffer.cpp
     platform/SharedBufferChunkReader.cpp
-    platform/SleepDisabler.cpp
     platform/StaticPasteboard.cpp
-    platform/SystemSleepListener.cpp
     platform/Theme.cpp
     platform/ThreadGlobalData.cpp
     platform/ThreadTimers.cpp
@@ -2804,6 +2796,7 @@ set(WebCore_SOURCES
     style/InlineTextBoxStyle.cpp
     style/RenderTreePosition.cpp
     style/RenderTreeUpdater.cpp
+    style/RenderTreeUpdaterFirstLetter.cpp
     style/StyleChange.cpp
     style/StyleFontSizeFunctions.cpp
     style/StyleInvalidator.cpp

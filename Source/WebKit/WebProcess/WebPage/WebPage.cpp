@@ -68,6 +68,7 @@
 #include "WebAlternativeTextClient.h"
 #include "WebBackForwardListItem.h"
 #include "WebBackForwardListProxy.h"
+#include "WebCacheStorageProvider.h"
 #include "WebChromeClient.h"
 #include "WebColorChooser.h"
 #include "WebContextMenu.h"
@@ -210,10 +211,6 @@
 
 #if ENABLE(POINTER_LOCK)
 #include <WebCore/PointerLockController.h>
-#endif
-
-#if ENABLE(PROXIMITY_EVENTS)
-#include "WebDeviceProximityClient.h"
 #endif
 
 #if PLATFORM(COCOA)
@@ -371,7 +368,8 @@ WebPage::WebPage(uint64_t pageID, WebPageCreationParameters&& parameters)
     PageConfiguration pageConfiguration(
         makeUniqueRef<WebEditorClient>(this),
         WebSocketProvider::create(),
-        makeUniqueRef<WebKit::LibWebRTCProvider>()
+        makeUniqueRef<WebKit::LibWebRTCProvider>(),
+        WebProcess::singleton().cacheStorageProvider()
     );
     pageConfiguration.chromeClient = new WebChromeClient(*this);
 #if ENABLE(CONTEXT_MENUS)
@@ -433,9 +431,6 @@ WebPage::WebPage(uint64_t pageID, WebPageCreationParameters&& parameters)
 #endif
 #if ENABLE(NOTIFICATIONS)
     WebCore::provideNotification(m_page.get(), new WebNotificationClient(this));
-#endif
-#if ENABLE(PROXIMITY_EVENTS)
-    WebCore::provideDeviceProximityTo(m_page.get(), new WebDeviceProximityClient(this));
 #endif
 #if ENABLE(MEDIA_STREAM)
     WebCore::provideUserMediaTo(m_page.get(), new WebUserMediaClient(*this));
@@ -3373,6 +3368,10 @@ void WebPage::updatePreferences(const WebPreferencesStore& store)
     settings.setBeaconAPIEnabled(store.getBoolValueForKey(WebPreferencesKey::beaconAPIEnabledKey()));
 #endif
 
+#if ENABLE(PAYMENT_REQUEST)
+    settings.setPaymentRequestEnabled(store.getBoolValueForKey(WebPreferencesKey::paymentRequestEnabledKey()));
+#endif
+
     platformPreferencesDidChange(store);
 
     if (m_drawingArea)
@@ -4677,7 +4676,7 @@ void WebPage::setCompositionForTesting(const String& compositionString, uint64_t
         return;
 
     Vector<CompositionUnderline> underlines;
-    underlines.append(CompositionUnderline(0, compositionString.length(), Color(Color::black), false));
+    underlines.append(CompositionUnderline(0, compositionString.length(), CompositionUnderlineColor::TextColor, Color(Color::black), false));
     frame.editor().setComposition(compositionString, underlines, from, from + length);
 }
 

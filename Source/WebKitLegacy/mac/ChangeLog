@@ -1,3 +1,100 @@
+2017-08-16  Andy Estes  <aestes@apple.com>
+
+        [Apple Pay] Rename PaymentRequest to ApplePaySessionPaymentRequest
+        https://bugs.webkit.org/show_bug.cgi?id=175648
+
+        Reviewed by Tim Horton.
+
+        * WebCoreSupport/WebPaymentCoordinatorClient.h:
+        * WebCoreSupport/WebPaymentCoordinatorClient.mm:
+        (WebPaymentCoordinatorClient::showPaymentUI):
+
+2017-08-16  Yoshiaki Jitsukawa  <Yoshiaki.Jitsukawa@sony.com>
+
+        [PAL] Move spi/ios and spi/win directories into PAL
+        https://bugs.webkit.org/show_bug.cgi?id=175171
+
+        Reviewed by Antti Koivisto.
+
+        * WebCoreSupport/WebFrameLoaderClient.mm:
+        * WebView/WebView.mm:
+
+2017-08-16  Andy Estes  <aestes@apple.com>
+
+        [Payment Request] Add an ENABLE flag and an experimental feature preference
+        https://bugs.webkit.org/show_bug.cgi?id=175622
+
+        Reviewed by Tim Horton.
+
+        * Configurations/FeatureDefines.xcconfig:
+
+2017-08-15  Don Olmstead  <don.olmstead@sony.com>
+
+        [PAL] Move Sleep classes into PAL
+        https://bugs.webkit.org/show_bug.cgi?id=175456
+
+        Reviewed by Ryosuke Niwa.
+
+        * WebView/WebFullScreenController.h:
+
+2017-08-15  Youenn Fablet  <youenn@apple.com>
+
+        [Cache API] Adding generic support for CacheStorage and Cache methods
+        https://bugs.webkit.org/show_bug.cgi?id=175455
+
+        Reviewed by Chris Dumez.
+
+        * WebView/WebView.mm:
+        (-[WebView _commonInitializationWithFrameName:groupName:]):
+
+2017-08-14  Simon Fraser  <simon.fraser@apple.com>
+
+        Remove Proximity Events and related code
+        https://bugs.webkit.org/show_bug.cgi?id=175545
+
+        Reviewed by Daniel Bates.
+
+        No platform enables Proximity Events, so remove code inside ENABLE(PROXIMITY_EVENTS)
+        and other related code.
+
+        * Configurations/FeatureDefines.xcconfig:
+
+2017-08-14  Simon Fraser  <simon.fraser@apple.com>
+
+        Remove ENABLE(REQUEST_AUTOCOMPLETE) code, which was disabled everywhere
+        https://bugs.webkit.org/show_bug.cgi?id=175504
+
+        Reviewed by Sam Weinig.
+
+        * Configurations/FeatureDefines.xcconfig:
+        * DOM/DOMHTMLFormElement.mm:
+        (-[DOMHTMLFormElement requestAutocomplete]): Deleted.
+        * WebCoreSupport/WebFrameLoaderClient.h:
+
+2017-08-14  Simon Fraser  <simon.fraser@apple.com>
+
+        Remove ENABLE_VIEW_MODE_CSS_MEDIA and related code
+        https://bugs.webkit.org/show_bug.cgi?id=175557
+
+        Reviewed by Jon Lee.
+
+        No port cares about the ENABLE(VIEW_MODE_CSS_MEDIA) feature, so remove it.
+
+        * Configurations/FeatureDefines.xcconfig:
+
+2017-08-13  Manuel Rego Casasnovas  <rego@igalia.com>
+
+        Composition underline color is always black
+        https://bugs.webkit.org/show_bug.cgi?id=174675
+
+        Reviewed by Ryosuke Niwa.
+
+        * WebView/WebHTMLView.mm:
+        (extractUnderlines): If NSUnderlineColorAttributeName
+        is not present use text color for composition underline.
+        (-[WebHTMLView setMarkedText:selectedRange:]): Use text color
+        for composition underline in the plain text case.
+
 2017-08-11  Ryosuke Niwa  <rniwa@webkit.org>
 
         Replace DATA_TRANSFER_ITEMS by a runtime flag and add a stub implementation

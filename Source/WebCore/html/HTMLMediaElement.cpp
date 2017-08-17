@@ -85,11 +85,11 @@
 #include "SessionID.h"
 #include "Settings.h"
 #include "ShadowRoot.h"
-#include "SleepDisabler.h"
 #include "TimeRanges.h"
 #include "UserContentController.h"
 #include "UserGestureIndicator.h"
 #include <limits>
+#include <pal/system/SleepDisabler.h>
 #include <runtime/Uint8Array.h>
 #include <wtf/Algorithms.h>
 #include <wtf/CurrentTime.h>
@@ -2516,6 +2516,10 @@ bool HTMLMediaElement::mediaPlayerKeyNeeded(MediaPlayer*, Uint8Array* initData)
 
 String HTMLMediaElement::mediaPlayerMediaKeysStorageDirectory() const
 {
+    auto* page = document().page();
+    if (!page || page->usesEphemeralSession())
+        return emptyString();
+
     String storageDirectory = document().settings().mediaKeysStorageDirectory();
     if (storageDirectory.isEmpty())
         return emptyString();
@@ -4292,6 +4296,7 @@ URL HTMLMediaElement::selectNextSourceChild(ContentType* contentType, String* ke
                 LOG(Media, "HTMLMediaElement::selectNextSourceChild(%p) - 'media' is %s", this, source->attributeWithoutSynchronization(mediaAttr).string().utf8().data());
 #endif
             auto* renderer = this->renderer();
+            LOG(MediaQueries, "HTMLMediaElement %p selectNextSourceChild evaluating media queries", this);
             if (!MediaQueryEvaluator { "screen", document(), renderer ? &renderer->style() : nullptr }.evaluate(*media))
                 goto CheckAgain;
         }
@@ -6365,9 +6370,9 @@ void HTMLMediaElement::updateSleepDisabling()
     if (shouldDisableSleep == SleepType::None && m_sleepDisabler)
         m_sleepDisabler = nullptr;
     else if (shouldDisableSleep != SleepType::None) {
-        auto type = shouldDisableSleep == SleepType::Display ? SleepDisabler::Type::Display : SleepDisabler::Type::System;
+        auto type = shouldDisableSleep == SleepType::Display ? PAL::SleepDisabler::Type::Display : PAL::SleepDisabler::Type::System;
         if (!m_sleepDisabler || m_sleepDisabler->type() != type)
-            m_sleepDisabler = SleepDisabler::create("com.apple.WebCore: HTMLMediaElement playback", type);
+            m_sleepDisabler = PAL::SleepDisabler::create("com.apple.WebCore: HTMLMediaElement playback", type);
     }
 
     if (m_player)

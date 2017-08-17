@@ -35,8 +35,8 @@
 #import "PreviewConverter.h"
 #import "PreviewLoaderClient.h"
 #import "QuickLook.h"
-#import "QuickLookSPI.h"
 #import "ResourceLoader.h"
+#import <pal/spi/ios/QuickLookSPI.h>
 #import <wtf/NeverDestroyed.h>
 
 using namespace WebCore;
@@ -209,6 +209,9 @@ bool PreviewLoader::shouldCreateForMIMEType(const String& mimeType)
         for (NSString *mimeType in QLPreviewGetSupportedMIMETypesSet())
             supportedMIMETypes.get().add(mimeType);
     });
+
+    if (mimeType.isNull())
+        return false;
 
     return supportedMIMETypes.get().contains(mimeType);
 }

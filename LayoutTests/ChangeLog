@@ -1,3 +1,644 @@
+2017-08-17  Ms2ger  <Ms2ger@gmail.com>
+
+        REGRESSION(r220751): [GTK] Layout Test imported/w3c/web-platform-tests/fetch/api/basic/scheme-about.any.html is failing
+        https://bugs.webkit.org/show_bug.cgi?id=175641
+
+        Unreviewed test gardening.
+
+        Correct the error message in scheme-about.any-expected.txt.
+
+        * platform/gtk/imported/w3c/web-platform-tests/fetch/api/basic/scheme-about.any-expected.txt:
+
+2017-08-17  Ms2ger  <Ms2ger@gmail.com>
+
+        [GTK] Unreviewed test gardening
+        https://bugs.webkit.org/show_bug.cgi?id=175664
+
+        Unreviewed test gardening.
+
+        * platform/gtk/TestExpectations: update.
+        * platform/gtk/crypto/subtle/rsa-generate-key-malformed-parameters-expected.txt: rebaseline for change in r220811.
+        * platform/wpe/crypto/subtle/rsa-generate-key-malformed-parameters-expected.txt: rebaseline for change in r220811.
+
+2017-08-16  Ryosuke Niwa  <rniwa@webkit.org>
+
+        Add the support for mutating clipboard data via DataTransferItemList
+        https://bugs.webkit.org/show_bug.cgi?id=175639
+
+        Reviewed by Wenson Hsieh.
+
+        Rebaselined the IDL test which now passes all test cases, and added a regression test for mutating clipboard data
+        via dataTransfer.items and methods on dataTransfer for plaintext.
+
+        * editing/pasteboard/datatransfer-idl-expected.txt:
+        * editing/pasteboard/datatransfer-items-copy-plaintext-expected.txt: Added.
+        * editing/pasteboard/datatransfer-items-copy-plaintext.html: Added.
+
+2017-08-16  Ryan Haddad  <ryanhaddad@apple.com>
+
+        Mark fullscreen/full-screen-iframe-legacy.html as flaky on Sierra WK1.
+        https://bugs.webkit.org/show_bug.cgi?id=175554
+
+        Unreviewed test gardening.
+
+        * platform/mac-wk1/TestExpectations:
+
+2017-08-16  Ryan Haddad  <ryanhaddad@apple.com>
+
+        Correct a typo in a test name.
+
+        Unreviewed test gardening.
+
+        * platform/mac/TestExpectations:
+
+2017-08-16  Ryan Haddad  <ryanhaddad@apple.com>
+
+        Rebaseline crypto/subtle/rsa-generate-key-malformed-parameters.html after r220811.
+
+        Unreviewed test gardening.
+
+        * platform/ios-11/crypto/subtle/rsa-generate-key-malformed-parameters-expected.txt:
+
+2017-08-16  Chris Dumez  <cdumez@apple.com>
+
+        Cross origin Beacon requests with a ArrayBuffer / ArrayBufferView payload should not do a CORS preflight
+        https://bugs.webkit.org/show_bug.cgi?id=175628
+        <rdar://problem/33919278>
+
+        Reviewed by Geoffrey Garen.
+
+        * http/tests/blink/sendbeacon/beacon-same-origin-expected.txt:
+        * http/wpt/fetch/fetch-request-arraybuffer-content-type-expected.txt:
+        * http/wpt/fetch/fetch-request-arraybuffer-content-type.html:
+        Rebaseline test due to revert of r220779.
+
+        * http/wpt/beacon/cors/cors-preflight-arraybufferview-failure-expected.txt: Removed.
+        * http/wpt/beacon/cors/cors-preflight-arraybufferview-failure.html: Removed.
+        Drop outdated test. CORS preflight failure is still covered by the corresponding Blob payload test.
+
+        * http/wpt/beacon/cors/cors-preflight-arraybufferview-success-expected.txt: Removed.
+        * http/wpt/beacon/cors/cors-preflight-arraybufferview-success.html: Removed.
+        * http/wpt/beacon/cors/crossorigin-arraybufferview-no-preflight-expected.txt: Added.
+        * http/wpt/beacon/cors/crossorigin-arraybufferview-no-preflight.html: Added.
+        Rename and update test so that it checks that we no longer do a CORS preflight for cross origin
+        beacons that have an ArrayBuffer payload.
+
+2017-08-16  Matt Baker  <mattbaker@apple.com>
+
+        Web Inspector: capture async stack trace when workers/main context posts a message
+        https://bugs.webkit.org/show_bug.cgi?id=167084
+        <rdar://problem/30033673>
+
+        Reviewed by Brian Burg.
+
+        Add a test to check for asynchronous stack trace data when the debugger
+        pauses inside a MessageEvent handler.
+
+        * inspector/debugger/async-stack-trace-expected.txt:
+        * inspector/debugger/async-stack-trace.html:
+        * inspector/debugger/resources/postMessage-echo.html: Added.
+
+2017-08-16  Sam Weinig  <sam@webkit.org>
+
+        [WebIDL] Remove the need for JSSubtleCryptoCustom.cpp
+        https://bugs.webkit.org/show_bug.cgi?id=175526
+
+        Reviewed by Chris Dumez.
+
+        * crypto/subtle/encrypt-malformed-parameters-expected.txt:
+        * crypto/subtle/export-key-malformed-parameters-expected.txt:
+        * crypto/subtle/generate-key-malformed-parameters-expected.txt:
+        * crypto/subtle/hkdf-derive-bits-malformed-parametrs-expected.txt:
+        * crypto/subtle/hmac-generate-key-malformed-parameters-expected.txt:
+        * crypto/subtle/import-key-malformed-parameters-expected.txt:
+        * crypto/subtle/pbkdf2-derive-bits-malformed-parametrs-expected.txt:
+        * crypto/subtle/rsa-generate-key-malformed-parameters-expected.txt:
+        * platform/mac-highsierra/crypto/subtle/rsa-generate-key-malformed-parameters-expected.txt:
+        Update expectations with improved error messages.
+
+2017-08-16  Eric Carlson  <eric.carlson@apple.com>
+
+        Consider allow gUM to be called from localhost without https
+        https://bugs.webkit.org/show_bug.cgi?id=173457
+        <rdar://problem/33900527>
+
+        Reviewed by Youenn Fablet.
+
+        * http/tests/media/media-stream/get-user-media-localhost-expected.txt: Added.
+        * http/tests/media/media-stream/get-user-media-localhost.html: Added.
+        * http/tests/media/media-stream/get-user-media-loopback-ip-expected.txt: Added.
+        * http/tests/media/media-stream/get-user-media-loopback-ip.html: Added.
+
+2017-08-16  Ryan Haddad  <ryanhaddad@apple.com>
+
+        Skip workers/wasm-hashset-many.html and workers/wasm-hashset-many-2.html
+        https://bugs.webkit.org/show_bug.cgi?id=175102
+
+        Unreviewed test gardening.
+
+        * platform/mac/TestExpectations:
+
+2017-08-16  Ryan Haddad  <ryanhaddad@apple.com>
+
+        Rebaseline js/dom/global-constructors-attributes.html.
+
+        Unreviewed test gardening.
+
+        * platform/mac-wk1/js/dom/global-constructors-attributes-expected.txt:
+
+2017-08-16  Fujii Hironori  <Hironori.Fujii@sony.com>
+
+        [HarfBuzz] Decomposed Vietnamese characters are rendered incorrectly
+        https://bugs.webkit.org/show_bug.cgi?id=174418
+
+        Reviewed by Michael Catanzaro.
+
+        * fast/text/international/vietnamese-nfd-expected.html: Added.
+        * fast/text/international/vietnamese-nfd.html: Added.
+
+2017-08-16  Chris Dumez  <cdumez@apple.com>
+
+        Unreviewed, rebaseline a few tests after r220779.
+
+        * http/tests/blink/sendbeacon/beacon-same-origin-expected.txt:
+        * http/wpt/beacon/cors/cors-preflight-arraybufferview-failure.html:
+        * http/wpt/beacon/cors/cors-preflight-arraybufferview-success.html:
+
+2017-08-15  Andy Estes  <aestes@apple.com>
+
+        [Payment Request] Import test suite from web-platform-tests
+        https://bugs.webkit.org/show_bug.cgi?id=175612
+        <rdar://problem/33906070>
+
+        Reviewed by Tim Horton.
+
+        * TestExpectations: Skipped payment-request tests that currently time out.
+
+2017-08-15  Ryosuke Niwa  <rniwa@webkit.org>
+
+        Make DataTransferItemList work with plain text entries
+        https://bugs.webkit.org/show_bug.cgi?id=175596
+
+        Reviewed by Wenson Hsieh.
+
+        Rebaselined the tests and added two regression tests for pasting plain text and dropping a plain text file.
+
+        Unfortunately, dropping a file is only supported by DumpRenderTree on Mac :( so it's disabled elsewhere.
+
+        * editing/pasteboard/datatransfer-idl-expected.txt: Rebaselined now that NoInterfaceObject has been dropped from
+        DataTransferItem.idl and DataTransferItemList.idl as expected.
+        * editing/pasteboard/datatransfer-idl.html: Fixed the bug that it wasn't testing IDL for DataTransferItem.
+        * editing/pasteboard/datatransfer-items-drop-plaintext-file-expected.txt: Added.
+        * editing/pasteboard/datatransfer-items-drop-plaintext-file.html: Added.
+        * editing/pasteboard/datatransfer-items-paste-plaintext-expected.txt: Added.
+        * editing/pasteboard/datatransfer-items-paste-plaintext.html: Added.
+        * editing/resources/text-pasteboard-data.txt: Added.
+        * platform/gtk/js/dom/global-constructors-attributes-expected.txt:
+        * platform/ios/TestExpectations:
+        * platform/mac-elcapitan-wk2/js/dom/global-constructors-attributes-expected.txt:
+        * platform/mac-elcapitan/js/dom/global-constructors-attributes-expected.txt:
+        * platform/mac-highsierra-wk1/js/dom/global-constructors-attributes-expected.txt:
+        * platform/mac-highsierra/js/dom/global-constructors-attributes-expected.txt:
+        * platform/mac/js/dom/global-constructors-attributes-expected.txt:
+        * platform/win/TestExpectations:
+        * platform/wk2/TestExpectations:
+        * platform/wpe/js/dom/global-constructors-attributes-expected.txt:
+
+2017-08-15  Chris Dumez  <cdumez@apple.com>
+
+        Fetch / Beacon: Use "application/octet-stream" Content-Type for payloads of type ArrayBuffer / ArrayBufferView
+        https://bugs.webkit.org/show_bug.cgi?id=175600
+
+        Reviewed by Youenn Fablet.
+
+        * http/wpt/fetch/fetch-request-arraybuffer-content-type-expected.txt: Added.
+        * http/wpt/fetch/fetch-request-arraybuffer-content-type.html: Added.
+        * platform/mac-highsierra/imported/w3c/web-platform-tests/fetch/api/basic/request-headers.any-expected.txt:
+        * platform/mac-highsierra/imported/w3c/web-platform-tests/fetch/api/basic/request-headers.any.worker-expected.txt:
+
+2017-08-15  Matt Lewis  <jlewis3@apple.com>
+
+        Skipped media/modern-media-controls/time-labels-support/elapsed-time.html.
+        <rdar://problem/33731086>
+
+        Unreviewed test gardening.
+
+        * platform/mac-highsierra/TestExpectations:
+
+2017-08-15  JF Bastien  <jfbastien@apple.com>
+
+        LayoutTests: test that an XMLHttpRequest with Content-Encoding: gzip is properly decompressed
+        https://bugs.webkit.org/show_bug.cgi?id=175579
+
+        Also test that without Content-Encoding proper sniffing takes place, and gzip
+        decoding occurs. This test is disabled and tracked by #175597.
+
+        Reviewed by Daniel Bates.
+
+        * TestExpectations:
+        * http/tests/xmlhttprequest/gzip-content-type-expected.txt: Added.
+        * http/tests/xmlhttprequest/gzip-content-type-no-content-encoding-expected.txt: Added.
+        * http/tests/xmlhttprequest/gzip-content-type-no-content-encoding.html: Added.
+        * http/tests/xmlhttprequest/gzip-content-type.html: Added.
+        * http/tests/xmlhttprequest/resources/gzip-lorem-no-content-encoding.php: Added.
+        * http/tests/xmlhttprequest/resources/gzip-lorem.php: Added.
+
+2017-08-15  Chris Dumez  <cdumez@apple.com>
+
+        Re-sync DOM Web-Platform-Tests from upstream
+        https://bugs.webkit.org/show_bug.cgi?id=175588
+
+        Reviewed by Youenn Fablet.
+
+        * platform/mac/TestExpectations:
+
+2017-08-15  Ryan Haddad  <ryanhaddad@apple.com>
+
+        Mark http/tests/loading/resourceLoadStatistics/clear-in-memory-and-persistent-store.html as flaky.
+        https://bugs.webkit.org/show_bug.cgi?id=175263
+
+        Unreviewed test gardening.
+
+        * platform/wk2/TestExpectations:
+
+2017-08-15  Ryan Haddad  <ryanhaddad@apple.com>
+
+        Mark fast/images/animated-gif-scrolling-crash.html as flaky.
+        https://bugs.webkit.org/show_bug.cgi?id=175345.
+
+        Unreviewed test gardening.
+
+        * platform/mac-wk1/TestExpectations:
+
+2017-08-15  Ryan Haddad  <ryanhaddad@apple.com>
+
+        Mark fast/mediacapturefromelement/CanvasCaptureMediaStream-webgl-events.html as flaky.
+        https://bugs.webkit.org/show_bug.cgi?id=175592
+
+        Unreviewed test gardening.
+
+        * platform/mac/TestExpectations:
+
+2017-08-15  Ryan Haddad  <ryanhaddad@apple.com>
+
+        Mark http/tests/appcache/deferred-events-delete-while-raising-timer.html as flaky.
+        https://bugs.webkit.org/show_bug.cgi?id=87633
+
+        Unreviewed test gardening.
+
+        * TestExpectations: Add expectation that was removed with r220750.
+
+2017-08-15  Youenn Fablet  <youenn@apple.com>
+
+        [Cache API] Adding generic support for CacheStorage and Cache methods
+        https://bugs.webkit.org/show_bug.cgi?id=175455
+
+        Reviewed by Chris Dumez.
+
+        * TestExpectations: Skipping a test that would timeout otherwise due to the current implementation limitations.
+
+2017-08-15  Chris Dumez  <cdumez@apple.com>
+
+        Implement quota limitation for keepalive Fetch requests
+        https://bugs.webkit.org/show_bug.cgi?id=175482
+
+        Reviewed by Sam Weinig and Youenn Fablet.
+
+        * fast/xmlhttprequest/xmlhttprequest-nonexistent-file-expected.txt:
+        * http/tests/contentextensions/async-xhr-onerror-expected.txt:
+        * http/tests/security/contentSecurityPolicy/block-all-mixed-content/insecure-xhr-asynchronous-in-iframe-expected.txt:
+        * http/tests/security/contentSecurityPolicy/block-all-mixed-content/insecure-xhr-asynchronous-in-main-frame-expected.txt:
+        * http/tests/security/mixedContent/insecure-xhr-in-main-frame-expected.txt:
+        Rebaseline a few tests now that we provide a more helpful error message when an XHR is failing synchronously.
+
+        * http/wpt/beacon/beacon-quota-expected.txt: Added.
+        * http/wpt/beacon/beacon-quota.html: Added.
+        Add layout test coverage for keepalive Fetch requests quota in the context of sendBeacon().
+        The second part of the test is still failing because WebCore does not currently know when
+        ping loads (e.g. beacon loads) complete. This will be addressed via Bug 175443.
+
+2017-08-15  Darin Adler  <darin@apple.com>
+
+        REGRESSION(r220052): http/tests/appcache/deferred-events-delete-while-raising-timer.html is crashing.
+        https://bugs.webkit.org/show_bug.cgi?id=175107
+
+        Reviewed by Alexey Proskuryakov.
+
+        * TestExpectations: Removed the flakiness expectation for this test.
+
+2017-08-15  Michael Catanzaro  <mcatanzaro@igalia.com>
+
+        Unreviewed GTK test gardening
+
+        * TestExpectations:
+        * platform/gtk/TestExpectations:
+        * platform/gtk/fast/events/input-events-paste-rich-datatransfer-expected.txt:
+        * platform/gtk/imported/w3c/web-platform-tests/eventsource/format-field-id-2-expected.txt: Added.
+        * platform/gtk/imported/w3c/web-platform-tests/eventsource/format-field-id-expected.txt: Added.
+        * platform/gtk/imported/w3c/web-platform-tests/eventsource/format-mime-bogus-expected.txt: Added.
+        * platform/ios/TestExpectations:
+        * platform/mac/TestExpectations:
+
+2017-08-15  Commit Queue  <commit-queue@webkit.org>
+
+        Unreviewed, rolling out r219504.
+        https://bugs.webkit.org/show_bug.cgi?id=175580
+
+        Broke Arabic text shaping (Requested by mcatanzaro on
+        #webkit).
+
+        Reverted changeset:
+
+        "[HarfBuzz] Decomposed Vietnamese characters are rendered
+        incorrectly"
+        https://bugs.webkit.org/show_bug.cgi?id=174418
+        http://trac.webkit.org/changeset/219504
+
+2017-08-14  Simon Fraser  <simon.fraser@apple.com>
+
+        Remove Proximity Events and related code
+        https://bugs.webkit.org/show_bug.cgi?id=175545
+
+        Reviewed by Daniel Bates.
+
+        No platform enables Proximity Events, so remove code inside ENABLE(PROXIMITY_EVENTS)
+        and other related code.
+
+        * fast/events/constructors/device-proximity-event-constructor-expected.txt: Removed.
+        * fast/events/constructors/device-proximity-event-constructor.html: Removed.
+        * platform/gtk/TestExpectations:
+        * platform/ios/TestExpectations:
+        * platform/mac/TestExpectations:
+        * platform/win/TestExpectations:
+        * proximity/add-listener-from-callback-expected.txt: Removed.
+        * proximity/add-listener-from-callback.html: Removed.
+        * proximity/basic-operation-expected.txt: Removed.
+        * proximity/basic-operation.html: Removed.
+        * proximity/check-event-deviceproximity-expected.txt: Removed.
+        * proximity/check-event-deviceproximity.html: Removed.
+        * proximity/create-event-deviceproximity-expected.txt: Removed.
+        * proximity/create-event-deviceproximity.html: Removed.
+        * proximity/create-event-expected.txt: Removed.
+        * proximity/create-event.html: Removed.
+        * proximity/event-after-navigation-expected.txt: Removed.
+        * proximity/event-after-navigation.html: Removed.
+        * proximity/multiple-frames-expected.txt: Removed.
+        * proximity/multiple-frames.html: Removed.
+        * proximity/no-page-cache-expected.txt: Removed.
+        * proximity/no-page-cache.html: Removed.
+        * proximity/optional-event-properties-expected.txt: Removed.
+        * proximity/optional-event-properties.html: Removed.
+        * proximity/resources/cached-page-1.html: Removed.
+        * proximity/resources/cached-page-2.html: Removed.
+        * proximity/resources/event-after-navigation-new.html: Removed.
+        * proximity/updates-expected.txt: Removed.
+        * proximity/updates.html: Removed.
+        * proximity/window-property-expected.txt: Removed.
+        * proximity/window-property.html: Removed.
+
+2017-08-14  Chris Dumez  <cdumez@apple.com>
+
+        Import eventsource Web-Platform-Tests
+        https://bugs.webkit.org/show_bug.cgi?id=175556
+
+        Reviewed by Youenn Fablet.
+
+        * tests-options.json:
+
+2017-08-14  Chris Dumez  <cdumez@apple.com>
+
+        XHR should only fire an abort event if the cancellation was requested by the client
+        https://bugs.webkit.org/show_bug.cgi?id=175546
+
+        Reviewed by Youenn Fablet.
+
+        * http/tests/navigation/page-cache-xhr-expected.txt:
+        * http/tests/navigation/page-cache-xhr-in-pagehide-expected.txt: Copied from LayoutTests/http/tests/navigation/page-cache-xhr-expected.txt.
+        * http/tests/navigation/page-cache-xhr-in-pagehide.html: Copied from LayoutTests/http/tests/navigation/page-cache-xhr.html.
+        * http/tests/navigation/page-cache-xhr.html:
+        When an XHR is pending and navigating away, we would send an abort event before the navigation and an error event after
+        restoring from PageCache. This bug was not seen before because the test only checked for error events, not abort ones.
+        The expected behavior is now that we fire an error event before navigating away, similar to the non-PageCache case.
+        The only case where the error event should be fired after restoring from PageCache is when an XHR is done in the pagehide
+        event handler, because it is too late to send the error event to the page before navigating in this case. I added test
+        coverage for this case.
+
+        * http/tests/xmlhttprequest/navigation-should-abort-expected.txt:
+        * http/tests/xmlhttprequest/navigation-should-abort.html:
+        This test was expecting an abort event on navigation which is against spec. This test was failing in Blink too.
+        Update the test to expect an error event instead.
+
+2017-08-14  Simon Fraser  <simon.fraser@apple.com>
+
+        Remove ENABLE_VIEW_MODE_CSS_MEDIA and related code
+        https://bugs.webkit.org/show_bug.cgi?id=175557
+
+        Reviewed by Jon Lee.
+
+        No port cares about the ENABLE(VIEW_MODE_CSS_MEDIA) feature, so remove it.
+
+        * fast/media/media-query-list-02-expected.txt: Removed.
+        * fast/media/media-query-list-02.html: Removed.
+        * fast/media/media-query-list-03-expected.txt: Removed.
+        * fast/media/media-query-list-03.html: Removed.
+        * fast/media/media-query-list-04-expected.txt: Removed.
+        * fast/media/media-query-list-04.html: Removed.
+        * fast/media/media-query-list-05-expected.txt: Removed.
+        * fast/media/media-query-list-05.html: Removed.
+        * fast/media/media-query-list-06-expected.txt: Removed.
+        * fast/media/media-query-list-06.html: Removed.
+        * fast/media/view-mode-media-feature-expected.html: Removed.
+        * fast/media/view-mode-media-feature.html: Removed.
+        * platform/gtk/TestExpectations:
+        * platform/ios-wk2/TestExpectations:
+        * platform/ios/TestExpectations:
+        * platform/mac/TestExpectations:
+        * platform/win/TestExpectations:
+
+2017-08-14  Ryan Haddad  <ryanhaddad@apple.com>
+
+        Rebaseline editing/mac/input/firstrectforcharacterrange-styled.html.
+
+        Unreviewed test gardening.
+
+        * platform/mac-highsierra/editing/mac/input/firstrectforcharacterrange-styled-expected.txt: Added.
+
+2017-08-14  Myles C. Maxfield  <mmaxfield@apple.com>
+
+        Parse font-display
+        https://bugs.webkit.org/show_bug.cgi?id=175382
+
+        Reviewed by Simon Fraser.
+
+        * fast/text/font-display/parse-expected.txt: Added.
+        * fast/text/font-display/parse.html: Added.
+
+2017-08-14  Andy Estes  <aestes@apple.com>
+
+        [Apple Pay] Add support for phonetic contact names
+        https://bugs.webkit.org/show_bug.cgi?id=175537
+        <rdar://problem/32002644>
+
+        Reviewed by Tim Horton.
+
+        * http/tests/ssl/applepay/ApplePayError-expected.txt:
+        * http/tests/ssl/applepay/ApplePayError.html:
+        * http/tests/ssl/applepay/ApplePaySession-expected.txt:
+        * http/tests/ssl/applepay/ApplePaySession.html:
+        * http/tests/ssl/applepay/ApplePaySessionV3-expected.txt:
+        * http/tests/ssl/applepay/ApplePaySessionV3.html:
+
+2017-08-14  Said Abou-Hallawa  <sabouhallawa@apple.com>
+
+        The none smooth stroke applied to an SVG shape breaks its hit testing
+        https://bugs.webkit.org/show_bug.cgi?id=175506
+
+        Reviewed by Simon Fraser.
+
+        * svg/stroke/stroke-linejoin-click-expected.html: Added.
+        * svg/stroke/stroke-linejoin-click.html: Added.
+
+2017-08-14  Daniel Bates  <dabates@apple.com>
+
+        [css-ui] Implement caret-color support
+        https://bugs.webkit.org/show_bug.cgi?id=166572
+        <rdar://problem/33852589>
+
+        Update GTK expected results following r220706.
+
+        * platform/gtk/editing/style/5065910-expected.txt:
+        * platform/gtk/editing/style/5084241-expected.txt:
+
+2017-08-14  Chris Dumez  <cdumez@apple.com>
+
+        Unreviewed, rollout r220622 & r220696
+        https://bugs.webkit.org/show_bug.cgi?id=175482
+        <rdar://problem/33860695>
+
+        Seems to have caused failures on iOS.
+
+        * fast/xmlhttprequest/xmlhttprequest-nonexistent-file-expected.txt:
+        * http/tests/contentextensions/async-xhr-onerror-expected.txt:
+        * http/tests/security/contentSecurityPolicy/block-all-mixed-content/insecure-xhr-asynchronous-in-iframe-expected.txt:
+        * http/tests/security/contentSecurityPolicy/block-all-mixed-content/insecure-xhr-asynchronous-in-main-frame-expected.txt:
+        * http/tests/security/mixedContent/insecure-xhr-in-main-frame-expected.txt:
+        * http/wpt/beacon/beacon-quota-expected.txt: Removed.
+        * http/wpt/beacon/beacon-quota.html: Removed.
+        * inspector/worker/resources-in-worker-expected.txt:
+        * platform/mac-wk1/imported/w3c/web-platform-tests/fetch/api/request/request-cache-only-if-cached-expected.txt:
+        * platform/mac-wk1/imported/w3c/web-platform-tests/fetch/http-cache/cc-request-expected.txt:
+
+2017-08-14  Daniel Bates  <dabates@apple.com>
+
+        [css-ui] Implement caret-color support
+        https://bugs.webkit.org/show_bug.cgi?id=166572
+        <rdar://problem/33852589>
+
+        Reviewed by David Hyatt.
+
+        Add reference tests to ensure that we do not regress CSS property caret-color.
+
+        * TestExpectations: Unskip Web Platform Tests that now pass.
+        * editing/deleting/maintain-style-after-delete-expected.txt: Updated expected result.
+        * editing/inserting/insert-paragraph-with-font-and-background-color-expected.txt: Ditto.
+        * editing/pasteboard/do-not-copy-unnecessary-styles-2-expected.txt: Ditto.
+        * editing/pasteboard/onpaste-text-html-expected.txt: Ditto.
+        * editing/pasteboard/preserve-caret-color-expected.txt: Added.
+        * editing/pasteboard/preserve-caret-color.html: Added.
+        * editing/pasteboard/preserve-underline-color-expected.txt:
+        * fast/css/caret-color-auto-expected.html: Added.
+        * fast/css/caret-color-auto.html: Added.
+        * fast/css/caret-color-expected.html: Added.
+        * fast/css/caret-color-fallback-to-color-expected.html: Added.
+        * fast/css/caret-color-fallback-to-color.html: Added.
+        * fast/css/caret-color-inherit-expected.html: Added.
+        * fast/css/caret-color-inherit.html: Added.
+        * fast/css/caret-color-span-inside-editable-parent-expected.html: Added.
+        * fast/css/caret-color-span-inside-editable-parent.html: Added.
+        * fast/css/caret-color.html: Added.
+        * fast/events/before-input-events-prevent-drag-and-drop-expected.txt: Updated expected result.
+        * fast/events/input-events-paste-rich-datatransfer-expected.txt: Ditto.
+        * fast/events/ondrop-text-html-expected.txt: Ditto.
+        * fast/history/visited-link-caret-color-expected.html: Added.
+        * fast/history/visited-link-caret-color.html: Added.
+        * platform/ios/TestExpectations: Skip the tests on iOS as iOS does not enable
+        ENABLE(TEXT_CARET). UIKit renders the text insertion caret on iOS.
+        * platform/mac/editing/style/5065910-expected.txt: Updated expected result.
+        * platform/mac/editing/style/5084241-expected.png: Ditto.
+        * platform/mac/editing/style/5084241-expected.txt: Ditto.
+        * platform/ios-wk2/editing/style/5084241-expected.txt: Ditto.
+
+2017-08-14  Zan Dobersek  <zdobersek@igalia.com>
+
+        REGRESSION(r220517-r220521) [GTK] Various compositing tests fail
+        https://bugs.webkit.org/show_bug.cgi?id=175478
+
+        Reviewed by Sergio Villar Senin.
+
+        * platform/gtk/TestExpectations: Remove failure and flakiness expectations.
+
+2017-08-14  Ms2ger  <Ms2ger@igalia.com>
+
+        GTK-focused gardening.
+        https://bugs.webkit.org/show_bug.cgi?id=175529
+
+        Unreviewed test gardening.
+
+        * http/wpt/css/css-pseudo-4/marker-font-properties-expected.html: Set line-height for more reliable rendering.
+        * http/wpt/css/css-pseudo-4/marker-font-properties.html: Set line-height for more reliable rendering.
+        * media/video-fullscreen-restriction-removed-expected.txt: DOMException's toString was changed in r219663; rebaseline. (The test is marked as flaky on mac.)
+        * platform/gtk/TestExpectations:
+        * platform/gtk/http/tests/dom/document-attributes-null-handling-expected.txt: SecurityError got a new message in r220376; rebaseline.
+        * platform/gtk/imported/w3c/web-platform-tests/FileAPI/historical.https-expected.txt: Added: GTK does not yet enable the in-progress ServiceWorker implementation.
+        * platform/gtk/imported/w3c/web-platform-tests/fetch/api/basic/scheme-about.any-expected.txt: TypeError got a new message in r220622; rebaseline.
+        * platform/gtk/imported/w3c/web-platform-tests/fetch/api/basic/scheme-about.any.worker-expected.txt: Added: TypeError uses a different message on GTK.
+
+2017-08-14  Ms2ger  <Ms2ger@igalia.com>
+
+        [GTK] Update some test expectations.
+        https://bugs.webkit.org/show_bug.cgi?id=175480
+
+        Unreviewed test gardening.
+
+        * platform/gtk/TestExpectations:
+        * platform/gtk/imported/w3c/web-platform-tests/html/semantics/selectors/pseudo-classes/inrange-outofrange-expected.txt: Added.
+        * platform/gtk/imported/w3c/web-platform-tests/webrtc/simplecall-expected.txt: Added.
+
+2017-08-14  Antti Koivisto  <antti@apple.com>
+
+        [Render Tree Mutation] First letter should not mutate the render tree while in layout.
+        https://bugs.webkit.org/show_bug.cgi?id=163848
+        <rdar://problem/33402718>
+
+        Reviewed by Zalan Bujtas.
+
+        * fast/text-autosizing/ios/first-letter-expected.html: Added.
+
+            Turn into reftest for easier debugging and robustness.
+
+        * imported/blink/fast/css/first-letter-range-insert-expected.txt:
+
+            This is crash-or-assert test and the output change here doesn't matter.
+
+        * platform/ios/fast/text-autosizing/ios/first-letter-expected.txt: Removed.
+        * platform/mac/fast/text-autosizing/ios/first-letter-expected.txt: Removed.
+
+2017-08-13  Manuel Rego Casasnovas  <rego@igalia.com>
+
+        Composition underline color is always black
+        https://bugs.webkit.org/show_bug.cgi?id=174675
+
+        Reviewed by Ryosuke Niwa.
+
+        Added new test to check that the composition underline
+        is using the text color.
+        The test hides the text and the caret, so it only shows
+        the composition underline and checks against an -expected-mismatch
+        that the color of the composition marker is different.
+
+        * editing/composition-underline-color-expected-mismatch.html: Added.
+        * editing/composition-underline-color.html: Added.
+
 2017-08-11  Ryosuke Niwa  <rniwa@webkit.org>
 
         Replace DATA_TRANSFER_ITEMS by a runtime flag and add a stub implementation

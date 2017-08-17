@@ -263,6 +263,7 @@ private:
     FormData(const FormData&);
 
     void appendKeyValuePairItems(const FormDataList&, const TextEncoding&, bool isMultiPartForm, Document*, EncodingType = FormURLEncoded);
+
     bool hasGeneratedFiles() const;
     bool hasOwnedGeneratedFiles() const;
 

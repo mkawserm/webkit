@@ -1,3 +1,609 @@
+2017-08-17  Yusuke Suzuki  <utatane.tea@gmail.com>
+
+        [JSC] Avoid code bloating for iteration if block does not have "break"
+        https://bugs.webkit.org/show_bug.cgi?id=173228
+
+        Reviewed by Keith Miller.
+
+        Currently, we always emit code for breaked path when emitting for-of iteration.
+        But we can know that this breaked path can be used when emitting the bytecode.
+
+        This patch adds LabelScope::breakTargetMayBeBound(), which returns true if
+        the break label may be bound. We emit a breaked path only when it returns
+        true. This reduces bytecode bloating when using for-of iteration.
+
+        * bytecompiler/BytecodeGenerator.cpp:
+        (JSC::Label::setLocation):
+        (JSC::BytecodeGenerator::newLabel):
+        (JSC::BytecodeGenerator::emitLabel):
+        (JSC::BytecodeGenerator::pushFinallyControlFlowScope):
+        (JSC::BytecodeGenerator::breakTarget):
+        (JSC::BytecodeGenerator::continueTarget):
+        (JSC::BytecodeGenerator::emitEnumeration):
+        * bytecompiler/BytecodeGenerator.h:
+        * bytecompiler/Label.h:
+        (JSC::Label::bind const):
+        (JSC::Label::hasOneRef const):
+        (JSC::Label::isBound const):
+        (JSC::Label::Label): Deleted.
+        * bytecompiler/LabelScope.h:
+        (JSC::LabelScope::hasOneRef const):
+        (JSC::LabelScope::breakTargetMayBeBound const):
+        * bytecompiler/NodesCodegen.cpp:
+        (JSC::ContinueNode::trivialTarget):
+        (JSC::ContinueNode::emitBytecode):
+        (JSC::BreakNode::trivialTarget):
+        (JSC::BreakNode::emitBytecode):
+
+2017-08-17  Csaba Osztrogonác  <ossy@webkit.org>
+
+        ARM build fix after r220807 and r220834.
+        https://bugs.webkit.org/show_bug.cgi?id=175617
+
+        Unreviewed typo fix.
+
+        * assembler/MacroAssemblerARM.cpp:
+
+2017-08-17  Mark Lam  <mark.lam@apple.com>
+
+        Gardening: build fix for ARM_TRADITIONAL after r220807.
+        https://bugs.webkit.org/show_bug.cgi?id=175617
+
+        Not reviewed.
+
+        * assembler/MacroAssemblerARM.cpp:
+
+2017-08-16  Mark Lam  <mark.lam@apple.com>
+
+        Add back the ability to disable MASM_PROBE from the build.
+        https://bugs.webkit.org/show_bug.cgi?id=175656
+        <rdar://problem/33933720>
+
+        Reviewed by Yusuke Suzuki.
+
+        This is needed for ports that the existing MASM_PROBE implementation doesn't work
+        well with e.g. GTK with ARM_THUMB2.  Note that if the DFG_JIT will be disabled by
+        default if !ENABLE(MASM_PROBE).
+
+        * assembler/AbstractMacroAssembler.h:
+        * assembler/MacroAssembler.cpp:
+        * assembler/MacroAssembler.h:
+        * assembler/MacroAssemblerARM.cpp:
+        * assembler/MacroAssemblerARM64.cpp:
+        * assembler/MacroAssemblerARMv7.cpp:
+        * assembler/MacroAssemblerPrinter.cpp:
+        * assembler/MacroAssemblerPrinter.h:
+        * assembler/MacroAssemblerX86Common.cpp:
+        * assembler/testmasm.cpp:
+        (JSC::run):
+        * b3/B3LowerToAir.cpp:
+        * b3/air/AirPrintSpecial.cpp:
+        * b3/air/AirPrintSpecial.h:
+
+2017-08-16  Dan Bernstein  <mitz@apple.com>
+
+        [Cocoa] Older-iOS install name symbols are being exported on other platforms
+        https://bugs.webkit.org/show_bug.cgi?id=175654
+
+        Reviewed by Tim Horton.
+
+        * API/JSBase.cpp: Define the symbols only when targeting iOS.
+
+2017-08-16  Matt Baker  <mattbaker@apple.com>
+
+        Web Inspector: capture async stack trace when workers/main context posts a message
+        https://bugs.webkit.org/show_bug.cgi?id=167084
+        <rdar://problem/30033673>
+
+        Reviewed by Brian Burg.
+
+        * inspector/agents/InspectorDebuggerAgent.h:
+        Add `PostMessage` async call type.
+
+2017-08-16  Mark Lam  <mark.lam@apple.com>
+
+        Enhance MacroAssembler::probe() to support an initializeStackFunction callback.
+        https://bugs.webkit.org/show_bug.cgi?id=175617
+        <rdar://problem/33912104>
+
+        Reviewed by JF Bastien.
+
+        This patch adds a new feature to MacroAssembler::probe() where the probe function
+        can provide a ProbeFunction callback to fill in stack values after the stack
+        pointer has been adjusted.  The probe function can use this feature as follows:
+
+        1. Set the new sp value in the ProbeContext's CPUState.
+
+        2. Set the ProbeContext's initializeStackFunction to a ProbeFunction callback
+           which will do the work of filling in the stack values after the probe
+           trampoline has adjusted the machine stack pointer.
+
+        3. Set the ProbeContext's initializeStackArgs to any value that the client wants
+           to pass to the initializeStackFunction callback.
+
+        4. Return from the probe function.
+
+        Upon returning from the probe function, the probe trampoline will adjust the
+        the stack pointer based on the sp value in CPUState.  If initializeStackFunction
+        is not set, the probe trampoline will restore registers and return to its caller.
+
+        If initializeStackFunction is set, the trampoline will move the ProbeContext
+        beyond the range of the stack pointer i.e. it will place the new ProbeContext at
+        an address lower than where CPUState.sp() points.  This ensures that the
+        ProbeContext will not be trashed by the initializeStackFunction when it writes to
+        the stack.  Then, the trampoline will call back to the initializeStackFunction
+        ProbeFunction to let it fill in the stack values as desired.  The
+        initializeStackFunction ProbeFunction will be passed the moved ProbeContext at
+        the new location.
+
+        initializeStackFunction may now write to the stack at addresses greater or
+        equal to CPUState.sp(), but not below that.  initializeStackFunction is also
+        not allowed to change CPUState.sp().  If the initializeStackFunction does not
+        abide by these rules, then behavior is undefined, and bad things may happen.
+
+        For future reference, some implementation details that this patch needed to
+        be mindful of:
+
+        1. When the probe trampoline allocates stack space for the ProbeContext, it
+           should include OUT_SIZE as well.  This ensures that it doesn't have to move
+           the ProbeContext on exit if the probe function didn't change the sp.
+
+        2. If the trampoline has to move the ProbeContext, it needs to point the machine
+           sp to new ProbeContext first before copying over the ProbeContext data.  This
+           protects the new ProbeContext from possibly being trashed by interrupts.
+
+        3. When computing the new address of ProbeContext to move to, we need to make
+           sure that it is properly aligned in accordance with stack ABI requirements
+           (just like we did when we allocated the ProbeContext on entry to the
+           probe trampoline).
+
+        4. When copying the ProbeContext to its new location, the trampoline should
+           always copy words from low addresses to high addresses.  This is because if
+           we're moving the ProbeContext, we'll always be moving it to a lower address.
+
+        * assembler/MacroAssembler.h:
+        * assembler/MacroAssemblerARM.cpp:
+        * assembler/MacroAssemblerARM64.cpp:
+        * assembler/MacroAssemblerARMv7.cpp:
+        * assembler/MacroAssemblerX86Common.cpp:
+        * assembler/testmasm.cpp:
+        (JSC::testProbePreservesGPRS):
+        (JSC::testProbeModifiesStackPointer):
+        (JSC::fillStack):
+        (JSC::testProbeModifiesStackWithCallback):
+        (JSC::run):
+
+2017-08-16  Csaba Osztrogonác  <ossy@webkit.org>
+
+        Fix JSCOnly ARM buildbots after r220047 and r220184
+        https://bugs.webkit.org/show_bug.cgi?id=174993
+
+        Reviewed by Carlos Alberto Lopez Perez.
+
+        * CMakeLists.txt: Generate only one backend on Linux to save build time.
+
+2017-08-16  Andy Estes  <aestes@apple.com>
+
+        [Payment Request] Add an ENABLE flag and an experimental feature preference
+        https://bugs.webkit.org/show_bug.cgi?id=175622
+
+        Reviewed by Tim Horton.
+
+        * Configurations/FeatureDefines.xcconfig:
+
+2017-08-15  Robin Morisset  <rmorisset@apple.com>
+
+        We are too conservative about the effects of PushWithScope
+        https://bugs.webkit.org/show_bug.cgi?id=175584
+
+        Reviewed by Saam Barati.
+
+        PushWithScope converts its argument to an object (this can throw a type error,
+        but has no other observable effect), and allocates a new scope, that it then
+        makes the new current scope. We were a bit too
+        conservative in saying that it clobbers the world.
+
+        * dfg/DFGAbstractInterpreterInlines.h:
+        (JSC::DFG::AbstractInterpreter<AbstractStateType>::executeEffects):
+        * dfg/DFGClobberize.h:
+        (JSC::DFG::clobberize):
+        * dfg/DFGDoesGC.cpp:
+        (JSC::DFG::doesGC):
+
+2017-08-15  Ryosuke Niwa  <rniwa@webkit.org>
+
+        Make DataTransferItemList work with plain text entries
+        https://bugs.webkit.org/show_bug.cgi?id=175596
+
+        Reviewed by Wenson Hsieh.
+
+        Added DataTransferItem as a common identifier since it's a runtime enabled feature.
+
+        * runtime/CommonIdentifiers.h:
+
+2017-08-15  Robin Morisset  <rmorisset@apple.com>
+
+        Support the 'with' keyword in FTL
+        https://bugs.webkit.org/show_bug.cgi?id=175585
+
+        Reviewed by Saam Barati.
+
+        Also makes sure that the order of arguments of PushWithScope, op_push_with_scope, JSWithScope::create()
+        and so on is consistent (always parentScope first, the new scopeObject second). We used to go from one
+        to the other at different step which was quite confusing. I picked this order for consistency with CreateActivation
+        that takes its parentScope argument first.
+
+        * bytecompiler/BytecodeGenerator.cpp:
+        (JSC::BytecodeGenerator::emitPushWithScope):
+        * debugger/DebuggerCallFrame.cpp:
+        (JSC::DebuggerCallFrame::evaluateWithScopeExtension):
+        * dfg/DFGByteCodeParser.cpp:
+        (JSC::DFG::ByteCodeParser::parseBlock):
+        * dfg/DFGFixupPhase.cpp:
+        (JSC::DFG::FixupPhase::fixupNode):
+        * dfg/DFGSpeculativeJIT.cpp:
+        (JSC::DFG::SpeculativeJIT::compilePushWithScope):
+        * ftl/FTLCapabilities.cpp:
+        (JSC::FTL::canCompile):
+        * ftl/FTLLowerDFGToB3.cpp:
+        (JSC::FTL::DFG::LowerDFGToB3::compileNode):
+        (JSC::FTL::DFG::LowerDFGToB3::compilePushWithScope):
+        * jit/JITOperations.cpp:
+        * runtime/CommonSlowPaths.cpp:
+        (JSC::SLOW_PATH_DECL):
+        * runtime/Completion.cpp:
+        (JSC::evaluateWithScopeExtension):
+        * runtime/JSWithScope.cpp:
+        (JSC::JSWithScope::create):
+        * runtime/JSWithScope.h:
+
+2017-08-15  Saam Barati  <sbarati@apple.com>
+
+        Make VM::scratchBufferForSize thread safe
+        https://bugs.webkit.org/show_bug.cgi?id=175604
+
+        Reviewed by Geoffrey Garen and Mark Lam.
+
+        I want to use the VM::scratchBufferForSize in another patch I'm writing.
+        The use case for my other patch is to call it from the compiler thread.
+        When reading the code, I saw that this API was not thread safe. This patch
+        makes it thread safe. It actually turns out we were calling this API from
+        the compiler thread already when we created FTL::State for an FTL OSR entry
+        compilation, and from FTLLowerDFGToB3. That code was racy and wrong, but
+        is now correct with this patch.
+
+        * runtime/VM.cpp:
+        (JSC::VM::VM):
+        (JSC::VM::~VM):
+        (JSC::VM::gatherConservativeRoots):
+        (JSC::VM::scratchBufferForSize):
+        * runtime/VM.h:
+        (JSC::VM::scratchBufferForSize): Deleted.
+
+2017-08-15  Keith Miller  <keith_miller@apple.com>
+
+        JSC named bytecode offsets should use references rather than pointers
+        https://bugs.webkit.org/show_bug.cgi?id=175601
+
+        Reviewed by Saam Barati.
+
+        * dfg/DFGByteCodeParser.cpp:
+        (JSC::DFG::ByteCodeParser::parseBlock):
+        * jit/JITOpcodes.cpp:
+        (JSC::JIT::emit_op_overrides_has_instance):
+        (JSC::JIT::emit_op_instanceof):
+        (JSC::JIT::emitSlow_op_instanceof):
+        (JSC::JIT::emitSlow_op_instanceof_custom):
+        * jit/JITOpcodes32_64.cpp:
+        (JSC::JIT::emit_op_overrides_has_instance):
+        (JSC::JIT::emit_op_instanceof):
+        (JSC::JIT::emitSlow_op_instanceof):
+        (JSC::JIT::emitSlow_op_instanceof_custom):
+
+2017-08-15  Keith Miller  <keith_miller@apple.com>
+
+        Enable named offsets into JSC bytecodes
+        https://bugs.webkit.org/show_bug.cgi?id=175561
+
+        Reviewed by Mark Lam.
+
+        This patch adds the ability to add named offsets into JSC's
+        bytecodes.  In the bytecode json file, instead of listing a
+        length, you can now list a set of names and their types. Each
+        opcode with an offsets property will have a struct named after the
+        opcode by in our C++ naming style. For example,
+        op_overrides_has_instance would become OpOverridesHasInstance. The
+        struct has the same memory layout as the instruction list has but
+        comes with handy named accessors.
+
+        As a first cut I converted the various instanceof bytecodes to use
+        named offsets.
+
+        As an example op_overrides_has_instance produces the following struct:
+
+        struct OpOverridesHasInstance {
+        public:
+            Opcode& opcode() { return *reinterpret_cast<Opcode*>(&m_opcode); }
+            const Opcode& opcode() const { return *reinterpret_cast<const Opcode*>(&m_opcode); }
+            int& dst() { return *reinterpret_cast<int*>(&m_dst); }
+            const int& dst() const { return *reinterpret_cast<const int*>(&m_dst); }
+            int& constructor() { return *reinterpret_cast<int*>(&m_constructor); }
+            const int& constructor() const { return *reinterpret_cast<const int*>(&m_constructor); }
+            int& hasInstanceValue() { return *reinterpret_cast<int*>(&m_hasInstanceValue); }
+            const int& hasInstanceValue() const { return *reinterpret_cast<const int*>(&m_hasInstanceValue); }
+
+        private:
+            friend class LLIntOffsetsExtractor;
+            std::aligned_storage<sizeof(Opcode), sizeof(Instruction)>::type m_opcode;
+            std::aligned_storage<sizeof(int), sizeof(Instruction)>::type m_dst;
+            std::aligned_storage<sizeof(int), sizeof(Instruction)>::type m_constructor;
+            std::aligned_storage<sizeof(int), sizeof(Instruction)>::type m_hasInstanceValue;
+        };
+
+        * CMakeLists.txt:
+        * DerivedSources.make:
+        * JavaScriptCore.xcodeproj/project.pbxproj:
+        * bytecode/BytecodeList.json:
+        * dfg/DFGByteCodeParser.cpp:
+        (JSC::DFG::ByteCodeParser::parseBlock):
+        * generate-bytecode-files:
+        * jit/JITOpcodes.cpp:
+        (JSC::JIT::emit_op_overrides_has_instance):
+        (JSC::JIT::emit_op_instanceof):
+        (JSC::JIT::emitSlow_op_instanceof):
+        (JSC::JIT::emitSlow_op_instanceof_custom):
+        * jit/JITOpcodes32_64.cpp:
+        (JSC::JIT::emit_op_overrides_has_instance):
+        (JSC::JIT::emit_op_instanceof):
+        (JSC::JIT::emitSlow_op_instanceof):
+        (JSC::JIT::emitSlow_op_instanceof_custom):
+        * llint/LLIntOffsetsExtractor.cpp:
+        * llint/LowLevelInterpreter.asm:
+        * llint/LowLevelInterpreter32_64.asm:
+        * llint/LowLevelInterpreter64.asm:
+
+2017-08-15  Mark Lam  <mark.lam@apple.com>
+
+        Update testmasm to use new CPUState APIs.
+        https://bugs.webkit.org/show_bug.cgi?id=175573
+
+        Reviewed by Keith Miller.
+
+        1. Applied convenience CPUState accessors to minimize casting.
+        2. Converted the CHECK macro to CHECK_EQ to get more friendly failure debugging
+           messages.
+        3. Removed the CHECK_DOUBLE_BITWISE_EQ macro.  We can just use CHECK_EQ now since
+           casting is (mostly) no longer an issue.
+        4. Replaced the use of testDoubleWord(id) with bitwise_cast<double>(testWord64(id))
+           to make it clear that we're comparing against the bit values of testWord64(id).
+        5. Added a "Completed N tests" message at the end of running all tests.
+           This makes it easy to tell at a glance that testmasm completed successfully
+           versus when it crashed midway in a test.  The number of tests also serves as
+           a quick checksum to confirm that we ran the number of tests we expected.
+
+        * assembler/testmasm.cpp:
+        (WTF::printInternal):
+        (JSC::testSimple):
+        (JSC::testProbeReadsArgumentRegisters):
+        (JSC::testProbeWritesArgumentRegisters):
+        (JSC::testProbePreservesGPRS):
+        (JSC::testProbeModifiesStackPointer):
+        (JSC::testProbeModifiesProgramCounter):
+        (JSC::run):
+
+2017-08-14  Keith Miller  <keith_miller@apple.com>
+
+        Add testing tool to lie to the DFG about profiles
+        https://bugs.webkit.org/show_bug.cgi?id=175487
+
+        Reviewed by Saam Barati.
+
+        This patch adds a new bytecode identity_with_profile that lets
+        us lie to the DFG about what profiles it has seen as the input to
+        another bytecode. Previously, there was no reliable way to force
+        a given profile when we tired up.
+
+        * bytecode/BytecodeDumper.cpp:
+        (JSC::BytecodeDumper<Block>::dumpBytecode):
+        * bytecode/BytecodeIntrinsicRegistry.h:
+        * bytecode/BytecodeList.json:
+        * bytecode/BytecodeUseDef.h:
+        (JSC::computeUsesForBytecodeOffset):
+        (JSC::computeDefsForBytecodeOffset):
+        * bytecode/SpeculatedType.cpp:
+        (JSC::speculationFromString):
+        * bytecode/SpeculatedType.h:
+        * bytecompiler/BytecodeGenerator.cpp:
+        (JSC::BytecodeGenerator::emitIdWithProfile):
+        * bytecompiler/BytecodeGenerator.h:
+        * bytecompiler/NodesCodegen.cpp:
+        (JSC::BytecodeIntrinsicNode::emit_intrinsic_idWithProfile):
+        * dfg/DFGAbstractInterpreterInlines.h:
+        (JSC::DFG::AbstractInterpreter<AbstractStateType>::executeEffects):
+        * dfg/DFGByteCodeParser.cpp:
+        (JSC::DFG::ByteCodeParser::parseBlock):
+        * dfg/DFGCapabilities.cpp:
+        (JSC::DFG::capabilityLevel):
+        * dfg/DFGClobberize.h:
+        (JSC::DFG::clobberize):
+        * dfg/DFGDoesGC.cpp:
+        (JSC::DFG::doesGC):
+        * dfg/DFGFixupPhase.cpp:
+        (JSC::DFG::FixupPhase::fixupNode):
+        * dfg/DFGMayExit.cpp:
+        * dfg/DFGNode.h:
+        (JSC::DFG::Node::getForcedPrediction):
+        * dfg/DFGNodeType.h:
+        * dfg/DFGPredictionPropagationPhase.cpp:
+        * dfg/DFGSafeToExecute.h:
+        (JSC::DFG::safeToExecute):
+        * dfg/DFGSpeculativeJIT32_64.cpp:
+        (JSC::DFG::SpeculativeJIT::compile):
+        * dfg/DFGSpeculativeJIT64.cpp:
+        (JSC::DFG::SpeculativeJIT::compile):
+        * dfg/DFGValidate.cpp:
+        * jit/JIT.cpp:
+        (JSC::JIT::privateCompileMainPass):
+        * jit/JIT.h:
+        * jit/JITOpcodes.cpp:
+        (JSC::JIT::emit_op_identity_with_profile):
+        * jit/JITOpcodes32_64.cpp:
+        (JSC::JIT::emit_op_identity_with_profile):
+        * llint/LowLevelInterpreter.asm:
+
+2017-08-14  Simon Fraser  <simon.fraser@apple.com>
+
+        Remove Proximity Events and related code
+        https://bugs.webkit.org/show_bug.cgi?id=175545
+
+        Reviewed by Daniel Bates.
+
+        No platform enables Proximity Events, so remove code inside ENABLE(PROXIMITY_EVENTS)
+        and other related code.
+
+        * Configurations/FeatureDefines.xcconfig:
+
+2017-08-14  Simon Fraser  <simon.fraser@apple.com>
+
+        Remove ENABLE(REQUEST_AUTOCOMPLETE) code, which was disabled everywhere
+        https://bugs.webkit.org/show_bug.cgi?id=175504
+
+        Reviewed by Sam Weinig.
+
+        * Configurations/FeatureDefines.xcconfig:
+
+2017-08-14  Simon Fraser  <simon.fraser@apple.com>
+
+        Remove ENABLE_VIEW_MODE_CSS_MEDIA and related code
+        https://bugs.webkit.org/show_bug.cgi?id=175557
+
+        Reviewed by Jon Lee.
+
+        No port cares about the ENABLE(VIEW_MODE_CSS_MEDIA) feature, so remove it.
+
+        * Configurations/FeatureDefines.xcconfig:
+
+2017-08-14  Robin Morisset  <rmorisset@apple.com>
+
+        Support the 'with' keyword in DFG
+        https://bugs.webkit.org/show_bug.cgi?id=175470
+
+        Reviewed by Saam Barati.
+
+        Not particularly optimized at the moment, the goal is just to avoid
+        the DFG bailing out of any function with this keyword.
+
+        * dfg/DFGAbstractInterpreterInlines.h:
+        (JSC::DFG::AbstractInterpreter<AbstractStateType>::executeEffects):
+        * dfg/DFGByteCodeParser.cpp:
+        (JSC::DFG::ByteCodeParser::parseBlock):
+        * dfg/DFGCapabilities.cpp:
+        (JSC::DFG::capabilityLevel):
+        * dfg/DFGClobberize.h:
+        (JSC::DFG::clobberize):
+        * dfg/DFGDoesGC.cpp:
+        (JSC::DFG::doesGC):
+        * dfg/DFGFixupPhase.cpp:
+        (JSC::DFG::FixupPhase::fixupNode):
+        * dfg/DFGNodeType.h:
+        * dfg/DFGPredictionPropagationPhase.cpp:
+        * dfg/DFGSafeToExecute.h:
+        (JSC::DFG::safeToExecute):
+        * dfg/DFGSpeculativeJIT.cpp:
+        (JSC::DFG::SpeculativeJIT::compilePushWithScope):
+        * dfg/DFGSpeculativeJIT.h:
+        (JSC::DFG::SpeculativeJIT::callOperation):
+        * dfg/DFGSpeculativeJIT32_64.cpp:
+        (JSC::DFG::SpeculativeJIT::compile):
+        * dfg/DFGSpeculativeJIT64.cpp:
+        (JSC::DFG::SpeculativeJIT::compile):
+        * jit/JITOperations.cpp:
+        * jit/JITOperations.h:
+
+2017-08-14  Mark Lam  <mark.lam@apple.com>
+
+        Add some convenience utility accessor methods to MacroAssembler::CPUState.
+        https://bugs.webkit.org/show_bug.cgi?id=175549
+        <rdar://problem/33884868>
+
+        Reviewed by Saam Barati.
+
+        Previously, in order to read ProbeContext CPUState registers, we used to need to
+        do it this way:
+
+            ExecState* exec = reinterpret_cast<ExecState*>(cpu.fp());
+            uint32_t i32 = static_cast<uint32_t>(cpu.gpr(GPRInfo::regT0));
+            void* p = reinterpret_cast<void*>(cpu.gpr(GPRInfo::regT1));
+            uint64_t u64 = bitwise_cast<uint64_t>(cpu.fpr(FPRInfo::fpRegT0));
+
+        With this patch, we can now read them this way instead:
+        
+            ExecState* exec = cpu.fp<ExecState*>();
+            uint32_t i32 = cpu.gpr<uint32_t>(GPRInfo::regT0);
+            void* p = cpu.gpr<void*>(GPRInfo::regT1);
+            uint64_t u64 = cpu.fpr<uint64_t>(FPRInfo::fpRegT0);
+
+        * assembler/MacroAssembler.h:
+        (JSC:: const):
+        (JSC::MacroAssembler::CPUState::fpr const):
+        (JSC::MacroAssembler::CPUState::pc const):
+        (JSC::MacroAssembler::CPUState::fp const):
+        (JSC::MacroAssembler::CPUState::sp const):
+        (JSC::ProbeContext::pc):
+        (JSC::ProbeContext::fp):
+        (JSC::ProbeContext::sp):
+
+2017-08-12  Filip Pizlo  <fpizlo@apple.com>
+
+        Put the ScopedArgumentsTable's ScopeOffset array in some gigacage
+        https://bugs.webkit.org/show_bug.cgi?id=174921
+
+        Reviewed by Mark Lam.
+        
+        Uses CagedUniquePtr<> to cage the ScopeOffset array.
+
+        * dfg/DFGSpeculativeJIT.cpp:
+        (JSC::DFG::SpeculativeJIT::compileGetByValOnScopedArguments):
+        * ftl/FTLLowerDFGToB3.cpp:
+        (JSC::FTL::DFG::LowerDFGToB3::compileGetByVal):
+        * jit/JITPropertyAccess.cpp:
+        (JSC::JIT::emitScopedArgumentsGetByVal):
+        * runtime/ScopedArgumentsTable.cpp:
+        (JSC::ScopedArgumentsTable::create):
+        (JSC::ScopedArgumentsTable::setLength):
+        * runtime/ScopedArgumentsTable.h:
+
+2017-08-14  Mark Lam  <mark.lam@apple.com>
+
+        Gardening: fix Windows build.
+        https://bugs.webkit.org/show_bug.cgi?id=175446
+
+        Not reviewed.
+
+        * assembler/MacroAssemblerX86Common.cpp:
+        (JSC::booleanTrueForAvoidingNoReturnDeclaration):
+        (JSC::ctiMasmProbeTrampoline):
+
+2017-08-12  Csaba Osztrogonác  <ossy@webkit.org>
+
+        [ARM64] Use x29 and x30 instead of fp and lr to make GCC happy
+        https://bugs.webkit.org/show_bug.cgi?id=175512
+        <rdar://problem/33863584>
+
+        Reviewed by Mark Lam.
+
+        * CMakeLists.txt: Added MacroAssemblerARM64.cpp.
+        * assembler/MacroAssemblerARM64.cpp: Use x29 and x30 instead of fp and lr to make GCC happy.
+
+2017-08-12  Csaba Osztrogonác  <ossy@webkit.org>
+
+        ARM_TRADITIONAL: static assertion failed: ProbeContext_size_matches_ctiMasmProbeTrampoline
+        https://bugs.webkit.org/show_bug.cgi?id=175513
+
+        Reviewed by Mark Lam.
+
+        * assembler/MacroAssemblerARM.cpp: Added d16-d31 FP registers too.
+
 2017-08-12  Filip Pizlo  <fpizlo@apple.com>
 
         FTL's compileGetTypedArrayByteOffset needs to do caging

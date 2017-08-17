@@ -1,3 +1,1750 @@
+2017-08-17  Carlos Garcia Campos  <cgarcia@igalia.com>
+
+        [GTK][WPE] Add NTLM authentication enabled API
+        https://bugs.webkit.org/show_bug.cgi?id=122952
+
+        Reviewed by Michael Catanzaro.
+
+        Add/remove NTLM feature to/from soup session depending on whether the feature is enabled or disabled.
+
+        * platform/network/soup/SoupNetworkSession.cpp:
+        (WebCore::SoupNetworkSession::SoupNetworkSession):
+        (WebCore::SoupNetworkSession::setInitialNTLMAuthenticationEnabled):
+        (WebCore::SoupNetworkSession::setNTLMAuthenticationEnabled):
+        * platform/network/soup/SoupNetworkSession.h:
+
+2017-08-16  Ryosuke Niwa  <rniwa@webkit.org>
+
+        Add the support for mutating clipboard data via DataTransferItemList
+        https://bugs.webkit.org/show_bug.cgi?id=175639
+
+        Reviewed by Wenson Hsieh.
+
+        Added the support for adding plaintext data via dataTransfer.items.add, clearing data via clear,
+        and removing an entry via remove. When DataTransferItem is removed from DataTransferItemList,
+        we must put into the disabled mode.
+
+        To support the removal of DataTransferItem, this patch replaces a reference to DataTransfer by
+        a WeakPtr to DataTransferItemList, and stops forwarding ref from DataTransferItem to DataTransfer.
+        This means that DataTransfer can now be GC'ed before DataTransferItem is GC'ed.
+
+        Because the identify and the order of DataTransferItems need to be preserved, we can't simply
+        re-popluate m_itemList in DataTransferItemList. Instead, whenever the clipboard content is mutated,
+        we make the parallel modifications to m_itemList. This includes changes made via DataTransfer
+        methods such as setData and clearData.
+
+        Test: editing/pasteboard/datatransfer-items-copy-plaintext.html
+
+        * dom/DataTransfer.cpp:
+        (WebCore::DataTransfer::clearData): Invoke didClearStringData when m_itemList exists.
+        (WebCore::DataTransfer::setData): Ditto.
+        (WebCore::DataTransfer::createForInputEvent):
+        (WebCore::DataTransfer::createForDrag):
+        (WebCore::DataTransfer::createForDrop):
+        * dom/DataTransferItem.cpp:
+        (WebCore::DataTransferItem::create):
+        (WebCore::DataTransferItem::DataTransferItem):
+        (WebCore::DataTransferItem::clearListAndPutIntoDisabledMode): Added.
+        (WebCore::DataTransferItem::type const): Moved from the header.
+        (WebCore::DataTransferItem::getAsString const):
+        (WebCore::DataTransferItem::getAsFile const):
+        * dom/DataTransferItem.h:
+        (WebCore::DataTransferItem::ref): Deleted.
+        (WebCore::DataTransferItem::deref): Deleted.
+        (WebCore::DataTransferItem::isFile const): Added.
+        (WebCore::DataTransferItem::type const): Move to the cpp file.
+        * dom/DataTransferItemList.cpp:
+        (WebCore::isSupportedType): Moved.
+        (WebCore::DataTransferItemList::DataTransferItemList): Moved from the header.
+        (WebCore::DataTransferItemList::~DataTransferItemList): Added.
+        (WebCore::DataTransferItemList::item):
+        (WebCore::DataTransferItemList::add): Implemented the variant to add string data.
+        (WebCore::DataTransferItemList::remove): Implemented. For now, we don't have to deal with removing
+        a file since a writable dataTransfer never contains a File object.
+        (WebCore::DataTransferItemList::clear): Implemented.
+        (WebCore::DataTransferItemList::ensureItems const):
+        (WebCore::removeStringItemOfLowercasedType): Added.
+        (WebCore::DataTransferItemList::didClearStringData): Called when dataTransfer.clear is called.
+        (WebCore::DataTransferItemList::didSetStringData): Ditto for 
+        * dom/DataTransferItemList.h:
+        (WebCore::DataTransferItemList): Added a WeakPtrFactory. Also use a vector of Ref<DataTransferItem>
+        instead of unique_ptr<DataTransferItem> since DataTransferItem can outlive DataTransferItemList.
+        (WebCore::DataTransferItemList::dataTransfer): Added.
+        * dom/DataTransferItemList.idl:
+
+2017-08-16  Andy Estes  <aestes@apple.com>
+
+        [Apple Pay] Rename PaymentRequest to ApplePaySessionPaymentRequest
+        https://bugs.webkit.org/show_bug.cgi?id=175648
+
+        Reviewed by Tim Horton.
+
+        The W3C Payment Request API defines an interface called PaymentRequest, which conflicts with
+        an existing Apple Pay class. This patch renames PaymentRequest to
+        ApplePaySessionPaymentRequest so that a follow-on patch can introduce PaymentRequest for the
+        W3C API.
+
+        * Modules/applepay/ApplePayError.h:
+        * Modules/applepay/ApplePayLineItem.h:
+        * Modules/applepay/ApplePayPaymentRequest.h:
+        * Modules/applepay/ApplePaySession.cpp:
+        (WebCore::convertAndValidateTotal):
+        (WebCore::convertAndValidate):
+        (WebCore::ApplePaySession::ApplePaySession):
+        (WebCore::ApplePaySession::didSelectShippingMethod):
+        * Modules/applepay/ApplePaySession.h:
+        * Modules/applepay/ApplePaySessionPaymentRequest.cpp: Renamed from Source/WebCore/Modules/applepay/PaymentRequest.cpp.
+        (WebCore::ApplePaySessionPaymentRequest::ApplePaySessionPaymentRequest):
+        (WebCore::ApplePaySessionPaymentRequest::~ApplePaySessionPaymentRequest):
+        (WebCore::ApplePaySessionPaymentRequest::isValidSupportedNetwork):
+        * Modules/applepay/ApplePaySessionPaymentRequest.h: Renamed from Source/WebCore/Modules/applepay/PaymentRequest.h.
+        * Modules/applepay/ApplePayShippingMethodSelectedEvent.cpp:
+        (WebCore::convert):
+        (WebCore::ApplePayShippingMethodSelectedEvent::ApplePayShippingMethodSelectedEvent):
+        * Modules/applepay/ApplePayShippingMethodSelectedEvent.h:
+        * Modules/applepay/PaymentCoordinator.cpp:
+        (WebCore::PaymentCoordinator::beginPaymentSession):
+        (WebCore::PaymentCoordinator::didSelectShippingMethod):
+        * Modules/applepay/PaymentCoordinator.h:
+        * Modules/applepay/PaymentCoordinatorClient.h:
+        * Modules/applepay/PaymentHeaders.h:
+        * Modules/applepay/PaymentRequestValidator.cpp:
+        (WebCore::PaymentRequestValidator::validate):
+        (WebCore::PaymentRequestValidator::validateTotal):
+        (WebCore::validateMerchantCapabilities):
+        (WebCore::validateShippingMethod):
+        (WebCore::validateShippingMethods):
+        * Modules/applepay/PaymentRequestValidator.h:
+        * WebCore.xcodeproj/project.pbxproj:
+        * loader/EmptyClients.cpp:
+
+2017-08-16  Chris Dumez  <cdumez@apple.com>
+
+        Cross origin Beacon requests with a ArrayBuffer / ArrayBufferView payload should not do a CORS preflight
+        https://bugs.webkit.org/show_bug.cgi?id=175628
+        <rdar://problem/33919278>
+
+        Reviewed by Geoffrey Garen.
+
+        Cross origin Beacon requests with a ArrayBuffer / ArrayBufferView payload should not do a CORS preflight.
+        To achieve this, the following changes were made:
+        1. Revert r220779 which caused us to use a non CORS-safelisted Content-Type header for such payload
+        2. Teach PingLoad how to deal with "simple" cross origin requests (i.e. Don't assume we need a CORS
+           preflight merely because the fetch mode is set to "cors").
+
+        Test: http/wpt/beacon/cors/crossorigin-arraybufferview-no-preflight.html
+
+        * Modules/fetch/FetchBody.cpp:
+        (WebCore::FetchBody::extract):
+        * loader/CrossOriginAccessControl.h:
+        * loader/LoaderStrategy.h:
+        * loader/PingLoader.cpp:
+        (WebCore::PingLoader::loadImage):
+        (WebCore::PingLoader::sendPing):
+        (WebCore::PingLoader::sendViolationReport):
+        (WebCore::PingLoader::startPingLoad):
+        * loader/PingLoader.h:
+        * loader/cache/CachedResource.cpp:
+        (WebCore::CachedResource::CachedResource):
+        (WebCore::CachedResource::load):
+        * loader/cache/CachedResource.h:
+        * loader/cache/CachedResourceRequest.cpp:
+        (WebCore::CachedResourceRequest::CachedResourceRequest):
+        * loader/cache/CachedResourceRequest.h:
+        (WebCore::CachedResourceRequest::releaseOriginalRequestHeaders):
+        * platform/network/HTTPHeaderValues.cpp:
+        * platform/network/HTTPHeaderValues.h:
+
+2017-08-16  Matt Baker  <mattbaker@apple.com>
+
+        Web Inspector: capture async stack trace when workers/main context posts a message
+        https://bugs.webkit.org/show_bug.cgi?id=167084
+        <rdar://problem/30033673>
+
+        Reviewed by Brian Burg.
+
+        Add instrumentation to DOMWindow to support showing asynchronous
+        stack traces when the debugger pauses in a MessageEvent handler.
+
+        Test: inspector/debugger/async-stack-trace.html
+
+        * inspector/InspectorInstrumentation.cpp:
+        (WebCore::InspectorInstrumentation::didPostMessageImpl):
+        (WebCore::InspectorInstrumentation::didFailPostMessageImpl):
+        (WebCore::InspectorInstrumentation::willDispatchPostMessageImpl):
+        (WebCore::InspectorInstrumentation::didDispatchPostMessageImpl):
+
+        * inspector/InspectorInstrumentation.h:
+        (WebCore::InspectorInstrumentation::didPostMessage):
+        (WebCore::InspectorInstrumentation::didFailPostMessage):
+        (WebCore::InspectorInstrumentation::willDispatchPostMessage):
+        (WebCore::InspectorInstrumentation::didDispatchPostMessage):
+
+        * inspector/PageDebuggerAgent.cpp:
+        (WebCore::PageDebuggerAgent::didClearAsyncStackTraceData):
+        (WebCore::PageDebuggerAgent::didPostMessage):
+        (WebCore::PageDebuggerAgent::didFailPostMessage):
+        (WebCore::PageDebuggerAgent::willDispatchPostMessage):
+        (WebCore::PageDebuggerAgent::didDispatchPostMessage):
+        * inspector/PageDebuggerAgent.h:
+
+        * page/DOMWindow.cpp:
+        (WebCore::DOMWindow::postMessage):
+        (WebCore::DOMWindow::postMessageTimerFired):
+
+2017-08-16  Timothy Horton  <timothy_horton@apple.com>
+
+        Try to fix the build
+
+        * platform/ios/PlatformPasteboardIOS.mm:
+
+2017-08-16  Simon Fraser  <simon.fraser@apple.com>
+
+        Build fix after r220812
+
+        Fix builds where LOG_DISABLED is defined.
+
+        * css/MediaQueryEvaluator.cpp:
+
+2017-08-16  Simon Fraser  <simon.fraser@apple.com>
+
+        Add a log channel for media queries
+        https://bugs.webkit.org/show_bug.cgi?id=175591
+
+        Reviewed by Zalan Bujtas.
+
+        Add a "MediaQueries" log channel which logs data about media query evaluation.
+
+        * css/MediaList.cpp:
+        (WebCore::MediaQuerySet::MediaQuerySet):
+        (WebCore::operator<<):
+        * css/MediaList.h:
+        * css/MediaQuery.cpp:
+        (WebCore::operator<<):
+        * css/MediaQuery.h:
+        * css/MediaQueryEvaluator.cpp:
+        (WebCore::operator<<):
+        (WebCore::MediaQueryEvaluator::evaluate const):
+        (WebCore::aspectRatioValueAsString):
+        (WebCore::orientationEvaluate):
+        (WebCore::aspectRatioEvaluate):
+        (WebCore::deviceAspectRatioEvaluate):
+        (WebCore::evaluateResolution):
+        (WebCore::deviceHeightEvaluate):
+        (WebCore::deviceWidthEvaluate):
+        (WebCore::heightEvaluate):
+        (WebCore::widthEvaluate):
+        * css/MediaQueryExpression.cpp:
+        (WebCore::operator<<):
+        * css/MediaQueryExpression.h:
+        * css/MediaQueryMatcher.cpp:
+        (WebCore::MediaQueryMatcher::styleResolverChanged):
+        * css/StyleResolver.cpp:
+        (WebCore::StyleResolver::hasMediaQueriesAffectedByViewportChange const):
+        (WebCore::StyleResolver::hasMediaQueriesAffectedByAccessibilitySettingsChange const):
+        * dom/InlineStyleSheetOwner.cpp:
+        (WebCore::InlineStyleSheetOwner::createSheet):
+        * html/HTMLImageElement.cpp:
+        (WebCore::HTMLImageElement::bestFitSourceFromPictureElement):
+        * html/HTMLLinkElement.cpp:
+        (WebCore::HTMLLinkElement::process):
+        * html/HTMLMediaElement.cpp:
+        (WebCore::HTMLMediaElement::selectNextSourceChild):
+        * html/HTMLPictureElement.cpp:
+        (WebCore::HTMLPictureElement::viewportChangeAffectedPicture const):
+        * html/parser/HTMLPreloadScanner.cpp:
+        (WebCore::TokenPreloadScanner::StartTagScanner::processAttribute):
+        * page/FrameView.cpp:
+        (WebCore::FrameView::layout):
+        * platform/Logging.cpp:
+        (WebCore::initializeLogChannelsIfNecessary):
+        * platform/Logging.h:
+        * platform/URL.cpp:
+        (WebCore::isSchemeFirstChar):
+        (WebCore::operator<<):
+        * platform/URL.h:
+
+2017-08-16  Sam Weinig  <sam@webkit.org>
+
+        [WebIDL] Remove the need for JSSubtleCryptoCustom.cpp
+        https://bugs.webkit.org/show_bug.cgi?id=175526
+
+        Reviewed by Chris Dumez.
+
+        - Generates bindings for all of SubtleCrypto except AlgorithmIdentifier normalization, 
+          which is defined in the WebCrypto spec to happen after normal IDL operations.
+        - Adds initial support for IDL object types in unions (some, unneeded at the moment,
+          edge cases remain).
+
+        * CMakeLists.txt:
+        * WebCore.xcodeproj/project.pbxproj:
+        * bindings/js/JSSubtleCryptoCustom.cpp: Removed.
+
+            Remove JSSubtleCryptoCustom.cpp, added CryptoKeyFormat.h
+
+        * bindings/js/JSDOMConvertObject.h:
+
+            Add needed, when included in generated code, #include of StrongInlines.h
+
+        * bindings/js/JSDOMConvertUnion.h:
+        
+            Add initial support for object (needed for AlgorithmIdentifier which is 
+            (object or DOMString)). Remaining support will be handled by https://webkit.org/b/175616
+
+            Also add remaining spec comments while in the area.
+
+        * bindings/js/JSDOMPromiseDeferred.cpp:
+        (WebCore::DeferredPromise::reject):
+
+            Add support for the special ExistingExceptionError error code. Capturing
+            the current exception and using it as the rejection value.
+
+        * crypto/SubtleCrypto.cpp:
+        (WebCore::SubtleCrypto::~SubtleCrypto):
+        (WebCore::toHashIdentifier):
+        (WebCore::normalizeCryptoAlgorithmParameters):
+        (WebCore::toCryptoKeyUsageBitmap):
+        (WebCore::rejectWithException):
+        (WebCore::normalizeJsonWebKey):
+        (WebCore::toKeyData):
+        (WebCore::copyToVector):
+        (WebCore::isSupportedExportKey):
+        (WebCore::SubtleCrypto::encrypt):
+        (WebCore::SubtleCrypto::decrypt):
+        (WebCore::SubtleCrypto::sign):
+        (WebCore::SubtleCrypto::verify):
+        (WebCore::SubtleCrypto::digest):
+        (WebCore::SubtleCrypto::generateKey):
+        (WebCore::SubtleCrypto::deriveKey):
+        (WebCore::SubtleCrypto::deriveBits):
+        (WebCore::SubtleCrypto::importKey):
+        (WebCore::SubtleCrypto::exportKey):
+        (WebCore::SubtleCrypto::wrapKey):
+        (WebCore::SubtleCrypto::unwrapKey):
+        * crypto/SubtleCrypto.h:
+        * crypto/SubtleCrypto.idl:
+
+            Moves implementation from JSSubtleCryptoCustom.cpp -> here. Important changes that come
+            with that are:
+            - All parameters are now converted / type checked for us.
+            - Rather than throwing exceptions and expecting the bindings layer to convert
+              them to promise rejections, all rejections are now explicitly made.
+            - Algorithms are no longer checked for being supported twice, once in normalizeCryptoAlgorithmParameters
+              and then again in the operation. We instead rely on normalizeCryptoAlgorithmParameters to return
+              an Exception if its not supported.
+            - Shaves 251 lines off the file.
+
+        * crypto/CryptoKeyFormat.h: Added.
+
+            Add new header for unified key format enum. (For bindings purposes, SubtleCrypto
+            re aliases it to SubtleCrypto::KeyFormat).
+
+        * bindings/js/JSWebKitSubtleCryptoCustom.cpp:
+        * crypto/CryptoAlgorithm.cpp:
+        * crypto/CryptoAlgorithm.h:
+        * crypto/algorithms/CryptoAlgorithmAES_CBC.cpp:
+        * crypto/algorithms/CryptoAlgorithmAES_CBC.h:
+        * crypto/algorithms/CryptoAlgorithmAES_CFB.cpp:
+        * crypto/algorithms/CryptoAlgorithmAES_CFB.h:
+        * crypto/algorithms/CryptoAlgorithmAES_CTR.cpp:
+        * crypto/algorithms/CryptoAlgorithmAES_CTR.h:
+        * crypto/algorithms/CryptoAlgorithmAES_GCM.cpp:
+        * crypto/algorithms/CryptoAlgorithmAES_GCM.h:
+        * crypto/algorithms/CryptoAlgorithmAES_KW.cpp:
+        * crypto/algorithms/CryptoAlgorithmAES_KW.h:
+        * crypto/algorithms/CryptoAlgorithmECDH.cpp:
+        * crypto/algorithms/CryptoAlgorithmECDH.h:
+        * crypto/algorithms/CryptoAlgorithmECDSA.cpp:
+        * crypto/algorithms/CryptoAlgorithmECDSA.h:
+        * crypto/algorithms/CryptoAlgorithmHKDF.cpp:
+        * crypto/algorithms/CryptoAlgorithmHKDF.h:
+        * crypto/algorithms/CryptoAlgorithmHMAC.cpp:
+        * crypto/algorithms/CryptoAlgorithmHMAC.h:
+        * crypto/algorithms/CryptoAlgorithmPBKDF2.cpp:
+        * crypto/algorithms/CryptoAlgorithmPBKDF2.h:
+        * crypto/algorithms/CryptoAlgorithmRSAES_PKCS1_v1_5.cpp:
+        * crypto/algorithms/CryptoAlgorithmRSAES_PKCS1_v1_5.h:
+        * crypto/algorithms/CryptoAlgorithmRSASSA_PKCS1_v1_5.cpp:
+        * crypto/algorithms/CryptoAlgorithmRSASSA_PKCS1_v1_5.h:
+        * crypto/algorithms/CryptoAlgorithmRSA_OAEP.cpp:
+        * crypto/algorithms/CryptoAlgorithmRSA_OAEP.h:
+        * crypto/algorithms/CryptoAlgorithmRSA_PSS.cpp:
+        * crypto/algorithms/CryptoAlgorithmRSA_PSS.h:
+
+            Use CryptoKeyFormat enum directly, rather than SubtleCrypto::KeyFormat,
+            to allow not including SubtleCrypto.h.
+
+        * crypto/parameters/CryptoAlgorithmEcdsaParams.h:
+        * crypto/parameters/CryptoAlgorithmHkdfParams.h:
+        * crypto/parameters/CryptoAlgorithmHmacKeyParams.h:
+        * crypto/parameters/CryptoAlgorithmPbkdf2Params.h:
+        * crypto/parameters/CryptoAlgorithmRsaHashedImportParams.h:
+        * crypto/parameters/CryptoAlgorithmRsaHashedKeyGenParams.h:
+        * crypto/parameters/EcdsaParams.idl:
+        * crypto/parameters/HkdfParams.idl:
+        * crypto/parameters/HmacKeyParams.idl:
+        * crypto/parameters/Pbkdf2Params.idl:
+        * crypto/parameters/RsaHashedImportParams.idl:
+        * crypto/parameters/RsaHashedKeyGenParams.idl:
+
+            Update IDLs and implementations to use the correct definition of HashAlgorithmIdentifier,
+            which is (object or DOMString), now that it is supported.
+
+2017-08-16  Youenn Fablet  <youenn@apple.com>
+
+        [Cache API] Implement Worker connection to the Cache storage engine
+        https://bugs.webkit.org/show_bug.cgi?id=175599
+
+        Reviewed by Chris Dumez.
+
+        Covered by existing tests.
+
+        Adding a WorkerCacheStorageConnection to connect workers Cache/CacheStorage
+        to the cache storage engine.
+        WorkerCacheStorageConnection does this by hopping to the main thread to call the document cache storage connection to do the actual job.
+        Doing some CacheStorageConnection refactoring to share code with WK2 implementation of the cache storage connection. 
+
+        * Modules/cache/CacheQueryOptions.h:
+        (WebCore::CacheQueryOptions::isolatedCopy const):
+        * Modules/cache/CacheStorageConnection.cpp:
+        (WebCore::CacheStorageConnection::open):
+        (WebCore::CacheStorageConnection::remove):
+        (WebCore::CacheStorageConnection::retrieveCaches):
+        (WebCore::CacheStorageConnection::retrieveRecords):
+        (WebCore::CacheStorageConnection::batchDeleteOperation):
+        (WebCore::CacheStorageConnection::batchPutOperation):
+        (WebCore::CacheStorageConnection::openOrRemoveCompleted):
+        (WebCore::CacheStorageConnection::updateCaches):
+        (WebCore::CacheStorageConnection::updateRecords):
+        (WebCore::CacheStorageConnection::removeRecordsCompleted):
+        (WebCore::CacheStorageConnection::putRecordsCompleted):
+        * Modules/cache/CacheStorageConnection.h:
+        (WebCore::CacheStorageConnection::openCompleted):
+        (WebCore::CacheStorageConnection::removeCompleted):
+        (WebCore::CacheStorageConnection::doOpen):
+        (WebCore::CacheStorageConnection::doRemove):
+        (WebCore::CacheStorageConnection::doRetrieveCaches):
+        (WebCore::CacheStorageConnection::doRetrieveRecords):
+        (WebCore::CacheStorageConnection::doBatchDeleteOperation):
+        (WebCore::CacheStorageConnection::doBatchPutOperation):
+        * Modules/cache/WorkerCacheStorageConnection.cpp: Added.
+        (WebCore::toCrossThreadRecordData):
+        (WebCore::fromCrossThreadRecordData):
+        (WebCore::WorkerCacheStorageConnection::create):
+        (WebCore::WorkerCacheStorageConnection::WorkerCacheStorageConnection):
+        (WebCore::WorkerCacheStorageConnection::doOpen):
+        (WebCore::WorkerCacheStorageConnection::doRemove):
+        (WebCore::WorkerCacheStorageConnection::doRetrieveCaches):
+        (WebCore::WorkerCacheStorageConnection::doRetrieveRecords):
+        (WebCore::WorkerCacheStorageConnection::doBatchDeleteOperation):
+        (WebCore::WorkerCacheStorageConnection::doBatchPutOperation):
+        * Modules/cache/WorkerCacheStorageConnection.h: Added.
+        * Modules/cache/WorkerGlobalScopeCaches.cpp:
+        (WebCore::WorkerGlobalScopeCaches::caches const):
+        * WebCore.xcodeproj/project.pbxproj:
+        * loader/FetchOptions.h:
+        (WebCore::FetchOptions::isolatedCopy const):
+        * workers/WorkerGlobalScope.cpp:
+        (WebCore::WorkerGlobalScope::cacheStorageConnection):
+        * workers/WorkerGlobalScope.h:
+
+2017-08-16  Yoshiaki Jitsukawa  <Yoshiaki.Jitsukawa@sony.com>
+
+        [PAL] Move spi/ios and spi/win directories into PAL
+        https://bugs.webkit.org/show_bug.cgi?id=175171
+
+        Reviewed by Antti Koivisto.
+
+        * PlatformWin.cmake:
+        * WebCore.xcodeproj/project.pbxproj:
+        * editing/cocoa/DataDetection.mm:
+        * loader/ios/PreviewLoader.mm:
+        * page/CaptionUserPreferencesMediaAF.cpp:
+        * page/cocoa/MemoryReleaseCocoa.mm:
+        * page/cocoa/SettingsCocoa.mm:
+        * page/ios/UserAgentIOS.mm:
+        * platform/audio/ios/MediaSessionManagerIOS.mm:
+        * platform/graphics/ca/PlatformCALayer.cpp:
+        * platform/graphics/cocoa/FontCascadeCocoa.mm:
+        * platform/graphics/cocoa/GraphicsContext3DCocoa.mm:
+        * platform/graphics/opentype/OpenTypeCG.h:
+        * platform/graphics/win/SimpleFontDataCGWin.cpp:
+        * platform/graphics/win/SimpleFontDataDirect2D.cpp:
+        * platform/ios/Device.h:
+        * platform/ios/PlatformPasteboardIOS.mm:
+        * platform/ios/PlatformScreenIOS.mm:
+        * platform/ios/QuickLookSoftLink.h:
+        * platform/ios/QuickLookSoftLink.mm:
+        * platform/ios/ValidationBubbleIOS.mm:
+        * platform/ios/WebItemProviderPasteboard.mm:
+        * platform/network/ios/PreviewConverter.mm:
+        * platform/sql/SQLiteFileSystem.cpp:
+        * rendering/RenderThemeIOS.mm:
+
+2017-08-16  Tim Horton  <timothy_horton@apple.com>
+
+        2-3% of main thread time under UTTypeCreatePreferredIdentifierForTag on wunderground map
+        https://bugs.webkit.org/show_bug.cgi?id=175618
+
+        Reviewed by Simon Fraser.
+
+        No new tests, just a perf win.
+
+        UTTypeCreatePreferredIdentifierForTag is fairly expensive, and is called
+        under every toDataURL, which the Wunderground wundermap does a /lot/.
+
+        Keep a 16-item LRU cache of MIMEType->UTI mappings.
+
+        Also, make other callers of UTTypeCreatePreferredIdentifierForTag use
+        the UTIUtilities version so they can share in the caching.
+
+        Also, as a drive-by, add and make other callers use mimeTypeFromUTI too,
+        and make the UTIUtilities operate on Strings for a slightly more WebCore-y feel.
+
+        * editing/ios/EditorIOS.mm:
+        (WebCore::Editor::WebContentReader::readImage):
+        * platform/MIMETypeRegistry.cpp:
+        (WebCore::initializeSupportedImageMIMETypes):
+        (WebCore::initializeSupportedImageMIMETypesForEncoding):
+        * platform/graphics/mac/MediaPlayerPrivateQTKit.mm:
+        (WebCore::createFileTypesSet):
+        * platform/graphics/cg/ImageSourceCGMac.mm:
+        (WebCore::MIMETypeForImageSourceType):
+        Adopt newly-added MIMETypeFromUTI().
+
+        * platform/graphics/cg/ImageBufferCG.cpp:
+        (WebCore::utiFromImageBufferMIMEType):
+        (WebCore::ImageBuffer::toCFData const):
+        (WebCore::cfData):
+        (WebCore::utiFromMIMEType): Deleted.
+        Adopt UTIFromMIMEType, and rename the local helper that does something
+        different (a small static map) on iOS and Windows to not have an overlapping name.
+
+        * platform/ios/PasteboardIOS.mm:
+        (WebCore::Pasteboard::resourceMIMEType):
+        (WebCore::utiTypeFromCocoaType):
+        Adopt UTIFromMIMEType().
+
+        * platform/ios/PlatformPasteboardIOS.mm:
+        (WebCore::PlatformPasteboard::writeObjectRepresentations):
+        * platform/mac/PasteboardMac.mm:
+        (WebCore::cocoaTypeFromHTMLClipboardType):
+        Adopt isDeclaredUTI and UTIFromMIMEType().
+
+        * platform/graphics/avfoundation/objc/WebCoreAVFResourceLoader.mm:
+        (WebCore::WebCoreAVFResourceLoader::responseReceived):
+        * platform/network/ios/WebCoreURLResponseIOS.mm:
+        (WebCore::adjustMIMETypeIfNecessary):
+        * platform/network/mac/WebCoreURLResponse.mm:
+        (WebCore::adjustMIMETypeIfNecessary):
+        * rendering/RenderThemeIOS.mm:
+        (WebCore::iconForAttachment):
+        * rendering/RenderThemeMac.mm:
+        (WebCore::iconForAttachment):
+        Deal with the fact that UTI utilities deal in Strings now.
+
+        * platform/network/mac/UTIUtilities.h:
+        * platform/network/mac/UTIUtilities.mm:
+        (WebCore::MIMETypeFromUTI):
+        Added. This doesn't crawl up the UTI tree if the first conversion fails,
+        which is what most of the existing code does. It's possible we want to
+        use MIMETypeFromUTITree's logic everywhere, but I didn't want to change
+        that in this patch.
+
+        (WebCore::MIMETypeFromUTITree):
+        (WebCore::isDeclaredUTI):
+        Take and return strings.
+
+        (WebCore::UTIFromMIMETypeCachePolicy::createValueForKey):
+        (WebCore::UTIFromMIMEType):
+        Add the aforementioned cache.
+
+2017-08-16  Simon Fraser  <simon.fraser@apple.com>
+
+        Make RenderLayer and RenderLayerBacking TextStream-loggable, and clean up compositing logging
+        https://bugs.webkit.org/show_bug.cgi?id=175634
+
+        Reviewed by Zalan Bujtas.
+
+        Add operator<<(TextStream&) for RenderLayer and RenderLayer backing, and use them for compositing logging.
+
+        Convert CompositingUpdateType to an enum class.
+
+        * page/FrameView.cpp:
+        (WebCore::FrameView::updateCompositingLayersAfterLayout):
+        (WebCore::FrameView::updateCompositingLayersAfterScrolling):
+        * page/ios/FrameIOS.mm:
+        (WebCore::Frame::viewportOffsetChanged):
+        * rendering/RenderLayer.cpp:
+        (WebCore::RenderLayer::updateLayerPositionsAfterLayout):
+        (WebCore::RenderLayer::updateCompositingLayersAfterScroll):
+        (WebCore::RenderLayer::calculateClipRects const):
+        * rendering/RenderLayer.h:
+        * rendering/RenderLayerBacking.cpp:
+        (WebCore::RenderLayerBacking::updateAfterLayout):
+        (WebCore::RenderLayerBacking::updateGeometry):
+        (WebCore::operator<<):
+        * rendering/RenderLayerBacking.h:
+        * rendering/RenderLayerCompositor.cpp:
+        (WebCore::RenderLayerCompositor::didRecalcStyleWithNoPendingLayout):
+        (WebCore::RenderLayerCompositor::flushPendingLayerChanges):
+        (WebCore::RenderLayerCompositor::updateCompositingLayersTimerFired):
+        (WebCore::RenderLayerCompositor::updateCompositingLayers):
+        (WebCore::RenderLayerCompositor::layerTreeAsText):
+        (WebCore::operator<<):
+        * rendering/RenderLayerCompositor.h:
+
+2017-08-16  Eric Carlson  <eric.carlson@apple.com>
+
+        Consider allow gUM to be called from localhost without https
+        https://bugs.webkit.org/show_bug.cgi?id=173457
+        <rdar://problem/33900527>
+
+        Reviewed by Youenn Fablet.
+
+        Tests: http/tests/media/media-stream/get-user-media-localhost.html
+               http/tests/media/media-stream/get-user-media-loopback-ip.html
+
+        * Modules/mediastream/UserMediaRequest.cpp:
+        (WebCore::isSecure): Call SchemeRegistry::shouldTreatURLSchemeAsSecure instead of looking for
+        the string 'https'.
+        (WebCore::canCallGetUserMedia): Allow localhost or loopback address.
+
+        * page/SecurityOrigin.cpp:
+        (WebCore::isLoopbackIPAddress): Add a comment.
+        (WebCore::shouldTreatAsPotentionallyTrustworthy): Move tests for localhost and loopback address
+        to isLocalHostOrLoopbackIPAddress, call it.
+        (WebCore::SecurityOrigin::isLocalHostOrLoopbackIPAddress): 
+        * page/SecurityOrigin.h:
+
+2017-08-16  Chris Dumez  <cdumez@apple.com>
+
+        EventSource: ignore IDs with U+0000
+        https://bugs.webkit.org/show_bug.cgi?id=175178
+
+        Reviewed by Darin Adler.
+
+        EventSource: ignore IDs with U+0000 as per:
+        https://github.com/whatwg/html/pull/2849
+
+        Test: imported/w3c/web-platform-tests/eventsource/format-field-id-null.htm
+
+        * page/EventSource.cpp:
+        (WebCore::EventSource::parseEventStreamLine):
+
+2017-08-16  Fujii Hironori  <Hironori.Fujii@sony.com>
+
+        [HarfBuzz] Decomposed Vietnamese characters are rendered incorrectly
+        https://bugs.webkit.org/show_bug.cgi?id=174418
+
+        Reviewed by Michael Catanzaro.
+
+        HarfBuzzShaper should normalize the input text before collecting
+        HarfBuzzRuns. Actually, HarfBuzzShaper::setNormalizedBuffer does
+        the task. But, this function hasn't been called from anywhere
+        since Bug 90951.
+
+        Test: fast/text/international/vietnamese-nfd.html
+              imported/blink/fast/text/international/text-shaping-arabic-diffs.html
+
+        * platform/graphics/harfbuzz/HarfBuzzShaper.cpp:
+        (WebCore::HarfBuzzShaper::HarfBuzzShaper):
+        Call setNormalizedBuffer instead of normalizeCharacters.
+        (WebCore::normalizeCharacters): Deleted.
+        (WebCore::normalizeSpacesAndMirrorChars) Use
+        FontCascade::treatAsZeroWidthSpaceInComplexScript instead of
+        FontCascade::treatAsZeroWidthSpace to preserve ZWJ and ZWNJ.
+
+2017-08-16  Antti Koivisto  <antti@apple.com>
+
+        Move first-letter renderer mutation code out of RenderBlock and into RenderTreeUpdater
+        https://bugs.webkit.org/show_bug.cgi?id=175627
+
+        Reviewed by Andreas Kling.
+
+        Render tree should not mutate itself. We already fixed this for first-letter, supporting code
+        can now move to RenderTreeUpdater too.
+
+        * CMakeLists.txt:
+        * WebCore.xcodeproj/project.pbxproj:
+        * rendering/RenderBlock.cpp:
+        (WebCore::styleForFirstLetter): Deleted.
+        (WebCore::isPunctuationForFirstLetter): Deleted.
+        (WebCore::shouldSkipForFirstLetter): Deleted.
+        (WebCore::RenderBlock::updateFirstLetterStyle): Deleted.
+        (WebCore::RenderBlock::createFirstLetterRenderer): Deleted.
+        (WebCore::RenderBlock::updateFirstLetter): Deleted.
+        * rendering/RenderBlock.h:
+        * rendering/RenderRubyRun.cpp:
+        (WebCore::RenderRubyRun::updateFirstLetter): Deleted.
+        * rendering/RenderRubyRun.h:
+        * rendering/RenderTable.cpp:
+        (WebCore::RenderTable::updateFirstLetter): Deleted.
+        * rendering/RenderTable.h:
+
+            Virtual overrides just disabled first letter for some RenderBlock subclasses. This is now achieved via
+            supportsFirstLetter test in the first letter updater.
+
+        * rendering/TextAutoSizing.cpp:
+        (WebCore::TextAutoSizingValue::adjustTextNodeSizes):
+        * rendering/svg/RenderSVGText.cpp:
+        (WebCore::RenderSVGText::updateFirstLetter): Deleted.
+        * rendering/svg/RenderSVGText.h:
+        * style/RenderTreeUpdater.cpp:
+        (WebCore::RenderTreeUpdater::popParent):
+        * style/RenderTreeUpdater.h:
+        * style/RenderTreeUpdaterFirstLetter.cpp: Added.
+        (WebCore::styleForFirstLetter):
+        (WebCore::isPunctuationForFirstLetter):
+        (WebCore::shouldSkipForFirstLetter):
+        (WebCore::updateFirstLetterStyle):
+        (WebCore::createFirstLetterRenderer):
+        (WebCore::supportsFirstLetter):
+        (WebCore::RenderTreeUpdater::FirstLetter::update):
+        * style/RenderTreeUpdaterFirstLetter.h: Added.
+
+2017-08-16  Xabier Rodriguez Calvar  <calvaris@igalia.com>
+
+        [GStreamer][EME] Rework handling key systems and UUIDs
+        https://bugs.webkit.org/show_bug.cgi?id=175567
+
+        Reviewed by Žan Doberšek.
+
+        The UUIDs and key system strings were moved to the
+        GStreamerEMEUtilities class because so far they were managed by
+        the decryptors and that was ugly.
+
+        * platform/GStreamer.cmake:
+        * platform/graphics/gstreamer/MediaPlayerPrivateGStreamerBase.cpp:
+        (WebCore::MediaPlayerPrivateGStreamerBase::supportsKeySystem):
+        * platform/graphics/gstreamer/eme/GStreamerEMEUtilities.cpp: Added.
+        * platform/graphics/gstreamer/eme/GStreamerEMEUtilities.h: Added.
+        (WebCore::GStreamerEMEUtilities::isClearKeyKeySystem):
+        (WebCore::GStreamerEMEUtilities::keySystemToUuid):
+        * platform/graphics/gstreamer/eme/WebKitClearKeyDecryptorGStreamer.cpp:
+        (webkit_media_clear_key_decrypt_class_init):
+        * platform/graphics/gstreamer/eme/WebKitClearKeyDecryptorGStreamer.h:
+
+2017-08-16  Andy Estes  <aestes@apple.com>
+
+        [Payment Request] Add an ENABLE flag and an experimental feature preference
+        https://bugs.webkit.org/show_bug.cgi?id=175622
+
+        Reviewed by Tim Horton.
+
+        * Configurations/FeatureDefines.xcconfig:
+        * page/Settings.in:
+
+2017-08-15  Ryosuke Niwa  <rniwa@webkit.org>
+
+        Make DataTransferItemList work with plain text entries
+        https://bugs.webkit.org/show_bug.cgi?id=175596
+
+        Reviewed by Wenson Hsieh.
+
+        Added the basic machinery to get the list of plain text items to DataTransferItemList and DataTransferItem.
+
+        Each DataTransferItem now depends on DataTransfer so it does ref-forwarding like DataTransferItemList to make
+        DataTransfer alive as long as any DataTransferItem is alive.
+
+        Specifications: https://html.spec.whatwg.org/multipage/dnd.html#the-datatransferitem-interface
+                        https://html.spec.whatwg.org/multipage/dnd.html#the-datatransferitemlist-interface
+
+        Tests: editing/pasteboard/datatransfer-items-drop-plaintext-file.html
+               editing/pasteboard/datatransfer-items-paste-plaintext.html
+
+        * dom/DataTransferItem.cpp:
+        (WebCore::DataTransferItem::DataTransferItem): Added two variants one for plain text and another one for a file.
+        (WebCore::DataTransferItem::kind const): Rewritten.
+        (WebCore::DataTransferItem::getAsString const): Implemented.
+        (WebCore::DataTransferItem::getAsFile const): Implemented.
+        * dom/DataTransferItem.h:
+        (WebCore::DataTransferItem::ref): Added.
+        (WebCore::DataTransferItem::deref): Added.
+        (WebCore::DataTransferItem::type const): Returns String instead of AtomicString.
+        (WebCore::DataTransferItem::kind const): Moved to cpp.
+        * dom/DataTransferItem.idl: Removed NoInterfaceObject since the interface object should exist on DOMWindow.
+        * dom/DataTransferItemList.cpp:
+        (WebCore::DataTransferItemList::length): Implemented.
+        (WebCore::DataTransferItemList::item): Ditto.
+        (WebCore::isSupportedType): Added. For now, we only support text/plain.
+        (WebCore::DataTransferItemList::ensureItems): Added. Constructs the list of DataTransferItems.
+        * dom/DataTransferItemList.h:
+        (DataTransferItemList): Added m_items. The list is filled lazily by ensureItems.
+        * dom/DataTransferItemList.idl: Removed NoInterfaceObject since the interface object should exist on DOMWindow.
+
+2017-08-15  Simon Fraser  <simon.fraser@apple.com>
+
+        Remove ScrollView::clipsRepaints() which was only used by Chromium
+        https://bugs.webkit.org/show_bug.cgi?id=175594
+
+        Reviewed by Tim Horton.
+
+        clipsRepaints() was added in r74568 but was only used by Chromium. It's always
+        true for other platforms, so remove conditionals that test for it and assume true.
+
+        * page/FrameView.cpp:
+        (WebCore::FrameView::scrollContentsFastPath):
+        * platform/ScrollView.cpp:
+        (WebCore::ScrollView::repaintContentRectangle):
+        (WebCore::ScrollView::setClipsRepaints): Deleted.
+        * platform/ScrollView.h:
+        (WebCore::ScrollView::clipsRepaints const): Deleted.
+
+2017-08-15  Simon Fraser  <simon.fraser@apple.com>
+
+        Allow WebCore logging channels to be set from the UI process
+        https://bugs.webkit.org/show_bug.cgi?id=175608
+
+        Reviewed by Tim Horton.
+
+        Change initializeLogChannelsIfNecessary() to take an optional String, which can
+        be a list of log channels passed from the UI process.
+
+        * platform/LogInitialization.h:
+        * platform/Logging.cpp:
+        (WebCore::initializeLogChannelsIfNecessary):
+
+2017-08-15  Chris Dumez  <cdumez@apple.com>
+
+        Fetch / Beacon: Use "application/octet-stream" Content-Type for payloads of type ArrayBuffer / ArrayBufferView
+        https://bugs.webkit.org/show_bug.cgi?id=175600
+
+        Reviewed by Youenn Fablet.
+
+        Use "application/octet-stream" Content-Type for payloads of type ArrayBuffer / ArrayBufferView in Fetch & Beacon.
+        If we don't set a Content-Type header, our underlying network stack is going to add a "application/x-www-form-urlencoded"
+        Content-Type header, which is worse.
+
+        Chrome is already using "application/octet-stream" Content-Type in Beacon, but use no Content-Type in Fetch.
+        The Fetch/Beacon specification says we should have no Content-Type header in this case but this is unfortunately
+        not something we can support at the moment. Using "application/octet-stream" Content-Type for now seems like the
+        lesser evil.
+
+        Test: http/wpt/fetch/fetch-request-arraybuffer-content-type.html
+
+        * Modules/fetch/FetchBody.cpp:
+        (WebCore::FetchBody::extract):
+        * platform/network/HTTPHeaderValues.cpp:
+        (WebCore::HTTPHeaderValues::octetStreamContentType):
+        * platform/network/HTTPHeaderValues.h:
+
+2017-08-15  Robin Morisset  <rmorisset@apple.com>
+
+        Change the order of arguments of JSWithScope::create() for consistency
+        https://bugs.webkit.org/show_bug.cgi?id=175585
+
+        Reviewed by Saam Barati.
+
+        No change of behavior.
+
+        * bindings/js/JSHTMLElementCustom.cpp:
+        (WebCore::JSHTMLElement::pushEventHandlerScope const):
+
+2017-08-15  Youenn Fablet  <youenn@apple.com>
+
+        [Cache API] Ensure ResourceResponse is not null when redirected/tainting/type fields are set
+        https://bugs.webkit.org/show_bug.cgi?id=175538
+
+        Reviewed by Chris Dumez.
+
+        No change of behavior.
+        This change ensures that response type is preserved when encoding/decoding ResourceResponse, in particular the error type.
+        This will allow Cache API to preserve responses when reading them from a different process.
+
+        * platform/network/ResourceResponseBase.cpp:
+        (WebCore::ResourceResponseBase::setType):
+        * platform/network/ResourceResponseBase.h:
+        (WebCore::ResourceResponseBase::setType):
+
+2017-08-15  Chris Dumez  <cdumez@apple.com>
+
+        Update CachedResourceLoader::requestResource() to return a WTF::Expected
+        https://bugs.webkit.org/show_bug.cgi?id=175505
+
+        Reviewed by Youenn Fablet.
+
+        Update CachedResourceLoader::requestResource() to return a WTF::Expected
+        type instead of using an out parameter for the ResourceError in case of
+        synchronous failure.
+
+        * Modules/beacon/NavigatorBeacon.cpp:
+        (WebCore::NavigatorBeacon::sendBeacon):
+        * bindings/js/CachedScriptFetcher.cpp:
+        (WebCore::CachedScriptFetcher::requestScriptWithCache const):
+        * css/CSSFontFaceSrcValue.cpp:
+        (WebCore::CSSFontFaceSrcValue::cachedFont):
+        * css/CSSImageSetValue.cpp:
+        (WebCore::CSSImageSetValue::loadBestFitImage):
+        * css/CSSImageValue.cpp:
+        (WebCore::CSSImageValue::loadImage):
+        * css/StyleRuleImport.cpp:
+        (WebCore::StyleRuleImport::requestStyleSheet):
+        * dom/ProcessingInstruction.cpp:
+        (WebCore::ProcessingInstruction::checkStyleSheet):
+        * html/HTMLLinkElement.cpp:
+        (WebCore::HTMLLinkElement::process):
+        * loader/CrossOriginPreflightChecker.cpp:
+        (WebCore::CrossOriginPreflightChecker::startPreflight):
+        * loader/DocumentLoader.cpp:
+        (WebCore::DocumentLoader::startLoadingMainResource):
+        * loader/DocumentThreadableLoader.cpp:
+        (WebCore::DocumentThreadableLoader::loadRequest):
+        * loader/FrameLoader.cpp:
+        (WebCore::FrameLoader::loadedResourceFromMemoryCache):
+        * loader/FrameLoader.h:
+        * loader/ImageLoader.cpp:
+        (WebCore::ImageLoader::updateFromElement):
+        * loader/LinkLoader.cpp:
+        (WebCore::LinkLoader::preloadIfNeeded):
+        * loader/MediaResourceLoader.cpp:
+        (WebCore::MediaResourceLoader::requestResource):
+        * loader/TextTrackLoader.cpp:
+        (WebCore::TextTrackLoader::load):
+        * loader/cache/CachedResourceLoader.cpp:
+        (WebCore::castCachedResourceTo):
+        (WebCore::CachedResourceLoader::requestImage):
+        (WebCore::CachedResourceLoader::requestFont):
+        (WebCore::CachedResourceLoader::requestTextTrack):
+        (WebCore::CachedResourceLoader::requestCSSStyleSheet):
+        (WebCore::CachedResourceLoader::requestUserCSSStyleSheet):
+        (WebCore::CachedResourceLoader::requestScript):
+        (WebCore::CachedResourceLoader::requestXSLStyleSheet):
+        (WebCore::CachedResourceLoader::requestSVGDocument):
+        (WebCore::CachedResourceLoader::requestLinkResource):
+        (WebCore::CachedResourceLoader::requestMedia):
+        (WebCore::CachedResourceLoader::requestIcon):
+        (WebCore::CachedResourceLoader::requestRawResource):
+        (WebCore::CachedResourceLoader::requestBeaconResource):
+        (WebCore::CachedResourceLoader::requestMainResource):
+        (WebCore::CachedResourceLoader::shouldContinueAfterNotifyingLoadedFromMemoryCache):
+        (WebCore::CachedResourceLoader::requestResource):
+        (WebCore::CachedResourceLoader::preload):
+        * loader/cache/CachedResourceLoader.h:
+        * loader/cache/CachedSVGDocumentReference.cpp:
+        (WebCore::CachedSVGDocumentReference::load):
+        * loader/icon/IconLoader.cpp:
+        (WebCore::IconLoader::startLoading):
+        * platform/graphics/avfoundation/objc/WebCoreAVFResourceLoader.mm:
+        (WebCore::WebCoreAVFResourceLoader::startLoading):
+        * svg/SVGFEImageElement.cpp:
+        (WebCore::SVGFEImageElement::requestImageResource):
+        * svg/SVGFontFaceUriElement.cpp:
+        (WebCore::SVGFontFaceUriElement::loadFont):
+        * svg/SVGUseElement.cpp:
+        (WebCore::SVGUseElement::updateExternalDocument):
+        * xml/XSLImportRule.cpp:
+        (WebCore::XSLImportRule::loadSheet):
+
+2017-08-15  Don Olmstead  <don.olmstead@sony.com>
+
+        [PAL] Move Sleep classes into PAL
+        https://bugs.webkit.org/show_bug.cgi?id=175456
+
+        Reviewed by Ryosuke Niwa.
+
+        No new tests. No change in behavior.
+
+        * CMakeLists.txt:
+        * PlatformMac.cmake:
+        * WebCore.xcodeproj/project.pbxproj:
+        * html/HTMLMediaElement.cpp:
+        * html/HTMLMediaElement.h:
+        * platform/audio/PlatformMediaSessionManager.cpp:
+        * platform/audio/PlatformMediaSessionManager.h:
+        * platform/mac/WebVideoFullscreenController.h:
+        * platform/mac/WebVideoFullscreenController.mm:
+
+2017-08-15  Youenn Fablet  <youenn@apple.com>
+
+        [Cache API] Adding generic support for CacheStorage and Cache methods
+        https://bugs.webkit.org/show_bug.cgi?id=175455
+
+        Reviewed by Chris Dumez.
+
+        Covered by existing tests.
+
+        Adding a CacheStorageProvider abstraction that creates a CacheStorageConnection.
+        The CacheStorageProvider is accessed from the page for Document calls.
+        The CacheStorageConnection is responsible to implement the read/write operations on the cache database.
+        At the moment, it does nothing but return not implemented errors.
+
+        Implementing CacheStorage APIs and Cache APIs based on the CacheStorageConnection except for Cache add and addAll which will be implemented later on.
+        CacheStoragConnection is responsible to read/write CacheStorage list of caches and each individual cache.
+        The CacheStorageConnection is a generic connection and not tied to any document/context.
+        CacheStorage objects are manipulated by providing to the connection the origin of the context.
+        CacheStorage are global to all contexts with the same origin.
+        Cache objects are manipulated by an ID that is given initially by the CacheStorageEngine when opening the Cache object.
+
+        Adding various accessors and constructors for Fetch constructs as needed by the Cache API implementation.
+
+        * Modules/cache/Cache.cpp:
+        (WebCore::Cache::Cache):
+        (WebCore::Cache::~Cache):
+        The CacheStorageConnection is a generic connection and not tied to any document/context.
+        (WebCore::Cache::match): Implementation of https://www.w3.org/TR/service-workers-1/#cache-match.
+        Redirect to matchAll as per spec.
+        (WebCore::Cache::matchAll): Implementation of https://www.w3.org/TR/service-workers-1/#cache-matchAll.
+        Checks for request as per spec. Then either refresh the request to response map and return all responses.
+        Or call the query cache algorithm and return copies of the responses (using clone).
+        (WebCore::Cache::put):
+        Check the request and response as per spec.
+        Add temporary rejection cases (being loaded responses, responses with ReadableStream) as there is no support for them right now.
+        Call the batch put operation.
+        (WebCore::Cache::remove):
+        Check the request and response as per spec.
+        Call the batch delete operation.
+        (WebCore::Cache::keys):
+        Refresh the request to response map and return corresponding requests.
+        Making sure to reuse the same request objects as per spec.
+        As per spec, the request to response map is ordered. We implement it as a Vector.
+        (WebCore::Cache::refreshRequestToResponseMap):
+        Use the cache storage connection to get an up-to-date list of cached records.
+        (WebCore::Cache::queryCacheMatch):
+        Implements the match algorithm defined in https://www.w3.org/TR/service-workers-1/#query-cache-algorithm.
+        This is split for queryCache as cache storage engine will need to use it when implementing the delete operation.
+        (WebCore::Cache::queryCache):
+        Full implementation of https://www.w3.org/TR/service-workers-1/#query-cache-algorithm with no targetStorage argument.
+        (WebCore::Cache::queryCacheWithTargetStorage):
+        Full implementation of https://www.w3.org/TR/service-workers-1/#query-cache-algorithm with a provided targetStorage argument.
+        (WebCore::Cache::batchDeleteOperation):
+        Implementation of https://www.w3.org/TR/service-workers-1/#batch-cache-operations-algorithm but dedicated to a delete operation.
+        Delete operation are always done one at a time.
+        (WebCore::Cache::batchPutOperation):
+        Implementation of https://www.w3.org/TR/service-workers-1/#batch-cache-operations-algorithm dedicated to a put operation.
+        Put operation takes one record for put but can take several records in the case of addAll, hence the current design.
+        (WebCore::Cache::updateRequestToResponseMap):
+        Update the cache request to response map based on the records retrieved from the cache storage connection.
+        * Modules/cache/Cache.h:
+        (WebCore::Cache::create):
+        (WebCore::Cache::name const):
+        * Modules/cache/Cache.idl:
+        * Modules/cache/CacheStorage.cpp:
+        (WebCore::CacheStorage::origin const):
+        Computing the cache origin that is passed to the CacheStorageConnection.
+        (WebCore::CacheStorage::has):
+        Implementation of https://www.w3.org/TR/service-workers-1/#cache-storage-has.
+        Call the cache storage connection to refresh its cache map.
+        Then use it to check whether a cache exists.
+        (WebCore::CacheStorage::refreshCacheMap):
+        Use the cache storage connection to get the list of existing caches.
+        (WebCore::CacheStorage::open):
+        Implementation of https://www.w3.org/TR/service-workers-1/#cache-storage-open.
+        Refreshing the cache map so as to return a pre-existing cache if any.
+        (WebCore::CacheStorage::remove):
+        Implementation of https://www.w3.org/TR/service-workers-1/#cache-storage-delete-method.
+        Refreshing the cache map so as to do nothing if there is no cache to remove.
+        (WebCore::CacheStorage::keys):
+        Implementation of https://www.w3.org/TR/service-workers-1/#cache-storage-keys-method.
+        Refreshing the cache map and returnin its keys.
+        As per spec, the cache map is ordered. We implement it as a Vector.
+        (WebCore::CacheStorage::cacheMap):
+        Get the list of cache objects, used as a private accessor for JS built-ins.
+        * Modules/cache/CacheStorage.h:
+        (WebCore::CacheStorage::create):
+        (WebCore::CacheStorage::CacheStorage):
+        * Modules/cache/CacheStorageConnection.cpp: Added.
+        (WebCore::CacheStorageConnection::exceptionFromError):
+        * Modules/cache/CacheStorageConnection.h: Added.
+        Makes the link between Web facing Cache API and the cache storage engine.
+        Envisioned implementation are:
+        - One main thread connection used by all documents in the given process.
+        - One connection per worker that forwards the calls to the main thread and use the main thread connection afterwards.
+        (WebCore::CacheStorageConnection::create):
+        (WebCore::CacheStorageConnection::open):
+        (WebCore::CacheStorageConnection::remove):
+        (WebCore::CacheStorageConnection::refreshCacheMap):
+        (WebCore::CacheStorageConnection::refreshRequestToResponseMap):
+        (WebCore::CacheStorageConnection::batchDeleteOperation):
+        (WebCore::CacheStorageConnection::batchPutOperation):
+        * Modules/cache/CacheStorageRecord.h: Added. A fetch record from the Web facing cache API perspective.
+        * Modules/cache/DOMWindowCaches.cpp:
+        (WebCore::DOMWindowCaches::caches const):
+        * Modules/cache/WorkerGlobalScopeCaches.cpp:
+        (WebCore::WorkerGlobalScopeCaches::from):
+        (WebCore::WorkerGlobalScopeCaches::caches const):
+        * Modules/cache/WorkerGlobalScopeCaches.h:
+        (WebCore::WorkerGlobalScopeCaches::WorkerGlobalScopeCaches):
+        * Modules/fetch/FetchBodyOwner.h:
+        (WebCore::FetchBodyOwner::isReadableStreamBody const): Added getter as it is used by cache API.
+        * Modules/fetch/FetchHeaders.h:
+        (WebCore::FetchHeaders::create): Add another create as used by the cache API.
+        (WebCore::FetchHeaders::guard const): Added getter and IPC serializer as this is something that will be stored by the cache engine.
+        * Modules/fetch/FetchLoader.cpp:
+        (WebCore::FetchLoader::start):
+        * Modules/fetch/FetchRequest.cpp:
+        (WebCore::buildOptions): In case FetchRequest::create is called from C++, there is no need to set init.window to a null value.
+        Add a check so that no value at all is the same as a null/undefined value.
+        (WebCore::FetchRequest::resourceRequest const):
+        * Modules/fetch/FetchRequest.h:
+        * Modules/fetch/FetchResponse.h:
+        * WebCore.xcodeproj/project.pbxproj:
+        * inspector/InspectorOverlay.cpp:
+        (WebCore::InspectorOverlay::overlayPage):
+        * page/CacheStorageProvider.h: Added.
+        Interface to create main thread cache storage connection for the given page.
+        There will be one provider for each process.
+        Passing a sessionID so that we will create a connection per session.
+        * page/Page.cpp:
+        (WebCore::Page::Page):
+        * page/Page.h:
+        (WebCore::Page::cacheStorageProvider):
+        * page/PageConfiguration.cpp:
+        (WebCore::PageConfiguration::PageConfiguration):
+        * page/PageConfiguration.h:
+        * svg/graphics/SVGImage.cpp:
+        (WebCore::SVGImage::dataChanged):
+
+2017-08-15  Chris Dumez  <cdumez@apple.com>
+
+        Implement quota limitation for keepalive Fetch requests
+        https://bugs.webkit.org/show_bug.cgi?id=175482
+
+        Reviewed by Sam Weinig and Youenn Fablet.
+
+        Implement quota limitation for keepalive Fetch requests as per:
+        - https://fetch.spec.whatwg.org/#http-network-or-cache-fetch (Step 9)
+
+        This partly works for Beacon as well, meaning that no Beacon with a body
+        over 64Kb can be sent. However, we don't keep track about wether or not
+        beacon loads are inflight or not.
+
+        Also update CachedResourceLoader::requestResource() so that the caller
+        can get a ResourceError when it returns null. This is useful for both
+        Fetch and Beacon to return better error messages.
+
+        Test: http/wpt/beacon/beacon-quota.html
+
+        * CMakeLists.txt:
+        * Modules/beacon/NavigatorBeacon.cpp:
+        (WebCore::NavigatorBeacon::sendBeacon):
+        * Modules/fetch/FetchBodyOwner.cpp:
+        (WebCore::FetchBodyOwner::BlobLoader::didReceiveResponse):
+        (WebCore::FetchBodyOwner::BlobLoader::didFail):
+        * Modules/fetch/FetchBodyOwner.h:
+        * Modules/fetch/FetchLoader.cpp:
+        (WebCore::FetchLoader::start):
+        (WebCore::FetchLoader::didFail):
+        * Modules/fetch/FetchLoaderClient.h:
+        * Modules/fetch/FetchResponse.cpp:
+        (WebCore::FetchResponse::BodyLoader::didFail):
+        * Modules/fetch/FetchResponse.h:
+        * WebCore.xcodeproj/project.pbxproj:
+        * loader/DocumentThreadableLoader.cpp:
+        (WebCore::DocumentThreadableLoader::loadRequest):
+        * loader/cache/CachedResource.cpp:
+        (WebCore::CachedResource::load):
+        * loader/cache/CachedResource.h:
+        (WebCore::CachedResource::isMainOrMediaOrIconOrRawResource const):
+        * loader/cache/CachedResourceLoader.cpp:
+        (WebCore::createResource):
+        (WebCore::CachedResourceLoader::requestImage):
+        (WebCore::CachedResourceLoader::requestFont):
+        (WebCore::CachedResourceLoader::requestTextTrack):
+        (WebCore::CachedResourceLoader::requestCSSStyleSheet):
+        (WebCore::CachedResourceLoader::requestUserCSSStyleSheet):
+        (WebCore::CachedResourceLoader::requestScript):
+        (WebCore::CachedResourceLoader::requestXSLStyleSheet):
+        (WebCore::CachedResourceLoader::requestSVGDocument):
+        (WebCore::CachedResourceLoader::requestLinkResource):
+        (WebCore::CachedResourceLoader::requestMedia):
+        (WebCore::CachedResourceLoader::requestIcon):
+        (WebCore::CachedResourceLoader::requestRawResource):
+        (WebCore::CachedResourceLoader::requestBeaconResource):
+        (WebCore::CachedResourceLoader::requestMainResource):
+        (WebCore::CachedResourceLoader::requestResource):
+        (WebCore::CachedResourceLoader::preload):
+        * loader/cache/CachedResourceLoader.h:
+        * loader/cache/KeepaliveRequestTracker.cpp: Added.
+        (WebCore::KeepaliveRequestTracker::~KeepaliveRequestTracker):
+        (WebCore::KeepaliveRequestTracker::canLoadRequest):
+        (WebCore::KeepaliveRequestTracker::registerRequest):
+        (WebCore::KeepaliveRequestTracker::responseReceived):
+        (WebCore::KeepaliveRequestTracker::notifyFinished):
+        (WebCore::KeepaliveRequestTracker::unregisterRequest):
+        * loader/cache/KeepaliveRequestTracker.h: Added.
+        * platform/network/FormData.cpp:
+        (WebCore::FormDataElement::lengthInBytes const):
+        (WebCore::FormData::lengthInBytes const):
+        * platform/network/FormData.h:
+
+2017-08-15  Darin Adler  <darin@apple.com>
+
+        REGRESSION(r220052): http/tests/appcache/deferred-events-delete-while-raising-timer.html is crashing.
+        https://bugs.webkit.org/show_bug.cgi?id=175107
+
+        Reviewed by Alexey Proskuryakov.
+
+        * loader/FrameLoader.cpp:
+        (WebCore::FrameLoader::checkLoadComplete): Moved the assertion to after the null page check.
+
+2017-08-15  Commit Queue  <commit-queue@webkit.org>
+
+        Unreviewed, rolling out r219504.
+        https://bugs.webkit.org/show_bug.cgi?id=175580
+
+        Broke Arabic text shaping (Requested by mcatanzaro on
+        #webkit).
+
+        Reverted changeset:
+
+        "[HarfBuzz] Decomposed Vietnamese characters are rendered
+        incorrectly"
+        https://bugs.webkit.org/show_bug.cgi?id=174418
+        http://trac.webkit.org/changeset/219504
+
+2017-08-14  Carlos Garcia Campos  <cgarcia@igalia.com>
+
+        WebDriver: handle click events on option elements
+        https://bugs.webkit.org/show_bug.cgi?id=174710
+        <rdar://problem/33459305>
+
+        Reviewed by Brian Burg.
+
+        Export WebCore symbols required by WebKit layer.
+
+        * html/HTMLOptGroupElement.h:
+        * html/HTMLOptionElement.h:
+
+2017-08-14  Simon Fraser  <simon.fraser@apple.com>
+
+        Remove Proximity Events and related code
+        https://bugs.webkit.org/show_bug.cgi?id=175545
+
+        Reviewed by Daniel Bates.
+
+        No platform enables Proximity Events, so remove code inside ENABLE(PROXIMITY_EVENTS)
+        and other related code.
+
+        * CMakeLists.txt:
+        * Configurations/FeatureDefines.xcconfig:
+        * DerivedSources.cpp:
+        * Modules/proximity/DeviceProximityClient.h: Removed.
+        * Modules/proximity/DeviceProximityController.cpp: Removed.
+        * Modules/proximity/DeviceProximityController.h: Removed.
+        * Modules/proximity/DeviceProximityEvent.cpp: Removed.
+        * Modules/proximity/DeviceProximityEvent.h: Removed.
+        * Modules/proximity/DeviceProximityEvent.idl: Removed.
+        * dom/EventNames.h:
+        * dom/EventNames.in:
+        * history/PageCache.cpp:
+        (WebCore::canCachePage):
+        * page/DOMWindow.cpp:
+        (WebCore::DOMWindow::addEventListener):
+        (WebCore::DOMWindow::removeEventListener):
+        (WebCore::DOMWindow::removeAllEventListeners):
+        * page/DOMWindow.idl:
+        * page/DiagnosticLoggingKeys.cpp:
+        (WebCore::DiagnosticLoggingKeys::deviceProximityKey): Deleted.
+        * page/DiagnosticLoggingKeys.h:
+        * testing/Internals.cpp:
+        (WebCore::Internals::setDeviceProximity): Deleted.
+        * testing/Internals.h:
+        * testing/Internals.idl:
+
+2017-08-14  Simon Fraser  <simon.fraser@apple.com>
+
+        Remove ENABLE(REQUEST_AUTOCOMPLETE) code, which was disabled everywhere
+        https://bugs.webkit.org/show_bug.cgi?id=175504
+
+        Reviewed by Sam Weinig.
+        
+        REQUEST_AUTOCOMPLETE was added in r133396 then removed in r148731, but brought back in r173596,
+        however no further work was done, and it was left disabled. So remove the code.
+
+        * Configurations/FeatureDefines.xcconfig:
+        * DerivedSources.make:
+        * WebCore.xcodeproj/project.pbxproj:
+        * dom/AutocompleteErrorEvent.h: Removed.
+        * dom/AutocompleteErrorEvent.idl: Removed.
+        * dom/EventNames.in:
+        * dom/GlobalEventHandlers.idl:
+        * html/HTMLFormElement.cpp:
+        (WebCore::HTMLFormElement::HTMLFormElement):
+        (WebCore::HTMLFormElement::requestAutocomplete): Deleted.
+        (WebCore::HTMLFormElement::finishRequestAutocomplete): Deleted.
+        (WebCore::HTMLFormElement::requestAutocompleteTimerFired): Deleted.
+        * html/HTMLFormElement.h:
+        * html/HTMLFormElement.idl:
+        * loader/EmptyClients.cpp:
+        * loader/FrameLoaderClient.h:
+
+2017-08-14  Chris Dumez  <cdumez@apple.com>
+
+        XHR should only fire an abort event if the cancellation was requested by the client
+        https://bugs.webkit.org/show_bug.cgi?id=175546
+
+        Reviewed by Youenn Fablet.
+
+        XHR should only fire an abort event if the cancellation was requested by the client, otherwise it should fire an error event.
+        Blink and Gecko already match the specification.
+
+        Specification:
+        - https://xhr.spec.whatwg.org/#handle-errors
+        - https://xhr.spec.whatwg.org/#the-abort()-method
+
+        Test: http/tests/navigation/page-cache-xhr-in-pagehide.html
+
+        * xml/XMLHttpRequest.cpp:
+        (WebCore::XMLHttpRequest::open):
+        (WebCore::XMLHttpRequest::abort):
+        (WebCore::XMLHttpRequest::abortError):
+        (WebCore::XMLHttpRequest::didFail):
+        * xml/XMLHttpRequest.h:
+
+2017-08-14  Simon Fraser  <simon.fraser@apple.com>
+
+        Remove ENABLE_VIEW_MODE_CSS_MEDIA and related code
+        https://bugs.webkit.org/show_bug.cgi?id=175557
+
+        Reviewed by Jon Lee.
+
+        No port cares about the ENABLE(VIEW_MODE_CSS_MEDIA) feature, so remove it.
+
+        * Configurations/FeatureDefines.xcconfig:
+        * css/CSSValueKeywords.in:
+        * css/MediaFeatureNames.h:
+        * css/MediaQueryEvaluator.cpp:
+        (WebCore::viewModeEvaluate): Deleted.
+        * css/MediaQueryExpression.cpp:
+        (WebCore::featureWithValidIdent):
+        (WebCore::isFeatureValidWithoutValue):
+        * page/Page.cpp:
+        (WebCore::Page::stringToViewMode): Deleted.
+        (WebCore::Page::setViewMode): Deleted.
+        * page/Page.h:
+        (WebCore::Page::viewMode const): Deleted.
+
+2017-08-14  Myles C. Maxfield  <mmaxfield@apple.com>
+
+        Parse font-display
+        https://bugs.webkit.org/show_bug.cgi?id=175382
+
+        Reviewed by Simon Fraser.
+
+        The syntax is very simple: font-display: auto | block | swap | fallback | optional.
+        So, parsing support is quite straightfoward.
+
+        Test: fast/text/font-display/parse.html
+
+        * css/CSSComputedStyleDeclaration.cpp:
+        (WebCore::ComputedStyleExtractor::propertyValue):
+        * css/CSSFontFace.cpp:
+        (WebCore::CSSFontFace::setLoadingBehavior):
+        * css/CSSFontFace.h:
+        * css/CSSFontSelector.cpp:
+        (WebCore::CSSFontSelector::addFontFaceRule):
+        * css/CSSPrimitiveValueMappings.h:
+        (WebCore::CSSPrimitiveValue::CSSPrimitiveValue):
+        (WebCore::CSSPrimitiveValue::operator FontLoadingBehavior const):
+        * css/CSSProperties.json:
+        * css/CSSProperty.cpp:
+        (WebCore::CSSProperty::isDescriptorOnly):
+        * css/CSSValueKeywords.in:
+        * css/parser/CSSPropertyParser.cpp:
+        (WebCore::consumeFontFaceFontDisplay):
+        (WebCore::CSSPropertyParser::parseFontFaceDescriptor):
+        * rendering/style/RenderStyleConstants.h:
+
+2017-08-14  Jer Noble  <jer.noble@apple.com>
+
+        Obj-C exception crash in AVStreamSession when using EME in Private Browsing mode
+        https://bugs.webkit.org/show_bug.cgi?id=175547
+
+        Reviewed by Eric Carlson.
+
+        When the storagePath() is empty, do not use those AVStreamSession APIs which require a valid file path to stored
+        proof-of-key-release data.
+
+        Drive-by fix: return emptyString() from HTMLMediaElement::mediaPlayerMediaKeysStorageDirectory() when in Private
+        Browsing mode, to match the behavior of WebKitMediaKeySession.
+
+        * html/HTMLMediaElement.cpp:
+        (WebCore::HTMLMediaElement::mediaPlayerMediaKeysStorageDirectory const):
+        * platform/graphics/avfoundation/objc/CDMSessionAVStreamSession.mm:
+        (WebCore::CDMSessionAVStreamSession::releaseKeys):
+        (WebCore::CDMSessionAVStreamSession::update):
+        (WebCore::CDMSessionAVStreamSession::generateKeyReleaseMessage):
+
+2017-08-14  Andy Estes  <aestes@apple.com>
+
+        REGRESSION (r220456): Crash in PreviewLoader::shouldCreateForMIMEType() when a ResourceResponse has a null MIME type
+        https://bugs.webkit.org/show_bug.cgi?id=175548
+        <rdar://problem/33866206>
+
+        Reviewed by Brady Eidson.
+
+        New API test: QuickLook.ShouldCreateForMIMEType
+
+        * WebCore.xcodeproj/project.pbxproj:
+        * loader/ios/PreviewLoader.h:
+        * loader/ios/PreviewLoader.mm:
+        (WebCore::PreviewLoader::shouldCreateForMIMEType): Check if mimeType is a null String before
+        calling HashSet::contains().
+
+2017-08-14  Andy Estes  <aestes@apple.com>
+
+        [Apple Pay] Add support for phonetic contact names
+        https://bugs.webkit.org/show_bug.cgi?id=175537
+        <rdar://problem/32002644>
+
+        Reviewed by Tim Horton.
+
+        * Modules/applepay/ApplePayError.idl: Defined "phoneticName" in ApplePayErrorContactField.
+        * Modules/applepay/ApplePayPaymentContact.h: Defined phoneticGivenName and phoneticFamilyName
+        in ApplePayPaymentContact.
+        * Modules/applepay/ApplePayPaymentContact.idl: Ditto.
+        * Modules/applepay/ApplePayPaymentRequest.h: Defined PhoneticName in
+        ApplePayPaymentRequest::ContactField.
+        * Modules/applepay/ApplePayPaymentRequest.idl: Defined "phoneticName" in ApplePayContactField.
+        * Modules/applepay/ApplePaySession.cpp:
+        (WebCore::convertAndValidate): Added a version parameter. Added code to convert
+        ContactField::PhoneticName, throwing an exception if version is less than 3.
+        * Modules/applepay/PaymentContact.h: Added a version parameter to fromApplePayPaymentContact().
+        * Modules/applepay/PaymentRequest.h: Defined phoneticName in PaymentRequest::ContactFields
+        and defined PhoneticName in PaymentError::ContactField.
+        * Modules/applepay/cocoa/PaymentContactCocoa.mm:
+        (WebCore::convert): Added a version parameter. Set a phoneticRepresentation on the
+        PKContact's name if there are non-empty phonetic names and version is 3 or greater.
+        (WebCore::PaymentContact::fromApplePayPaymentContact): Passed version to convert().
+
+2017-08-14  Said Abou-Hallawa  <sabouhallawa@apple.com>
+
+        The none smooth stroke applied to an SVG shape breaks its hit testing
+        https://bugs.webkit.org/show_bug.cgi?id=175506
+
+        Reviewed by Simon Fraser.
+
+        Clear RenderSVGShape::m_path when calling RenderSVGRect::updateShapeFromElement().
+        The m_path will be recalculated when RenderSVGShape::updateShapeFromElement()
+        is called from RenderSVGRect::shapeDependentStrokeContains().
+
+        Test: svg/stroke/stroke-linejoin-click.html
+
+        * rendering/svg/RenderSVGRect.cpp:
+        (WebCore::RenderSVGRect::updateShapeFromElement):
+        * rendering/svg/RenderSVGShape.h:
+        (WebCore::RenderSVGShape::clearPath):
+
+2017-08-14  Adrian Perez de Castro  <aperez@igalia.com>
+
+        [WPE] Implement WebCore::standardUserAgent()
+        https://bugs.webkit.org/show_bug.cgi?id=175507
+
+        Reviewed by Michael Catanzaro.
+
+        Remove "_GLIB" from user-agent version macros.
+
+        * platform/glib/UserAgentGLib.cpp:
+        (WebCore::versionForUAString):
+
+2017-08-14  Chris Dumez  <cdumez@apple.com>
+
+        Unreviewed, rollout r220622 & r220696
+        https://bugs.webkit.org/show_bug.cgi?id=175482
+        <rdar://problem/33860695>
+
+        Seems to have caused failures on iOS.
+
+        * CMakeLists.txt:
+        * Modules/beacon/NavigatorBeacon.cpp:
+        (WebCore::NavigatorBeacon::sendBeacon):
+        * Modules/fetch/FetchBodyOwner.cpp:
+        (WebCore::FetchBodyOwner::BlobLoader::didReceiveResponse):
+        (WebCore::FetchBodyOwner::BlobLoader::didFail):
+        * Modules/fetch/FetchBodyOwner.h:
+        * Modules/fetch/FetchLoader.cpp:
+        (WebCore::FetchLoader::start):
+        (WebCore::FetchLoader::didFail):
+        * Modules/fetch/FetchLoaderClient.h:
+        * Modules/fetch/FetchResponse.cpp:
+        (WebCore::FetchResponse::BodyLoader::didFail):
+        * Modules/fetch/FetchResponse.h:
+        * WebCore.xcodeproj/project.pbxproj:
+        * loader/DocumentThreadableLoader.cpp:
+        (WebCore::DocumentThreadableLoader::loadRequest):
+        * loader/cache/CachedRawResource.cpp:
+        (WebCore::CachedRawResource::finishLoading):
+        * loader/cache/CachedResource.cpp:
+        (WebCore::CachedResource::load):
+        * loader/cache/CachedResource.h:
+        (WebCore::CachedResource::isMainOrMediaOrIconOrRawResource const):
+        * loader/cache/CachedResourceLoader.cpp:
+        (WebCore::createResource):
+        (WebCore::CachedResourceLoader::requestImage):
+        (WebCore::CachedResourceLoader::requestFont):
+        (WebCore::CachedResourceLoader::requestTextTrack):
+        (WebCore::CachedResourceLoader::requestCSSStyleSheet):
+        (WebCore::CachedResourceLoader::requestUserCSSStyleSheet):
+        (WebCore::CachedResourceLoader::requestScript):
+        (WebCore::CachedResourceLoader::requestXSLStyleSheet):
+        (WebCore::CachedResourceLoader::requestSVGDocument):
+        (WebCore::CachedResourceLoader::requestLinkResource):
+        (WebCore::CachedResourceLoader::requestMedia):
+        (WebCore::CachedResourceLoader::requestIcon):
+        (WebCore::CachedResourceLoader::requestRawResource):
+        (WebCore::CachedResourceLoader::requestBeaconResource):
+        (WebCore::CachedResourceLoader::requestMainResource):
+        (WebCore::CachedResourceLoader::requestResource):
+        (WebCore::CachedResourceLoader::preload):
+        * loader/cache/CachedResourceLoader.h:
+        * loader/cache/KeepaliveRequestTracker.cpp: Removed.
+        * loader/cache/KeepaliveRequestTracker.h: Removed.
+        * platform/network/FormData.cpp:
+        (WebCore::FormData::appendFile):
+        (WebCore::FormData::appendFileRange):
+        (WebCore::FormData::appendBlob):
+        (WebCore::FormData::expandDataStore):
+        * platform/network/FormData.h:
+
+2017-08-14  Daniel Bates  <dabates@apple.com>
+
+        [css-ui] Implement caret-color support
+        https://bugs.webkit.org/show_bug.cgi?id=166572
+        <rdar://problem/33852589>
+
+        Reviewed by David Hyatt.
+
+        Add support for the CSS property caret-color as per <https://www.w3.org/TR/css-ui-3/#caret-color> (02 March 2017).
+        The property caret-color specifies the color of the text insertion caret in an editable element,
+        say an HTML textarea element.
+
+        Unlike other CSS color properties caret-color can have value "auto" and this is its initial
+        value. Internally we treat value "auto" as an invalid caret color to simplify the code.
+
+        Tests: editing/pasteboard/preserve-caret-color.html
+               fast/css/caret-color-auto.html
+               fast/css/caret-color-fallback-to-color.html
+               fast/css/caret-color-inherit.html
+               fast/css/caret-color-span-inside-editable-parent.html
+               fast/css/caret-color.html
+               fast/history/visited-link-caret-color.html
+
+        * css/CSSComputedStyleDeclaration.cpp:
+        (WebCore::ComputedStyleExtractor::propertyValue):
+        * css/CSSProperties.json: Add property caret-color. We represent the initial  "auto" Also, fix up
+        wording in a comment while I am here.
+        * css/StyleResolver.cpp:
+        (WebCore::isValidVisitedLinkProperty): Add caret-color to the list of properties that can be
+        applied to visited hyperlinks.
+        * css/parser/CSSParserFastPaths.cpp:
+        (WebCore::parseCaretColor): Added.
+        (WebCore::CSSParserFastPaths::maybeParseValue): Unlike other CSS color properties caret-color
+        can be defined to be "auto". We explicitly check if the property is caret-color and use
+        parseCaretColor() to parse its value.
+        * css/parser/CSSPropertyParser.cpp:
+        (WebCore::consumeCaretColor): Added.
+        (WebCore::CSSPropertyParser::parseSingleValue): Similar to the change to CSSParserFastPaths::maybeParseValue()
+        use a dedicated code path to parse caret-color.
+        * editing/EditingStyle.cpp: Preserve caret-color during editing operations.
+        * editing/FrameSelection.cpp:
+        (WebCore::CaretBase::paintCaret const): Modified code to query property caret-color instead of
+        color for the color of the text insertion caret. Always honor the caret-color of the editable
+        element if it is valid color. Note that "caret-color: auto" is treated as an invalid color
+        internally. A caret-color can have an invalid color if its inherits from the CSS color property
+        with an invalid color. If caret-color is a valid color then we take it to be the color of the
+        text insertion caret. Otherwise, we do what we do today and use a heuristic to determine the
+        color of the text-insertion caret.
+        (WebCore::disappearsIntoBackground): Deleted; moved logic into CaretBase::paintCaret().
+        * page/animation/CSSPropertyAnimation.cpp:
+        (WebCore::CSSPropertyAnimationWrapperMap::CSSPropertyAnimationWrapperMap): Add property wrapper
+        to support animating caret-color.
+        * rendering/style/RenderStyle.cpp:
+        (WebCore::RenderStyle::changeRequiresRepaintIfTextOrBorderOrOutline const): Modified to consider
+        changes to caret color.
+        (WebCore::RenderStyle::colorIncludingFallback const): Modified to compute the appropriate
+        color for property caret-color with respect to an unvisited or visited link.
+        * rendering/style/RenderStyle.h:
+        (WebCore::RenderStyle::setCaretColor): Added.
+        (WebCore::RenderStyle::setVisitedLinkCaretColor): Added.
+        (WebCore::RenderStyle::caretColor const): Added.
+        (WebCore::RenderStyle::visitedLinkCaretColor const): Added.
+        * rendering/style/StyleRareInheritedData.cpp:
+        (WebCore::StyleRareInheritedData::StyleRareInheritedData): Modified to consider caret color.
+        (WebCore::StyleRareInheritedData::operator== const): Ditto.
+        * rendering/style/StyleRareInheritedData.h:
+
+2017-08-14  Zan Dobersek  <zdobersek@igalia.com>
+
+        REGRESSION(r220517-r220521) [GTK] Various compositing tests fail
+        https://bugs.webkit.org/show_bug.cgi?id=175478
+
+        Reviewed by Sergio Villar Senin.
+
+        Fix a regression introduced in r220519. Move a framebuffer binding in TextureMapperGL
+        away from GraphicsContext3D and onto the OpenGL API to work around the framebuffer
+        binding state that's kept in the GraphicsContext3D class. This mismatch in how the
+        framebuffer was bound was causing a couple of test failures in compositing tests.
+
+        No new tests -- regressed tests have their failure expectations removed.
+
+        * platform/graphics/texmap/TextureMapperGL.cpp:
+        (WebCore::TextureMapperGL::bindDefaultSurface): Don't use GraphicsContext3D for the
+        glBindFramebuffer() call. This would be done in subsequent patches that would move
+        TextureMapperGL off the GraphicsContext3D usage, but this specific use case clashes
+        with the framebuffer binding that's done in BitmapTextureGL and was causing test
+        failures.
+
+2017-08-14  Chris Dumez  <cdumez@apple.com>
+
+        Unreviewed fix after r220622 to address crashes on iOS.
+
+        * loader/cache/CachedRawResource.cpp:
+        (WebCore::CachedRawResource::finishLoading):
+
+2017-08-14  Antti Koivisto  <antti@apple.com>
+
+        Factor text autosizing into a class
+        https://bugs.webkit.org/show_bug.cgi?id=175530
+
+        Reviewed by Andreas Kling.
+
+        Move the remaining parts out of Document.
+
+        * css/StyleBuilderCustom.h:
+        (WebCore::computeLineHeightMultiplierDueToFontSize):
+        * dom/Document.cpp:
+        (WebCore::Document::destroyRenderTree):
+        (WebCore::Document::textAutoSizing):
+        (WebCore::TextAutoSizingTraits::constructDeletedValue): Deleted.
+        (WebCore::TextAutoSizingTraits::isDeletedValue): Deleted.
+        (WebCore::Document::addAutoSizedNode): Deleted.
+        (WebCore::Document::updateAutoSizedNodes): Deleted.
+        (WebCore::Document::clearAutoSizedNodes): Deleted.
+        * dom/Document.h:
+        * rendering/RenderBlockFlow.cpp:
+        (WebCore::RenderBlockFlow::adjustComputedFontSizes):
+        * rendering/RenderElement.cpp:
+        (WebCore::RenderElement::adjustComputedFontSizesOnBlocks):
+        (WebCore::RenderElement::resetTextAutosizing):
+        * rendering/TextAutoSizing.cpp:
+        (WebCore::TextAutoSizingTraits::constructDeletedValue):
+        (WebCore::TextAutoSizingTraits::isDeletedValue):
+        (WebCore::TextAutoSizing::addTextNode):
+        (WebCore::TextAutoSizing::updateRenderTree):
+        (WebCore::TextAutoSizing::reset):
+        * rendering/TextAutoSizing.h:
+
+2017-08-14  Antti Koivisto  <antti@apple.com>
+
+        [Render Tree Mutation] First letter should not mutate the render tree while in layout.
+        https://bugs.webkit.org/show_bug.cgi?id=163848
+
+        Reviewed by Zalan Bujtas.
+
+        RenderBlock::updateFirstLetter shouldn't be called during layout. Instead it should
+        be invoked by the RenderTreeUpdater.
+
+        With this future patches can move updateFirstLetter() and the related functions
+        completely out of the render tree.
+
+        * rendering/RenderBlock.cpp:
+        (WebCore::RenderBlock::layout):
+
+            No more updateFirstLetter calls during layout...
+
+        (WebCore::RenderBlock::computePreferredLogicalWidths):
+
+            ...or preferred width computation.
+
+        (WebCore::RenderBlock::updateFirstLetter):
+        * rendering/RenderBlock.h:
+        * rendering/RenderRubyRun.cpp:
+        (WebCore::RenderRubyRun::updateFirstLetter):
+        * rendering/RenderRubyRun.h:
+        * rendering/RenderTable.cpp:
+        (WebCore::RenderTable::updateFirstLetter):
+        * rendering/RenderTable.h:
+        * rendering/svg/RenderSVGText.cpp:
+        (WebCore::RenderSVGText::updateFirstLetter):
+        * rendering/svg/RenderSVGText.h:
+        * style/RenderTreeUpdater.cpp:
+        (WebCore::RenderTreeUpdater::popParent):
+
+            Call updateFirstLetter when closing the element. All of of descedant renderers are known here
+            so this can be resolved correctly.
+
+2017-08-13  Manuel Rego Casasnovas  <rego@igalia.com>
+
+        Composition underline color is always black
+        https://bugs.webkit.org/show_bug.cgi?id=174675
+
+        Reviewed by Ryosuke Niwa.
+
+        This patch uses the current color of the text instead of black
+        for the composition underline marker.
+        This makes it visible in the case we have a black/dark background.
+
+        Test: editing/composition-underline-color.html
+
+        * editing/CompositionUnderline.h:
+        (WebCore::CompositionUnderline::CompositionUnderline):
+        Added new attribute compositionUnderlineColor.
+        * rendering/InlineTextBox.cpp:
+        (WebCore::InlineTextBox::paintCompositionUnderline):
+        Use the text color if compositionUnderlineColor is TextColor.
+
+2017-08-13  Carlos Garcia Campos  <cgarcia@igalia.com>
+
+        [GTK] stop kinetic scrolling when a zero movement is reached
+        https://bugs.webkit.org/show_bug.cgi?id=175468
+
+        Reviewed by Michael Catanzaro.
+
+        This is GTK+ change by Christian Hergert.
+        https://git.gnome.org/browse/gtk+/commit/?h=gtk-3-22&id=4f63d839550f7a9038b391e7d3e1e6fc8bdfafa6
+
+        When the kinetic scrolling reduces its speed, there can be multiple frames where the movement is zero pixels,
+        followed by a 1 pixel movement later on. This causes a "jitter" right at the end of the scroll which makes it
+        feel less quality than other platforms. Instead, we should just clamp it as soon as we get a zero movement.
+
+        * platform/ScrollAnimationKinetic.cpp:
+        (WebCore::ScrollAnimationKinetic::PerAxisData::animateScroll):
+
+2017-08-13  Chris Dumez  <cdumez@apple.com>
+
+        Drop non-const getter for CachedResource::resourceRequest()
+        https://bugs.webkit.org/show_bug.cgi?id=175524
+
+        Reviewed by Youenn Fablet.
+
+        Drop non-const getter for CachedResource::resourceRequest(). It would be unsafe to modify the request of a CachedResource
+        after it has been cached. Exposing such a getter is therefore a footgun.
+
+        * loader/LinkLoader.cpp:
+        (WebCore::LinkLoader::preloadIfNeeded):
+        * loader/cache/CachedImage.cpp:
+        (WebCore::CachedImage::CachedImage):
+        * loader/cache/CachedImage.h:
+        * loader/cache/CachedResource.cpp:
+        (WebCore::CachedResource::CachedResource):
+        * loader/cache/CachedResource.h:
+        (WebCore::CachedResource::resourceRequest const):
+        (WebCore::CachedResource::ignoreForRequestCount const):
+        (WebCore::CachedResource::setIgnoreForRequestCount):
+        * loader/cache/CachedResourceLoader.cpp:
+        (WebCore::CachedResourceLoader::requestResource):
+        * loader/cache/CachedResourceRequest.h:
+        (WebCore::CachedResourceRequest::ignoreForRequestCount const):
+        (WebCore::CachedResourceRequest::setIgnoreForRequestCount):
+        * loader/cache/MemoryCache.cpp:
+        (WebCore::MemoryCache::addImageToCache):
+        * platform/network/ResourceRequestBase.h:
+
+2017-08-13  Adrian Perez de Castro  <aperez@igalia.com>
+
+        [WPE] Implement WebCore::standardUserAgent()
+        https://bugs.webkit.org/show_bug.cgi?id=175507
+
+        Reviewed by Carlos Alberto Lopez Perez.
+
+        Implement missing User-Agent handling for the WPE port by sharing the code with the GTK+ port.
+
+        * PlatformGTK.cmake: Handlde renaming of UserAgentGtk.cpp to UserAgentGLib.cpp.
+        * PlatformWPE.cmake: Add UserAgentGLib.cpp and UserAgentQuirks.cpp to the list of built WebCore sources.
+        * platform/glib/UserAgentGLib.cpp: Renamed from Source/WebCore/platform/gtk/UserAgentGtk.cpp.
+        (WebCore::versionForUAString): Change "GTK" in UA version macros to "GLIB".
+
 2017-08-11  Ryosuke Niwa  <rniwa@webkit.org>
 
         Replace DATA_TRANSFER_ITEMS by a runtime flag and add a stub implementation

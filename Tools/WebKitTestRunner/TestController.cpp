@@ -731,6 +731,10 @@ void TestController::resetPreferencesToConsistentValues(const TestOptions& optio
 
     WKPreferencesSetInspectorAdditionsEnabled(preferences, options.enableInspectorAdditions);
 
+#if ENABLE(PAYMENT_REQUEST)
+    WKPreferencesSetPaymentRequestEnabled(preferences, true);
+#endif
+
     platformResetPreferencesToConsistentValues();
 }
 
@@ -823,6 +827,7 @@ bool TestController::resetStateToConsistentValues(const TestOptions& options)
 
     m_shouldBlockAllPlugins = false;
 
+    m_shouldLogDownloadCallbacks = false;
     m_shouldLogHistoryClientCallbacks = false;
     m_shouldLogCanAuthenticateAgainstProtectionSpace = false;
 

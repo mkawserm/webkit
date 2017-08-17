@@ -1,3 +1,241 @@
+2017-08-17  Carlos Garcia Campos  <cgarcia@igalia.com>
+
+        [GTK][WPE] Add NTLM authentication enabled API
+        https://bugs.webkit.org/show_bug.cgi?id=122952
+
+        Reviewed by Michael Catanzaro.
+
+        Add a test case to check we can enable/disable NTLM.
+
+        * TestWebKitAPI/Tests/WebKitGLib/TestAuthentication.cpp:
+        (testWebViewAuthenticationNTLM):
+        (beforeAll):
+
+2017-08-16  Yoshiaki Jitsukawa  <Yoshiaki.Jitsukawa@sony.com>
+
+        [PAL] Move spi/ios and spi/win directories into PAL
+        https://bugs.webkit.org/show_bug.cgi?id=175171
+
+        Reviewed by Antti Koivisto.
+
+        * DumpRenderTree/mac/EventSendingController.mm:
+
+2017-08-16  Andy Estes  <aestes@apple.com>
+
+        [Payment Request] Add an ENABLE flag and an experimental feature preference
+        https://bugs.webkit.org/show_bug.cgi?id=175622
+
+        Reviewed by Tim Horton.
+
+        * TestWebKitAPI/Configurations/FeatureDefines.xcconfig:
+        * WebKitTestRunner/TestController.cpp:
+        (WTR::TestController::resetPreferencesToConsistentValues):
+
+2017-08-15  Aakash Jain  <aakash_jain@apple.com>
+
+        undefined URL in PopoverTracker for failed step
+        https://bugs.webkit.org/show_bug.cgi?id=175593
+        <rdar://problem/33898769>
+
+        Reviewed by Daniel Bates.
+
+        This fix is a workaround for Buildbot 0.9 bug <https://github.com/buildbot/buildbot/issues/3529> where it
+        does not provide a URL to stdio for a build step. Buildbot 0.8 always included a URL to the stdio of the step.
+
+        * BuildSlaveSupport/build.webkit.org-config/public_html/dashboard/Scripts/BuildbotIteration.js:
+        (BuildbotIteration.prototype._parseData): Pass the URL while instantiating BuildbotTestResults.
+        (BuildbotIteration.prototype._urlForStep): Method to get the URL for a step.
+        * BuildSlaveSupport/build.webkit.org-config/public_html/dashboard/Scripts/BuildbotTestResults.js:
+        (BuildbotTestResults): Accept URL in constructor.
+
+2017-08-14  Simon Fraser  <simon.fraser@apple.com>
+
+        Remove Proximity Events and related code
+        https://bugs.webkit.org/show_bug.cgi?id=175545
+
+        Reviewed by Daniel Bates.
+
+        No platform enables Proximity Events, so remove code inside ENABLE(PROXIMITY_EVENTS)
+        and other related code.
+
+        * TestWebKitAPI/Configurations/FeatureDefines.xcconfig:
+
+2017-08-14  Simon Fraser  <simon.fraser@apple.com>
+
+        Remove ENABLE(REQUEST_AUTOCOMPLETE) code, which was disabled everywhere
+        https://bugs.webkit.org/show_bug.cgi?id=175504
+
+        Reviewed by Sam Weinig.
+
+        * TestWebKitAPI/Configurations/FeatureDefines.xcconfig:
+
+2017-08-14  Simon Fraser  <simon.fraser@apple.com>
+
+        Remove ENABLE_VIEW_MODE_CSS_MEDIA and related code
+        https://bugs.webkit.org/show_bug.cgi?id=175557
+
+        Reviewed by Jon Lee.
+        
+        No port cares about the ENABLE(VIEW_MODE_CSS_MEDIA) feature, so remove it.
+
+        * DumpRenderTree/TestRunner.cpp:
+        (TestRunner::staticFunctions):
+        (setViewModeMediaFeatureCallback): Deleted.
+        * DumpRenderTree/TestRunner.h:
+        * DumpRenderTree/mac/TestRunnerMac.mm:
+        (TestRunner::setViewModeMediaFeature): Deleted.
+        * DumpRenderTree/win/TestRunnerWin.cpp:
+        (TestRunner::setViewModeMediaFeature): Deleted.
+        * TestWebKitAPI/Configurations/FeatureDefines.xcconfig:
+
+2017-08-14  Andy Estes  <aestes@apple.com>
+
+        REGRESSION (r220456): Crash in PreviewLoader::shouldCreateForMIMEType() when a ResourceResponse has a null MIME type
+        https://bugs.webkit.org/show_bug.cgi?id=175548
+        <rdar://problem/33866206>
+
+        Reviewed by Brady Eidson.
+
+        * TestWebKitAPI/TestWebKitAPI.xcodeproj/project.pbxproj:
+        * TestWebKitAPI/Tests/WebCore/ios/PreviewLoader.cpp: Added.
+        (TestWebKitAPI::TEST): Added an API test for PreviewLoader::shouldCreateForMIMEType().
+
+2017-08-14  Youenn Fablet  <youenn@apple.com>
+
+        WPT server should be able to do logging even if its output folder is not created at launch time
+        https://bugs.webkit.org/show_bug.cgi?id=175543
+
+        Reviewed by Alexey Proskuryakov.
+
+        Removing no longer used stdout/stderr member variables.
+        Creating if needed the output folder so that we can create WPT server output log folder at WPT server launch time.
+
+        * Scripts/webkitpy/layout_tests/servers/web_platform_test_server.py:
+        (WebPlatformTestServer.__init__):
+        (WebPlatformTestServer._prepare_config):
+        (WebPlatformTestServer._spawn_process):
+        (WebPlatformTestServer._stop_running_server):
+
+2017-08-14  Daniel Bates  <dabates@apple.com>
+
+        webkit-patch: Passing --no-review should submit patch to EWS by default
+        https://bugs.webkit.org/show_bug.cgi?id=148899
+
+        Reviewed by David Kilzer.
+
+        Make "webkit-patch upload --no-review" and "webkit-patch post-commits --no-review" submit
+        the patch(es) for EWS analysis by default. Add a new optional command line argument, --no-ews,
+        to these commands to not submit a non-reviewed patch(es) for EWS analysis.
+
+        Frequently I want to post a draft of a patch without review to have the EWS bots process
+        it to catch build and test breakage before I clean it up and post it for formal review.
+        Currently this requires using "webkit-patch upload --no-review --open-bug" to upload the
+        patch and open the bug in Safari so that I can click the Submit for EWS analysis button.
+        We should teach "webkit-patch upload" and "webkit-patch post-commits" how to do this.
+
+        * Scripts/webkitpy/common/net/bugzilla/bugzilla.py:
+        (Bugzilla._parse_attachment_id_from_add_patch_to_bug_response): Add helper function to
+        parse the attachment id from the response page after adding an attachment to the bug.
+        (Bugzilla.add_patch_to_bug): Modified to parse and return the attachment id from the
+        HTTP response after uploading the patch.
+        * Scripts/webkitpy/common/net/bugzilla/bugzilla_mock.py:
+        (MockBugzilla.add_patch_to_bug): Return a dummy attachment id for testing purposes.
+        * Scripts/webkitpy/common/net/bugzilla/bugzilla_unittest.py:
+        (test__parse_attachment_id_from_add_patch_to_bug_response): Added.
+        * Scripts/webkitpy/tool/commands/upload.py:
+        (Upload): Add step SubmitToEWS to the list of steps when uploading a patch. 
+        (PostCommits.__init__): Add --no-ews option to the list of applicable option flags for
+        this command.
+        (PostCommits.execute): Submit the patch to EWS, if applicable.
+        * Scripts/webkitpy/tool/commands/upload_unittest.py:
+        (test_upload): Set options.ews to False as the upload command expects this option
+        to be specified.
+        (test_upload_with_no_review_and_ews): Added.
+        * Scripts/webkitpy/tool/steps/__init__.py: Import module SubmitToEWS.
+        * Scripts/webkitpy/tool/steps/options.py:
+        (Options): Added command line option --no-ews (defaults: False - submit to EWS).
+        * Scripts/webkitpy/tool/steps/postdiff.py:
+        (PostDiff.options): Add --no-ews option to the list of applicable option flags for
+        this command.
+        (PostDiff.run): Submit the patch to EWS, if applicable.
+        * Scripts/webkitpy/tool/steps/submittoews.py: Added.
+        (SubmitToEWS):
+        (SubmitToEWS.options): Return an empty array as we this step does not have any command line options.
+        (SubmitToEWS.run): Submit the specified attachment ids for EWS analysis.
+
+2017-08-14  Ryan Haddad  <ryanhaddad@apple.com>
+
+        Disable two flaky VideoControlsManager API tests.
+
+        Unreviewed test gardening.
+
+        * TestWebKitAPI/Tests/WebKit2Cocoa/VideoControlsManager.mm:
+        (TestWebKitAPI::TEST):
+
+2017-08-14  Tim Horton  <timothy_horton@apple.com>
+
+        Only create directory and sandbox extension handle for storage directories if they are set
+        https://bugs.webkit.org/show_bug.cgi?id=175522
+
+        Reviewed by Brady Eidson.
+
+        * TestWebKitAPI/TestWebKitAPI.xcodeproj/project.pbxproj:
+        * TestWebKitAPI/Tests/WebKit2Cocoa/WKWebViewDoesNotLogDuringInitialization.mm: Added.
+        (TEST):
+        Add a test that making a WKWebView with an ephemeral WKWebsiteDataStore
+        doesn't log anything to stderr.
+
+2017-08-14  Jonathan Bedard  <jbedard@apple.com>
+
+        sub-categorize Sandbox violation logs
+        https://bugs.webkit.org/show_bug.cgi?id=175536
+        <rdar://problem/33834416>
+
+        Reviewed by David Kilzer.
+
+        * Scripts/webkitpy/common/system/crashlogs.py:
+        (CrashLogs._parse_darwin_crash_log): Add 'Sandbox-' to the log name if the log is
+        a Sandbox violation.
+        (CrashLogs._find_all_logs_darwin): Update comment.
+        * Scripts/webkitpy/common/system/crashlogs_unittest.py:
+        (make_mock_sandbox_report_darwin): Create a Sandbox violation log for testing. 
+        (CrashLogsTest.create_crash_logs_darwin): Add Sandbox violation to list of crashes.
+        (CrashLogsTest.test_find_all_log_darwin): 8 logs in testing instead of 7.
+        (CrashLogsTest.test_duplicate_log_darwin): Check for Sandbox violation log.
+        * Scripts/webkitpy/port/darwin.py:
+        (DarwinPort._merge_crash_logs): Handle Sandbox violation case.
+
+2017-08-14  Daniel Bates  <dabates@apple.com>
+
+        Add Automator service to copy permalink to Clipboard
+        https://bugs.webkit.org/show_bug.cgi?id=170978
+
+        Reviewed by Joseph Pecoraro.
+
+        It is helpful to reference using a hyperlink a particular line of code when having
+        a discussion on IRC or in a bug. You can get such a link by navigating to the file
+        in the Trac Browse Source viewer and selecting the line your are interested in.
+        I found myself doing this often enough that I wrote an Automator service to do it
+        for me.
+
+        This Automator service works with Xcode 8 and Xcode 9 beta 5 (9M202q) or later.
+
+        * CopyPermalink/Copy WebKit Permalink.workflow/Contents/Info.plist: Added.
+        * CopyPermalink/Copy WebKit Permalink.workflow/Contents/document.wflow: Added.
+        * CopyPermalink/README: Added.
+
+2017-08-14  Chris Dumez  <cdumez@apple.com>
+
+        Address flakiness related to download tests
+        https://bugs.webkit.org/show_bug.cgi?id=175338
+        <rdar://problem/33865119>
+
+        Unreviewed, forgot in r220626 to reset m_shouldLogDownloadCallbacks to false
+        between tests.
+
+        * WebKitTestRunner/TestController.cpp:
+        (WTR::TestController::resetStateToConsistentValues):
+
 2017-08-11  Ryosuke Niwa  <rniwa@webkit.org>
 
         Replace DATA_TRANSFER_ITEMS by a runtime flag and add a stub implementation

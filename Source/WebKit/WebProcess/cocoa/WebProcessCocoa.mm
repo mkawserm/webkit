@@ -52,6 +52,7 @@
 #import <WebCore/FontCache.h>
 #import <WebCore/FontCascade.h>
 #import <WebCore/LocalizedStrings.h>
+#import <WebCore/LogInitialization.h>
 #import <WebCore/MemoryRelease.h>
 #import <WebCore/NSAccessibilitySPI.h>
 #import <WebCore/PerformanceLogging.h>
@@ -69,7 +70,7 @@
 
 #if PLATFORM(IOS)
 #import "CelestialSPI.h"
-#import <WebCore/GraphicsServicesSPI.h>
+#import <pal/spi/ios/GraphicsServicesSPI.h>
 #import <wtf/SoftLinking.h>
 #endif
 
@@ -112,6 +113,10 @@ static id NSApplicationAccessibilityFocusedUIElement(NSApplication*, SEL)
 
 void WebProcess::platformInitializeWebProcess(WebProcessCreationParameters&& parameters)
 {
+#if !LOG_DISABLED || !RELEASE_LOG_DISABLED
+    WebCore::initializeLogChannelsIfNecessary(parameters.webCoreLoggingChannels);
+#endif
+
     WebCore::setApplicationBundleIdentifier(parameters.uiProcessBundleIdentifier);
     SessionTracker::setIdentifierBase(parameters.uiProcessBundleIdentifier);
 

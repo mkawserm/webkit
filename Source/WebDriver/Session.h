@@ -104,6 +104,8 @@ private:
 
     void switchToTopLevelBrowsingContext(std::optional<String>);
     void switchToBrowsingContext(std::optional<String>);
+    void closeTopLevelBrowsingContext(const String& toplevelBrowsingContext, Function<void (CommandResult&&)>&&);
+    void closeAllToplevelBrowsingContexts(const String& toplevelBrowsingContext, Function<void (CommandResult&&)>&&);
 
     std::optional<String> pageLoadStrategyString() const;
 
@@ -136,6 +138,8 @@ private:
         UseViewportCoordinates = 1 << 1,
     };
     void computeElementLayout(const String& elementID, OptionSet<ElementLayoutOption>, Function<void (std::optional<Rect>&&, std::optional<Point>&&, bool, RefPtr<Inspector::InspectorObject>&&)>&&);
+
+    void selectOptionElement(const String& elementID, Function<void (CommandResult&&)>&&);
 
     enum class MouseButton { None, Left, Middle, Right };
     enum class MouseInteraction { Move, Down, Up, SingleClick, DoubleClick };

@@ -31,28 +31,44 @@
 
 #pragma once
 
+#include "DataTransfer.h"
+#include "ScriptWrappable.h"
 #include <wtf/Forward.h>
 #include <wtf/RefCounted.h>
+#include <wtf/WeakPtr.h>
 #include <wtf/text/AtomicString.h>
 
 namespace WebCore {
 
-class Blob;
+class DataTransferListItem;
+class File;
+class ScriptExecutionContext;
 class StringCallback;
 
 class DataTransferItem : public RefCounted<DataTransferItem> {
 public:
-    DataTransferItem();
+    static Ref<DataTransferItem> create(WeakPtr<DataTransferItemList>&&, const String&);
+    static Ref<DataTransferItem> create(WeakPtr<DataTransferItemList>&&, const String&, Ref<File>&&);
+
     ~DataTransferItem();
 
-    const AtomicString& kind() const { return m_kind; }
-    const AtomicString& type() const { return m_type; }
-    void getAsString(RefPtr<StringCallback>&&) const;
-    RefPtr<Blob> getAsFile() const;
+    void clearListAndPutIntoDisabledMode();
+
+    bool isFile() const { return m_file; }
+    String kind() const;
+    String type() const;
+    void getAsString(ScriptExecutionContext&, RefPtr<StringCallback>&&) const;
+    RefPtr<File> getAsFile() const;
 
 private:
-    AtomicString m_kind;
-    AtomicString m_type;
+    DataTransferItem(WeakPtr<DataTransferItemList>&&, const String&);
+    DataTransferItem(WeakPtr<DataTransferItemList>&&, const String&, Ref<File>&&);
+
+    bool isInDisabledMode() const { return !m_list; }
+
+    WeakPtr<DataTransferItemList> m_list;
+    const String m_type;
+    RefPtr<File> m_file;
 };
 
 }

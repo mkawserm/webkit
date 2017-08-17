@@ -51,6 +51,7 @@ public:
     CachedResourceRequest(ResourceRequest&&, const ResourceLoaderOptions&, std::optional<ResourceLoadPriority> = std::nullopt, String&& charset = String());
 
     ResourceRequest&& releaseResourceRequest() { return WTFMove(m_resourceRequest); }
+    HTTPHeaderMap&& releaseOriginalRequestHeaders() { return WTFMove(m_originalRequestHeaders); }
     const ResourceRequest& resourceRequest() const { return m_resourceRequest; }
     const String& charset() const { return m_charset; }
     void setCharset(const String& charset) { m_charset = charset; }
@@ -62,6 +63,10 @@ public:
     const AtomicString& initiatorName() const;
     bool allowsCaching() const { return m_options.cachingPolicy == CachingPolicy::AllowCaching; }
     void setCachingPolicy(CachingPolicy policy) { m_options.cachingPolicy = policy;  }
+
+    // Whether this request should impact request counting and delay window.onload.
+    bool ignoreForRequestCount() const { return m_ignoreForRequestCount; }
+    void setIgnoreForRequestCount(bool ignoreForRequestCount) { m_ignoreForRequestCount = ignoreForRequestCount; }
 
     void setAsPotentiallyCrossOrigin(const String&, Document&);
     void updateForAccessControl(Document&);
@@ -90,6 +95,7 @@ public:
 
 private:
     ResourceRequest m_resourceRequest;
+    HTTPHeaderMap m_originalRequestHeaders;
     String m_charset;
     ResourceLoaderOptions m_options;
     std::optional<ResourceLoadPriority> m_priority;
@@ -98,6 +104,7 @@ private:
     RefPtr<SecurityOrigin> m_origin;
     String m_fragmentIdentifier;
     bool m_isLinkPreload { false };
+    bool m_ignoreForRequestCount { false };
 };
 
 void upgradeInsecureResourceRequestIfNeeded(ResourceRequest&, Document&);

@@ -148,10 +148,6 @@ the public iOS SDK. We will also need to update the FeatureDefines.xcconfig file
 #define ENABLE_WEB_ARCHIVE 1
 #endif
 
-#if !defined(ENABLE_VIEW_MODE_CSS_MEDIA)
-#define ENABLE_VIEW_MODE_CSS_MEDIA 0
-#endif
-
 #if !defined(ENABLE_WEBGL)
 #define ENABLE_WEBGL 1
 #endif
@@ -201,10 +197,6 @@ the public iOS SDK. We will also need to update the FeatureDefines.xcconfig file
 #if !defined(ENABLE_VIDEO_TRACK)
 #define ENABLE_VIDEO_TRACK 1
 #endif
-#endif
-
-#if !defined(ENABLE_VIEW_MODE_CSS_MEDIA)
-#define ENABLE_VIEW_MODE_CSS_MEDIA 0
 #endif
 
 #if !defined(ENABLE_WEB_ARCHIVE)
@@ -259,6 +251,10 @@ the public iOS SDK. We will also need to update the FeatureDefines.xcconfig file
 #define ENABLE_KEYBOARD_CODE_ATTRIBUTE 1
 #endif
 
+#if !defined(ENABLE_PAYMENT_REQUEST)
+#define ENABLE_PAYMENT_REQUEST 1
+#endif
+
 #endif /* PLATFORM(COCOA) */
 
 #if !PLATFORM(COCOA)
@@ -298,10 +294,6 @@ the public iOS SDK. We will also need to update the FeatureDefines.xcconfig file
 
 #if !defined(ENABLE_WEB_ARCHIVE)
 #define ENABLE_WEB_ARCHIVE 1
-#endif
-
-#if !defined(ENABLE_VIEW_MODE_CSS_MEDIA)
-#define ENABLE_VIEW_MODE_CSS_MEDIA 0
 #endif
 
 #if !defined(ENABLE_WEBGL)
@@ -588,12 +580,12 @@ the public iOS SDK. We will also need to update the FeatureDefines.xcconfig file
 #endif
 #endif
 
-#if !defined(ENABLE_POINTER_LOCK)
-#define ENABLE_POINTER_LOCK 1
+#if !defined(ENABLE_PAYMENT_REQUEST)
+#define ENABLE_PAYMENT_REQUEST 0
 #endif
 
-#if !defined(ENABLE_PROXIMITY_EVENTS)
-#define ENABLE_PROXIMITY_EVENTS 0
+#if !defined(ENABLE_POINTER_LOCK)
+#define ENABLE_POINTER_LOCK 1
 #endif
 
 #if !defined(ENABLE_QUOTA)
@@ -602,10 +594,6 @@ the public iOS SDK. We will also need to update the FeatureDefines.xcconfig file
 
 #if !defined(ENABLE_REMOTE_INSPECTOR)
 #define ENABLE_REMOTE_INSPECTOR 0
-#endif
-
-#if !defined(ENABLE_REQUEST_AUTOCOMPLETE)
-#define ENABLE_REQUEST_AUTOCOMPLETE 0
 #endif
 
 #if !defined(ENABLE_RUBBER_BANDING)
@@ -662,10 +650,6 @@ the public iOS SDK. We will also need to update the FeatureDefines.xcconfig file
 
 #if !defined(ENABLE_DATACUE_VALUE)
 #define ENABLE_DATACUE_VALUE 0
-#endif
-
-#if !defined(ENABLE_VIEW_MODE_CSS_MEDIA)
-#define ENABLE_VIEW_MODE_CSS_MEDIA 1
 #endif
 
 #if !defined(ENABLE_WEBGL)

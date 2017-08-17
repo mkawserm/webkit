@@ -30,12 +30,13 @@
 #import "Image.h"
 #import "Pasteboard.h"
 #import "SharedBuffer.h"
-#import "UIKitSPI.h"
 #import "URL.h"
+#import "UTIUtilities.h"
 #import "WebItemProviderPasteboard.h"
 #import <MobileCoreServices/MobileCoreServices.h>
 #import <UIKit/UIImage.h>
 #import <UIKit/UIPasteboard.h>
+#import <pal/spi/ios/UIKitSPI.h>
 #import <wtf/SoftLinking.h>
 
 SOFT_LINK_FRAMEWORK(UIKit)
@@ -293,12 +294,12 @@ void PlatformPasteboard::writeObjectRepresentations(const PasteboardImage& paste
         [itemsToRegister addData:data[i]->createNSData().get() forType:types[i]];
 
     if (pasteboardImage.resourceData && !pasteboardImage.resourceMIMEType.isEmpty()) {
-        auto utiOrMIMEType = pasteboardImage.resourceMIMEType.createCFString();
-        if (!UTTypeIsDeclared(utiOrMIMEType.get()))
-            utiOrMIMEType = adoptCF(UTTypeCreatePreferredIdentifierForTag(kUTTagClassMIMEType, utiOrMIMEType.get(), nil));
+        auto utiOrMIMEType = pasteboardImage.resourceMIMEType;
+        if (!isDeclaredUTI(utiOrMIMEType))
+            utiOrMIMEType = UTIFromMIMEType(utiOrMIMEType);
 
         auto imageData = pasteboardImage.resourceData->createNSData();
-        [itemsToRegister addData:imageData.get() forType:(NSString *)utiOrMIMEType.get()];
+        [itemsToRegister addData:imageData.get() forType:(NSString *)utiOrMIMEType];
         [itemsToRegister setEstimatedDisplayedSize:pasteboardImage.imageSize];
         [itemsToRegister setSuggestedName:pasteboardImage.suggestedName];
     }

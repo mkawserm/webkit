@@ -1124,6 +1124,24 @@ void SpeculativeJIT::compileDeleteByVal(Node* node)
     unblessedBooleanResult(resultGPR, node, UseChildrenCalledExplicitly);
 }
 
+void SpeculativeJIT::compilePushWithScope(Node* node)
+{
+    SpeculateCellOperand currentScope(this, node->child1());
+    GPRReg currentScopeGPR = currentScope.gpr();
+
+    JSValueOperand object(this, node->child2());
+    JSValueRegs objectRegs = object.jsValueRegs();
+
+    GPRFlushedCallResult result(this);
+    GPRReg resultGPR = result.gpr();
+    
+    flushRegisters();
+    callOperation(operationPushWithScope, resultGPR, currentScopeGPR, objectRegs);
+    m_jit.exceptionCheck();
+    
+    cellResult(resultGPR, node);
+}
+
 bool SpeculativeJIT::nonSpeculativeCompare(Node* node, MacroAssembler::RelationalCondition cond, S_JITOperation_EJJ helperFunction)
 {
     unsigned branchIndexInBlock = detectPeepHoleBranch();
@@ -6304,6 +6322,7 @@ void SpeculativeJIT::compileGetByValOnScopedArguments(Node* node)
     m_jit.loadPtr(
         MacroAssembler::Address(scratchReg, ScopedArgumentsTable::offsetOfArguments()),
         scratchReg);
+    m_jit.cage(ScopedArgumentsTable::ArgumentsPtr::kind, scratchReg);
     m_jit.load32(
         MacroAssembler::BaseIndex(scratchReg, propertyReg, MacroAssembler::TimesFour),
         scratchReg);

@@ -1,3 +1,594 @@
+2017-08-17  Carlos Garcia Campos  <cgarcia@igalia.com>
+
+        [GTK][WPE] Add NTLM authentication enabled API
+        https://bugs.webkit.org/show_bug.cgi?id=122952
+
+        Reviewed by Michael Catanzaro.
+
+        Add API to WebKitWebContext to enable/disable NTLM authentication.
+
+        * NetworkProcess/NetworkProcess.h:
+        * NetworkProcess/NetworkProcess.messages.in:
+        * NetworkProcess/NetworkProcessCreationParameters.cpp:
+        (WebKit::NetworkProcessCreationParameters::encode const):
+        (WebKit::NetworkProcessCreationParameters::decode):
+        * NetworkProcess/NetworkProcessCreationParameters.h:
+        * NetworkProcess/soup/NetworkProcessSoup.cpp:
+        (WebKit::NetworkProcess::platformInitializeNetworkProcess):
+        (WebKit::NetworkProcess::setNTLMAuthenticationEnabled):
+        * UIProcess/API/glib/WebKitWebContext.cpp:
+        (webkit_web_context_get_ntlm_authentication_enabled):
+        (webkit_web_context_set_ntlm_authentication_enabled):
+        * UIProcess/API/gtk/WebKitWebContext.h:
+        * UIProcess/API/gtk/docs/webkit2gtk-4.0-sections.txt:
+        * UIProcess/API/wpe/WebKitWebContext.h:
+        * UIProcess/WebProcessPool.h:
+        * UIProcess/soup/WebProcessPoolSoup.cpp:
+        (WebKit::WebProcessPool::setNTLMAuthenticationEnabled):
+
+2017-08-16  Andy Estes  <aestes@apple.com>
+
+        [Apple Pay] Rename PaymentRequest to ApplePaySessionPaymentRequest
+        https://bugs.webkit.org/show_bug.cgi?id=175648
+
+        Reviewed by Tim Horton.
+
+        * Scripts/webkit/messages.py:
+        (headers_for_type):
+        * Shared/Cocoa/WebCoreArgumentCodersCocoa.mm:
+        (IPC::ArgumentCoder<ApplePaySessionPaymentRequest>::encode):
+        (IPC::ArgumentCoder<ApplePaySessionPaymentRequest>::decode):
+        (IPC::ArgumentCoder<ApplePaySessionPaymentRequest::ContactFields>::encode):
+        (IPC::ArgumentCoder<ApplePaySessionPaymentRequest::ContactFields>::decode):
+        (IPC::ArgumentCoder<ApplePaySessionPaymentRequest::LineItem>::encode):
+        (IPC::ArgumentCoder<ApplePaySessionPaymentRequest::LineItem>::decode):
+        (IPC::ArgumentCoder<ApplePaySessionPaymentRequest::MerchantCapabilities>::encode):
+        (IPC::ArgumentCoder<ApplePaySessionPaymentRequest::MerchantCapabilities>::decode):
+        (IPC::ArgumentCoder<ApplePaySessionPaymentRequest::ShippingMethod>::encode):
+        (IPC::ArgumentCoder<ApplePaySessionPaymentRequest::ShippingMethod>::decode):
+        (IPC::ArgumentCoder<ApplePaySessionPaymentRequest::TotalAndLineItems>::encode):
+        (IPC::ArgumentCoder<ApplePaySessionPaymentRequest::TotalAndLineItems>::decode):
+        (IPC::ArgumentCoder<PaymentRequest>::encode): Deleted.
+        (IPC::ArgumentCoder<PaymentRequest>::decode): Deleted.
+        (IPC::ArgumentCoder<PaymentRequest::ContactFields>::encode): Deleted.
+        (IPC::ArgumentCoder<PaymentRequest::ContactFields>::decode): Deleted.
+        (IPC::ArgumentCoder<PaymentRequest::LineItem>::encode): Deleted.
+        (IPC::ArgumentCoder<PaymentRequest::LineItem>::decode): Deleted.
+        (IPC::ArgumentCoder<PaymentRequest::MerchantCapabilities>::encode): Deleted.
+        (IPC::ArgumentCoder<PaymentRequest::MerchantCapabilities>::decode): Deleted.
+        (IPC::ArgumentCoder<PaymentRequest::ShippingMethod>::encode): Deleted.
+        (IPC::ArgumentCoder<PaymentRequest::ShippingMethod>::decode): Deleted.
+        (IPC::ArgumentCoder<PaymentRequest::TotalAndLineItems>::encode): Deleted.
+        (IPC::ArgumentCoder<PaymentRequest::TotalAndLineItems>::decode): Deleted.
+        * Shared/WebCoreArgumentCoders.h:
+        * UIProcess/ApplePay/WebPaymentCoordinatorProxy.cpp:
+        (WebKit::WebPaymentCoordinatorProxy::showPaymentUI):
+        (WebKit::WebPaymentCoordinatorProxy::didSelectShippingMethod):
+        * UIProcess/ApplePay/WebPaymentCoordinatorProxy.h:
+        * UIProcess/ApplePay/WebPaymentCoordinatorProxy.messages.in:
+        * UIProcess/ApplePay/cocoa/WebPaymentCoordinatorProxyCocoa.h:
+        * UIProcess/ApplePay/cocoa/WebPaymentCoordinatorProxyCocoa.mm:
+        (toShippingMethod):
+        (WebKit::toPKContactFields):
+        (WebKit::toPKAddressField):
+        (WebKit::toPKPaymentSummaryItemType):
+        (WebKit::toPKPaymentSummaryItem):
+        (WebKit::toPKPaymentSummaryItems):
+        (WebKit::toPKMerchantCapabilities):
+        (WebKit::toPKShippingType):
+        (WebKit::toPKShippingMethod):
+        (WebKit::toPKPaymentRequest):
+        * UIProcess/ApplePay/ios/WebPaymentCoordinatorProxyIOS.mm:
+        (WebKit::WebPaymentCoordinatorProxy::platformShowPaymentUI):
+        * UIProcess/ApplePay/mac/WebPaymentCoordinatorProxyMac.mm:
+        (WebKit::WebPaymentCoordinatorProxy::platformShowPaymentUI):
+        * WebProcess/ApplePay/WebPaymentCoordinator.cpp:
+        (WebKit::WebPaymentCoordinator::showPaymentUI):
+        (WebKit::WebPaymentCoordinator::didSelectShippingMethod):
+        * WebProcess/ApplePay/WebPaymentCoordinator.h:
+        * WebProcess/ApplePay/WebPaymentCoordinator.messages.in:
+
+2017-08-16  Chris Dumez  <cdumez@apple.com>
+
+        Cross origin Beacon requests with a ArrayBuffer / ArrayBufferView payload should not do a CORS preflight
+        https://bugs.webkit.org/show_bug.cgi?id=175628
+        <rdar://problem/33919278>
+
+        Reviewed by Geoffrey Garen.
+
+        Cross origin Beacon requests with a ArrayBuffer / ArrayBufferView payload should not do a CORS preflight.
+        To achieve this, the following changes were made:
+        1. Revert r220779 which caused us to use a non CORS-safelisted Content-Type header for such payload
+        2. Teach PingLoad how to deal with "simple" cross origin requests (i.e. Don't assume we need a CORS
+           preflight merely because the fetch mode is set to "cors").
+
+        * NetworkProcess/NetworkCORSPreflightChecker.cpp:
+        (WebKit::NetworkCORSPreflightChecker::startPreflight):
+        * NetworkProcess/NetworkResourceLoadParameters.cpp:
+        (WebKit::NetworkResourceLoadParameters::encode const):
+        (WebKit::NetworkResourceLoadParameters::decode):
+        * NetworkProcess/NetworkResourceLoadParameters.h:
+        * NetworkProcess/PingLoad.cpp:
+        (WebKit::PingLoad::PingLoad):
+        (WebKit::PingLoad::loadRequest):
+        (WebKit::PingLoad::originalRequestHeaders const):
+        (WebKit::PingLoad::willPerformHTTPRedirection):
+        (WebKit::PingLoad::isAllowedRedirect const):
+        (WebKit::PingLoad::makeCrossOriginAccessRequest):
+        (WebKit::PingLoad::makeSimpleCrossOriginAccessRequest):
+        (WebKit::PingLoad::makeCrossOriginAccessRequestWithPreflight):
+        (WebKit::PingLoad::preflightSuccess):
+        * NetworkProcess/PingLoad.h:
+        * WebProcess/Network/WebLoaderStrategy.cpp:
+        (WebKit::WebLoaderStrategy::createPingHandle):
+        * WebProcess/Network/WebLoaderStrategy.h:
+
+2017-08-16  Yoshiaki Jitsukawa  <Yoshiaki.Jitsukawa@sony.com>
+
+        [PAL] Move spi/ios and spi/win directories into PAL
+        https://bugs.webkit.org/show_bug.cgi?id=175171
+
+        Reviewed by Antti Koivisto.
+
+        * UIProcess/Cocoa/NavigationState.mm:
+        * UIProcess/ios/WKActionSheetAssistant.h:
+        * UIProcess/ios/WKActionSheetAssistant.mm:
+        * UIProcess/ios/WKContentViewInteraction.mm:
+        * UIProcess/ios/forms/WKAirPlayRoutePicker.mm:
+        * WebProcess/EntryPoint/mac/XPCService/WebContentServiceEntryPoint.mm:
+        * WebProcess/cocoa/WebProcessCocoa.mm:
+
+2017-08-16  Miguel Gomez  <magomez@igalia.com>
+
+        [GTK] Crash of WebProcess with on-demand AC
+        https://bugs.webkit.org/show_bug.cgi?id=171161
+
+        Reviewed by Carlos Garcia Campos.
+
+        Set the viewOverlayRootLayer to the previous layerTreeHost if it exists. This avoids a
+        crash when reusing the previous layerTreeHost, because it would keep a reference to an
+        already destroyed viewOverlayRootLayer.
+
+        * WebProcess/WebPage/AcceleratedDrawingArea.cpp:
+        (WebKit::AcceleratedDrawingArea::attachViewOverlayGraphicsLayer):
+
+2017-08-16  Zan Dobersek  <zdobersek@igalia.com>
+
+        [CoordGraphics] Simplify CoordinatedGraphicsScene state updates
+        https://bugs.webkit.org/show_bug.cgi?id=175528
+        <rdar://problem/33876795>
+
+        Reviewed by Carlos Garcia Campos.
+
+        Hold the information about state updates in ThreadedCompositor, in the
+        m_attributes struct. This way we don't need to store the updates in
+        functors and accumulate them in the CoordinatedGraphicsScene class, but
+        instead just apply any pending state update or atlas removal before the
+        scene is rendered.
+
+        This removes the need to update the CoordinatedGraphicsScene object from
+        the main thread with data that ultimately has to be handled on the
+        composition thread. Similarly, when updating CoordinatedGraphicsScene, we
+        only need to synchronize on the m_attributes lock object once in order to
+        retrieve the scene update information, instead of having each functor do
+        that repeatedly.
+
+        Outside of CoordinatedGraphicsScene and ThreadedCompositor classes, the
+        CompositingCoordinator class now passes the atlases-to-remove Vector by
+        a const lvalue reference down to ThreadedCompositor, and then manually
+        clears the Vector. Before the Vector was passed as an rvalue reference,
+        depending on the ThreadedCompositor code to clear out the original Vector
+        object by moving its resources into the functor object. This doesn't occur
+        anymore because the Vector object is now appended to another Vector.
+
+        * Shared/CoordinatedGraphics/CoordinatedGraphicsScene.cpp:
+        (WebKit::CoordinatedGraphicsScene::applyStateChanges):
+        (WebKit::CoordinatedGraphicsScene::paintToCurrentGLContext):
+        (WebKit::CoordinatedGraphicsScene::detach):
+        (WebKit::CoordinatedGraphicsScene::setActive):
+        (WebKit::CoordinatedGraphicsScene::syncRemoteContent): Deleted.
+        (WebKit::CoordinatedGraphicsScene::appendUpdate): Deleted.
+        * Shared/CoordinatedGraphics/CoordinatedGraphicsScene.h:
+        * Shared/CoordinatedGraphics/threadedcompositor/ThreadedCompositor.cpp:
+        (WebKit::ThreadedCompositor::renderLayerTree):
+        (WebKit::ThreadedCompositor::updateSceneState):
+        (WebKit::ThreadedCompositor::releaseUpdateAtlases):
+        * Shared/CoordinatedGraphics/threadedcompositor/ThreadedCompositor.h:
+        * WebProcess/WebPage/CoordinatedGraphics/CompositingCoordinator.cpp:
+        (WebKit::CompositingCoordinator::flushPendingLayerChanges):
+        (WebKit::CompositingCoordinator::releaseAtlases):
+        (WebKit::CompositingCoordinator::clearUpdateAtlases):
+        * WebProcess/WebPage/CoordinatedGraphics/CompositingCoordinator.h:
+        * WebProcess/WebPage/CoordinatedGraphics/CoordinatedLayerTreeHost.h:
+        * WebProcess/WebPage/CoordinatedGraphics/ThreadedCoordinatedLayerTreeHost.cpp:
+        (WebKit::ThreadedCoordinatedLayerTreeHost::releaseUpdateAtlases):
+        * WebProcess/WebPage/CoordinatedGraphics/ThreadedCoordinatedLayerTreeHost.h:
+
+2017-08-16  Andy Estes  <aestes@apple.com>
+
+        [Payment Request] Add an ENABLE flag and an experimental feature preference
+        https://bugs.webkit.org/show_bug.cgi?id=175622
+
+        Reviewed by Tim Horton.
+
+        * Configurations/FeatureDefines.xcconfig:
+        * Shared/WebPreferencesDefinitions.h:
+        * UIProcess/API/C/WKPreferences.cpp:
+        (WKPreferencesSetPaymentRequestEnabled):
+        (WKPreferencesGetPaymentRequestEnabled):
+        * UIProcess/API/C/WKPreferencesRefPrivate.h:
+        * WebProcess/WebPage/WebPage.cpp:
+        (WebKit::WebPage::updatePreferences):
+
+2017-08-15  Carlos Garcia Campos  <cgarcia@igalia.com>
+
+        [GTK][WPE] WebKitAutomationSession should set session client to nullptr on dispose
+        https://bugs.webkit.org/show_bug.cgi?id=175564
+
+        Reviewed by Carlos Alberto Lopez Perez.
+
+        WebAutomationSession expects its client to be nullptr in the destructor.
+
+        * UIProcess/API/glib/WebKitAutomationSession.cpp:
+        (webkitAutomationSessionDispose):
+
+2017-08-15  Tim Horton  <timothy_horton@apple.com>
+
+        WKSnapshotConfiguration is missing from the WebKit umbrella header
+        https://bugs.webkit.org/show_bug.cgi?id=175614
+        <rdar://problem/33812691>
+
+        Reviewed by Dan Bernstein.
+
+        * Shared/API/Cocoa/WebKit.h:
+        Add WKSnapshotConfiguration, which is a public header.
+
+2017-08-15  Simon Fraser  <simon.fraser@apple.com>
+
+        Allow WebCore logging channels to be set from the UI process
+        https://bugs.webkit.org/show_bug.cgi?id=175608
+
+        Reviewed by Tim Horton.
+
+        The UI process can now read the "WebCoreLogging" default, and pass it to the web process
+        via WebProcessCreationParameters, where WebProcess::platformInitializeWebProcess() uses
+        it to set up WebCore logging channels. Note that these will override channels read from
+        the web process user defaults domain (but those are hard to set anyway).
+
+        * Shared/WebProcessCreationParameters.cpp:
+        (WebKit::WebProcessCreationParameters::encode const):
+        (WebKit::WebProcessCreationParameters::decode):
+        * Shared/WebProcessCreationParameters.h:
+        * UIProcess/Cocoa/WebProcessPoolCocoa.mm:
+        (WebKit::WebProcessPool::platformInitializeWebProcess):
+        * WebProcess/cocoa/WebProcessCocoa.mm:
+        (WebKit::WebProcess::platformInitializeWebProcess):
+
+2017-08-15  Don Olmstead  <don.olmstead@sony.com>
+
+        [PAL] Move Sleep classes into PAL
+        https://bugs.webkit.org/show_bug.cgi?id=175456
+
+        Reviewed by Ryosuke Niwa.
+
+        * UIProcess/mac/WKFullScreenWindowController.h:
+        * UIProcess/mac/WKFullScreenWindowController.mm:
+
+2017-08-15  Youenn Fablet  <youenn@apple.com>
+
+        [Cache API] Adding generic support for CacheStorage and Cache methods
+        https://bugs.webkit.org/show_bug.cgi?id=175455
+
+        Reviewed by Chris Dumez.
+
+        * WebKit.xcodeproj/project.pbxproj:
+        * WebProcess/Cache/WebCacheStorageProvider.h: Added.
+        * WebProcess/WebPage/WebPage.cpp:
+        (WebKit::m_cpuLimit):
+        * WebProcess/WebProcess.cpp:
+        (WebKit::WebProcess::WebProcess):
+        * WebProcess/WebProcess.h:
+        (WebKit::WebProcess::cacheStorageProvider):
+
+2017-08-15  Michael Catanzaro  <mcatanzaro@igalia.com>
+
+        Unreviewed, rolling out r220700.
+
+        Broke debug bot
+
+        Reverted changeset:
+
+        "[CoordGraphics] Simplify CoordinatedGraphicsScene state
+        updates"
+        https://bugs.webkit.org/show_bug.cgi?id=175528
+        http://trac.webkit.org/changeset/220700
+
+2017-08-15  Carlos Garcia Campos  <cgarcia@igalia.com>
+
+        WebDriver: timeout when JavaScript alert is shown in onload handler
+        https://bugs.webkit.org/show_bug.cgi?id=175315
+        <rdar://problem/33788294>
+
+        Reviewed by Brian Burg.
+
+        When a JavaScript alert is shown in an onload handler, the alert prevents the load from finishing in case of
+        normal page load strategy, so navigation commands or any other command for which we wait for navigation to
+        complete end up timing out. There are two selenium tests covering this that are currently timing out:
+        testShouldHandleAlertOnPageLoad and testShouldHandleAlertOnPageLoadUsingGet. The spec says that in case of page
+        load timeout we should only fail with timeout error when there isn't an active alert dialog. If the next command
+        expects an alert it will just work, otherwise it will fail with UnexpectedAlertOpen error when trying to handle
+        user prompts.
+
+        9 Navigation.
+        https://w3c.github.io/webdriver/webdriver-spec.html#dfn-wait-for-navigation-to-complete
+
+        * UIProcess/Automation/WebAutomationSession.cpp:
+        (WebKit::WebAutomationSession::waitForNavigationToComplete): Do not wait for the timeout when the page is
+        loading and there's an active alert in case of normal page load strategy.
+        (WebKit::WebAutomationSession::respondToPendingPageNavigationCallbacksWithTimeout): Respond with timeout unless
+        the page is showing a JavaScript dialog.
+        (WebKit::WebAutomationSession::respondToPendingFrameNavigationCallbacksWithTimeout): Ditto.
+        (WebKit::WebAutomationSession::loadTimerFired): Use respondToPendingPageNavigationCallbacksWithTimeout() and
+        respondToPendingFrameNavigationCallbacksWithTimeout().
+        (WebKit::WebAutomationSession::willShowJavaScriptDialog): The page is about to show a JavaScript dialog, so
+        we wait until the next run loop iteration to give time for the client to show the dialog, then check if page is
+        loading and the dialog is still present. If that's the case we finish all normal strategy pending navigations.
+        * UIProcess/Automation/WebAutomationSession.h:
+        * UIProcess/WebPageProxy.cpp:
+        (WebKit::WebPageProxy::runJavaScriptAlert): If controlled by automation, notify the session.
+        (WebKit::WebPageProxy::runJavaScriptConfirm): Ditto.
+        (WebKit::WebPageProxy::runJavaScriptPrompt): Ditto.
+        (WebKit::WebPageProxy::runBeforeUnloadConfirmPanel): Ditto.
+
+2017-08-14  Carlos Garcia Campos  <cgarcia@igalia.com>
+
+        WebDriver: handle click events on option elements
+        https://bugs.webkit.org/show_bug.cgi?id=174710
+        <rdar://problem/33459305>
+
+        Reviewed by Brian Burg.
+
+        Add selectOptionElement method to automation to select an option element according to the WebDriver
+        specification.
+
+        14.1 Element Click.
+        https://w3c.github.io/webdriver/webdriver-spec.html#element-click
+
+        * UIProcess/Automation/Automation.json: Add selectOptionElement method and ElementNotSelectable error.
+        * UIProcess/Automation/WebAutomationSession.cpp:
+        (WebKit::WebAutomationSession::selectOptionElement):Send SelectOptionElement message to the web process.
+        (WebKit::WebAutomationSession::didSelectOptionElement): Notify the driver.
+        * UIProcess/Automation/WebAutomationSession.h:
+        * UIProcess/Automation/WebAutomationSession.messages.in: Add DidSelectOptionElement message.
+        * WebProcess/Automation/WebAutomationSessionProxy.cpp:
+        (WebKit::elementContainer): Helper to get the container of an element according to the spec.
+        (WebKit::WebAutomationSessionProxy::computeElementLayout): Use the container element to scroll the view and
+        compute the in-view center point.
+        (WebKit::WebAutomationSessionProxy::selectOptionElement): Use HTMLSelectElement::optionSelectedByUser().
+        * WebProcess/Automation/WebAutomationSessionProxy.h:
+        * WebProcess/Automation/WebAutomationSessionProxy.messages.in: Add SelectOptionElement message.
+
+2017-08-14  Simon Fraser  <simon.fraser@apple.com>
+
+        Remove Proximity Events and related code
+        https://bugs.webkit.org/show_bug.cgi?id=175545
+
+        Reviewed by Daniel Bates.
+
+        No platform enables Proximity Events, so remove code inside ENABLE(PROXIMITY_EVENTS)
+        and other related code.
+
+        * CMakeLists.txt:
+        * Configurations/FeatureDefines.xcconfig:
+        * WebProcess/WebCoreSupport/WebDeviceProximityClient.cpp: Removed.
+        * WebProcess/WebCoreSupport/WebDeviceProximityClient.h: Removed.
+        * WebProcess/WebPage/WebPage.cpp:
+        (WebKit::m_cpuLimit):
+
+2017-08-14  Simon Fraser  <simon.fraser@apple.com>
+
+        Remove ENABLE(REQUEST_AUTOCOMPLETE) code, which was disabled everywhere
+        https://bugs.webkit.org/show_bug.cgi?id=175504
+
+        Reviewed by Sam Weinig.
+
+        * Configurations/FeatureDefines.xcconfig:
+        * WebProcess/WebCoreSupport/WebFrameLoaderClient.cpp:
+        (WebKit::WebFrameLoaderClient::didRequestAutocomplete): Deleted.
+        * WebProcess/WebCoreSupport/WebFrameLoaderClient.h:
+
+2017-08-14  Simon Fraser  <simon.fraser@apple.com>
+
+        Remove ENABLE_VIEW_MODE_CSS_MEDIA and related code
+        https://bugs.webkit.org/show_bug.cgi?id=175557
+
+        Reviewed by Jon Lee.
+
+        No port cares about the ENABLE(VIEW_MODE_CSS_MEDIA) feature, so remove it.
+
+        * Configurations/FeatureDefines.xcconfig:
+
+2017-08-14  Andy Estes  <aestes@apple.com>
+
+        [Apple Pay] Add support for phonetic contact names
+        https://bugs.webkit.org/show_bug.cgi?id=175537
+        <rdar://problem/32002644>
+
+        Reviewed by Tim Horton.
+
+        * UIProcess/ApplePay/cocoa/WebPaymentCoordinatorProxyCocoa.mm: Soft-linked PKContactFieldPhoneticName.
+        (WebKit::toPKContactFields): Added code to append PKContactFieldPhoneticName to result if
+        contactFields.phoneticName is true.
+        (WebKit::toNSError): Specified PKContactFieldPhoneticName as the contact field for
+        PaymentError::ContactField::PhoneticName.
+
+2017-08-14  Tim Horton  <timothy_horton@apple.com>
+
+        Only create directory and sandbox extension handle for storage directories if they are set
+        https://bugs.webkit.org/show_bug.cgi?id=175522
+
+        Reviewed by Brady Eidson.
+
+        * UIProcess/WebsiteData/WebsiteDataStore.cpp:
+        (WebKit::WebsiteDataStore::resolveDirectoriesIfNecessary):
+        If using a non-persistent WebsiteDataStore, all the storage directories
+        are unset, but we still try to create them and make sandbox extensions
+        for them. This has no effect except a ton of noisy logging, but that
+        is reason enough to stop.
+
+        This is similar to r216053, but for more directories.
+
+2017-08-14  Zan Dobersek  <zdobersek@igalia.com>
+
+        [CoordGraphics] Simplify CoordinatedGraphicsScene state updates
+        https://bugs.webkit.org/show_bug.cgi?id=175528
+
+        Reviewed by Carlos Garcia Campos.
+
+        Hold the information about state updates in ThreadedCompositor, in the
+        m_attributes struct. This way we don't need to store the updates in
+        functors and accumulate them in the CoordinatedGraphicsScene class, but
+        instead just apply any pending state update or atlas removal before the
+        scene is rendered.
+
+        This removes the need to update the CoordinatedGraphicsScene object from
+        the main thread with data that ultimately has to be handled on the
+        composition thread. Similarly, when updating CoordinatedGraphicsScene, we
+        only need to synchronize on the m_attributes lock object once in order to
+        retrieve the scene update information, instead of having each functor do
+        that repeatedly.
+
+        * Shared/CoordinatedGraphics/CoordinatedGraphicsScene.cpp:
+        (WebKit::CoordinatedGraphicsScene::applyStateChanges):
+        (WebKit::CoordinatedGraphicsScene::paintToCurrentGLContext):
+        (WebKit::CoordinatedGraphicsScene::detach):
+        (WebKit::CoordinatedGraphicsScene::setActive):
+        (WebKit::CoordinatedGraphicsScene::syncRemoteContent): Deleted.
+        (WebKit::CoordinatedGraphicsScene::appendUpdate): Deleted.
+        * Shared/CoordinatedGraphics/CoordinatedGraphicsScene.h:
+        * Shared/CoordinatedGraphics/threadedcompositor/ThreadedCompositor.cpp:
+        (WebKit::ThreadedCompositor::renderLayerTree):
+        (WebKit::ThreadedCompositor::updateSceneState):
+        (WebKit::ThreadedCompositor::releaseUpdateAtlases):
+        * Shared/CoordinatedGraphics/threadedcompositor/ThreadedCompositor.h:
+
+2017-08-14  Carlos Garcia Campos  <cgarcia@igalia.com>
+
+        [GTK][WPE] Avoid emitting WebKitFaviconDatabase::favicon-changed multiple times while setting an icon
+        https://bugs.webkit.org/show_bug.cgi?id=175531
+
+        Reviewed by Michael Catanzaro.
+
+        When webkitFaviconDatabaseSetIconForPageURL() is called, both setIconURLForPageURL() and setIconDataForIconURL()
+        might notify the client, which ends up emitting the WebKitFaviconDatabase::favicon-changed signal and calling
+        webkitFaviconDatabaseSetIconURLForPageURL(). Both things are already done by
+        webkitFaviconDatabaseSetIconForPageURL() itself, so we can just ignore the client notification while setting a
+        new icon.
+
+        * UIProcess/API/glib/WebKitFaviconDatabase.cpp:
+        (webkitFaviconDatabaseSetIconURLForPageURL): Return early if isSettingIcon is true.
+        (webkitFaviconDatabaseSetIconForPageURL): Set isSettingIcon to true for the scope.
+
+2017-08-14  Carlos Garcia Campos  <cgarcia@igalia.com>
+
+        [GTK][WPE] Crash in IconDatabase::IconRecord::setImageData()
+        https://bugs.webkit.org/show_bug.cgi?id=175527
+
+        Reviewed by Žan Doberšek.
+
+        The problem is that when setImageData() is called from IconDatabase::readFromDatabase() the shared buffer might
+        be nullptr, because getImageDataForIconURLFromSQLDatabase() returns nullptr if the icon data is not in the database.
+
+        * UIProcess/API/glib/IconDatabase.cpp:
+        (WebKit::IconDatabase::IconRecord::setImageData): Return early if passed in buffer is nullptr.
+
+2017-08-14  Zan Dobersek  <zdobersek@igalia.com>
+
+        [ThreadedCompositor] Improve composition and update state handling
+        https://bugs.webkit.org/show_bug.cgi?id=172448
+
+        Reviewed by Carlos Garcia Campos.
+
+        In the ThreadedCompositor and related classes, we now track composition
+        and scene update states separately. This enables properly piping in the
+        DisplayRefreshMonitor object, leveraging it for both display refresh
+        notifications and signalling to the client that the scene update is
+        completed.
+
+        In CompositingRunLoop, two separate states are now used, one for
+        compositing and the other for scene update. Access to both should be done
+        while the related Lock object is held. The pending update state is also
+        tracked in order to schedule any required updates as soon as the current
+        state update is completed.
+
+        In ThreadedCompositor, the information about client notification and
+        update completion coordination is now also kept under a Lock object,
+        moving away from atomics. DisplayRefreshMonitor can now utilize just
+        two methods in order to either schedule an update or report that update
+        as finished.
+
+        * Shared/CoordinatedGraphics/threadedcompositor/CompositingRunLoop.cpp:
+        (WebKit::CompositingRunLoop::CompositingRunLoop):
+        (WebKit::CompositingRunLoop::scheduleUpdate):
+        (WebKit::CompositingRunLoop::stopUpdates):
+        (WebKit::CompositingRunLoop::compositionCompleted):
+        (WebKit::CompositingRunLoop::updateCompleted):
+        (WebKit::CompositingRunLoop::updateTimerFired):
+        (WebKit::CompositingRunLoop::isActive): Deleted.
+        * Shared/CoordinatedGraphics/threadedcompositor/CompositingRunLoop.h:
+        (WebKit::CompositingRunLoop::stateLock):
+        * Shared/CoordinatedGraphics/threadedcompositor/ThreadedCompositor.cpp:
+        (WebKit::m_displayRefreshMonitor):
+        (WebKit::ThreadedCompositor::sceneUpdateFinished):
+        (WebKit::ThreadedCompositor::updateSceneState):
+        (WebKit::ThreadedCompositor::requestDisplayRefreshMonitorUpdate):
+        (WebKit::ThreadedCompositor::handleDisplayRefreshMonitorUpdate):
+        (WebKit::ThreadedCompositor::renderNextFrameIfNeeded): Deleted.
+        (WebKit::ThreadedCompositor::completeCoordinatedUpdateIfNeeded): Deleted.
+        (WebKit::ThreadedCompositor::coordinateUpdateCompletionWithClient): Deleted.
+        * Shared/CoordinatedGraphics/threadedcompositor/ThreadedCompositor.h:
+        * Shared/CoordinatedGraphics/threadedcompositor/ThreadedDisplayRefreshMonitor.cpp:
+        (WebKit::ThreadedDisplayRefreshMonitor::requestRefreshCallback):
+        (WebKit::ThreadedDisplayRefreshMonitor::displayRefreshCallback):
+
+2017-08-13  Manuel Rego Casasnovas  <rego@igalia.com>
+
+        Composition underline color is always black
+        https://bugs.webkit.org/show_bug.cgi?id=174675
+
+        Reviewed by Ryosuke Niwa.
+
+        This patch uses the current color of the text instead of black
+        for the composition underline marker.
+        This makes it visible in the case we have a black/dark background.
+
+        * UIProcess/Cocoa/WebViewImpl.mm:
+        (WebKit::extractUnderlines): If NSUnderlineColorAttributeName
+        is not present use text color for composition underline.
+        (WebKit::WebViewImpl::setMarkedText): Use text color
+        for composition underline in the plain text case.
+        * UIProcess/gtk/InputMethodFilter.cpp:
+        (WebKit::InputMethodFilter::handleKeyboardEventWithCompositionResults):
+        Use text color for composition underline.
+        (WebKit::InputMethodFilter::updatePreedit): Ditto.
+        * WebProcess/WebPage/WebPage.cpp:
+        (WebKit::WebPage::setCompositionForTesting): Ditto.
+
+2017-08-13  Adrian Perez de Castro  <aperez@igalia.com>
+
+        [WPE] Implement WebCore::standardUserAgent()
+        https://bugs.webkit.org/show_bug.cgi?id=175507
+
+        Reviewed by Carlos Alberto Lopez Perez.
+
+        Implement missing User-Agent handling for the WPE port by sharing the code with the GTK+ port.
+
+        * UIProcess/API/glib/WebKitSettings.cpp: Remove preprocessor conditionals for the WPE port.
+        (webkit_settings_set_user_agent):
+        (webkit_settings_set_user_agent_with_application_details):
+        * UIProcess/wpe/WebPageProxyWPE.cpp:
+        (WebKit::WebPageProxy::standardUserAgent): Remove hardcoded value and make use of WebCore::standardUserAgent().
+
 2017-08-11  Ryosuke Niwa  <rniwa@webkit.org>
 
         Replace DATA_TRANSFER_ITEMS by a runtime flag and add a stub implementation

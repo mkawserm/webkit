@@ -739,6 +739,9 @@ private:
         case CreateActivation:
             compileCreateActivation();
             break;
+        case PushWithScope:
+            compilePushWithScope();
+            break;
         case NewFunction:
         case NewGeneratorFunction:
         case NewAsyncFunction:
@@ -3547,10 +3550,10 @@ private:
             LBasicBlock lastNext = m_out.appendTo(namedCase, overflowCase);
             
             LValue scope = m_out.loadPtr(base, m_heaps.ScopedArguments_scope);
-            LValue arguments = m_out.loadPtr(table, m_heaps.ScopedArgumentsTable_arguments);
+            LValue arguments = caged(
+                ScopedArgumentsTable::ArgumentsPtr::kind,
+                m_out.loadPtr(table, m_heaps.ScopedArgumentsTable_arguments));
             
-            // FIXME: I guess we need to cage ScopedArguments?
-            // https://bugs.webkit.org/show_bug.cgi?id=174921
             TypedPointer address = m_out.baseIndex(
                 m_heaps.scopedArgumentsTableArguments, arguments, m_out.zeroExtPtr(index));
             LValue scopeOffset = m_out.load32(address);
@@ -4262,7 +4265,17 @@ private:
             return;
         }
     }
-    
+
+    void compilePushWithScope()
+    {
+        LValue parentScope = lowCell(m_node->child1());
+        LValue object = lowJSValue(m_node->child2());
+
+        LValue result = vmCall(Int64, m_out.operation(operationPushWithScope), m_callFrame, parentScope, object);
+
+        setJSValue(result);
+    }
+
     void compileCreateActivation()
     {
         LValue scope = lowCell(m_node->child1());

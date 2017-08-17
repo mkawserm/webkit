@@ -57,6 +57,26 @@ const Capabilities& Session::capabilities() const
     return m_host->capabilities();
 }
 
+void Session::closeAllToplevelBrowsingContexts(const String& toplevelBrowsingContext, Function<void (CommandResult&&)>&& completionHandler)
+{
+    closeTopLevelBrowsingContext(toplevelBrowsingContext, [this, protectedThis = makeRef(*this), completionHandler = WTFMove(completionHandler)](CommandResult&& result) mutable {
+        if (result.isError()) {
+            completionHandler(WTFMove(result));
+            return;
+        }
+        RefPtr<InspectorArray> handles;
+        if (result.result()->asArray(handles) && handles->length()) {
+            auto handleValue = handles->get(0);
+            String handle;
+            if (handleValue->asString(handle)) {
+                closeAllToplevelBrowsingContexts(handle, WTFMove(completionHandler));
+                return;
+            }
+        }
+        completionHandler(CommandResult::success());
+    });
+}
+
 void Session::close(Function<void (CommandResult&&)>&& completionHandler)
 {
     if (!m_toplevelBrowsingContext) {
@@ -64,16 +84,8 @@ void Session::close(Function<void (CommandResult&&)>&& completionHandler)
         return;
     }
 
-    RefPtr<InspectorObject> parameters = InspectorObject::create();
-    parameters->setString(ASCIILiteral("handle"), m_toplevelBrowsingContext.value());
-    m_host->sendCommandToBackend(ASCIILiteral("closeBrowsingContext"), WTFMove(parameters), [this, protectedThis = makeRef(*this), completionHandler = WTFMove(completionHandler)](SessionHost::CommandResponse&& response) {
-        if (response.isError) {
-            completionHandler(CommandResult::fail(WTFMove(response.responseObject)));
-            return;
-        }
-        switchToTopLevelBrowsingContext(std::nullopt);
-        completionHandler(CommandResult::success());
-    });
+    auto toplevelBrowsingContext = std::exchange(m_toplevelBrowsingContext, std::nullopt);
+    closeAllToplevelBrowsingContexts(toplevelBrowsingContext.value(), WTFMove(completionHandler));
 }
 
 void Session::setTimeouts(const Timeouts& timeouts, Function<void (CommandResult&&)>&& completionHandler)
@@ -426,6 +438,32 @@ void Session::getWindowHandle(Function<void (CommandResult&&)>&& completionHandl
     });
 }
 
+void Session::closeTopLevelBrowsingContext(const String& toplevelBrowsingContext, Function<void (CommandResult&&)>&& completionHandler)
+{
+    RefPtr<InspectorObject> parameters = InspectorObject::create();
+    parameters->setString(ASCIILiteral("handle"), toplevelBrowsingContext);
+    m_host->sendCommandToBackend(ASCIILiteral("closeBrowsingContext"), WTFMove(parameters), [this, protectedThis = makeRef(*this), completionHandler = WTFMove(completionHandler)](SessionHost::CommandResponse&& response) mutable {
+        if (!m_host->isConnected()) {
+            // Closing the browsing context made the browser quit.
+            completionHandler(CommandResult::success(InspectorArray::create()));
+            return;
+        }
+        if (response.isError) {
+            completionHandler(CommandResult::fail(WTFMove(response.responseObject)));
+            return;
+        }
+
+        getWindowHandles([this, completionHandler = WTFMove(completionHandler)](CommandResult&& result) {
+            if (!m_host->isConnected()) {
+                // Closing the browsing context made the browser quit.
+                completionHandler(CommandResult::success(InspectorArray::create()));
+                return;
+            }
+            completionHandler(WTFMove(result));
+        });
+    });
+}
+
 void Session::closeWindow(Function<void (CommandResult&&)>&& completionHandler)
 {
     if (!m_toplevelBrowsingContext) {
@@ -438,7 +476,8 @@ void Session::closeWindow(Function<void (CommandResult&&)>&& completionHandler)
             completionHandler(WTFMove(result));
             return;
         }
-        close(WTFMove(completionHandler));
+        auto toplevelBrowsingContext = std::exchange(m_toplevelBrowsingContext, std::nullopt);
+        closeTopLevelBrowsingContext(toplevelBrowsingContext.value(), WTFMove(completionHandler));
     });
 }
 
@@ -458,11 +497,6 @@ void Session::switchToWindow(const String& windowHandle, Function<void (CommandR
 
 void Session::getWindowHandles(Function<void (CommandResult&&)>&& completionHandler)
 {
-    if (!m_toplevelBrowsingContext) {
-        completionHandler(CommandResult::fail(CommandResult::ErrorCode::NoSuchWindow));
-        return;
-    }
-
     m_host->sendCommandToBackend(ASCIILiteral("getBrowsingContexts"), InspectorObject::create(), [this, protectedThis = makeRef(*this), completionHandler = WTFMove(completionHandler)](SessionHost::CommandResponse&& response) {
         if (response.isError || !response.responseObject) {
             completionHandler(CommandResult::fail(WTFMove(response.responseObject)));
@@ -1191,6 +1225,21 @@ void Session::waitForNavigationToComplete(Function<void (CommandResult&&)>&& com
     });
 }
 
+void Session::selectOptionElement(const String& elementID, Function<void (CommandResult&&)>&& completionHandler)
+{
+    RefPtr<InspectorObject> parameters = InspectorObject::create();
+    parameters->setString(ASCIILiteral("browsingContextHandle"), m_toplevelBrowsingContext.value());
+    parameters->setString(ASCIILiteral("frameHandle"), m_currentBrowsingContext.value());
+    parameters->setString(ASCIILiteral("nodeHandle"), elementID);
+    m_host->sendCommandToBackend(ASCIILiteral("selectOptionElement"), WTFMove(parameters), [this, protectedThis = makeRef(*this), completionHandler = WTFMove(completionHandler)](SessionHost::CommandResponse&& response) {
+        if (response.isError) {
+            completionHandler(CommandResult::fail(WTFMove(response.responseObject)));
+            return;
+        }
+        completionHandler(CommandResult::success());
+    });
+}
+
 void Session::elementClick(const String& elementID, Function<void (CommandResult&&)>&& completionHandler)
 {
     if (!m_toplevelBrowsingContext) {
@@ -1200,7 +1249,7 @@ void Session::elementClick(const String& elementID, Function<void (CommandResult
 
     OptionSet<ElementLayoutOption> options = ElementLayoutOption::ScrollIntoViewIfNeeded;
     options |= ElementLayoutOption::UseViewportCoordinates;
-    computeElementLayout(elementID, options, [this, protectedThis = makeRef(*this), completionHandler = WTFMove(completionHandler)](std::optional<Rect>&& rect, std::optional<Point>&& inViewCenter, bool isObscured, RefPtr<InspectorObject>&& error) mutable {
+    computeElementLayout(elementID, options, [this, protectedThis = makeRef(*this), elementID, completionHandler = WTFMove(completionHandler)](std::optional<Rect>&& rect, std::optional<Point>&& inViewCenter, bool isObscured, RefPtr<InspectorObject>&& error) mutable {
         if (!rect || error) {
             completionHandler(CommandResult::fail(WTFMove(error)));
             return;
@@ -1214,9 +1263,27 @@ void Session::elementClick(const String& elementID, Function<void (CommandResult
             return;
         }
 
-        performMouseInteraction(inViewCenter.value().x, inViewCenter.value().y, MouseButton::Left, MouseInteraction::SingleClick, WTFMove(completionHandler));
+        getElementTagName(elementID, [this, elementID, inViewCenter = WTFMove(inViewCenter), isObscured, completionHandler = WTFMove(completionHandler)](CommandResult&& result) mutable {
+            bool isOptionElement = false;
+            if (!result.isError()) {
+                String tagName;
+                if (result.result()->asString(tagName))
+                    isOptionElement = tagName == "option";
+            }
 
-        waitForNavigationToComplete(WTFMove(completionHandler));
+            Function<void (CommandResult&&)> continueAfterClickFunction = [this, completionHandler = WTFMove(completionHandler)](CommandResult&& result) mutable {
+                if (result.isError()) {
+                    completionHandler(WTFMove(result));
+                    return;
+                }
+
+                waitForNavigationToComplete(WTFMove(completionHandler));
+            };
+            if (isOptionElement)
+                selectOptionElement(elementID, WTFMove(continueAfterClickFunction));
+            else
+                performMouseInteraction(inViewCenter.value().x, inViewCenter.value().y, MouseButton::Left, MouseInteraction::SingleClick, WTFMove(continueAfterClickFunction));
+        });
     });
 }
 
