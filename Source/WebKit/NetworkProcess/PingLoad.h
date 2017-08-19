@@ -29,19 +29,22 @@
 
 #include "NetworkDataTask.h"
 #include "NetworkResourceLoadParameters.h"
+#include <WebCore/ResourceError.h>
 
 namespace WebCore {
 class ContentSecurityPolicy;
+class HTTPHeaderMap;
 class URL;
 }
 
 namespace WebKit {
 
 class NetworkCORSPreflightChecker;
+class NetworkConnectionToWebProcess;
 
 class PingLoad final : private NetworkDataTaskClient {
 public:
-    explicit PingLoad(NetworkResourceLoadParameters&&);
+    PingLoad(NetworkResourceLoadParameters&&, WebCore::HTTPHeaderMap&& originalRequestHeaders, Ref<NetworkConnectionToWebProcess>&&);
     
 private:
     ~PingLoad();
@@ -66,9 +69,13 @@ private:
     void preflightSuccess(WebCore::ResourceRequest&&);
 
     WebCore::SecurityOrigin& securityOrigin() const;
-    const WebCore::HTTPHeaderMap& originalRequestHeaders() const; // Needed for CORS checks.
+
+    const WebCore::ResourceRequest& currentRequest() const;
+    void didFinish(const WebCore::ResourceError& = { });
     
     NetworkResourceLoadParameters m_parameters;
+    WebCore::HTTPHeaderMap m_originalRequestHeaders; // Needed for CORS checks.
+    Ref<NetworkConnectionToWebProcess> m_connection;
     RefPtr<NetworkDataTask> m_task;
     WebCore::Timer m_timeoutTimer;
     std::unique_ptr<NetworkCORSPreflightChecker> m_corsPreflightChecker;
@@ -77,6 +84,7 @@ private:
     bool m_isSimpleRequest { true };
     RedirectCompletionHandler m_redirectHandler;
     mutable std::unique_ptr<WebCore::ContentSecurityPolicy> m_contentSecurityPolicy;
+    std::optional<WebCore::ResourceRequest> m_lastRedirectionRequest;
 };
 
 }

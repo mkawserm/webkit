@@ -29,13 +29,12 @@
 
 #include "SecurityOriginData.h"
 #include "ServiceWorkerRegistrationOptions.h"
-#include "SessionID.h"
 #include "URL.h"
+#include <pal/SessionID.h>
 
 namespace WebCore {
 
 struct ServiceWorkerRegistrationParameters {
-    SessionID sessionID;
     URL scriptURL;
     URL clientCreationURL;
     SecurityOriginData topOrigin;

@@ -59,9 +59,9 @@
 #include <WebCore/ReferrerPolicy.h>
 #include <WebCore/ResourceLoader.h>
 #include <WebCore/SecurityOrigin.h>
-#include <WebCore/SessionID.h>
 #include <WebCore/Settings.h>
 #include <WebCore/SubresourceLoader.h>
+#include <pal/SessionID.h>
 #include <wtf/text/CString.h>
 
 #if USE(QUICK_LOOK)
@@ -222,7 +222,7 @@ void WebLoaderStrategy::scheduleLoad(ResourceLoader& resourceLoader, CachedResou
     loadParameters.identifier = identifier;
     loadParameters.webPageID = webPage ? webPage->pageID() : 0;
     loadParameters.webFrameID = webFrame ? webFrame->frameID() : 0;
-    loadParameters.sessionID = webPage ? webPage->sessionID() : SessionID::defaultSessionID();
+    loadParameters.sessionID = webPage ? webPage->sessionID() : PAL::SessionID::defaultSessionID();
     loadParameters.request = resourceLoader.request();
     loadParameters.contentSniffingPolicy = contentSniffingPolicy;
     loadParameters.allowStoredCredentials = allowStoredCredentials;
@@ -350,6 +350,10 @@ void WebLoaderStrategy::networkProcessCrashed()
         scheduleInternallyFailedLoad(*loader.value->resourceLoader());
 
     m_webResourceLoaders.clear();
+
+    auto pingLoadCompletionHandlers = WTFMove(m_pingLoadCompletionHandlers);
+    for (auto& pingLoadCompletionHandler : pingLoadCompletionHandlers.values())
+        pingLoadCompletionHandler(internalError(URL()));
 }
 
 void WebLoaderStrategy::loadResourceSynchronously(NetworkingContext* context, unsigned long resourceLoadIdentifier, const ResourceRequest& request, StoredCredentials storedCredentials, ClientCredentialPolicy clientCredentialPolicy, ResourceError& error, ResourceResponse& response, Vector<char>& data)
@@ -366,7 +370,7 @@ void WebLoaderStrategy::loadResourceSynchronously(NetworkingContext* context, un
     loadParameters.identifier = resourceLoadIdentifier;
     loadParameters.webPageID = webPage ? webPage->pageID() : 0;
     loadParameters.webFrameID = webFrame ? webFrame->frameID() : 0;
-    loadParameters.sessionID = webPage ? webPage->sessionID() : SessionID::defaultSessionID();
+    loadParameters.sessionID = webPage ? webPage->sessionID() : PAL::SessionID::defaultSessionID();
     loadParameters.request = request;
     loadParameters.contentSniffingPolicy = SniffContent;
     loadParameters.allowStoredCredentials = storedCredentials;
@@ -386,12 +390,21 @@ void WebLoaderStrategy::loadResourceSynchronously(NetworkingContext* context, un
     }
 }
 
-void WebLoaderStrategy::createPingHandle(NetworkingContext* networkingContext, ResourceRequest& request, HTTPHeaderMap&& originalRequestHeaders, Ref<SecurityOrigin>&& sourceOrigin, ContentSecurityPolicy* contentSecurityPolicy, const FetchOptions& options)
+static uint64_t generatePingLoadIdentifier()
+{
+    static uint64_t identifier = 0;
+    return ++identifier;
+}
+
+void WebLoaderStrategy::startPingLoad(NetworkingContext* networkingContext, ResourceRequest& request, const HTTPHeaderMap& originalRequestHeaders, Ref<SecurityOrigin>&& sourceOrigin, ContentSecurityPolicy* contentSecurityPolicy, const FetchOptions& options, PingLoadCompletionHandler&& completionHandler)
 {
     // It's possible that call to createPingHandle might be made during initial empty Document creation before a NetworkingContext exists.
     // It is not clear that we should send ping loads during that process anyways.
-    if (!networkingContext)
+    if (!networkingContext) {
+        if (completionHandler)
+            completionHandler(internalError(request.url()));
         return;
+    }
 
     WebFrameNetworkingContext* webContext = static_cast<WebFrameNetworkingContext*>(networkingContext);
     WebFrameLoaderClient* webFrameLoaderClient = webContext->webFrameLoaderClient();
@@ -399,10 +412,10 @@ void WebLoaderStrategy::createPingHandle(NetworkingContext* networkingContext, R
     WebPage* webPage = webFrame ? webFrame->page() : nullptr;
     
     NetworkResourceLoadParameters loadParameters;
+    loadParameters.identifier = generatePingLoadIdentifier();
     loadParameters.request = request;
-    loadParameters.originalRequestHeaders = WTFMove(originalRequestHeaders);
     loadParameters.sourceOrigin = WTFMove(sourceOrigin);
-    loadParameters.sessionID = webPage ? webPage->sessionID() : SessionID::defaultSessionID();
+    loadParameters.sessionID = webPage ? webPage->sessionID() : PAL::SessionID::defaultSessionID();
     loadParameters.allowStoredCredentials = options.credentials == FetchOptions::Credentials::Omit ? DoNotAllowStoredCredentials : AllowStoredCredentials;
     loadParameters.mode = options.mode;
     loadParameters.shouldFollowRedirects = options.redirect == FetchOptions::Redirect::Follow;
@@ -410,7 +423,16 @@ void WebLoaderStrategy::createPingHandle(NetworkingContext* networkingContext, R
     if (contentSecurityPolicy)
         loadParameters.cspResponseHeaders = contentSecurityPolicy->responseHeaders();
 
-    WebProcess::singleton().networkConnection().connection().send(Messages::NetworkConnectionToWebProcess::LoadPing(WTFMove(loadParameters)), 0);
+    if (completionHandler)
+        m_pingLoadCompletionHandlers.add(loadParameters.identifier, WTFMove(completionHandler));
+
+    WebProcess::singleton().networkConnection().connection().send(Messages::NetworkConnectionToWebProcess::LoadPing(WTFMove(loadParameters), originalRequestHeaders), 0);
+}
+
+void WebLoaderStrategy::didFinishPingLoad(uint64_t pingLoadIdentifier, ResourceError&& error)
+{
+    if (auto completionHandler = m_pingLoadCompletionHandlers.take(pingLoadIdentifier))
+        completionHandler(WTFMove(error));
 }
 
 void WebLoaderStrategy::storeDerivedDataToCache(const SHA1::Digest& bodyHash, const String& type, const String& partition, WebCore::SharedBuffer& data)

@@ -1,3 +1,726 @@
+2017-08-18  Chris Dumez  <cdumez@apple.com>
+
+        [Beacon] Improve error reporting
+        https://bugs.webkit.org/show_bug.cgi?id=175723
+
+        Reviewed by Darin Adler.
+
+        Have Ping loads such as beacons report errors via their completion handler.
+        The Beacon API is using this error to log a console message when beacon loads
+        fail, provided that the page is still alive.
+
+        * NetworkProcess/NetworkConnectionToWebProcess.cpp:
+        (WebKit::NetworkConnectionToWebProcess::loadPing):
+        (WebKit::NetworkConnectionToWebProcess::didFinishPingLoad):
+        * NetworkProcess/NetworkConnectionToWebProcess.h:
+        * NetworkProcess/PingLoad.cpp:
+        (WebKit::PingLoad::~PingLoad):
+        (WebKit::PingLoad::didFinish):
+        (WebKit::PingLoad::willPerformHTTPRedirection):
+        (WebKit::PingLoad::didReceiveChallenge):
+        (WebKit::PingLoad::didReceiveResponseNetworkSession):
+        (WebKit::PingLoad::didCompleteWithError):
+        (WebKit::PingLoad::wasBlocked):
+        (WebKit::PingLoad::cannotShowURL):
+        (WebKit::PingLoad::timeoutTimerFired):
+        (WebKit::PingLoad::currentRequest const):
+        (WebKit::PingLoad::makeCrossOriginAccessRequestWithPreflight):
+        * NetworkProcess/PingLoad.h:
+        * WebProcess/Network/NetworkProcessConnection.cpp:
+        (WebKit::NetworkProcessConnection::didFinishPingLoad):
+        * WebProcess/Network/NetworkProcessConnection.h:
+        * WebProcess/Network/NetworkProcessConnection.messages.in:
+        * WebProcess/Network/WebLoaderStrategy.cpp:
+        (WebKit::WebLoaderStrategy::networkProcessCrashed):
+        (WebKit::WebLoaderStrategy::startPingLoad):
+        (WebKit::WebLoaderStrategy::didFinishPingLoad):
+        * WebProcess/Network/WebLoaderStrategy.h:
+
+2017-08-18  Chris Dumez  <cdumez@apple.com>
+
+        REGRESSION (r220601): Crash when closing google doc after switching the order of tabs in safari
+        https://bugs.webkit.org/show_bug.cgi?id=175721
+        <rdar://problem/33928369>
+
+        Reviewed by Geoffrey Garen.
+
+        Make sure WebProcess::markAllLayersVolatile() does not call WTFMove() multiple times
+        on the same completion handler. Use a RefCounter to hold on to the completion handler
+        and make sure the handler gets called when the RefCounter's value becomes 0.
+
+        * WebProcess/WebProcess.cpp:
+        (WebKit::WebProcess::cancelPrepareToSuspend):
+        (WebKit::WebProcess::markAllLayersVolatile):
+        (WebKit::WebProcess::cancelMarkAllLayersVolatile):
+        * WebProcess/WebProcess.h:
+
+2017-08-18  Youenn Fablet  <youenn@apple.com>
+
+        [Cache API] Add response body storage
+        https://bugs.webkit.org/show_bug.cgi?id=175658
+
+        Reviewed by Alex Christensen.
+
+        Added IPC serialization of Record response body.
+        Updated CacheStorageEngine implementation as Record has no longer a copy constructor.
+
+        * NetworkProcess/cache/CacheStorageEngine.cpp:
+        (WebKit::CacheStorageEngine::retrieveRecords):
+        (WebKit::CacheStorageEngine::deleteMatchingRecords):
+        * Shared/WebCoreArgumentCoders.cpp:
+        (IPC::encodeSharedBuffer):
+        (IPC::decodeSharedBuffer):
+        (IPC::ArgumentCoder<CacheStorageConnection::Record>::encode):
+        (IPC::ArgumentCoder<CacheStorageConnection::Record>::decode):
+
+2017-08-18  Brady Eidson  <beidson@apple.com>
+
+        Bounce ServiceWorker jobs to the Storage Process.
+        https://bugs.webkit.org/show_bug.cgi?id=175650
+
+        Reviewed by Andy Estes.
+
+        * CMakeLists.txt:
+        * DerivedSources.make:
+        * WebKit.xcodeproj/project.pbxproj:
+
+        * Platform/Logging.h:
+
+        * StorageProcess/StorageToWebProcessConnection.cpp:
+        (WebKit::StorageToWebProcessConnection::didReceiveMessage):
+        (WebKit::StorageToWebProcessConnection::didClose):
+        (WebKit::StorageToWebProcessConnection::establishSWServerConnection):
+        (WebKit::StorageToWebProcessConnection::removeSWServerConnection):
+        (WebKit::StorageToWebProcessConnection::establishIDBConnectionToServer):
+        * StorageProcess/StorageToWebProcessConnection.h:
+        * StorageProcess/StorageToWebProcessConnection.messages.in:
+
+        * WebProcess/Storage/WebSWServerConnection.cpp: Added.
+        (WebKit::WebSWServerConnection::WebSWServerConnection):
+        (WebKit::WebSWServerConnection::~WebSWServerConnection):
+        (WebKit::WebSWServerConnection::disconnectedFromWebProcess):
+        (WebKit::WebSWServerConnection::scheduleJob):
+        (WebKit::WebSWServerConnection::scheduleStorageJob):
+        * WebProcess/Storage/WebSWServerConnection.h: Copied from Source/WebCore/workers/service/ServiceWorkerJob.h.
+        (WebKit::WebSWServerConnection::create):
+        (WebKit::WebSWServerConnection::identifier const):
+        * WebProcess/Storage/WebSWServerConnection.messages.in: Copied from Source/WebKit/StorageProcess/StorageToWebProcessConnection.messages.in.
+
+        * WebProcess/Storage/WebServiceWorkerProvider.cpp:
+        (WebKit::WebServiceWorkerProvider::serviceWorkerConnectionForSession):
+        (WebKit::WebServiceWorkerProvider::scheduleJob): Deleted.
+        * WebProcess/Storage/WebServiceWorkerProvider.h:
+
+        * WebProcess/Storage/WebToStorageProcessConnection.cpp:
+        (WebKit::WebToStorageProcessConnection::didReceiveMessage):
+        (WebKit::WebToStorageProcessConnection::serviceWorkerConnectionForSession):
+        * WebProcess/Storage/WebToStorageProcessConnection.h:
+
+2017-08-18  Chris Dumez  <cdumez@apple.com>
+
+        [Beacon] Add support for quota limitation
+        https://bugs.webkit.org/show_bug.cgi?id=175443
+        <rdar://problem/33729002>
+
+        Reviewed by Youenn Fablet.
+
+        WebLoaderStrategy now generates an identifier for ping loads and keep
+        the completion handler in a local HashMap. Once the ping load is done,
+        the network process sends an IPC message back to the WebContent process
+        so that WebLoaderStrategy can look up the completion handler for the
+        ping load and call it.
+
+        * NetworkProcess/NetworkConnectionToWebProcess.cpp:
+        (WebKit::NetworkConnectionToWebProcess::loadPing):
+        (WebKit::NetworkConnectionToWebProcess::didFinishPingLoad):
+        * NetworkProcess/NetworkConnectionToWebProcess.h:
+        * NetworkProcess/PingLoad.cpp:
+        (WebKit::PingLoad::PingLoad):
+        (WebKit::PingLoad::~PingLoad):
+        * NetworkProcess/PingLoad.h:
+        * WebProcess/Network/NetworkProcessConnection.cpp:
+        (WebKit::NetworkProcessConnection::didFinishPingLoad):
+        * WebProcess/Network/NetworkProcessConnection.h:
+        * WebProcess/Network/NetworkProcessConnection.messages.in:
+        * WebProcess/Network/WebLoaderStrategy.cpp:
+        (WebKit::generatePingLoadIdentifier):
+        (WebKit::WebLoaderStrategy::startPingLoad):
+        (WebKit::WebLoaderStrategy::didFinishPingLoad):
+        * WebProcess/Network/WebLoaderStrategy.h:
+
+2017-08-18  Youenn Fablet  <youenn@apple.com>
+
+        [Cache API] Add a WK2 implementation of CacheStorageConnection
+        https://bugs.webkit.org/show_bug.cgi?id=175640
+
+        Reviewed by Alex Christensen & Chris Dumez.
+
+        Adding WebCacheStorageConnection as an implementation of CacheStorageConnection.
+        Making WebCacheStorageProvider instantiates such class.
+        One WebCacheStorageConnection is created for each session of a given WebProcess.
+
+        WebCacheStorageConnection is sending IPC calls to the network process.
+        Main implementation of the cache API is done in the network process by CacheStorageEngineConnection and CacheStorageEngine.
+        There is one WebCacheStorageConnection per session.
+        WebCacheStorageConnection is passing the session ID for each call to the network process to ensure the right cache storage engine is used.
+
+        CacheStorageEngineConnection mirrors WebCacheStorageConnection on the network process.
+        There is one CacheStorageEngine per session and CacheStorageEngineConnection will select the right CacheStorageEngine using the given session ID.
+
+        CacheStorageEngine is responsible of storing and matching cache API records.
+        Current implementation only keeps in memory the cached objects.
+
+        CacheStorageEngine is keeping (for each different origin) caches and records as a Vector as the order of insertion is important as per spec.
+        It also keeps a list of removed caches. These caches should remain functional until the last web page having access to these is gone.
+        The mechanism to fully remove these caches is not implemented yet.
+
+        Adding IPC encodings for WTF::Expected, CacheQueryOptions, FetchOptions, CacheStorageConnection Record and CacheInfo.
+
+        * CMakeLists.txt:
+        * DerivedSources.make:
+        * NetworkProcess/NetworkConnectionToWebProcess.cpp:
+        (WebKit::NetworkConnectionToWebProcess::didReceiveMessage):
+        (WebKit::generateCacheStorageConnectionIdentifier):
+        (WebKit::NetworkConnectionToWebProcess::createCacheStorageConnection):
+        (WebKit::NetworkConnectionToWebProcess::closeCacheStorageConnection):
+        * NetworkProcess/NetworkConnectionToWebProcess.h:
+        * NetworkProcess/NetworkConnectionToWebProcess.messages.in:
+        * NetworkProcess/cache/CacheStorageEngine.cpp: Added.
+        (WebKit::defaultCacheStorageEngine):
+        (WebKit::globalEngineMap):
+        (WebKit::CacheStorageEngine::from):
+        (WebKit::CacheStorageEngine::destroyEngine):
+        (WebKit::CacheStorageEngine::defaultEngine):
+        (WebKit::CacheStorageEngine::open):
+        (WebKit::CacheStorageEngine::remove):
+        (WebKit::CacheStorageEngine::retrieveCaches):
+        (WebKit::CacheStorageEngine::retrieveRecords):
+        (WebKit::CacheStorageEngine::putRecords):
+        (WebKit::CacheStorageEngine::deleteMatchingRecords):
+        (WebKit::CacheStorageEngine::writeCachesToDisk):
+        (WebKit::CacheStorageEngine::readCachesFromDisk):
+        (WebKit::CacheStorageEngine::readCache):
+        (WebKit::CacheStorageEngine::writeCacheRecords):
+        (WebKit::CacheStorageEngine::removeCacheRecords):
+        (WebKit::CacheStorageEngine::cache):
+        (WebKit::CacheStorageEngine::caches const):
+        (WebKit::CacheStorageEngine::records):
+        (WebKit::CacheStorageEngine::queryCache):
+        * NetworkProcess/cache/CacheStorageEngine.h: Added.
+        * NetworkProcess/cache/CacheStorageEngineConnection.cpp: Added.
+        (WebKit::CacheStorageEngineConnection::CacheStorageEngineConnection):
+        (WebKit::CacheStorageEngineConnection::open):
+        (WebKit::CacheStorageEngineConnection::remove):
+        (WebKit::CacheStorageEngineConnection::caches):
+        (WebKit::CacheStorageEngineConnection::records):
+        (WebKit::CacheStorageEngineConnection::deleteMatchingRecords):
+        (WebKit::CacheStorageEngineConnection::putRecords):
+        * NetworkProcess/cache/CacheStorageEngineConnection.h: Added.
+        (WebKit::CacheStorageEngineConnection::create):
+        * NetworkProcess/cache/CacheStorageEngineConnection.messages.in: Added.
+        * Platform/IPC/ArgumentCoders.h:
+        * Shared/WebCoreArgumentCoders.cpp:
+        (IPC::ArgumentCoder<CacheQueryOptions>::encode):
+        (IPC::ArgumentCoder<CacheQueryOptions>::decode):
+        (IPC::ArgumentCoder<FetchOptions>::encode):
+        (IPC::ArgumentCoder<FetchOptions>::decode):
+        (IPC::ArgumentCoder<CacheStorageConnection::CacheInfo>::encode):
+        (IPC::ArgumentCoder<CacheStorageConnection::CacheInfo>::decode):
+        (IPC::ArgumentCoder<CacheStorageConnection::Record>::encode):
+        (IPC::ArgumentCoder<CacheStorageConnection::Record>::decode):
+        * Shared/WebCoreArgumentCoders.h:
+        * WebKit.xcodeproj/project.pbxproj:
+        * WebProcess/Cache/WebCacheStorageConnection.cpp: Added.
+        (WebKit::WebCacheStorageConnection::WebCacheStorageConnection):
+        (WebKit::WebCacheStorageConnection::~WebCacheStorageConnection):
+        (WebKit::WebCacheStorageConnection::messageSenderConnection):
+        (WebKit::WebCacheStorageConnection::doOpen):
+        (WebKit::WebCacheStorageConnection::doRemove):
+        (WebKit::WebCacheStorageConnection::doRetrieveCaches):
+        (WebKit::WebCacheStorageConnection::doRetrieveRecords):
+        (WebKit::WebCacheStorageConnection::doBatchDeleteOperation):
+        (WebKit::WebCacheStorageConnection::doBatchPutOperation):
+        (WebKit::WebCacheStorageConnection::openCompleted):
+        (WebKit::WebCacheStorageConnection::removeCompleted):
+        (WebKit::WebCacheStorageConnection::updateCaches):
+        (WebKit::WebCacheStorageConnection::updateRecords):
+        (WebKit::WebCacheStorageConnection::deleteRecordsCompleted):
+        (WebKit::WebCacheStorageConnection::putRecordsCompleted):
+        * WebProcess/Cache/WebCacheStorageConnection.h: Added.
+        * WebProcess/Cache/WebCacheStorageConnection.messages.in: Added.
+        * WebProcess/Cache/WebCacheStorageProvider.cpp: Copied from Source/WebKit/WebProcess/Cache/WebCacheStorageProvider.h.
+        (WebKit::WebCacheStorageProvider::createCacheStorageConnection):
+        * WebProcess/Cache/WebCacheStorageProvider.h:
+        * WebProcess/Network/NetworkProcessConnection.cpp:
+        (WebKit::NetworkProcessConnection::didReceiveMessage):
+
+2017-08-18  Commit Queue  <commit-queue@webkit.org>
+
+        Unreviewed, rolling out r220854.
+        https://bugs.webkit.org/show_bug.cgi?id=175716
+
+        I'm not sure we really need this (Requested by KaL on
+        #webkit).
+
+        Reverted changeset:
+
+        "[GTK][WPE] Add NTLM authentication enabled API"
+        https://bugs.webkit.org/show_bug.cgi?id=122952
+        http://trac.webkit.org/changeset/220854
+
+2017-08-15  Megan Gardner  <megan_gardner@apple.com>
+
+        Update to changeSelectionWithTouchAt:baseIsStart:withFlags:
+        https://bugs.webkit.org/show_bug.cgi?id=175615
+
+        Update calls to use the flag versions, as they are used for passing state.
+        Leave old calls, but set them up to be removed next cycle.
+
+        Reviewed by Tim Horton.
+
+        * Platform/spi/ios/UIKitSPI.h:
+        * UIProcess/ios/WKContentViewInteraction.mm:
+        (selectionChangedWithTouch):
+        (-[WKContentView changeSelectionWithGestureAt:withGesture:withState:]):
+        (-[WKContentView changeSelectionWithGestureAt:withGesture:withState:withFlags:]):
+        (-[WKContentView changeSelectionWithTouchAt:withSelectionTouch:baseIsStart:]):
+        (-[WKContentView changeSelectionWithTouchAt:withSelectionTouch:baseIsStart:withFlags:]):
+
+2017-08-17  Chris Dumez  <cdumez@apple.com>
+
+        Regression(r220817): We should only copy the original request headers for Ping loads
+        https://bugs.webkit.org/show_bug.cgi?id=175679
+
+        Reviewed by Youenn Fablet.
+
+        For performance reason, we should only copy the original request headers for Ping loads
+        (Beacon at the moment), not for all CachedResourceRequests.
+
+        * NetworkProcess/NetworkConnectionToWebProcess.cpp:
+        (WebKit::NetworkConnectionToWebProcess::loadPing):
+        * NetworkProcess/NetworkConnectionToWebProcess.h:
+        * NetworkProcess/NetworkConnectionToWebProcess.messages.in:
+        * NetworkProcess/NetworkResourceLoadParameters.cpp:
+        (WebKit::NetworkResourceLoadParameters::encode const):
+        (WebKit::NetworkResourceLoadParameters::decode):
+        * NetworkProcess/NetworkResourceLoadParameters.h:
+        * NetworkProcess/PingLoad.cpp:
+        (WebKit::PingLoad::PingLoad):
+        (WebKit::PingLoad::willPerformHTTPRedirection):
+        (WebKit::PingLoad::makeCrossOriginAccessRequest):
+        (WebKit::PingLoad::makeSimpleCrossOriginAccessRequest):
+        (WebKit::PingLoad::originalRequestHeaders const): Deleted.
+        * NetworkProcess/PingLoad.h:
+        * WebProcess/Network/WebLoaderStrategy.cpp:
+        (WebKit::WebLoaderStrategy::createPingHandle):
+        * WebProcess/Network/WebLoaderStrategy.h:
+
+2017-08-17  Don Olmstead  <don.olmstead@sony.com>
+
+        [PAL] Relocate SessionID to root
+        https://bugs.webkit.org/show_bug.cgi?id=175684
+
+        Reviewed by Alex Christensen.
+
+        * NetworkProcess/Downloads/Download.h:
+        * NetworkProcess/Downloads/DownloadManager.cpp:
+        * NetworkProcess/NetworkCORSPreflightChecker.h:
+        * NetworkProcess/NetworkConnectionToWebProcess.cpp:
+        * NetworkProcess/NetworkLoad.cpp:
+        * NetworkProcess/NetworkLoadParameters.h:
+        * NetworkProcess/NetworkProcess.cpp:
+        * NetworkProcess/NetworkProcess.h:
+        * NetworkProcess/NetworkResourceLoadParameters.h:
+        * NetworkProcess/NetworkSession.h:
+        * NetworkProcess/NetworkSocketStream.h:
+        * NetworkProcess/RemoteNetworkingContext.h:
+        * NetworkProcess/cache/NetworkCacheSpeculativeLoad.cpp:
+        * Scripts/webkit/messages.py:
+        (forward_declarations_and_headers.templates): Deleted.
+        (class_template_headers.template): Deleted.
+        * Shared/ChildProcess.cpp:
+        * Shared/SessionTracker.h:
+        * Shared/Storage/StorageProcessCreationParameters.h:
+        * Shared/WebCoreArgumentCoders.cpp:
+        * Shared/WebPageCreationParameters.h:
+        * Shared/WebProcessCreationParameters.h:
+        * Shared/WebsiteDataStoreParameters.h:
+        * Shared/mac/CookieStorageShim.mm:
+        * StorageProcess/IndexedDB/WebIDBConnectionToClient.h:
+        * StorageProcess/StorageProcess.cpp:
+        * StorageProcess/StorageProcess.h:
+        * StorageProcess/StorageToWebProcessConnection.h:
+        * UIProcess/API/APIPageConfiguration.h:
+        * UIProcess/API/APIWebsiteDataStore.h:
+        * UIProcess/API/glib/WebKitCookieManager.cpp:
+        * UIProcess/Plugins/PlugInAutoStartProvider.h:
+        * UIProcess/WebCookieManagerProxy.h:
+        * UIProcess/WebProcessPool.cpp:
+        * UIProcess/WebProcessPool.h:
+        * UIProcess/WebProcessProxy.h:
+        * UIProcess/WebsiteData/WebsiteDataStore.h:
+        * WebProcess/Cookies/WebCookieManager.h:
+        * WebProcess/Databases/IndexedDB/WebIDBConnectionToServer.h:
+        * WebProcess/Databases/WebDatabaseProvider.cpp:
+        * WebProcess/InjectedBundle/InjectedBundle.cpp:
+        * WebProcess/Network/NetworkProcessConnection.cpp:
+        * WebProcess/Network/WebLoaderStrategy.cpp:
+        * WebProcess/Network/WebSocketStream.cpp:
+        * WebProcess/Network/WebSocketStream.h:
+        * WebProcess/Storage/WebToStorageProcessConnection.h:
+        * WebProcess/WebCoreSupport/WebPlatformStrategies.cpp:
+        * WebProcess/WebCoreSupport/WebPlugInClient.h:
+        * WebProcess/WebCoreSupport/mac/WebFrameNetworkingContext.h:
+        * WebProcess/WebCoreSupport/soup/WebFrameNetworkingContext.cpp:
+        * WebProcess/WebCoreSupport/soup/WebFrameNetworkingContext.h:
+        * WebProcess/WebPage/WebPage.cpp:
+        * WebProcess/WebProcess.h:
+
+2017-08-17  Chris Dumez  <cdumez@apple.com>
+
+        REGRESSION (r220601): Crash under ProcessAssertion::markAsInvalidated()
+        https://bugs.webkit.org/show_bug.cgi?id=175685
+        <rdar://problem/33868623>
+
+        Reviewed by Sam Weinig.
+
+        After r220601, it is no longer safe to call a default-initialized WTF::Function.
+
+        * UIProcess/ios/ProcessAssertionIOS.mm:
+        (WebKit::ProcessAssertion::markAsInvalidated):
+
+2017-08-17  Andreas Kling  <akling@apple.com>
+
+        Disable CSS regions at compile time
+        https://bugs.webkit.org/show_bug.cgi?id=175630
+
+        Reviewed by Antti Koivisto.
+
+        * Configurations/FeatureDefines.xcconfig:
+
+2017-08-17  Wenson Hsieh  <wenson_hsieh@apple.com>
+
+        [iOS] Respect type fidelities when copying image elements to the pasteboard
+        https://bugs.webkit.org/show_bug.cgi?id=175638
+        <rdar://problem/26556043>
+
+        Reviewed by Ryosuke Niwa.
+
+        Currently, we treat the case when copying an image enclosed by a link by only writing a URL to the pasteboard.
+        This patch tweaks logic in WebPage::performActionOnElement to write both an image and a link to the pasteboard
+        if the hit-tested image element is enclosed by an anchor.
+
+        * Platform/spi/ios/UIKitSPI.h:
+        * WebProcess/WebPage/ios/WebPageIOS.mm:
+        (WebKit::containingLinkElement):
+
+        Tweak this helper to be more restrictive when finding an enclosing 'link' -- only return an element if isLink()
+        is true, and it is an HTMLAnchorElement. Currently, the isLink() also matches HTMLLinkElements, but this isn't
+        the intention here.
+
+        (WebKit::WebPage::performActionOnElement):
+
+2017-08-17  Jacobo Aragunde Pérez  <jaragunde@igalia.com>
+
+        [WPE][GTK] Ensure proper casting of data in gvariants
+        https://bugs.webkit.org/show_bug.cgi?id=175667
+
+        Reviewed by Michael Catanzaro.
+
+        g_variant_builder_add requires data to have the correct width for their types, using
+        casting if necessary. Corrected a call where a single precision float was being put
+        into a double precision parameter without a cast.
+
+        * UIProcess/API/glib/WebKitWebViewSessionState.cpp:
+        (encodeFrameState):
+
+2017-08-17  Don Olmstead  <don.olmstead@sony.com>
+
+        [PAL] Move SessionID into PAL
+        https://bugs.webkit.org/show_bug.cgi?id=174192
+
+        Reviewed by Antti Koivisto.
+
+        * NetworkProcess/Downloads/Download.cpp:
+        (WebKit::Download::Download):
+        * NetworkProcess/Downloads/Download.h:
+        (WebKit::Download::Download):
+        * NetworkProcess/Downloads/DownloadManager.cpp:
+        (WebKit::DownloadManager::startDownload):
+        (WebKit::DownloadManager::resumeDownload):
+        * NetworkProcess/Downloads/DownloadManager.h:
+        (WebKit::DownloadManager::startDownload):
+        * NetworkProcess/NetworkCORSPreflightChecker.h:
+        * NetworkProcess/NetworkConnectionToWebProcess.cpp:
+        (WebKit::NetworkConnectionToWebProcess::createSocketStream):
+        (WebKit::storageSession):
+        (WebKit::NetworkConnectionToWebProcess::startDownload):
+        (WebKit::NetworkConnectionToWebProcess::convertMainResourceLoadToDownload):
+        (WebKit::NetworkConnectionToWebProcess::cookiesForDOM):
+        (WebKit::NetworkConnectionToWebProcess::setCookiesFromDOM):
+        (WebKit::NetworkConnectionToWebProcess::cookiesEnabled):
+        (WebKit::NetworkConnectionToWebProcess::cookieRequestHeaderFieldValue):
+        (WebKit::NetworkConnectionToWebProcess::getRawCookies):
+        (WebKit::NetworkConnectionToWebProcess::deleteCookie):
+        (WebKit::NetworkConnectionToWebProcess::ensureLegacyPrivateBrowsingSession):
+        * NetworkProcess/NetworkConnectionToWebProcess.h:
+        (WebKit::NetworkConnectionToWebProcess::startDownload):
+        * NetworkProcess/NetworkConnectionToWebProcess.messages.in:
+        * NetworkProcess/NetworkLoad.cpp:
+        * NetworkProcess/NetworkLoadParameters.h:
+        * NetworkProcess/NetworkProcess.cpp:
+        (WebKit::NetworkProcess::initializeNetworkProcess):
+        (WebKit::NetworkProcess::destroySession):
+        (WebKit::fetchDiskCacheEntries):
+        (WebKit::NetworkProcess::fetchWebsiteData):
+        (WebKit::NetworkProcess::deleteWebsiteData):
+        (WebKit::NetworkProcess::deleteWebsiteDataForOrigins):
+        (WebKit::NetworkProcess::downloadRequest):
+        (WebKit::NetworkProcess::resumeDownload):
+        * NetworkProcess/NetworkProcess.h:
+        * NetworkProcess/NetworkProcess.messages.in:
+        * NetworkProcess/NetworkResourceLoadParameters.h:
+        * NetworkProcess/NetworkResourceLoader.h:
+        * NetworkProcess/NetworkSession.cpp:
+        (WebKit::NetworkSession::create):
+        (WebKit::NetworkSession::defaultSession):
+        (WebKit::NetworkSession::NetworkSession):
+        * NetworkProcess/NetworkSession.h:
+        (WebKit::NetworkSession::sessionID const):
+        * NetworkProcess/NetworkSocketStream.cpp:
+        (WebKit::NetworkSocketStream::create):
+        (WebKit::NetworkSocketStream::NetworkSocketStream):
+        * NetworkProcess/NetworkSocketStream.h:
+        * NetworkProcess/RemoteNetworkingContext.h:
+        * NetworkProcess/cache/NetworkCacheSpeculativeLoad.cpp:
+        (WebKit::NetworkCache::SpeculativeLoad::SpeculativeLoad):
+        * NetworkProcess/cocoa/NetworkSessionCocoa.h:
+        * NetworkProcess/cocoa/NetworkSessionCocoa.mm:
+        (WebKit::configurationForSessionID):
+        (WebKit::NetworkSessionCocoa::create):
+        (WebKit::NetworkSessionCocoa::defaultSession):
+        (WebKit::NetworkSessionCocoa::NetworkSessionCocoa):
+        * NetworkProcess/soup/NetworkSessionSoup.cpp:
+        (WebKit::NetworkSessionSoup::NetworkSessionSoup):
+        * NetworkProcess/soup/NetworkSessionSoup.h:
+        * Scripts/webkit/messages.py:
+        (forward_declarations_and_headers.templates): Deleted.
+        (class_template_headers.template): Deleted.
+        * Shared/ChildProcess.cpp:
+        (WebKit::ChildProcess::initialize):
+        * Shared/SessionTracker.cpp:
+        (WebKit::staticSessionMap):
+        (WebKit::SessionTracker::networkSession):
+        (WebKit::SessionTracker::setSession):
+        (WebKit::SessionTracker::destroySession):
+        * Shared/SessionTracker.h:
+        * Shared/Storage/StorageProcessCreationParameters.h:
+        * Shared/WebCoreArgumentCoders.cpp:
+        * Shared/WebCoreArgumentCoders.h:
+        * Shared/WebPageCreationParameters.h:
+        * Shared/WebProcessCreationParameters.h:
+        * Shared/WebsiteDataStoreParameters.h:
+        * Shared/mac/CookieStorageShim.mm:
+        (WebKit::webKitCookieStorageCopyRequestHeaderFieldsForURL):
+        * StorageProcess/IndexedDB/WebIDBConnectionToClient.cpp:
+        (WebKit::WebIDBConnectionToClient::create):
+        (WebKit::WebIDBConnectionToClient::WebIDBConnectionToClient):
+        * StorageProcess/IndexedDB/WebIDBConnectionToClient.h:
+        * StorageProcess/StorageProcess.cpp:
+        (WebKit::StorageProcess::idbServer):
+        (WebKit::StorageProcess::fetchWebsiteData):
+        (WebKit::StorageProcess::deleteWebsiteData):
+        (WebKit::StorageProcess::deleteWebsiteDataForOrigins):
+        * StorageProcess/StorageProcess.h:
+        * StorageProcess/StorageProcess.messages.in:
+        * StorageProcess/StorageToWebProcessConnection.cpp:
+        (WebKit::StorageToWebProcessConnection::establishIDBConnectionToServer):
+        * StorageProcess/StorageToWebProcessConnection.h:
+        * StorageProcess/StorageToWebProcessConnection.messages.in:
+        * UIProcess/API/APIPageConfiguration.cpp:
+        (API::PageConfiguration::setWebsiteDataStore):
+        (API::PageConfiguration::sessionID):
+        (API::PageConfiguration::setSessionID):
+        * UIProcess/API/APIPageConfiguration.h:
+        * UIProcess/API/APIWebsiteDataStore.cpp:
+        (API::WebsiteDataStore::defaultDataStore):
+        (API::WebsiteDataStore::createLegacy):
+        (API::WebsiteDataStore::WebsiteDataStore):
+        * UIProcess/API/APIWebsiteDataStore.h:
+        * UIProcess/API/C/WKCookieManager.cpp:
+        (WKCookieManagerGetHostnamesWithCookies):
+        (WKCookieManagerDeleteCookiesForHostname):
+        (WKCookieManagerDeleteAllCookies):
+        (WKCookieManagerDeleteAllCookiesModifiedAfterDate):
+        (WKCookieManagerSetHTTPCookieAcceptPolicy):
+        (WKCookieManagerGetHTTPCookieAcceptPolicy):
+        (WKCookieManagerStartObservingCookieChanges):
+        (WKCookieManagerStopObservingCookieChanges):
+        * UIProcess/API/Cocoa/WKProcessPool.mm:
+        (-[WKProcessPool _setCookieAcceptPolicy:]):
+        * UIProcess/API/Cocoa/WKWebsiteDataStore.mm:
+        (-[WKWebsiteDataStore _initWithConfiguration:]):
+        * UIProcess/API/glib/WebKitCookieManager.cpp:
+        (webkit_cookie_manager_set_accept_policy):
+        (webkit_cookie_manager_get_accept_policy):
+        * UIProcess/Network/NetworkProcessProxy.cpp:
+        (WebKit::NetworkProcessProxy::fetchWebsiteData):
+        (WebKit::NetworkProcessProxy::deleteWebsiteData):
+        (WebKit::NetworkProcessProxy::deleteWebsiteDataForOrigins):
+        * UIProcess/Network/NetworkProcessProxy.h:
+        * UIProcess/Plugins/PlugInAutoStartProvider.cpp:
+        (WebKit::PlugInAutoStartProvider::PlugInAutoStartProvider):
+        (WebKit::PlugInAutoStartProvider::addAutoStartOriginHash):
+        (WebKit::PlugInAutoStartProvider::autoStartOriginsTableCopy const):
+        (WebKit::PlugInAutoStartProvider::setAutoStartOriginsTableWithItemsPassingTest):
+        (WebKit::PlugInAutoStartProvider::didReceiveUserInteraction):
+        * UIProcess/Plugins/PlugInAutoStartProvider.h:
+        * UIProcess/Storage/StorageProcessProxy.cpp:
+        (WebKit::StorageProcessProxy::fetchWebsiteData):
+        (WebKit::StorageProcessProxy::deleteWebsiteData):
+        (WebKit::StorageProcessProxy::deleteWebsiteDataForOrigins):
+        * UIProcess/Storage/StorageProcessProxy.h:
+        * UIProcess/WebCookieManagerProxy.cpp:
+        (WebKit::WebCookieManagerProxy::getHostnamesWithCookies):
+        (WebKit::WebCookieManagerProxy::deleteCookiesForHostname):
+        (WebKit::WebCookieManagerProxy::deleteAllCookies):
+        (WebKit::WebCookieManagerProxy::deleteCookie):
+        (WebKit::WebCookieManagerProxy::deleteAllCookiesModifiedSince):
+        (WebKit::WebCookieManagerProxy::setCookie):
+        (WebKit::WebCookieManagerProxy::setCookies):
+        (WebKit::WebCookieManagerProxy::getAllCookies):
+        (WebKit::WebCookieManagerProxy::getCookies):
+        (WebKit::WebCookieManagerProxy::startObservingCookieChanges):
+        (WebKit::WebCookieManagerProxy::stopObservingCookieChanges):
+        (WebKit::WebCookieManagerProxy::setCookieObserverCallback):
+        (WebKit::WebCookieManagerProxy::registerObserver):
+        (WebKit::WebCookieManagerProxy::unregisterObserver):
+        (WebKit::WebCookieManagerProxy::cookiesDidChange):
+        (WebKit::WebCookieManagerProxy::setHTTPCookieAcceptPolicy):
+        (WebKit::WebCookieManagerProxy::getHTTPCookieAcceptPolicy):
+        * UIProcess/WebCookieManagerProxy.h:
+        * UIProcess/WebCookieManagerProxy.messages.in:
+        * UIProcess/WebPageProxy.h:
+        (WebKit::WebPageProxy::sessionID const):
+        * UIProcess/WebProcessPool.cpp:
+        (WebKit::WebProcessPool::setAnyPageGroupMightHavePrivateBrowsingEnabled):
+        (WebKit::WebProcessPool::createNewWebProcess):
+        (WebKit::WebProcessPool::createWebPage):
+        (WebKit::WebProcessPool::pageAddedToProcess):
+        (WebKit::WebProcessPool::pageRemovedFromProcess):
+        (WebKit::WebProcessPool::download):
+        (WebKit::WebProcessPool::resumeDownload):
+        (WebKit::WebProcessPool::addPlugInAutoStartOriginHash):
+        (WebKit::WebProcessPool::plugInDidReceiveUserInteraction):
+        * UIProcess/WebProcessPool.h:
+        * UIProcess/WebProcessPool.messages.in:
+        * UIProcess/WebProcessProxy.cpp:
+        (WebKit::WebProcessProxy::deleteWebsiteDataForTopPrivatelyControlledDomainsInAllPersistentDataStores):
+        (WebKit::WebProcessProxy::topPrivatelyControlledDomainsWithWebsiteData):
+        (WebKit::WebProcessProxy::fetchWebsiteData):
+        (WebKit::WebProcessProxy::deleteWebsiteData):
+        (WebKit::WebProcessProxy::deleteWebsiteDataForOrigins):
+        * UIProcess/WebProcessProxy.h:
+        * UIProcess/WebsiteData/WebsiteDataStore.cpp:
+        (WebKit::WebsiteDataStore::createNonPersistent):
+        (WebKit::WebsiteDataStore::create):
+        (WebKit::WebsiteDataStore::WebsiteDataStore):
+        (WebKit::WebsiteDataStore::~WebsiteDataStore):
+        * UIProcess/WebsiteData/WebsiteDataStore.h:
+        (WebKit::WebsiteDataStore::sessionID const):
+        * WebProcess/Cookies/WebCookieManager.cpp:
+        (WebKit::WebCookieManager::getHostnamesWithCookies):
+        (WebKit::WebCookieManager::deleteCookiesForHostname):
+        (WebKit::WebCookieManager::deleteAllCookies):
+        (WebKit::WebCookieManager::deleteCookie):
+        (WebKit::WebCookieManager::deleteAllCookiesModifiedSince):
+        (WebKit::WebCookieManager::getAllCookies):
+        (WebKit::WebCookieManager::getCookies):
+        (WebKit::WebCookieManager::setCookie):
+        (WebKit::WebCookieManager::setCookies):
+        (WebKit::WebCookieManager::notifyCookiesDidChange):
+        (WebKit::WebCookieManager::startObservingCookieChanges):
+        (WebKit::WebCookieManager::stopObservingCookieChanges):
+        * WebProcess/Cookies/WebCookieManager.h:
+        * WebProcess/Cookies/WebCookieManager.messages.in:
+        * WebProcess/Databases/IndexedDB/WebIDBConnectionToServer.cpp:
+        (WebKit::WebIDBConnectionToServer::create):
+        (WebKit::WebIDBConnectionToServer::WebIDBConnectionToServer):
+        * WebProcess/Databases/IndexedDB/WebIDBConnectionToServer.h:
+        * WebProcess/Databases/WebDatabaseProvider.cpp:
+        (WebKit::WebDatabaseProvider::idbConnectionToServerForSession):
+        * WebProcess/Databases/WebDatabaseProvider.h:
+        * WebProcess/InjectedBundle/InjectedBundle.cpp:
+        (WebKit::InjectedBundle::setPrivateBrowsingEnabled):
+        * WebProcess/Network/NetworkProcessConnection.cpp:
+        (WebKit::NetworkProcessConnection::didCacheResource):
+        * WebProcess/Network/NetworkProcessConnection.h:
+        * WebProcess/Network/NetworkProcessConnection.messages.in:
+        * WebProcess/Network/WebLoaderStrategy.cpp:
+        (WebKit::WebLoaderStrategy::scheduleLoad):
+        (WebKit::WebLoaderStrategy::loadResourceSynchronously):
+        (WebKit::WebLoaderStrategy::createPingHandle):
+        * WebProcess/Network/WebSocketProvider.cpp:
+        (WebKit::WebSocketProvider::createSocketStreamHandle):
+        * WebProcess/Network/WebSocketProvider.h:
+        * WebProcess/Network/WebSocketStream.cpp:
+        (WebKit::WebSocketStream::create):
+        (WebKit::WebSocketStream::WebSocketStream):
+        * WebProcess/Network/WebSocketStream.h:
+        * WebProcess/Storage/WebToStorageProcessConnection.cpp:
+        (WebKit::WebToStorageProcessConnection::idbConnectionToServerForSession):
+        * WebProcess/Storage/WebToStorageProcessConnection.h:
+        * WebProcess/WebCoreSupport/WebFrameLoaderClient.cpp:
+        (WebKit::WebFrameLoaderClient::convertMainResourceLoadToDownload):
+        * WebProcess/WebCoreSupport/WebFrameLoaderClient.h:
+        * WebProcess/WebCoreSupport/WebPlatformStrategies.cpp:
+        (WebKit::WebPlatformStrategies::cookieRequestHeaderFieldValue):
+        * WebProcess/WebCoreSupport/WebPlatformStrategies.h:
+        * WebProcess/WebCoreSupport/WebPlugInClient.cpp:
+        (WebKit::WebPlugInClient::didStartFromOrigin):
+        * WebProcess/WebCoreSupport/WebPlugInClient.h:
+        * WebProcess/WebCoreSupport/mac/WebFrameNetworkingContext.h:
+        * WebProcess/WebCoreSupport/mac/WebFrameNetworkingContext.mm:
+        (WebKit::WebFrameNetworkingContext::ensurePrivateBrowsingSession):
+        * WebProcess/WebCoreSupport/soup/WebFrameNetworkingContext.cpp:
+        (WebKit::WebFrameNetworkingContext::ensurePrivateBrowsingSession):
+        * WebProcess/WebCoreSupport/soup/WebFrameNetworkingContext.h:
+        * WebProcess/WebPage/WebFrame.cpp:
+        (WebKit::WebFrame::startDownload):
+        (WebKit::WebFrame::convertMainResourceLoadToDownload):
+        * WebProcess/WebPage/WebFrame.h:
+        * WebProcess/WebPage/WebPage.cpp:
+        (WebKit::WebPage::setSessionID):
+        (WebKit::WebPage::updatePreferences):
+        * WebProcess/WebPage/WebPage.h:
+        (WebKit::WebPage::sessionID const):
+        * WebProcess/WebProcess.cpp:
+        (WebKit::m_webSQLiteDatabaseTracker):
+        (WebKit::WebProcess::ensurePrivateBrowsingSession):
+        (WebKit::WebProcess::destroySession):
+        (WebKit::WebProcess::isPlugInAutoStartOriginHash):
+        (WebKit::WebProcess::plugInDidStartFromOrigin):
+        (WebKit::WebProcess::didAddPlugInAutoStartOriginHash):
+        (WebKit::WebProcess::resetPlugInAutoStartOriginDefaultHashes):
+        (WebKit::WebProcess::resetPlugInAutoStartOriginHashes):
+        (WebKit::WebProcess::plugInDidReceiveUserInteraction):
+        (WebKit::WebProcess::fetchWebsiteData):
+        (WebKit::WebProcess::deleteWebsiteData):
+        (WebKit::WebProcess::deleteWebsiteDataForOrigins):
+        * WebProcess/WebProcess.h:
+        * WebProcess/WebProcess.messages.in:
+
+2017-08-17  Joseph Pecoraro  <pecoraro@apple.com>
+
+        Fix typo: setUpInectedBundleClient
+        https://bugs.webkit.org/show_bug.cgi?id=175655
+
+        Reviewed by Andreas Kling.
+
+        * UIProcess/API/Cocoa/WKProcessGroup.mm:
+        (setUpInjectedBundleClient):
+        (-[WKProcessGroup initWithInjectedBundleURL:]):
+
 2017-08-17  Carlos Garcia Campos  <cgarcia@igalia.com>
 
         [GTK][WPE] Add NTLM authentication enabled API

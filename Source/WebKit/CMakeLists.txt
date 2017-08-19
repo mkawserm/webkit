@@ -115,6 +115,8 @@ set(WebKit2_SOURCES
     NetworkProcess/NetworkSocketStream.cpp
     NetworkProcess/PingLoad.cpp
 
+    NetworkProcess/cache/CacheStorageEngine.cpp
+    NetworkProcess/cache/CacheStorageEngineConnection.cpp
     NetworkProcess/cache/NetworkCache.cpp
     NetworkProcess/cache/NetworkCacheBlobStorage.cpp
     NetworkProcess/cache/NetworkCacheCoders.cpp
@@ -441,6 +443,9 @@ set(WebKit2_SOURCES
 
     WebProcess/Automation/WebAutomationSessionProxy.cpp
 
+    WebProcess/Cache/WebCacheStorageConnection.cpp
+    WebProcess/Cache/WebCacheStorageProvider.cpp
+
     WebProcess/Cookies/WebCookieManager.cpp
 
     WebProcess/Databases/WebDatabaseProvider.cpp
@@ -523,6 +528,7 @@ set(WebKit2_SOURCES
     WebProcess/Plugins/Netscape/NetscapePluginNone.cpp
     WebProcess/Plugins/Netscape/NetscapePluginStream.cpp
 
+    WebProcess/Storage/WebSWServerConnection.cpp
     WebProcess/Storage/WebServiceWorkerProvider.cpp
     WebProcess/Storage/WebToStorageProcessConnection.cpp
 
@@ -577,6 +583,8 @@ set(WebKit2_SOURCES
 )
 
 set(WebKit2_MESSAGES_IN_FILES
+    NetworkProcess/cache/CacheStorageEngineConnection.messages.in
+
     NetworkProcess/CustomProtocols/LegacyCustomProtocolManager.messages.in
 
     NetworkProcess/NetworkConnectionToWebProcess.messages.in
@@ -637,6 +645,8 @@ set(WebKit2_MESSAGES_IN_FILES
 
     WebProcess/Automation/WebAutomationSessionProxy.messages.in
 
+    WebProcess/Cache/WebCacheStorageConnection.messages.in
+
     WebProcess/Cookies/WebCookieManager.messages.in
 
     WebProcess/Databases/IndexedDB/WebIDBConnectionToServer.messages.in
@@ -658,6 +668,8 @@ set(WebKit2_MESSAGES_IN_FILES
     WebProcess/Plugins/PluginProcessConnection.messages.in
     WebProcess/Plugins/PluginProcessConnectionManager.messages.in
     WebProcess/Plugins/PluginProxy.messages.in
+
+    WebProcess/Storage/WebSWServerConnection.messages.in
 
     WebProcess/UserContent/WebUserContentController.messages.in
 

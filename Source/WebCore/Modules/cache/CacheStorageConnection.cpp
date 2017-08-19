@@ -33,16 +33,16 @@
 
 namespace WebCore {
 
-Exception CacheStorageConnection::exceptionFromError(Error error)
+ExceptionOr<void> CacheStorageConnection::errorToException(Error error)
 {
-    ASSERT(error != Error::None);
-
     switch (error) {
+    case Error::None:
+        return { };
     case Error::NotImplemented:
         return Exception { NotSupportedError, ASCIILiteral("Not implemented") };
     default:
-        return Exception { TypeError, ASCIILiteral("Unknown error") };
-    };
+        return Exception { NotSupportedError, ASCIILiteral("Internal error") };
+    }
 }
 
 bool CacheStorageConnection::queryCacheMatch(const ResourceRequest& request, const ResourceRequest& cachedRequest, const ResourceResponse& cachedResponse, const CacheQueryOptions& options)
@@ -154,6 +154,33 @@ void CacheStorageConnection::putRecordsCompleted(uint64_t requestIdentifier, Vec
 {
     if (auto callback = m_batchDeleteAndPutPendingRequests.take(requestIdentifier))
         callback(WTFMove(records), error);
+}
+
+CacheStorageConnection::ResponseBody CacheStorageConnection::isolatedResponseBody(const ResponseBody& body)
+{
+    return WTF::switchOn(body, [](const Ref<FormData>& formData) {
+        return formData->isolatedCopy();
+    }, [](const Ref<SharedBuffer>& buffer) {
+        return buffer->copy();
+    }, [](const std::nullptr_t&) {
+        return CacheStorageConnection::ResponseBody { };
+    });
+}
+
+static inline CacheStorageConnection::ResponseBody copyResponseBody(const CacheStorageConnection::ResponseBody& body)
+{
+    return WTF::switchOn(body, [](const Ref<FormData>& formData) {
+        return formData.copyRef();
+    }, [](const Ref<SharedBuffer>& buffer) {
+        return buffer.copyRef();
+    }, [](const std::nullptr_t&) {
+        return CacheStorageConnection::ResponseBody { };
+    });
+}
+
+CacheStorageConnection::Record CacheStorageConnection::Record::copy() const
+{
+    return Record { identifier, requestHeadersGuard, request, options, referrer, responseHeadersGuard, response, copyResponseBody(responseBody) };
 }
 
 } // namespace WebCore

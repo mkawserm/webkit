@@ -1,3 +1,182 @@
+2017-08-18  Ryan Haddad  <ryanhaddad@apple.com>
+
+        Unreviewed, rolling out r220938.
+
+        The API tests added with this change are failing.
+
+        Reverted changeset:
+
+        "Add WTFLogChannel level to allow runtime log filtering"
+        https://bugs.webkit.org/show_bug.cgi?id=175731
+        http://trac.webkit.org/changeset/220938
+
+2017-08-18  Devin Rousso  <webkit@devinrousso.com>
+
+        Unreviewed, change my email.
+
+        * Scripts/webkitpy/common/config/contributors.json:
+
+2017-08-18  Jonathan Bedard  <jbedard@apple.com>
+
+        Fix leak-checking for iOS Simulators
+        https://bugs.webkit.org/show_bug.cgi?id=175735
+
+        Reviewed by Darin Adler.
+
+        If the leak checking currently occurs in ServerProcess, we can’t check leaks on an iOS
+        Simulator (or device) because the process will have already been killed by the time we
+        check for leaks. Duplicate leak-checking code and share code waiting on a process to stop.
+
+        * Scripts/webkitpy/port/server_process.py:
+        (ServerProcess.stop): Move code waiting for the process to close to _wait_for_stop(...).
+        (ServerProcess._wait_for_stop): Share code shutting down a process between ServerProcess
+        and SimulatorProcess.
+        * Scripts/webkitpy/port/simulator_process.py:
+        (SimulatorProcess.stop): Before closing the process, check for leaks.
+
+2017-08-18  Eric Carlson  <eric.carlson@apple.com>
+
+        Add WTFLogChannel level to allow runtime log filtering
+        https://bugs.webkit.org/show_bug.cgi?id=175731
+        <rdar://problem/33967234>
+
+        Reviewed by Jer Noble.
+
+        * TestWebKitAPI/TestWebKitAPI.xcodeproj/project.pbxproj:
+        * TestWebKitAPI/Tests/WebCore/Logging.cpp: Added.
+        (TestWebKitAPI::LoggingTest::output):
+        (TestWebKitAPI::TEST_F):
+
+2017-08-18  Alexey Proskuryakov  <ap@apple.com>
+
+        Add Dean Johnson to contributors.json for Bugzilla autocomplete.
+
+        * Scripts/webkitpy/common/config/contributors.json:
+
+2017-08-18  Ross Kirsling  <ross.kirsling@sony.com>
+
+        [Tools] Add script to download a GitHub release
+        https://bugs.webkit.org/show_bug.cgi?id=175279
+
+        Reviewed by Brent Fulgham.
+
+        * Scripts/download-latest-github-release.py: Added.
+
+2017-08-18  Commit Queue  <commit-queue@webkit.org>
+
+        Unreviewed, rolling out r220854.
+        https://bugs.webkit.org/show_bug.cgi?id=175716
+
+        I'm not sure we really need this (Requested by KaL on
+        #webkit).
+
+        Reverted changeset:
+
+        "[GTK][WPE] Add NTLM authentication enabled API"
+        https://bugs.webkit.org/show_bug.cgi?id=122952
+        http://trac.webkit.org/changeset/220854
+
+2017-08-17  Michael Catanzaro  <mcatanzaro@igalia.com>
+
+        [GTK] Make TestContextMenu work on Fedora
+        https://bugs.webkit.org/show_bug.cgi?id=175708
+
+        Reviewed by Carlos Garcia Campos.
+
+        TestContextMenu has been broken for as long as I remember, but not on the bots, only for me
+        and my student last summer who was trying to work on a context menu API. It's trying to load
+        an MPEG-2 video file and confirm that right-clicking on it shows media element context menu
+        entries. Doesn't work on Fedora. Dunno why, since Fedora actually can play MPEG-2, but I
+        don't care to investigate. Let's switch it to WebM so I can move on.
+
+        * TestWebKitAPI/Tests/WebKit2Gtk/TestContextMenu.cpp:
+        (prepareContextMenuTestView):
+        * TestWebKitAPI/Tests/WebKitGLib/resources/silence.mpg: Removed.
+        * TestWebKitAPI/Tests/WebKitGLib/resources/silence.webm: Added.
+
+2017-08-17  Yoshiaki Jitsukawa  <Yoshiaki.Jitsukawa@sony.com>
+
+        check-webkit-style shouldn't check spacing in #elif preprocessor lines
+        https://bugs.webkit.org/show_bug.cgi?id=175652
+
+        Reviewed by Alex Christensen.
+
+        * Scripts/webkitpy/style/checkers/cpp.py:
+        (check_spacing):
+        * Scripts/webkitpy/style/checkers/cpp_unittest.py:
+        (CppStyleTest.test_spacing_for_binary_ops):
+
+2017-08-17  Wenson Hsieh  <wenson_hsieh@apple.com>
+
+        Fix the build on other platforms after r220865
+        https://bugs.webkit.org/show_bug.cgi?id=175683
+
+        Reviewed by Tim Horton.
+
+        Check __IPHONE_OS_VERSION_MAX_ALLOWED instead of __IPHONE_OS_VERSION_MIN_REQUIRED in an SPI header. SPI
+        availability is determined by SDK version rather than deployment version.
+
+        * TestWebKitAPI/ios/UIKitSPI.h:
+
+2017-08-17  Andreas Kling  <akling@apple.com>
+
+        Disable CSS regions at compile time
+        https://bugs.webkit.org/show_bug.cgi?id=175630
+
+        Reviewed by Antti Koivisto.
+
+        * Scripts/webkitperl/FeatureList.pm:
+        * TestWebKitAPI/Configurations/FeatureDefines.xcconfig:
+
+2017-08-17  Wenson Hsieh  <wenson_hsieh@apple.com>
+
+        Unreviewed, try to fix the internal iOS 10 build after r220865.
+
+        * TestWebKitAPI/ios/UIKitSPI.h:
+
+        On the iOS 10 SDK, UIApplication_Private.h cannot be imported in the simulator. Simply fall back to using the
+        extern declaration when building for pre-iOS 11; once the bots stop building for iOS 10, we can safely remove
+        this compiler guard.
+
+2017-08-17  Wenson Hsieh  <wenson_hsieh@apple.com>
+
+        [iOS] Respect type fidelities when copying image elements to the pasteboard
+        https://bugs.webkit.org/show_bug.cgi?id=175638
+        <rdar://problem/26556043>
+
+        Reviewed by Ryosuke Niwa.
+
+        Add API tests that simulate copying an image element using the action sheet, and verifying that the pasteboard
+        contains UTIs in order of fidelity (image type before URL). Also pulls out UIKit SPI (UIApplicationInitialize)
+        used in UIPasteboardTests and ActionSheetTests into a common UIKitSPI header.
+
+        * TestWebKitAPI/TestWebKitAPI.xcodeproj/project.pbxproj:
+        * TestWebKitAPI/Tests/ios/ActionSheetTests.mm:
+        (-[ActionSheetObserver _webView:actionsForElement:defaultActions:]):
+        (TestWebKitAPI::TEST):
+        (TestWebKitAPI::presentActionSheetAndChooseAction):
+        (-[ActionSheetObserver waitForActionSheetAfterBlock:]): Deleted.
+        * TestWebKitAPI/Tests/ios/DataInteractionTests.mm:
+        (checkEstimatedSize):
+        (checkSuggestedNameAndEstimatedSize):
+
+        Replace -estimatedDisplayedSize with its non-deprecated counterpart, -preferredPresentationSize.
+
+        * TestWebKitAPI/Tests/ios/UIPasteboardTests.mm:
+        (TestWebKitAPI::TEST):
+        * TestWebKitAPI/ios/DataInteractionSimulator.h:
+        * TestWebKitAPI/ios/UIKitSPI.h: Added.
+
+2017-08-17  Jonathan Bedard  <jbedard@apple.com>
+
+        Recursively create resource load statistics folder for testing
+        https://bugs.webkit.org/show_bug.cgi?id=175676
+
+        Reviewed by Brady Eidson.
+
+        * WebKitTestRunner/cocoa/TestControllerCocoa.mm:
+        (WTR::TestController::cocoaPlatformInitialize): Recursively create resourceLoadStatisticsFolder.
+
 2017-08-17  Carlos Garcia Campos  <cgarcia@igalia.com>
 
         [GTK][WPE] Add NTLM authentication enabled API

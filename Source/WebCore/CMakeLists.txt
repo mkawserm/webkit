@@ -121,6 +121,7 @@ set(WebCore_INCLUDE_DIRECTORIES
     "${WEBCORE_DIR}/websockets"
     "${WEBCORE_DIR}/workers"
     "${WEBCORE_DIR}/workers/service"
+    "${WEBCORE_DIR}/workers/service/server"
     "${WEBCORE_DIR}/xml"
     "${WEBCORE_DIR}/xml/parser"
     "${DERIVED_SOURCES_WEBCORE_DIR}"
@@ -371,7 +372,6 @@ set(WebCore_NON_SVG_IDL_FILES
     crypto/JsonWebKey.idl
     crypto/RsaOtherPrimesInfo.idl
     crypto/SubtleCrypto.idl
-    crypto/WebKitSubtleCrypto.idl
 
     crypto/keys/CryptoAesKeyAlgorithm.idl
     crypto/keys/CryptoEcKeyAlgorithm.idl
@@ -1185,9 +1185,6 @@ set(WebCore_SOURCES
     bindings/js/JSDeprecatedCSSOMValueCustom.cpp
     bindings/js/JSCallbackData.cpp
     bindings/js/JSCanvasRenderingContext2DCustom.cpp
-    bindings/js/JSCryptoAlgorithmDictionary.cpp
-    bindings/js/JSCryptoKeySerializationJWK.cpp
-    bindings/js/JSCryptoOperationData.cpp
     bindings/js/JSCustomElementInterface.cpp
     bindings/js/JSCustomElementRegistryCustom.cpp
     bindings/js/JSCustomEventCustom.cpp
@@ -1257,7 +1254,6 @@ set(WebCore_SOURCES
     bindings/js/JSWebGLRenderingContextCustom.cpp
     bindings/js/JSWebGPURenderPassAttachmentDescriptorCustom.cpp
     bindings/js/JSWebGPURenderingContextCustom.cpp
-    bindings/js/JSWebKitSubtleCryptoCustom.cpp
     bindings/js/JSWorkerGlobalScopeBase.cpp
     bindings/js/JSWorkerGlobalScopeCustom.cpp
     bindings/js/JSXMLDocumentCustom.cpp
@@ -1316,7 +1312,6 @@ set(WebCore_SOURCES
     crypto/CryptoAlgorithmRegistry.cpp
     crypto/CryptoKey.cpp
     crypto/SubtleCrypto.cpp
-    crypto/WebKitSubtleCrypto.cpp
 
     crypto/algorithms/CryptoAlgorithmAES_CBC.cpp
     crypto/algorithms/CryptoAlgorithmAES_CFB.cpp
@@ -1345,7 +1340,6 @@ set(WebCore_SOURCES
     crypto/keys/CryptoKeyHMAC.cpp
     crypto/keys/CryptoKeyRSA.cpp
     crypto/keys/CryptoKeyRaw.cpp
-    crypto/keys/CryptoKeySerializationRaw.cpp
 
     css/BasicShapeFunctions.cpp
     css/CSSAspectRatioValue.cpp
@@ -2158,7 +2152,6 @@ set(WebCore_SOURCES
     page/SecurityOrigin.cpp
     page/SecurityOriginData.cpp
     page/SecurityPolicy.cpp
-    page/SessionID.cpp
     page/Settings.cpp
     page/SocketProvider.cpp
     page/SpatialNavigation.cpp
@@ -2797,6 +2790,7 @@ set(WebCore_SOURCES
     style/RenderTreePosition.cpp
     style/RenderTreeUpdater.cpp
     style/RenderTreeUpdaterFirstLetter.cpp
+    style/RenderTreeUpdaterListItem.cpp
     style/StyleChange.cpp
     style/StyleFontSizeFunctions.cpp
     style/StyleInvalidator.cpp
@@ -2996,6 +2990,8 @@ set(WebCore_SOURCES
     workers/service/ServiceWorkerProvider.cpp
     workers/service/ServiceWorkerRegistration.cpp
     workers/service/ServiceWorkerRegistrationParameters.cpp
+
+    workers/service/server/SWServer.cpp
 
     xml/DOMParser.cpp
     xml/NativeXPathNSResolver.cpp

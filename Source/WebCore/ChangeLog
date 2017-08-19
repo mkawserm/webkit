@@ -1,3 +1,1253 @@
+2017-08-18  Chris Dumez  <cdumez@apple.com>
+
+        [Beacon] Improve error reporting
+        https://bugs.webkit.org/show_bug.cgi?id=175723
+
+        Reviewed by Darin Adler.
+
+        Have Ping loads such as beacons report errors via their completion handler.
+        The Beacon API is using this error to log a console message when beacon loads
+        fail, provided that the page is still alive.
+
+        Test: http/wpt/beacon/beacon-async-error-logging.html
+
+        * Modules/beacon/NavigatorBeacon.cpp:
+        (WebCore::NavigatorBeacon::NavigatorBeacon):
+        (WebCore::NavigatorBeacon::~NavigatorBeacon):
+        (WebCore::NavigatorBeacon::from):
+        (WebCore::NavigatorBeacon::supplementName):
+        (WebCore::NavigatorBeacon::notifyFinished):
+        (WebCore::NavigatorBeacon::logError):
+        (WebCore::NavigatorBeacon::sendBeacon):
+        * Modules/beacon/NavigatorBeacon.h:
+        * loader/LoaderStrategy.h:
+        * loader/cache/CachedResource.cpp:
+        (WebCore::CachedResource::load):
+        * loader/cache/CachedResourceLoader.cpp:
+        (WebCore::CachedResourceLoader::requestBeaconResource):
+        * loader/cache/CachedResourceLoader.h:
+        * platform/network/PingHandle.h:
+
+2017-08-18  Sam Weinig  <sam@webkit.org>
+
+        Remove the deprecated WebKitSubtleCrypto interface
+        https://bugs.webkit.org/show_bug.cgi?id=164938
+        <rdar://problem/29894563>
+
+        Reviewed by Chris Dumez.
+
+        Remove WebKitSubtleCrypto and all of its helper classes / functionality.
+
+        * CMakeLists.txt:
+        * DerivedSources.cpp:
+        * DerivedSources.make:
+        * WebCore.xcodeproj/project.pbxproj:
+        * bindings/js/JSCryptoAlgorithmDictionary.cpp: Removed.
+        * bindings/js/JSCryptoAlgorithmDictionary.h: Removed.
+        * bindings/js/JSCryptoKeySerializationJWK.cpp: Removed.
+        * bindings/js/JSCryptoKeySerializationJWK.h: Removed.
+        * bindings/js/JSCryptoOperationData.cpp: Removed.
+        * bindings/js/JSCryptoOperationData.h: Removed.
+        * bindings/js/JSWebKitSubtleCryptoCustom.cpp: Removed.
+        * crypto/CryptoAlgorithm.cpp:
+        (WebCore::CryptoAlgorithm::deriveKey): Deleted.
+        (WebCore::CryptoAlgorithm::encryptForWrapKey): Deleted.
+        (WebCore::CryptoAlgorithm::decryptForUnwrapKey): Deleted.
+        * crypto/CryptoAlgorithm.h:
+        * crypto/CryptoAlgorithmParametersDeprecated.h: Removed.
+        * crypto/CryptoKeySerialization.h: Removed.
+        * crypto/WebKitSubtleCrypto.cpp: Removed.
+        * crypto/WebKitSubtleCrypto.h: Removed.
+        * crypto/WebKitSubtleCrypto.idl: Removed.
+        * crypto/algorithms/CryptoAlgorithmAES_CBC.cpp:
+        (WebCore::CryptoAlgorithmAES_CBC::keyAlgorithmMatches const): Deleted.
+        * crypto/algorithms/CryptoAlgorithmAES_CBC.h:
+        * crypto/algorithms/CryptoAlgorithmAES_KW.cpp:
+        (WebCore::CryptoAlgorithmAES_KW::encryptForWrapKey): Deleted.
+        (WebCore::CryptoAlgorithmAES_KW::decryptForUnwrapKey): Deleted.
+        * crypto/algorithms/CryptoAlgorithmAES_KW.h:
+        * crypto/algorithms/CryptoAlgorithmHMAC.cpp:
+        (WebCore::CryptoAlgorithmHMAC::keyAlgorithmMatches const): Deleted.
+        * crypto/algorithms/CryptoAlgorithmHMAC.h:
+        * crypto/algorithms/CryptoAlgorithmRSAES_PKCS1_v1_5.cpp:
+        * crypto/algorithms/CryptoAlgorithmRSAES_PKCS1_v1_5.h:
+        * crypto/algorithms/CryptoAlgorithmRSASSA_PKCS1_v1_5.cpp:
+        (WebCore::CryptoAlgorithmRSASSA_PKCS1_v1_5::keyAlgorithmMatches const): Deleted.
+        * crypto/algorithms/CryptoAlgorithmRSASSA_PKCS1_v1_5.h:
+        * crypto/algorithms/CryptoAlgorithmRSA_OAEP.cpp:
+        (WebCore::CryptoAlgorithmRSA_OAEP::keyAlgorithmMatches const): Deleted.
+        * crypto/algorithms/CryptoAlgorithmRSA_OAEP.h:
+        * crypto/algorithms/CryptoAlgorithmSHA1.cpp:
+        * crypto/algorithms/CryptoAlgorithmSHA1.h:
+        * crypto/algorithms/CryptoAlgorithmSHA224.cpp:
+        * crypto/algorithms/CryptoAlgorithmSHA224.h:
+        * crypto/algorithms/CryptoAlgorithmSHA256.cpp:
+        * crypto/algorithms/CryptoAlgorithmSHA256.h:
+        * crypto/algorithms/CryptoAlgorithmSHA384.cpp:
+        * crypto/algorithms/CryptoAlgorithmSHA384.h:
+        * crypto/algorithms/CryptoAlgorithmSHA512.cpp:
+        * crypto/algorithms/CryptoAlgorithmSHA512.h:
+        * crypto/gcrypt/CryptoAlgorithmAES_CBCGCrypt.cpp:
+        * crypto/gcrypt/CryptoAlgorithmAES_KWGCrypt.cpp:
+        (WebCore::CryptoAlgorithmAES_KW::platformEncrypt): Deleted.
+        (WebCore::CryptoAlgorithmAES_KW::platformDecrypt): Deleted.
+        * crypto/gcrypt/CryptoAlgorithmHMACGCrypt.cpp:
+        * crypto/gcrypt/CryptoAlgorithmRSAES_PKCS1_v1_5GCrypt.cpp:
+        * crypto/gcrypt/CryptoAlgorithmRSASSA_PKCS1_v1_5GCrypt.cpp:
+        * crypto/gcrypt/CryptoAlgorithmRSA_OAEPGCrypt.cpp:
+        * crypto/keys/CryptoKeySerializationRaw.cpp: Removed.
+        * crypto/keys/CryptoKeySerializationRaw.h: Removed.
+        * crypto/mac/CryptoAlgorithmAES_CBCMac.cpp:
+        * crypto/mac/CryptoAlgorithmAES_KWMac.cpp:
+        (WebCore::CryptoAlgorithmAES_KW::platformEncrypt): Deleted.
+        (WebCore::CryptoAlgorithmAES_KW::platformDecrypt): Deleted.
+        * crypto/mac/CryptoAlgorithmHMACMac.cpp:
+        * crypto/mac/CryptoAlgorithmRSAES_PKCS1_v1_5Mac.cpp:
+        * crypto/mac/CryptoAlgorithmRSASSA_PKCS1_v1_5Mac.cpp:
+        * crypto/mac/CryptoAlgorithmRSA_OAEPMac.cpp:
+        * crypto/parameters/CryptoAlgorithmAesCbcParamsDeprecated.h: Removed.
+        * crypto/parameters/CryptoAlgorithmAesKeyGenParamsDeprecated.h: Removed.
+        * crypto/parameters/CryptoAlgorithmHmacKeyParamsDeprecated.h: Removed.
+        * crypto/parameters/CryptoAlgorithmHmacParamsDeprecated.h: Removed.
+        * crypto/parameters/CryptoAlgorithmRsaKeyGenParamsDeprecated.h: Removed.
+        * crypto/parameters/CryptoAlgorithmRsaKeyParamsWithHashDeprecated.h: Removed.
+        * crypto/parameters/CryptoAlgorithmRsaOaepParamsDeprecated.h: Removed.
+        * crypto/parameters/CryptoAlgorithmRsaSsaParamsDeprecated.h: Removed.
+        * features.json:
+        * page/Crypto.cpp:
+        * page/Crypto.h:
+        * page/Crypto.idl:
+
+2017-08-18  Tim Horton  <timothy_horton@apple.com>
+
+        Remove classic mode screen scale clamping
+        https://bugs.webkit.org/show_bug.cgi?id=175739
+        <rdar://problem/33894531>
+
+        Reviewed by Andy Estes.
+
+        * platform/ios/PlatformScreenIOS.mm:
+        (WebCore::screenScaleFactor):
+        This code is no longer needed.
+
+2017-08-18  Daewoong Jang  <daewoong.jang@navercorp.com>
+
+        [Curl] Improve multi-threaded networking
+        https://bugs.webkit.org/show_bug.cgi?id=175713
+
+        Reviewed by Alex Christensen.
+
+        * platform/Curl.cmake:
+        * platform/network/ResourceHandleInternal.h:
+        (WebCore::ResourceHandleInternal::ResourceHandleInternal):
+        (WebCore::ResourceHandleInternal::m_failureTimer): Deleted.
+        * platform/network/curl/CurlCacheManager.cpp:
+        (WebCore::CurlCacheManager::didReceiveResponse):
+        * platform/network/curl/CurlDownload.cpp:
+        (WebCore::CurlDownload::init):
+        (WebCore::CurlDownload::start):
+        (WebCore::CurlDownload::cancel):
+        (WebCore::CurlDownload::retain):
+        (WebCore::CurlDownload::release):
+        (WebCore::CurlDownload::setupRequest):
+        (WebCore::CurlDownload::notifyFinish):
+        (WebCore::CurlDownload::notifyFail):
+        * platform/network/curl/CurlDownload.h:
+        * platform/network/curl/CurlJobManager.cpp:
+        (WebCore::CurlJobList::isEmpty const):
+        (WebCore::CurlJobList::startJobs):
+        (WebCore::CurlJobList::finishJobs):
+        (WebCore::CurlJobList::notifyResult):
+        (WebCore::CurlJobManager::add):
+        (WebCore::CurlJobManager::cancel):
+        (WebCore::CurlJobManager::callOnJobThread):
+        (WebCore::CurlJobManager::startThreadIfNeeded):
+        (WebCore::CurlJobManager::updateJobList):
+        (WebCore::CurlJobManager::workerThread):
+        (WebCore::CurlJobList::append): Deleted.
+        (WebCore::CurlJobList::cancel): Deleted.
+        (WebCore::CurlJobList::complete): Deleted.
+        (WebCore::CurlJobList::withJob): Deleted.
+        (WebCore::CurlJobList::withCurlHandle): Deleted.
+        (WebCore::CurlJob::invoke): Deleted.
+        (WebCore::CurlJobManager::updateJobs): Deleted.
+        * platform/network/curl/CurlJobManager.h:
+        (WebCore::CurlJob::CurlJob): Deleted.
+        (WebCore::CurlJob::~CurlJob): Deleted.
+        (WebCore::CurlJob::operator=): Deleted.
+        (WebCore::CurlJob::curlHandle const): Deleted.
+        (WebCore::CurlJob::ticket const): Deleted.
+        (WebCore::CurlJob::finished): Deleted.
+        (WebCore::CurlJob::error): Deleted.
+        (WebCore::CurlJob::cancel): Deleted.
+        (WebCore::CurlJobManager::isActiveJob const): Deleted.
+        * platform/network/curl/MultipartHandle.cpp:
+        (WebCore::MultipartHandle::didReceiveData):
+        * platform/network/curl/ResourceHandleCurl.cpp:
+        (WebCore::ResourceHandleInternal::~ResourceHandleInternal):
+        (WebCore::ResourceHandle::start):
+        (WebCore::ResourceHandle::cancel):
+        (WebCore::ResourceHandle::platformSetDefersLoading):
+        (WebCore::ResourceHandle::didReceiveAuthenticationChallenge):
+        (WebCore::ResourceHandle::receivedCredential):
+        (WebCore::ResourceHandle::receivedRequestToContinueWithoutCredential):
+        (WebCore::ResourceHandle::platformLoadResourceSynchronously):
+        (WebCore::ResourceHandleInternal::initialize): Deleted.
+        (WebCore::ResourceHandleInternal::applyAuthentication): Deleted.
+        (WebCore::getFormElementsCount): Deleted.
+        (WebCore::ResourceHandleInternal::setupPUT): Deleted.
+        (WebCore::ResourceHandleInternal::setupPOST): Deleted.
+        (WebCore::ResourceHandleInternal::setupFormData): Deleted.
+        (WebCore::ResourceHandleInternal::didFinish): Deleted.
+        (WebCore::ResourceHandleInternal::didFail): Deleted.
+        (WebCore::ResourceHandleInternal::calculateWebTimingInformations): Deleted.
+        (WebCore::ResourceHandleInternal::handleLocalReceiveResponse): Deleted.
+        (WebCore::isHttpInfo): Deleted.
+        (WebCore::isHttpRedirect): Deleted.
+        (WebCore::isHttpAuthentication): Deleted.
+        (WebCore::isHttpNotModified): Deleted.
+        (WebCore::isAppendableHeader): Deleted.
+        (WebCore::removeLeadingAndTrailingQuotes): Deleted.
+        (WebCore::getProtectionSpace): Deleted.
+        (WebCore::ResourceHandleInternal::willPrepareSendData): Deleted.
+        (WebCore::ResourceHandleInternal::didReceiveHeaderLine): Deleted.
+        (WebCore::ResourceHandleInternal::didReceiveAllHeaders): Deleted.
+        (WebCore::ResourceHandleInternal::didReceiveContentData): Deleted.
+        (WebCore::ResourceHandleInternal::readCallback): Deleted.
+        (WebCore::ResourceHandleInternal::headerCallback): Deleted.
+        (WebCore::ResourceHandleInternal::writeCallback): Deleted.
+        (WebCore::ResourceHandleInternal::dispatchSynchronousJob): Deleted.
+        (WebCore::ResourceHandleInternal::handleDataURL): Deleted.
+        * platform/network/curl/ResourceHandleCurlDelegate.cpp: Added.
+        (WebCore::ResourceHandleCurlDelegate::ResourceHandleCurlDelegate):
+        (WebCore::ResourceHandleCurlDelegate::~ResourceHandleCurlDelegate):
+        (WebCore::ResourceHandleCurlDelegate::hasHandle const):
+        (WebCore::ResourceHandleCurlDelegate::releaseHandle):
+        (WebCore::ResourceHandleCurlDelegate::start):
+        (WebCore::ResourceHandleCurlDelegate::cancel):
+        (WebCore::ResourceHandleCurlDelegate::setDefersLoading):
+        (WebCore::ResourceHandleCurlDelegate::setAuthentication):
+        (WebCore::ResourceHandleCurlDelegate::dispatchSynchronousJob):
+        (WebCore::ResourceHandleCurlDelegate::retain):
+        (WebCore::ResourceHandleCurlDelegate::release):
+        (WebCore::ResourceHandleCurlDelegate::setupRequest):
+        (WebCore::ResourceHandleCurlDelegate::notifyFinish):
+        (WebCore::ResourceHandleCurlDelegate::notifyFail):
+        (WebCore::ResourceHandleCurlDelegate::response):
+        (WebCore::ResourceHandleCurlDelegate::setupAuthentication):
+        (WebCore::removeLeadingAndTrailingQuotes):
+        (WebCore::ResourceHandleCurlDelegate::getProtectionSpace):
+        (WebCore::isHttpInfo):
+        (WebCore::isHttpRedirect):
+        (WebCore::isHttpAuthentication):
+        (WebCore::isHttpNotModified):
+        (WebCore::isAppendableHeader):
+        (WebCore::ResourceHandleCurlDelegate::didReceiveHeaderLine):
+        (WebCore::ResourceHandleCurlDelegate::didReceiveAllHeaders):
+        (WebCore::ResourceHandleCurlDelegate::didReceiveContentData):
+        (WebCore::ResourceHandleCurlDelegate::handleLocalReceiveResponse):
+        (WebCore::ResourceHandleCurlDelegate::prepareSendData):
+        (WebCore::ResourceHandleCurlDelegate::didFinish):
+        (WebCore::ResourceHandleCurlDelegate::didFail):
+        (WebCore::ResourceHandleCurlDelegate::handleDataURL):
+        (WebCore::ResourceHandleCurlDelegate::setupPOST):
+        (WebCore::ResourceHandleCurlDelegate::setupPUT):
+        (WebCore::ResourceHandleCurlDelegate::getFormElementsCount):
+        (WebCore::ResourceHandleCurlDelegate::setupFormData):
+        (WebCore::ResourceHandleCurlDelegate::applyAuthentication):
+        (WebCore::ResourceHandleCurlDelegate::setWebTimings):
+        (WebCore::ResourceHandleCurlDelegate::didReceiveHeader):
+        (WebCore::ResourceHandleCurlDelegate::didReceiveData):
+        (WebCore::ResourceHandleCurlDelegate::willSendData):
+        (WebCore::ResourceHandleCurlDelegate::didReceiveHeaderCallback):
+        (WebCore::ResourceHandleCurlDelegate::didReceiveDataCallback):
+        (WebCore::ResourceHandleCurlDelegate::willSendDataCallback):
+        * platform/network/curl/ResourceHandleCurlDelegate.h: Added.
+
+2017-08-18  Ryosuke Niwa  <rniwa@webkit.org>
+
+        iOS 10 debug build fix.
+
+        * dom/DataTransfer.cpp:
+        (WebCore::DataTransfer::DataTransfer):
+
+2017-08-18  Ryosuke Niwa  <rniwa@webkit.org>
+
+        Rename DataTransferAccessPolicy to match spec and refactor related node
+        https://bugs.webkit.org/show_bug.cgi?id=175704
+
+        Reviewed by Wenson Hsieh.
+
+        Renamed DataTransferAccessPolicy to DataTransfer::StoreMode to match the drag data store mode concept
+        in the HTML5 specification:
+        https://html.spec.whatwg.org/multipage/dnd.html#drag-data-store-mode
+
+        DataTransfer in addition to those states can be disassociated from the drag data store when it becomes
+        no longer valid. We also support a special mode which allows only updating the drag image.
+        These two states, Invalid and DragImageWritable, are added in addition to the three states in the spec.
+
+        Also split DragAndDrop type of DataTransfer into DragAndDropData and DragAndDropFiles, and refactored
+        the related code.
+
+        No new tests since there should be no behavioral change.
+
+        * WebCore.xcodeproj/project.pbxproj:
+        * dom/DataTransfer.cpp:
+        (WebCore::DataTransfer::DataTransfer): No longer takes forFileDrag boolean since it's folded into type.
+        (WebCore::DataTransfer::createForCopyAndPaste):
+        (WebCore::DataTransfer::~DataTransfer):
+        (WebCore::DataTransfer::setAccessPolicy): Deleted.
+        (WebCore::DataTransfer::canReadTypes const):
+        (WebCore::DataTransfer::canReadData const):
+        (WebCore::DataTransfer::canWriteData const):
+        (WebCore::DataTransfer::createForInputEvent):
+        (WebCore::DataTransfer::createForDrag):
+        (WebCore::DataTransfer::createForDrop):
+        (WebCore::DataTransfer::canSetDragImage const):
+        * dom/DataTransfer.h:
+        (WebCore::DataTransfer::makeInvalidForSecurity): Added.
+        (WebCore::DataTransfer::makeDragImageWritable): Added.
+        * dom/DataTransferAccessPolicy.h: Removed.
+        * editing/Editor.cpp:
+        (WebCore::dispatchClipboardEvent): Moved and renamed from dispatchCPPEvent. Now computes the store mode
+        inside the function to match the spec: https://w3c.github.io/clipboard-apis/#fire-a-clipboard-event
+        (WebCore::Editor::canDHTMLCut):
+        (WebCore::Editor::canDHTMLCopy):
+        (WebCore::Editor::canDHTMLPaste):
+        (WebCore::Editor::tryDHTMLCopy):
+        (WebCore::Editor::tryDHTMLCut):
+        (WebCore::Editor::tryDHTMLPaste):
+        (WebCore::Editor::dispatchCPPEvent): Deleted.
+        * editing/Editor.h:
+        * page/DragController.cpp:
+        (WebCore::createDataTransferToUpdateDrag): Extracted to share code.
+        (WebCore::DragController::dragExited):
+        (WebCore::DragController::performDragOperation):
+        (WebCore::DragController::tryDHTMLDrag):
+        * page/EventHandler.cpp:
+        (WebCore::EventHandler::invalidateDataTransfer):
+        (WebCore::EventHandler::handleDrag):
+
+2017-08-18  Said Abou-Hallawa  <sabouhallawa@apple.com>
+
+        Followup (r220289): RenderImageResourceStyleImage code clean up
+        https://bugs.webkit.org/show_bug.cgi?id=175444
+
+        Reviewed by Darin Adler.
+
+        RenderImageResourceStyleImage may be created with a StyleImage of type
+        StyleGeneratedImage. It may also be associated with a CachedImage which 
+        is loaded through a source URL. In this case, adding and removing m_renderer
+        as a client of the CachedImage will be done through 
+        RenderImageResource::setCachedImage().
+
+        RenderImageResource::setCachedImage() is already called from 
+        ImageLoader::updateRenderer() when the CachedImage finishes loading. This
+        call adds m_renderer to the clients of the CachedImage. 
+        RenderImageResource::setCachedImage() will also be called from 
+        RenderImageResourceStyleImage::shutdown() via RenderImageResource::shutdown()
+        to remove m_renderer from the clients of CachedImage by passing a null pointer.
+
+        * rendering/RenderImage.cpp:
+        (WebCore::RenderImage::styleWillChange):
+        * rendering/RenderImageResource.cpp:
+        (WebCore::RenderImageResource::initialize):
+        (WebCore::RenderImageResource::shutdown):
+        (WebCore::RenderImageResource::setCachedImage):
+        (WebCore::RenderImageResource::resetAnimation):
+        (WebCore::RenderImageResource::image const):
+        (WebCore::RenderImageResource::setContainerSizeForRenderer):
+        (WebCore::RenderImageResource::imageSize const):
+        (WebCore::RenderImageResource::~RenderImageResource): Deleted.
+        (WebCore::RenderImageResource::errorOccurred const): Deleted.
+        (WebCore::RenderImageResource::imageHasRelativeWidth const): Deleted.
+        (WebCore::RenderImageResource::imageHasRelativeHeight const): Deleted.
+        (WebCore::RenderImageResource::intrinsicSize const): Deleted.
+        (WebCore::RenderImageResource::getImageSize const): Deleted.
+        * rendering/RenderImageResource.h:
+        (WebCore::RenderImageResource::initialize):
+        (WebCore::RenderImageResource::renderer const):
+        (WebCore::RenderImageResource::errorOccurred const):
+        (WebCore::RenderImageResource::imageHasRelativeWidth const):
+        (WebCore::RenderImageResource::imageHasRelativeHeight const):
+        (WebCore::RenderImageResource::imageSize const):
+        (WebCore::RenderImageResource::intrinsicSize const):
+        (WebCore::RenderImageResource::imagePtr const):
+        * rendering/RenderImageResourceStyleImage.cpp:
+        (WebCore::RenderImageResourceStyleImage::initialize):
+        (WebCore::RenderImageResourceStyleImage::shutdown):
+        (WebCore::RenderImageResourceStyleImage::image const):
+        (WebCore::RenderImageResourceStyleImage::setContainerSizeForRenderer):
+        (WebCore::RenderImageResourceStyleImage::~RenderImageResourceStyleImage): Deleted.
+        * rendering/RenderImageResourceStyleImage.h:
+        * rendering/RenderSnapshottedPlugIn.cpp:
+        (WebCore::RenderSnapshottedPlugIn::RenderSnapshottedPlugIn):
+        * rendering/svg/RenderSVGImage.cpp:
+        (WebCore::RenderSVGImage::RenderSVGImage):
+
+2017-08-18  Jiewen Tan  <jiewen_tan@apple.com>
+
+        [WebCrypto][Mac] Replace CCECCryptorGetKeyComponents with CCECCryptorExportKey for exporting ECC JWKs
+        https://bugs.webkit.org/show_bug.cgi?id=175657
+        <rdar://problem/33797150>
+
+        Reviewed by Brent Fulgham.
+
+        CCECCryptorGetKeyComponents returns components in unpadded formats. In some minor cases, the ECC components
+        do need padding. Therefore, we occasionally see some corrupted outputs in JWKs. To overcome that, this patch
+        replaces CCECCryptorGetKeyComponents with CCECCryptorExportKey which does padding all the time.
+
+        In the meantime, this patch also makes export* methods return OperationError if any error occur in the
+        underlying operations though very unlikely.
+
+        Test: crypto/subtle/ecdsa-generate-export-import-jwk-sign-verify.html
+
+        * crypto/algorithms/CryptoAlgorithmECDH.cpp:
+        (WebCore::CryptoAlgorithmECDH::exportKey):
+        * crypto/algorithms/CryptoAlgorithmECDSA.cpp:
+        (WebCore::CryptoAlgorithmECDSA::exportKey):
+        * crypto/gcrypt/CryptoKeyECGCrypt.cpp:
+        (WebCore::CryptoKeyEC::platformAddFieldElements const):
+        * crypto/keys/CryptoKeyEC.cpp:
+        (WebCore::CryptoKeyEC::exportRaw const):
+        (WebCore::CryptoKeyEC::exportJwk const):
+        (WebCore::CryptoKeyEC::exportSpki const):
+        (WebCore::CryptoKeyEC::exportPkcs8 const):
+        * crypto/keys/CryptoKeyEC.h:
+        * crypto/mac/CryptoKeyECMac.cpp:
+        (WebCore::CryptoKeyEC::platformExportRaw const):
+        (WebCore::CryptoKeyEC::platformAddFieldElements const):
+        (WebCore::CryptoKeyEC::platformExportSpki const):
+        (WebCore::CryptoKeyEC::platformExportPkcs8 const):
+
+2017-08-18  Per Arne Vollan  <pvollan@apple.com>
+
+        [Win] accessibility/heading-crash-after-hidden.html is a flaky crash.
+        https://bugs.webkit.org/show_bug.cgi?id=173536
+
+        Reviewed by Brent Fulgham.
+
+        If the tree state is dirty, accessible objects are deleted while iterating over children
+        under AccessibilityNodeObject::textUnderElement when the style is updated. Make sure the
+        style is updated before this method is called.
+
+        No new tests, covered by existing tests.
+
+        * accessibility/win/AccessibilityObjectWrapperWin.cpp:
+        (WebCore::AccessibilityObjectWrapper::accessibilityAttributeValue):
+
+2017-08-18  Youenn Fablet  <youenn@apple.com>
+
+        [Cache API] Add response body storage
+        https://bugs.webkit.org/show_bug.cgi?id=175658
+
+        Reviewed by Alex Christensen.
+
+        Covered by rebased tests.
+        Tests are still flaky until waiting for end of fetch load is implemented.
+
+        Adding a response body within CacheStorageConnection::Record.
+        Adding ability to pass this body from/to the main thread.
+
+        Adding response body consumption into a CacheStorageConnection::Record.
+        Adding response body setting from a CacheStorageConnection::Record.
+
+        * Modules/beacon/NavigatorBeacon.cpp:
+        (WebCore::NavigatorBeacon::sendBeacon):
+        * Modules/cache/Cache.cpp:
+        (WebCore::Cache::put):
+        (WebCore::toConnectionRecord):
+        (WebCore::Cache::updateRecords):
+        * Modules/cache/CacheStorageConnection.cpp:
+        (WebCore::CacheStorageConnection::copyResponseBody):
+        (WebCore::CacheStorageConnection::isolatedResponseBody):
+        (WebCore::CacheStorageConnection::Record::copy const):
+        * Modules/cache/CacheStorageConnection.h:
+        * Modules/cache/WorkerCacheStorageConnection.cpp:
+        (WebCore::toCrossThreadRecordData):
+        (WebCore::fromCrossThreadRecordData):
+        * Modules/fetch/FetchBody.cpp:
+        (WebCore::FetchBody::bodyAsFormData const):
+        (WebCore::FetchBody::take):
+        (WebCore::FetchBody::bodyForInternalRequest const): Deleted.
+        * Modules/fetch/FetchBody.h:
+        (WebCore::FetchBody::setAsFormData):
+        * Modules/fetch/FetchBodyConsumer.h:
+        (WebCore::FetchBodyConsumer::setData):
+        * Modules/fetch/FetchRequest.cpp:
+        (WebCore::FetchRequest::resourceRequest const):
+        * Modules/fetch/FetchResponse.cpp:
+        (WebCore::FetchResponse::consumeBody):
+        (WebCore::FetchResponse::setBodyData):
+        * Modules/fetch/FetchResponse.h:
+
+2017-08-18  Youenn Fablet  <youenn@apple.com>
+
+        [Fetch API] Add support for a callback-based fetch
+        https://bugs.webkit.org/show_bug.cgi?id=175710
+
+        Reviewed by Alex Christensen.
+
+        No change of behavior.
+
+        Moving from a DOMPromise to a Callback taking an ExceptionOr<FetchResponse&>.
+        Updating window and worker call sites.
+
+        * Modules/fetch/DOMWindowFetch.cpp:
+        (WebCore::DOMWindowFetch::fetch):
+        * Modules/fetch/FetchResponse.cpp:
+        (WebCore::FetchResponse::fetch):
+        (WebCore::FetchResponse::BodyLoader::didFail):
+        (WebCore::FetchResponse::BodyLoader::BodyLoader):
+        (WebCore::FetchResponse::BodyLoader::didReceiveResponse):
+        (WebCore::FetchResponse::BodyLoader::stop):
+        * Modules/fetch/FetchResponse.h:
+        * Modules/fetch/WorkerGlobalScopeFetch.cpp:
+        (WebCore::WorkerGlobalScopeFetch::fetch):
+
+2017-08-18  Brady Eidson  <beidson@apple.com>
+
+        Bounce ServiceWorker jobs to the Storage Process.
+        https://bugs.webkit.org/show_bug.cgi?id=175650
+
+        Reviewed by Andy Estes.
+
+        No new tests (Covered by both changes and consistencies in existing tests)
+
+        This lays the groundwork for the SW job queue being in the StorageProcess by actually
+        setting up some objects for IPC communication and actually sending things over the wire.
+
+        The main point of IPC is the WebCore abstract base class "SWServer::Connection"
+
+        A collection of them will soon be managed by the SWServer itself in the StorageProcess.
+
+        That object will be the stand-in for IPC on both the WebProcess and StorageProcess side.
+
+        Currently, any job that we try to schedule still immediately rejects (though now it does
+        so asynchronously instead of synchronously).
+
+        * CMakeLists.txt:
+        * WebCore.xcodeproj/project.pbxproj:
+
+        * dom/ExceptionData.h: Copied from Source/WebCore/workers/service/ServiceWorkerProvider.h.
+        (WebCore::ExceptionData::toException const):
+        (WebCore::ExceptionData::encode const):
+        (WebCore::ExceptionData::decode):
+
+        * workers/service/ServiceWorkerContainer.cpp:
+        (WebCore::ServiceWorkerContainer::addRegistration):
+        (WebCore::ServiceWorkerContainer::scheduleJob):
+        * workers/service/ServiceWorkerContainer.h:
+
+        * workers/service/ServiceWorkerJob.cpp:
+        (WebCore::ServiceWorkerJob::failedWithException):
+        (WebCore::ServiceWorkerJob::data const):
+        * workers/service/ServiceWorkerJob.h:
+
+        * workers/service/ServiceWorkerJobData.h: Copied from Source/WebCore/workers/service/ServiceWorkerProvider.h.
+        (WebCore::ServiceWorkerJobData::encode const):
+        (WebCore::ServiceWorkerJobData::decode):
+
+        * workers/service/ServiceWorkerJobType.h: Copied from Source/WebCore/workers/service/ServiceWorkerProvider.h.
+
+        * workers/service/ServiceWorkerProvider.h:
+
+        * workers/service/ServiceWorkerRegistrationParameters.h:
+
+        * workers/service/server/SWServer.cpp: Copied from Source/WebKit/WebProcess/Storage/WebServiceWorkerProvider.cpp.
+        (WebCore::SWServer::Connection::scheduleJob):
+        (WebCore::SWServer::Connection::jobRejected):
+        * workers/service/server/SWServer.h: Copied from Source/WebCore/workers/service/ServiceWorkerProvider.h.
+        (WebCore::SWServer::Connection::~Connection):
+
+2017-08-18  Chris Dumez  <cdumez@apple.com>
+
+        [Beacon] Add support for quota limitation
+        https://bugs.webkit.org/show_bug.cgi?id=175443
+        <rdar://problem/33729002>
+
+        Reviewed by Youenn Fablet.
+
+        LoaderStrategy::startPingLoad() now takes a completion handler parameter, allowing CachedResource::load()
+        to know when a Beacon load is complete. This was needed in order for the fetch in-flight keepalive request
+        quota limit to work properly for beacon loads as well. We need to know when the beacon load completes in
+        order to know if the beacon is in-flight or not and only free up its allocated quota once it is no longer
+        in-flight.
+
+        No new tests, updated existing test.
+
+        * loader/LoaderStrategy.h:
+        * loader/PingLoader.cpp:
+        (WebCore::PingLoader::startPingLoad):
+        * loader/cache/CachedResource.cpp:
+        (WebCore::CachedResource::load):
+        * platform/network/PingHandle.h:
+
+2017-08-18  Youenn Fablet  <youenn@apple.com>
+
+        [Cache API] Add a WK2 implementation of CacheStorageConnection
+        https://bugs.webkit.org/show_bug.cgi?id=175640
+
+        Reviewed by Alex Christensen & Chris Dumez.
+
+        * Modules/cache/CacheStorageConnection.cpp: Adding Internal error.
+        * Modules/cache/CacheStorageConnection.h: Ditto.
+        * WebCore.xcodeproj/project.pbxproj: Exporting CacheQueryOptions.h header.
+
+2017-08-18  Antti Koivisto  <antti@apple.com>
+
+        Factor render tree mutation code from RenderListItem to RenderTreeUpdater
+        https://bugs.webkit.org/show_bug.cgi?id=175718
+
+        Reviewed by Andreas Kling.
+
+        We already stopped doing layout time mutations. We can now move the code out too.
+
+        * WebCore.xcodeproj/project.pbxproj:
+        * rendering/RenderListItem.cpp:
+        (WebCore::isHTMLListElement):
+        (WebCore::getParentOfFirstLineBox): Deleted.
+        (WebCore::firstNonMarkerChild): Deleted.
+        (WebCore::RenderListItem::updateMarkerRenderer): Deleted.
+
+            Moved to RenderTreeUpdater::ListItem.
+
+        * rendering/RenderListItem.h:
+        * rendering/RenderListMarker.cpp:
+        (WebCore::RenderListMarker::willBeDestroyed):
+        * rendering/TextAutoSizing.cpp:
+        (WebCore::TextAutoSizingValue::adjustTextNodeSizes):
+        * style/RenderTreeUpdater.cpp:
+        (WebCore::RenderTreeUpdater::pushParent):
+        (WebCore::RenderTreeUpdater::popParent):
+        (WebCore::RenderTreeUpdater::updateBeforeDescendants):
+        (WebCore::RenderTreeUpdater::updateAfterDescendants):
+
+            Factor pre/post update into functions.
+
+        (WebCore::RenderTreeUpdater::updateBeforeOrAfterPseudoElement):
+        * style/RenderTreeUpdater.h:
+        * style/RenderTreeUpdaterListItem.cpp: Added.
+
+            Mutation functions move here.
+
+        (WebCore::getParentOfFirstLineBox):
+        (WebCore::firstNonMarkerChild):
+        (WebCore::RenderTreeUpdater::ListItem::updateMarker):
+        * style/RenderTreeUpdaterListItem.h: Added.
+
+2017-08-18  Ms2ger  <Ms2ger@gmail.com>
+
+        [GTK] Show controls if a video element isn't allowed to play inline.
+        https://bugs.webkit.org/show_bug.cgi?id=141705
+
+        Reviewed by Xabier Rodriguez-Calvar.
+
+        Test: covered by media/video-fullscreeen-only-controls.html [sic].
+
+        * Modules/mediacontrols/mediaControlsGtk.js:
+        (ControllerGtk.prototype.shouldHaveControls):
+
+2017-08-18  Zan Dobersek  <zdobersek@igalia.com>
+
+        [EME] MediaKeySession has to initiate playback resume on HTMLMediaElement
+        https://bugs.webkit.org/show_bug.cgi?id=175671
+
+        Reviewed by Xabier Rodriguez-Calvar.
+
+        In MediaKeySession::updateKeyStatuses(), HTMLMediaElement objects that are
+        associated with the MediaKeys instance that created this session have to
+        be notified in order to run the 'Attempt to Resume Playback If Necessary'
+        algorithm.
+
+        MediaKeys object now tracks the sessions that were created through it.
+        MediaKeySession object is passed a MediaKeys reference, and has that
+        reference invalidated if/when the MediaKeys object is destroyed.
+
+        In MediaKeySession::updateKeyStatuses(), a task is now queued, notifying
+        the MediaKeys object, if any, that the associated HTMLMediaElement
+        instances have to run the mentioned algorithm. The associated media
+        elements are stored through CDMClient pointers, with HTMLMediaElement
+        class inheriting from the newly-introduced CDMClient interface.
+
+        HTMLMediaElement::cdmClientAttemptToResumePlaybackIfNecessary() is left
+        unimplemented for now. The object will attach itself to and detach from
+        the associated MediaKeys object in setMediaKeys() and the destructor,
+        enabling the MediaKeys object to properly dispatch the playback resume
+        requests for the attached clients.
+
+        * Modules/encryptedmedia/CDMClient.h: Copied from Source/WebCore/Modules/encryptedmedia/MediaKeys.h.
+        (WebCore::CDMClient::~CDMClient):
+        * Modules/encryptedmedia/MediaKeySession.cpp:
+        (WebCore::MediaKeySession::create):
+        (WebCore::MediaKeySession::MediaKeySession):
+        (WebCore::MediaKeySession::detachKeys):
+        (WebCore::MediaKeySession::updateKeyStatuses):
+        * Modules/encryptedmedia/MediaKeySession.h:
+        * Modules/encryptedmedia/MediaKeys.cpp:
+        (WebCore::MediaKeys::~MediaKeys):
+        (WebCore::MediaKeys::createSession):
+        (WebCore::MediaKeys::attachCDMClient):
+        (WebCore::MediaKeys::detachCDMClient):
+        (WebCore::MediaKeys::attemptToResumePlaybackOnClients):
+        * Modules/encryptedmedia/MediaKeys.h:
+        * html/HTMLMediaElement.cpp:
+        (WebCore::HTMLMediaElement::cdmClientAttemptToResumePlaybackIfNecessary):
+        * html/HTMLMediaElement.h:
+
+2017-08-18  Commit Queue  <commit-queue@webkit.org>
+
+        Unreviewed, rolling out r220854.
+        https://bugs.webkit.org/show_bug.cgi?id=175716
+
+        I'm not sure we really need this (Requested by KaL on
+        #webkit).
+
+        Reverted changeset:
+
+        "[GTK][WPE] Add NTLM authentication enabled API"
+        https://bugs.webkit.org/show_bug.cgi?id=122952
+        http://trac.webkit.org/changeset/220854
+
+2017-08-17  Wenson Hsieh  <wenson_hsieh@apple.com>
+
+        [Input Events] Rename inputType "formatForeColor" to "formatFontColor"
+        https://bugs.webkit.org/show_bug.cgi?id=175703
+
+        Reviewed by Ryosuke Niwa.
+
+        Renames an inputType value to match the spec. There is no other change in behavior.
+        Rebaselines fast/events/input-events-selection-forecolor-data.html and fast/events/input-events-forecolor-data.html.
+
+        * editing/EditCommand.cpp:
+        (WebCore::inputTypeNameForEditingAction):
+
+2017-08-17  Daewoong Jang  <daewoong.jang@navercorp.com>
+
+        [Curl] Improve multi-threaded networking
+        https://bugs.webkit.org/show_bug.cgi?id=175253
+
+        Reviewed by Alex Christensen.
+
+        * platform/network/curl/CurlContext.cpp:
+        (WebCore::CurlMultiHandle::CurlMultiHandle):
+        (WebCore::CurlHandle::CurlHandle):
+        (WebCore::CurlHandle::initialize):
+        (WebCore::CurlHandle::setSslKeyPassword):
+        (WebCore::CurlHandle::setSslErrors):
+        (WebCore::CurlHandle::getSslErrors):
+        * platform/network/curl/CurlContext.h:
+        * platform/network/curl/CurlDownload.cpp:
+        (WebCore::CurlDownload::init):
+        (WebCore::CurlDownload::getResponse const):
+        (WebCore::CurlDownload::setupRequest):
+        (WebCore::CurlDownload::didReceiveHeader):
+        (WebCore::CurlDownload::didReceiveData):
+        (WebCore::CurlDownload::headerCallback):
+        (WebCore::CurlDownload::getTempPath const): Deleted.
+        (WebCore::CurlDownload::getUrl const): Deleted.
+        (WebCore::CurlDownload::downloadFinishedCallback): Deleted.
+        (WebCore::CurlDownload::downloadFailedCallback): Deleted.
+        (WebCore::CurlDownload::receivedDataCallback): Deleted.
+        (WebCore::CurlDownload::receivedResponseCallback): Deleted.
+        * platform/network/curl/CurlDownload.h:
+        * platform/network/curl/ResourceError.h:
+        (WebCore::ResourceError::ResourceError):
+        (WebCore::ResourceError::sslErrors const):
+        (WebCore::ResourceError::setSSLErrors): Deleted.
+        * platform/network/curl/ResourceHandleCurl.cpp:
+        (WebCore::ResourceHandleInternal::initialize):
+        (WebCore::ResourceHandleInternal::didFail):
+        (WebCore::ResourceHandleInternal::dispatchSynchronousJob):
+        * platform/network/curl/SSLHandle.cpp:
+        (WebCore::allowedClientHosts):
+        (WebCore::addAllowedClientCertificate):
+        (WebCore::getSSLClientCertificate):
+        (WebCore::certVerifyCallback):
+        (WebCore::setSSLVerifyOptions):
+        (WebCore::setSSLClientCertificate): Deleted.
+        * platform/network/curl/SSLHandle.h:
+
+2017-08-17  Chris Dumez  <cdumez@apple.com>
+
+        Regression(r220817): We should only copy the original request headers for Ping loads
+        https://bugs.webkit.org/show_bug.cgi?id=175679
+
+        Reviewed by Youenn Fablet.
+
+        For performance reason, we should only copy the original request headers for Ping loads
+        (Beacon at the moment), not for all CachedResourceRequests.
+
+        * loader/LoaderStrategy.h:
+        * loader/cache/CachedResource.cpp:
+        (WebCore::CachedResource::CachedResource):
+        (WebCore::CachedResource::load):
+        * loader/cache/CachedResource.h:
+        (WebCore::CachedResource::shouldUsePingLoad):
+        (WebCore::CachedResource::setOriginalRequestHeaders):
+        * loader/cache/CachedResourceLoader.cpp:
+        (WebCore::CachedResourceLoader::requestResource):
+        * loader/cache/CachedResourceRequest.cpp:
+        (WebCore::CachedResourceRequest::CachedResourceRequest):
+        * loader/cache/CachedResourceRequest.h:
+        (WebCore::CachedResourceRequest::releaseResourceRequest):
+        (WebCore::CachedResourceRequest::releaseOriginalRequestHeaders): Deleted.
+
+2017-08-17  Don Olmstead  <don.olmstead@sony.com>
+
+        [PAL] Relocate SessionID to root
+        https://bugs.webkit.org/show_bug.cgi?id=175684
+
+        Reviewed by Alex Christensen.
+
+        No new tests. No change in functionality.
+
+        * dom/Document.h:
+        * html/HTMLMediaElement.cpp:
+        * loader/cache/CachedResource.h:
+        * loader/cache/CachedResourceLoader.cpp:
+        * loader/cache/MemoryCache.h:
+        * loader/cocoa/DiskCacheMonitorCocoa.h:
+        * page/CacheStorageProvider.h:
+        * page/Page.h:
+        * page/PlugInClient.h:
+        * page/SocketProvider.h:
+        * platform/CookiesStrategy.h:
+        * platform/WebCoreCrossThreadCopier.cpp:
+        * platform/network/CacheValidation.h:
+        * platform/network/NetworkStorageSession.cpp:
+        * platform/network/NetworkStorageSession.h:
+        * platform/network/cf/SocketStreamHandleImpl.h:
+        * platform/network/curl/SocketStreamHandleImpl.h:
+        * platform/network/soup/SocketStreamHandleImpl.h:
+        * workers/WorkerGlobalScope.h:
+        * workers/service/ServiceWorkerContainer.h:
+        * workers/service/ServiceWorkerRegistrationParameters.h:
+
+2017-08-17  Wenson Hsieh  <wenson_hsieh@apple.com>
+
+        Fix the build on other platforms after r220865
+        https://bugs.webkit.org/show_bug.cgi?id=175683
+
+        Reviewed by Tim Horton.
+
+        Instead of special casing iOS 10 behavior with __IPHONE_OS_VERSION_MAX_ALLOWED < 110000, revert to special
+        casing iOS 11 behavior with __IPHONE_OS_VERSION_MAX_ALLOWED >= 110000. This is because other targets that are
+        neither iOS 10 nor 11 will fail the "before iOS 11" compile-time check, and subsequently assume that item
+        providers exist. To fix this, flip the compiler-time checks and the order of codeblocks in the
+        PlatformPasteboard::write methods.
+
+        There is no change in behavior.
+
+        * platform/ios/PlatformPasteboardIOS.mm:
+        (WebCore::registerItemToPasteboard):
+        (WebCore::PlatformPasteboard::write):
+
+2017-08-17  Michael Catanzaro  <mcatanzaro@igalia.com>
+
+        -Wreturn-type warnings in CryptoKey.cpp and SubtleCrypto.cpp
+        https://bugs.webkit.org/show_bug.cgi?id=175675
+
+        Reviewed by Jiewen Tan.
+
+        * crypto/CryptoKey.cpp:
+        (WebCore::CryptoKey::algorithm const):
+        * crypto/SubtleCrypto.cpp:
+        (WebCore::toCryptoKeyUsageBitmap):
+        (WebCore::toKeyData):
+
+2017-08-17  Andreas Kling  <akling@apple.com>
+
+        Disable CSS regions at compile time
+        https://bugs.webkit.org/show_bug.cgi?id=175630
+
+        Reviewed by Antti Koivisto.
+
+        * Configurations/FeatureDefines.xcconfig:
+
+2017-08-17  Wenson Hsieh  <wenson_hsieh@apple.com>
+
+        [iOS] Respect type fidelities when copying image elements to the pasteboard
+        https://bugs.webkit.org/show_bug.cgi?id=175638
+        <rdar://problem/26556043>
+
+        Reviewed by Ryosuke Niwa.
+
+        Ensures that we respect type fidelities when copying on iOS, by unifying pasteboard writing codepaths across
+        dragging and copying. When dragging and copying, we now generate and set UIItemProviders on the UIPasteboard.
+
+        Tests: ActionSheetTests.CopyImageElementWithHREF
+               ActionSheetTests.CopyImageElementWithoutHREF
+
+        * platform/PlatformPasteboard.h:
+
+        Remove all variants of the writeObjectRepresentations helper method. Now that both paths for writing to the
+        pasteboard are unified, it's no longer useful to separate out item-provider-based pasteboard logic.
+
+        * platform/ios/AbstractPasteboard.h:
+        * platform/ios/PlatformPasteboardIOS.mm:
+
+        Replaces -setItemsUsingRegistrationInfoLists: with -setRegistrationInfoLists:. Rather than have a helper that
+        both sets up item providers and item registration lists, split this functionality out into two setters. This is
+        because UIPasteboard does not need to know about the registration info lists used to set up the item providers
+        in the first place, but internal drag-and-drop clients require this information immediately when starting a drag
+        in order to construct custom drag previews.
+
+        (WebCore::richTextRepresentationsForPasteboardWebContent):
+        (WebCore::registerItemToPasteboard):
+
+        Add a new helper to register item providers to the pasteboard, given an WebItemProviderRegistrationInfoList.
+
+        (WebCore::PlatformPasteboard::write):
+        (WebCore::PlatformPasteboard::writeObjectRepresentations): Deleted.
+
+        Refactors PlatformPasteboard::write to always generate and set item providers, unless we're building for an SDK
+        prior to iOS 11. For images, strings and URLs, we can simply transition to using the new item-provider-based
+        codepaths used for drag and drop. For web content, we add two additional UTIs that were present when copying,
+        but not when dragging: flat RTFD and a string constant used to indicate to UIKit that the pasteboard contains
+        rich text.
+
+        * platform/ios/WebItemProviderPasteboard.h:
+        * platform/ios/WebItemProviderPasteboard.mm:
+        (-[WebItemProviderRegistrationInfoList init]):
+        (-[WebItemProviderRegistrationInfoList addData:forType:]):
+        (-[WebItemProviderRegistrationInfoList addRepresentingObject:]):
+        (-[WebItemProviderRegistrationInfoList numberOfItems]):
+        (-[WebItemProviderRegistrationInfoList itemAtIndex:]):
+        (-[WebItemProviderRegistrationInfoList itemProvider]):
+        (-[WebItemProviderRegistrationInfoList description]):
+
+        Make some small tweaks in WebItemProviderPasteboard (and related classes):
+        1. Transition to preferredPresentationSize from estimatedDisplayedSize, which is now deprecated.
+        2. Remove calls to -initWithItemProviderData:typeIdentifier:error:, which is deprecated.
+        3. Rename _items to _representations to better reflect the role of WebItemProviderRegistrationInfo.
+        4. Implement -description for WebItemProviderRegistrationInfoList for debugging purposes.
+
+        (-[WebItemProviderPasteboard valuesForPasteboardType:inItemSet:]):
+        (-[WebItemProviderPasteboard setRegistrationInfoLists:]):
+        (-[WebItemProviderPasteboard setItemsUsingRegistrationInfoLists:]): Deleted.
+
+2017-08-17  Youenn Fablet  <youenn@apple.com>
+
+        Add a DOMPromiseDeferred method to handle ExceptionOr<> results
+        https://bugs.webkit.org/show_bug.cgi?id=175603
+
+        Reviewed by Darin Adler.
+
+        No change of behavior.
+
+        Introduce DOMPromiseDeferred::settle to reject/resolve a promise with an ExceptionOr<>.
+        Making batchPutOperation/batchDeleteOperation take a Function with an ExceptionOr<>.
+        Using DOMPromiseDeferred::settle in Cache put/remove.
+        Updated CacheStorageConnection to create ExceptionOr<> from CacheStorageConnection::Error.
+
+        * Modules/cache/Cache.cpp:
+        (WebCore::Cache::put):
+        (WebCore::Cache::remove):
+        (WebCore::Cache::batchDeleteOperation):
+        (WebCore::Cache::batchPutOperation):
+        * Modules/cache/Cache.h:
+        * Modules/cache/CacheStorage.cpp:
+        (WebCore::CacheStorage::open):
+        (WebCore::CacheStorage::remove):
+        * Modules/cache/CacheStorageConnection.cpp:
+        (WebCore::CacheStorageConnection::errorToException):
+        * Modules/cache/CacheStorageConnection.h:
+        (WebCore::CacheStorageConnection::errorToException):
+        (WebCore::CacheStorageConnection::exceptionOrResult):
+        * bindings/js/JSDOMPromiseDeferred.h:
+        (WebCore::DOMPromiseDeferred::settle):
+        (WebCore::DOMPromiseDeferred<void>::settle):
+
+2017-08-17  Zan Dobersek  <zdobersek@igalia.com>
+
+        [GStreamer] AppendPipeline: support dispatch of decryption-specific GstStructure into the pipeline
+        https://bugs.webkit.org/show_bug.cgi?id=175668
+
+        Reviewed by Xabier Rodriguez-Calvar.
+
+        Add the AppendPipeline::dispatchDecryptionStructure() method. Callers can
+        pass in a GstStructure object that contains all the information the
+        decryption elements in the pipeline will require to properly decrypt the
+        content. In case the decryptor element isn't available yet, the
+        GstStructure is stored and dispatched when that element becomes available.
+
+        The dispatch itself simply creates a new custom GstEvent that adopts the
+        given GstStructure object, sends that into the pipeline element, and
+        shifts the state to 'ongoing'.
+
+        * platform/graphics/gstreamer/mse/AppendPipeline.cpp:
+        (WebCore::AppendPipeline::connectDemuxerSrcPadToAppsinkFromAnyThread):
+        (WebCore::AppendPipeline::dispatchPendingDecryptionStructure):
+        (WebCore::AppendPipeline::dispatchDecryptionStructure):
+        * platform/graphics/gstreamer/mse/AppendPipeline.h: Remove a redundant private: label.
+
+2017-08-17  Zan Dobersek  <zdobersek@igalia.com>
+
+        [GStreamer] GstStructure shouldn't be handled through GRefPtr
+        https://bugs.webkit.org/show_bug.cgi?id=175673
+
+        Reviewed by Xabier Rodriguez-Calvar.
+
+        * platform/graphics/gstreamer/eme/WebKitCommonEncryptionDecryptorGStreamer.cpp:
+        (webkitMediaCommonEncryptionDecryptTransformCaps): GstStructure isn't
+        ref-counted, so it should be handled through the GUniquePtr<GstStructure>
+        smart pointer.
+
+2017-08-17  Youenn Fablet  <youenn@apple.com>
+
+        [Mac/iOS] Increase the audio buffer size when audio capture is on but web audio is not used
+        https://bugs.webkit.org/show_bug.cgi?id=175631
+
+        Reviewed by Eric Carlson.
+
+        * platform/audio/cocoa/MediaSessionManagerCocoa.cpp:
+        (PlatformMediaSessionManager::updateSessionState): Change value from 128 to the equivalent of 20ms when audio capture happens but not web audio.
+
+2017-08-17  Antti Koivisto  <antti@apple.com>
+
+        RenderListItem - Avoid render tree mutation during layout
+        https://bugs.webkit.org/show_bug.cgi?id=175666
+
+        Reviewed by Andreas Kling.
+
+        Mutations should be done by RenderTreeUpdater only.
+
+        * rendering/RenderListItem.cpp:
+        (WebCore::RenderListItem::updateMarkerRenderer):
+
+            This is now called by RenderTreeUpdater only.
+            Remove code dealing with this being called at layout time.
+            Merged marker construction code from styleDidChange here and renamed for clarity.
+
+        (WebCore::RenderListItem::layout):
+        (WebCore::RenderListItem::computePreferredLogicalWidths):
+
+            Remove mutating calls.
+
+        (WebCore::RenderListItem::styleDidChange): Deleted.
+        (WebCore::RenderListItem::insertOrMoveMarkerRendererIfNeeded): Deleted.
+        * rendering/RenderListItem.h:
+        * rendering/TextAutoSizing.cpp:
+        (WebCore::TextAutoSizingValue::adjustTextNodeSizes):
+
+            Call updateMarkerRenderer.
+
+        * style/RenderTreeUpdater.cpp:
+        (WebCore::RenderTreeUpdater::popParent):
+        (WebCore::RenderTreeUpdater::updateBeforeOrAfterPseudoElement):
+
+            Call updateMarkerRenderer.
+
+2017-08-17  Don Olmstead  <don.olmstead@sony.com>
+
+        [PAL] Move SessionID into PAL
+        https://bugs.webkit.org/show_bug.cgi?id=174192
+
+        Reviewed by Antti Koivisto.
+
+        No new tests. No change in behavior.
+
+        * CMakeLists.txt:
+        * Modules/websockets/WebSocketChannel.cpp:
+        (WebCore::WebSocketChannel::connect):
+        * WebCore.xcodeproj/project.pbxproj:
+        * dom/Document.cpp:
+        (WebCore::Document::sessionID const):
+        * dom/Document.h:
+        * dom/ScriptExecutionContext.h:
+        * html/HTMLMediaElement.cpp:
+        (WebCore::HTMLMediaElement::elementWithID):
+        (WebCore::HTMLMediaElement::finishParsingChildren):
+        (WebCore::HTMLMediaElement::scheduleEvent):
+        (WebCore::HTMLMediaElement::canPlayType const):
+        (WebCore::HTMLMediaElement::load):
+        (WebCore::HTMLMediaElement::loadResource):
+        (WebCore::HTMLMediaElement::textTracksAreReady const):
+        (WebCore::HTMLMediaElement::textTrackModeChanged):
+        (WebCore::HTMLMediaElement::noneSupported):
+        (WebCore::HTMLMediaElement::mediaLoadingFailedFatally):
+        (WebCore::HTMLMediaElement::mediaLoadingFailed):
+        (WebCore::HTMLMediaElement::setReadyState):
+        (WebCore::HTMLMediaElement::addPlayedRange):
+        (WebCore::HTMLMediaElement::seekTask):
+        (WebCore::HTMLMediaElement::refreshCachedTime const):
+        (WebCore::HTMLMediaElement::currentMediaTime const):
+        (WebCore::HTMLMediaElement::setWebkitPreservesPitch):
+        (WebCore::HTMLMediaElement::ended const):
+        (WebCore::HTMLMediaElement::playInternal):
+        (WebCore::HTMLMediaElement::pause):
+        (WebCore::HTMLMediaElement::togglePlayState):
+        (WebCore::HTMLMediaElement::beginScrubbing):
+        (WebCore::HTMLMediaElement::playbackProgressTimerFired):
+        (WebCore::HTMLMediaElement::mediaPlayerDidAddTextTrack):
+        (WebCore::HTMLMediaElement::didAddTextTrack):
+        (WebCore::HTMLMediaElement::didRemoveTextTrack):
+        (WebCore::controllerJSValue):
+        (WebCore::HTMLMediaElement::configureTextTracks):
+        (WebCore::HTMLMediaElement::selectNextSourceChild):
+        (WebCore::HTMLMediaElement::sourceWasAdded):
+        (WebCore::HTMLMediaElement::sourceWasRemoved):
+        (WebCore::HTMLMediaElement::mediaPlayerTimeChanged):
+        (WebCore::HTMLMediaElement::mediaPlayerCharacteristicChanged):
+        (WebCore::HTMLMediaElement::potentiallyPlaying const):
+        (WebCore::HTMLMediaElement::endedPlayback const):
+        (WebCore::HTMLMediaElement::stoppedDueToErrors const):
+        (WebCore::HTMLMediaElement::updatePlayState):
+        (WebCore::HTMLMediaElement::userCancelledLoad):
+        (WebCore::HTMLMediaElement::canSuspendForDocumentSuspension const):
+        (WebCore::HTMLMediaElement::addEventListener):
+        (WebCore::HTMLMediaElement::isFullscreen const):
+        (WebCore::HTMLMediaElement::toggleStandardFullscreenState):
+        (WebCore::HTMLMediaElement::waitForPreparedForInlineThen):
+        (WebCore::HTMLMediaElement::setVideoFullscreenLayer):
+        (WebCore::HTMLMediaElement::updateTextTrackDisplay):
+        (WebCore::HTMLMediaElement::mediaControls const):
+        (WebCore::HTMLMediaElement::configureTextTrackDisplay):
+        (WebCore::HTMLMediaElement::setMediaGroup):
+        (WebCore::HTMLMediaElement::setControllerForBindings):
+        (WebCore::HTMLMediaElement::isBlockedOnMediaController const):
+        (WebCore::HTMLMediaElement::prepareMediaFragmentURI):
+        (WebCore::HTMLMediaElement::didAddUserAgentShadowRoot):
+        (WebCore::HTMLMediaElement::fileSize const):
+        (WebCore::HTMLMediaElement::mediaSessionTitle const):
+        (WebCore::needsSeekingSupportQuirk):
+        (WebCore::HTMLMediaElement::supportsSeeking const):
+        (WebCore::HTMLMediaElement::doesHaveAttribute const):
+        (WebCore::HTMLMediaElement::isVideoTooSmallForInlinePlayback):
+        * loader/DocumentLoader.cpp:
+        (WebCore::DocumentLoader::continueAfterContentPolicy):
+        * loader/EmptyClients.cpp:
+        * loader/FrameLoaderClient.h:
+        * loader/cache/CachedCSSStyleSheet.cpp:
+        (WebCore::CachedCSSStyleSheet::CachedCSSStyleSheet):
+        * loader/cache/CachedCSSStyleSheet.h:
+        * loader/cache/CachedFont.cpp:
+        (WebCore::CachedFont::CachedFont):
+        * loader/cache/CachedFont.h:
+        * loader/cache/CachedImage.cpp:
+        (WebCore::CachedImage::CachedImage):
+        * loader/cache/CachedImage.h:
+        * loader/cache/CachedRawResource.cpp:
+        (WebCore::CachedRawResource::CachedRawResource):
+        * loader/cache/CachedRawResource.h:
+        * loader/cache/CachedResource.cpp:
+        (WebCore::CachedResource::CachedResource):
+        * loader/cache/CachedResource.h:
+        (WebCore::CachedResource::sessionID const):
+        * loader/cache/CachedResourceLoader.cpp:
+        (WebCore::createResource):
+        (WebCore::CachedResourceLoader::sessionID const):
+        * loader/cache/CachedResourceLoader.h:
+        * loader/cache/CachedSVGDocument.cpp:
+        (WebCore::CachedSVGDocument::CachedSVGDocument):
+        * loader/cache/CachedSVGDocument.h:
+        * loader/cache/CachedSVGFont.cpp:
+        (WebCore::CachedSVGFont::CachedSVGFont):
+        * loader/cache/CachedSVGFont.h:
+        * loader/cache/CachedScript.cpp:
+        (WebCore::CachedScript::CachedScript):
+        * loader/cache/CachedScript.h:
+        * loader/cache/CachedTextTrack.cpp:
+        (WebCore::CachedTextTrack::CachedTextTrack):
+        * loader/cache/CachedTextTrack.h:
+        * loader/cache/CachedXSLStyleSheet.cpp:
+        (WebCore::CachedXSLStyleSheet::CachedXSLStyleSheet):
+        * loader/cache/CachedXSLStyleSheet.h:
+        * loader/cache/MemoryCache.cpp:
+        (WebCore::MemoryCache::sessionResourceMap const):
+        (WebCore::MemoryCache::ensureSessionResourceMap):
+        (WebCore::MemoryCache::resourceForRequest):
+        (WebCore::MemoryCache::addImageToCache):
+        (WebCore::MemoryCache::removeImageFromCache):
+        (WebCore::MemoryCache::forEachSessionResource):
+        (WebCore::MemoryCache::removeResourcesWithOrigins):
+        (WebCore::MemoryCache::originsWithCache const):
+        (WebCore::MemoryCache::evictResources):
+        * loader/cache/MemoryCache.h:
+        * loader/cocoa/DiskCacheMonitorCocoa.h:
+        (WebCore::DiskCacheMonitor::sessionID const):
+        * loader/cocoa/DiskCacheMonitorCocoa.mm:
+        (WebCore::DiskCacheMonitor::monitorFileBackingStoreCreation):
+        (WebCore::DiskCacheMonitor::DiskCacheMonitor):
+        * page/CacheStorageProvider.h:
+        * page/DatabaseProvider.h:
+        * page/Page.cpp:
+        (WebCore::Page::Page):
+        (WebCore::Page::enableLegacyPrivateBrowsing):
+        (WebCore::Page::sessionID const):
+        (WebCore::Page::setSessionID):
+        * page/Page.h:
+        * page/PlugInClient.h:
+        * page/SocketProvider.cpp:
+        (WebCore::SocketProvider::createSocketStreamHandle):
+        * page/SocketProvider.h:
+        * platform/CookiesStrategy.h:
+        * platform/WebCoreCrossThreadCopier.cpp:
+        (WTF::PAL::SessionID>::copy):
+        (WTF::WebCore::SessionID>::copy): Deleted.
+        * platform/WebCoreCrossThreadCopier.h:
+        * platform/network/CacheValidation.cpp:
+        (WebCore::headerValueForVary):
+        (WebCore::collectVaryingRequestHeaders):
+        (WebCore::verifyVaryingRequestHeaders):
+        * platform/network/CacheValidation.h:
+        * platform/network/NetworkStorageSession.cpp:
+        (WebCore::NetworkStorageSession::globalSessionMap):
+        (WebCore::NetworkStorageSession::storageSession):
+        (WebCore::NetworkStorageSession::destroySession):
+        * platform/network/NetworkStorageSession.h:
+        (WebCore::NetworkStorageSession::sessionID const):
+        * platform/network/NetworkStorageSessionStub.cpp:
+        (WebCore::NetworkStorageSession::NetworkStorageSession):
+        (WebCore::NetworkStorageSession::ensurePrivateBrowsingSession):
+        (WebCore::NetworkStorageSession::ensureSession):
+        (WebCore::NetworkStorageSession::defaultStorageSession):
+        * platform/network/cf/NetworkStorageSessionCFNet.cpp:
+        (WebCore::NetworkStorageSession::NetworkStorageSession):
+        (WebCore::NetworkStorageSession::switchToNewTestingSession):
+        (WebCore::NetworkStorageSession::defaultStorageSession):
+        (WebCore::NetworkStorageSession::ensurePrivateBrowsingSession):
+        (WebCore::NetworkStorageSession::ensureSession):
+        * platform/network/cf/SocketStreamHandleImpl.h:
+        (WebCore::SocketStreamHandleImpl::create):
+        * platform/network/cf/SocketStreamHandleImplCFNet.cpp:
+        (WebCore::SocketStreamHandleImpl::SocketStreamHandleImpl):
+        * platform/network/curl/SocketStreamHandleImpl.h:
+        (WebCore::SocketStreamHandleImpl::create):
+        * platform/network/soup/NetworkStorageSessionSoup.cpp:
+        (WebCore::NetworkStorageSession::NetworkStorageSession):
+        (WebCore::NetworkStorageSession::defaultStorageSession):
+        (WebCore::NetworkStorageSession::ensurePrivateBrowsingSession):
+        (WebCore::NetworkStorageSession::ensureSession):
+        (WebCore::NetworkStorageSession::switchToNewTestingSession):
+        * platform/network/soup/SocketStreamHandleImpl.h:
+        * platform/network/soup/SocketStreamHandleImplSoup.cpp:
+        (WebCore::SocketStreamHandleImpl::create):
+        * workers/DedicatedWorkerGlobalScope.cpp:
+        (WebCore::DedicatedWorkerGlobalScope::create):
+        (WebCore::DedicatedWorkerGlobalScope::DedicatedWorkerGlobalScope):
+        * workers/DedicatedWorkerGlobalScope.h:
+        * workers/DedicatedWorkerThread.cpp:
+        (WebCore::DedicatedWorkerThread::DedicatedWorkerThread):
+        (WebCore::DedicatedWorkerThread::createWorkerGlobalScope):
+        * workers/DedicatedWorkerThread.h:
+        * workers/Worker.cpp:
+        (WebCore::Worker::notifyFinished):
+        * workers/WorkerGlobalScope.cpp:
+        (WebCore::WorkerGlobalScope::WorkerGlobalScope):
+        * workers/WorkerGlobalScope.h:
+        * workers/WorkerGlobalScopeProxy.h:
+        * workers/WorkerMessagingProxy.cpp:
+        (WebCore::WorkerMessagingProxy::startWorkerGlobalScope):
+        * workers/WorkerMessagingProxy.h:
+        * workers/WorkerThread.cpp:
+        (WebCore::WorkerThreadStartupData::WorkerThreadStartupData):
+        (WebCore::WorkerThread::WorkerThread):
+        * workers/WorkerThread.h:
+        * workers/service/ServiceWorkerContainer.h:
+        * workers/service/ServiceWorkerRegistrationParameters.h:
+
 2017-08-17  Carlos Garcia Campos  <cgarcia@igalia.com>
 
         [GTK][WPE] Add NTLM authentication enabled API

@@ -1,3 +1,436 @@
+2017-08-18  Chris Dumez  <cdumez@apple.com>
+
+        [Beacon] Improve error reporting
+        https://bugs.webkit.org/show_bug.cgi?id=175723
+
+        Reviewed by Darin Adler.
+
+        Add layout test coverage.
+
+        * http/wpt/beacon/beacon-async-error-logging-expected.txt: Added.
+        * http/wpt/beacon/beacon-async-error-logging.html: Added.
+
+2017-08-18  Matt Lewis  <jlewis3@apple.com>
+
+        Marked fast/scrolling/arrow-key-scroll-in-rtl-document.html as flaky.
+        https://bugs.webkit.org/show_bug.cgi?id=173779
+
+        Unreviewed Test gardening.
+
+        * platform/mac-wk2/TestExpectations:
+
+2017-08-18  Sam Weinig  <sam@webkit.org>
+
+        Remove the deprecated WebKitSubtleCrypto interface
+        https://bugs.webkit.org/show_bug.cgi?id=164938
+        <rdar://problem/29894563>
+
+        Reviewed by Chris Dumez.
+
+        * crypto/webkitSubtle: Removed.
+        * crypto/webkitSubtle/aes-cbc-192-encrypt-decrypt-expected.txt: Removed.
+        * crypto/webkitSubtle/aes-cbc-192-encrypt-decrypt.html: Removed.
+        * crypto/webkitSubtle/aes-cbc-256-encrypt-decrypt-expected.txt: Removed.
+        * crypto/webkitSubtle/aes-cbc-256-encrypt-decrypt.html: Removed.
+        * crypto/webkitSubtle/aes-cbc-encrypt-decrypt-expected.txt: Removed.
+        * crypto/webkitSubtle/aes-cbc-encrypt-decrypt-with-padding-expected.txt: Removed.
+        * crypto/webkitSubtle/aes-cbc-encrypt-decrypt-with-padding.html: Removed.
+        * crypto/webkitSubtle/aes-cbc-encrypt-decrypt.html: Removed.
+        * crypto/webkitSubtle/aes-cbc-generate-key-expected.txt: Removed.
+        * crypto/webkitSubtle/aes-cbc-generate-key.html: Removed.
+        * crypto/webkitSubtle/aes-cbc-import-jwk-expected.txt: Removed.
+        * crypto/webkitSubtle/aes-cbc-import-jwk.html: Removed.
+        * crypto/webkitSubtle/aes-cbc-invalid-length-expected.txt: Removed.
+        * crypto/webkitSubtle/aes-cbc-invalid-length.html: Removed.
+        * crypto/webkitSubtle/aes-cbc-unwrap-failure-expected.txt: Removed.
+        * crypto/webkitSubtle/aes-cbc-unwrap-failure.html: Removed.
+        * crypto/webkitSubtle/aes-cbc-unwrap-rsa-expected.txt: Removed.
+        * crypto/webkitSubtle/aes-cbc-unwrap-rsa.html: Removed.
+        * crypto/webkitSubtle/aes-cbc-wrap-rsa-expected.txt: Removed.
+        * crypto/webkitSubtle/aes-cbc-wrap-rsa-non-extractable-expected.txt: Removed.
+        * crypto/webkitSubtle/aes-cbc-wrap-rsa-non-extractable.html: Removed.
+        * crypto/webkitSubtle/aes-cbc-wrap-rsa.html: Removed.
+        * crypto/webkitSubtle/aes-cbc-wrong-key-class-expected.txt: Removed.
+        * crypto/webkitSubtle/aes-cbc-wrong-key-class.html: Removed.
+        * crypto/webkitSubtle/aes-export-key-expected.txt: Removed.
+        * crypto/webkitSubtle/aes-export-key.html: Removed.
+        * crypto/webkitSubtle/aes-kw-key-manipulation-expected.txt: Removed.
+        * crypto/webkitSubtle/aes-kw-key-manipulation.html: Removed.
+        * crypto/webkitSubtle/aes-kw-wrap-unwrap-aes-expected.txt: Removed.
+        * crypto/webkitSubtle/aes-kw-wrap-unwrap-aes.html: Removed.
+        * crypto/webkitSubtle/aes-postMessage-expected.txt: Removed.
+        * crypto/webkitSubtle/aes-postMessage.html: Removed.
+        * crypto/webkitSubtle/argument-conversion-expected.txt: Removed.
+        * crypto/webkitSubtle/argument-conversion.html: Removed.
+        * crypto/webkitSubtle/array-buffer-view-offset-expected.txt: Removed.
+        * crypto/webkitSubtle/array-buffer-view-offset.html: Removed.
+        * crypto/webkitSubtle/disallowed-in-worker-expected.txt: Removed.
+        * crypto/webkitSubtle/disallowed-in-worker.html: Removed.
+        * crypto/webkitSubtle/gc-2-expected.txt: Removed.
+        * crypto/webkitSubtle/gc-2.html: Removed.
+        * crypto/webkitSubtle/gc-3-expected.txt: Removed.
+        * crypto/webkitSubtle/gc-3.html: Removed.
+        * crypto/webkitSubtle/gc-expected.txt: Removed.
+        * crypto/webkitSubtle/gc.html: Removed.
+        * crypto/webkitSubtle/hmac-check-algorithm-expected.txt: Removed.
+        * crypto/webkitSubtle/hmac-check-algorithm.html: Removed.
+        * crypto/webkitSubtle/hmac-export-key-expected.txt: Removed.
+        * crypto/webkitSubtle/hmac-export-key.html: Removed.
+        * crypto/webkitSubtle/hmac-generate-key-expected.txt: Removed.
+        * crypto/webkitSubtle/hmac-generate-key.html: Removed.
+        * crypto/webkitSubtle/hmac-import-jwk-expected.txt: Removed.
+        * crypto/webkitSubtle/hmac-import-jwk.html: Removed.
+        * crypto/webkitSubtle/hmac-postMessage-expected.txt: Removed.
+        * crypto/webkitSubtle/hmac-postMessage.html: Removed.
+        * crypto/webkitSubtle/hmac-sign-verify-empty-key-expected.txt: Removed.
+        * crypto/webkitSubtle/hmac-sign-verify-empty-key.html: Removed.
+        * crypto/webkitSubtle/hmac-sign-verify-expected.txt: Removed.
+        * crypto/webkitSubtle/hmac-sign-verify.html: Removed.
+        * crypto/webkitSubtle/import-export-raw-key-leak-expected.txt: Removed.
+        * crypto/webkitSubtle/import-export-raw-key-leak.html: Removed.
+        * crypto/webkitSubtle/import-jwk-expected.txt: Removed.
+        * crypto/webkitSubtle/import-jwk.html: Removed.
+        * crypto/webkitSubtle/jwk-export-use-values-expected.txt: Removed.
+        * crypto/webkitSubtle/jwk-export-use-values.html: Removed.
+        * crypto/webkitSubtle/jwk-import-use-values-expected.txt: Removed.
+        * crypto/webkitSubtle/jwk-import-use-values.html: Removed.
+        * crypto/webkitSubtle/resources: Removed.
+        * crypto/webkitSubtle/resources/disallowed-in-worker.js: Removed.
+        * crypto/webkitSubtle/resources/rsa-indexeddb-non-exportable.js: Removed.
+        * crypto/webkitSubtle/resources/rsa-indexeddb.js: Removed.
+        * crypto/webkitSubtle/rsa-export-generated-keys-expected.txt: Removed.
+        * crypto/webkitSubtle/rsa-export-generated-keys.html: Removed.
+        * crypto/webkitSubtle/rsa-export-key-expected.txt: Removed.
+        * crypto/webkitSubtle/rsa-export-key.html: Removed.
+        * crypto/webkitSubtle/rsa-export-private-key-expected.txt: Removed.
+        * crypto/webkitSubtle/rsa-export-private-key.html: Removed.
+        * crypto/webkitSubtle/rsa-indexeddb-expected.txt: Removed.
+        * crypto/webkitSubtle/rsa-indexeddb-non-exportable-expected.txt: Removed.
+        * crypto/webkitSubtle/rsa-indexeddb-non-exportable-private-expected.txt: Removed.
+        * crypto/webkitSubtle/rsa-indexeddb-non-exportable-private.html: Removed.
+        * crypto/webkitSubtle/rsa-indexeddb-non-exportable.html: Removed.
+        * crypto/webkitSubtle/rsa-indexeddb-private-expected.txt: Removed.
+        * crypto/webkitSubtle/rsa-indexeddb-private.html: Removed.
+        * crypto/webkitSubtle/rsa-indexeddb.html: Removed.
+        * crypto/webkitSubtle/rsa-oaep-generate-non-extractable-key-expected.txt: Removed.
+        * crypto/webkitSubtle/rsa-oaep-generate-non-extractable-key.html: Removed.
+        * crypto/webkitSubtle/rsa-oaep-key-manipulation-expected.txt: Removed.
+        * crypto/webkitSubtle/rsa-oaep-key-manipulation.html: Removed.
+        * crypto/webkitSubtle/rsa-oaep-plaintext-length-expected.txt: Removed.
+        * crypto/webkitSubtle/rsa-oaep-plaintext-length.html: Removed.
+        * crypto/webkitSubtle/rsa-oaep-wrap-unwrap-aes-expected.txt: Removed.
+        * crypto/webkitSubtle/rsa-oaep-wrap-unwrap-aes.html: Removed.
+        * crypto/webkitSubtle/rsa-postMessage-expected.txt: Removed.
+        * crypto/webkitSubtle/rsa-postMessage.html: Removed.
+        * crypto/webkitSubtle/rsaes-pkcs1-v1_5-decrypt-expected.txt: Removed.
+        * crypto/webkitSubtle/rsaes-pkcs1-v1_5-decrypt.html: Removed.
+        * crypto/webkitSubtle/rsaes-pkcs1-v1_5-wrap-unwrap-aes-expected.txt: Removed.
+        * crypto/webkitSubtle/rsaes-pkcs1-v1_5-wrap-unwrap-aes.html: Removed.
+        * crypto/webkitSubtle/rsassa-pkcs1-v1_5-generate-key-expected.txt: Removed.
+        * crypto/webkitSubtle/rsassa-pkcs1-v1_5-generate-key-with-leading-zeroes-in-exponent-expected.txt: Removed.
+        * crypto/webkitSubtle/rsassa-pkcs1-v1_5-generate-key-with-leading-zeroes-in-exponent.html: Removed.
+        * crypto/webkitSubtle/rsassa-pkcs1-v1_5-generate-key.html: Removed.
+        * crypto/webkitSubtle/rsassa-pkcs1-v1_5-import-jwk-expected.txt: Removed.
+        * crypto/webkitSubtle/rsassa-pkcs1-v1_5-import-jwk-small-key-expected.txt: Removed.
+        * crypto/webkitSubtle/rsassa-pkcs1-v1_5-import-jwk-small-key.html: Removed.
+        * crypto/webkitSubtle/rsassa-pkcs1-v1_5-import-jwk.html: Removed.
+        * crypto/webkitSubtle/rsassa-pkcs1-v1_5-sign-verify-expected.txt: Removed.
+        * crypto/webkitSubtle/rsassa-pkcs1-v1_5-sign-verify.html: Removed.
+        * crypto/webkitSubtle/sha-1-expected.txt: Removed.
+        * crypto/webkitSubtle/sha-1.html: Removed.
+        * crypto/webkitSubtle/sha-224-expected.txt: Removed.
+        * crypto/webkitSubtle/sha-224.html: Removed.
+        * crypto/webkitSubtle/sha-256-expected.txt: Removed.
+        * crypto/webkitSubtle/sha-256.html: Removed.
+        * crypto/webkitSubtle/sha-384-expected.txt: Removed.
+        * crypto/webkitSubtle/sha-384.html: Removed.
+        * crypto/webkitSubtle/sha-512-expected.txt: Removed.
+        * crypto/webkitSubtle/sha-512.html: Removed.
+        * crypto/webkitSubtle/unimplemented-unwrap-crash-expected.txt: Removed.
+        * crypto/webkitSubtle/unimplemented-unwrap-crash.html: Removed.
+        * crypto/webkitSubtle/unwrapKey-check-usage-expected.txt: Removed.
+        * crypto/webkitSubtle/unwrapKey-check-usage.html: Removed.
+        * crypto/webkitSubtle/wrapKey-check-usage-expected.txt: Removed.
+        * crypto/webkitSubtle/wrapKey-check-usage.html: Removed.
+
+            Remove webkitSubtleCrypto tests.
+
+        * fast/dom/Window/property-access-on-cached-window-after-frame-removed-expected.txt:
+
+            Remove webkitSubtleCrypto deprecation warning that no longer happens.
+
+        * platform/ios-wk1/TestExpectations:
+        * platform/win/TestExpectations:
+        * platform/wpe/TestExpectations:
+
+            Remove webkitSubtle tests from expectations files.
+
+2017-08-18  Jonathan Bedard  <jbedard@apple.com>
+
+        Marking canvas/webgl tests as failing
+        https://bugs.webkit.org/show_bug.cgi?id=175736
+
+        Unreviewed test gardening.
+
+        * platform/ios-device/TestExpectations:
+
+2017-08-18  Jiewen Tan  <jiewen_tan@apple.com>
+
+        [WebCrypto][Mac] Replace CCECCryptorGetKeyComponents with CCECCryptorExportKey for exporting ECC JWKs
+        https://bugs.webkit.org/show_bug.cgi?id=175657
+        <rdar://problem/33797150>
+
+        Reviewed by Brent Fulgham.
+
+        * crypto/subtle/ecdsa-generate-export-import-jwk-sign-verify-expected.txt: Added.
+        * crypto/subtle/ecdsa-generate-export-import-jwk-sign-verify.html: Added.
+
+2017-08-18  Matt Lewis  <jlewis3@apple.com>
+
+        Marked imported/w3c/web-platform-tests/IndexedDB/open-request-queue.html as flaky timeout.
+        https://bugs.webkit.org/show_bug.cgi?id=172044
+
+        Unreviewed test gardening.
+
+        * platform/mac-wk2/TestExpectations:
+
+2017-08-18  Matt Lewis  <jlewis3@apple.com>
+
+        Marked js/slow-stress/Int32Array-alloc-huge.html as flaky on mac.
+        https://bugs.webkit.org/show_bug.cgi?id=173010
+
+        Unreviewed test gardening.
+
+        * platform/mac/TestExpectations:
+
+2017-08-18  Brady Eidson  <beidson@apple.com>
+
+        Bounce ServiceWorker jobs to the Storage Process.
+        https://bugs.webkit.org/show_bug.cgi?id=175650
+
+        Reviewed by Andy Estes.
+
+        Service worker tests will always be dumpAsText and always be asynchronous.
+
+        * http/tests/workers/service/basic-register.html:
+        * http/tests/workers/service/resources/basic-register.js:
+        * http/tests/workers/service/resources/sw-test-pre.js: Added.
+
+2017-08-18  Chris Dumez  <cdumez@apple.com>
+
+        [Beacon] Add support for quota limitation
+        https://bugs.webkit.org/show_bug.cgi?id=175443
+        <rdar://problem/33729002>
+
+        Reviewed by Youenn Fablet.
+
+        Extend layout test coverage and rebaseline test.
+
+        * http/wpt/beacon/beacon-quota-expected.txt:
+        * http/wpt/beacon/beacon-quota.html:
+
+2017-08-18  Ryan Haddad  <ryanhaddad@apple.com>
+
+        Unreviewed, land TestExpectations for rdar://problem/33850189.
+
+        * platform/mac-highsierra/TestExpectations:
+
+2017-08-18  Ryan Haddad  <ryanhaddad@apple.com>
+
+        Rebaseline js/dom/global-constructors-attributes.html for El Capitan WK2.
+
+        Unreviewed test gardening.
+
+        * platform/mac-elcapitan-wk2/js/dom/global-constructors-attributes-expected.txt:
+
+2017-08-18  Youenn Fablet  <youenn@apple.com>
+
+        [Cache API] Add a WK2 implementation of CacheStorageConnection
+        https://bugs.webkit.org/show_bug.cgi?id=175640
+
+        Reviewed by Alex Christensen & Chris Dumez.
+
+        * TestExpectations: Marking some tests as flaky until being loaded resources can be cached.
+
+2017-08-18  Ms2ger  <Ms2ger@igalia.com>
+
+        [GTK] Layout Test media/video-controls-no-scripting.html is failing
+        https://bugs.webkit.org/show_bug.cgi?id=141835
+
+        Unreviewed test gardening.
+
+        The output appears to be consistent based on local testing.
+
+        Rebaseline video-controls-no-scripting.html.
+
+        * platform/gtk/TestExpectations:
+        * platform/gtk/media/video-controls-no-scripting-expected.txt:
+
+2017-08-18  Ms2ger  <Ms2ger@igalia.com>
+
+        Update track-datacue.html test to the current code.
+        https://bugs.webkit.org/show_bug.cgi?id=175624
+
+        Reviewed by Eric Carlson.
+
+        * media/track/track-datacue-expected.txt: rebaselined.
+        * media/track/track-datacue.html: updated for IDL, exception changes, addition of a new constructor.
+        * platform/gtk/TestExpectations: removed failure expectation.
+        * platform/ios/TestExpectations: enable.
+        * platform/mac/TestExpectations: enable.
+        * platform/win/TestExpectations: enable.
+
+2017-08-18  Ms2ger  <Ms2ger@gmail.com>
+
+        [GTK] Remove some obsolete expected failures.
+        https://bugs.webkit.org/show_bug.cgi?id=175674
+
+        Unreviewed test gardening.
+
+        * platform/gtk/TestExpectations:
+          - imported/w3c/web-platform-tests/IndexedDB/keyorder.htm: passing since r204279.
+          - imported/w3c/web-platform-tests/resource-timing/rt-cors.html: passing since r212944 and r212993.
+          - imported/w3c/web-platform-tests/resource-timing/rt-cors.worker.html: passing since r212944 and r212993.
+          - imported/w3c/web-platform-tests/webrtc/getstats.html: passing since test update and rebaseline in r217225.
+          - mathml/opentype/large-operators-displaystyle-dynamic.html: used to be flaky, seems to be passing consistently now.
+          - media/media-fullscreen-return-to-inline.html: likely passing since r218270.
+          - media/video-fast-seek.html: passing since r207879-r207894.
+          - platform/gtk/scrollbars/main-frame-scrollbar-horizontal-wheel-scroll.html: passing since r205075.
+          - security/contentSecurityPolicy/video-with-data-url-allowed-by-media-src-star.html: flaky.
+          - storage/indexeddb/cursor-key-order.html: likely passing since r209135.
+          - svg/dom/SVGScriptElement/script-change-externalResourcesRequired-while-loading.svg: flaky.
+          - svg/repaint/add-outline-property-on-root.html: passing since r211277
+          - svg/repaint/remove-outline-property-on-root.html: passing since r211277
+
+2017-08-18  Ms2ger  <Ms2ger@gmail.com>
+
+        [GTK] Show controls if a video element isn't allowed to play inline.
+        https://bugs.webkit.org/show_bug.cgi?id=141705
+
+        Reviewed by Xabier Rodriguez-Calvar.
+
+        * platform/gtk/TestExpectations: enable test for this case.
+
+2017-08-17  Wenson Hsieh  <wenson_hsieh@apple.com>
+
+        [Input Events] Rename inputType "formatForeColor" to "formatFontColor"
+        https://bugs.webkit.org/show_bug.cgi?id=175703
+
+        Reviewed by Ryosuke Niwa.
+
+        Rebaselines two LayoutTests that check for the "formatForeColor" inputType.
+
+        * fast/events/input-events-forecolor-data-expected.txt:
+        * fast/events/input-events-selection-forecolor-data.html:
+
+2017-08-17  Ryan Haddad  <ryanhaddad@apple.com>
+
+        Mark media/video-controls-rendering.html as flaky.
+        https://bugs.webkit.org/show_bug.cgi?id=175700
+
+        Unreviewed test gardening.
+
+        * platform/mac/TestExpectations:
+
+2017-08-17  Ryan Haddad  <ryanhaddad@apple.com>
+
+        Update TestExpectations for media/video-controls-show-on-kb-or-ax-event.html.
+        https://bugs.webkit.org/show_bug.cgi?id=158889
+
+        Unreviewed test gardening.
+
+        * platform/mac/TestExpectations:
+
+2017-08-17  Matt Lewis  <jlewis3@apple.com>
+
+        Marked accessibility/mac/select-element-selection-with-optgroups.html as flaky.
+        https://bugs.webkit.org/show_bug.cgi?id=175341
+
+        Unreviewed test gardening.
+
+        * platform/mac-wk2/TestExpectations:
+
+2017-08-17  Ryan Haddad  <ryanhaddad@apple.com>
+
+        Rebaseline js/dom/global-constructors-attributes.html for Sierra.
+
+        Unreviewed test gardening.
+
+        * platform/mac/js/dom/global-constructors-attributes-expected.txt:
+
+2017-08-17  Ryan Haddad  <ryanhaddad@apple.com>
+
+        Rebaseline two tests after r220870.
+
+        Unreviewed test gardening.
+
+        * inspector/dom/content-node-region-info-expected.txt:
+        * platform/mac-wk1/js/dom/global-constructors-attributes-expected.txt:
+
+2017-08-17  Ryan Haddad  <ryanhaddad@apple.com>
+
+        Mark inspector/canvas/context-attributes.html as flaky.
+        https://bugs.webkit.org/show_bug.cgi?id=173931
+
+        Unreviewed test gardening.
+
+        * platform/mac/TestExpectations:
+
+2017-08-17  Matt Lewis  <jlewis3@apple.com>
+
+        Marked fast/hidpi/hidpi-long-page-with-inset-element.html as a flaky ImageOnlyFailure.
+        https://bugs.webkit.org/show_bug.cgi?id=172384
+
+        Unreviewed test gardening.
+
+        * platform/ios-simulator-wk2/TestExpectations:
+
+2017-08-17  Matt Lewis  <jlewis3@apple.com>
+
+        Changed expectations to include release for memory/memory-pressure-simulation.html.
+        https://bugs.webkit.org/show_bug.cgi?id=170629
+
+        Unreviewed test gardening.
+
+        * platform/mac-wk2/TestExpectations:
+
+2017-08-17  Andreas Kling  <akling@apple.com>
+
+        Disable CSS regions at compile time
+        https://bugs.webkit.org/show_bug.cgi?id=175630
+
+        Reviewed by Antti Koivisto.
+
+        Skip tests that are entirely about regions, and tweak logic
+        and/or expectations for tests that test regions in addition to
+        other things.
+
+        * TestExpectations:
+        * fast/css/will-change/resources/will-change-stacking-helper.js:
+        * fast/dom/collection-iterators-expected.txt:
+        * fast/dom/collection-iterators.html:
+        * js/dom/dom-static-property-for-in-iteration-expected.txt:
+        * platform/gtk/js/dom/dom-static-property-for-in-iteration-expected.txt:
+        * platform/ios/fast/dom/collection-iterators-expected.txt:
+        * platform/mac-wk2/TestExpectations:
+        * platform/win/js/dom/dom-static-property-for-in-iteration-expected.txt:
+        * platform/wpe/js/dom/dom-static-property-for-in-iteration-expected.txt:
+
+2017-08-17  Antti Koivisto  <antti@apple.com>
+
+        RenderListItem - Avoid render tree mutation during layout
+        https://bugs.webkit.org/show_bug.cgi?id=175666
+
+        Reviewed by Andreas Kling.
+
+        Changes in render tree dumps that don't affect rendering.
+
+        * platform/ios/fast/doctypes/002-expected.txt:
+        * platform/ios/fast/lists/marker-before-empty-inline-expected.txt:
+        * platform/mac/css2.1/t0805-c5520-brdr-b-01-e-expected.txt:
+        * platform/mac/fast/doctypes/002-expected.txt:
+        * platform/mac/fast/lists/marker-before-empty-inline-expected.txt:
+
 2017-08-17  Ms2ger  <Ms2ger@gmail.com>
 
         REGRESSION(r220751): [GTK] Layout Test imported/w3c/web-platform-tests/fetch/api/basic/scheme-about.any.html is failing

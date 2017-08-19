@@ -1,3 +1,53 @@
+2017-08-17  Don Olmstead  <don.olmstead@sony.com>
+
+        [PAL] Relocate SessionID to root
+        https://bugs.webkit.org/show_bug.cgi?id=175684
+
+        Reviewed by Alex Christensen.
+
+        * PAL.xcodeproj/project.pbxproj:
+        * pal/CMakeLists.txt:
+        * pal/SessionID.cpp: Renamed from Source/WebCore/PAL/pal/identifier/SessionID.cpp.
+        * pal/SessionID.h: Renamed from Source/WebCore/PAL/pal/identifier/SessionID.h.
+
+2017-08-17  Andreas Kling  <akling@apple.com>
+
+        Disable CSS regions at compile time
+        https://bugs.webkit.org/show_bug.cgi?id=175630
+
+        Reviewed by Antti Koivisto.
+
+        * Configurations/FeatureDefines.xcconfig:
+
+2017-08-17  Wenson Hsieh  <wenson_hsieh@apple.com>
+
+        [iOS] Respect type fidelities when copying image elements to the pasteboard
+        https://bugs.webkit.org/show_bug.cgi?id=175638
+        <rdar://problem/26556043>
+
+        Reviewed by Ryosuke Niwa.
+
+        Replace -estimatedDisplayedSize with its non-deprecated counterpart, -preferredPresentationSize.
+
+        * pal/spi/ios/UIKitSPI.h:
+
+2017-08-17  Don Olmstead  <don.olmstead@sony.com>
+
+        [PAL] Move SessionID into PAL
+        https://bugs.webkit.org/show_bug.cgi?id=174192
+
+        Reviewed by Antti Koivisto.
+
+        * PAL.xcodeproj/project.pbxproj:
+        * pal/CMakeLists.txt:
+        * pal/identifier/SessionID.cpp: Renamed from Source/WebCore/page/SessionID.cpp.
+        * pal/identifier/SessionID.h: Renamed from Source/WebCore/page/SessionID.h.
+        (WTF::SessionIDHash::hash):
+        (WTF::SessionIDHash::equal):
+        (WTF::HashTraits<PAL::SessionID>::emptyValue):
+        (WTF::HashTraits<PAL::SessionID>::constructDeletedValue):
+        (WTF::HashTraits<PAL::SessionID>::isDeletedValue):
+
 2017-08-16  Yoshiaki Jitsukawa  <Yoshiaki.Jitsukawa@sony.com>
 
         [PAL] Move spi/ios and spi/win directories into PAL

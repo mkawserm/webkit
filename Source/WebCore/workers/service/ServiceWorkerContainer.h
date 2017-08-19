@@ -30,10 +30,11 @@
 #include "ActiveDOMObject.h"
 #include "DOMPromiseProxy.h"
 #include "EventTarget.h"
+#include "SWServer.h"
 #include "ServiceWorkerJobClient.h"
 #include "ServiceWorkerRegistration.h"
 #include "ServiceWorkerRegistrationOptions.h"
-#include "SessionID.h"
+#include <pal/SessionID.h>
 #include <wtf/Threading.h>
 
 namespace WebCore {
@@ -81,6 +82,7 @@ private:
 
     NavigatorBase& m_navigator;
 
+    RefPtr<SWServer::Connection> m_serverConnection;
     HashMap<uint64_t, RefPtr<ServiceWorkerJob>> m_jobMap;
 
 #ifndef NDEBUG
