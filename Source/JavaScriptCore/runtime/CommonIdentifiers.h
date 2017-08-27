@@ -49,6 +49,10 @@
     macro(Error) \
     macro(EvalError) \
     macro(FederatedCredential) \
+    macro(FileSystem) \
+    macro(FileSystemDirectoryEntry) \
+    macro(FileSystemEntry) \
+    macro(FileSystemFileEntry) \
     macro(Function) \
     macro(Gamepad) \
     macro(GamepadButton) \
@@ -99,6 +103,10 @@
     macro(NumberFormat) \
     macro(Object) \
     macro(PasswordCredential) \
+    macro(PaymentAddress) \
+    macro(PaymentRequest) \
+    macro(PaymentRequestUpdateEvent) \
+    macro(PaymentResponse) \
     macro(PerformanceEntry) \
     macro(PerformanceEntryList) \
     macro(PerformanceMark) \
@@ -217,6 +225,7 @@
     macro(displayName) \
     macro(document) \
     macro(done) \
+    macro(dotAll) \
     macro(enumerable) \
     macro(era) \
     macro(eval) \
@@ -401,6 +410,7 @@
 #define JSC_COMMON_PRIVATE_IDENTIFIERS_EACH_WELL_KNOWN_SYMBOL(macro) \
     macro(hasInstance) \
     macro(isConcatSpreadable) \
+    macro(asyncIterator) \
     macro(iterator) \
     macro(match) \
     macro(replace) \

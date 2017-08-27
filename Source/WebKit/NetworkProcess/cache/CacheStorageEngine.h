@@ -25,12 +25,8 @@
 
 #pragma once
 
-#include "WebCoreArgumentCoders.h"
-#include <WebCore/CacheStorageConnection.h>
-#include <wtf/Forward.h>
+#include "CacheStorageEngineCache.h"
 #include <wtf/HashMap.h>
-#include <wtf/Vector.h>
-#include <wtf/text/WTFString.h>
 
 namespace IPC {
 class Connection;
@@ -42,63 +38,38 @@ class SessionID;
 
 namespace WebKit {
 
-class NetworkConnectionToWebProcess;
+namespace CacheStorage {
 
-class CacheStorageEngine {
+class Engine {
 public:
-    static CacheStorageEngine& from(PAL::SessionID);
+    static Engine& from(PAL::SessionID);
     static void destroyEngine(PAL::SessionID);
 
-    enum class Error {
-        Internal
-    };
-    using Record = WebCore::CacheStorageConnection::Record;
+    void open(const String& origin, const String& cacheName, WebCore::DOMCache::CacheIdentifierCallback&&);
+    void remove(uint64_t cacheIdentifier, WebCore::DOMCache::CacheIdentifierCallback&&);
+    void retrieveCaches(const String& origin, WebCore::DOMCache::CacheInfosCallback&&);
 
-    using CacheIdentifierOrError = Expected<uint64_t, Error>;
-    using CacheIdentifierCallback = Function<void(CacheIdentifierOrError&&)>;
-
-    using CacheInfosOrError = Expected<Vector<WebCore::CacheStorageConnection::CacheInfo>, Error>;
-    using CacheInfosCallback = Function<void(CacheInfosOrError&&)>;
-
-    using RecordsOrError = Expected<Vector<Record>, Error>;
-    using RecordsCallback = Function<void(RecordsOrError&&)>;
-
-    using RecordIdentifiersOrError = Expected<Vector<uint64_t>, Error>;
-    using RecordIdentifiersCallback = Function<void(RecordIdentifiersOrError&&)>;
-
-    using CompletionCallback = Function<void(std::optional<Error>&&)>;
-
-    void open(const String& origin, const String& cacheName, CacheIdentifierCallback&&);
-    void remove(uint64_t cacheIdentifier, CacheIdentifierCallback&&);
-    void retrieveCaches(const String& origin, CacheInfosCallback&&);
-
-    void retrieveRecords(uint64_t cacheIdentifier, RecordsCallback&&);
-    void putRecords(uint64_t cacheIdentifier, Vector<Record>&&, RecordIdentifiersCallback&&);
-    void deleteMatchingRecords(uint64_t cacheIdentifier, WebCore::ResourceRequest&&, WebCore::CacheQueryOptions&&, RecordIdentifiersCallback&&);
+    void retrieveRecords(uint64_t cacheIdentifier, WebCore::DOMCache::RecordsCallback&&);
+    void putRecords(uint64_t cacheIdentifier, Vector<WebCore::DOMCache::Record>&&, WebCore::DOMCache::RecordIdentifiersCallback&&);
+    void deleteMatchingRecords(uint64_t cacheIdentifier, WebCore::ResourceRequest&&, WebCore::CacheQueryOptions&&, WebCore::DOMCache::RecordIdentifiersCallback&&);
 
 private:
-    static CacheStorageEngine& defaultEngine();
+    static Engine& defaultEngine();
 
-    void writeCachesToDisk(CompletionCallback&&);
-    void readCachesFromDisk(CompletionCallback&&);
+    void writeCachesToDisk(WebCore::DOMCache::CompletionCallback&&);
 
-    struct Cache {
-        uint64_t identifier;
-        String name;
-        Vector<Record> records;
-        uint64_t nextRecordIdentifier { 0 };
-    };
+    using CachesOrError = Expected<std::reference_wrapper<Vector<Cache>>, WebCore::DOMCache::Error>;
+    using CachesCallback = WTF::Function<void(CachesOrError&&)>;
+    void readCachesFromDisk(const String& origin, CachesCallback&&);
 
-    using CacheOrError = Expected<std::reference_wrapper<Cache>, Error>;
-    using CacheCallback = Function<void(CacheOrError&&)>;
-
-    Vector<WebCore::CacheStorageConnection::CacheInfo> caches(const String& origin) const;
-
+    using CacheOrError = Expected<std::reference_wrapper<Cache>, WebCore::DOMCache::Error>;
+    using CacheCallback = WTF::Function<void(CacheOrError&&)>;
     void readCache(uint64_t cacheIdentifier, CacheCallback&&);
-    void writeCacheRecords(uint64_t cacheIdentifier, Vector<uint64_t>&&, RecordIdentifiersCallback&&);
-    void removeCacheRecords(uint64_t cacheIdentifier, Vector<uint64_t>&&, RecordIdentifiersCallback&&);
 
-    Vector<uint64_t> queryCache(const Vector<Record>&, const WebCore::ResourceRequest&, const WebCore::CacheQueryOptions&);
+    void writeCacheRecords(uint64_t cacheIdentifier, Vector<uint64_t>&&, WebCore::DOMCache::RecordIdentifiersCallback&&);
+    void removeCacheRecords(uint64_t cacheIdentifier, Vector<uint64_t>&&, WebCore::DOMCache::RecordIdentifiersCallback&&);
+
+    Vector<uint64_t> queryCache(const Vector<WebCore::DOMCache::Record>&, const WebCore::ResourceRequest&, const WebCore::CacheQueryOptions&);
 
     Cache* cache(uint64_t cacheIdentifier);
 
@@ -107,13 +78,6 @@ private:
     uint64_t m_nextCacheIdentifier { 0 };
 };
 
-}
+} // namespace CacheStorage
 
-namespace WTF {
-template<> struct EnumTraits<WebKit::CacheStorageEngine::Error> {
-    using values = EnumValues<
-        WebKit::CacheStorageEngine::Error,
-        WebKit::CacheStorageEngine::Error::Internal
-    >;
-};
-}
+} // namespace WebKit

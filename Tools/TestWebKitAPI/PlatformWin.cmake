@@ -90,7 +90,6 @@ else ()
         CoreGraphics${DEBUG_SUFFIX}
         CoreText${DEBUG_SUFFIX}
         QuartzCore${DEBUG_SUFFIX}
-        SQLite3${DEBUG_SUFFIX}
         WebKitSystemInterface${DEBUG_SUFFIX}
         WebKitQuartzCoreAdditions${DEBUG_SUFFIX}
         libdispatch${DEBUG_SUFFIX}
@@ -148,8 +147,8 @@ set(test_webkit_LIBRARIES
 add_library(TestWebKitLib SHARED
     ${test_main_SOURCES}
     ${TESTWEBKITAPI_DIR}/TestsController.cpp
-    ${TESTWEBKITAPI_DIR}/Tests/WebKit/win/ScaleWebView.cpp
-    ${TESTWEBKITAPI_DIR}/Tests/WebKit/win/WebViewDestruction.cpp
+    ${TESTWEBKITAPI_DIR}/Tests/WebKitLegacy/win/ScaleWebView.cpp
+    ${TESTWEBKITAPI_DIR}/Tests/WebKitLegacy/win/WebViewDestruction.cpp
     ${TESTWEBKITAPI_DIR}/win/HostWindow.cpp
 )
 

@@ -27,30 +27,71 @@
 
 #if ENABLE(SERVICE_WORKER)
 
+#include "SWServerRegistration.h"
 #include "ServiceWorkerJob.h"
+#include "ServiceWorkerRegistrationKey.h"
+#include <wtf/CrossThreadQueue.h>
+#include <wtf/CrossThreadTask.h>
 #include <wtf/HashMap.h>
+#include <wtf/HashSet.h>
+#include <wtf/RunLoop.h>
 #include <wtf/ThreadSafeRefCounted.h>
+#include <wtf/Threading.h>
 
 namespace WebCore {
 
+class SWServerRegistration;
 struct ExceptionData;
 
 class SWServer {
 public:
-    class Connection : public ThreadSafeRefCounted<Connection> {
+    class Connection {
+    friend class SWServer;
     public:
-        virtual ~Connection() { }
-        void scheduleJob(ServiceWorkerJob&);
+        WEBCORE_EXPORT virtual ~Connection();
+
+        uint64_t identifier() const { return m_identifier; };
 
     protected:
-        WEBCORE_EXPORT void jobRejected(uint64_t jobIdentifier, const ExceptionData&);
+        WEBCORE_EXPORT Connection(SWServer&, uint64_t identifier);
+        SWServer& server() { return m_server; }
+
+        WEBCORE_EXPORT void scheduleJobInServer(const ServiceWorkerJobData&);
 
     private:
-        virtual void scheduleJob(const ServiceWorkerJobData&) = 0;
+        virtual void rejectJobInClient(uint64_t jobIdentifier, const ExceptionData&) = 0;
 
-        HashMap<uint64_t, RefPtr<ServiceWorkerJob>> m_scheduledJobs;
+        SWServer& m_server;
+        uint64_t m_identifier;
     };
 
+    WEBCORE_EXPORT SWServer();
+    WEBCORE_EXPORT ~SWServer();
+
+    void scheduleJob(const ServiceWorkerJobData&);
+    void rejectJob(const ServiceWorkerJobData&, const ExceptionData&);
+
+    void postTask(CrossThreadTask&&);
+    void postTaskReply(CrossThreadTask&&);
+
+private:
+    void registerConnection(Connection&);
+    void unregisterConnection(Connection&);
+
+    void taskThreadEntryPoint();
+    void handleTaskRepliesOnMainThread();
+
+    HashMap<uint64_t, Connection*> m_connections;
+    HashMap<ServiceWorkerRegistrationKey, std::unique_ptr<SWServerRegistration>> m_registrations;
+
+    RefPtr<Thread> m_taskThread;
+    Lock m_taskThreadLock;
+
+    CrossThreadQueue<CrossThreadTask> m_taskQueue;
+    CrossThreadQueue<CrossThreadTask> m_taskReplyQueue;
+
+    Lock m_mainThreadReplyLock;
+    bool m_mainThreadReplyScheduled { false };
 };
 
 } // namespace WebCore

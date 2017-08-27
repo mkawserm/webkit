@@ -63,6 +63,9 @@ public:
     void detachCDMClient(CDMClient&);
     void attemptToResumePlaybackOnClients();
 
+    bool hasOpenSessions() const;
+    const CDMInstance& cdmInstance() const { return m_instance; }
+
 protected:
     MediaKeys(bool useDistinctiveIdentifier, bool persistentStateAllowed, const Vector<MediaKeySessionType>&, Ref<CDM>&&, Ref<CDMInstance>&&);
 

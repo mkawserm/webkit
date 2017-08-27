@@ -1,3 +1,1089 @@
+2017-08-25  Eric Carlson  <eric.carlson@apple.com>
+
+        Add Logger::logAlways
+        https://bugs.webkit.org/show_bug.cgi?id=175996
+
+        Reviewed by Jer Noble.
+
+        * TestWebKitAPI/Tests/WebCore/Logging.cpp:
+        (TestWebKitAPI::TEST_F):
+
+2017-08-25  Alex Christensen  <achristensen@webkit.org>
+
+        Disable saveDataToFile API test.
+        https://bugs.webkit.org/show_bug.cgi?id=176000
+
+        * TestWebKitAPI/Tests/WebKitCocoa/UIDelegate.mm:
+        The test was only working on High Sierra.  It needs investigation on older operating systems.
+
+2017-08-25  Alex Christensen  <achristensen@webkit.org>
+
+        Rename TestWebKitAPI/Tests/WebKit2* to WebKit* following Source directory rename.
+
+        Rubber-stamped by Brady Eidson.
+
+        * TestWebKitAPI/PlatformGTK.cmake:
+        * TestWebKitAPI/TestWebKitAPI.xcodeproj/project.pbxproj:
+        * TestWebKitAPI/Tests/WebKit2Cocoa: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/AdditionalReadAccessAllowedURLs.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/AdditionalReadAccessAllowedURLsPlugin.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/AdditionalReadAccessAllowedURLsProtocol.h: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/AllAhem.svg: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/AlwaysRevalidatedURLSchemes.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/AnimatedResize.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/ApplicationCache.db: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/ApplicationCache.db-shm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/ApplicationCache.db-wal: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/AutoLayoutIntegration.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/BundleEditingDelegate.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/BundleEditingDelegatePlugIn.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/BundleEditingDelegateProtocol.h: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/BundleParameters.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/BundleParametersPlugIn.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/BundleRangeHandle.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/BundleRangeHandlePlugIn.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/BundleRangeHandleProtocol.h: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/CancelFontSubresource.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/CancelFontSubresourcePlugIn.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/Coding.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/CommandBackForward.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/ContentFiltering.h: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/ContentFiltering.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/ContentFiltering.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/ContentFilteringPlugIn.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/CookieAcceptPolicy.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/CookieMessage.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/Copying.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/DataDetection.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/DecidePolicyForNavigationAction.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/DoAfterNextPresentationUpdateAfterCrash.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/Download.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/DownloadRequestBlobURL.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/DownloadRequestOriginalURL.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/DownloadRequestOriginalURL2.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/DownloadRequestOriginalURLFrame.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/DuplicateCompletionHandlerCalls.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/EditorStateTests.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/EmptyGrandfatheredResourceLoadStatistics.plist: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/FindInPage.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/FixedLayoutSize.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/FullscreenDelegate.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/FullscreenDelegate.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/FullscreenLayoutConstraints.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/FullscreenLayoutConstraints.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/FullscreenTopContentInset.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/FullscreenTopContentInset.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/Geolocation.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/GeolocationGetCurrentPositionResult.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/IDBDeleteRecovery.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/IDBDeleteRecovery.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/IDBDeleteRecovery.sqlite3: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/IDBDeleteRecovery.sqlite3-shm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/IDBDeleteRecovery.sqlite3-wal: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/IDBIndexUpgradeToV2.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/IDBIndexUpgradeToV2.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/IconLoadingDelegate.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/IndexUpgrade.blob: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/IndexUpgrade.sqlite3: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/IndexedDBDatabaseProcessKill-1.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/IndexedDBDatabaseProcessKill.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/IndexedDBMultiProcess-1.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/IndexedDBMultiProcess-2.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/IndexedDBMultiProcess-3.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/IndexedDBMultiProcess.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/IndexedDBPersistence-1.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/IndexedDBPersistence-2.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/IndexedDBPersistence.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/IndexedDBStructuredCloneBackwardCompatibility.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/IndexedDBStructuredCloneBackwardCompatibility.sqlite3: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/IndexedDBStructuredCloneBackwardCompatibility.sqlite3-shm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/IndexedDBStructuredCloneBackwardCompatibility.sqlite3-wal: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/IndexedDBStructuredCloneBackwardCompatibilityRead.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/IndexedDBStructuredCloneBackwardCompatibilityWrite.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/InitialWarmedProcessUsed.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/InteractionDeadlockAfterCrash.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/LineBreaking.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/LoadAlternateHTMLString.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/LoadDataWithNilMIMEType.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/LoadInvalidURLRequest.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/LocalStorageClear.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/LocalStorageClear.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/LocalStorageNullEntries.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/LocalStorageNullEntries.localstorage: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/LocalStorageNullEntries.localstorage-shm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/LocalStorageNullEntries.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/LocalStorageQuirkEnabled.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/LocalStorageQuirkTest.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/ModalAlerts.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/NSFileManagerExtras.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/Navigation.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/NowPlayingControlsTests.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/ObservedRenderingProgressEventsAfterCrash.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/OpenAndCloseWindow.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/OverrideContentSecurityPolicy.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/PictureInPictureDelegate.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/PictureInPictureDelegate.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/PluginLoadClientPolicies.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/Preferences.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/PrepareForMoveToWindow.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/ProvisionalURLNotChange.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/QuickLook.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/RemoteObjectRegistry.h: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/RemoteObjectRegistry.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/RemoteObjectRegistryPlugIn.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/RenderedImageWithOptions.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/RenderedImageWithOptionsPlugIn.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/RenderedImageWithOptionsProtocol.h: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/RequiresUserActionForPlayback.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/ResourceLoadStatistics.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/RunOpenPanel.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/ShouldOpenExternalURLsInNewWindowActions.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/ShrinkToFit.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/SnapshotStore.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/StoreBlobThenDelete.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/StoreBlobToBeDeleted.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/UIDelegate.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/UserContentController.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/UserContentWorld.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/UserContentWorldPlugIn.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/UserContentWorldProtocol.h: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/UserInitiatedActionInNavigationAction.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/UserMediaDisabled.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/VideoControlsManager.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/VisibleContentRect.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/WKContentExtensionStore.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/WKContentViewEditingActions.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/WKHTTPCookieStore.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/WKNSNumber.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/WKObject.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/WKPDFView.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/WKPDFViewResizeCrash.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/WKPDFViewStablePresentationUpdateCallback.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/WKRequestActivatedElementInfo.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/WKURLSchemeHandler-1.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/WKURLSchemeHandler-leaks.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/WKWebViewCandidateTests.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/WKWebViewDefaultNavigationDelegate.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/WKWebViewDiagnosticLogging.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/WKWebViewDoesNotLogDuringInitialization.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/WKWebViewEvaluateJavaScript.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/WKWebViewGetContents.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/WKWebViewSnapshot.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/WKWebViewTextInput.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/WebProcessKillIDBCleanup-1.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/WebProcessKillIDBCleanup-2.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/WebProcessKillIDBCleanup.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/WebsiteDataStoreCustomPaths.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/WebsiteDataStoreCustomPaths.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/WebsitePolicies.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/_WKUserContentExtensionStore.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/apple.gif: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/attachment-element.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/autofocus-contenteditable.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/autofocused-text-input.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/autoplaying-video-with-audio.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/background-image-link-and-input.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/blinking-div.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/change-video-source-on-click.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/change-video-source-on-end.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/compressed-files.zip: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/contenteditable-and-target.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/contenteditable-and-textarea.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/contenteditable-in-iframe.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/disableGetUserMedia.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/div-and-large-image.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/double-click-does-not-select-trailing-space.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/dragstart-change-selection-offscreen.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/dragstart-clear-selection.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/duplicate-completion-handler-calls.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/editable-body.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/editor-state-test-harness.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/enormous-video-with-sound.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/enormous.svg: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/file-uploading.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/focus-inputs.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/full-size-autoplaying-video-with-audio.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/gif-and-file-input.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/image-and-contenteditable.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/image-and-textarea.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/image-in-link-and-input.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/image-map.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/input-field-in-scrollable-document.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/large-input-field-focus-onload.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/large-red-square.png: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/large-video-hides-controls-after-seek-to-end.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/large-video-mutes-onplaying.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/large-video-offscreen.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/large-video-playing-scroll-away.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/large-video-seek-after-ending.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/large-video-seek-to-beginning-and-play-after-ending.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/large-video-test-now-playing.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/large-video-with-audio.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/large-video-with-audio.mp4: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/large-video-without-audio.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/large-videos-autoplaying-click-to-pause.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/large-videos-autoplaying-scroll-to-video.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/large-videos-paused-video-hides-controls.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/large-videos-playing-muted-video-hides-controls.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/large-videos-playing-video-keeps-controls.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/large-videos-with-audio-autoplay.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/large-videos-with-audio.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/link-and-input.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/link-and-target-div.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/offscreen-iframe-of-media-document.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/open-multiple-external-url.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/page-with-csp-iframe.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/page-with-csp.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/page-without-csp-iframe.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/page-without-csp.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/password-protected.pages: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/play-audio-on-click.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/prevent-operation.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/prevent-start.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/rendered-image-excluding-overflow.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/rich-and-plain-text.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/silence-long.m4a: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/skinny-autoplaying-video-with-audio.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/text-and-password-inputs.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/textarea-to-input.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/two-paragraph-contenteditable.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Cocoa/wide-autoplaying-video-with-audio.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2Gtk: Removed.
+        * TestWebKitAPI/Tests/WebKit2Gtk/AccessibilityTestServer.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2Gtk/AutocleanupsTest.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2Gtk/DOMClientRectTest.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2Gtk/DOMDOMWindowTest.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2Gtk/DOMNodeFilterTest.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2Gtk/DOMNodeTest.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2Gtk/DOMXPathNSResolverTest.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2Gtk/EditorTest.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2Gtk/InspectorTestServer.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2Gtk/TestAutocleanups.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2Gtk/TestContextMenu.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2Gtk/TestDOMClientRect.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2Gtk/TestDOMDOMWindow.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2Gtk/TestDOMNode.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2Gtk/TestDOMNodeFilter.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2Gtk/TestDOMXPathNSResolver.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2Gtk/TestEditor.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2Gtk/TestInspector.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2Gtk/TestInspectorServer.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2Gtk/TestOptionMenu.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2Gtk/TestPrinting.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2Gtk/TestWebKitAccessibility.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2Gtk/TestWebKitVersion.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2Gtk/TestWebViewEditor.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2ObjC: Removed.
+        * TestWebKitAPI/Tests/WebKit2ObjC/CustomProtocolsInvalidScheme.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2ObjC/CustomProtocolsInvalidScheme_Bundle.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2ObjC/CustomProtocolsTest.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2ObjC/PreventImageLoadWithAutoResizing.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2ObjC/PreventImageLoadWithAutoResizing_Bundle.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2ObjC/UserContentTest.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2ObjC/WKBrowsingContextGroupTest.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2ObjC/WKBrowsingContextLoadDelegateTest.mm: Removed.
+        * TestWebKitAPI/Tests/WebKitCocoa: Copied from TestWebKitAPI/Tests/WebKit2Cocoa.
+        * TestWebKitAPI/Tests/WebKitGtk: Copied from TestWebKitAPI/Tests/WebKit2Gtk.
+        * TestWebKitAPI/Tests/WebKitObjC: Copied from TestWebKitAPI/Tests/WebKit2ObjC.
+        * TestWebKitAPI/glib/PlatformGTK.cmake:
+
+2017-08-25  Alex Christensen  <achristensen@webkit.org>
+
+        Rename TestWebKitAPI/Tests/WebKit2 to WebKit following Source directory rename.
+
+        Rubber-stamped by Brady Eidson.
+
+        * TestWebKitAPI/CMakeLists.txt:
+        * TestWebKitAPI/PlatformGTK.cmake:
+        * TestWebKitAPI/PlatformWin.cmake:
+        * TestWebKitAPI/TestWebKitAPI.xcodeproj/project.pbxproj:
+        * TestWebKitAPI/Tests/WebKit: Copied from TestWebKitAPI/Tests/WebKit2.
+        * TestWebKitAPI/Tests/WebKit2: Removed.
+        * TestWebKitAPI/Tests/WebKit2/18-characters.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2/AboutBlankLoad.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/Ahem.ttf: Removed.
+        * TestWebKitAPI/Tests/WebKit2/CanHandleRequest.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/CanHandleRequest_Bundle.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/CloseFromWithinCreatePage.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/CloseThenTerminate.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/CookieManager.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/DOMWindowExtensionBasic.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/DOMWindowExtensionBasic_Bundle.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/DOMWindowExtensionNoCache.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/DOMWindowExtensionNoCache_Bundle.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/DeferredViewInWindowStateChange.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2/DidAssociateFormControls.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/DidAssociateFormControls_Bundle.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/DidNotHandleKeyDown.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/DidRemoveFrameFromHiearchyInPageCache.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/DidRemoveFrameFromHiearchyInPageCache_Bundle.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/DocumentStartUserScriptAlertCrash.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/DocumentStartUserScriptAlertCrash_Bundle.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/DownloadDecideDestinationCrash.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/EnumerateMediaDevices.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/EnvironmentUtilitiesTest.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/EphemeralSessionPushStateNoHistoryCallback.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/EvaluateJavaScript.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/EventModifiers.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/FailedLoad.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/Find.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/FindMatches.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2/ForceRepaint.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/FrameHandle.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/FrameMIMETypeHTML.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/FrameMIMETypePNG.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/Geolocation.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/GetInjectedBundleInitializationUserDataCallback.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/GetInjectedBundleInitializationUserDataCallback_Bundle.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/GetUserMediaNavigation.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2/HitTestResultNodeHandle.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/HitTestResultNodeHandle_Bundle.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/InjectedBundleBasic.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/InjectedBundleBasic_Bundle.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/InjectedBundleFrameHitTest.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/InjectedBundleFrameHitTest_Bundle.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/InjectedBundleInitializationUserDataCallbackWins.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/InjectedBundleInitializationUserDataCallbackWins_Bundle.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/InjectedBundleMakeAllShadowRootsOpen.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/InjectedBundleMakeAllShadowRootsOpen_Bundle.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/LayoutMilestonesWithAllContentInFrame.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/LimitTitleSize.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/LoadAlternateHTMLStringWithNonDirectoryURL.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/LoadCanceledNoServerRedirectCallback.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/LoadCanceledNoServerRedirectCallback_Bundle.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/LoadPageOnCrash.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/MediaStreamTrackDetached.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2/MenuTypesForMouseEvents.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/ModalAlertsSPI.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/MouseMoveAfterCrash.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/MouseMoveAfterCrash_Bundle.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/NavigationClientDefaultCrypto.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/NetworkProcessCrashWithPendingConnection.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2/NewFirstVisuallyNonEmptyLayout.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/NewFirstVisuallyNonEmptyLayoutFails.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/NewFirstVisuallyNonEmptyLayoutFails_Bundle.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/NewFirstVisuallyNonEmptyLayoutForImages.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/NewFirstVisuallyNonEmptyLayoutForImages_Bundle.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/NewFirstVisuallyNonEmptyLayoutFrames.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/NewFirstVisuallyNonEmptyLayoutFrames_Bundle.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/NewFirstVisuallyNonEmptyLayout_Bundle.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/PageGroup.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/PageLoadBasic.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/PageLoadDidChangeLocationWithinPageForFrame.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/ParentFrame.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/ParentFrame_Bundle.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/PasteboardNotifications.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2/PasteboardNotifications_Bundle.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/PendingAPIRequestURL.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/PreventEmptyUserAgent.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/PrivateBrowsingPushStateNoHistoryCallback.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/ProcessDidTerminate.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/ProvisionalURLAfterWillSendRequestCallback.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/ProvisionalURLAfterWillSendRequestCallback_Bundle.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/ReloadPageAfterCrash.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/ResizeReversePaginatedWebView.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/ResizeWindowAfterCrash.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/ResponsivenessTimer.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/ResponsivenessTimerDoesntFireEarly.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/ResponsivenessTimerDoesntFireEarly_Bundle.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/RestoreSessionState.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/RestoreSessionStateContainingFormData.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/RestoreSessionStateWithoutNavigation.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/ScrollPinningBehaviors.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/ShouldGoToBackForwardListItem.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/ShouldGoToBackForwardListItem_Bundle.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/ShouldKeepCurrentBackForwardListItemInList.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/SpacebarScrolling.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/StopLoadingDuringDidFailProvisionalLoad.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/StopLoadingDuringDidFailProvisionalLoad_bundle.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/TerminateTwice.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/TextFieldDidBeginAndEndEditing.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/TextFieldDidBeginAndEndEditing_Bundle.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/UserMedia.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/UserMessage.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/UserMessage_Bundle.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/ViewportSizeForViewportUnits.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2/WKBackForwardList.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2/WKBundleFileHandle.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/WKBundleFileHandle_Bundle.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/WKImageCreateCGImageCrash.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/WKPageConfiguration.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/WKPageCopySessionStateWithFiltering.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/WKPageGetScaleFactorNotZero.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/WKPageIsPlayingAudio.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/WKPreferences.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/WKRetainPtr.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/WKString.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/WKStringJSString.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/WKThumbnailView.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2/WKURL.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/WebArchive.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/WebArchive_Bundle.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/WebCoreStatisticsWithNoWebProcess.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/WillLoad.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/WillLoad_Bundle.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/WillSendSubmitEvent.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/WillSendSubmitEvent_Bundle.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/all-content-in-one-iframe.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2/associate-form-controls.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2/auto-submitting-form.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2/autoplay-check-frame.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2/autoplay-check-in-iframe.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2/autoplay-check.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2/autoplay-inherits-gesture-from-document.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2/autoplay-muted-with-controls.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2/autoplay-no-audio-check.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2/autoplay-with-controls.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2/autoplay-zero-volume-check.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2/bundle-file.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2/chinese-character-with-image.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2/close-from-within-create-page.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2/closed-shadow-tree-test.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2/cocoa: Removed.
+        * TestWebKitAPI/Tests/WebKit2/cocoa/WeakObjCPtr.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2/contentBlockerCheck.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2/custom-protocol-sync-xhr.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2/encrypted.pdf: Removed.
+        * TestWebKitAPI/Tests/WebKit2/enumerateMediaDevices.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2/execCopy.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2/file-with-anchor.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2/file-with-mse.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2/file-with-video.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2/find.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2/findRanges.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2/geolocationGetCurrentPosition.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2/geolocationGetCurrentPositionWithHighAccuracy.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2/geolocationWatchPosition.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2/geolocationWatchPositionWithHighAccuracy.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2/getUserMedia.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2/gtk: Removed.
+        * TestWebKitAPI/Tests/WebKit2/gtk/InputMethodFilter.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/icon.png: Removed.
+        * TestWebKitAPI/Tests/WebKit2/input-focus-blur.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2/js-autoplay-audio.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2/js-play-with-controls.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2/large-red-square-image.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2/link-with-download-attribute-with-slashes.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2/link-with-download-attribute.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2/link-with-title.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2/lots-of-iframes.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2/lots-of-images.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2/lots-of-text-vertical-lr.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2/lots-of-text.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2/mac: Removed.
+        * TestWebKitAPI/Tests/WebKit2/mac/AttributedSubstringForProposedRangeWithImage.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2/mac/ContextMenuDownload.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2/mac/EditorCommands.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2/mac/GetBackingScaleFactor.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2/mac/GetBackingScaleFactor_Bundle.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2/mac/GetPIDAfterAbortedProcessLaunch.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/mac/InjectedBundleAppleEvent.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/mac/InjectedBundleAppleEvent_Bundle.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit2/mac/RestoreStateAfterTermination.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit2/many-iframes.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2/mediastreamtrack-detached.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2/modal-alerts-in-new-about-blank-window.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2/mouse-button-listener.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2/mouse-move-listener.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2/navigation-client-default-crypto.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2/no-autoplay-with-controls.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2/open-and-close-window.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2/push-state.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2/set-long-title.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2/should-open-external-schemes.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2/simple-accelerated-compositing.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2/simple-form.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2/simple-iframe.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2/simple-tall.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2/simple.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2/simple2.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2/simple3.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2/spacebar-scrolling.html: Removed.
+        * TestWebKitAPI/Tests/WebKit2/test-mse.mp4: Removed.
+        * TestWebKitAPI/Tests/WebKit2/test-without-audio-track.mp4: Removed.
+        * TestWebKitAPI/Tests/WebKit2/test.mp4: Removed.
+        * TestWebKitAPI/Tests/WebKit2/test.pdf: Removed.
+        * TestWebKitAPI/Tests/WebKit2/webfont.html: Removed.
+
+2017-08-25  Alex Christensen  <achristensen@webkit.org>
+
+        Rename TestWebKitAPI/Tests/WebKit to WebKitLegacy following Source directory rename.
+
+        Rubber-stamped by Brady Eidson.
+
+        * TestWebKitAPI/TestWebKitAPI.xcodeproj/project.pbxproj:
+        * TestWebKitAPI/Tests/WebKit: Removed.
+        * TestWebKitAPI/Tests/WebKit/ios: Removed.
+        * TestWebKitAPI/Tests/WebKit/ios/AudioSessionCategoryIOS.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit/ios/SnapshotViaRenderInContext.mm: Removed.
+        * TestWebKitAPI/Tests/WebKit/ios/audio-only.html: Removed.
+        * TestWebKitAPI/Tests/WebKit/ios/video-with-audio.html: Removed.
+        * TestWebKitAPI/Tests/WebKit/ios/video-with-audio.mp4: Removed.
+        * TestWebKitAPI/Tests/WebKit/ios/video-with-muted-audio-and-webaudio.html: Removed.
+        * TestWebKitAPI/Tests/WebKit/ios/video-with-muted-audio.html: Removed.
+        * TestWebKitAPI/Tests/WebKit/ios/video-without-audio.html: Removed.
+        * TestWebKitAPI/Tests/WebKit/ios/video-without-audio.mp4: Removed.
+        * TestWebKitAPI/Tests/WebKit/win: Removed.
+        * TestWebKitAPI/Tests/WebKit/win/ScaleWebView.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKit/win/WebViewDestruction.cpp: Removed.
+        * TestWebKitAPI/Tests/WebKitLegacy: Copied from TestWebKitAPI/Tests/WebKit.
+
+2017-08-25  Alex Christensen  <achristensen@webkit.org>
+
+        Add WKUIDelegatePrivate equivalent of WKPageUIClient's saveDataToFileInDownloadsFolder
+        https://bugs.webkit.org/show_bug.cgi?id=176000
+        <rdar://problem/29270035>
+
+        Reviewed by Andy Estes.
+
+        * TestWebKitAPI/Tests/WebKit2Cocoa/UIDelegate.mm:
+        (-[FocusDelegate webView:runJavaScriptAlertPanelWithMessage:initiatedByFrame:completionHandler:]):
+        (TEST):
+        (-[SaveDataToFileDelegate _webView:saveDataToFile:suggestedFilename:mimeType:originatingURL:]):
+        (-[SaveDataToFileDelegate webView:didFinishNavigation:]):
+
+2017-08-25  Youenn Fablet  <youenn@apple.com>
+
+        WPT server should not need to copy test harness files
+        https://bugs.webkit.org/show_bug.cgi?id=175938
+
+        Reviewed by Alexey Proskuryakov.
+
+        * Scripts/webkitpy/layout_tests/servers/web_platform_test_server.py:
+        (WebPlatformTestServer.__init__): Stopping explicit resource files copy when launching the WPT server.
+        Use aliases instead.
+
+2017-08-25  Eric Carlson  <eric.carlson@apple.com>
+
+        Add String::format variant that takes va_args
+        https://bugs.webkit.org/show_bug.cgi?id=175988
+
+        Reviewed by Jer Noble.
+
+        * TestWebKitAPI/Tests/WTF/WTFString.cpp:
+        (TestWebKitAPI::testWithFormatAndArguments):
+        (TestWebKitAPI::TEST):
+
+2017-08-25  Jonathan Bedard  <jbedard@apple.com>
+
+        Follow-up Internal build fix for r221187
+        https://bugs.webkit.org/show_bug.cgi?id=175960
+        <rdar://problem/34069264>
+
+        Unreviewed build fix.
+
+        * TestWebKitAPI/ios/DataInteractionSimulator.h: Move UIItemProvider declaration
+        into #if block.
+
+2017-08-25  Don Olmstead  <don.olmstead@sony.com>
+
+        [WinCairo] Use GitHub releases for WinCairoRequirements
+        https://bugs.webkit.org/show_bug.cgi?id=175972
+
+        Reviewed by Brent Fulgham.
+
+        * Scripts/build-webkit:
+        (cMakeArgsFromFeatures): Deleted.
+        (writeCongrats): Deleted.
+        * Scripts/download-latest-github-release.py:
+        (Status):
+        (parse_args):
+        (main):
+        * Scripts/update-webkit-wincairo-libs.py: Renamed from Tools/Scripts/update-webkit-wincairo-libs.
+
+2017-08-25  Jonathan Bedard  <jbedard@apple.com>
+
+        Fix build breakage with Public iOS 11 SDK
+        https://bugs.webkit.org/show_bug.cgi?id=175960
+        <rdar://problem/34069264>
+
+        Reviewed by Wenson Hsieh.
+
+        * TestWebKitAPI/ios/DataInteractionSimulator.h: Add UIItemProvider declaration.
+
+2017-08-24  Chris Dumez  <cdumez@apple.com>
+
+        [Directory Upload] Add basic support for input.webkitdirectory
+        https://bugs.webkit.org/show_bug.cgi?id=175950
+        <rdar://problem/33951915>
+
+        Reviewed by Geoffrey Garen.
+
+        * DumpRenderTree/mac/DumpRenderTree.mm:
+        (resetWebPreferencesToConsistentValues):
+        * WebKitTestRunner/TestController.cpp:
+        (WTR::TestController::resetPreferencesToConsistentValues):
+        Enable Directory Upload feature for testing, given that it is currently disabled by default.
+
+        (WTR::runOpenPanel):
+        Print additional text when directories are allowed to extend testing coverage.
+
+2017-08-24  Alex Christensen  <achristensen@webkit.org>
+
+        Add WKUIDelegatePrivate equivalent of WKPageUIClient's handleAutoplayEvent
+        https://bugs.webkit.org/show_bug.cgi?id=175965
+        <rdar://problem/29270035>
+
+        Reviewed by Tim Horton.
+
+        * TestWebKitAPI/Tests/WebKit2Cocoa/UIDelegate.mm:
+        (TEST):
+        * TestWebKitAPI/Tests/WebKit2Cocoa/WebsitePolicies.mm:
+        (-[AutoplayPoliciesDelegate _webView:handleAutoplayEvent:withFlags:]):
+        (TEST):
+        (handleAutoplayEvent): Deleted.
+
+2017-08-24  Alex Christensen  <achristensen@webkit.org>
+
+        didNotHandleWheelEvent test times out
+        https://bugs.webkit.org/show_bug.cgi?id=175967
+
+        * TestWebKitAPI/Tests/WebKit2Cocoa/UIDelegate.mm:
+        Skip the test until WebCore's wheel event handling is reliable enough to test.
+
+2017-08-24  Jonathan Bedard  <jbedard@apple.com>
+
+        Update configure-xcode-for-ios-development for iOS 11
+        https://bugs.webkit.org/show_bug.cgi?id=173937
+        <rdar://problem/33038924>
+
+        Reviewed by Daniel Bates.
+
+        Xcode 9 has removed the following headers from the iOS 11 Simulator SDK:
+                /usr/include/crt_externs.h
+                /usr/include/mach/mach_types.defs
+                /usr/include/mach/machine/machine_types.defs
+                /usr/include/mach/std_types.defs
+                /usr/include/objc/objc-class.h
+                /usr/include/objc/objc-runtime.h
+                /usr/include/objc/Protocol.h
+                /usr/include/readline/history.h
+                /usr/include/readline/readline.h
+        To solve this problem, configure-xcode-for-ios-development copies these headers
+        from the active macOS SDK into the iOS Simulator SDK.
+
+        * Scripts/configure-xcode-for-ios-development:
+        (copyMissingHeadersFromSDKToSDKIfNeeded): Copy all missing header from one SDK
+        into another if those headers do not exist in the destination SDK.
+        (copyMissingHeadersToIPhoneOSSDKIfNeeded): Deleted.
+
+2017-08-24  Alex Christensen  <achristensen@webkit.org>
+
+        Add WKUIDelegatePrivate callback corresponding to PageUIClient's didNotHandleWheelEvent
+        https://bugs.webkit.org/show_bug.cgi?id=175957
+        <rdar://problem/29270035>
+
+        Reviewed by Geoffrey Garen.
+
+        * TestWebKitAPI/Tests/WebKit2Cocoa/UIDelegate.mm:
+        (synthesizeWheelEvents):
+        (-[WheelDelegate _webView:didNotHandleWheelEvent:]):
+        (-[WheelDelegate webView:runJavaScriptAlertPanelWithMessage:initiatedByFrame:completionHandler:]):
+        (TEST):
+
+2017-08-24  Tim Horton  <timothy_horton@apple.com>
+
+        Layout size override changes during in-flight animated resize are dropped on the floor forever
+        https://bugs.webkit.org/show_bug.cgi?id=175916
+        <rdar://problem/33887295>
+
+        Reviewed by Beth Dakin.
+
+        * TestWebKitAPI/Tests/WebKit2Cocoa/AnimatedResize.mm:
+        (TEST):
+        Add a test ensuring that override layout size changes
+        during an animated resize actually take effect.
+
+2017-08-23  Matt Lewis  <jlewis3@apple.com>
+
+        Disabled VideoControlsManagerMultipleVideosSwitchControlledVideoWhenScrolling.
+        https://bugs.webkit.org/show_bug.cgi?id=175909
+
+        Unreviewed test gardening.
+
+        * TestWebKitAPI/Tests/WebKit2Cocoa/VideoControlsManager.mm:
+        (TestWebKitAPI::TEST):
+
+2017-08-24  Don Olmstead  <don.olmstead@sony.com>
+
+        [CMake] Use find_package for SQLite
+        https://bugs.webkit.org/show_bug.cgi?id=175803
+
+        Reviewed by Konstantin Tokarev.
+
+        * TestWebKitAPI/PlatformWin.cmake:
+
+2017-08-23  Jonathan Bedard  <jbedard@apple.com>
+
+        Leaking CARenderServerBuffer in PlatformWebView::windowSnapshotImage()
+        https://bugs.webkit.org/show_bug.cgi?id=175905
+
+        Reviewed by Tim Horton.
+
+        * WebKitTestRunner/ios/PlatformWebViewIOS.mm:
+        (WTR::PlatformWebView::windowSnapshotImage): Pass CARenderServerBuffer to CGDataProviderCreateWithData
+        so that the buffer can be destroyed.
+
+2017-08-23  Alex Christensen  <achristensen@webkit.org>
+
+        Add WKUIDelegatePrivate callbacks corresponding to WKPageUIClient's takeFocus, focus, and unfocus
+        https://bugs.webkit.org/show_bug.cgi?id=175896
+
+        Reviewed by Tim Horton.
+
+        * TestWebKitAPI/Tests/WebKit2Cocoa/UIDelegate.mm:
+        (-[UITestDelegate _showWebView:]):
+        (TEST):
+        (tabEvent):
+        (synthesizeTab):
+        (-[FocusDelegate _webView:takeFocus:]):
+        (-[FocusDelegate webView:runJavaScriptAlertPanelWithMessage:initiatedByFrame:completionHandler:]):
+        (-[UITestDelegate _webViewShow:]): Deleted.
+
+2017-08-23  Eric Carlson  <eric.carlson@apple.com>
+
+        Platform code should be able to safely log in release builds
+        https://bugs.webkit.org/show_bug.cgi?id=175854
+        <rdar://problem/34022930>
+
+        Reviewed by Jer Noble.
+
+        * TestWebKitAPI/Tests/WebCore/Logging.cpp:
+        (TestWebKitAPI::TEST_F):
+
+2017-08-23  Jonathan Bedard  <jbedard@apple.com>
+
+        Access expectations path through apple_additions
+        https://bugs.webkit.org/show_bug.cgi?id=174800
+        <rdar://problem/33498899>
+
+        Unreviewed follow-up fix for r221087.
+
+        * Scripts/webkitpy/port/ios.py:
+        (IOSPort._apple_additions_path): Use iOS mapping instead of Mac mapping.
+
+2017-08-23  Jonathan Bedard  <jbedard@apple.com>
+
+        Access expectations path through apple_additions
+        https://bugs.webkit.org/show_bug.cgi?id=174800
+        <rdar://problem/33498899>
+
+        Reviewed by David Kilzer.
+
+        Follow-up fix. Mapping of operating system names was done incorrectly.
+
+        * Scripts/webkitpy/port/ios.py:
+        (IOSPort._apple_additions_path): Correctly find the operating system to be replaced.
+        * Scripts/webkitpy/port/ios_device_unittest.py:
+        (IOSDeviceTest.test_layout_test_searchpath_with_apple_additions): Add test for operating
+        system name replacement.
+        * Scripts/webkitpy/port/ios_simulator_unittest.py:
+        (IOSSimulatorTest.test_layout_test_searchpath_with_apple_additions): Add test for operating
+        system name replacement.
+        * Scripts/webkitpy/port/mac.py: Correctly find the operating system to be replaced.
+        (MacPort._apple_additions_path):
+        * Scripts/webkitpy/port/mac_unittest.py:
+        (MacTest.test_layout_test_searchpath_with_apple_additions): Add test for operating system
+        name replacement.
+        * Scripts/webkitpy/port/port_testcase.py:
+        (bind_mock_apple_additions.MockAppleAdditions.ios_os_name): Change the passed name so that
+        operating system name replacement can be tested.
+        (bind_mock_apple_additions.MockAppleAdditions.mac_os_name): Ditto.
+
+2017-08-23  Jonathan Bedard  <jbedard@apple.com>
+
+        Access expectations path through apple_additions
+        https://bugs.webkit.org/show_bug.cgi?id=174800
+        <rdar://problem/33498899>
+
+        Reviewed by Alexey Proskuryakov.
+
+        When external test expectations are imported through additional-platform-directory, they will
+        over-write any WebKit expectations. Access some expectations from apple_additions to correct
+        these precedence issues.
+
+        * Scripts/webkitpy/port/ios.py:
+        (IOSPort._apple_additions_path): Convert test expectation directory to a path
+        coming from apple_additions.
+        (IOSPort.default_baseline_search_path): Alternate between WebKit path and apple_additions
+        path for layout test expectations.
+        * Scripts/webkitpy/port/ios_device_unittest.py:
+        (IOSDeviceTest.test_layout_test_searchpath_with_apple_additions): Added to test layout-test search paths.
+        * Scripts/webkitpy/port/ios_simulator_unittest.py:
+        (IOSSimulatorTest.test_layout_test_searchpath_with_apple_additions): Added to test layout-test search paths.
+        * Scripts/webkitpy/port/mac.py:
+        (MacPort._apple_additions_path): Convert test expectation directory to a path
+        coming from apple_additions.
+        (MacPort.default_baseline_search_path): Alternate between WebKit path and apple_additions
+        path for layout test expectations.
+        * Scripts/webkitpy/port/mac_unittest.py:
+        (MacTest.test_layout_test_searchpath_with_apple_additions): Added to test layout-test search paths.
+        * Scripts/webkitpy/port/port_testcase.py:
+        (bind_mock_apple_additions): Added to create mock apple_additions for a block.
+        (bind_mock_apple_additions.MockAppleAdditions): Contains apple_addition stubs for testing.
+        * Scripts/webkitpy/port/win.py:
+        (WinPort.default_baseline_search_path): Include apple_additions test expectation for Windows.
+
+2017-08-22  Zan Dobersek  <zdobersek@igalia.com>
+
+        Unreviewed. The WPE port should build TestWebKitAPI with the same
+        compiler flags as the GTK+ port, disabling a few flags that are
+        sprouting a lot of warning output.
+
+        * TestWebKitAPI/PlatformWPE.cmake:
+
+2017-08-20  Wenson Hsieh  <wenson_hsieh@apple.com>
+
+        [iOS WK2] WKWebView schedules nonstop layout after pressing cmb+b,i,u inside a contenteditable div
+        https://bugs.webkit.org/show_bug.cgi?id=175116
+        <rdar://problem/28279301>
+
+        Reviewed by Darin Adler and Ryosuke Niwa.
+
+        Introduces new testing infrastructure and API tests to test EditorState updates in the UI process. The new
+        EditorStateTests run on both iOS and Mac.
+
+        * TestWebKitAPI/EditingTestHarness.h: Added.
+        * TestWebKitAPI/EditingTestHarness.mm: Added.
+
+        EditingTestHarness is a helper object that API tests may use to apply editing commands and store EditorState
+        history. This test harness adds sugaring around various editing commands, and simplifies the process of checking
+        the state of the latest observed EditorState.
+
+        (-[EditingTestHarness initWithWebView:]):
+        (-[EditingTestHarness dealloc]):
+        (-[EditingTestHarness webView]):
+        (-[EditingTestHarness latestEditorState]):
+        (-[EditingTestHarness editorStateHistory]):
+        (-[EditingTestHarness insertText:andExpectEditorStateWith:]):
+        (-[EditingTestHarness insertHTML:andExpectEditorStateWith:]):
+        (-[EditingTestHarness selectAllAndExpectEditorStateWith:]):
+        (-[EditingTestHarness moveBackwardAndExpectEditorStateWith:]):
+        (-[EditingTestHarness moveWordBackwardAndExpectEditorStateWith:]):
+        (-[EditingTestHarness toggleBold]):
+        (-[EditingTestHarness toggleItalic]):
+        (-[EditingTestHarness toggleUnderline]):
+        (-[EditingTestHarness setForegroundColor:]):
+        (-[EditingTestHarness alignJustifiedAndExpectEditorStateWith:]):
+        (-[EditingTestHarness alignLeftAndExpectEditorStateWith:]):
+        (-[EditingTestHarness alignCenterAndExpectEditorStateWith:]):
+        (-[EditingTestHarness alignRightAndExpectEditorStateWith:]):
+        (-[EditingTestHarness insertParagraphAndExpectEditorStateWith:]):
+        (-[EditingTestHarness deleteBackwardAndExpectEditorStateWith:]):
+        (-[EditingTestHarness _execCommand:argument:expectEntries:]):
+
+        Dispatches an editing command to the web process, and blocks until a response is received. If an expected
+        entries dictionary is given, this will additionally verify that the latest EditorState contains all the expected
+        keys and values.
+
+        (-[EditingTestHarness latestEditorStateContains:]):
+        (-[EditingTestHarness _webView:editorStateDidChange:]):
+        * TestWebKitAPI/TestWebKitAPI.xcodeproj/project.pbxproj:
+        * TestWebKitAPI/Tests/WebKit2Cocoa/EditorStateTests.mm: Added.
+        (TestWebKitAPI::setUpEditorStateTestHarness):
+        (TestWebKitAPI::TEST):
+        * TestWebKitAPI/Tests/WebKit2Cocoa/editor-state-test-harness.html: Added.
+
+2017-08-22  Wenson Hsieh  <wenson_hsieh@apple.com>
+
+        [WK2] EditorState updates should be rolled into the layer update lifecycle when possible
+        https://bugs.webkit.org/show_bug.cgi?id=175370
+        <rdar://problem/33799806>
+
+        Reviewed by Ryosuke Niwa.
+
+        Tweaks API tests that involve editing to wait for a presentation update before checking against UI process-side
+        information sent via EditorState updates. This allows any EditorState update scheduled by the test to propagate
+        to the UI process.
+
+        * TestWebKitAPI/Tests/WebKit2Cocoa/WKWebViewCandidateTests.mm:
+        (-[CandidateTestWebView typeString:inputMessage:]):
+        (+[CandidateTestWebView setUpWithFrame:testPage:]):
+        * TestWebKitAPI/Tests/WebKit2Cocoa/WKWebViewTextInput.mm:
+        * TestWebKitAPI/Tests/mac/AcceptsFirstMouse.mm:
+        (TestWebKitAPI::AcceptsFirstMouse::runTest):
+        * TestWebKitAPI/Tests/mac/WKWebViewMacEditingTests.mm:
+        * TestWebKitAPI/cocoa/TestWKWebView.h:
+        * TestWebKitAPI/cocoa/TestWKWebView.mm:
+        (-[TestWKWebView waitForNextPresentationUpdate]):
+
+        Add a new helper method to spin until the next presentation update.
+
+        * TestWebKitAPI/mac/WebKitAgnosticTest.h:
+        * TestWebKitAPI/mac/WebKitAgnosticTest.mm:
+        (TestWebKitAPI::WebKitAgnosticTest::waitForNextPresentationUpdate):
+
+2017-08-22  Alex Christensen  <achristensen@webkit.org>
+
+        Add UIDelegatePrivate SPI corresponding to WKPageUIClient.showPage
+        https://bugs.webkit.org/show_bug.cgi?id=175797
+        <rdar://problem/29270035>
+
+        Reviewed by Geoffrey Garen.
+
+        * TestWebKitAPI/TestWebKitAPI.xcodeproj/project.pbxproj:
+        * TestWebKitAPI/Tests/WebKit2Cocoa/UIDelegate.mm: Added.
+        (-[UITestDelegate webView:createWebViewWithConfiguration:forNavigationAction:windowFeatures:]):
+        (-[UITestDelegate _showPage:]):
+        (-[UITestDelegate webView:startURLSchemeTask:]):
+        (-[UITestDelegate webView:stopURLSchemeTask:]):
+        (TEST):
+
+2017-08-22  Devin Rousso  <webkit@devinrousso.com>
+
+        Unreviewed, change my IRC nick.
+
+        * Scripts/webkitpy/common/config/contributors.json:
+
+2017-08-22  Matt Lewis  <jlewis3@apple.com>
+
+        Unreviewed, rolling out r221026.
+
+        This caused a consistent API failure on iOS Simulator.
+
+        Reverted changeset:
+
+        "Add UIDelegatePrivate SPI corresponding to
+        WKPageUIClient.showPage"
+        https://bugs.webkit.org/show_bug.cgi?id=175797
+        http://trac.webkit.org/changeset/221026
+
+2017-08-22  Alex Christensen  <achristensen@webkit.org>
+
+        Add UIDelegatePrivate SPI corresponding to WKPageUIClient.showPage
+        https://bugs.webkit.org/show_bug.cgi?id=175797
+        <rdar://problem/29270035>
+
+        Reviewed by Geoffrey Garen.
+
+        * TestWebKitAPI/TestWebKitAPI.xcodeproj/project.pbxproj:
+        * TestWebKitAPI/Tests/WebKit2Cocoa/UIDelegate.mm: Added.
+        (-[UITestDelegate webView:createWebViewWithConfiguration:forNavigationAction:windowFeatures:]):
+        (-[UITestDelegate _showPage:]):
+        (-[UITestDelegate webView:startURLSchemeTask:]):
+        (-[UITestDelegate webView:stopURLSchemeTask:]):
+        (TEST):
+
+2017-08-22  Jonathan Bedard  <jbedard@apple.com>
+
+        Fix leak-checking for iOS Simulators
+        https://bugs.webkit.org/show_bug.cgi?id=175735
+
+        Reviewed by David Kilzer.
+
+        Follow-up fix to r220942. _proc may be undefined.
+
+        * Scripts/webkitpy/port/server_process.py:
+        (ServerProcess._wait_for_stop): Handle case where _proc is undefined.
+
+2017-08-22  Carlos Alberto Lopez Perez  <clopez@igalia.com>
+
+        [GTK][WPE] install-dependencies should install the required gstreamer packages needed for production builds.
+        https://bugs.webkit.org/show_bug.cgi?id=175822
+
+        Reviewed by Xabier Rodriguez-Calvar.
+
+        * gtk/install-dependencies: Add the bad plugins to the list.
+        * wpe/install-dependencies: Add all the gst related packages (copied from GTK listing).
+
+2017-08-21  Myles C. Maxfield  <mmaxfield@apple.com>
+
+        DataInteractionTests.ExternalSourceAttributedStringToContentEditable hits a debug assertion
+        https://bugs.webkit.org/show_bug.cgi?id=175787
+        <rdar://problem/33996612>
+
+        Reviewed by Wenson Hsieh.
+
+        * TestWebKitAPI/Tests/ios/DataInteractionTests.mm:
+        (TestWebKitAPI::TEST):
+
+2017-08-21  Myles C. Maxfield  <mmaxfield@apple.com>
+
+        Typo in "webkit-patch land"
+        https://bugs.webkit.org/show_bug.cgi?id=175788
+
+        Reviewed by Tim Horton.
+
+        * Scripts/webkitpy/tool/steps/commit.py:
+        (Commit._commit_warning):
+
+2017-08-20  Sam Weinig  <sam@webkit.org>
+
+        StringView could use a function to strip leading/trailing characters without allocation
+        https://bugs.webkit.org/show_bug.cgi?id=175757
+
+        Reviewed by Darin Adler.
+
+        * TestWebKitAPI/Tests/WTF/StringView.cpp:
+        Add tests for StringView::stripLeadingAndTrailingMatchedCharacters().
+
+2017-08-21  Yoshiaki Jitsukawa  <Yoshiaki.Jitsukawa@sony.com>
+
+        [PAL] Move spi/mac directory into PAL
+        https://bugs.webkit.org/show_bug.cgi?id=175649
+
+        Reviewed by Myles C. Maxfield.
+
+        * TestWebKitAPI/Tests/mac/MenuTypesForMouseEvents.mm:
+
+2017-08-21  Per Arne Vollan  <pvollan@apple.com>
+
+        [Win] DRT should only allow any https certificate for localhost.
+        https://bugs.webkit.org/show_bug.cgi?id=175147
+
+        Reviewed by Brent Fulgham.
+
+        Add check to make sure only localhost requests allow any https certificate.
+
+        * DumpRenderTree/win/DumpRenderTree.cpp:
+        (runTest):
+
+2017-08-21  Eric Carlson  <eric.carlson@apple.com>
+
+        Add WTFLogChannel level to allow runtime log filtering
+        https://bugs.webkit.org/show_bug.cgi?id=175731
+        <rdar://problem/33967234>
+
+        Unreviewed build fix.
+
+        * TestWebKitAPI/Tests/WebCore/Logging.cpp:
+        (TestWebKitAPI::LoggingTest::output): Disable testing output by default because it 
+        fails on some of the bots.
+
+2017-08-21  Eric Carlson  <eric.carlson@apple.com>
+
+        Add WTFLogChannel level to allow runtime log filtering
+        https://bugs.webkit.org/show_bug.cgi?id=175731
+        <rdar://problem/33967234>
+
+        Reviewed by Jer Noble.
+
+        * TestWebKitAPI/TestWebKitAPI.xcodeproj/project.pbxproj:
+        * TestWebKitAPI/Tests/WebCore/Logging.cpp: Added.
+        (TestWebKitAPI::LoggingTest::output):
+        (TestWebKitAPI::TEST_F):
+
+2017-08-19  Wenson Hsieh  <wenson_hsieh@apple.com>
+
+        [iOS WK2] Add a version of DataInteractionTests.ExternalSourceAttributedStringToContentEditable that doesn't hit a debug assertion
+        https://bugs.webkit.org/show_bug.cgi?id=175509
+        <rdar://problem/33728169>
+
+        Reviewed by Ryosuke Niwa.
+
+        Removes ExternalSourceAttributedStringToContentEditable and adds
+        ExternalSourceColoredAttributedStringToContentEditable, which tests dropping an attributed string with colored
+        text instead of a bold attributed string of system font. Due to a recent change in behavior in UIKit, the
+        original test (which this patch renames to ExternalSourceBoldSystemAttributedStringToContentEditable) hits a
+        debug assertion when dropping text of system bold font. Since the original intent of this test was to verify
+        that the attributed string UTI can be accepted in richly contenteditable areas, it suffices to check that some
+        other style attribute, such as color, carries over from the NSAttributedString to the DOM.
+
+        Also marks ExternalSourceBoldSystemAttributedStringToContentEditable as disabled for the time being.
+
+        * TestWebKitAPI/Tests/ios/DataInteractionTests.mm:
+        (TestWebKitAPI::TEST):
+
 2017-08-18  Ryan Haddad  <ryanhaddad@apple.com>
 
         Unreviewed, rolling out r220938.

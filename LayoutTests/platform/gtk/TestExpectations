@@ -154,12 +154,7 @@ svg/custom/image-with-prefix-in-webarchive.svg [ WontFix ]
 media/video-does-not-loop.html [ WontFix Timeout ]
 
 # Requires media engine closed caption support.
-media/media-captions.html [ WontFix Timeout Failure Crash ]
-
-# Legacy full screen API tests are now obsolete.
-# This passes while it's marked as a WontFix - check it.
-media/media-fullscreen-inline.html [ WontFix Crash Pass ]
-media/media-fullscreen-not-in-document.html [ WontFix Timeout Crash ]
+media/media-captions.html [ WontFix Failure ]
 
 # Features that we want eventually:
 # DeviceMotion and DeviceOrientation are not enabled by default.
@@ -1241,9 +1236,6 @@ webkit.org/b/104684 fast/xmlhttprequest/xmlhttprequest-recursive-sync-event.html
 
 webkit.org/b/105689 [ Debug ] plugins/npruntime/embed-property-iframe-equality.html [ Crash ]
 
-webkit.org/b/108682 [ Debug ] media/video-controls-visible-exiting-fullscreen.html [ Crash Pass ]
-webkit.org/b/108682 [ Debug ] media/video-src.html [ Crash Pass ] 
-
 webkit.org/b/108927 http/tests/xmlhttprequest/workers/xmlhttprequest-file-not-found.html [ Crash Pass ]
 
 webkit.org/b/110695 http/tests/security/cross-origin-local-storage-allowed.html [ Crash Pass ]
@@ -1280,10 +1272,6 @@ webkit.org/b/105870 [ Debug ] webaudio/audionode-connect-order.html [ Crash ]
 
 webkit.org/b/135050 animations/animation-end-event-short-iterations.html [ Crash Pass ]
 
-webkit.org/b/135051 fast/regions/repaint/region-painting-composited-element.html [ Crash Pass ]
-webkit.org/b/135051 fast/regions/repaint/region-painting-in-composited-view.html [ Crash Pass ]
-webkit.org/b/135051 fast/regions/repaint/region-painting-invalidation.html [ Crash Pass ]
-
 webkit.org/b/129050 fast/sub-pixel/compositing-layers-on-subpixel-position.html [ ImageOnlyFailure Crash Pass ]
 
 webkit.org/b/152043 [ Debug ] http/tests/media/hls [ Timeout Crash ]
@@ -1304,7 +1292,7 @@ webkit.org/b/167576 imported/w3c/IndexedDB-private-browsing/idbcursor_iterating.
 webkit.org/b/167576 imported/w3c/IndexedDB-private-browsing/idbcursor_iterating_index.html [ Crash Timeout ]
 webkit.org/b/167576 storage/indexeddb/modern/index-3-private.html [ Crash ]
 
-webkit.org/b/169811 fast/mediastream/captureStream/canvas2d-heavy-drawing.html [ Crash ]
+webkit.org/b/169811 fast/mediastream/captureStream/canvas2d-heavy-drawing.html [ Crash Pass Failure ]
 webkit.org/b/169811 fast/mediastream/captureStream/canvas2d.html [ Crash ]
 webkit.org/b/169811 fast/mediastream/captureStream/canvas3d.html [ Crash Timeout ]
 
@@ -1319,6 +1307,12 @@ webkit.org/b/172955 media/video-preload.html [ Crash Pass ]
 webkit.org/b/173916 webaudio/silent-audio-interrupted-in-background.html [ Skip ]
 
 webkit.org/b/175577 fast/css/tagname-and-namespace-case-sensitivity-xml-in-html.html [ Crash Pass ]
+
+webkit.org/b/175874 imported/w3c/web-platform-tests/service-workers/cache-storage/window/cache-match.https.html [ Crash ]
+webkit.org/b/175874 imported/w3c/web-platform-tests/service-workers/cache-storage/worker/cache-match.https.html [ Crash ]
+
+webkit.org/b/175875 imported/w3c/web-platform-tests/service-workers/cache-storage/window/cache-storage-match.https.html [ Crash ]
+webkit.org/b/175875 imported/w3c/web-platform-tests/service-workers/cache-storage/worker/cache-storage-match.https.html [ Crash ]
 
 #////////////////////////////////////////////////////////////////////////////////////////
 # End of Crashing tests
@@ -1886,6 +1880,8 @@ webkit.org/b/174353 media/video-restricted-invisible-autoplay-not-allowed.html [
 
 webkit.org/b/174354 imported/w3c/IndexedDB-private-browsing/idbfactory_open.html [ Crash Pass ]
 
+webkit.org/b/175933 media/audio-controls-timeline-in-media-document.html [ Pass Failure ]
+
 #////////////////////////////////////////////////////////////////////////////////////////
 # End of Flaky tests
 #////////////////////////////////////////////////////////////////////////////////////////
@@ -2124,9 +2120,6 @@ webkit.org/b/143990 media/track/track-disabled-addcue.html [ Timeout Pass ]
 webkit.org/b/143990 media/track/track-disabled.html [ Timeout Pass ]
 
 webkit.org/b/130971 media/track/track-remove-track.html [ Timeout ]
-
-# After webkit.org/b/123097 we flag these tests that also fail in mac
-webkit.org/b/123097 media/video-controls-toggling.html [ Timeout ]
 
 webkit.org/b/145053 http/tests/xmlhttprequest/origin-exact-matching.html [ Timeout Pass ]
 
@@ -2758,20 +2751,11 @@ webkit.org/b/103926 media/track/opera/idl/media-idl-tests.html [ Skip ]
 webkit.org/b/103926 media/track/opera/interfaces/HTMLElement/HTMLMediaElement/crossOrigin.html [ Skip ]
 webkit.org/b/103926 media/track/opera/interfaces/HTMLElement/HTMLTrackElement/kind.html [ Skip ]
 webkit.org/b/103926 media/track/opera/interfaces/HTMLElement/HTMLTrackElement/src.html [ Skip ]
-webkit.org/b/103926 media/track/opera/interfaces/TextTrack/activeCues.html [ Skip ]
-webkit.org/b/103926 media/track/opera/interfaces/TrackEvent/constructor.html [ Skip ]
-webkit.org/b/103926 media/track/opera/interfaces/TrackEvent/createEvent.html [ Skip ]
 webkit.org/b/103926 media/track/opera/interfaces/TextTrackCue/getCueAsHTML.html [ Skip ]
 webkit.org/b/103926 media/track/opera/interfaces/TextTrackCue/line.html [ Skip ]
-webkit.org/b/103926 media/track/opera/interfaces/TextTrackCue/onenter.html [ Skip ]
-webkit.org/b/103926 media/track/opera/interfaces/TextTrackCue/onexit.html [ Skip ]
 webkit.org/b/103926 media/track/opera/interfaces/TextTrackCue/snapToLines.html [ Skip ]
 webkit.org/b/103926 media/track/opera/interfaces/TextTrackCue/text.html [ Skip ]
 webkit.org/b/103926 media/track/opera/interfaces/TextTrackCue/vertical.html [ Skip ]
-webkit.org/b/103926 media/track/opera/interfaces/TextTrackCueList/getter.html [ Skip ]
-webkit.org/b/103926 media/track/opera/interfaces/TextTrackList/getter.html [ Skip ]
-webkit.org/b/103926 media/track/opera/track/track-element/cloneNode.html [ Skip ]
-webkit.org/b/103926 media/track/opera/track/track-element/src-clear-cues.html [ Skip ]
 webkit.org/b/103926 media/track/opera/track/webvtt/parsing/001.html [ Skip ]
 webkit.org/b/103926 media/track/opera/track/webvtt/parsing-cue-data/tests/entities.html [ Skip ] 
 webkit.org/b/103926 media/track/opera/track/webvtt/parsing-cue-data/tests/tags.html [ Skip ]
@@ -3383,6 +3367,10 @@ webkit.org/b/175582 imported/w3c/web-platform-tests/WebCryptoAPI/generateKey/suc
 
 webkit.org/b/175586 imported/w3c/web-platform-tests/XMLHttpRequest/send-network-error-sync-events.sub.htm [ Failure ]
 
+webkit.org/b/175931 fast/canvas/webgl/no-info-log-for-simple-shaders.html [ Failure ]
+
+webkit.org/b/175932 http/tests/media/hls/video-cookie.html [ Failure ]
+
 #////////////////////////////////////////////////////////////////////////////////////////
 # End of non-crashing, non-flaky tests failing
 #////////////////////////////////////////////////////////////////////////////////////////
@@ -3496,25 +3484,7 @@ webkit.org/b/160119 imported/blink/transforms/inline-transform-and-clipping-root
 webkit.org/b/160119 imported/w3c/web-platform-tests/html/semantics/embedded-content/media-elements/event_canplay.html [ Timeout Pass ]
 webkit.org/b/160119 imported/w3c/web-platform-tests/html/semantics/embedded-content/media-elements/event_progress.html [ Timeout Crash Pass ]
 
-webkit.org/b/160119 media/broken-video.html [ Crash Pass ]
 webkit.org/b/160119 media/click-volume-bar-not-pausing.html [ Timeout Failure Pass ]
-webkit.org/b/160119 media/media-can-load-when-hidden.html [ Timeout Pass ]
-webkit.org/b/160119 media/media-captions-no-controls.html [ Timeout Pass ]
-webkit.org/b/160119 media/media-continues-playing-after-replace-source.html [ Timeout Pass ]
-webkit.org/b/160119 media/media-controller-drag-crash.html [ Timeout Pass ]
-webkit.org/b/160119 media/media-controller-time.html [ Timeout Pass ]
-webkit.org/b/160119 media/media-controller-time-constant.html [ Timeout Pass ]
-webkit.org/b/160119 media/media-controller-timeupdate.html [ Timeout Pass ]
-webkit.org/b/160119 media/media-controller-unpause.html [ Timeout Pass ]
-webkit.org/b/160119 media/video-playbackrate.html [ Crash Pass ]
-webkit.org/b/160119 media/video-poster.html [ Crash Pass ]
-webkit.org/b/160119 media/webkit-media-controls-display.html [ Crash Pass ]
-
-webkit.org/b/160119 media/track/audio/audio-track-mkv-vorbis-enabled.html [ Crash Pass ]
-
-webkit.org/b/160119 media/track/track-cues-seeking.html [ Timeout Pass ]
-webkit.org/b/160119 media/track/track-cues-sorted-before-dispatch.html [ Timeout Pass ]
-webkit.org/b/160119 media/track/track-delete-during-setup.html [ Timeout Pass ]
 
 # This one has its own bug because the crashes were preexisting; only the
 # timeout is caused by the switch to threaded compositor.

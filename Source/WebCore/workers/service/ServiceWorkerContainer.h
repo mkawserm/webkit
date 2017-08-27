@@ -30,6 +30,7 @@
 #include "ActiveDOMObject.h"
 #include "DOMPromiseProxy.h"
 #include "EventTarget.h"
+#include "SWClientConnection.h"
 #include "SWServer.h"
 #include "ServiceWorkerJobClient.h"
 #include "ServiceWorkerRegistration.h"
@@ -70,6 +71,7 @@ public:
 private:
     void scheduleJob(Ref<ServiceWorkerJob>&&);
     void jobDidFinish(ServiceWorkerJob&) final;
+    uint64_t connectionIdentifier() final;
 
     const char* activeDOMObjectName() const final;
     bool canSuspendForDocumentSuspension() const final;
@@ -82,7 +84,7 @@ private:
 
     NavigatorBase& m_navigator;
 
-    RefPtr<SWServer::Connection> m_serverConnection;
+    RefPtr<SWClientConnection> m_swConnection;
     HashMap<uint64_t, RefPtr<ServiceWorkerJob>> m_jobMap;
 
 #ifndef NDEBUG

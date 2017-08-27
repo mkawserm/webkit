@@ -576,7 +576,7 @@ public:
     void prepareForDestruction();
 
     // Override ScriptExecutionContext methods to do additional work
-    bool shouldBypassMainWorldContentSecurityPolicy() const final;
+    WEBCORE_EXPORT bool shouldBypassMainWorldContentSecurityPolicy() const final;
     void suspendActiveDOMObjects(ActiveDOMObject::ReasonForSuspension) final;
     void resumeActiveDOMObjects(ActiveDOMObject::ReasonForSuspension) final;
     void stopActiveDOMObjects() final;
@@ -1273,7 +1273,7 @@ public:
     WEBCORE_EXPORT void addAudioProducer(MediaProducer*);
     WEBCORE_EXPORT void removeAudioProducer(MediaProducer*);
     MediaProducer::MediaStateFlags mediaState() const { return m_mediaState; }
-    void noteUserInteractionWithMediaElement() { m_userHasInteractedWithMediaElement = true; }
+    void noteUserInteractionWithMediaElement();
     bool isCapturing() const { return MediaProducer::isCapturing(m_mediaState); }
     WEBCORE_EXPORT void updateIsPlayingMedia(uint64_t = HTMLMediaElementInvalidID);
     void pageMutedStateDidChange();

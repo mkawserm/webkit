@@ -29,19 +29,10 @@
 #if ENABLE(SUBTLE_CRYPTO)
 
 #include "CryptoAlgorithmRegistry.h"
-#include "CryptoKeyData.h"
 #include "JsonWebKey.h"
 #include <wtf/text/Base64.h>
 
 namespace WebCore {
-
-CryptoEcKeyAlgorithm EcKeyAlgorithm::dictionary() const
-{
-    CryptoEcKeyAlgorithm result;
-    result.name = this->name();
-    result.namedCurve = this->namedCurve();
-    return result;
-}
 
 static const char* const P256 = "P-256";
 static const char* const P384 = "P-384";
@@ -208,24 +199,21 @@ bool CryptoKeyEC::isValidECAlgorithm(CryptoAlgorithmIdentifier algorithm)
     return algorithm == CryptoAlgorithmIdentifier::ECDSA || algorithm == CryptoAlgorithmIdentifier::ECDH;
 }
 
-std::unique_ptr<KeyAlgorithm> CryptoKeyEC::buildAlgorithm() const
+auto CryptoKeyEC::algorithm() const -> KeyAlgorithm
 {
-    String name = CryptoAlgorithmRegistry::singleton().name(algorithmIdentifier());
+    CryptoEcKeyAlgorithm result;
+    result.name = CryptoAlgorithmRegistry::singleton().name(algorithmIdentifier());
+
     switch (m_curve) {
     case NamedCurve::P256:
-        return std::make_unique<EcKeyAlgorithm>(name, String(P256));
+        result.namedCurve = ASCIILiteral(P256);
+        break;
     case NamedCurve::P384:
-        return std::make_unique<EcKeyAlgorithm>(name, String(P384));
+        result.namedCurve = ASCIILiteral(P384);
+        break;
     }
 
-    ASSERT_NOT_REACHED();
-    return nullptr;
-}
-
-std::unique_ptr<CryptoKeyData> CryptoKeyEC::exportData() const
-{
-    // A dummy implementation for now.
-    return std::make_unique<CryptoKeyData>(CryptoKeyData::Format::OctetSequence);
+    return result;
 }
 
 } // namespace WebCore

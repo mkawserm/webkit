@@ -1,3 +1,144 @@
+2017-08-27  Devin Rousso  <webkit@devinrousso.com>
+
+        Web Inspector: Record actions performed on WebGLRenderingContext
+        https://bugs.webkit.org/show_bug.cgi?id=174483
+        <rdar://problem/34040722>
+
+        Reviewed by Matt Baker.
+
+        * UserInterface/Models/Recording.js:
+        (WI.Recording):
+        (WI.Recording.fromPayload):
+        (WI.Recording.prototype.swizzle):
+        Add swizzle types for WebGL parameters.
+
+        * UserInterface/Models/RecordingAction.js:
+        (WI.RecordingAction):
+        (WI.RecordingAction.fromPayload):
+        (WI.RecordingAction.prototype.get snapshot):
+        (WI.RecordingAction.prototype.swizzle):
+        (WI.RecordingAction.prototype.toJSON):
+        Include an optional fourth parameter `snapshot` that will be sent for visual actions when
+        recording WebGL canvas contexts.
+
+        * UserInterface/Views/RecordingContentView.js:
+        (WI.RecordingContentView):
+        (WI.RecordingContentView.prototype.get navigationItems):
+        (WI.RecordingContentView.prototype.updateActionIndex):
+        (WI.RecordingContentView.prototype.shown):
+        (WI.RecordingContentView.prototype._generateContentCanvasWebGL):
+        * UserInterface/Views/RecordingContentView.css:
+        (.content-view:not(.tab).recording :matches(img, canvas)):
+        (.content-view:not(.tab).recording canvas): Deleted.
+        Instead of regenerating the canvas context in the WebInspector frontend, just display the
+        snapshot image for the last visual action.
+
+        * UserInterface/Views/CanvasContentView.js:
+        (WI.CanvasContentView):
+
+        * UserInterface/Views/RecordingActionTreeElement.js:
+        (WI.RecordingActionTreeElement._generateDOM):
+
+2017-08-24  Devin Rousso  <webkit@devinrousso.com>
+
+        Web Inspector: add filter for draw actions in Recordings
+        https://bugs.webkit.org/show_bug.cgi?id=175448
+        <rdar://problem/34040764>
+
+        Reviewed by Matt Baker.
+
+        * Localizations/en.lproj/localizedStrings.js:
+        
+        * UserInterface/Views/RecordingNavigationSidebarPanel.js:
+        (WI.RecordingNavigationSidebarPanel.prototype.initialLayout):
+        (WI.RecordingNavigationSidebarPanel.prototype.matchTreeElementAgainstCustomFilters):
+        Add button to filter visual actions.
+        Drive-by fix: ensure that frame folders are still visible when filtering.
+
+        * UserInterface/Images/Paint.svg: Renamed from Source/WebInspectorUI/UserInterface/Images/PaintFlashing.svg.
+        * UserInterface/Images/gtk/Paint.svg: Renamed from Source/WebInspectorUI/UserInterface/Images/gtk/PaintFlashing.svg.
+        * UserInterface/Views/DOMTreeContentView.js:
+        (WI.DOMTreeContentView):
+        Rename PaintFlashing.svg to Paint.svg.
+
+2017-08-24  Ross Kirsling  <ross.kirsling@sony.com>
+
+        Web Inspector: Create experimental Layers tab
+        https://bugs.webkit.org/show_bug.cgi?id=175728
+
+        Reviewed by Devin Rousso.
+
+        * Localizations/en.lproj/localizedStrings.js:
+        * UserInterface/Base/Main.js:
+        * UserInterface/Base/Setting.js:
+        * UserInterface/Images/Layers.svg: Added.
+        * UserInterface/Main.html:
+        * UserInterface/Views/Layers3DContentView.js: Added.
+        * UserInterface/Views/LayersTabContentView.js: Added.
+        * UserInterface/Views/SettingsTabContentView.js:
+
+2017-08-24  Devin Rousso  <webkit@devinrousso.com>
+
+        Web Inspector: Table grid shouldn't show behind empty state
+        https://bugs.webkit.org/show_bug.cgi?id=175943
+
+        Reviewed by Brian Burg.
+
+        * UserInterface/Views/RecordingNavigationSidebarPanel.css:
+        (.sidebar > .panel.navigation.recording > .content > .tree-outline):
+        (.sidebar > .panel.navigation.recording > .content > .tree-outline:not(:empty)):
+        Only apply the background when the TreeOutline has children.
+
+2017-08-23  Nikita Vasilyev  <nvasilyev@apple.com>
+
+        Web Inspector: Make lock icon crispier
+        https://bugs.webkit.org/show_bug.cgi?id=175868
+
+        Reviewed by Matt Baker.
+
+        * UserInterface/Images/Locked.svg:
+
+2017-08-22  Devin Rousso  <webkit@devinrousso.com>
+
+        Web Inspector: provide way for ShaderPrograms to be enabled/disabled
+        https://bugs.webkit.org/show_bug.cgi?id=175400
+
+        Reviewed by Matt Baker.
+
+        Adds a status element to ShaderProgramTreeElement that, when clicked, will toggle the
+        disabled state of the corresponding ShaderProgram. Disabled shader programs will not draw
+        anything to the context.
+
+        * Localizations/en.lproj/localizedStrings.js:
+        * UserInterface/Main.html:
+
+        * UserInterface/Models/ShaderProgram.js:
+        (WI.ShaderProgram):
+        (WI.ShaderProgram.prototype.get disabled):
+        (WI.ShaderProgram.prototype.toggleDisabled):
+
+        * UserInterface/Views/ShaderProgramTreeElement.js:
+        (WI.ShaderProgramTreeElement):
+        (WI.ShaderProgramTreeElement.prototype.selectOnMouseDown):
+        (WI.ShaderProgramTreeElement.prototype._disabledImageElementClicked):
+        * UserInterface/Views/ShaderProgramTreeElement.css: Added.
+        (.item.shader-program .status > img):
+        (.item.shader-program:not(:hover, .selected, .disabled) .status > img):
+        (.tree-outline:matches(:focus, .force-focus) .item.shader-program.selected .status > img):
+        (.item.shader-program.disabled > *):
+
+2017-08-21  Devin Rousso  <webkit@devinrousso.com>
+
+        Web Inspector: Can't copy text from "View variable value" popover in Styles sidebar
+        https://bugs.webkit.org/show_bug.cgi?id=175758
+
+        Reviewed by Matt Baker.
+
+        * UserInterface/Views/InlineSwatch.js:
+        (WI.InlineSwatch.prototype._swatchElementClicked):
+        Change CodeMirror readOnly from "nocursor" to true. The former prevents the editor from
+        being focused during selection, therefore preventing the content from being copied.
+
 2017-08-17  Matt Baker  <mattbaker@apple.com>
 
         Web Inspector: create better icon for Canvas Path navigation item

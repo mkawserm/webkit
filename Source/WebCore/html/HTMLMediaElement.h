@@ -636,8 +636,13 @@ private:
 #endif
 
 #if ENABLE(ENCRYPTED_MEDIA)
+    void mediaPlayerInitializationDataEncountered(const String&, RefPtr<ArrayBuffer>&&) final;
+
+    void attemptToDecrypt();
+    void attemptToResumePlaybackIfNecessary();
+
     // CDMClient
-    void cdmClientAttemptToResumePlaybackIfNecessary() override;
+    void cdmClientAttemptToResumePlaybackIfNecessary() final;
 #endif
     
 #if ENABLE(WIRELESS_PLAYBACK_TARGET)
@@ -898,6 +903,7 @@ private:
     GenericTaskQueue<Timer> m_updatePlaybackControlsManagerQueue;
     GenericTaskQueue<Timer> m_playbackControlsManagerBehaviorRestrictionsQueue;
     GenericTaskQueue<Timer> m_resourceSelectionTaskQueue;
+    GenericTaskQueue<Timer> m_visibilityChangeTaskQueue;
     RefPtr<TimeRanges> m_playedTimeRanges;
     GenericEventQueue m_asyncEventQueue;
 
@@ -1090,6 +1096,11 @@ private:
 
 #if ENABLE(LEGACY_ENCRYPTED_MEDIA)
     RefPtr<WebKitMediaKeys> m_webKitMediaKeys;
+#endif
+#if ENABLE(ENCRYPTED_MEDIA)
+    RefPtr<MediaKeys> m_mediaKeys;
+    bool m_attachingMediaKeys { false };
+    GenericTaskQueue<Timer> m_encryptedMediaQueue;
 #endif
 
     std::unique_ptr<MediaElementSession> m_mediaSession;

@@ -101,17 +101,34 @@ bool DataTransfer::canWriteData() const
     return m_storeMode == StoreMode::ReadWrite;
 }
 
+static String normalizeType(const String& type)
+{
+    if (type.isNull())
+        return type;
+
+    String lowercaseType = type.stripWhiteSpace().convertToASCIILowercase();
+    if (lowercaseType == "text" || lowercaseType.startsWithIgnoringASCIICase("text/plain;"))
+        return "text/plain";
+    if (lowercaseType == "url" || lowercaseType.startsWithIgnoringASCIICase("text/uri-list;"))
+        return "text/uri-list";
+    if (lowercaseType.startsWithIgnoringASCIICase("text/html;"))
+        return "text/html";
+
+    return lowercaseType;
+}
+
 void DataTransfer::clearData(const String& type)
 {
     if (!canWriteData())
         return;
 
-    if (type.isNull())
+    String normalizedType = normalizeType(type);
+    if (normalizedType.isNull())
         m_pasteboard->clear();
     else
-        m_pasteboard->clear(type);
+        m_pasteboard->clear(normalizedType);
     if (m_itemList)
-        m_itemList->didClearStringData(type);
+        m_itemList->didClearStringData(normalizedType);
 }
 
 String DataTransfer::getData(const String& type) const
@@ -124,7 +141,7 @@ String DataTransfer::getData(const String& type) const
         return String();
 #endif
 
-    return m_pasteboard->readString(type);
+    return m_pasteboard->readString(normalizeType(type));
 }
 
 void DataTransfer::setData(const String& type, const String& data)
@@ -137,9 +154,10 @@ void DataTransfer::setData(const String& type, const String& data)
         return;
 #endif
 
-    m_pasteboard->writeString(type, data);
+    String normalizedType = normalizeType(type);
+    m_pasteboard->writeString(normalizedType, data);
     if (m_itemList)
-        m_itemList->didSetStringData(type);
+        m_itemList->didSetStringData(normalizedType);
 }
 
 DataTransferItemList& DataTransfer::items()
@@ -246,18 +264,9 @@ Ref<DataTransfer> DataTransfer::createForDrop(StoreMode accessMode, const DragDa
     return adoptRef(*new DataTransfer(accessMode, Pasteboard::createForDragAndDrop(dragData), type));
 }
 
-bool DataTransfer::canSetDragImage() const
-{
-    // Note that the spec doesn't actually allow drag image modification outside the dragstart
-    // event. This capability is maintained for backwards compatiblity for ports that have
-    // supported this in the past. On many ports, attempting to set a drag image outside the
-    // dragstart operation is a no-op anyway.
-    return m_forDrag && (m_storeMode == StoreMode::DragImageWritable || m_storeMode == StoreMode::ReadWrite);
-}
-
 void DataTransfer::setDragImage(Element* element, int x, int y)
 {
-    if (!canSetDragImage())
+    if (!m_forDrag || !canWriteData())
         return;
 
     CachedImage* image = nullptr;

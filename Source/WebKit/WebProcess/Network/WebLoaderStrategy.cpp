@@ -33,6 +33,7 @@
 #include "NetworkProcessConnection.h"
 #include "NetworkResourceLoadParameters.h"
 #include "SessionTracker.h"
+#include "WebCompiledContentRuleList.h"
 #include "WebCoreArgumentCoders.h"
 #include "WebErrors.h"
 #include "WebFrame.h"
@@ -61,6 +62,7 @@
 #include <WebCore/SecurityOrigin.h>
 #include <WebCore/Settings.h>
 #include <WebCore/SubresourceLoader.h>
+#include <WebCore/UserContentProvider.h>
 #include <pal/SessionID.h>
 #include <wtf/text/CString.h>
 
@@ -396,10 +398,11 @@ static uint64_t generatePingLoadIdentifier()
     return ++identifier;
 }
 
-void WebLoaderStrategy::startPingLoad(NetworkingContext* networkingContext, ResourceRequest& request, const HTTPHeaderMap& originalRequestHeaders, Ref<SecurityOrigin>&& sourceOrigin, ContentSecurityPolicy* contentSecurityPolicy, const FetchOptions& options, PingLoadCompletionHandler&& completionHandler)
+void WebLoaderStrategy::startPingLoad(Frame& frame, ResourceRequest& request, const HTTPHeaderMap& originalRequestHeaders, const FetchOptions& options, PingLoadCompletionHandler&& completionHandler)
 {
     // It's possible that call to createPingHandle might be made during initial empty Document creation before a NetworkingContext exists.
     // It is not clear that we should send ping loads during that process anyways.
+    auto* networkingContext = frame.loader().networkingContext();
     if (!networkingContext) {
         if (completionHandler)
             completionHandler(internalError(request.url()));
@@ -410,18 +413,39 @@ void WebLoaderStrategy::startPingLoad(NetworkingContext* networkingContext, Reso
     WebFrameLoaderClient* webFrameLoaderClient = webContext->webFrameLoaderClient();
     WebFrame* webFrame = webFrameLoaderClient ? webFrameLoaderClient->webFrame() : nullptr;
     WebPage* webPage = webFrame ? webFrame->page() : nullptr;
+
+    auto* document = frame.document();
+    if (!document) {
+        if (completionHandler)
+            completionHandler(internalError(request.url()));
+        return;
+    }
     
     NetworkResourceLoadParameters loadParameters;
     loadParameters.identifier = generatePingLoadIdentifier();
     loadParameters.request = request;
-    loadParameters.sourceOrigin = WTFMove(sourceOrigin);
+    loadParameters.sourceOrigin = &document->securityOrigin();
     loadParameters.sessionID = webPage ? webPage->sessionID() : PAL::SessionID::defaultSessionID();
     loadParameters.allowStoredCredentials = options.credentials == FetchOptions::Credentials::Omit ? DoNotAllowStoredCredentials : AllowStoredCredentials;
     loadParameters.mode = options.mode;
     loadParameters.shouldFollowRedirects = options.redirect == FetchOptions::Redirect::Follow;
     loadParameters.shouldClearReferrerOnHTTPSToHTTPRedirect = networkingContext->shouldClearReferrerOnHTTPSToHTTPRedirect();
-    if (contentSecurityPolicy)
-        loadParameters.cspResponseHeaders = contentSecurityPolicy->responseHeaders();
+    if (!document->shouldBypassMainWorldContentSecurityPolicy()) {
+        if (auto * contentSecurityPolicy = document->contentSecurityPolicy())
+            loadParameters.cspResponseHeaders = contentSecurityPolicy->responseHeaders();
+    }
+
+#if ENABLE(CONTENT_EXTENSIONS)
+    loadParameters.mainDocumentURL = document->topDocument().url();
+
+    if (auto* documentLoader = frame.loader().documentLoader()) {
+        if (auto* page = frame.page()) {
+            page->userContentProvider().forEachContentExtension([&loadParameters](const String& identifier, ContentExtensions::ContentExtension& contentExtension) {
+                loadParameters.contentRuleLists.append(std::make_pair(identifier, static_cast<const WebCompiledContentRuleList&>(contentExtension.compiledExtension()).data()));
+            }, *documentLoader);
+        }
+    }
+#endif
 
     if (completionHandler)
         m_pingLoadCompletionHandlers.add(loadParameters.identifier, WTFMove(completionHandler));
@@ -437,9 +461,16 @@ void WebLoaderStrategy::didFinishPingLoad(uint64_t pingLoadIdentifier, ResourceE
 
 void WebLoaderStrategy::storeDerivedDataToCache(const SHA1::Digest& bodyHash, const String& type, const String& partition, WebCore::SharedBuffer& data)
 {
+#if ENABLE(NETWORK_CACHE)
     NetworkCache::DataKey key { partition, type, bodyHash };
     IPC::SharedBufferDataReference dataReference { &data };
     WebProcess::singleton().networkConnection().connection().send(Messages::NetworkConnectionToWebProcess::StoreDerivedDataToCache(key, dataReference), 0);
+#else
+    UNUSED_PARAM(bodyHash);
+    UNUSED_PARAM(type);
+    UNUSED_PARAM(partition);
+    UNUSED_PARAM(data);
+#endif
 }
 
 void WebLoaderStrategy::setCaptureExtraNetworkLoadMetricsEnabled(bool enabled)

@@ -479,9 +479,9 @@ public:
     void activateMediaStreamCaptureInPage();
     bool isMediaStreamCaptureMuted() const { return m_mutedState & WebCore::MediaProducer::CaptureDevicesAreMuted; }
     void setMediaStreamCaptureMuted(bool);
+    void executeEditCommand(const String& commandName, const String& argument, WTF::Function<void(CallbackBase::Error)>&&);
         
 #if PLATFORM(IOS)
-    void executeEditCommand(const String& commandName, WTF::Function<void (CallbackBase::Error)>&&);
     double displayedContentScale() const { return m_lastVisibleContentRectUpdate.scale(); }
     const WebCore::FloatRect& exposedContentRect() const { return m_lastVisibleContentRectUpdate.exposedContentRect(); }
     const WebCore::FloatRect& unobscuredContentRect() const { return m_lastVisibleContentRectUpdate.unobscuredContentRect(); }
@@ -950,8 +950,8 @@ public:
     void handleAlternativeTextUIResult(const String& result);
 #endif
 
-    void saveDataToFileInDownloadsFolder(const String& suggestedFilename, const String& mimeType, const String& originatingURLString, API::Data*);
-    void savePDFToFileInDownloadsFolder(const String& suggestedFilename, const String& originatingURLString, const IPC::DataReference&);
+    void saveDataToFileInDownloadsFolder(String&& suggestedFilename, String&& mimeType, WebCore::URL&& originatingURL, API::Data&);
+    void savePDFToFileInDownloadsFolder(String&& suggestedFilename, WebCore::URL&& originatingURL, const IPC::DataReference&);
 #if PLATFORM(COCOA)
     void savePDFToTemporaryFolderAndOpenWithNativeApplicationRaw(const String& suggestedFilename, const String& originatingURLString, const uint8_t* data, unsigned long size, const String& pdfUUID);
     void savePDFToTemporaryFolderAndOpenWithNativeApplication(const String& suggestedFilename, const String& originatingURLString, const IPC::DataReference&, const String& pdfUUID);
@@ -1200,6 +1200,7 @@ public:
 #if PLATFORM(COCOA)
     void createSandboxExtensionsIfNeeded(const Vector<String>& files, SandboxExtension::Handle& fileReadHandle, SandboxExtension::HandleArray& fileUploadHandles);
 #endif
+    void editorStateChanged(const EditorState&);
 
 private:
     WebPageProxy(PageClient&, WebProcessProxy&, uint64_t pageID, Ref<API::PageConfiguration>&&);
@@ -1363,7 +1364,6 @@ private:
     void didEndColorPicker() override;
 #endif
 
-    void editorStateChanged(const EditorState&);
     void compositionWasCanceled();
     void setHasHadSelectionChangesFromUserInteraction(bool);
     void setNeedsHiddenContentEditableQuirk(bool);

@@ -145,7 +145,8 @@ list(APPEND WebCorePlatformGTK_SOURCES
     editing/gtk/EditorGtk.cpp
 
     page/gtk/DragControllerGtk.cpp
-    page/gtk/EventHandlerGtk.cpp
+
+    platform/glib/EventHandlerGlib.cpp
 
     platform/graphics/PlatformDisplay.cpp
 
@@ -212,7 +213,6 @@ list(APPEND WebCore_LIBRARIES
     ${LIBXML2_LIBRARIES}
     ${LIBXSLT_LIBRARIES}
     ${HYPHEN_LIBRARIES}
-    ${SQLITE_LIBRARIES}
     ${X11_X11_LIB}
     ${X11_Xcomposite_LIB}
     ${X11_Xdamage_LIB}
@@ -235,7 +235,6 @@ list(APPEND WebCore_SYSTEM_INCLUDE_DIRECTORIES
     ${LIBTASN1_INCLUDE_DIRS}
     ${LIBXML2_INCLUDE_DIR}
     ${LIBXSLT_INCLUDE_DIR}
-    ${SQLITE_INCLUDE_DIR}
     ${ZLIB_INCLUDE_DIRS}
 )
 

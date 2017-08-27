@@ -21,6 +21,7 @@ set(WebCore_INCLUDE_DIRECTORIES
     "${WEBCORE_DIR}/Modules/credentials"
     "${WEBCORE_DIR}/Modules/encryptedmedia"
     "${WEBCORE_DIR}/Modules/encryptedmedia/legacy"
+    "${WEBCORE_DIR}/Modules/entriesapi"
     "${WEBCORE_DIR}/Modules/fetch"
     "${WEBCORE_DIR}/Modules/geolocation"
     "${WEBCORE_DIR}/Modules/indexeddb"
@@ -131,6 +132,7 @@ set(WebCore_INCLUDE_DIRECTORIES
 
 set(WebCore_SYSTEM_INCLUDE_DIRECTORIES
     ${ICU_INCLUDE_DIRS}
+    ${SQLITE_INCLUDE_DIRS}
 )
 
 set(WebCore_IDL_INCLUDES
@@ -151,6 +153,7 @@ set(WebCore_IDL_INCLUDES
     Modules/cache
     Modules/credentials
     Modules/encryptedmedia/legacy
+    Modules/entriesapi
     Modules/fetch
     Modules/geolocation
     Modules/indexeddb
@@ -196,6 +199,14 @@ set(WebCore_NON_SVG_IDL_FILES
     Modules/credentials/NavigatorCredentials.idl
     Modules/credentials/PasswordCredential.idl
     Modules/credentials/PasswordCredentialData.idl
+
+    Modules/entriesapi/DOMFileSystem.idl
+    Modules/entriesapi/ErrorCallback.idl
+    Modules/entriesapi/FileCallback.idl
+    Modules/entriesapi/FileSystemDirectoryEntry.idl
+    Modules/entriesapi/FileSystemEntry.idl
+    Modules/entriesapi/FileSystemEntryCallback.idl
+    Modules/entriesapi/FileSystemFileEntry.idl
 
     Modules/fetch/DOMWindowFetch.idl
     Modules/fetch/FetchBody.idl
@@ -897,6 +908,7 @@ set(WebCore_SOURCES
     Modules/cache/Cache.cpp
     Modules/cache/CacheStorage.cpp
     Modules/cache/CacheStorageConnection.cpp
+    Modules/cache/DOMCache.cpp
     Modules/cache/DOMWindowCaches.cpp
     Modules/cache/WorkerCacheStorageConnection.cpp
     Modules/cache/WorkerGlobalScopeCaches.cpp
@@ -906,6 +918,11 @@ set(WebCore_SOURCES
     Modules/credentials/FederatedCredential.cpp
     Modules/credentials/NavigatorCredentials.cpp
     Modules/credentials/PasswordCredential.cpp
+
+    Modules/entriesapi/DOMFileSystem.cpp
+    Modules/entriesapi/FileSystemDirectoryEntry.cpp
+    Modules/entriesapi/FileSystemEntry.cpp
+    Modules/entriesapi/FileSystemFileEntry.cpp
 
     Modules/fetch/DOMWindowFetch.cpp
     Modules/fetch/FetchBody.cpp
@@ -1334,11 +1351,10 @@ set(WebCore_SOURCES
     crypto/algorithms/CryptoAlgorithmSHA512.cpp
 
     crypto/keys/CryptoKeyAES.cpp
-    crypto/keys/CryptoKeyDataOctetSequence.cpp
-    crypto/keys/CryptoKeyDataRSAComponents.cpp
     crypto/keys/CryptoKeyEC.cpp
     crypto/keys/CryptoKeyHMAC.cpp
     crypto/keys/CryptoKeyRSA.cpp
+    crypto/keys/CryptoKeyRSAComponents.cpp
     crypto/keys/CryptoKeyRaw.cpp
 
     css/BasicShapeFunctions.cpp
@@ -1544,6 +1560,7 @@ set(WebCore_SOURCES
     dom/EventNames.cpp
     dom/EventPath.cpp
     dom/EventTarget.cpp
+    dom/ExceptionData.cpp
     dom/ExtensionStyleSheets.cpp
     dom/FocusEvent.cpp
     dom/GenericEventQueue.cpp
@@ -1738,6 +1755,7 @@ set(WebCore_SOURCES
     html/DateTimeLocalInputType.cpp
     html/EmailInputType.cpp
     html/FTPDirectoryDocument.cpp
+    html/FileListCreator.cpp
     html/FileInputType.cpp
     html/FormAssociatedElement.cpp
     html/FormController.cpp
@@ -2790,6 +2808,7 @@ set(WebCore_SOURCES
     style/RenderTreePosition.cpp
     style/RenderTreeUpdater.cpp
     style/RenderTreeUpdaterFirstLetter.cpp
+    style/RenderTreeUpdaterGeneratedContent.cpp
     style/RenderTreeUpdaterListItem.cpp
     style/StyleChange.cpp
     style/StyleFontSizeFunctions.cpp
@@ -2987,11 +3006,15 @@ set(WebCore_SOURCES
     workers/service/ServiceWorkerContainer.cpp
     workers/service/ServiceWorkerGlobalScope.cpp
     workers/service/ServiceWorkerJob.cpp
+    workers/service/ServiceWorkerJobData.cpp
     workers/service/ServiceWorkerProvider.cpp
     workers/service/ServiceWorkerRegistration.cpp
-    workers/service/ServiceWorkerRegistrationParameters.cpp
+    workers/service/ServiceWorkerRegistrationKey.cpp
+    workers/service/ServiceWorkerRegistrationOptions.cpp
 
+    workers/service/server/SWClientConnection.cpp
     workers/service/server/SWServer.cpp
+    workers/service/server/SWServerRegistration.cpp
 
     xml/DOMParser.cpp
     xml/NativeXPathNSResolver.cpp
@@ -3126,6 +3149,7 @@ set(WebCore_PLUG_INS_RESOURCES
 
 set(WebCore_LIBRARIES
     ${ICU_LIBRARIES}
+    ${SQLITE_LIBRARIES}
     JavaScriptCore${DEBUG_SUFFIX}
     PAL${DEBUG_SUFFIX}
 )

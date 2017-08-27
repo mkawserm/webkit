@@ -163,7 +163,8 @@ void WebPage::platformEditorState(Frame& frame, EditorState& result, IncludePost
     // entries, we need the layout to be done and we don't want to trigger a synchronous
     // layout as this would be bad for performance. If we have a composition, we send everything
     // right away as the UIProcess needs the caretRects ASAP for marked text.
-    if (shouldIncludePostLayoutData == IncludePostLayoutDataHint::No && !frame.editor().hasComposition()) {
+    bool frameViewHasFinishedLayout = frame.view() && !frame.view()->needsLayout();
+    if (shouldIncludePostLayoutData == IncludePostLayoutDataHint::No && !frameViewHasFinishedLayout && !frame.editor().hasComposition()) {
         result.isMissingPostLayoutData = true;
         return;
     }
@@ -2244,14 +2245,6 @@ void WebPage::applyAutocorrection(const String& correction, const String& origin
     send(Messages::WebPageProxy::StringCallback(correctionApplied ? correction : String(), callbackID));
 }
 
-void WebPage::executeEditCommandWithCallback(const String& commandName, CallbackID callbackID)
-{
-    executeEditCommand(commandName, String());
-    if (commandName == "toggleBold" || commandName == "toggleItalic" || commandName == "toggleUnderline")
-        send(Messages::WebPageProxy::EditorStateChanged(editorState()));
-    send(Messages::WebPageProxy::VoidCallback(callbackID));
-}
-
 Seconds WebPage::eventThrottlingDelay() const
 {
     auto behaviorOverride = m_page->eventThrottlingBehaviorOverride();
@@ -2533,9 +2526,9 @@ void WebPage::getPositionInformation(const InteractionInformationRequest& reques
                                     FloatSize scaledSize = largestRectWithAspectRatioInsideRect(image->size().width() / image->size().height(), FloatRect(0, 0, screenSizeInPixels.width(), screenSizeInPixels.height())).size();
                                     FloatSize bitmapSize = scaledSize.width() < image->size().width() ? scaledSize : image->size();
                                     // FIXME: Only select ExtendedColor on images known to need wide gamut
-                                    ShareableBitmap::Flags flags = ShareableBitmap::SupportsAlpha;
-                                    flags |= screenSupportsExtendedColor() ? ShareableBitmap::SupportsExtendedColor : 0;
-                                    if (RefPtr<ShareableBitmap> sharedBitmap = ShareableBitmap::createShareable(IntSize(bitmapSize), flags)) {
+                                    ShareableBitmap::Configuration bitmapConfiguration;
+                                    bitmapConfiguration.colorSpace.cgColorSpace = screenColorSpace(m_page->mainFrame().view());
+                                    if (RefPtr<ShareableBitmap> sharedBitmap = ShareableBitmap::createShareable(IntSize(bitmapSize), bitmapConfiguration)) {
                                         auto graphicsContext = sharedBitmap->createGraphicsContext();
                                         graphicsContext->drawImage(*image, FloatRect(0, 0, bitmapSize.width(), bitmapSize.height()));
                                         info.image = sharedBitmap;
@@ -3190,6 +3183,26 @@ std::optional<float> WebPage::scaleFromUIProcess(const VisibleContentRectUpdateI
     return scaleFromUIProcess;
 }
 
+static bool selectionIsInsideFixedPositionContainer(Frame& frame)
+{
+    auto& selection = frame.selection().selection();
+    if (selection.isNone())
+        return false;
+
+    bool isInsideFixedPosition = false;
+    if (selection.isCaret()) {
+        frame.selection().absoluteCaretBounds(&isInsideFixedPosition);
+        return isInsideFixedPosition;
+    }
+
+    selection.visibleStart().absoluteCaretBounds(&isInsideFixedPosition);
+    if (isInsideFixedPosition)
+        return true;
+
+    selection.visibleEnd().absoluteCaretBounds(&isInsideFixedPosition);
+    return isInsideFixedPosition;
+}
+
 void WebPage::updateVisibleContentRects(const VisibleContentRectUpdateInfo& visibleContentRectUpdateInfo, MonotonicTime oldestTimestamp)
 {
     LOG_WITH_STREAM(VisibleRects, stream << "\nWebPage::updateVisibleContentRects " << visibleContentRectUpdateInfo);
@@ -3238,7 +3251,8 @@ void WebPage::updateVisibleContentRects(const VisibleContentRectUpdateInfo& visi
         hasSetPageScale = true;
     }
 
-    FrameView& frameView = *m_page->mainFrame().view();
+    auto& frame = m_page->mainFrame();
+    FrameView& frameView = *frame.view();
     if (scrollPosition != frameView.scrollPosition())
         m_dynamicSizeUpdateHistory.clear();
 
@@ -3260,10 +3274,10 @@ void WebPage::updateVisibleContentRects(const VisibleContentRectUpdateInfo& visi
     if (m_isInStableState) {
         if (frameView.frame().settings().visualViewportEnabled()) {
             frameView.setLayoutViewportOverrideRect(LayoutRect(visibleContentRectUpdateInfo.customFixedPositionRect()));
-            const auto& state = editorState();
-            if (!state.isMissingPostLayoutData && state.postLayoutData().insideFixedPosition) {
+            if (selectionIsInsideFixedPositionContainer(frame)) {
+                // Ensure that the next layer tree commit contains up-to-date caret/selection rects.
                 frameView.frame().selection().setCaretRectNeedsUpdate();
-                send(Messages::WebPageProxy::EditorStateChanged(state));
+                sendPartialEditorStateAndSchedulePostLayoutUpdate();
             }
         } else
             frameView.setCustomFixedPositionLayoutRect(enclosingIntRect(visibleContentRectUpdateInfo.customFixedPositionRect()));

@@ -30,18 +30,17 @@
 
 #include "JSDOMPromiseDeferred.h"
 #include "ServiceWorkerJobData.h"
-#include "ServiceWorkerRegistrationParameters.h"
 
 namespace WebCore {
 
 static std::atomic<uint64_t> currentIdentifier;
 
-ServiceWorkerJob::ServiceWorkerJob(ServiceWorkerJobClient& client, Ref<DeferredPromise>&& promise, ServiceWorkerRegistrationParameters&& parameters)
+ServiceWorkerJob::ServiceWorkerJob(ServiceWorkerJobClient& client, Ref<DeferredPromise>&& promise, ServiceWorkerJobData&& jobData)
     : m_client(client)
+    , m_jobData(WTFMove(jobData))
     , m_promise(WTFMove(promise))
     , m_identifier(++currentIdentifier)
 {
-    m_registrationParameters = std::make_unique<ServiceWorkerRegistrationParameters>(WTFMove(parameters));
 }
 
 ServiceWorkerJob::~ServiceWorkerJob()
@@ -59,11 +58,6 @@ void ServiceWorkerJob::failedWithException(const Exception& exception)
 
     // Can cause this to be deleted.
     m_client->jobDidFinish(*this);
-}
-
-ServiceWorkerJobData ServiceWorkerJob::data() const
-{
-    return { m_identifier, m_type };
 }
 
 } // namespace WebCore
