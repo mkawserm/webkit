@@ -1832,11 +1832,11 @@ void WKPageSetPageUIClient(WKPageRef pageRef, const WKPageUIClientBase* wkClient
             m_client.didNotHandleWheelEvent(toAPI(page), event.nativeEvent(), m_client.base.clientInfo);
         }
 
-        bool toolbarsAreVisible(WebPageProxy* page) final
+        void toolbarsAreVisible(WebPageProxy& page, Function<void(bool)>&& completionHandler) final
         {
             if (!m_client.toolbarsAreVisible)
-                return true;
-            return m_client.toolbarsAreVisible(toAPI(page), m_client.base.clientInfo);
+                return completionHandler(true);
+            completionHandler(m_client.toolbarsAreVisible(toAPI(&page), m_client.base.clientInfo));
         }
 
         void setToolbarsAreVisible(WebPageProxy* page, bool visible) final
@@ -2059,7 +2059,7 @@ void WKPageSetPageUIClient(WKPageRef pageRef, const WKPageUIClientBase* wkClient
             m_client.pinnedStateDidChange(toAPI(&page), m_client.base.clientInfo);
         }
 
-        void isPlayingAudioDidChange(WebPageProxy& page) final
+        void isPlayingMediaDidChange(WebPageProxy& page) final
         {
             if (!m_client.isPlayingAudioDidChange)
                 return;

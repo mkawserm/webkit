@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Apple Inc. All rights reserved.
+ * Copyright (C) 2015-2017 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -41,6 +41,15 @@
 
 @end
 
+enum {
+    NSSideUtilityWindowMask = 1 << 9,
+    NSSmallWindowMask = 1 << 10,
+    _NSCarbonWindowMask = 1 << 25,
+};
+
 #endif
+
+extern NSString *NSWindowWillOrderOnScreenNotification;
+extern NSString *NSWindowWillOrderOffScreenNotification;
 
 #endif // PLATFORM(MAC)

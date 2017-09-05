@@ -460,8 +460,7 @@ Document::Document(Frame* frame, const URL& url, unsigned documentClasses, unsig
     , m_extensionStyleSheets(std::make_unique<ExtensionStyleSheets>(*this))
     , m_visitedLinkState(std::make_unique<VisitedLinkState>(*this))
     , m_markers(std::make_unique<DocumentMarkerController>(*this))
-    , m_styleRecalcTimer(*this, &Document::updateStyleIfNeeded)
-    , m_updateFocusAppearanceTimer(*this, &Document::updateFocusAppearanceTimerFired)
+    , m_styleRecalcTimer([this] { updateStyleIfNeeded(); })
     , m_documentCreationTime(MonotonicTime::now())
     , m_scriptRunner(std::make_unique<ScriptRunner>(*this))
     , m_moduleLoader(std::make_unique<ScriptModuleLoader>(*this))
@@ -1887,20 +1886,21 @@ bool Document::needsStyleRecalc() const
     return false;
 }
 
-void Document::updateStyleIfNeeded()
+bool Document::updateStyleIfNeeded()
 {
     ASSERT(isMainThread());
     ASSERT(!view() || !view()->isPainting());
 
     if (!view() || view()->isInRenderTreeLayout())
-        return;
+        return false;
 
     styleScope().flushPendingUpdate();
 
     if (!needsStyleRecalc())
-        return;
+        return false;
 
     resolveStyle();
+    return true;
 }
 
 void Document::updateLayout()
@@ -1948,16 +1948,22 @@ void Document::updateLayoutIgnorePendingStylesheets(Document::RunPostLayoutTasks
     m_ignorePendingStylesheets = oldIgnore;
 }
 
-std::unique_ptr<RenderStyle> Document::styleForElementIgnoringPendingStylesheets(Element& element, const RenderStyle* parentStyle)
+std::unique_ptr<RenderStyle> Document::styleForElementIgnoringPendingStylesheets(Element& element, const RenderStyle* parentStyle, PseudoId pseudoElementSpecifier)
 {
     ASSERT(&element.document() == this);
+    ASSERT(!element.isPseudoElement() || !pseudoElementSpecifier);
+    ASSERT(!pseudoElementSpecifier || parentStyle);
 
     // On iOS request delegates called during styleForElement may result in re-entering WebKit and killing the style resolver.
     Style::PostResolutionCallbackDisabler disabler(*this);
 
     SetForScope<bool> change(m_ignorePendingStylesheets, true);
-    auto elementStyle = element.resolveStyle(parentStyle);
+    auto& resolver = element.styleResolver();
 
+    if (pseudoElementSpecifier)
+        return resolver.pseudoStyleForElement(element, PseudoStyleRequest(pseudoElementSpecifier), *parentStyle);
+
+    auto elementStyle = resolver.styleForElement(element, parentStyle);
     if (elementStyle.relations) {
         Style::Update emptyUpdate(*this);
         Style::commitRelations(WTFMove(elementStyle.relations), emptyUpdate);
@@ -5444,10 +5450,10 @@ bool Document::isSecureContext() const
 {
     if (!m_frame)
         return true;
-    if (!securityOrigin().isPotentionallyTrustworthy())
+    if (!securityOrigin().isPotentiallyTrustworthy())
         return false;
     for (Frame* frame = m_frame->tree().parent(); frame; frame = frame->tree().parent()) {
-        if (!frame->document()->securityOrigin().isPotentionallyTrustworthy())
+        if (!frame->document()->securityOrigin().isPotentiallyTrustworthy())
             return false;
     }
     return true;
@@ -5477,29 +5483,6 @@ void Document::statePopped(Ref<SerializedScriptValue>&& stateObject)
         dispatchPopstateEvent(WTFMove(stateObject));
     else
         m_pendingStateObject = WTFMove(stateObject);
-}
-
-void Document::updateFocusAppearanceSoon(SelectionRestorationMode mode)
-{
-    m_updateFocusAppearanceRestoresSelection = mode;
-    if (!m_updateFocusAppearanceTimer.isActive())
-        m_updateFocusAppearanceTimer.startOneShot(0_s);
-}
-
-void Document::cancelFocusAppearanceUpdate()
-{
-    m_updateFocusAppearanceTimer.stop();
-}
-
-void Document::updateFocusAppearanceTimerFired()
-{
-    Element* element = focusedElement();
-    if (!element)
-        return;
-
-    updateLayout();
-    if (element->isFocusable())
-        element->updateFocusAppearance(m_updateFocusAppearanceRestoresSelection);
 }
 
 void Document::attachRange(Range* range)

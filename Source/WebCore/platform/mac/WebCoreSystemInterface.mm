@@ -1,5 +1,5 @@
 /*
- * Copyright 2006, 2007, 2008, 2009, 2010 Apple Inc. All rights reserved.
+ * Copyright 2006-2017 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -30,14 +30,7 @@
 
 #import <Foundation/Foundation.h>
 
-void (*wkCALayerEnumerateRectsBeingDrawnWithBlock)(CALayer *, CGContextRef context, void (^block)(CGRect rect));
-bool (*wkCGContextDrawsWithCorrectShadowOffsets)(CGContextRef);
-CGPatternRef (*wkCGPatternCreateWithImageAndTransform)(CGImageRef, CGAffineTransform, int);
-CFStringEncoding (*wkGetWebDefaultCFStringEncoding)(void);
 void (*wkDrawBezeledTextArea)(NSRect, BOOL enabled);
-void (*wkDrawFocusRing)(CGContextRef, CGColorRef, int);
-bool (*wkDrawFocusRingAtTime)(CGContextRef, NSTimeInterval);
-bool (*wkDrawCellFocusRingWithFrameAtTime)(NSCell*, NSRect, NSView*, NSTimeInterval);
 void (*wkDrawMediaSliderTrack)(CGContextRef context, CGRect rect, float timeLoaded, float currentTime,
     float duration, unsigned state);
 BOOL (*wkHitTestMediaUIPart)(int part, CGRect bounds, CGPoint point);
@@ -45,12 +38,8 @@ void (*wkDrawMediaUIPart)(int part, CGContextRef context, CGRect rect, unsigned 
 void (*wkMeasureMediaUIPart)(int part, CGRect *bounds, CGSize *naturalSize);
 NSView *(*wkCreateMediaUIBackgroundView)(void);
 NSControl *(*wkCreateMediaUIControl)(int);
-void (*wkWindowSetAlpha)(NSWindow *, float);
-void (*wkWindowSetScaledFrame)(NSWindow *, NSRect, NSRect);
 NSTimeInterval (*wkGetNSURLResponseCalculatedExpiration)(NSURLResponse *response);
 BOOL (*wkGetNSURLResponseMustRevalidate)(NSURLResponse *response);
-void (*wkGetWheelEventDeltas)(NSEvent*, float* deltaX, float* deltaY, BOOL* continuous);
-UInt8 (*wkGetNSEventKeyChar)(NSEvent *);
 void (*wkPopupMenu)(NSMenu*, NSPoint location, float width, NSView*, int selectedItem, NSFont*, NSControlSize controlSize, bool usesCustomAppearance);
 unsigned (*wkQTIncludeOnlyModernMediaFileTypes)(void);
 void (*wkQTMovieDisableComponent)(uint32_t[5]);
@@ -65,8 +54,6 @@ NSArray *(*wkQTGetSitesInMediaDownloadCache)();
 void (*wkQTClearMediaDownloadCacheForSite)(NSString *site);
 void (*wkQTClearMediaDownloadCache)();
 
-void (*wkSetDragImage)(NSImage*, NSPoint offset);
-bool (*wkCGContextIsPDFContext)(CGContextRef);
 void (*wkSetCONNECTProxyForStream)(CFReadStreamRef, CFStringRef proxyHost, CFNumberRef proxyPort);
 void (*wkSetCONNECTProxyAuthorizationForStream)(CFReadStreamRef, CFStringRef proxyAuthorizationString);
 CFHTTPMessageRef (*wkCopyCONNECTProxyResponse)(CFReadStreamRef, CFURLRef responseURL, CFStringRef proxyHost, CFNumberRef proxyPort);
@@ -82,26 +69,6 @@ NSCursor *(*wkCursor)(const char*);
 NSArray *(*wkSpeechSynthesisGetVoiceIdentifiers)(void);
 NSString *(*wkSpeechSynthesisGetDefaultVoiceIdentifierForLocale)(NSLocale *);
 
-void (*wkUnregisterUniqueIdForElement)(id element);
-void (*wkAccessibilityHandleFocusChanged)(void);
-CFTypeID (*wkGetAXTextMarkerTypeID)(void);
-CFTypeID (*wkGetAXTextMarkerRangeTypeID)(void);
-CFTypeRef (*wkCreateAXTextMarkerRange)(CFTypeRef start, CFTypeRef end);
-CFTypeRef (*wkCopyAXTextMarkerRangeStart)(CFTypeRef range);
-CFTypeRef (*wkCopyAXTextMarkerRangeEnd)(CFTypeRef range);
-CFTypeRef (*wkCreateAXTextMarker)(const void *bytes, size_t len);
-BOOL (*wkGetBytesFromAXTextMarker)(CFTypeRef textMarker, void *bytes, size_t length);
-AXUIElementRef (*wkCreateAXUIElementRef)(id element);
-
-CFURLStorageSessionRef (*wkCreatePrivateStorageSession)(CFStringRef);
-NSURLRequest* (*wkCopyRequestWithStorageSession)(CFURLStorageSessionRef, NSURLRequest*);
-unsigned (*wkGetHTTPCookieAcceptPolicy)(CFHTTPCookieStorageRef);
-NSArray *(*wkHTTPCookies)(CFHTTPCookieStorageRef);
-void (*wkSetHTTPCookiesForURL)(CFHTTPCookieStorageRef, NSArray *, NSURL *, NSURL *);
-void (*wkDeleteAllHTTPCookies)(CFHTTPCookieStorageRef);
-void (*wkDeleteHTTPCookie)(CFHTTPCookieStorageRef, NSHTTPCookie *);
-
-void (*wkSetMetadataURL)(NSString *urlString, NSString *referrer, NSString *path);
 
 #if !PLATFORM(IOS)
 CGFloat (*wkNSElasticDeltaForTimeDelta)(CGFloat initialPosition, CGFloat initialVelocity, CGFloat elapsedTime);

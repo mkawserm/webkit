@@ -26,15 +26,28 @@
 #include "config.h"
 #include "FileSystemFileEntry.h"
 
+#include "DOMException.h"
+#include "DOMFileSystem.h"
+#include "ErrorCallback.h"
+#include "FileCallback.h"
+
 namespace WebCore {
 
-FileSystemFileEntry::FileSystemFileEntry(DOMFileSystem& filesystem)
-    : FileSystemEntry(filesystem)
+FileSystemFileEntry::FileSystemFileEntry(ScriptExecutionContext& context, DOMFileSystem& filesystem, const String& virtualPath)
+    : FileSystemEntry(context, filesystem, virtualPath)
 {
 }
 
-void FileSystemFileEntry::file(RefPtr<FileCallback>&&, RefPtr<ErrorCallback>&&)
+void FileSystemFileEntry::file(ScriptExecutionContext& context, Ref<FileCallback>&& successCallback, RefPtr<ErrorCallback>&& errorCallback)
 {
+    filesystem().getFile(context, *this, [successCallback = WTFMove(successCallback), errorCallback = WTFMove(errorCallback)](auto&& result) {
+        if (result.hasException()) {
+            if (errorCallback)
+                errorCallback->handleEvent(DOMException::create(result.releaseException()));
+            return;
+        }
+        successCallback->handleEvent(result.releaseReturnValue());
+    });
 }
 
 } // namespace WebCore

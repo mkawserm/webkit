@@ -1016,7 +1016,6 @@ RefPtr<Range> WebPage::rangeForWebSelectionAtPosition(const IntPoint& point, con
     if (boundingRectInScrollViewCoordinates.height() > m_page->mainFrame().view()->exposedContentRect().height() * adjustmentFactor)
         return nullptr;
 
-    flags = IsBlockSelection;
     range = Range::create(bestChoice->document());
     range->selectNodeContents(*bestChoice);
     return range->collapsed() ? nullptr : range;
@@ -1172,8 +1171,6 @@ void WebPage::selectWithGesture(const IntPoint& point, uint32_t granularity, uin
             m_currentBlockSelection = nullptr;
         }
         range = rangeForWebSelectionAtPosition(point, position, flags);
-        if (wkGestureState == GestureRecognizerState::Ended && flags & IsBlockSelection)
-            m_currentBlockSelection = range;
         break;
 
     default:
@@ -1246,10 +1243,10 @@ static RefPtr<Range> rangeAtWordBoundaryForPosition(Frame* frame, const VisibleP
 
     // If this is where the extent was initially, then iterate in the other direction in the document until we hit the next word.
     while (extent.isNotNull()
-           && !atBoundaryOfGranularity(extent, WordGranularity, sameDirection)
-           && extent != base
-           && !atBoundaryOfGranularity(extent, LineBoundary, sameDirection)
-           && !atBoundaryOfGranularity(extent, LineBoundary, oppositeDirection)) {
+        && !atBoundaryOfGranularity(extent, WordGranularity, sameDirection)
+        && extent != base
+        && !atBoundaryOfGranularity(extent, LineGranularity, sameDirection)
+        && !atBoundaryOfGranularity(extent, LineGranularity, oppositeDirection)) {
         extent = baseIsStart ? extent.next() : extent.previous();
     }
 
@@ -1429,7 +1426,6 @@ Ref<Range> WebPage::contractedRangeFromHandle(Range& currentRange, SelectionHand
 
     IntRect currentBox = selectionBoxForRange(&currentRange);
     IntPoint edgeCenter = computeEdgeCenter(currentBox, handlePosition);
-    flags = IsBlockSelection;
 
     float maxDistance;
 
@@ -1613,8 +1609,6 @@ void WebPage::computeExpandAndShrinkThresholdsForHandle(const IntPoint& point, S
     if (areRangesEqual(expandedRange.ptr(), currentRange.get()))
         growThreshold = maxThreshold;
 
-    if (flags & IsBlockSelection && areRangesEqual(contractedRange.get(), currentRange.get()))
-        shrinkThreshold = minThreshold;
 }
 
 static inline bool shouldExpand(SelectionHandlePosition handlePosition, const IntRect& rect, const IntPoint& point)
@@ -1655,7 +1649,7 @@ void WebPage::updateBlockSelectionWithTouch(const IntPoint& point, uint32_t touc
 
     float growThreshold = 0;
     float shrinkThreshold = 0;
-    SelectionFlags flags = IsBlockSelection;
+    SelectionFlags flags = None;
 
     switch (static_cast<SelectionTouch>(touch)) {
     case SelectionTouch::Started:
@@ -1762,25 +1756,14 @@ void WebPage::updateSelectionWithTouches(const IntPoint& point, uint32_t touches
     case SelectionTouch::Moved:
         if (shouldSwitchToBlockModeForHandle(pointInDocument, handlePosition)) {
             range = switchToBlockSelectionAtPoint(pointInDocument, handlePosition);
-            flags = IsBlockSelection;
         } else
             range = rangeForPosition(&frame, position, baseIsStart);
         break;
     }
-    if (range && flags != IsBlockSelection)
+    if (range)
         frame.selection().setSelectedRange(range.get(), position.affinity(), true, UserTriggered);
 
     send(Messages::WebPageProxy::TouchesCallback(point, touches, flags, callbackID));
-    if (range && flags == IsBlockSelection) {
-        // We just switched to block selection therefore we need to compute the thresholds.
-        m_currentBlockSelection = range;
-        frame.selection().setSelectedRange(range.get(), position.affinity(), true, UserTriggered);
-        
-        float growThreshold = 0;
-        float shrinkThreshold = 0;
-        computeExpandAndShrinkThresholdsForHandle(point, handlePosition, growThreshold, shrinkThreshold);
-        send(Messages::WebPageProxy::DidUpdateBlockSelectionWithTouch(static_cast<uint32_t>(SelectionTouch::Started), static_cast<uint32_t>(IsBlockSelection), growThreshold, shrinkThreshold));
-    }
 }
 
 void WebPage::selectWithTwoTouches(const WebCore::IntPoint& from, const WebCore::IntPoint& to, uint32_t gestureType, uint32_t gestureState, CallbackID callbackID)
@@ -3301,12 +3284,12 @@ void WebPage::willStartUserTriggeredZooming()
 }
 
 #if ENABLE(WEBGL)
-WebCore::WebGLLoadPolicy WebPage::webGLPolicyForURL(WebFrame*, const String&)
+WebCore::WebGLLoadPolicy WebPage::webGLPolicyForURL(WebFrame*, const URL&)
 {
     return WebGLAllowCreation;
 }
 
-WebCore::WebGLLoadPolicy WebPage::resolveWebGLPolicyForURL(WebFrame*, const String&)
+WebCore::WebGLLoadPolicy WebPage::resolveWebGLPolicyForURL(WebFrame*, const URL&)
 {
     return WebGLAllowCreation;
 }

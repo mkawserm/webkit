@@ -99,7 +99,7 @@ public:
     virtual void didNotHandleKeyEvent(WebKit::WebPageProxy*, const WebKit::NativeWebKeyboardEvent&) { }
     virtual void didNotHandleWheelEvent(WebKit::WebPageProxy*, const WebKit::NativeWebWheelEvent&) { }
 
-    virtual bool toolbarsAreVisible(WebKit::WebPageProxy*) { return true; }
+    virtual void toolbarsAreVisible(WebKit::WebPageProxy&, Function<void(bool)>&& completionHandler) { completionHandler(true); }
     virtual void setToolbarsAreVisible(WebKit::WebPageProxy*, bool) { }
     virtual bool menuBarIsVisible(WebKit::WebPageProxy*) { return true; }
     virtual void setMenuBarIsVisible(WebKit::WebPageProxy*, bool) { }
@@ -146,7 +146,7 @@ public:
 
     virtual void pinnedStateDidChange(WebKit::WebPageProxy&) { }
 
-    virtual void isPlayingAudioDidChange(WebKit::WebPageProxy&) { }
+    virtual void isPlayingMediaDidChange(WebKit::WebPageProxy&) { }
     virtual void mediaCaptureStateDidChange(WebCore::MediaProducer::MediaStateFlags) { }
     virtual void handleAutoplayEvent(WebKit::WebPageProxy&, WebCore::AutoplayEvent, OptionSet<WebCore::AutoplayEventFlags>) { }
 

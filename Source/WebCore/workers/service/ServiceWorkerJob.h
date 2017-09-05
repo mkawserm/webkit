@@ -27,8 +27,11 @@
 
 #if ENABLE(SERVICE_WORKER)
 
+#include "ResourceResponse.h"
 #include "ServiceWorkerJobClient.h"
 #include "ServiceWorkerJobData.h"
+#include "ThreadableLoader.h"
+#include "ThreadableLoaderClient.h"
 #include <wtf/RefPtr.h>
 #include <wtf/RunLoop.h>
 #include <wtf/ThreadSafeRefCounted.h>
@@ -38,9 +41,11 @@ namespace WebCore {
 
 class DeferredPromise;
 class Exception;
+class ScriptExecutionContext;
 enum class ServiceWorkerJobType;
+struct ServiceWorkerRegistrationData;
 
-class ServiceWorkerJob : public ThreadSafeRefCounted<ServiceWorkerJob> {
+class ServiceWorkerJob : public ThreadSafeRefCounted<ServiceWorkerJob>, public ThreadableLoaderClient {
 public:
     static Ref<ServiceWorkerJob> create(ServiceWorkerJobClient& client, Ref<DeferredPromise>&& promise, ServiceWorkerJobData&& jobData)
     {
@@ -49,23 +54,34 @@ public:
 
     WEBCORE_EXPORT ~ServiceWorkerJob();
 
-    WEBCORE_EXPORT void failedWithException(const Exception&);
-
-    uint64_t identifier() const { return m_identifier; }
+    void failedWithException(const Exception&);
+    void resolvedWithRegistration(const ServiceWorkerRegistrationData&);
+    void startScriptFetch();
 
     ServiceWorkerJobData data() const { return m_jobData; }
+    DeferredPromise& promise() { return m_promise.get(); }
+
+    void fetchScriptWithContext(ScriptExecutionContext&);
 
 private:
     ServiceWorkerJob(ServiceWorkerJobClient&, Ref<DeferredPromise>&&, ServiceWorkerJobData&&);
+
+    // ThreadableLoaderClient
+    void didReceiveResponse(unsigned long identifier, const ResourceResponse&) final;
+    void didReceiveData(const char* data, int length) final;
+    void didFinishLoading(unsigned long identifier) final;
+    void didFail(const ResourceError&) final;
 
     Ref<ServiceWorkerJobClient> m_client;
     ServiceWorkerJobData m_jobData;
     Ref<DeferredPromise> m_promise;
 
     bool m_completed { false };
-    uint64_t m_identifier;
 
     Ref<RunLoop> m_runLoop { RunLoop::current() };
+    RefPtr<ThreadableLoader> m_loader;
+    ResourceResponse m_lastResponse;
+    std::optional<Ref<SharedBuffer>> m_scriptData;
 
 #if !ASSERT_DISABLED
     ThreadIdentifier m_creationThread { currentThread() };

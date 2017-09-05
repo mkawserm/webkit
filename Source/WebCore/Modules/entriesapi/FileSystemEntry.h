@@ -25,6 +25,7 @@
 
 #pragma once
 
+#include "ActiveDOMObject.h"
 #include "ScriptWrappable.h"
 #include <wtf/RefCounted.h>
 #include <wtf/text/WTFString.h>
@@ -32,25 +33,32 @@
 namespace WebCore {
 
 class DOMFileSystem;
+class ErrorCallback;
+class FileSystemEntryCallback;
 
-class FileSystemEntry : public ScriptWrappable, public RefCounted<FileSystemEntry> {
+class FileSystemEntry : public ScriptWrappable, public ActiveDOMObject, public RefCounted<FileSystemEntry> {
 public:
-    virtual ~FileSystemEntry() { }
+    virtual ~FileSystemEntry();
 
     virtual bool isFile() const { return false; }
     virtual bool isDirectory() const { return false; }
 
     const String& name() const { return m_name; }
-    const String& fullPath() const { return m_fullPath; }
-    DOMFileSystem& filesystem() const { return m_filesystem; }
+    const String& virtualPath() const { return m_virtualPath; }
+    DOMFileSystem& filesystem() const;
+
+    void getParent(ScriptExecutionContext&, RefPtr<FileSystemEntryCallback>&&, RefPtr<ErrorCallback>&&);
 
 protected:
-    explicit FileSystemEntry(DOMFileSystem&);
+    FileSystemEntry(ScriptExecutionContext&, DOMFileSystem&, const String& virtualPath);
 
 private:
+    const char* activeDOMObjectName() const final;
+    bool canSuspendForDocumentSuspension() const final;
+
+    Ref<DOMFileSystem> m_filesystem;
     String m_name;
-    String m_fullPath;
-    DOMFileSystem& m_filesystem;
+    String m_virtualPath;
 };
 
 } // namespace WebCore

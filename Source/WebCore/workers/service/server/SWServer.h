@@ -34,6 +34,7 @@
 #include <wtf/CrossThreadTask.h>
 #include <wtf/HashMap.h>
 #include <wtf/HashSet.h>
+#include <wtf/Identified.h>
 #include <wtf/RunLoop.h>
 #include <wtf/ThreadSafeRefCounted.h>
 #include <wtf/Threading.h>
@@ -42,27 +43,29 @@ namespace WebCore {
 
 class SWServerRegistration;
 struct ExceptionData;
+struct ServiceWorkerFetchResult;
+struct ServiceWorkerRegistrationData;
 
 class SWServer {
 public:
-    class Connection {
+    class Connection : public Identified<Connection> {
     friend class SWServer;
     public:
         WEBCORE_EXPORT virtual ~Connection();
-
-        uint64_t identifier() const { return m_identifier; };
 
     protected:
         WEBCORE_EXPORT Connection(SWServer&, uint64_t identifier);
         SWServer& server() { return m_server; }
 
         WEBCORE_EXPORT void scheduleJobInServer(const ServiceWorkerJobData&);
+        WEBCORE_EXPORT void finishFetchingScriptInServer(const ServiceWorkerFetchResult&);
 
     private:
         virtual void rejectJobInClient(uint64_t jobIdentifier, const ExceptionData&) = 0;
+        virtual void resolveJobInClient(uint64_t jobIdentifier, const ServiceWorkerRegistrationData&) = 0;
+        virtual void startScriptFetchInClient(uint64_t jobIdentifier) = 0;
 
         SWServer& m_server;
-        uint64_t m_identifier;
     };
 
     WEBCORE_EXPORT SWServer();
@@ -70,6 +73,8 @@ public:
 
     void scheduleJob(const ServiceWorkerJobData&);
     void rejectJob(const ServiceWorkerJobData&, const ExceptionData&);
+    void resolveJob(const ServiceWorkerJobData&, const ServiceWorkerRegistrationData&);
+    void startScriptFetch(const ServiceWorkerJobData&);
 
     void postTask(CrossThreadTask&&);
     void postTaskReply(CrossThreadTask&&);
@@ -80,6 +85,8 @@ private:
 
     void taskThreadEntryPoint();
     void handleTaskRepliesOnMainThread();
+
+    void scriptFetchFinished(const ServiceWorkerFetchResult&);
 
     HashMap<uint64_t, Connection*> m_connections;
     HashMap<ServiceWorkerRegistrationKey, std::unique_ptr<SWServerRegistration>> m_registrations;

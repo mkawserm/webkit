@@ -64,6 +64,9 @@ fast/events/mouse-force-up.html [ Skip ]
 fast/events/autoscroll-when-zoomed.html [ Skip ]
 fast/events/autoscroll-main-document.html [ Skip ]
 
+# Drag and drop via EventSender is only supported on Mac WK1
+editing/pasteboard/drag-drop-href-as-text-data.html [ Skip ]
+
 # Only iOS supports QuickLook
 quicklook [ Skip ]
 http/tests/quicklook [ Skip ]
@@ -1452,3 +1455,7 @@ compositing/regions [ Skip ]
 fast/ruby/ruby-rt-with-region-crash.html [ Skip ]
 inspector/dom/content-node-region-info.html [ Skip ]
 fast/shapes/shape-outside-floats/shape-outside-floats-layout-after-initial-layout-pass.html [ Skip ]
+
+webkit.org/b/171945 perf/class-list-remove.html [ Pass Failure Timeout ]
+
+webkit.org/b/176183 fast/block/inside-inlines/opacity-on-inline.html [ ImageOnlyFailure ]

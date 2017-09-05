@@ -29,7 +29,9 @@
 #if ENABLE(SERVICE_WORKER)
 
 #include "ExceptionData.h"
+#include "ServiceWorkerFetchResult.h"
 #include "ServiceWorkerJobData.h"
+#include "SharedBuffer.h"
 
 namespace WebCore {
 
@@ -43,10 +45,26 @@ SWClientConnection::~SWClientConnection()
 
 void SWClientConnection::scheduleJob(ServiceWorkerJob& job)
 {
-    auto addResult = m_scheduledJobs.add(job.identifier(), &job);
+    auto addResult = m_scheduledJobs.add(job.data().identifier(), &job);
     ASSERT_UNUSED(addResult, addResult.isNewEntry);
 
     scheduleJobInServer(job.data());
+}
+
+void SWClientConnection::finishedFetchingScript(ServiceWorkerJob& job, SharedBuffer& data)
+{
+    ASSERT(m_scheduledJobs.get(job.data().identifier()) == &job);
+
+    Vector<uint8_t> vector;
+    vector.append(reinterpret_cast<const uint8_t *>(data.data()), data.size());
+    finishFetchingScriptInServer({ job.data().identifier(), job.data().connectionIdentifier(), job.data().registrationKey(), vector, { } });
+}
+
+void SWClientConnection::failedFetchingScript(ServiceWorkerJob& job, const ResourceError& error)
+{
+    ASSERT(m_scheduledJobs.get(job.data().identifier()) == &job);
+
+    finishFetchingScriptInServer({ job.data().identifier(), job.data().connectionIdentifier(), job.data().registrationKey(), { }, error });
 }
 
 void SWClientConnection::jobRejectedInServer(uint64_t jobIdentifier, const ExceptionData& exceptionData)
@@ -58,6 +76,33 @@ void SWClientConnection::jobRejectedInServer(uint64_t jobIdentifier, const Excep
     }
 
     job->failedWithException(exceptionData.toException());
+}
+
+void SWClientConnection::jobResolvedInServer(uint64_t jobIdentifier, const ServiceWorkerRegistrationData& registrationData)
+{
+    auto job = m_scheduledJobs.take(jobIdentifier);
+    if (!job) {
+        LOG_ERROR("Job %" PRIu64 " resolved in server, but was not found", jobIdentifier);
+        return;
+    }
+
+    job->resolvedWithRegistration(registrationData);
+}
+
+void SWClientConnection::startScriptFetchForServer(uint64_t jobIdentifier)
+{
+    auto job = m_scheduledJobs.get(jobIdentifier);
+    if (!job) {
+        LOG_ERROR("Job %" PRIu64 " instructed to start fetch from server, but job was not found", jobIdentifier);
+
+        // FIXME: Should message back to the server here to signal failure to fetch,
+        // but we currently need the registration key to do so, and don't have it here.
+        // In the future we'll refactor to have a global, cross-process job identifier that can be used to overcome this.
+
+        return;
+    }
+
+    job->startScriptFetch();
 }
 
 } // namespace WebCore

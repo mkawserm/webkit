@@ -27,22 +27,55 @@
 
 #if WK_API_ENABLED
 
-#if PLATFORM(MAC)
-
 #import "TestWKWebView.h"
 #import "Utilities.h"
-#import <Carbon/Carbon.h>
+#import "WKWebViewConfigurationExtras.h"
+#import <WebKit/WKPreferencesPrivate.h>
 #import <WebKit/WKUIDelegatePrivate.h>
-#import <WebKit/WKWebView.h>
+#import <WebKit/WKWebViewPrivate.h>
 #import <wtf/RetainPtr.h>
+
+#if PLATFORM(MAC)
+#import <Carbon/Carbon.h>
 #import <wtf/mac/AppKitCompatibilityDeclarations.h>
+#endif
+
+static bool done;
+
+@interface AudioObserver : NSObject
+@end
+
+@implementation AudioObserver
+
+- (void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary<NSString *, id> *)change context:(void *)context
+{
+    EXPECT_TRUE([keyPath isEqualToString:NSStringFromSelector(@selector(_isPlayingAudio))]);
+    EXPECT_TRUE([[object class] isEqual:[TestWKWebView class]]);
+    EXPECT_FALSE([[change objectForKey:NSKeyValueChangeOldKey] boolValue]);
+    EXPECT_TRUE([[change objectForKey:NSKeyValueChangeNewKey] boolValue]);
+    EXPECT_TRUE(context == nullptr);
+    done = true;
+}
+
+@end
+
+TEST(WebKit, WKWebViewIsPlayingAudio)
+{
+    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:[[[WKWebViewConfiguration alloc] init] autorelease]]);
+    auto observer = adoptNS([[AudioObserver alloc] init]);
+    [webView addObserver:observer.get() forKeyPath:@"_isPlayingAudio" options:NSKeyValueObservingOptionNew | NSKeyValueObservingOptionOld context:nil];
+    [webView synchronouslyLoadTestPageNamed:@"file-with-video"];
+    [webView evaluateJavaScript:@"playVideo()" completionHandler:nil];
+    TestWebKitAPI::Util::run(&done);
+}
+
+#if PLATFORM(MAC)
 
 @class UITestDelegate;
 
 static RetainPtr<WKWebView> webViewFromDelegateCallback;
 static RetainPtr<WKWebView> createdWebView;
 static RetainPtr<UITestDelegate> delegate;
-static bool done;
 
 @interface UITestDelegate : NSObject <WKUIDelegatePrivate, WKURLSchemeHandler>
 @end
@@ -76,7 +109,7 @@ static bool done;
 
 @end
 
-TEST(WebKit2, ShowWebView)
+TEST(WebKit, ShowWebView)
 {
     delegate = adoptNS([[UITestDelegate alloc] init]);
     auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
@@ -87,6 +120,78 @@ TEST(WebKit2, ShowWebView)
     TestWebKitAPI::Util::run(&done);
     
     ASSERT_EQ(webViewFromDelegateCallback, createdWebView);
+}
+
+bool firstToolbarDone;
+
+@interface ToolbarDelegate : NSObject <WKUIDelegatePrivate>
+@end
+
+@implementation ToolbarDelegate
+
+- (void)_webView:(WKWebView *)webView getToolbarsAreVisibleWithCompletionHandler:(void(^)(BOOL))completionHandler
+{
+    completionHandler(firstToolbarDone);
+}
+
+- (void)webView:(WKWebView *)webView runJavaScriptAlertPanelWithMessage:(NSString *)message initiatedByFrame:(WKFrameInfo *)frame completionHandler:(void (^)(void))completionHandler
+{
+    if (firstToolbarDone) {
+        EXPECT_STREQ(message.UTF8String, "visible:true");
+        done = true;
+    } else {
+        EXPECT_STREQ(message.UTF8String, "visible:false");
+        firstToolbarDone = true;
+    }
+    completionHandler();
+}
+
+@end
+
+TEST(WebKit, ToolbarVisible)
+{
+    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:[[[WKWebViewConfiguration alloc] init] autorelease]]);
+    auto delegate = adoptNS([[ToolbarDelegate alloc] init]);
+    [webView setUIDelegate:delegate.get()];
+    [webView synchronouslyLoadHTMLString:@"<script>alert('visible:' + window.toolbar.visible);alert('visible:' + window.toolbar.visible)</script>"];
+    TestWebKitAPI::Util::run(&done);
+}
+
+static bool readyForClick;
+
+@interface AutoFillDelegate : NSObject <WKUIDelegatePrivate>
+@end
+
+@implementation AutoFillDelegate
+
+- (void)_webView:(WKWebView *)webView didClickAutoFillButtonWithUserInfo:(id <NSSecureCoding>)userInfo
+{
+    ASSERT_TRUE([(id<NSObject>)userInfo isKindOfClass:[NSString class]]);
+    ASSERT_STREQ([(NSString*)userInfo UTF8String], "user data string");
+    done = true;
+}
+
+- (void)webView:(WKWebView *)webView runJavaScriptAlertPanelWithMessage:(NSString *)message initiatedByFrame:(WKFrameInfo *)frame completionHandler:(void (^)(void))completionHandler
+{
+    completionHandler();
+    ASSERT_STREQ(message.UTF8String, "ready for click!");
+    readyForClick = true;
+}
+
+@end
+
+TEST(WebKit, ClickAutoFillButton)
+{
+    WKWebViewConfiguration *configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"ClickAutoFillButton"];
+
+    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration]);
+    auto delegate = adoptNS([[AutoFillDelegate alloc] init]);
+    [webView setUIDelegate:delegate.get()];
+    TestWebKitAPI::Util::run(&readyForClick);
+    NSPoint buttonLocation = NSMakePoint(130, 575);
+    [webView mouseDownAtPoint:buttonLocation simulatePressure:NO];
+    [webView mouseUpAtPoint:buttonLocation];
+    TestWebKitAPI::Util::run(&done);
 }
 
 static NSEvent *tabEvent(NSWindow *window, NSEventType type, NSEventModifierFlags flags)
@@ -121,7 +226,7 @@ static _WKFocusDirection takenDirection;
 
 @end
 
-TEST(WebKit2, Focus)
+TEST(WebKit, Focus)
 {
     auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600)]);
     auto delegate = adoptNS([[FocusDelegate alloc] init]);
@@ -162,7 +267,7 @@ TEST(WebKit2, Focus)
 
 @end
 
-TEST(WebKit2, SaveDataToFile)
+TEST(WebKit, SaveDataToFile)
 {
     auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600)]);
     auto delegate = adoptNS([[SaveDataToFileDelegate alloc] init]);
@@ -210,7 +315,7 @@ static void synthesizeWheelEvents(NSView *view, int x, int y)
 
 @end
 
-TEST(WebKit2, DidNotHandleWheelEvent)
+TEST(WebKit, DidNotHandleWheelEvent)
 {
     auto webView = adoptNS([[WKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600)]);
     auto delegate = adoptNS([[WheelDelegate alloc] init]);

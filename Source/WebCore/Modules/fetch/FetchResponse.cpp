@@ -83,7 +83,7 @@ void FetchResponse::setBodyAsReadableStream()
 {
     if (isBodyNull())
         setBody(FetchBody::loadingBody());
-    body().setAsReadableStream();
+    m_isReadableStream = true;
     updateContentType();
 }
 
@@ -105,7 +105,7 @@ Ref<FetchResponse> FetchResponse::cloneForJS()
 
 void FetchResponse::fetch(ScriptExecutionContext& context, FetchRequest& request, NotificationCallback&& responseCallback)
 {
-    if (request.isBodyReadableStream()) {
+    if (request.hasReadableStreamBody()) {
         if (responseCallback)
             responseCallback(Exception { NotSupportedError, "ReadableStream uploading is not supported" });
         return;
@@ -317,21 +317,19 @@ void FetchResponse::consumeChunk(Ref<JSC::Uint8Array>&& chunk)
 
 void FetchResponse::finishConsumingStream(Ref<DeferredPromise>&& promise)
 {
-    m_consumer.resolve(WTFMove(promise));
+    m_consumer.resolve(WTFMove(promise), nullptr);
 }
 
 void FetchResponse::consumeBodyAsStream()
 {
     ASSERT(m_shouldExposeBody);
     ASSERT(m_readableStreamSource);
-    m_isDisturbed = true;
     if (!isLoading()) {
-        body().consumeAsStream(*this, *m_readableStreamSource);
-        if (!m_readableStreamSource->isPulling())
-            m_readableStreamSource = nullptr;
+        FetchBodyOwner::consumeBodyAsStream();
         return;
     }
 
+    m_isDisturbed = true;
     ASSERT(m_bodyLoader);
 
     setBodyAsReadableStream();
@@ -373,16 +371,12 @@ void FetchResponse::feedStream()
     closeStream();
 }
 
-ReadableStreamSource* FetchResponse::createReadableStreamSource()
+RefPtr<ReadableStream> FetchResponse::createReadableStream(JSC::ExecState& state)
 {
-    ASSERT(!m_readableStreamSource);
-    ASSERT(!m_isDisturbed);
-
-    if (isBodyNull() || !m_shouldExposeBody)
+    if (!m_shouldExposeBody)
         return nullptr;
 
-    m_readableStreamSource = adoptRef(*new FetchResponseSource(*this));
-    return m_readableStreamSource.get();
+    return FetchBodyOwner::readableStream(state);
 }
 
 RefPtr<SharedBuffer> FetchResponse::BodyLoader::startStreaming()

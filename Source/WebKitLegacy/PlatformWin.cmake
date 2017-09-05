@@ -21,7 +21,6 @@ else ()
     )
     list(APPEND WebKit_LIBRARIES
         PRIVATE CFNetwork${DEBUG_SUFFIX}
-        PRIVATE CoreFoundation${DEBUG_SUFFIX}
         PRIVATE CoreGraphics${DEBUG_SUFFIX}
         PRIVATE CoreText${DEBUG_SUFFIX}
         PRIVATE QuartzCore${DEBUG_SUFFIX}
@@ -29,9 +28,6 @@ else ()
         PRIVATE libdispatch${DEBUG_SUFFIX}
         PRIVATE libicuin${DEBUG_SUFFIX}
         PRIVATE libicuuc${DEBUG_SUFFIX}
-        PRIVATE libxml2${DEBUG_SUFFIX}
-        PRIVATE libxslt${DEBUG_SUFFIX}
-        PRIVATE zdll${DEBUG_SUFFIX}
     )
 endif ()
 
@@ -132,8 +128,6 @@ list(APPEND WebKit_INCLUDES
 )
 
 list(APPEND WebKit_SOURCES_Classes
-    cf/WebCoreSupport/WebInspectorClientCF.cpp
-
     win/AccessibleBase.cpp
     win/AccessibleDocument.cpp
     win/AccessibleImage.cpp
@@ -247,6 +241,16 @@ list(APPEND WebKit_SOURCES_WebCoreSupport
     win/WebCoreSupport/WebVisitedLinkStore.cpp
     win/WebCoreSupport/WebVisitedLinkStore.h
 )
+
+if (USE_CF)
+    list(APPEND WebKit_SOURCES_Classes
+        cf/WebCoreSupport/WebInspectorClientCF.cpp
+    )
+
+    list(APPEND WebKit_LIBRARIES
+        ${COREFOUNDATION_LIBRARY}
+    )
+endif ()
 
 if (CMAKE_SIZEOF_VOID_P EQUAL 8)
     enable_language(ASM_MASM)

@@ -77,6 +77,9 @@ public:
     NSHTTPCookieStorage *nsCookieStorage() const;
 #endif
 
+    const String& cacheStorageDirectory() const { return m_cacheStorageDirectory; }
+    void setCacheStorageDirectory(String&& path) { m_cacheStorageDirectory = WTFMove(path); }
+
 #if PLATFORM(COCOA) || USE(CFURLCONNECTION)
     WEBCORE_EXPORT static void ensureSession(PAL::SessionID, const String& identifierBase, RetainPtr<CFHTTPCookieStorageRef>&&);
     NetworkStorageSession(PAL::SessionID, RetainPtr<CFURLStorageSessionRef>&&, RetainPtr<CFHTTPCookieStorageRef>&&);
@@ -139,6 +142,8 @@ private:
 
     CredentialStorage m_credentialStorage;
 
+    String m_cacheStorageDirectory;
+
 #if HAVE(CFNETWORK_STORAGE_PARTITIONING)
     bool shouldPartitionCookies(const String& topPrivatelyControlledDomain) const;
     HashSet<String> m_topPrivatelyControlledDomainsForCookiePartitioning;
@@ -152,5 +157,9 @@ private:
     mutable RefPtr<CookieStorageObserver> m_cookieStorageObserver;
 #endif
 };
+
+#if PLATFORM(COCOA)
+WEBCORE_EXPORT CFURLStorageSessionRef createPrivateStorageSession(CFStringRef identifier);
+#endif
 
 }

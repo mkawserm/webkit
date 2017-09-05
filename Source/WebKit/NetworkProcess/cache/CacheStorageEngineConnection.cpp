@@ -32,7 +32,7 @@
 #include "WebCoreArgumentCoders.h"
 #include <WebCore/CacheQueryOptions.h>
 
-using namespace WebCore::DOMCache;
+using namespace WebCore::DOMCacheEngine;
 using namespace WebKit::CacheStorage;
 
 namespace WebKit {
@@ -56,11 +56,16 @@ void CacheStorageEngineConnection::remove(PAL::SessionID sessionID, uint64_t req
     });
 }
 
-void CacheStorageEngineConnection::caches(PAL::SessionID sessionID, uint64_t requestIdentifier, const String& origin)
+void CacheStorageEngineConnection::caches(PAL::SessionID sessionID, uint64_t requestIdentifier, const String& origin, uint64_t updateCounter)
 {
-    Engine::from(sessionID).retrieveCaches(origin, [protectedThis = makeRef(*this), this, sessionID, origin, requestIdentifier](CacheInfosOrError&& result) {
+    Engine::from(sessionID).retrieveCaches(origin, updateCounter, [protectedThis = makeRef(*this), this, sessionID, origin, requestIdentifier](CacheInfosOrError&& result) {
         m_connection.connection().send(Messages::WebCacheStorageConnection::UpdateCaches(requestIdentifier, result), sessionID.sessionID());
     });
+}
+
+void CacheStorageEngineConnection::clearMemoryRepresentation(PAL::SessionID sessionID, const String& origin)
+{
+    Engine::from(sessionID).clearMemoryRepresentation(origin);
 }
 
 void CacheStorageEngineConnection::records(PAL::SessionID sessionID, uint64_t requestIdentifier, uint64_t cacheIdentifier)

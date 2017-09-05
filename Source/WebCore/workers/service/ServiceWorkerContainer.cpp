@@ -29,8 +29,13 @@
 #if ENABLE(SERVICE_WORKER)
 
 #include "Exception.h"
+#include "IDLTypes.h"
 #include "JSDOMPromiseDeferred.h"
+#include "JSServiceWorkerRegistration.h"
+#include "Logging.h"
 #include "NavigatorBase.h"
+#include "ResourceError.h"
+#include "ScopeGuard.h"
 #include "ScriptExecutionContext.h"
 #include "SecurityOrigin.h"
 #include "ServiceWorkerJob.h"
@@ -104,7 +109,7 @@ void ServiceWorkerContainer::addRegistration(const String& relativeScriptURL, co
 
     String path = jobData.scriptURL.path();
     if (path.containsIgnoringASCIICase("%2f") || path.containsIgnoringASCIICase("%5c")) {
-        promise->reject(Exception { TypeError, ASCIILiteral("serviceWorker.register() must be called with a script URL whose path does not contain '%%2f' or '%%5c'") });
+        promise->reject(Exception { TypeError, ASCIILiteral("serviceWorker.register() must be called with a script URL whose path does not contain '%2f' or '%5c'") });
         return;
     }
 
@@ -112,10 +117,21 @@ void ServiceWorkerContainer::addRegistration(const String& relativeScriptURL, co
     if (!scope.isEmpty())
         jobData.scopeURL = context->completeURL(scope);
 
+    if (!jobData.scopeURL.isNull() && !jobData.scopeURL.protocolIsInHTTPFamily()) {
+        promise->reject(Exception { TypeError, ASCIILiteral("Scope URL provided to serviceWorker.register() must be either HTTP or HTTPS") });
+        return;
+    }
+
+    path = jobData.scopeURL.path();
+    if (path.containsIgnoringASCIICase("%2f") || path.containsIgnoringASCIICase("%5c")) {
+        promise->reject(Exception { TypeError, ASCIILiteral("Scope URL provided to serviceWorker.register() cannot have a path that contains '%2f' or '%5c'") });
+        return;
+    }
+
     jobData.clientCreationURL = context->url();
     jobData.topOrigin = SecurityOriginData::fromSecurityOrigin(context->topOrigin());
     jobData.type = ServiceWorkerJobType::Register;
-    jobData.registrationOptions = std::make_unique<RegistrationOptions>(options);
+    jobData.registrationOptions = options;
 
     scheduleJob(ServiceWorkerJob::create(*this, WTFMove(promise), WTFMove(jobData)));
 }
@@ -125,7 +141,7 @@ void ServiceWorkerContainer::scheduleJob(Ref<ServiceWorkerJob>&& job)
     ASSERT(m_swConnection);
 
     ServiceWorkerJob& rawJob = job.get();
-    auto result = m_jobMap.add(rawJob.identifier(), WTFMove(job));
+    auto result = m_jobMap.add(rawJob.data().identifier(), WTFMove(job));
     ASSERT_UNUSED(result, result.isNewEntry);
 
     m_swConnection->scheduleJob(rawJob);
@@ -145,10 +161,61 @@ void ServiceWorkerContainer::startMessages()
 {
 }
 
+void ServiceWorkerContainer::jobFailedWithException(ServiceWorkerJob& job, const Exception& exception)
+{
+    job.promise().reject(exception);
+    jobDidFinish(job);
+}
+
+void ServiceWorkerContainer::jobResolvedWithRegistration(ServiceWorkerJob& job, const ServiceWorkerRegistrationData& data)
+{
+    ScopeGuard guard([this, &job] {
+        jobDidFinish(job);
+    });
+
+    auto* context = scriptExecutionContext();
+    if (!context) {
+        LOG_ERROR("ServiceWorkerContainer::jobResolvedWithRegistration called but the containers ScriptExecutionContext is gone");
+        return;
+    }
+
+    auto registration = ServiceWorkerRegistration::create(*context, data);
+    job.promise().resolve<IDLInterface<ServiceWorkerRegistration>>(registration.get());
+}
+
+void ServiceWorkerContainer::startScriptFetchForJob(ServiceWorkerJob& job)
+{
+    LOG(ServiceWorker, "SeviceWorkerContainer %p starting script fetch for job %" PRIu64, this, job.data().identifier());
+
+    auto* context = scriptExecutionContext();
+    if (!context) {
+        LOG_ERROR("ServiceWorkerContainer::jobResolvedWithRegistration called but the container's ScriptExecutionContext is gone");
+        m_swConnection->failedFetchingScript(job, { errorDomainWebKitInternal, 0, job.data().scriptURL, ASCIILiteral("Attempt to fetch service worker script with no ScriptExecutionContext") });
+        jobDidFinish(job);
+        return;
+    }
+
+    job.fetchScriptWithContext(*context);
+}
+
+void ServiceWorkerContainer::jobFinishedLoadingScript(ServiceWorkerJob& job, Ref<SharedBuffer>&& data)
+{
+    LOG(ServiceWorker, "SeviceWorkerContainer %p finished fetching script for job %" PRIu64, this, job.data().identifier());
+
+    m_swConnection->finishedFetchingScript(job, data.get());
+}
+
+void ServiceWorkerContainer::jobFailedLoadingScript(ServiceWorkerJob& job, const ResourceError& error)
+{
+    LOG(ServiceWorker, "SeviceWorkerContainer %p failed fetching script for job %" PRIu64, this, job.data().identifier());
+
+    m_swConnection->failedFetchingScript(job, error);
+}
+
 void ServiceWorkerContainer::jobDidFinish(ServiceWorkerJob& job)
 {
-    auto taken = m_jobMap.take(job.identifier());
-    ASSERT_UNUSED(taken, taken.get() == &job);
+    auto taken = m_jobMap.take(job.data().identifier());
+    ASSERT_UNUSED(taken, !taken || taken.get() == &job);
 }
 
 uint64_t ServiceWorkerContainer::connectionIdentifier()

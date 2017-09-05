@@ -1,3 +1,813 @@
+2017-09-04  Yusuke Suzuki  <utatane.tea@gmail.com>
+
+        [DFG] Consider increasing the number of DFG worklist threads
+        https://bugs.webkit.org/show_bug.cgi?id=176222
+
+        Reviewed by Saam Barati.
+
+        Attempt to add one more thread to DFG worklist. DFG compiler sometimes takes
+        very long time if the target function is very large. However, DFG worklist
+        has only one thread before this patch. Therefore, one function that takes
+        too much time to be compiled can prevent the other functions from being
+        compiled in DFG or upper tiers.
+
+        One example is Octane/zlib. In zlib, compiling "a1" function in DFG takes
+        super long time (447 ms) because of its super large size of the function.
+        While this function never gets compiled in FTL due to its large size,
+        it can be compiled in DFG and takes super long time. Subsequent "a8" function
+        compilation in DFG is blocked by this "a1". As a consequence, the benchmark
+        takes very long time in a1/Baseline code, which is slower than DFG of course.
+
+        While FTL has a bit more threads, DFG worklist has only one thread. This patch
+        adds one more thread to DFG worklist to alleviate the above situation. This
+        change significantly improves Octane/zlib performance.
+
+                                    baseline                  patched
+
+        zlib           x2     482.32825+-6.07640    ^   408.66072+-14.03856      ^ definitely 1.1803x faster
+
+        * runtime/Options.h:
+
+2017-09-04  Sam Weinig  <sam@webkit.org>
+
+        [WebIDL] Unify and simplify EnableBySettings with the rest of the runtime settings
+        https://bugs.webkit.org/show_bug.cgi?id=176312
+
+        Reviewed by Darin Adler.
+
+        * runtime/CommonIdentifiers.h:
+
+            Remove WebCore specific identifiers from CommonIdentifiers. They have been moved
+            to WebCoreBuiltinNames in WebCore.
+
+2017-09-03  Yusuke Suzuki  <utatane.tea@gmail.com>
+
+        Remove "malloc" and "free" use
+        https://bugs.webkit.org/show_bug.cgi?id=176310
+
+        Reviewed by Darin Adler.
+
+        Use Vector instead.
+
+        * API/JSWrapperMap.mm:
+        (selectorToPropertyName):
+
+2017-09-03  Darin Adler  <darin@apple.com>
+
+        Try to fix Windows build.
+
+        * runtime/JSGlobalObjectFunctions.cpp: #include <unicode/utf8.h>.
+
+2017-09-03  Yusuke Suzuki  <utatane.tea@gmail.com>
+
+        [WTF] Add C++03 allocator interface for GCC < 6
+        https://bugs.webkit.org/show_bug.cgi?id=176301
+
+        Reviewed by Darin Adler.
+
+        * dfg/DFGObjectAllocationSinkingPhase.cpp:
+
+2017-09-03  Chris Dumez  <cdumez@apple.com>
+
+        Unreviewed, rolling out r221555.
+
+        Did not fix Windows build
+
+        Reverted changeset:
+
+        "Unreviewed attempt to fix Windows build."
+        http://trac.webkit.org/changeset/221555
+
+2017-09-03  Chris Dumez  <cdumez@apple.com>
+
+        Unreviewed attempt to fix Windows build.
+
+        * runtime/JSGlobalObjectFunctions.cpp:
+
+2017-09-03  Chris Dumez  <cdumez@apple.com>
+
+        Unreviewed, rolling out r221552.
+
+        Broke the build
+
+        Reverted changeset:
+
+        "[WTF] Add C++03 allocator interface for GCC < 6"
+        https://bugs.webkit.org/show_bug.cgi?id=176301
+        http://trac.webkit.org/changeset/221552
+
+2017-09-03  Yusuke Suzuki  <utatane.tea@gmail.com>
+
+        [WTF] Add C++03 allocator interface for GCC < 6
+        https://bugs.webkit.org/show_bug.cgi?id=176301
+
+        Reviewed by Darin Adler.
+
+        * dfg/DFGObjectAllocationSinkingPhase.cpp:
+
+2017-09-03  Yusuke Suzuki  <utatane.tea@gmail.com>
+
+        [JSC] Clean up BytecodeLivenessAnalysis
+        https://bugs.webkit.org/show_bug.cgi?id=176295
+
+        Reviewed by Saam Barati.
+
+        Previously, computeDefsForBytecodeOffset was a bit customizable.
+        This is used for try-catch handler's liveness analysis. But after
+        careful generatorification implementation, it is now not necessary.
+        This patch drops this customizability.
+
+        * bytecode/BytecodeGeneratorification.cpp:
+        (JSC::GeneratorLivenessAnalysis::computeDefsForBytecodeOffset): Deleted.
+        (JSC::GeneratorLivenessAnalysis::computeUsesForBytecodeOffset): Deleted.
+        * bytecode/BytecodeLivenessAnalysis.cpp:
+        (JSC::BytecodeLivenessAnalysis::computeKills):
+        (JSC::BytecodeLivenessAnalysis::computeDefsForBytecodeOffset): Deleted.
+        (JSC::BytecodeLivenessAnalysis::computeUsesForBytecodeOffset): Deleted.
+        * bytecode/BytecodeLivenessAnalysis.h:
+        * bytecode/BytecodeLivenessAnalysisInlines.h:
+        (JSC::BytecodeLivenessPropagation::stepOverInstruction):
+        (JSC::BytecodeLivenessPropagation::computeLocalLivenessForBytecodeOffset):
+        (JSC::BytecodeLivenessPropagation::computeLocalLivenessForBlock):
+        (JSC::BytecodeLivenessPropagation::getLivenessInfoAtBytecodeOffset):
+        (JSC::BytecodeLivenessPropagation::runLivenessFixpoint):
+        (JSC::BytecodeLivenessPropagation<DerivedAnalysis>::stepOverInstruction): Deleted.
+        (JSC::BytecodeLivenessPropagation<DerivedAnalysis>::computeLocalLivenessForBytecodeOffset): Deleted.
+        (JSC::BytecodeLivenessPropagation<DerivedAnalysis>::computeLocalLivenessForBlock): Deleted.
+        (JSC::BytecodeLivenessPropagation<DerivedAnalysis>::getLivenessInfoAtBytecodeOffset): Deleted.
+        (JSC::BytecodeLivenessPropagation<DerivedAnalysis>::runLivenessFixpoint): Deleted.
+
+2017-09-03  Sam Weinig  <sam@webkit.org>
+
+        Remove CanvasProxy
+        https://bugs.webkit.org/show_bug.cgi?id=176288
+
+        Reviewed by Yusuke Suzuki.
+
+        CanvasProxy does not appear to be in any current HTML spec
+        and was disabled and unimplemented in our tree. Time to 
+        get rid of it.
+
+        * Configurations/FeatureDefines.xcconfig:
+
+2017-09-02  Oliver Hunt  <oliver@apple.com>
+
+        Need an API to get the global context from JSObjectRef
+        https://bugs.webkit.org/show_bug.cgi?id=176291
+
+        Reviewed by Saam Barati.
+
+        Very simple additional API, starting off as SPI on principle.
+
+        * API/JSObjectRef.cpp:
+        (JSObjectGetGlobalContext):
+        * API/JSObjectRefPrivate.h:
+        * API/tests/testapi.c:
+        (main):
+
+2017-09-02  Yusuke Suzuki  <utatane.tea@gmail.com>
+
+        [DFG] Relax arity requirement
+        https://bugs.webkit.org/show_bug.cgi?id=175523
+
+        Reviewed by Saam Barati.
+
+        Our DFG pipeline gives up inlining when the arity of the target function is more than the number of the arguments.
+        It effectively prevents us from inlining and optimizing functions, which takes some optional arguments in the form
+        of the pre-ES6.
+
+        This patch removes the above restriction by performing the arity fixup in DFG.
+
+        SixSpeed shows improvement when we can inline arity-mismatched functions. (For example, calling generator.next()).
+
+                                       baseline                  patched
+
+        defaults.es5             1232.1226+-20.6775    ^    442.3326+-26.1883       ^ definitely 2.7855x faster
+        rest.es6                    5.3406+-0.8588     ^      3.5812+-0.5388        ^ definitely 1.4913x faster
+        spread-generator.es6      320.9107+-12.4808         310.4295+-12.0047         might be 1.0338x faster
+        generator.es6             318.3514+-9.6023     ^    286.4974+-12.6203       ^ definitely 1.1112x faster
+
+        * bytecode/InlineCallFrame.cpp:
+        (JSC::InlineCallFrame::dumpInContext const):
+        * bytecode/InlineCallFrame.h:
+        (JSC::InlineCallFrame::InlineCallFrame):
+        * dfg/DFGAbstractInterpreterInlines.h:
+        (JSC::DFG::AbstractInterpreter<AbstractStateType>::executeEffects):
+        * dfg/DFGArgumentsEliminationPhase.cpp:
+        * dfg/DFGArgumentsUtilities.cpp:
+        (JSC::DFG::argumentsInvolveStackSlot):
+        (JSC::DFG::emitCodeToGetArgumentsArrayLength):
+        * dfg/DFGByteCodeParser.cpp:
+        (JSC::DFG::ByteCodeParser::setLocal):
+        (JSC::DFG::ByteCodeParser::setArgument):
+        (JSC::DFG::ByteCodeParser::findArgumentPositionForLocal):
+        (JSC::DFG::ByteCodeParser::flush):
+        (JSC::DFG::ByteCodeParser::getArgumentCount):
+        (JSC::DFG::ByteCodeParser::inliningCost):
+        (JSC::DFG::ByteCodeParser::inlineCall):
+        (JSC::DFG::ByteCodeParser::attemptToInlineCall):
+        (JSC::DFG::ByteCodeParser::parseBlock):
+        (JSC::DFG::ByteCodeParser::InlineStackEntry::InlineStackEntry):
+        * dfg/DFGCommonData.cpp:
+        (JSC::DFG::CommonData::validateReferences):
+        * dfg/DFGConstantFoldingPhase.cpp:
+        (JSC::DFG::ConstantFoldingPhase::foldConstants):
+        * dfg/DFGGraph.cpp:
+        (JSC::DFG::Graph::isLiveInBytecode):
+        * dfg/DFGGraph.h:
+        (JSC::DFG::Graph::forAllLocalsLiveInBytecode):
+        * dfg/DFGOSRAvailabilityAnalysisPhase.cpp:
+        (JSC::DFG::LocalOSRAvailabilityCalculator::executeNode):
+        * dfg/DFGOSRExit.cpp:
+        (JSC::DFG::OSRExit::emitRestoreArguments):
+        * dfg/DFGOSRExitCompilerCommon.cpp:
+        (JSC::DFG::reifyInlinedCallFrames):
+        * dfg/DFGPreciseLocalClobberize.h:
+        (JSC::DFG::PreciseLocalClobberizeAdaptor::readTop):
+        * dfg/DFGSpeculativeJIT.cpp:
+        (JSC::DFG::SpeculativeJIT::emitGetLength):
+        (JSC::DFG::SpeculativeJIT::compileCreateDirectArguments):
+        * dfg/DFGStackLayoutPhase.cpp:
+        (JSC::DFG::StackLayoutPhase::run):
+        * ftl/FTLCompile.cpp:
+        (JSC::FTL::compile):
+        * ftl/FTLLowerDFGToB3.cpp:
+        (JSC::FTL::DFG::LowerDFGToB3::compileGetMyArgumentByVal):
+        (JSC::FTL::DFG::LowerDFGToB3::getArgumentsLength):
+        * ftl/FTLOperations.cpp:
+        (JSC::FTL::operationMaterializeObjectInOSR):
+        * interpreter/StackVisitor.cpp:
+        (JSC::StackVisitor::readInlinedFrame):
+        * jit/AssemblyHelpers.h:
+        (JSC::AssemblyHelpers::argumentsStart):
+        * jit/SetupVarargsFrame.cpp:
+        (JSC::emitSetupVarargsFrameFastCase):
+        * runtime/ClonedArguments.cpp:
+        (JSC::ClonedArguments::createWithInlineFrame):
+        * runtime/CommonSlowPaths.h:
+        (JSC::CommonSlowPaths::numberOfExtraSlots):
+        (JSC::CommonSlowPaths::numberOfStackPaddingSlots):
+        (JSC::CommonSlowPaths::numberOfStackPaddingSlotsWithExtraSlots):
+        (JSC::CommonSlowPaths::arityCheckFor):
+        * runtime/StackAlignment.h:
+        (JSC::stackAlignmentBytes):
+        (JSC::stackAlignmentRegisters):
+
+2017-09-01  Yusuke Suzuki  <utatane.tea@gmail.com>
+
+        [FTL] FTL allocation for async Function is incorrect
+        https://bugs.webkit.org/show_bug.cgi?id=176214
+
+        Reviewed by Saam Barati.
+
+        In FTL, allocating async function / async generator function was incorrectly using
+        JSFunction logic. While it is not observable right now since sizeof(JSFunction) == sizeof(JSAsyncFunction),
+        but it is a bug.
+
+        * ftl/FTLLowerDFGToB3.cpp:
+        (JSC::FTL::DFG::LowerDFGToB3::compileNewFunction):
+
+2017-08-31  Yusuke Suzuki  <utatane.tea@gmail.com>
+
+        [JSC] Fix "name" and "length" of Proxy revoke function
+        https://bugs.webkit.org/show_bug.cgi?id=176155
+
+        Reviewed by Mark Lam.
+
+        ProxyRevoke's length should be configurable. And it does not have
+        its own name. We add NameVisibility enum to InternalFunction to
+        control visibility of the name.
+
+        * runtime/InternalFunction.cpp:
+        (JSC::InternalFunction::finishCreation):
+        * runtime/InternalFunction.h:
+        * runtime/ProxyRevoke.cpp:
+        (JSC::ProxyRevoke::finishCreation):
+
+2017-08-31  Saam Barati  <sbarati@apple.com>
+
+        Throwing an exception in the DFG/FTL should not cause a jettison
+        https://bugs.webkit.org/show_bug.cgi?id=176060
+        <rdar://problem/34143348>
+
+        Reviewed by Keith Miller.
+
+        Throwing an exception is not something that should be a jettison-able
+        OSR exit. We used to count Throw/ThrowStaticError towards our OSR exit
+        counts which could cause a CodeBlock to jettison and recompile. This
+        was dumb. Throwing an exception is not a reason to jettison and
+        recompile in the way that a speculation failure is. This patch
+        treats Throw/ThrowStaticError as true terminals in DFG IR.
+
+        * bytecode/BytecodeUseDef.h:
+        (JSC::computeUsesForBytecodeOffset):
+        * dfg/DFGAbstractInterpreterInlines.h:
+        (JSC::DFG::AbstractInterpreter<AbstractStateType>::executeEffects):
+        * dfg/DFGByteCodeParser.cpp:
+        (JSC::DFG::ByteCodeParser::parseBlock):
+        * dfg/DFGClobberize.h:
+        (JSC::DFG::clobberize):
+        * dfg/DFGFixupPhase.cpp:
+        (JSC::DFG::FixupPhase::fixupNode):
+        * dfg/DFGInPlaceAbstractState.cpp:
+        (JSC::DFG::InPlaceAbstractState::mergeToSuccessors):
+        * dfg/DFGNode.h:
+        (JSC::DFG::Node::isTerminal):
+        (JSC::DFG::Node::isPseudoTerminal):
+        (JSC::DFG::Node::errorType):
+        * dfg/DFGNodeType.h:
+        * dfg/DFGOperations.cpp:
+        * dfg/DFGOperations.h:
+        * dfg/DFGPredictionPropagationPhase.cpp:
+        * dfg/DFGSpeculativeJIT.cpp:
+        (JSC::DFG::SpeculativeJIT::compileThrow):
+        (JSC::DFG::SpeculativeJIT::compileThrowStaticError):
+        * dfg/DFGSpeculativeJIT.h:
+        (JSC::DFG::SpeculativeJIT::callOperation):
+        * dfg/DFGSpeculativeJIT32_64.cpp:
+        (JSC::DFG::SpeculativeJIT::compile):
+        * dfg/DFGSpeculativeJIT64.cpp:
+        (JSC::DFG::SpeculativeJIT::compile):
+        * ftl/FTLLowerDFGToB3.cpp:
+        (JSC::FTL::DFG::LowerDFGToB3::compileNode):
+        (JSC::FTL::DFG::LowerDFGToB3::compileThrow):
+        (JSC::FTL::DFG::LowerDFGToB3::compileThrowStaticError):
+        * jit/JITOperations.h:
+
+2017-08-31  Saam Barati  <sbarati@apple.com>
+
+        Graph::methodOfGettingAValueProfileFor compares NodeOrigin instead of the semantic CodeOrigin
+        https://bugs.webkit.org/show_bug.cgi?id=176206
+
+        Reviewed by Keith Miller.
+
+        Mark fixed the main issue in Graph::methodOfGettingAValueProfileFor in r208560
+        when he fixed it from overwriting invalid parts of the ArithProfile when the
+        currentNode and the operandNode are from the same bytecode. However, the
+        mechanism used to determine same bytecode was comparing NodeOrigin. That's
+        slightly wrong. We need to compare semantic origin, since two NodeOrigins can
+        have the same semantic origin, but differ only in exitOK. For example,
+        in the below IR, the DoubleRep and the Phi have the same semantic
+        origin, but different NodeOrigins.
+
+        43 Phi(JS|PureInt, NonBoolInt32|NonIntAsdouble, W:SideState, bc#63, ExitInvalid)
+        58 ExitOK(MustGen, W:SideState, bc#63)
+        51 DoubleRep(Check:Number:Kill:@43, Double|PureInt, BytecodeDouble, Exits, bc#63)
+        54 ArithNegate(DoubleRep:Kill:@51<Double>, Double|UseAsOther|MayHaveDoubleResult, AnyIntAsDouble|NonIntAsdouble, NotSet, Exits, bc#63)
+
+        * dfg/DFGGraph.cpp:
+        (JSC::DFG::Graph::methodOfGettingAValueProfileFor):
+
+2017-08-31  Don Olmstead  <don.olmstead@sony.com>
+
+        [CMake] Make USE_CF conditional within Windows
+        https://bugs.webkit.org/show_bug.cgi?id=176173
+
+        Reviewed by Alex Christensen.
+
+        * PlatformWin.cmake:
+
+2017-08-31  Saam Barati  <sbarati@apple.com>
+
+        useSeparatedWXHeap should never be true when not on iOS
+        https://bugs.webkit.org/show_bug.cgi?id=176190
+
+        Reviewed by JF Bastien.
+
+        If you set useSeparatedWXHeap to true on X86_64, and launch the jsc shell,
+        the process insta-crashes. Let's silently ignore that option and set it
+        to false when not on iOS.
+
+        * runtime/Options.cpp:
+        (JSC::recomputeDependentOptions):
+
+2017-08-31  Filip Pizlo  <fpizlo@apple.com>
+
+        Fix debug crashes.
+
+        Rubber stamped by Mark Lam.
+
+        * runtime/JSArrayBufferView.cpp:
+        (JSC::JSArrayBufferView::ConstructionContext::ConstructionContext):
+
+2017-08-31  Filip Pizlo  <fpizlo@apple.com>
+
+        All of the different ArrayBuffer::data's should be CagedPtr<>
+        https://bugs.webkit.org/show_bug.cgi?id=175515
+
+        Reviewed by Michael Saboff.
+        
+        This straightforwardly implements what the title says.
+
+        * runtime/ArrayBuffer.cpp:
+        (JSC::SharedArrayBufferContents::~SharedArrayBufferContents):
+        (JSC::ArrayBufferContents::destroy):
+        (JSC::ArrayBufferContents::tryAllocate):
+        (JSC::ArrayBufferContents::makeShared):
+        (JSC::ArrayBufferContents::copyTo):
+        (JSC::ArrayBuffer::createFromBytes):
+        (JSC::ArrayBuffer::transferTo):
+        * runtime/ArrayBuffer.h:
+        (JSC::SharedArrayBufferContents::data const):
+        (JSC::ArrayBufferContents::data const):
+        (JSC::ArrayBuffer::data):
+        (JSC::ArrayBuffer::data const):
+        * runtime/ArrayBufferView.h:
+        (JSC::ArrayBufferView::baseAddress const):
+        * runtime/CagedBarrierPtr.h: Added a specialization so that CagedBarrierPtr<Gigacage::Foo, void> is valid.
+        * runtime/DataView.h:
+        (JSC::DataView::get):
+        (JSC::DataView::set):
+        * runtime/JSArrayBufferView.cpp:
+        (JSC::JSArrayBufferView::ConstructionContext::ConstructionContext):
+        * runtime/JSArrayBufferView.h:
+        (JSC::JSArrayBufferView::ConstructionContext::vector const):
+        (JSC::JSArrayBufferView::vector const):
+        * runtime/JSGenericTypedArrayViewInlines.h:
+        (JSC::JSGenericTypedArrayView<Adaptor>::visitChildren):
+
+2017-08-22  Filip Pizlo  <fpizlo@apple.com>
+
+        Strings need to be in some kind of gigacage
+        https://bugs.webkit.org/show_bug.cgi?id=174924
+
+        Reviewed by Oliver Hunt.
+
+        * runtime/JSString.cpp:
+        (JSC::JSRopeString::resolveRopeToAtomicString const):
+        (JSC::JSRopeString::resolveRope const):
+        * runtime/JSString.h:
+        (JSC::JSString::create):
+        (JSC::JSString::createHasOtherOwner):
+        * runtime/JSStringBuilder.h:
+        * runtime/VM.h:
+        (JSC::VM::gigacageAuxiliarySpace):
+
+2017-08-31  Yusuke Suzuki  <utatane.tea@gmail.com>
+
+        [JSC] Use reifying system for "name" property of builtin JSFunction
+        https://bugs.webkit.org/show_bug.cgi?id=175260
+
+        Reviewed by Saam Barati.
+
+        Currently builtin JSFunction uses direct property for "name", which is different
+        from usual JSFunction. Usual JSFunction uses reifying system for "name". We would like
+        to apply this reifying mechanism to builtin JSFunction to simplify code and drop
+        JSFunction::createBuiltinFunction.
+
+        We would like to store the "correct" name in FunctionExecutable. For example,
+        we would like to store the name like "get [Symbol.species]" to FunctionExecutable
+        instead of specifying name when creating JSFunction. To do so, we add a new
+        annotations, @getter and @overriddenName. When @getter is specified, the name of
+        the function becomes "get xxx". And when @overriddenName="xxx" is specified,
+        the name of the function becomes "xxx".
+
+        We also treat @xxx as anonymous builtin functions that cannot be achieved in
+        the current JS without privilege.
+
+        * Scripts/builtins/builtins_generate_combined_header.py:
+        (generate_section_for_code_table_macro):
+        * Scripts/builtins/builtins_generate_combined_implementation.py:
+        (BuiltinsCombinedImplementationGenerator.generate_secondary_header_includes):
+        * Scripts/builtins/builtins_generate_separate_header.py:
+        (generate_section_for_code_table_macro):
+        * Scripts/builtins/builtins_generate_separate_implementation.py:
+        (BuiltinsSeparateImplementationGenerator.generate_secondary_header_includes):
+        * Scripts/builtins/builtins_model.py:
+        (BuiltinFunction.__init__):
+        (BuiltinFunction.fromString):
+        * Scripts/builtins/builtins_templates.py:
+        * Scripts/tests/builtins/JavaScriptCore-Builtin.prototype-Combined.js:
+        (overriddenName.string_appeared_here.match):
+        (intrinsic.RegExpTestIntrinsic.test):
+        * Scripts/tests/builtins/JavaScriptCore-Builtin.prototype-Separate.js:
+        (overriddenName.string_appeared_here.match):
+        (intrinsic.RegExpTestIntrinsic.test):
+        * Scripts/tests/builtins/expected/JavaScriptCore-Builtin.Promise-Combined.js-result:
+        * Scripts/tests/builtins/expected/JavaScriptCore-Builtin.Promise-Separate.js-result:
+        * Scripts/tests/builtins/expected/JavaScriptCore-Builtin.prototype-Combined.js-result:
+        * Scripts/tests/builtins/expected/JavaScriptCore-Builtin.prototype-Separate.js-result:
+        * Scripts/tests/builtins/expected/JavaScriptCore-BuiltinConstructor-Combined.js-result:
+        * Scripts/tests/builtins/expected/JavaScriptCore-BuiltinConstructor-Separate.js-result:
+        * Scripts/tests/builtins/expected/JavaScriptCore-InternalClashingNames-Combined.js-result:
+        * Scripts/tests/builtins/expected/WebCore-AnotherGuardedInternalBuiltin-Separate.js-result:
+        * Scripts/tests/builtins/expected/WebCore-ArbitraryConditionalGuard-Separate.js-result:
+        * Scripts/tests/builtins/expected/WebCore-GuardedBuiltin-Separate.js-result:
+        * Scripts/tests/builtins/expected/WebCore-GuardedInternalBuiltin-Separate.js-result:
+        * Scripts/tests/builtins/expected/WebCore-UnguardedBuiltin-Separate.js-result:
+        * Scripts/tests/builtins/expected/WebCore-xmlCasingTest-Separate.js-result:
+        * builtins/AsyncIteratorPrototype.js:
+        (symbolAsyncIteratorGetter): Deleted.
+        * builtins/BuiltinExecutables.cpp:
+        (JSC::BuiltinExecutables::BuiltinExecutables):
+        * builtins/BuiltinExecutables.h:
+        * builtins/BuiltinNames.h:
+        * builtins/FunctionPrototype.js:
+        (symbolHasInstance): Deleted.
+        * builtins/GlobalOperations.js:
+        (globalPrivate.speciesGetter): Deleted.
+        * builtins/IteratorPrototype.js:
+        (symbolIteratorGetter): Deleted.
+        * builtins/PromiseConstructor.js:
+        (all.newResolveElement.return.resolve):
+        (all.newResolveElement):
+        (all):
+        * builtins/PromiseOperations.js:
+        (globalPrivate.newPromiseCapability.executor):
+        (globalPrivate.newPromiseCapability):
+        (globalPrivate.createResolvingFunctions.resolve):
+        (globalPrivate.createResolvingFunctions.reject):
+        (globalPrivate.createResolvingFunctions):
+        * builtins/RegExpPrototype.js:
+        (match): Deleted.
+        (replace): Deleted.
+        (search): Deleted.
+        (split): Deleted.
+        * jsc.cpp:
+        (functionCreateBuiltin):
+        * runtime/AsyncIteratorPrototype.cpp:
+        (JSC::AsyncIteratorPrototype::finishCreation):
+        * runtime/FunctionPrototype.cpp:
+        (JSC::FunctionPrototype::addFunctionProperties):
+        * runtime/IteratorPrototype.cpp:
+        (JSC::IteratorPrototype::finishCreation):
+        * runtime/JSFunction.cpp:
+        (JSC::JSFunction::finishCreation):
+        (JSC::JSFunction::getOwnNonIndexPropertyNames):
+        (JSC::JSFunction::reifyLazyBoundNameIfNeeded):
+        (JSC::JSFunction::createBuiltinFunction): Deleted.
+        * runtime/JSFunction.h:
+        * runtime/JSGlobalObject.cpp:
+        (JSC::JSGlobalObject::init):
+        * runtime/JSObject.cpp:
+        (JSC::JSObject::putDirectBuiltinFunction):
+        (JSC::JSObject::putDirectBuiltinFunctionWithoutTransition):
+        * runtime/JSTypedArrayViewPrototype.cpp:
+        (JSC::JSTypedArrayViewPrototype::finishCreation):
+        * runtime/Lookup.cpp:
+        (JSC::reifyStaticAccessor):
+        * runtime/MapPrototype.cpp:
+        (JSC::MapPrototype::finishCreation):
+        * runtime/RegExpPrototype.cpp:
+        (JSC::RegExpPrototype::finishCreation):
+        * runtime/SetPrototype.cpp:
+        (JSC::SetPrototype::finishCreation):
+
+2017-08-30  Ryan Haddad  <ryanhaddad@apple.com>
+
+        Unreviewed, rolling out r221327.
+
+        This change caused test262 failures.
+
+        Reverted changeset:
+
+        "[JSC] Use reifying system for "name" property of builtin
+        JSFunction"
+        https://bugs.webkit.org/show_bug.cgi?id=175260
+        http://trac.webkit.org/changeset/221327
+
+2017-08-30  Matt Lewis  <jlewis3@apple.com>
+
+        Unreviewed, rolling out r221384.
+
+        This patch caused multiple 32-bit JSC test failures.
+
+        Reverted changeset:
+
+        "Strings need to be in some kind of gigacage"
+        https://bugs.webkit.org/show_bug.cgi?id=174924
+        http://trac.webkit.org/changeset/221384
+
+2017-08-30  Saam Barati  <sbarati@apple.com>
+
+        semicolon is being interpreted as an = in the LiteralParser
+        https://bugs.webkit.org/show_bug.cgi?id=176114
+
+        Reviewed by Oliver Hunt.
+
+        When lexing a semicolon in the LiteralParser, we were properly
+        setting the TokenType on the current token, however, we were
+        *returning* the wrong TokenType. The lex function both returns
+        the TokenType and sets it on the current token. Semicolon was
+        setting the TokenType to semicolon, but returning the TokenType
+        for '='. This caused programs like `x;123` to be interpreted as
+        `x=123`.
+
+        * runtime/LiteralParser.cpp:
+        (JSC::LiteralParser<CharType>::Lexer::lex):
+        (JSC::LiteralParser<CharType>::Lexer::next):
+
+2017-08-22  Filip Pizlo  <fpizlo@apple.com>
+
+        Strings need to be in some kind of gigacage
+        https://bugs.webkit.org/show_bug.cgi?id=174924
+
+        Reviewed by Oliver Hunt.
+
+        * runtime/JSString.cpp:
+        (JSC::JSRopeString::resolveRopeToAtomicString const):
+        (JSC::JSRopeString::resolveRope const):
+        * runtime/JSString.h:
+        (JSC::JSString::create):
+        (JSC::JSString::createHasOtherOwner):
+        * runtime/JSStringBuilder.h:
+        * runtime/VM.h:
+        (JSC::VM::gigacageAuxiliarySpace):
+
+2017-08-30  Oleksandr Skachkov  <gskachkov@gmail.com>
+
+        [ESNext] Async iteration - Implement async iteration statement: for-await-of
+        https://bugs.webkit.org/show_bug.cgi?id=166698
+
+        Reviewed by Yusuke Suzuki.
+
+        Implementation of the for-await-of statement.
+
+        * bytecompiler/BytecodeGenerator.cpp:
+        (JSC::BytecodeGenerator::emitEnumeration):
+        (JSC::BytecodeGenerator::emitIteratorNext):
+        * bytecompiler/BytecodeGenerator.h:
+        * parser/ASTBuilder.h:
+        (JSC::ASTBuilder::createForOfLoop):
+        * parser/NodeConstructors.h:
+        (JSC::ForOfNode::ForOfNode):
+        * parser/Nodes.h:
+        (JSC::ForOfNode::isForAwait const):
+        * parser/Parser.cpp:
+        (JSC::Parser<LexerType>::parseForStatement):
+        * parser/Parser.h:
+        (JSC::Scope::setSourceParseMode):
+        (JSC::Scope::setIsFunction):
+        (JSC::Scope::setIsAsyncGeneratorFunction):
+        (JSC::Scope::setIsAsyncGeneratorFunctionBody):
+        * parser/SyntaxChecker.h:
+        (JSC::SyntaxChecker::createForOfLoop):
+
+2017-08-29  Commit Queue  <commit-queue@webkit.org>
+
+        Unreviewed, rolling out r221317.
+        https://bugs.webkit.org/show_bug.cgi?id=176090
+
+        "It broke a testing mode because we will never FTL compile a
+        function that repeatedly throws" (Requested by saamyjoon on
+        #webkit).
+
+        Reverted changeset:
+
+        "Throwing an exception in the DFG/FTL should not be a
+        jettison-able OSR exit"
+        https://bugs.webkit.org/show_bug.cgi?id=176060
+        http://trac.webkit.org/changeset/221317
+
+2017-08-29  Yusuke Suzuki  <utatane.tea@gmail.com>
+
+        [DFG] Add constant folding rule to convert CompareStrictEq(Untyped, Untyped [with non string cell constant]) to CompareEqPtr(Untyped)
+        https://bugs.webkit.org/show_bug.cgi?id=175895
+
+        Reviewed by Saam Barati.
+
+        We have `bucket === @sentinelMapBucket` code in builtin. Since @sentinelMapBucket and bucket
+        are MapBucket cell (SpecCellOther), we do not have any good fixup for CompareStrictEq.
+        But rather than introducing a special fixup edge (like, NonStringCellUse), converting
+        CompareStrictEq(Untyped, Untyped) to CompareEqPtr is simpler.
+        In constant folding phase, we convert CompareStrictEq(Untyped, Untyped) to CompareEqPtr(Untyed)
+        if one side of the children is constant non String cell.
+
+        This slightly optimizes map/set iteration.
+
+        set-for-each          4.5064+-0.3072     ^      3.2862+-0.2098        ^ definitely 1.3713x faster
+        large-map-iteration  56.2583+-1.6640           53.6798+-2.0097          might be 1.0480x faster
+        set-for-of            8.8058+-0.5953     ^      7.5832+-0.3805        ^ definitely 1.1612x faster
+        map-for-each          4.2633+-0.2694     ^      3.3967+-0.3013        ^ definitely 1.2551x faster
+        map-for-of           13.1556+-0.5707           12.4911+-0.6004          might be 1.0532x faster
+
+        * dfg/DFGAbstractInterpreterInlines.h:
+        (JSC::DFG::AbstractInterpreter<AbstractStateType>::executeEffects):
+        * dfg/DFGConstantFoldingPhase.cpp:
+        (JSC::DFG::ConstantFoldingPhase::foldConstants):
+        * dfg/DFGNode.h:
+        (JSC::DFG::Node::convertToCompareEqPtr):
+
+2017-08-29  Yusuke Suzuki  <utatane.tea@gmail.com>
+
+        [JSC] Use reifying system for "name" property of builtin JSFunction
+        https://bugs.webkit.org/show_bug.cgi?id=175260
+
+        Reviewed by Saam Barati.
+
+        Currently builtin JSFunction uses direct property for "name", which is different
+        from usual JSFunction. Usual JSFunction uses reifying system for "name". We would like
+        to apply this reifying mechanism to builtin JSFunction to simplify code and drop
+        JSFunction::createBuiltinFunction.
+
+        We would like to store the "correct" name in FunctionExecutable. For example,
+        we would like to store the name like "get [Symbol.species]" to FunctionExecutable
+        instead of specifying name when creating JSFunction. To do so, we add a new
+        annotations, @getter and @overriddenName. When @getter is specified, the name of
+        the function becomes "get xxx". And when @overriddenName="xxx" is specified,
+        the name of the function becomes "xxx".
+
+        * Scripts/builtins/builtins_generate_combined_header.py:
+        (generate_section_for_code_table_macro):
+        * Scripts/builtins/builtins_generate_combined_implementation.py:
+        (BuiltinsCombinedImplementationGenerator.generate_secondary_header_includes):
+        * Scripts/builtins/builtins_generate_separate_header.py:
+        (generate_section_for_code_table_macro):
+        * Scripts/builtins/builtins_generate_separate_implementation.py:
+        (BuiltinsSeparateImplementationGenerator.generate_secondary_header_includes):
+        * Scripts/builtins/builtins_model.py:
+        (BuiltinFunction.__init__):
+        (BuiltinFunction.fromString):
+        * Scripts/builtins/builtins_templates.py:
+        * Scripts/tests/builtins/JavaScriptCore-Builtin.prototype-Combined.js:
+        (overriddenName.string_appeared_here.match):
+        (intrinsic.RegExpTestIntrinsic.test):
+        * Scripts/tests/builtins/JavaScriptCore-Builtin.prototype-Separate.js:
+        (overriddenName.string_appeared_here.match):
+        (intrinsic.RegExpTestIntrinsic.test):
+        * Scripts/tests/builtins/expected/JavaScriptCore-Builtin.Promise-Combined.js-result:
+        * Scripts/tests/builtins/expected/JavaScriptCore-Builtin.Promise-Separate.js-result:
+        * Scripts/tests/builtins/expected/JavaScriptCore-Builtin.prototype-Combined.js-result:
+        * Scripts/tests/builtins/expected/JavaScriptCore-Builtin.prototype-Separate.js-result:
+        * Scripts/tests/builtins/expected/JavaScriptCore-BuiltinConstructor-Combined.js-result:
+        * Scripts/tests/builtins/expected/JavaScriptCore-BuiltinConstructor-Separate.js-result:
+        * Scripts/tests/builtins/expected/JavaScriptCore-InternalClashingNames-Combined.js-result:
+        * Scripts/tests/builtins/expected/WebCore-AnotherGuardedInternalBuiltin-Separate.js-result:
+        * Scripts/tests/builtins/expected/WebCore-ArbitraryConditionalGuard-Separate.js-result:
+        * Scripts/tests/builtins/expected/WebCore-GuardedBuiltin-Separate.js-result:
+        * Scripts/tests/builtins/expected/WebCore-GuardedInternalBuiltin-Separate.js-result:
+        * Scripts/tests/builtins/expected/WebCore-UnguardedBuiltin-Separate.js-result:
+        * Scripts/tests/builtins/expected/WebCore-xmlCasingTest-Separate.js-result:
+        * builtins/BuiltinExecutables.cpp:
+        (JSC::BuiltinExecutables::BuiltinExecutables):
+        * builtins/BuiltinExecutables.h:
+        * builtins/FunctionPrototype.js:
+        (symbolHasInstance): Deleted.
+        * builtins/GlobalOperations.js:
+        (globalPrivate.speciesGetter): Deleted.
+        * builtins/IteratorPrototype.js:
+        (symbolIteratorGetter): Deleted.
+        * builtins/RegExpPrototype.js:
+        (match): Deleted.
+        (replace): Deleted.
+        (search): Deleted.
+        (split): Deleted.
+        * jsc.cpp:
+        (functionCreateBuiltin):
+        * runtime/FunctionPrototype.cpp:
+        (JSC::FunctionPrototype::addFunctionProperties):
+        * runtime/IteratorPrototype.cpp:
+        (JSC::IteratorPrototype::finishCreation):
+        * runtime/JSFunction.cpp:
+        (JSC::JSFunction::getOwnNonIndexPropertyNames):
+        (JSC::JSFunction::reifyLazyBoundNameIfNeeded):
+        (JSC::JSFunction::createBuiltinFunction): Deleted.
+        * runtime/JSFunction.h:
+        * runtime/JSGlobalObject.cpp:
+        (JSC::JSGlobalObject::init):
+        * runtime/JSObject.cpp:
+        (JSC::JSObject::putDirectBuiltinFunction):
+        (JSC::JSObject::putDirectBuiltinFunctionWithoutTransition):
+        * runtime/JSTypedArrayViewPrototype.cpp:
+        (JSC::JSTypedArrayViewPrototype::finishCreation):
+        * runtime/Lookup.cpp:
+        (JSC::reifyStaticAccessor):
+        * runtime/RegExpPrototype.cpp:
+        (JSC::RegExpPrototype::finishCreation):
+
+2017-08-29  Saam Barati  <sbarati@apple.com>
+
+        Throwing an exception in the DFG/FTL should not be a jettison-able OSR exit
+        https://bugs.webkit.org/show_bug.cgi?id=176060
+
+        Reviewed by Michael Saboff.
+
+        OSR exitting when we throw an exception is expected behavior. We should
+        not count these exits towards our jettison OSR exit threshold.
+
+        * bytecode/ExitKind.cpp:
+        (JSC::exitKindToString):
+        (JSC::exitKindMayJettison):
+        * bytecode/ExitKind.h:
+        * dfg/DFGSpeculativeJIT32_64.cpp:
+        (JSC::DFG::SpeculativeJIT::compile):
+        * dfg/DFGSpeculativeJIT64.cpp:
+        (JSC::DFG::SpeculativeJIT::compile):
+        * ftl/FTLLowerDFGToB3.cpp:
+        (JSC::FTL::DFG::LowerDFGToB3::compileThrow):
+
+2017-08-29  Chris Dumez  <cdumez@apple.com>
+
+        Add initial support for dataTransferItem.webkitGetAsEntry()
+        https://bugs.webkit.org/show_bug.cgi?id=176038
+        <rdar://problem/34121095>
+
+        Reviewed by Wenson Hsieh.
+
+        Add CommonIdentifier needed by [EnabledAtRuntime].
+
+        * runtime/CommonIdentifiers.h:
+
 2017-08-27  Devin Rousso  <webkit@devinrousso.com>
 
         Web Inspector: Record actions performed on WebGLRenderingContext

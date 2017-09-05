@@ -35,7 +35,7 @@
 #include "WebProcess.h"
 #include <wtf/MainThread.h>
 
-using namespace WebCore::DOMCache;
+using namespace WebCore::DOMCacheEngine;
 using namespace WebKit::CacheStorage;
 
 namespace WebKit {
@@ -66,9 +66,9 @@ void WebCacheStorageConnection::doRemove(uint64_t requestIdentifier, uint64_t ca
     connection().send(Messages::CacheStorageEngineConnection::Remove(m_sessionID, requestIdentifier, cacheIdentifier), 0);
 }
 
-void WebCacheStorageConnection::doRetrieveCaches(uint64_t requestIdentifier, const String& origin)
+void WebCacheStorageConnection::doRetrieveCaches(uint64_t requestIdentifier, const String& origin, uint64_t updateCounter)
 {
-    connection().send(Messages::CacheStorageEngineConnection::Caches(m_sessionID, requestIdentifier, origin), 0);
+    connection().send(Messages::CacheStorageEngineConnection::Caches(m_sessionID, requestIdentifier, origin, updateCounter), 0);
 }
 
 void WebCacheStorageConnection::doRetrieveRecords(uint64_t requestIdentifier, uint64_t cacheIdentifier)
@@ -84,6 +84,12 @@ void WebCacheStorageConnection::doBatchDeleteOperation(uint64_t requestIdentifie
 void WebCacheStorageConnection::doBatchPutOperation(uint64_t requestIdentifier, uint64_t cacheIdentifier, Vector<Record>&& records)
 {
     connection().send(Messages::CacheStorageEngineConnection::PutRecords(m_sessionID, requestIdentifier, cacheIdentifier, records), 0);
+}
+
+void WebCacheStorageConnection::clearMemoryRepresentation(const String& origin, CompletionCallback&& callback)
+{
+    connection().send(Messages::CacheStorageEngineConnection::ClearMemoryRepresentation(m_sessionID, origin), 0);
+    callback(std::nullopt);
 }
 
 void WebCacheStorageConnection::openCompleted(uint64_t requestIdentifier, const CacheIdentifierOrError& result)

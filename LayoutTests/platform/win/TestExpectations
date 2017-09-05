@@ -179,9 +179,6 @@ http/tests/local/blob/send-sliced-data-blob.html [ Skip ]
 # TODO BlodBuilder is not enabled
 http/tests/local/blob/send-data-blob.html [ Skip ]
 
-# Directory upload is not enabled.
-fast/forms/file/input-file-directory-upload.html [ Skip ]
-
 # TODO A test that failed because eventSender cannot send function-key events.
 fast/events/keydown-function-keys.html [ Skip ]
 
@@ -1178,6 +1175,7 @@ editing/pasteboard/emacs-ctrl-k-y-001.html [ Failure ]
 editing/pasteboard/emacs-cntl-y-001.html [ Failure ]
 # Assertion failure in replaySavedEvents
 webkit.org/b/21796 editing/pasteboard/drop-text-events.html [ Skip ]
+editing/pasteboard/paste-empty-startcontainer.html [ Skip ]
 
 http/tests/images/hidpi-srcset-copy.html [ Skip ]
 
@@ -2761,13 +2759,13 @@ webkit.org/b/128855 fast/regions/selection/position-for-point-1.html [ Failure ]
 webkit.org/b/128855 fast/regions/selection/position-for-point-vert-lr.html [ Failure ] 
 webkit.org/b/128855 fast/regions/selection/position-for-point-vert-rl.html [ Failure ] 
 webkit.org/b/128855 fast/regions/selection/position-for-point.html [ Failure ]
-webkit.org/b/128855 fast/regions/selection/selection-direction.html [ Pass Timeout ]
+webkit.org/b/128855 fast/regions/selection/selection-direction.html [ ImageOnlyFailure ]
 webkit.org/b/128855 fast/regions/fullscreen/full-screen-video-in-region-crash.html [ Crash Failure Timeout ]
 webkit.org/b/128855 fast/regions/repaint/repaint-absolute-pushed-to-next-region.html [ Failure ]
-webkit.org/b/128855 fast/regions/clip-to-padding-box-vertical-lr.html [ Pass Timeout ] 
+webkit.org/b/128855 fast/regions/clip-to-padding-box-vertical-lr.html [ ImageOnlyFailure ]
 webkit.org/b/128855 fast/regions/hover-and-js-in-visual-overflow.html [ Timeout ImageOnlyFailure ]
-webkit.org/b/128855 fast/regions/overflow/overflow-scrollable-3.html [ Pass Timeout ]
-webkit.org/b/128855 fast/regions/region-styling/region-style-block-background-color.html [ Pass Timeout ]
+webkit.org/b/128855 fast/regions/overflow/overflow-scrollable-3.html [ ImageOnlyFailure ]
+webkit.org/b/128855 fast/regions/region-styling/region-style-block-background-color.html [ ImageOnlyFailure ]
 [ Debug ] fast/regions/subtree-with-vert-lr.html [ ImageOnlyFailure ]
 [ Debug ] fast/regions/subtree-with-vert-rl.html [ ImageOnlyFailure ]
 fast/regions/hover-single-flow-into-none.html [ Pass Timeout ]
@@ -3479,10 +3477,6 @@ http/tests/security/http-0.9/worker-importScripts-blocked.html [ Failure ]
 http/tests/security/http-0.9/xhr-asynchronous-blocked.html [ Failure ]
 http/tests/security/http-0.9/xhr-blocked.html [ Failure ]
 http/tests/security/module-no-mime-type.html [ Failure ]
-http/tests/ssl/iframe-upgrade.https.html [ Failure ]
-http/tests/ssl/media-stream/get-user-media-different-host.html [ Failure ]
-http/tests/ssl/media-stream/get-user-media-nested.html [ Failure ]
-http/tests/ssl/media-stream/get-user-media-secure-connection.html [ Failure ]
 http/tests/ssl/mixedContent/insecure-websocket.html [ Failure ]
 http/tests/ssl/upgrade-origin-usage.html [ Failure ]
 http/tests/xmlhttprequest/auth-reject-protection-space.html [ Failure ]
@@ -3682,6 +3676,10 @@ http/tests/security/mixedcontent-geolocation-block-insecure-content.html [ Skip 
 http/tests/security/mixedcontent-geolocation.html [ Skip ]
 http/tests/security/sandboxed-iframe-geolocation-getCurrentPosition.html [ Skip ]
 http/tests/security/sandboxed-iframe-geolocation-watchPosition.html [ Skip ]
+http/tests/ssl/iframe-upgrade.https.html [ Skip ]
+http/tests/ssl/media-stream/get-user-media-different-host.html [ Skip ]
+http/tests/ssl/media-stream/get-user-media-nested.html [ Skip ]
+http/tests/ssl/media-stream/get-user-media-secure-connection.html [ Skip ]
 http/tests/websocket/tests/hybi/simple-stress.html [ Skip ]
 http/tests/xmlhttprequest/on-network-timeout-error-during-preflight.html [ Skip ]
 http/tests/xmlhttprequest/resetting-timeout-to-zero.html [ Skip ]
@@ -3987,6 +3985,9 @@ webkit.org/b/162415 imported/w3c/web-platform-tests/html/syntax [ Skip ]
 # Only Mac has implemented DictionaryLookup
 fast/layers/prevent-hit-test-during-layout.html [ Skip ]
 
+# This test relies on Mac-specific quirks
+media/document-level-media-user-gesture-quirk.html [ Skip ]
+
 # webrtc not supported
 imported/w3c/web-platform-tests/webrtc [ Skip ]
 webrtc [ Skip ]
@@ -4043,7 +4044,14 @@ webkit.org/b/93589 svg/dom/SVGScriptElement/script-change-externalResourcesRequi
 
 imported/w3c/web-platform-tests/cors/allow-headers.htm [ Slow ]
 imported/w3c/web-platform-tests/cors/simple-requests.htm [ Slow ]
+imported/w3c/web-platform-tests/dom/traversal/NodeFilter-constants.html [ Slow ]
+imported/w3c/web-platform-tests/encoding/api-basics.html [ Slow ]
 imported/w3c/web-platform-tests/fetch/api/basic/accept-header.any.html [ Slow ]
 imported/w3c/web-platform-tests/fetch/api/cors/cors-basic.any.html [ Slow ]
 
+# No service worker implementation for WK1
 http/tests/workers/service [ Skip ]
+imported/w3c/web-platform-tests/service-workers [ Skip ]
+
+# This test is flaky on Windows.
+webkit.org/b/157916 http/tests/misc/slow-loading-animated-image.html [ Pass ImageOnlyFailure ]

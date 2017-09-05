@@ -54,19 +54,21 @@ private:
     // WebCore::CacheStorageConnection
     void doOpen(uint64_t requestIdentifier, const String& origin, const String& cacheName) final;
     void doRemove(uint64_t requestIdentifier, uint64_t cacheIdentifier) final;
-    void doRetrieveCaches(uint64_t requestIdentifier, const String& origin) final;
+    void doRetrieveCaches(uint64_t requestIdentifier, const String& origin, uint64_t updateCounter) final;
 
     void doRetrieveRecords(uint64_t requestIdentifier, uint64_t cacheIdentifier) final;
     void doBatchDeleteOperation(uint64_t requestIdentifier, uint64_t cacheIdentifier, const WebCore::ResourceRequest&, WebCore::CacheQueryOptions&&) final;
-    void doBatchPutOperation(uint64_t requestIdentifier, uint64_t cacheIdentifier, Vector<WebCore::DOMCache::Record>&&) final;
+    void doBatchPutOperation(uint64_t requestIdentifier, uint64_t cacheIdentifier, Vector<WebCore::DOMCacheEngine::Record>&&) final;
 
-    void openCompleted(uint64_t requestIdentifier, const WebCore::DOMCache::CacheIdentifierOrError&);
-    void removeCompleted(uint64_t requestIdentifier, const WebCore::DOMCache::CacheIdentifierOrError&);
-    void updateCaches(uint64_t requestIdentifier, WebCore::DOMCache::CacheInfosOrError&&);
+    void clearMemoryRepresentation(const String& origin, WebCore::DOMCacheEngine::CompletionCallback&&) final;
 
-    void updateRecords(uint64_t requestIdentifier, WebCore::DOMCache::RecordsOrError&&);
-    void deleteRecordsCompleted(uint64_t requestIdentifier, WebCore::DOMCache::RecordIdentifiersOrError&&);
-    void putRecordsCompleted(uint64_t requestIdentifier, WebCore::DOMCache::RecordIdentifiersOrError&&);
+    void openCompleted(uint64_t requestIdentifier, const WebCore::DOMCacheEngine::CacheIdentifierOrError&);
+    void removeCompleted(uint64_t requestIdentifier, const WebCore::DOMCacheEngine::CacheIdentifierOrError&);
+    void updateCaches(uint64_t requestIdentifier, WebCore::DOMCacheEngine::CacheInfosOrError&&);
+
+    void updateRecords(uint64_t requestIdentifier, WebCore::DOMCacheEngine::RecordsOrError&&);
+    void deleteRecordsCompleted(uint64_t requestIdentifier, WebCore::DOMCacheEngine::RecordIdentifiersOrError&&);
+    void putRecordsCompleted(uint64_t requestIdentifier, WebCore::DOMCacheEngine::RecordIdentifiersOrError&&);
 
     WebCacheStorageProvider& m_provider;
     PAL::SessionID m_sessionID;

@@ -85,10 +85,10 @@ public:
     Ref<FetchResponse> cloneForJS();
 
 #if ENABLE(STREAMS_API)
-    ReadableStreamSource* createReadableStreamSource();
-    void consumeBodyAsStream();
-    void feedStream();
-    void cancel();
+    RefPtr<ReadableStream> createReadableStream(JSC::ExecState&);
+    void consumeBodyAsStream() final;
+    void feedStream() final;
+    void cancel() final;
 #endif
 
     using ResponseData = Variant<std::nullptr_t, Ref<FormData>, Ref<SharedBuffer>>;
@@ -101,6 +101,9 @@ public:
     void consumeBodyWhenLoaded(ConsumeDataCallback&&);
 
     const ResourceResponse& resourceResponse() const { return m_response; }
+
+    // FIXME: Remove this method and use FetchBodyOwner one once we have full support in DOM ReadableStream.
+    bool hasReadableStreamBody() const final { return m_isReadableStream; }
 
 private:
     FetchResponse(ScriptExecutionContext&, std::optional<FetchBody>&&, Ref<FetchHeaders>&&, ResourceResponse&&);
@@ -144,6 +147,8 @@ private:
     std::optional<BodyLoader> m_bodyLoader;
     mutable String m_responseURL;
     bool m_shouldExposeBody { true };
+    // FIXME: Remove that flag once we have full support in DOM ReadableStream.
+    bool m_isReadableStream { false };
 
     FetchBodyConsumer m_consumer { FetchBodyConsumer::Type::ArrayBuffer  };
 };

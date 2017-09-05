@@ -1,3 +1,267 @@
+2017-09-04  Nikita Vasilyev  <nvasilyev@apple.com>
+
+        Web Inspector: Styles Redesign: hook up real data to spreadsheet style editor
+        https://bugs.webkit.org/show_bug.cgi?id=175343
+        <rdar://problem/33784793>
+
+        Reviewed by Devin Rousso.
+
+        Replace static HTML added in <https://webkit.org/b/174838> with actual data.
+
+        Addressed in this patch:
+        - CSS rules can be copied.
+        - Source links work as expected.
+        - Nonmatching selectors are grayed out.
+
+        Known limitations:
+        - Neither CSS selectors nor CSS properties are editable.
+        - "Inherited from" and media query section headers are missing.
+        - No syntax highlighting of complex CSS values, e.g. hsl(0, 0%, 70%).
+
+        * UserInterface/Main.html:
+        * UserInterface/Models/CSSStyleDeclaration.js:
+        * UserInterface/Views/CSSStyleDeclarationTextEditor.js:
+        (WI.CSSStyleDeclarationTextEditor):
+        * UserInterface/Views/CSSStyleDetailsSidebarPanel.js:
+        (WI.CSSStyleDetailsSidebarPanel):
+        * UserInterface/Views/RulesStyleSpreadsheetDetailsPanel.js: Removed.
+        Rename RulesStyleSpreadsheetDetailsPanel to SpreadsheetRulesStyleDetailsPanel. All files related to the spreadsheet editor start with "Spreadsheet" now.
+
+        * UserInterface/Views/SpreadsheetCSSStyleDeclarationEditor.css: Added.
+        (.spreadsheet-style-declaration-editor):
+        (.spreadsheet-style-declaration-editor .name):
+        (.spreadsheet-style-declaration-editor .value):
+        (.spreadsheet-style-declaration-editor.no-properties):
+        * UserInterface/Views/SpreadsheetCSSStyleDeclarationEditor.js: Added.
+        (WI.SpreadsheetCSSStyleDeclarationEditor):
+        (WI.SpreadsheetCSSStyleDeclarationEditor.prototype.layout):
+        (WI.SpreadsheetCSSStyleDeclarationEditor.prototype.get delegate):
+        (WI.SpreadsheetCSSStyleDeclarationEditor.prototype.set delegate):
+        (WI.SpreadsheetCSSStyleDeclarationEditor.prototype.get style):
+        (WI.SpreadsheetCSSStyleDeclarationEditor.prototype.set style):
+        (WI.SpreadsheetCSSStyleDeclarationEditor.prototype.get _propertiesToRender):
+        Similar condition is commonly used in CSSStyleDeclarationTextEditor. Abstact it out to its own method.
+
+        (WI.SpreadsheetCSSStyleDeclarationEditor.prototype._renderProperty):
+        * UserInterface/Views/SpreadsheetCSSStyleDeclarationSection.css: Copied from Source/WebInspectorUI/UserInterface/Views/RulesStyleSpreadsheetDetailsPanel.css.
+        (.spreadsheet-css-declaration):
+        (.spreadsheet-css-declaration .origin):
+        (.spreadsheet-css-declaration.locked .origin::after):
+        (.spreadsheet-css-declaration .origin .go-to-link):
+        (.spreadsheet-css-declaration .origin .go-to-link:hover):
+        (.spreadsheet-css-declaration .styles-source):
+        (.spreadsheet-css-declaration .selector.style-attribute):
+        (.spreadsheet-css-declaration .selector > span):
+        (.spreadsheet-css-declaration .selector > .matched):
+        (.spreadsheet-css-declaration .properties):
+        (.spreadsheet-css-declaration.locked):
+        (.spreadsheet-css-declaration .locked-icon):
+        * UserInterface/Views/SpreadsheetCSSStyleDeclarationSection.js: Added.
+        (WI.SpreadsheetCSSStyleDeclarationSection):
+        (WI.SpreadsheetCSSStyleDeclarationSection.prototype.get element):
+        (WI.SpreadsheetCSSStyleDeclarationSection.prototype.get style):
+        (WI.SpreadsheetCSSStyleDeclarationSection.prototype.initialLayout):
+        (WI.SpreadsheetCSSStyleDeclarationSection.prototype.layout):
+        (WI.SpreadsheetCSSStyleDeclarationSection.prototype.cssStyleDeclarationTextEditorFocused):
+        (WI.SpreadsheetCSSStyleDeclarationSection.prototype.get locked):
+        (WI.SpreadsheetCSSStyleDeclarationSection.prototype.get selectorEditable):
+        * UserInterface/Views/SpreadsheetRulesStyleDetailsPanel.css: Renamed from Source/WebInspectorUI/UserInterface/Views/RulesStyleSpreadsheetDetailsPanel.css.
+        * UserInterface/Views/SpreadsheetRulesStyleDetailsPanel.js: Added.
+        (WI.SpreadsheetRulesStyleDetailsPanel):
+        (WI.SpreadsheetRulesStyleDetailsPanel.prototype.refresh):
+        * UserInterface/Views/StyleDetailsPanel.js:
+        (WI.StyleDetailsPanel.prototype.filterDidChange):
+
+        * UserInterface/Views/View.js:
+        (WI.View.prototype.removeAllSubviews):
+        Add a method to remove all subviews more efficiently.
+
+2017-08-29  Matt Baker  <mattbaker@apple.com>
+
+        Web Inspector: Critical content browser toolbar buttons are hidden at narrow widths
+        https://bugs.webkit.org/show_bug.cgi?id=175999
+
+        Reviewed by Devin Rousso.
+
+        This patch adds a VisibilityPriority concept to NavigationItems. If a
+        NavigationBar cannot fit all of its items in the available space, items
+        are hidden to make room, starting with the lowest priority item. Consecutive
+        dividers are then collapsed, as well as leading and trailing dividers.
+
+        * UserInterface/Main.html:
+        New file.
+
+        * UserInterface/Views/CanvasContentView.js:
+        (WI.CanvasContentView):
+        * UserInterface/Views/ConsoleDrawer.js:
+        (WI.ConsoleDrawer):
+        * UserInterface/Views/ContentBrowser.js:
+        (WI.ContentBrowser):
+        * UserInterface/Views/ContentBrowserTabContentView.js:
+        (WI.ContentBrowserTabContentView):
+        * UserInterface/Views/DOMTreeContentView.js:
+        (WI.DOMTreeContentView):
+        Set `High` and `Low` priorities, and group the back/forward buttons.
+
+        * UserInterface/Views/GroupNavigationItem.js: Added.
+        (WI.GroupNavigationItem):
+        (WI.GroupNavigationItem.prototype.get navigationItems):
+        (WI.GroupNavigationItem.prototype.get minimumWidth):
+        (WI.GroupNavigationItem.prototype.updateLayout):
+        (WI.GroupNavigationItem.prototype.didAttach):
+        (WI.GroupNavigationItem.prototype.didDetach):
+        NavigationItem groups. Grouped items are shown/hidden together.
+
+        * UserInterface/Views/HierarchicalPathNavigationItem.js:
+        (WI.HierarchicalPathNavigationItem.prototype.updateLayout):
+        * UserInterface/Views/ImageResourceContentView.js:
+        (WI.ImageResourceContentView):
+        * UserInterface/Views/IndexedDatabaseObjectStoreContentView.js:
+        (WI.IndexedDatabaseObjectStoreContentView):
+        * UserInterface/Views/LogContentView.js:
+        (WI.LogContentView):
+        Set `High` and `Low` priorities.
+
+        * UserInterface/Views/NavigationBar.css:
+        (.navigation-bar .item.force-hidden):
+        New hidden class, which must be tracked separately from ".hidden".
+        The former is an implementation detail of NavigationBar, while the
+        latter is set by the client.
+
+        * UserInterface/Views/NavigationBar.js:
+        (WI.NavigationBar.prototype.insertNavigationItem):
+        (WI.NavigationBar.prototype.removeNavigationItem):
+        (WI.NavigationBar.prototype.findNavigationItem.matchingSelfOrChild):
+        (WI.NavigationBar.prototype.findNavigationItem):
+        (WI.NavigationBar.prototype.layout.forceItemHidden):
+        (WI.NavigationBar.prototype.layout.isDivider):
+        (WI.NavigationBar.prototype.layout.calculateVisibleItemWidth):
+        (WI.NavigationBar.prototype.layout):
+        (WI.NavigationBar.prototype._calculateMinimumWidth):
+        (WI.NavigationBar.prototype.get _visibleNavigationItems):
+        (WI.NavigationBar):
+
+        * UserInterface/Views/NavigationItem.js:
+        Add support for visibility priority, an integer value that determines the
+        order in which items are hidden when the NavigationBar becomes too narrow
+        to fit all of items child items. NavigationIte3m defines constants for
+        Low, Normal (the default), and High priority.
+
+        (WI.NavigationItem):
+        (WI.NavigationItem.prototype.get minimumWidth):
+        (WI.NavigationItem.prototype.get width):
+        (WI.NavigationItem.prototype.get visibilityPriority):
+        (WI.NavigationItem.prototype.set visibilityPriority):
+        (WI.NavigationItem.prototype.updateLayout):
+        (WI.NavigationItem.prototype.didAttach):
+        (WI.NavigationItem.prototype.didDetach):
+        Encapsulate the setting of the parent NavigationBar. Needed so that
+        GroupNavigationItem can forward this action to its children.
+
+        * UserInterface/Views/NetworkGridContentView.js:
+        (WI.NetworkGridContentView):
+        * UserInterface/Views/RadioButtonNavigationItem.js:
+        (WI.RadioButtonNavigationItem.prototype.updateLayout):
+        * UserInterface/Views/RecordingContentView.js:
+        (WI.RecordingContentView):
+        * UserInterface/Views/ScriptContentView.js:
+        (WI.ScriptContentView):
+        * UserInterface/Views/TextContentView.js:
+        (WI.TextContentView):
+        * UserInterface/Views/TextResourceContentView.js:
+        (WI.TextResourceContentView):
+        * UserInterface/Views/TimelineRecordingContentView.js:
+        (WI.TimelineRecordingContentView):
+        * UserInterface/Views/TimelineTabContentView.js:
+        (WI.TimelineTabContentView):
+        Set `High` and `Low` priorities, and group Timeline view mode buttons.
+
+2017-08-29  Joseph Pecoraro  <pecoraro@apple.com>
+
+        REGRESSION(r220235): Web Inspector: Global search should not happen incrementally
+        https://bugs.webkit.org/show_bug.cgi?id=176063
+
+        Reviewed by Devin Rousso.
+
+        * UserInterface/Base/Main.js:
+        (WI.contentLoaded):
+        * UserInterface/Views/SearchBar.js:
+        (WI.SearchBar):
+        (WI.SearchBar.prototype._handleKeydownEvent):
+        Remove delegate and simplify setting incremental.
+
+2017-08-29  Nikita Vasilyev  <nvasilyev@apple.com>
+
+        Web Inspector: Convert all methods in Utilities.js to ECMAScript 2015 shorthand syntax
+        https://bugs.webkit.org/show_bug.cgi?id=176067
+
+        Reviewed by Joseph Pecoraro.
+
+        * UserInterface/Base/Utilities.js:
+        (get return):
+        (addStringToken):
+        (prettyFunctionName):
+        (warn):
+        (error):
+        (isEmptyObject):
+        (isEnterKey):
+        (resolveDotsInPath):
+        (parseMIMEType):
+        (simpleGlobStringToRegExp):
+        (defaultComparator):
+        (get Object):
+        (appendWebInspectorSourceURL):
+        (appendWebInspectorConsoleEvaluationSourceURL):
+        (isWebInspectorInternalScript):
+        (isWebInspectorConsoleEvaluationScript):
+        (isWebKitInjectedScript):
+        (isWebKitInternalScript):
+        (isFunctionStringNativeCode):
+        (isTextLikelyMinified):
+        (doubleQuotedString):
+        (insertionIndexForObjectInListSortedByFunction):
+        (insertObjectIntoSortedArray):
+        (decodeBase64ToBlob):
+
+2017-08-29  Nikita Vasilyev  <nvasilyev@apple.com>
+
+        Web Inspector: Optimize View.prototype.removeSubview
+        https://bugs.webkit.org/show_bug.cgi?id=176041
+
+        Reviewed by Matt Baker.
+
+        Look up a subview in an array only once, not twice.
+
+        * UserInterface/Base/Utilities.js:
+        (Array.prototype.removeAll):
+        (Array.prototype.remove):
+        Split Array.propotype.remove(value, onlyFirst) into Array.propotype.removeAll(value) and
+        Array.propotype.remove(value).
+
+        * UserInterface/Controllers/DebuggerManager.js:
+        (WI.DebuggerManager.prototype._debuggerBreakpointOptions):
+        * UserInterface/Views/ContentViewContainer.js:
+        (WI.ContentViewContainer.prototype._clearTombstonesForContentView):
+        (WI.ContentViewContainer.prototype._disassociateFromContentView):
+        * UserInterface/Views/View.js:
+        (WI.View.prototype.removeSubview):
+
+2017-08-28  Joseph Pecoraro  <pecoraro@apple.com>
+
+        Web Inspector: Remove some unused DataGrid code
+        https://bugs.webkit.org/show_bug.cgi?id=176029
+
+        Reviewed by Matt Baker.
+
+        * UserInterface/Views/DataGrid.js:
+        (WI.DataGrid.prototype.get copyTextDelimiter):
+        (WI.DataGrid.prototype.set copyTextDelimiter):
+        (WI.DataGrid.prototype.resizerDragging):
+        (WI.DataGrid.prototype.columnWidthsMap): Deleted.
+        (WI.DataGrid.prototype.applyColumnWidthsMap): Deleted.
+        (WI.DataGrid.prototype.get resizeMethod): Deleted.
+        (WI.DataGrid.prototype.set resizeMethod): Deleted.
+
 2017-08-27  Devin Rousso  <webkit@devinrousso.com>
 
         Web Inspector: Record actions performed on WebGLRenderingContext

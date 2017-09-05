@@ -36,7 +36,7 @@
 #include "WorkerRunLoop.h"
 #include "WorkerThread.h"
 
-using namespace WebCore::DOMCache;
+using namespace WebCore::DOMCacheEngine;
 
 namespace WebCore {
 
@@ -133,7 +133,7 @@ void WorkerCacheStorageConnection::doRemove(uint64_t requestIdentifier, uint64_t
         ASSERT(m_mainThreadConnection);
 
         m_mainThreadConnection->remove(cacheIdentifier, [this, protectedThis = WTFMove(protectedThis), requestIdentifier, cacheIdentifier](const CacheIdentifierOrError& result) mutable {
-            ASSERT(!result.hasValue() || result.value() == cacheIdentifier);
+            ASSERT(!result.hasValue() || result.value().identifier == cacheIdentifier);
             m_proxy.postTaskForModeToWorkerGlobalScope([this, protectedThis = WTFMove(protectedThis), requestIdentifier, result](ScriptExecutionContext& context) mutable {
                 ASSERT_UNUSED(context, context.isWorkerGlobalScope());
                 removeCompleted(requestIdentifier, result);
@@ -142,23 +142,19 @@ void WorkerCacheStorageConnection::doRemove(uint64_t requestIdentifier, uint64_t
     });
 }
 
-void WorkerCacheStorageConnection::doRetrieveCaches(uint64_t requestIdentifier, const String& origin)
+void WorkerCacheStorageConnection::doRetrieveCaches(uint64_t requestIdentifier, const String& origin, uint64_t updateCounter)
 {
-    m_proxy.postTaskToLoader([this, protectedThis = makeRef(*this), requestIdentifier, origin = origin.isolatedCopy()](ScriptExecutionContext&) mutable {
+    m_proxy.postTaskToLoader([this, protectedThis = makeRef(*this), requestIdentifier, origin = origin.isolatedCopy(), updateCounter](ScriptExecutionContext&) mutable {
         ASSERT(isMainThread());
         ASSERT(m_mainThreadConnection);
 
-        m_mainThreadConnection->retrieveCaches(origin, [this, protectedThis = WTFMove(protectedThis), requestIdentifier](CacheInfosOrError&& result) mutable {
+        m_mainThreadConnection->retrieveCaches(origin, updateCounter, [this, protectedThis = WTFMove(protectedThis), requestIdentifier](CacheInfosOrError&& result) mutable {
             CacheInfosOrError isolatedResult;
             if (!result.hasValue())
                 isolatedResult = WTFMove(result);
-            else {
-                Vector<CacheInfo> isolatedCaches;
-                isolatedCaches.reserveInitialCapacity(result.value().size());
-                for (const auto& cache : result.value())
-                    isolatedCaches.uncheckedAppend(CacheInfo { cache.identifier, cache.name.isolatedCopy() });
-                isolatedResult = WTFMove(isolatedCaches);
-            }
+            else
+                isolatedResult = result.value().isolatedCopy();
+
             m_proxy.postTaskForModeToWorkerGlobalScope([this, protectedThis = WTFMove(protectedThis), requestIdentifier, result = WTFMove(isolatedResult)](ScriptExecutionContext& context) mutable {
                 ASSERT_UNUSED(context, context.isWorkerGlobalScope());
                 updateCaches(requestIdentifier, WTFMove(result));

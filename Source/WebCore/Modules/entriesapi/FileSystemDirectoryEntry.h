@@ -30,27 +30,37 @@
 namespace WebCore {
 
 class ErrorCallback;
+class FileSystemDirectoryReader;
 class FileSystemEntryCallback;
+class ScriptExecutionContext;
 
 class FileSystemDirectoryEntry final : public FileSystemEntry {
 public:
-    static Ref<FileSystemDirectoryEntry> create(DOMFileSystem& filesystem)
+    static Ref<FileSystemDirectoryEntry> create(ScriptExecutionContext& context, DOMFileSystem& filesystem, const String& virtualPath)
     {
-        return adoptRef(*new FileSystemDirectoryEntry(filesystem));
+        return adoptRef(*new FileSystemDirectoryEntry(context, filesystem, virtualPath));
     }
+
+    Ref<FileSystemDirectoryReader> createReader(ScriptExecutionContext&);
 
     struct Flags {
         bool create { false };
         bool exclusive { false };
     };
 
-    void getFile(const String& path, const Flags& options, RefPtr<FileSystemEntryCallback>&&, RefPtr<ErrorCallback>&&);
-    void getDirectory(const String& path, const Flags& options, RefPtr<FileSystemEntryCallback>&&, RefPtr<ErrorCallback>&&);
+    void getFile(ScriptExecutionContext&, const String& path, const Flags& options, RefPtr<FileSystemEntryCallback>&&, RefPtr<ErrorCallback>&&);
+    void getDirectory(ScriptExecutionContext&, const String& path, const Flags& options, RefPtr<FileSystemEntryCallback>&&, RefPtr<ErrorCallback>&&);
 
 private:
     bool isDirectory() const final { return true; }
+    using EntryMatchingFunction = WTF::Function<bool(const FileSystemEntry&)>;
+    void getEntry(ScriptExecutionContext&, const String& path, const Flags& options, EntryMatchingFunction&&, RefPtr<FileSystemEntryCallback>&&, RefPtr<ErrorCallback>&&);
 
-    explicit FileSystemDirectoryEntry(DOMFileSystem&);
+    FileSystemDirectoryEntry(ScriptExecutionContext&, DOMFileSystem&, const String& virtualPath);
 };
 
 } // namespace WebCore
+
+SPECIALIZE_TYPE_TRAITS_BEGIN(WebCore::FileSystemDirectoryEntry)
+    static bool isType(const WebCore::FileSystemEntry& entry) { return entry.isDirectory(); }
+SPECIALIZE_TYPE_TRAITS_END()

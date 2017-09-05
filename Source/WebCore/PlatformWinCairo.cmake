@@ -7,7 +7,6 @@ list(APPEND WebCore_INCLUDE_DIRECTORIES
     "${FORWARDING_HEADERS_DIR}/JavaScriptCore"
     "${DirectX_INCLUDE_DIRS}"
     "${WEBKIT_LIBRARIES_DIR}/include"
-    "${WEBKIT_LIBRARIES_DIR}/include/zlib"
     "${WEBCORE_DIR}/loader/archive/cf"
     "${WEBCORE_DIR}/platform/cf"
 )
@@ -44,17 +43,12 @@ list(APPEND WebCore_LIBRARIES
     crypt32
     iphlpapi
     libcurl_imp
-    libjpeg
-    libpng
-    libxml2
-    libxslt
     rpcrt4
     shlwapi
     usp10
     version
     winmm
     ws2_32
-    zdll
 )
 
 list(APPEND WebCoreTestSupport_LIBRARIES

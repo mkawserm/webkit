@@ -30,10 +30,10 @@
 
 #include "ActiveDOMObject.h"
 #include "FetchBody.h"
+#include "FetchBodySource.h"
 #include "FetchHeaders.h"
 #include "FetchLoader.h"
 #include "FetchLoaderClient.h"
-#include "FetchResponseSource.h"
 
 namespace WebCore {
 
@@ -41,8 +41,6 @@ class FetchBodyOwner : public RefCounted<FetchBodyOwner>, public ActiveDOMObject
 public:
     FetchBodyOwner(ScriptExecutionContext&, std::optional<FetchBody>&&, Ref<FetchHeaders>&&);
 
-    // Exposed Body API
-    // FIXME: Missing body attribute returning a ReadableStream.
     bool bodyUsed() const { return isDisturbed(); }
     void arrayBuffer(Ref<DeferredPromise>&&);
     void blob(Ref<DeferredPromise>&&);
@@ -57,13 +55,20 @@ public:
 
     bool isActive() const { return !!m_blobLoader; }
 
-    bool isReadableStreamBody() const { return m_body && m_body->isReadableStream(); }
+    RefPtr<ReadableStream> readableStream(JSC::ExecState&);
+    virtual bool hasReadableStreamBody() const { return m_body && m_body->hasReadableStream(); }
+
+#if ENABLE(STREAMS_API)
+    virtual void consumeBodyAsStream();
+    virtual void feedStream() { }
+    virtual void cancel() { }
+#endif
 
 protected:
     const FetchBody& body() const { return *m_body; }
     FetchBody& body() { return *m_body; }
     bool isBodyNull() const { return !m_body; }
-    void cloneBody(const FetchBodyOwner&);
+    void cloneBody(FetchBodyOwner&);
 
     void extractBody(ScriptExecutionContext&, FetchBody::Init&&);
     void updateContentType();
@@ -102,7 +107,7 @@ protected:
     String m_contentType;
     bool m_isDisturbed { false };
 #if ENABLE(STREAMS_API)
-    RefPtr<FetchResponseSource> m_readableStreamSource;
+    RefPtr<FetchBodySource> m_readableStreamSource;
 #endif
     Ref<FetchHeaders> m_headers;
 

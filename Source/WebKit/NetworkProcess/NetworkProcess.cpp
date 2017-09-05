@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2015 Apple Inc. All rights reserved.
+ * Copyright (C) 2012-2017 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -237,7 +237,7 @@ void NetworkProcess::initializeNetworkProcess(NetworkProcessCreationParameters&&
 
     // FIXME: instead of handling this here, a message should be sent later (scales to multiple sessions)
     if (parameters.privateBrowsingEnabled)
-        RemoteNetworkingContext::ensurePrivateBrowsingSession({PAL::SessionID::legacyPrivateSessionID(), { }, { }, { }});
+        RemoteNetworkingContext::ensurePrivateBrowsingSession({PAL::SessionID::legacyPrivateSessionID(), { }, { }, { }, { }, { }});
 
     if (parameters.shouldUseTestingNetworkSession)
         NetworkStorageSession::switchToNewTestingSession();
@@ -319,9 +319,10 @@ void NetworkProcess::didGrantSandboxExtensionsToStorageProcessForBlobs(uint64_t 
 }
 
 #if HAVE(CFNETWORK_STORAGE_PARTITIONING)
-void NetworkProcess::updateCookiePartitioningForTopPrivatelyOwnedDomains(const Vector<String>& domainsToRemove, const Vector<String>& domainsToAdd,  bool shouldClearFirst)
+void NetworkProcess::updateCookiePartitioningForTopPrivatelyOwnedDomains(PAL::SessionID sessionID, const Vector<String>& domainsToRemove, const Vector<String>& domainsToAdd,  bool shouldClearFirst)
 {
-    NetworkStorageSession::defaultStorageSession().setShouldPartitionCookiesForHosts(domainsToRemove, domainsToAdd, shouldClearFirst);
+    if (auto* networkStorageSession = NetworkStorageSession::storageSession(sessionID))
+        networkStorageSession->setShouldPartitionCookiesForHosts(domainsToRemove, domainsToAdd, shouldClearFirst);
 }
 #endif
 
@@ -701,6 +702,21 @@ void NetworkProcess::prefetchDNS(const String& hostname)
     WebCore::prefetchDNS(hostname);
 }
 
+String NetworkProcess::cacheStorageDirectory(PAL::SessionID sessionID) const
+{
+    if (sessionID.isEphemeral())
+        return { };
+
+    if (sessionID == PAL::SessionID::defaultSessionID())
+        return m_cacheStorageDirectory;
+
+    auto* session = NetworkStorageSession::storageSession(sessionID);
+    if (!session)
+        return { };
+
+    return session->cacheStorageDirectory();
+}
+
 #if !PLATFORM(COCOA)
 void NetworkProcess::initializeProcess(const ChildProcessInitializationParameters&)
 {
@@ -717,6 +733,7 @@ void NetworkProcess::initializeSandbox(const ChildProcessInitializationParameter
 void NetworkProcess::syncAllCookies()
 {
 }
+
 #endif
 
 } // namespace WebKit

@@ -314,6 +314,9 @@ Bug(WPE) fast/shapes/shape-outside-floats/shape-outside-floats-shape-margin-perc
 # These are Mac specific for now.
 fast/url/user-visible [ Skip ]
 
+# This test relies on Mac-specific quirks
+media/document-level-media-user-gesture-quirk.html [ Skip ]
+
 Bug(WPE) fast/viewport/ios [ Failure ]
 Bug(WPE) fast/viewport/viewport-legacy-handheldfriendly.html [ Failure ]
 Bug(WPE) fast/viewport/viewport-legacy-mobileoptimized-2.html [ Failure ]
@@ -513,7 +516,6 @@ webkit.org/b/173419 fast/events/tabindex-focus-blur-all.html [ Failure ]
 webkit.org/b/173419 fast/events/touch/basic-multi-touch-events-limited.html [ Failure ]
 webkit.org/b/173419 fast/events/touch/basic-multi-touch-events.html [ Failure ]
 webkit.org/b/173419 fast/events/touch/document-create-touch-list.html [ Failure ]
-webkit.org/b/173419 fast/events/touch/document-create-touch.html [ Failure ]
 webkit.org/b/173419 fast/events/touch/emulate-touch-events.html [ Failure ]
 webkit.org/b/173419 fast/events/touch/touch-before-pressing-spin-button.html [ Failure ]
 webkit.org/b/173419 fast/events/webkit-media-key-events-constructor.html [ Failure ]
@@ -736,6 +738,26 @@ crypto/subtle/rsa-pss-import-spki-key.html [ Pass ]
 crypto/workers/subtle/rsa-pss-import-key-sign.html [ Pass ]
 crypto/workers/subtle/rsa-pss-import-key-verify.html [ Pass ]
 
+# Missing support for 521-bit elliptic curves.
+webkit.org/b/175199 crypto/subtle/ec-import-pkcs8-key-export-pkcs8-key-p521.html [ Skip ]
+webkit.org/b/175199 crypto/subtle/ec-import-spki-key-export-spki-key-p521.html [ Skip ]
+webkit.org/b/175199 crypto/subtle/ecdh-generate-export-jwk-key-p521.html [ Skip ]
+webkit.org/b/175199 crypto/subtle/ecdh-generate-export-key-pkcs8-p521.html [ Skip ]
+webkit.org/b/175199 crypto/subtle/ecdh-generate-export-key-raw-p521.html [ Skip ]
+webkit.org/b/175199 crypto/subtle/ecdh-generate-export-key-spki-p521.html [ Skip ]
+webkit.org/b/175199 crypto/subtle/ecdh-generate-key-p521.html [ Skip ]
+webkit.org/b/175199 crypto/subtle/ecdh-import-jwk-private-key-p521.html [ Skip ]
+webkit.org/b/175199 crypto/subtle/ecdh-import-jwk-public-key-p521.html [ Skip ]
+webkit.org/b/175199 crypto/subtle/ecdh-import-pkcs8-key-p521-validate-ecprivatekey-parameters-publickey.html [ Skip ]
+webkit.org/b/175199 crypto/subtle/ecdh-import-pkcs8-key-p521.html [ Skip ]
+webkit.org/b/175199 crypto/subtle/ecdh-import-raw-key-p521.html [ Skip ]
+webkit.org/b/175199 crypto/subtle/ecdh-import-spki-key-p521.html [ Skip ]
+webkit.org/b/175199 crypto/subtle/ecdsa-generate-key-sign-verify-p521.html [ Skip ]
+webkit.org/b/175199 crypto/subtle/ecdsa-import-jwk-public-key-alg-521.html [ Skip ]
+webkit.org/b/175199 crypto/subtle/ecdsa-import-key-sign-p521.html [ Skip ]
+webkit.org/b/175199 crypto/subtle/ecdsa-import-key-verify-p521.html [ Skip ]
+webkit.org/b/175199 crypto/subtle/ecdsa-import-pkcs8-key-p521-validate-ecprivatekey-parameters-publickey.html [ Skip ]
+
 # ENABLE_CSS_COMPOSITING
 Bug(WPE) transitions/blendmode-transitions.html [ Failure ]
 
@@ -814,3 +836,5 @@ webkit.org/b/168171 http/tests/loading/resourceLoadStatistics [ Timeout Failure 
 
 webkit.org/b/172815 imported/w3c/i18n/bidi/bidi-plaintext-011.html [ ImageOnlyFailure ]
 webkit.org/b/175380 scrollbars/scrollbar-iframe-click-does-not-blur-content.html [ ImageOnlyFailure ]
+
+webkit.org/b/176174 media/event-queue-crash.html [ Pass Failure ]

@@ -139,6 +139,28 @@ private:
                 // See: https://bugs.webkit.org/show_bug.cgi?id=174844
                 break;
             }
+
+            case CompareStrictEq: {
+                if (node->isBinaryUseKind(UntypedUse)) {
+                    JSValue child1Constant = m_state.forNode(node->child1().node()).value();
+                    JSValue child2Constant = m_state.forNode(node->child2().node()).value();
+
+                    // FIXME: Revisit this condition when introducing BigInt to JSC.
+                    auto isNonStringCellConstant = [] (JSValue value) {
+                        return value && value.isCell() && !value.isString();
+                    };
+
+                    if (isNonStringCellConstant(child1Constant)) {
+                        node->convertToCompareEqPtr(m_graph.freezeStrong(child1Constant.asCell()), node->child2());
+                        changed = true;
+                    } else if (isNonStringCellConstant(child2Constant)) {
+                        node->convertToCompareEqPtr(m_graph.freezeStrong(child2Constant.asCell()), node->child1());
+                        changed = true;
+                    }
+                }
+                break;
+            }
+
                 
             case CheckStructure:
             case ArrayifyToStructure: {
@@ -335,7 +357,7 @@ private:
                 // GetMyArgumentByVal in such statically-out-of-bounds accesses; we just lose CFA unless
                 // GCSE removes the access entirely.
                 if (inlineCallFrame) {
-                    if (index >= inlineCallFrame->arguments.size() - 1)
+                    if (index >= inlineCallFrame->argumentCountIncludingThis - 1)
                         break;
                 } else {
                     if (index >= m_state.variables().numberOfArguments() - 1)
@@ -356,7 +378,7 @@ private:
                         virtualRegisterForArgument(index + 1), FlushedJSValue);
                 }
                 
-                if (inlineCallFrame && !inlineCallFrame->isVarargs() && index < inlineCallFrame->arguments.size() - 1) {
+                if (inlineCallFrame && !inlineCallFrame->isVarargs() && index < inlineCallFrame->argumentCountIncludingThis - 1) {
                     node->convertToGetStack(data);
                     eliminated = true;
                     break;

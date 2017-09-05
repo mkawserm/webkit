@@ -86,7 +86,6 @@ else ()
     list(APPEND test_webcore_LIBRARIES
         ASL${DEBUG_SUFFIX}
         CFNetwork${DEBUG_SUFFIX}
-        CoreFoundation${DEBUG_SUFFIX}
         CoreGraphics${DEBUG_SUFFIX}
         CoreText${DEBUG_SUFFIX}
         QuartzCore${DEBUG_SUFFIX}
@@ -96,9 +95,12 @@ else ()
         libexslt${DEBUG_SUFFIX}
         libicuin${DEBUG_SUFFIX}
         libicuuc${DEBUG_SUFFIX}
-        libxml2${DEBUG_SUFFIX}
-        libxslt${DEBUG_SUFFIX}
-        zdll${DEBUG_SUFFIX}
+    )
+endif ()
+
+if (USE_CF)
+    list(APPEND test_webcore_LIBRARIES
+        ${COREFOUNDATION_LIBRARY}
     )
 endif ()
 

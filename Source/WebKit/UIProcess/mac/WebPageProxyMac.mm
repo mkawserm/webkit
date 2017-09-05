@@ -37,7 +37,7 @@
 #import "MenuUtilities.h"
 #import "NativeWebKeyboardEvent.h"
 #import "PageClient.h"
-#import "PageClientImpl.h"
+#import "PageClientImplMac.h"
 #import "PluginComplexTextInputState.h"
 #import "StringUtilities.h"
 #import "TextChecker.h"
@@ -487,7 +487,7 @@ static NSString *pathToPDFOnDisk(const String& suggestedFilename)
 
 void WebPageProxy::savePDFToTemporaryFolderAndOpenWithNativeApplicationRaw(const String& suggestedFilename, const String& originatingURLString, const uint8_t* data, unsigned long size, const String& pdfUUID)
 {
-    // FIXME: Write originatingURLString to the file's originating URL metadata (perhaps WKSetMetadataURL?).
+    // FIXME: Write originatingURLString to the file's originating URL metadata (perhaps WebCore::setMetadataURL()?).
     UNUSED_PARAM(originatingURLString);
 
     if (!suggestedFilename.endsWith(".pdf", false)) {

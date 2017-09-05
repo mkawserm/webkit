@@ -97,9 +97,9 @@ private:
         webkitWebViewMouseTargetChanged(m_webView, data, modifiers);
     }
 
-    bool toolbarsAreVisible(WebPageProxy*) override
+    void toolbarsAreVisible(WebPageProxy&, Function<void(bool)>&& completionHandler) override
     {
-        return webkit_window_properties_get_toolbar_visible(webkit_web_view_get_window_properties(m_webView));
+        completionHandler(webkit_window_properties_get_toolbar_visible(webkit_web_view_get_window_properties(m_webView)));
     }
 
     void setToolbarsAreVisible(WebPageProxy*, bool visible) override
@@ -217,7 +217,7 @@ private:
         webkitWebViewRunAsModal(m_webView);
     }
 
-    void isPlayingAudioDidChange(WebPageProxy&) override
+    void isPlayingMediaDidChange(WebPageProxy&) final
     {
         webkitWebViewIsPlayingAudioChanged(m_webView);
     }

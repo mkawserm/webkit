@@ -256,7 +256,7 @@ bool filesHaveSameVolume(const String& fileA, const String& fileB)
 
 #if !PLATFORM(MAC)
 
-void setMetadataURL(const String&, const String&)
+void setMetadataURL(const String&, const String&, const String&)
 {
 }
 
@@ -351,12 +351,12 @@ void unlockAndCloseFile(PlatformFileHandle handle)
     closeFile(handle);
 }
 
-bool fileIsDirectory(const String& path)
+bool fileIsDirectory(const String& path, ShouldFollowSymbolicLinks shouldFollowSymbolicLinks)
 {
-    FileMetadata metadata;
-    if (!getFileMetadata(path, metadata))
+    auto metadata = shouldFollowSymbolicLinks == ShouldFollowSymbolicLinks::Yes ? fileMetadataFollowingSymlinks(path) : fileMetadata(path);
+    if (!metadata)
         return false;
-    return metadata.type == FileMetadata::TypeDirectory;
+    return metadata.value().type == FileMetadata::Type::Directory;
 }
 
 } // namespace WebCore
