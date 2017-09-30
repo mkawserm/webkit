@@ -29,6 +29,7 @@
 #include "AuthenticationManager.h"
 #include "DownloadProxyMessages.h"
 #include "NetworkProcess.h"
+#include "NetworkSession.h"
 #include "SessionTracker.h"
 #include "WebCoreArgumentCoders.h"
 #include "WebErrors.h"
@@ -134,7 +135,7 @@ NetworkLoad::~NetworkLoad()
     ASSERT(RunLoop::isMain());
 #if USE(NETWORK_SESSION)
     if (m_responseCompletionHandler)
-        m_responseCompletionHandler(PolicyIgnore);
+        m_responseCompletionHandler(PolicyAction::Ignore);
     if (m_redirectCompletionHandler)
         m_redirectCompletionHandler({ });
 #if USE(PROTECTION_SPACE_AUTH_CALLBACK)
@@ -228,7 +229,7 @@ void NetworkLoad::continueDidReceiveResponse()
 #if USE(NETWORK_SESSION)
     if (m_responseCompletionHandler) {
         auto responseCompletionHandler = std::exchange(m_responseCompletionHandler, nullptr);
-        responseCompletionHandler(PolicyUse);
+        responseCompletionHandler(PolicyAction::Use);
     }
 #else
     if (m_handle)
@@ -316,18 +317,6 @@ void NetworkLoad::willPerformHTTPRedirection(ResourceResponse&& response, Resour
 
 void NetworkLoad::didReceiveChallenge(const AuthenticationChallenge& challenge, ChallengeCompletionHandler&& completionHandler)
 {
-    // Handle server trust evaluation at platform-level if requested, for performance reasons.
-#if PLATFORM(COCOA)
-    if (challenge.protectionSpace().authenticationScheme() == ProtectionSpaceAuthenticationSchemeServerTrustEvaluationRequested
-        && !NetworkProcess::singleton().canHandleHTTPSServerTrustEvaluation()) {
-        if (m_task && m_task->allowsSpecificHTTPSCertificateForHost(challenge))
-            completionHandler(AuthenticationChallengeDisposition::UseCredential, serverTrustCredential(challenge));
-        else
-            completionHandler(AuthenticationChallengeDisposition::RejectProtectionSpace, { });
-        return;
-    }
-#endif
-
     m_challenge = challenge;
 #if USE(PROTECTION_SPACE_AUTH_CALLBACK)
     m_challengeCompletionHandler = WTFMove(completionHandler);
@@ -360,7 +349,7 @@ void NetworkLoad::continueCanAuthenticateAgainstProtectionSpace(bool result)
     ASSERT(m_challengeCompletionHandler);
     auto completionHandler = std::exchange(m_challengeCompletionHandler, nullptr);
     if (!result) {
-        if (m_task && m_task->allowsSpecificHTTPSCertificateForHost(*m_challenge))
+        if (NetworkSession::allowsSpecificHTTPSCertificateForHost(*m_challenge))
             completionHandler(AuthenticationChallengeDisposition::UseCredential, serverTrustCredential(*m_challenge));
         else
             completionHandler(AuthenticationChallengeDisposition::RejectProtectionSpace, { });
@@ -403,7 +392,7 @@ void NetworkLoad::notifyDidReceiveResponse(ResourceResponse&& response, Response
         m_responseCompletionHandler = WTFMove(completionHandler);
         return;
     }
-    completionHandler(PolicyUse);
+    completionHandler(PolicyAction::Use);
 }
 
 void NetworkLoad::didReceiveData(Ref<SharedBuffer>&& buffer)
@@ -557,7 +546,7 @@ bool NetworkLoad::shouldUseCredentialStorage(ResourceHandle* handle)
 
     // We still need this sync version, because ResourceHandle itself uses it internally, even when the delegate uses an async one.
 
-    return m_parameters.allowStoredCredentials == AllowStoredCredentials;
+    return m_parameters.storedCredentialsPolicy == StoredCredentialsPolicy::Use;
 }
 
 void NetworkLoad::didReceiveAuthenticationChallenge(ResourceHandle* handle, const AuthenticationChallenge& challenge)

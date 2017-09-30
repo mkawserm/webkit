@@ -36,20 +36,19 @@
 #include "GraphicsContext.h"
 #include "HTMLFrameOwnerElement.h"
 #include "HTMLFrameSetElement.h"
+#include "HTMLImageElement.h"
 #include "HTMLNames.h"
 #include "ImageBuffer.h"
 #include "ImageQualityController.h"
 #include "Path.h"
 #include "RenderBlock.h"
 #include "RenderFlexibleBox.h"
+#include "RenderFragmentContainer.h"
 #include "RenderInline.h"
 #include "RenderLayer.h"
 #include "RenderLayerBacking.h"
 #include "RenderLayerCompositor.h"
-#include "RenderMultiColumnFlowThread.h"
-#include "RenderNamedFlowFragment.h"
-#include "RenderNamedFlowThread.h"
-#include "RenderRegion.h"
+#include "RenderMultiColumnFlow.h"
 #include "RenderTable.h"
 #include "RenderTableRow.h"
 #include "RenderText.h"
@@ -326,6 +325,8 @@ DecodingMode RenderBoxModelObject::decodingModeForImageDraw(const Image& image, 
 #endif
     if (bitmapImage.isLargeImageAsyncDecodingEnabledForTesting())
         return DecodingMode::Asynchronous;
+    if (is<HTMLImageElement>(element()) && element()->hasAttribute(asyncAttr))
+        return DecodingMode::Asynchronous;
     if (document().isImageDocument())
         return DecodingMode::Synchronous;
     if (paintInfo.paintBehavior & PaintBehaviorSnapshotting)
@@ -398,7 +399,7 @@ LayoutPoint RenderBoxModelObject::adjustedPositionRelativeToOffsetParent(const L
     if (const RenderBoxModelObject* offsetParent = this->offsetParent()) {
         if (is<RenderBox>(*offsetParent) && !offsetParent->isBody() && !is<RenderTable>(*offsetParent))
             referencePoint.move(-downcast<RenderBox>(*offsetParent).borderLeft(), -downcast<RenderBox>(*offsetParent).borderTop());
-        if (!isOutOfFlowPositioned() || flowThreadContainingBlock()) {
+        if (!isOutOfFlowPositioned() || enclosingFragmentedFlow()) {
             if (isRelPositioned())
                 referencePoint.move(relativePositionOffset());
             else if (isStickyPositioned())
@@ -408,14 +409,14 @@ LayoutPoint RenderBoxModelObject::adjustedPositionRelativeToOffsetParent(const L
             // Since we will bypass the body’s renderer anyway, just end the loop if we encounter a region flow (named flow thread).
             // See http://dev.w3.org/csswg/css-regions/#cssomview-offset-attributes
             auto* ancestor = parent();
-            while (ancestor != offsetParent && !is<RenderNamedFlowThread>(*ancestor)) {
+            while (ancestor != offsetParent) {
                 // FIXME: What are we supposed to do inside SVG content?
                 
-                if (is<RenderMultiColumnFlowThread>(*ancestor)) {
+                if (is<RenderMultiColumnFlow>(*ancestor)) {
                     // We need to apply a translation based off what region we are inside.
-                    RenderRegion* region = downcast<RenderMultiColumnFlowThread>(*ancestor).physicalTranslationFromFlowToRegion(referencePoint);
-                    if (region)
-                        referencePoint.moveBy(region->topLeftLocation());
+                    RenderFragmentContainer* fragment = downcast<RenderMultiColumnFlow>(*ancestor).physicalTranslationFromFlowToFragment(referencePoint);
+                    if (fragment)
+                        referencePoint.moveBy(fragment->topLeftLocation());
                 } else if (!isOutOfFlowPositioned()) {
                     if (is<RenderBox>(*ancestor) && !is<RenderTableRow>(*ancestor))
                         referencePoint.moveBy(downcast<RenderBox>(*ancestor).topLeftLocation());
@@ -424,11 +425,7 @@ LayoutPoint RenderBoxModelObject::adjustedPositionRelativeToOffsetParent(const L
                 ancestor = ancestor->parent();
             }
             
-            // Compute the offset position for elements inside named flow threads for which the offsetParent was the body.
-            // See https://bugs.webkit.org/show_bug.cgi?id=115899
-            if (is<RenderNamedFlowThread>(*ancestor))
-                referencePoint = downcast<RenderNamedFlowThread>(*ancestor).adjustedPositionRelativeToOffsetParent(*this, referencePoint);
-            else if (is<RenderBox>(*offsetParent) && offsetParent->isBody() && !offsetParent->isPositioned())
+            if (is<RenderBox>(*offsetParent) && offsetParent->isBody() && !offsetParent->isPositioned())
                 referencePoint.moveBy(downcast<RenderBox>(*offsetParent).topLeftLocation());
         }
     }
@@ -682,7 +679,7 @@ InterpolationQuality RenderBoxModelObject::chooseInterpolationQuality(GraphicsCo
 void RenderBoxModelObject::paintMaskForTextFillBox(ImageBuffer* maskImage, const IntRect& maskRect, InlineFlowBox* box, const LayoutRect& scrolledPaintRect)
 {
     GraphicsContext& maskImageContext = maskImage->context();
-    maskImageContext.translate(-maskRect.x(), -maskRect.y());
+    maskImageContext.translate(-maskRect.location());
 
     // Now add the text to the clip. We do this by painting using a special paint phase that signals to
     // InlineTextBoxes that they should just add their contents to the clip.
@@ -690,10 +687,6 @@ void RenderBoxModelObject::paintMaskForTextFillBox(ImageBuffer* maskImage, const
     if (box) {
         const RootInlineBox& rootBox = box->root();
         box->paint(info, LayoutPoint(scrolledPaintRect.x() - box->x(), scrolledPaintRect.y() - box->y()), rootBox.lineTop(), rootBox.lineBottom());
-    } else if (isRenderNamedFlowFragmentContainer()) {
-        RenderNamedFlowFragment& region = *downcast<RenderBlockFlow>(*this).renderNamedFlowFragment();
-        if (region.isValid())
-            region.flowThread()->layer()->paintNamedFlowThreadInsideRegion(maskImageContext, &region, maskRect, maskRect.location(), PaintBehaviorForceBlackText, RenderLayer::PaintLayerTemporaryClipRects);
     } else {
         LayoutSize localOffset = is<RenderBox>(*this) ? downcast<RenderBox>(*this).locationOffset() : LayoutSize();
         paint(info, scrolledPaintRect.location() - localOffset);
@@ -804,7 +797,7 @@ void RenderBoxModelObject::paintFillLayerExtended(const PaintInfo& paintInfo, co
     if (clippedWithLocalScrolling) {
         // Clip to the overflow area.
         auto& thisBox = downcast<RenderBox>(*this);
-        context.clip(thisBox.overflowClipRect(rect.location(), currentRenderNamedFlowFragment()));
+        context.clip(thisBox.overflowClipRect(rect.location()));
         
         // Adjust the paint rect to reflect a scrolled content box with borders at the ends.
         scrolledPaintRect.moveBy(-thisBox.scrollPosition());
@@ -2434,7 +2427,7 @@ void RenderBoxModelObject::paintBoxShadow(const PaintInfo& info, const LayoutRec
                 context.clip(pixelSnappedBorderRect.rect());
 
             IntSize extraOffset(2 * roundToInt(paintRect.width()) + std::max(0, shadowOffset.width()) + shadowPaintingExtent - 2 * shadowSpread + 1, 0);
-            context.translate(extraOffset.width(), extraOffset.height());
+            context.translate(extraOffset);
             shadowOffset -= extraOffset;
 
             if (shadow->isWebkitBoxShadow())
@@ -2568,12 +2561,12 @@ void RenderBoxModelObject::mapAbsoluteToLocalPoint(MapCoordinatesFlags mode, Tra
     // We also don't want to run it for multicolumn flow threads, since we can use our knowledge of column
     // geometry to actually get a better result.
     // The point inside a box that's inside a region has its coordinates relative to the region,
-    // not the FlowThread that is its container in the RenderObject tree.
-    if (is<RenderBox>(*this) && container->isOutOfFlowRenderFlowThread()) {
-        RenderRegion* startRegion = nullptr;
-        RenderRegion* endRegion = nullptr;
-        if (downcast<RenderFlowThread>(*container).getRegionRangeForBox(downcast<RenderBox>(this), startRegion, endRegion))
-            container = startRegion;
+    // not the FragmentedFlow that is its container in the RenderObject tree.
+    if (is<RenderBox>(*this) && container->isOutOfFlowRenderFragmentedFlow()) {
+        RenderFragmentContainer* startFragment = nullptr;
+        RenderFragmentContainer* endFragment = nullptr;
+        if (downcast<RenderFragmentedFlow>(*container).getFragmentRangeForBox(downcast<RenderBox>(this), startFragment, endFragment))
+            container = startFragment;
     }
 
     container->mapAbsoluteToLocalPoint(mode, transformState);

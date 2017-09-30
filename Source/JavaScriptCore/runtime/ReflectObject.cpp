@@ -83,8 +83,8 @@ void ReflectObject::finishCreation(VM& vm, JSGlobalObject* globalObject)
     Base::finishCreation(vm);
     ASSERT(inherits(vm, info()));
 
-    JSC_NATIVE_FUNCTION_WITHOUT_TRANSITION(vm.propertyNames->builtinNames().ownKeysPrivateName(), reflectObjectOwnKeys, DontEnum | DontDelete | ReadOnly, 1);
-    JSC_NATIVE_FUNCTION_WITHOUT_TRANSITION(vm.propertyNames->builtinNames().getOwnPropertyDescriptorPrivateName(), reflectObjectGetOwnPropertyDescriptor, DontEnum | DontDelete | ReadOnly, 2);
+    JSC_NATIVE_FUNCTION_WITHOUT_TRANSITION(vm.propertyNames->builtinNames().ownKeysPrivateName(), reflectObjectOwnKeys, PropertyAttribute::DontEnum | PropertyAttribute::DontDelete | PropertyAttribute::ReadOnly, 1);
+    JSC_NATIVE_FUNCTION_WITHOUT_TRANSITION(vm.propertyNames->builtinNames().getOwnPropertyDescriptorPrivateName(), reflectObjectGetOwnPropertyDescriptor, PropertyAttribute::DontEnum | PropertyAttribute::DontDelete | PropertyAttribute::ReadOnly, 2);
 }
 
 // ------------------------------ Functions --------------------------------
@@ -140,10 +140,10 @@ EncodedJSValue JSC_HOST_CALL reflectObjectDefineProperty(ExecState* exec)
 
     PropertyDescriptor descriptor;
     bool success = toPropertyDescriptor(exec, exec->argument(2), descriptor);
-    ASSERT(!scope.exception() == success);
+    EXCEPTION_ASSERT(!scope.exception() == success);
     if (UNLIKELY(!success))
         return encodedJSValue();
-    ASSERT((descriptor.attributes() & Accessor) || (!descriptor.isAccessorDescriptor()));
+    ASSERT((descriptor.attributes() & PropertyAttribute::Accessor) || (!descriptor.isAccessorDescriptor()));
     scope.assertNoException();
 
     // Reflect.defineProperty should not throw an error when the defineOwnProperty operation fails.

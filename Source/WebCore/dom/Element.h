@@ -28,7 +28,6 @@
 #include "Document.h"
 #include "ElementData.h"
 #include "HTMLNames.h"
-#include "RegionOversetState.h"
 #include "ScrollToOptions.h"
 #include "ScrollTypes.h"
 #include "ShadowRootMode.h"
@@ -52,7 +51,6 @@ class PlatformKeyboardEvent;
 class PlatformMouseEvent;
 class PlatformWheelEvent;
 class PseudoElement;
-class RenderNamedFlowFragment;
 class RenderTreePosition;
 class WebAnimation;
 struct ElementStyle;
@@ -345,9 +343,6 @@ public:
     void setStyleIsAffectedByPreviousSibling() { setFlag(StyleIsAffectedByPreviousSibling); }
     void setChildIndex(unsigned);
 
-    void setRegionOversetState(RegionOversetState);
-    RegionOversetState regionOversetState() const;
-
     AtomicString computeInheritedLanguage() const;
     Locale& locale() const;
 
@@ -454,6 +449,10 @@ public:
     void clearHasPendingResources();
     virtual void buildPendingResource() { };
 
+    bool hasCSSAnimation() const;
+    void setHasCSSAnimation();
+    void clearHasCSSAnimation();
+
 #if ENABLE(FULLSCREEN_API)
     WEBCORE_EXPORT bool containsFullScreenElement() const;
     void setContainsFullScreenElement(bool);
@@ -466,15 +465,6 @@ public:
 #endif
 
     bool isSpellCheckingEnabled() const;
-
-    RenderNamedFlowFragment* renderNamedFlowFragment() const;
-
-#if ENABLE(CSS_REGIONS)
-    virtual bool shouldMoveToFlowThread(const RenderStyle&) const;
-    
-    WEBCORE_EXPORT const AtomicString& webkitRegionOverset() const;
-    Vector<RefPtr<Range>> webkitGetRegionFlowRanges() const;
-#endif
 
     bool hasID() const;
     bool hasClass() const;
@@ -552,10 +542,6 @@ public:
 
     using ContainerNode::setAttributeEventListener;
     void setAttributeEventListener(const AtomicString& eventType, const QualifiedName& attributeName, const AtomicString& value);
-
-    bool isNamedFlowContentElement() const { return hasRareData() && rareDataIsNamedFlowContentElement(); }
-    void setIsNamedFlowContentElement();
-    void clearIsNamedFlowContentElement();
 
 #if ENABLE(WEB_ANIMATIONS)
     Vector<WebAnimation*> getAnimations();
@@ -650,7 +636,6 @@ private:
 
     bool rareDataStyleAffectedByEmpty() const;
     bool rareDataStyleAffectedByFocusWithin() const;
-    bool rareDataIsNamedFlowContentElement() const;
     bool rareDataChildrenAffectedByHover() const;
     bool rareDataStyleAffectedByActive() const;
     bool rareDataChildrenAffectedByDrag() const;
@@ -660,8 +645,6 @@ private:
     unsigned rareDataChildIndex() const;
 
     SpellcheckAttributeState spellcheckAttributeState() const;
-
-    void unregisterNamedFlowContentElement();
 
     void createUniqueElementData();
 

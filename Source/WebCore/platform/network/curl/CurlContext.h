@@ -27,6 +27,7 @@
 #pragma once
 
 #include "CookieJarCurl.h"
+#include "CurlSSLHandle.h"
 #include "URL.h"
 
 #include <wtf/Lock.h>
@@ -103,8 +104,6 @@ public:
         const String url() const;
     };
 
-    static const char* const errorDomain;
-
     static CurlContext& singleton()
     {
         static CurlContext shared;
@@ -120,14 +119,13 @@ public:
     void setCookieJarFileName(const char* cookieJarFileName) { m_cookieJarFileName = CString(cookieJarFileName); }
     CookieJarCurl& cookieJar() { return *m_cookieJar; }
 
-    // Certificate
-    const char* getCertificatePath() const { return m_certificatePath.data(); }
-    bool shouldIgnoreSSLErrors() const { return m_ignoreSSLErrors; }
-
     // Proxy
     const ProxyInfo& proxyInfo() const { return m_proxy; }
     void setProxyInfo(const ProxyInfo& info) { m_proxy = info;  }
     void setProxyInfo(const String& host = emptyString(), unsigned long port = 0, CurlProxyType = CurlProxyType::HTTP, const String& username = emptyString(), const String& password = emptyString());
+
+    // SSL
+    CurlSSLHandle& sslHandle() { return m_sslHandle; }
 
 #ifndef NDEBUG
     FILE* getLogFile() const { return m_logFile; }
@@ -137,10 +135,9 @@ public:
 private:
     ProxyInfo m_proxy;
     CString m_cookieJarFileName;
-    CString m_certificatePath;
     CurlShareHandle m_shareHandle;
     std::unique_ptr<CookieJarCurl> m_cookieJar;
-    bool m_ignoreSSLErrors { false };
+    CurlSSLHandle m_sslHandle;
 
     CurlContext();
     void initCookieSession();
@@ -201,23 +198,24 @@ private:
 // CurlHandle -------------------------------------------------
 
 class HTTPHeaderMap;
+class NetworkLoadMetrics;
 
 class CurlHandle {
     WTF_MAKE_NONCOPYABLE(CurlHandle);
 
 public:
-    enum VerifyPeer {
-        VerifyPeerDisable = 0L,
-        VerifyPeerEnable = 1L
+    enum class VerifyPeer {
+        Disable = 0L,
+        Enable = 1L
     };
 
-    enum VerifyHost {
-        VerifyHostLooseNameCheck = 0,
-        VerifyHostStrictNameCheck = 2
+    enum class VerifyHost {
+        LooseNameCheck = 0,
+        StrictNameCheck = 2
     };
 
     CurlHandle();
-    ~CurlHandle();
+    virtual ~CurlHandle();
 
     CURL* handle() const { return m_handle; }
 
@@ -226,23 +224,16 @@ public:
     CURLcode perform();
     CURLcode pause(int);
 
-    CURLcode errorCode() const { return m_errorCode; }
-    void setErrorCode(CURLcode errorCode) { m_errorCode = errorCode; }
-
-    const String errorDescription() const;
+    static const String errorDescription(CURLcode);
 
     void enableShareHandle();
 
-    void* privateData() const { return m_privateData; }
-    void setPrivateData(void* userData) { m_privateData = userData; }
-
-    void setUrl(const String&);
-    const char* url() const { return m_url; }
+    void setUrl(const URL&);
 
     void appendRequestHeaders(const HTTPHeaderMap&);
-    void appendRequestHeader(const String&, const String&);
-    void appendRequestHeader(const String&);
-    void enableRequestHeaders();
+    void appendRequestHeader(const String& name, const String& value);
+    void appendRequestHeader(const String& name);
+    void removeRequestHeader(const String& name);
 
     void enableHttpGetRequest();
     void enableHttpHeadRequest();
@@ -262,14 +253,12 @@ public:
     void enableHttpAuthentication(long);
     void setHttpAuthUserPass(const String&, const String&);
 
-    void enableCAInfoIfExists();
+    void setCACertPath(const char*);
     void setSslVerifyPeer(VerifyPeer);
     void setSslVerifyHost(VerifyHost);
     void setSslCert(const char*);
     void setSslCertType(const char*);
     void setSslKeyPassword(const char*);
-    void setSslErrors(unsigned);
-    unsigned getSslErrors();
 
     void enableCookieJarIfExists();
     void setCookieList(const char*);
@@ -286,12 +275,13 @@ public:
     void setSslCtxCallbackFunction(curl_ssl_ctx_callback, void*);
 
     // Status
-    URL getEffectiveURL() const;
-    CURLcode getPrimaryPort(long&);
-    CURLcode getResponseCode(long&);
-    CURLcode getContentLenghtDownload(long long&);
-    CURLcode getHttpAuthAvail(long&);
-    CURLcode getTimes(double&, double&, double&, double&);
+    URL getEffectiveURL();
+    std::optional<uint16_t> getPrimaryPort();
+    std::optional<long> getResponseCode();
+    std::optional<long> getHttpConnectCode();
+    std::optional<long long> getContentLength();
+    std::optional<long> getHttpAuthAvail();
+    std::optional<NetworkLoadMetrics> getNetworkLoadMetrics();
 
     static long long maxCurlOffT();
 
@@ -301,17 +291,12 @@ public:
 #endif
 
 private:
-    void clearUrl();
-
+    void enableRequestHeaders();
     static int expectedSizeOfCurlOffT();
 
     CURL* m_handle { nullptr };
     char m_errorBuffer[CURL_ERROR_SIZE] { };
-    CURLcode m_errorCode;
-    unsigned m_sslErrors { 0 };
 
-    char* m_url { nullptr };
-    void* m_privateData { nullptr };
     CurlSList m_requestHeaders;
 };
 

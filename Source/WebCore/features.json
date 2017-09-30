@@ -628,6 +628,22 @@
             "twitter": "@jonathandavis",
             "email": "web-evangelist@apple.com"
         }
+    },
+    {
+        "name": "WebVR",
+        "status": {
+            "status": "In Development",
+            "enabled-by-default": false
+        },
+        "url": "https://w3c.github.io/webvr/spec/1.1/",
+        "keywords": ["WebVR, VR"],
+        "category": "html",
+        "description": "A JavaScript API providing access to VR devices to allow developers to build comfortable VR experiences.",
+        "contact": {
+            "name": "Sergio Villar Senin",
+            "twitter": "@svillarsenin",
+            "email": "svillar@igalia.com"
+        }
     }
     ],
 
@@ -942,16 +958,6 @@
         "webkit-url": "https://bugs.webkit.org/show_bug.cgi?id=119480",
         "specification": "HTML5",
         "comment": "WebKit used to support MicroData. The feature never gained any traction and was eventually removed to clean up the codebase."
-    },
-    {
-        "name": "Navigator.hardwareConcurrency",
-        "status": {
-            "status": "Supported",
-            "enabled-by-default": true
-        },
-        "url": "https://wiki.whatwg.org/wiki/Navigator_HW_Concurrency",
-        "webkit-url": "http://trac.webkit.org/changeset/169017",
-        "description": "Navigator.hardwareConcurrency provides the total number of logical processors available to the user agent."
     },
     {
         "name": "Payment Request",

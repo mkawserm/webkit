@@ -26,6 +26,7 @@
 #include "config.h"
 #include "WTFStringUtilities.h"
 #include <pal/Logger.h>
+#include <pal/LoggerHelper.h>
 #include <wtf/Assertions.h>
 #include <wtf/MainThread.h>
 
@@ -55,7 +56,7 @@ static const size_t logChannelCount = sizeof(testLogChannels) / sizeof(testLogCh
 
 namespace TestWebKitAPI {
 
-class LoggingTest : public testing::Test, public LogHelper {
+class LoggingTest : public testing::Test, public LoggerHelper {
 public:
     LoggingTest()
         : m_logger { Logger::create(this) }
@@ -100,8 +101,9 @@ public:
     }
 
     const Logger& logger() const final { return m_logger.get(); }
-    const char* className() const final { return "LoggingTest"; }
+    const char* logClassName() const final { return "LoggingTest"; }
     WTFLogChannel& logChannel() const final { return TestChannel1; }
+    const void* logIdentifier() const final { return reinterpret_cast<const void*>(123456789); }
 
 private:
 
@@ -140,9 +142,9 @@ TEST_F(LoggingTest, Initialization)
     EXPECT_EQ(TestChannel3.level, WTFLogLevelError);
     EXPECT_EQ(TestChannel4.level, WTFLogLevelError);
 
-    WTFInitializeLogChannelStatesFromString(testLogChannels, logChannelCount, "Channel4=   debug, Channel3 = info,Channel2=notice");
+    WTFInitializeLogChannelStatesFromString(testLogChannels, logChannelCount, "Channel4=   debug, Channel3 = info,Channel2=error");
     EXPECT_EQ(TestChannel1.level, WTFLogLevelWarning);
-    EXPECT_EQ(TestChannel2.level, WTFLogLevelNotice);
+    EXPECT_EQ(TestChannel2.level, WTFLogLevelError);
     EXPECT_EQ(TestChannel3.level, WTFLogLevelInfo);
     EXPECT_EQ(TestChannel4.level, WTFLogLevelDebug);
 
@@ -283,14 +285,12 @@ TEST_F(LoggingTest, Logger)
     EXPECT_TRUE(output().contains("You're using coconuts!", false));
     logger->warning(TestChannel1, "You're using coconuts!");
     EXPECT_EQ(0u, output().length());
-    logger->notice(TestChannel1, "You're using coconuts!");
-    EXPECT_EQ(0u, output().length());
     logger->info(TestChannel1, "You're using coconuts!");
     EXPECT_EQ(0u, output().length());
     logger->debug(TestChannel1, "You're using coconuts!");
     EXPECT_EQ(0u, output().length());
 
-    logger->error(TestChannel1, Logger::MethodAndPointer("LoggingTest::Logger", this) , ": test output");
+    logger->error(TestChannel1, Logger::LogSiteIdentifier("LoggingTest::Logger", this) , ": test output");
     EXPECT_TRUE(output().contains("LoggingTest::Logger(", false));
 
     logger->error(TestChannel1, "What is ", 1, " + " , 12.5F, "?");
@@ -316,7 +316,6 @@ TEST_F(LoggingTest, Logger)
     logger->setEnabled(this, false);
     EXPECT_FALSE(logger->willLog(TestChannel1, WTFLogLevelError));
     EXPECT_FALSE(logger->willLog(TestChannel1, WTFLogLevelWarning));
-    EXPECT_FALSE(logger->willLog(TestChannel1, WTFLogLevelNotice));
     EXPECT_FALSE(logger->willLog(TestChannel1, WTFLogLevelInfo));
     EXPECT_FALSE(logger->willLog(TestChannel1, WTFLogLevelDebug));
     EXPECT_FALSE(logger->enabled());
@@ -335,40 +334,36 @@ TEST_F(LoggingTest, Logger)
     EXPECT_TRUE(output().contains("String and const String", false));
 }
 
-TEST_F(LoggingTest, LogHelper)
+TEST_F(LoggingTest, LoggerHelper)
 {
     EXPECT_TRUE(logger().enabled());
 
     StringBuilder builder;
-    builder.appendLiteral("LoggingTest::TestBody(0x");
-    appendUnsigned64AsHex(reinterpret_cast<uintptr_t>(this), builder);
+    builder.appendLiteral("LoggingTest::TestBody(");
+    appendUnsigned64AsHex(reinterpret_cast<uintptr_t>(logIdentifier()), builder);
     builder.appendLiteral(")");
     String signature = builder.toString();
 
-    ALWAYS_LOG();
+    ALWAYS_LOG(LOGIDENTIFIER);
     EXPECT_TRUE(this->output().contains(signature, false));
 
-    ALWAYS_LOG("Welcome back", " my friends", " to the show", " that never ends");
+    ALWAYS_LOG(LOGIDENTIFIER, "Welcome back", " my friends", " to the show", " that never ends");
     String result = this->output();
     EXPECT_TRUE(result.contains(signature, false));
     EXPECT_TRUE(result.contains("to the show that never", false));
 
     WTFSetLogChannelLevel(&TestChannel1, WTFLogLevelWarning);
-    EXPECT_TRUE(willLog(WTFLogLevelWarning));
 
-    ERROR_LOG("We're so glad you could attend");
+    ERROR_LOG(LOGIDENTIFIER, "We're so glad you could attend");
     EXPECT_TRUE(output().contains("We're so glad you could attend", false));
 
-    WARNING_LOG("Come inside! ", "Come inside!");
+    WARNING_LOG(LOGIDENTIFIER, "Come inside! ", "Come inside!");
     EXPECT_TRUE(output().contains("Come inside! Come inside!", false));
 
-    NOTICE_LOG("There behind a glass is a real blade of grass");
+    INFO_LOG(LOGIDENTIFIER, "be careful as you pass.");
     EXPECT_EQ(0u, output().length());
 
-    INFO_LOG("be careful as you pass.");
-    EXPECT_EQ(0u, output().length());
-
-    DEBUG_LOG("Move along! Move along!");
+    DEBUG_LOG(LOGIDENTIFIER, "Move along! Move along!");
     EXPECT_EQ(0u, output().length());
 }
 
@@ -385,18 +380,22 @@ public:
     }
 
     WTFLogChannel channel() const { return m_lastChannel; }
+    WTFLogLevel level() const { return m_lastLevel; }
 
 private:
-    void didLogMessage(const WTFLogChannel& channel, const String& logMessage) final
+    void didLogMessage(const WTFLogChannel& channel, WTFLogLevel level, const String& logMessage) final
     {
         m_logBuffer.append(logMessage);
         m_lastChannel = channel;
+        m_lastLevel = level;
     }
 
     StringBuilder m_logBuffer;
     WTFLogChannel m_lastChannel;
+    WTFLogLevel m_lastLevel { WTFLogLevelError };
 };
 
+#if !RELEASE_LOG_DISABLED
 TEST_F(LoggingTest, LogObserver)
 {
     LogObserver observer;
@@ -404,16 +403,18 @@ TEST_F(LoggingTest, LogObserver)
     EXPECT_TRUE(logger().enabled());
 
     logger().addObserver(observer);
-    ALWAYS_LOG("testing 1, 2, 3");
+    ALWAYS_LOG(LOGIDENTIFIER, "testing 1, 2, 3");
     EXPECT_TRUE(this->output().contains("testing 1, 2, 3", false));
     EXPECT_TRUE(observer.log().contains("testing 1, 2, 3", false));
     EXPECT_STREQ(observer.channel().name, logChannel().name);
+    EXPECT_EQ(static_cast<int>(WTFLogLevelAlways), static_cast<int>(observer.level()));
 
     logger().removeObserver(observer);
     ALWAYS_LOG("testing ", 1, ", ", 2, ", 3");
     EXPECT_TRUE(this->output().contains("testing 1, 2, 3", false));
     EXPECT_EQ(0u, observer.log().length());
 }
+#endif
 
 #endif
 

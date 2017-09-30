@@ -85,6 +85,8 @@ public:
     bool usingServerMode() const { return m_usingServerMode; }
     void configureViewForTest(const TestInvocation&);
     
+    bool shouldShowTouches() const { return m_shouldShowTouches; }
+    
     bool beforeUnloadReturnValue() const { return m_beforeUnloadReturnValue; }
     void setBeforeUnloadReturnValue(bool value) { m_beforeUnloadReturnValue = value; }
 
@@ -266,6 +268,8 @@ private:
     void downloadDidFail(WKContextRef, WKDownloadRef, WKErrorRef);
     static void downloadDidCancel(WKContextRef, WKDownloadRef, const void*);
     void downloadDidCancel(WKContextRef, WKDownloadRef);
+    static void downloadDidReceiveServerRedirectToURL(WKContextRef, WKDownloadRef, WKURLRef, const void*);
+    void downloadDidReceiveServerRedirectToURL(WKContextRef, WKDownloadRef, WKURLRef);
     
     static void processDidCrash(WKPageRef, const void* clientInfo);
     void processDidCrash();
@@ -387,6 +391,8 @@ private:
     bool m_shouldLogDownloadCallbacks { false };
     bool m_shouldLogHistoryClientCallbacks { false };
     bool m_shouldShowWebView { false };
+    
+    bool m_shouldShowTouches { false };
     
     bool m_shouldDecideNavigationPolicyAfterDelay { false };
 

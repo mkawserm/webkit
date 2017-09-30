@@ -25,11 +25,14 @@
 "use strict";
 
 class FuncDef extends Func {
-    constructor(origin, name, returnType, typeParameters, parameters, body)
+    constructor(origin, name, returnType, typeParameters, parameters, body, isCast, shaderType)
     {
-        super(origin, name, returnType, typeParameters, parameters);
-        this.body = body;
+        super(origin, name, returnType, typeParameters, parameters, isCast, shaderType);
+        this._body = body;
+        this.isRestricted = false;
     }
+
+    get body() { return this._body; }
     
     rewrite(rewriter)
     {
@@ -37,7 +40,7 @@ class FuncDef extends Func {
             throw new Error("Cannot rewrite an uninstantiated function");
         this._returnType = this._returnType.visit(rewriter);
         this._parameters = this._parameters.map(parameter => parameter.visit(rewriter));
-        this.body = this.body.visit(rewriter);
+        this._body = this.body.visit(rewriter);
     }
     
     toString()

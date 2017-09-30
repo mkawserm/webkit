@@ -27,6 +27,7 @@
 #include "CacheStorageEngine.h"
 
 #include "NetworkCacheCoders.h"
+#include <wtf/UUID.h>
 #include <wtf/text/StringBuilder.h>
 
 using namespace WebCore::DOMCacheEngine;
@@ -41,7 +42,7 @@ static inline String cachesRootPath(Engine& engine, const String& origin)
     if (!engine.shouldPersist())
         return { };
 
-    Key key(engine.rootPath(), { }, { }, origin, engine.salt());
+    Key key(origin, { }, { }, { }, engine.salt());
     return WebCore::pathByAppendingComponent(engine.rootPath(), key.partitionHashAsString());
 }
 
@@ -50,15 +51,23 @@ static inline String cachesListFilename(const String& cachesRootPath)
     return WebCore::pathByAppendingComponent(cachesRootPath, ASCIILiteral("cacheslist"));
 }
 
-Caches::Caches(Engine& engine, const String& origin)
+Caches::Caches(Engine& engine, String&& origin)
     : m_engine(&engine)
-    , m_rootPath(cachesRootPath(engine, origin))
+    , m_origin(WTFMove(origin))
+    , m_rootPath(cachesRootPath(engine, m_origin))
 {
 }
 
 void Caches::initialize(WebCore::DOMCacheEngine::CompletionCallback&& callback)
 {
-    if (m_isInitialized || m_rootPath.isNull()) {
+    if (m_isInitialized) {
+        callback(std::nullopt);
+        return;
+    }
+
+    if (m_rootPath.isNull()) {
+        makeDirty();
+        m_isInitialized = true;
         callback(std::nullopt);
         return;
     }
@@ -74,6 +83,7 @@ void Caches::initialize(WebCore::DOMCacheEngine::CompletionCallback&& callback)
         return;
     }
     m_storage = storage.releaseNonNull();
+    m_storage->writeWithoutWaiting();
     readCachesFromDisk([this, callback = WTFMove(callback)](Expected<Vector<Cache>, Error>&& result) {
         makeDirty();
 
@@ -101,7 +111,7 @@ void Caches::detach()
     m_rootPath = { };
 }
 
-const Cache* Caches::find(const String& name) const
+Cache* Caches::find(const String& name)
 {
     auto position = m_caches.findMatching([&](const auto& item) { return item.name() == name; });
     return (position != notFound) ? &m_caches[position] : nullptr;
@@ -119,17 +129,25 @@ Cache* Caches::find(uint64_t identifier)
 
 void Caches::open(const String& name, CacheIdentifierCallback&& callback)
 {
+    ASSERT(m_isInitialized);
     ASSERT(m_engine);
 
     if (auto* cache = find(name)) {
-        callback(CacheIdentifierOperationResult { cache->identifier(), false });
+        cache->open([cacheIdentifier = cache->identifier(), callback = WTFMove(callback)](std::optional<Error>&& error) mutable {
+            if (error) {
+                callback(makeUnexpected(error.value()));
+                return;
+            }
+            callback(CacheIdentifierOperationResult { cacheIdentifier, false });
+        });
         return;
     }
 
     makeDirty();
 
     uint64_t cacheIdentifier = m_engine->nextCacheIdentifier();
-    m_caches.append(Cache { cacheIdentifier, String { name } });
+    m_caches.append(Cache { *this, cacheIdentifier, Cache::State::Open, String { name }, createCanonicalUUIDString() });
+
     writeCachesToDisk([callback = WTFMove(callback), cacheIdentifier](std::optional<Error>&& error) mutable {
         callback(CacheIdentifierOperationResult { cacheIdentifier, !!error });
     });
@@ -137,6 +155,7 @@ void Caches::open(const String& name, CacheIdentifierCallback&& callback)
 
 void Caches::remove(uint64_t identifier, CacheIdentifierCallback&& callback)
 {
+    ASSERT(m_isInitialized);
     ASSERT(m_engine);
 
     auto position = m_caches.findMatching([&](const auto& item) { return item.identifier() == identifier; });
@@ -149,13 +168,29 @@ void Caches::remove(uint64_t identifier, CacheIdentifierCallback&& callback)
 
     makeDirty();
 
-    auto cache = WTFMove(m_caches[position]);
+    m_removedCaches.append(WTFMove(m_caches[position]));
     m_caches.remove(position);
-    m_removedCaches.append(WTFMove(cache));
 
     writeCachesToDisk([callback = WTFMove(callback), identifier](std::optional<Error>&& error) mutable {
         callback(CacheIdentifierOperationResult { identifier, !!error });
     });
+}
+
+void Caches::dispose(Cache& cache)
+{
+    auto position = m_removedCaches.findMatching([&](const auto& item) { return item.identifier() == cache.identifier(); });
+    if (position != notFound) {
+        if (m_storage)
+            m_storage->remove(cache.keys(), { });
+
+        m_removedCaches.remove(position);
+        return;
+    }
+    ASSERT(m_caches.findMatching([&](const auto& item) { return item.identifier() == cache.identifier(); }) != notFound);
+    cache.clearMemoryRepresentation();
+
+    if (m_caches.findMatching([](const auto& item) { return item.isActive(); }) == notFound)
+        clearMemoryRepresentation();
 }
 
 static inline Data encodeCacheNames(const Vector<Cache>& caches)
@@ -164,13 +199,15 @@ static inline Data encodeCacheNames(const Vector<Cache>& caches)
 
     uint64_t size = caches.size();
     encoder << size;
-    for (auto& cache : caches)
+    for (auto& cache : caches) {
         encoder << cache.name();
+        encoder << cache.uniqueName();
+    }
 
     return Data { encoder.buffer(), encoder.bufferSize() };
 }
 
-static inline Expected<Vector<String>, Error> decodeCachesNames(const Data& data, int error)
+static inline Expected<Vector<std::pair<String, String>>, Error> decodeCachesNames(const Data& data, int error)
 {
     if (error)
         return makeUnexpected(Error::ReadDisk);
@@ -180,14 +217,17 @@ static inline Expected<Vector<String>, Error> decodeCachesNames(const Data& data
     if (!decoder.decode(count))
         return makeUnexpected(Error::ReadDisk);
 
-    Vector<String> names;
+    Vector<std::pair<String, String>> names;
     names.reserveInitialCapacity(count);
     for (size_t index = 0; index < count; ++index) {
         String name;
         if (!decoder.decode(name))
             return makeUnexpected(Error::ReadDisk);
+        String uniqueName;
+        if (!decoder.decode(uniqueName))
+            return makeUnexpected(Error::ReadDisk);
 
-        names.uncheckedAppend(WTFMove(name));
+        names.uncheckedAppend(std::pair<String, String> { WTFMove(name), WTFMove(uniqueName) });
     }
     return names;
 }
@@ -220,12 +260,9 @@ void Caches::readCachesFromDisk(WTF::Function<void(Expected<Vector<Cache>, Error
             callback(makeUnexpected(result.error()));
             return;
         }
-        Vector<Cache> caches;
-        caches.reserveInitialCapacity(result.value().size());
-        for (auto& name : result.value())
-            caches.uncheckedAppend(Cache { m_engine->nextCacheIdentifier(), WTFMove(name) });
-
-        callback(WTFMove(caches));
+        callback(WTF::map(WTFMove(result.value()), [this] (auto&& pair) {
+            return Cache { *this, m_engine->nextCacheIdentifier(), Cache::State::Uninitialized, WTFMove(pair.first), WTFMove(pair.second) };
+        }));
     });
 }
 
@@ -249,6 +286,76 @@ void Caches::writeCachesToDisk(CompletionCallback&& callback)
     });
 }
 
+void Caches::readRecordsList(Cache& cache, NetworkCache::Storage::TraverseHandler&& callback)
+{
+    ASSERT(m_isInitialized);
+
+    if (!m_storage) {
+        callback(nullptr, { });
+        return;
+    }
+    m_storage->traverse(cache.uniqueName(), 0, [protectedStorage = makeRef(*m_storage), callback = WTFMove(callback)](const auto* storage, const auto& information) {
+        callback(storage, information);
+    });
+}
+
+void Caches::writeRecord(const Cache& cache, const RecordInformation& recordInformation, Record&& record, CompletionCallback&& callback)
+{
+    ASSERT(m_isInitialized);
+
+    // FIXME: Check for storage quota.
+    if (!shouldPersist()) {
+        m_volatileStorage.set(recordInformation.key, WTFMove(record));
+        return;
+    }
+
+    m_storage->store(Cache::encode(recordInformation, record), [protectedStorage = makeRef(*m_storage), callback = WTFMove(callback)](const Data&) {
+        callback(std::nullopt);
+    });
+}
+
+void Caches::readRecord(const NetworkCache::Key& key, WTF::Function<void(Expected<Record, Error>&&)>&& callback)
+{
+    ASSERT(m_isInitialized);
+
+    if (!shouldPersist()) {
+        auto iterator = m_volatileStorage.find(key);
+        if (iterator == m_volatileStorage.end()) {
+            callback(makeUnexpected(Error::Internal));
+            return;
+        }
+        callback(iterator->value.copy());
+        return;
+    }
+
+    m_storage->retrieve(key, 4, [protectedStorage = makeRef(*m_storage), callback = WTFMove(callback)](std::unique_ptr<Storage::Record> storage) mutable {
+        if (!storage) {
+            callback(makeUnexpected(Error::ReadDisk));
+            return false;
+        }
+
+        auto record = Cache::decode(*storage);
+        if (!record) {
+            callback(makeUnexpected(Error::ReadDisk));
+            return false;
+        }
+
+        callback(WTFMove(record.value()));
+        return true;
+    });
+}
+
+void Caches::removeRecord(const NetworkCache::Key& key)
+{
+    ASSERT(m_isInitialized);
+
+    if (!shouldPersist()) {
+        m_volatileStorage.remove(key);
+        return;
+    }
+    m_storage->remove(key);
+}
+
 void Caches::clearMemoryRepresentation()
 {
     makeDirty();
@@ -263,6 +370,17 @@ bool Caches::isDirty(uint64_t updateCounter) const
     return m_updateCounter != updateCounter;
 }
 
+const NetworkCache::Salt& Caches::salt() const
+{
+    if (m_engine)
+        return m_engine->salt();
+
+    if (!m_volatileSalt)
+        m_volatileSalt = Salt { };
+
+    return m_volatileSalt.value();
+}
+
 CacheInfos Caches::cacheInfos(uint64_t updateCounter) const
 {
     Vector<CacheInfo> cacheInfos;
@@ -272,6 +390,34 @@ CacheInfos Caches::cacheInfos(uint64_t updateCounter) const
             cacheInfos.uncheckedAppend(CacheInfo { cache.identifier(), cache.name() });
     }
     return { WTFMove(cacheInfos), m_updateCounter };
+}
+
+void Caches::appendRepresentation(StringBuilder& builder) const
+{
+    builder.append("{ \"persistent\": [");
+
+    bool isFirst = true;
+    for (auto& cache : m_caches) {
+        if (!isFirst)
+            builder.append(", ");
+        isFirst = false;
+        builder.append("\"");
+        builder.append(cache.name());
+        builder.append("\"");
+    }
+
+    builder.append("], \"removed\": [");
+
+    isFirst = true;
+    for (auto& cache : m_removedCaches) {
+        if (!isFirst)
+            builder.append(", ");
+        isFirst = false;
+        builder.append("\"");
+        builder.append(cache.name());
+        builder.append("\"");
+    }
+    builder.append("]}\n");
 }
 
 } // namespace CacheStorage

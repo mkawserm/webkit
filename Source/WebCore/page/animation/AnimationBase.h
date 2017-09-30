@@ -38,6 +38,7 @@ class CompositeAnimation;
 class Element;
 class FloatRect;
 class LayoutRect;
+class RenderBoxModelObject;
 class RenderElement;
 class RenderStyle;
 class TimingFunction;
@@ -47,16 +48,14 @@ class AnimationBase : public RefCounted<AnimationBase> {
     friend class CSSPropertyAnimation;
     WTF_MAKE_FAST_ALLOCATED;
 public:
-    AnimationBase(const Animation& transition, RenderElement*, CompositeAnimation*);
-    virtual ~AnimationBase() { }
+    AnimationBase(const Animation& transition, Element&, CompositeAnimation&);
+    virtual ~AnimationBase();
 
-    RenderElement* renderer() const { return m_object; }
-    void clear()
-    {
-        endAnimation();
-        m_object = nullptr;
-        m_compositeAnimation = nullptr;
-    }
+    Element* element() const { return m_element.get(); }
+    const RenderStyle& currentStyle() const;
+    RenderElement* renderer() const;
+    RenderBoxModelObject* compositedRenderer() const;
+    void clear();
 
     double duration() const;
 
@@ -132,8 +131,6 @@ public:
 
     double progress(double scale = 1, double offset = 0, const TimingFunction* = nullptr) const;
 
-    // Returns true if the animation state changed.
-    virtual bool animate(CompositeAnimation&, RenderElement*, const RenderStyle* /*currentStyle*/, const RenderStyle& /*targetStyle*/, std::unique_ptr<RenderStyle>& /*animatedStyle*/, bool& didBlendStyle) = 0;
     virtual void getAnimatedStyle(std::unique_ptr<RenderStyle>& /*animatedStyle*/) = 0;
 
     virtual bool computeExtentOfTransformAnimation(LayoutRect&) const = 0;
@@ -225,6 +222,8 @@ protected:
     virtual void pauseAnimation(double /*timeOffset*/) { }
     virtual void endAnimation() { }
 
+    virtual const RenderStyle& unanimatedStyle() const = 0;
+
     void goIntoEndingOrLoopingState();
 
     AnimationState state() const { return m_animationState; }
@@ -239,7 +238,10 @@ protected:
     bool computeTransformedExtentViaTransformList(const FloatRect& rendererBox, const RenderStyle&, LayoutRect& bounds) const;
     bool computeTransformedExtentViaMatrix(const FloatRect& rendererBox, const RenderStyle&, LayoutRect& bounds) const;
 
-    RenderElement* m_object;
+private:
+    RefPtr<Element> m_element;
+
+protected:
     CompositeAnimation* m_compositeAnimation; // Ideally this would be a reference, but it has to be cleared if an animation is destroyed inside an event callback.
     Ref<Animation> m_animation;
 

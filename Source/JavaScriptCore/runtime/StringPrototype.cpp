@@ -130,43 +130,43 @@ void StringPrototype::finishCreation(VM& vm, JSGlobalObject* globalObject, JSStr
     Base::finishCreation(vm, nameAndMessage);
     ASSERT(inherits(vm, info()));
 
-    JSC_NATIVE_INTRINSIC_FUNCTION_WITHOUT_TRANSITION(vm.propertyNames->toString, stringProtoFuncToString, DontEnum, 0, StringPrototypeValueOfIntrinsic);
-    JSC_NATIVE_INTRINSIC_FUNCTION_WITHOUT_TRANSITION(vm.propertyNames->valueOf, stringProtoFuncToString, DontEnum, 0, StringPrototypeValueOfIntrinsic);
-    JSC_NATIVE_INTRINSIC_FUNCTION_WITHOUT_TRANSITION("charAt", stringProtoFuncCharAt, DontEnum, 1, CharAtIntrinsic);
-    JSC_NATIVE_INTRINSIC_FUNCTION_WITHOUT_TRANSITION("charCodeAt", stringProtoFuncCharCodeAt, DontEnum, 1, CharCodeAtIntrinsic);
-    JSC_NATIVE_FUNCTION_WITHOUT_TRANSITION("codePointAt", stringProtoFuncCodePointAt, DontEnum, 1);
-    JSC_NATIVE_FUNCTION_WITHOUT_TRANSITION("indexOf", stringProtoFuncIndexOf, DontEnum, 1);
-    JSC_NATIVE_FUNCTION_WITHOUT_TRANSITION("lastIndexOf", stringProtoFuncLastIndexOf, DontEnum, 1);
-    JSC_NATIVE_INTRINSIC_FUNCTION_WITHOUT_TRANSITION(vm.propertyNames->builtinNames().replaceUsingRegExpPrivateName(), stringProtoFuncReplaceUsingRegExp, DontEnum, 2, StringPrototypeReplaceRegExpIntrinsic);
-    JSC_NATIVE_FUNCTION_WITHOUT_TRANSITION(vm.propertyNames->builtinNames().replaceUsingStringSearchPrivateName(), stringProtoFuncReplaceUsingStringSearch, DontEnum, 2);
-    JSC_NATIVE_FUNCTION_WITHOUT_TRANSITION("slice", stringProtoFuncSlice, DontEnum, 2);
-    JSC_NATIVE_FUNCTION_WITHOUT_TRANSITION("substr", stringProtoFuncSubstr, DontEnum, 2);
-    JSC_NATIVE_FUNCTION_WITHOUT_TRANSITION("substring", stringProtoFuncSubstring, DontEnum, 2);
-    JSC_NATIVE_INTRINSIC_FUNCTION_WITHOUT_TRANSITION("toLowerCase", stringProtoFuncToLowerCase, DontEnum, 0, StringPrototypeToLowerCaseIntrinsic);
-    JSC_NATIVE_FUNCTION_WITHOUT_TRANSITION("toUpperCase", stringProtoFuncToUpperCase, DontEnum, 0);
+    JSC_NATIVE_INTRINSIC_FUNCTION_WITHOUT_TRANSITION(vm.propertyNames->toString, stringProtoFuncToString, static_cast<unsigned>(PropertyAttribute::DontEnum), 0, StringPrototypeValueOfIntrinsic);
+    JSC_NATIVE_INTRINSIC_FUNCTION_WITHOUT_TRANSITION(vm.propertyNames->valueOf, stringProtoFuncToString, static_cast<unsigned>(PropertyAttribute::DontEnum), 0, StringPrototypeValueOfIntrinsic);
+    JSC_NATIVE_INTRINSIC_FUNCTION_WITHOUT_TRANSITION("charAt", stringProtoFuncCharAt, static_cast<unsigned>(PropertyAttribute::DontEnum), 1, CharAtIntrinsic);
+    JSC_NATIVE_INTRINSIC_FUNCTION_WITHOUT_TRANSITION("charCodeAt", stringProtoFuncCharCodeAt, static_cast<unsigned>(PropertyAttribute::DontEnum), 1, CharCodeAtIntrinsic);
+    JSC_NATIVE_FUNCTION_WITHOUT_TRANSITION("codePointAt", stringProtoFuncCodePointAt, static_cast<unsigned>(PropertyAttribute::DontEnum), 1);
+    JSC_NATIVE_FUNCTION_WITHOUT_TRANSITION("indexOf", stringProtoFuncIndexOf, static_cast<unsigned>(PropertyAttribute::DontEnum), 1);
+    JSC_NATIVE_FUNCTION_WITHOUT_TRANSITION("lastIndexOf", stringProtoFuncLastIndexOf, static_cast<unsigned>(PropertyAttribute::DontEnum), 1);
+    JSC_NATIVE_INTRINSIC_FUNCTION_WITHOUT_TRANSITION(vm.propertyNames->builtinNames().replaceUsingRegExpPrivateName(), stringProtoFuncReplaceUsingRegExp, static_cast<unsigned>(PropertyAttribute::DontEnum), 2, StringPrototypeReplaceRegExpIntrinsic);
+    JSC_NATIVE_FUNCTION_WITHOUT_TRANSITION(vm.propertyNames->builtinNames().replaceUsingStringSearchPrivateName(), stringProtoFuncReplaceUsingStringSearch, static_cast<unsigned>(PropertyAttribute::DontEnum), 2);
+    JSC_NATIVE_FUNCTION_WITHOUT_TRANSITION("slice", stringProtoFuncSlice, static_cast<unsigned>(PropertyAttribute::DontEnum), 2);
+    JSC_NATIVE_FUNCTION_WITHOUT_TRANSITION("substr", stringProtoFuncSubstr, static_cast<unsigned>(PropertyAttribute::DontEnum), 2);
+    JSC_NATIVE_FUNCTION_WITHOUT_TRANSITION("substring", stringProtoFuncSubstring, static_cast<unsigned>(PropertyAttribute::DontEnum), 2);
+    JSC_NATIVE_INTRINSIC_FUNCTION_WITHOUT_TRANSITION("toLowerCase", stringProtoFuncToLowerCase, static_cast<unsigned>(PropertyAttribute::DontEnum), 0, StringPrototypeToLowerCaseIntrinsic);
+    JSC_NATIVE_FUNCTION_WITHOUT_TRANSITION("toUpperCase", stringProtoFuncToUpperCase, static_cast<unsigned>(PropertyAttribute::DontEnum), 0);
 #if ENABLE(INTL)
-    JSC_BUILTIN_FUNCTION_WITHOUT_TRANSITION("localeCompare", stringPrototypeLocaleCompareCodeGenerator, DontEnum);
-    JSC_NATIVE_FUNCTION_WITHOUT_TRANSITION("toLocaleLowerCase", stringProtoFuncToLocaleLowerCase, DontEnum, 0);
-    JSC_NATIVE_FUNCTION_WITHOUT_TRANSITION("toLocaleUpperCase", stringProtoFuncToLocaleUpperCase, DontEnum, 0);
+    JSC_BUILTIN_FUNCTION_WITHOUT_TRANSITION("localeCompare", stringPrototypeLocaleCompareCodeGenerator, static_cast<unsigned>(PropertyAttribute::DontEnum));
+    JSC_NATIVE_FUNCTION_WITHOUT_TRANSITION("toLocaleLowerCase", stringProtoFuncToLocaleLowerCase, static_cast<unsigned>(PropertyAttribute::DontEnum), 0);
+    JSC_NATIVE_FUNCTION_WITHOUT_TRANSITION("toLocaleUpperCase", stringProtoFuncToLocaleUpperCase, static_cast<unsigned>(PropertyAttribute::DontEnum), 0);
 #else
-    JSC_NATIVE_FUNCTION_WITHOUT_TRANSITION("localeCompare", stringProtoFuncLocaleCompare, DontEnum, 1);
-    JSC_NATIVE_FUNCTION_WITHOUT_TRANSITION("toLocaleLowerCase", stringProtoFuncToLowerCase, DontEnum, 0);
-    JSC_NATIVE_FUNCTION_WITHOUT_TRANSITION("toLocaleUpperCase", stringProtoFuncToUpperCase, DontEnum, 0);
+    JSC_NATIVE_FUNCTION_WITHOUT_TRANSITION("localeCompare", stringProtoFuncLocaleCompare, static_cast<unsigned>(PropertyAttribute::DontEnum), 1);
+    JSC_NATIVE_FUNCTION_WITHOUT_TRANSITION("toLocaleLowerCase", stringProtoFuncToLowerCase, static_cast<unsigned>(PropertyAttribute::DontEnum), 0);
+    JSC_NATIVE_FUNCTION_WITHOUT_TRANSITION("toLocaleUpperCase", stringProtoFuncToUpperCase, static_cast<unsigned>(PropertyAttribute::DontEnum), 0);
 #endif
-    JSC_NATIVE_FUNCTION_WITHOUT_TRANSITION("trim", stringProtoFuncTrim, DontEnum, 0);
-    JSC_NATIVE_FUNCTION_WITHOUT_TRANSITION("trimLeft", stringProtoFuncTrimLeft, DontEnum, 0);
-    JSC_NATIVE_FUNCTION_WITHOUT_TRANSITION("trimRight", stringProtoFuncTrimRight, DontEnum, 0);
-    JSC_NATIVE_FUNCTION_WITHOUT_TRANSITION("startsWith", stringProtoFuncStartsWith, DontEnum, 1);
-    JSC_NATIVE_FUNCTION_WITHOUT_TRANSITION("endsWith", stringProtoFuncEndsWith, DontEnum, 1);
-    JSC_NATIVE_FUNCTION_WITHOUT_TRANSITION("includes", stringProtoFuncIncludes, DontEnum, 1);
-    JSC_NATIVE_FUNCTION_WITHOUT_TRANSITION("normalize", stringProtoFuncNormalize, DontEnum, 0);
-    JSC_NATIVE_INTRINSIC_FUNCTION_WITHOUT_TRANSITION(vm.propertyNames->builtinNames().charCodeAtPrivateName(), stringProtoFuncCharCodeAt, DontEnum, 1, CharCodeAtIntrinsic);
+    JSC_NATIVE_FUNCTION_WITHOUT_TRANSITION("trim", stringProtoFuncTrim, static_cast<unsigned>(PropertyAttribute::DontEnum), 0);
+    JSC_NATIVE_FUNCTION_WITHOUT_TRANSITION("trimLeft", stringProtoFuncTrimLeft, static_cast<unsigned>(PropertyAttribute::DontEnum), 0);
+    JSC_NATIVE_FUNCTION_WITHOUT_TRANSITION("trimRight", stringProtoFuncTrimRight, static_cast<unsigned>(PropertyAttribute::DontEnum), 0);
+    JSC_NATIVE_FUNCTION_WITHOUT_TRANSITION("startsWith", stringProtoFuncStartsWith, static_cast<unsigned>(PropertyAttribute::DontEnum), 1);
+    JSC_NATIVE_FUNCTION_WITHOUT_TRANSITION("endsWith", stringProtoFuncEndsWith, static_cast<unsigned>(PropertyAttribute::DontEnum), 1);
+    JSC_NATIVE_FUNCTION_WITHOUT_TRANSITION("includes", stringProtoFuncIncludes, static_cast<unsigned>(PropertyAttribute::DontEnum), 1);
+    JSC_NATIVE_FUNCTION_WITHOUT_TRANSITION("normalize", stringProtoFuncNormalize, static_cast<unsigned>(PropertyAttribute::DontEnum), 0);
+    JSC_NATIVE_INTRINSIC_FUNCTION_WITHOUT_TRANSITION(vm.propertyNames->builtinNames().charCodeAtPrivateName(), stringProtoFuncCharCodeAt, static_cast<unsigned>(PropertyAttribute::DontEnum), 1, CharCodeAtIntrinsic);
 
     JSFunction* iteratorFunction = JSFunction::create(vm, globalObject, 0, ASCIILiteral("[Symbol.iterator]"), stringProtoFuncIterator, NoIntrinsic);
-    putDirectWithoutTransition(vm, vm.propertyNames->iteratorSymbol, iteratorFunction, DontEnum);
+    putDirectWithoutTransition(vm, vm.propertyNames->iteratorSymbol, iteratorFunction, static_cast<unsigned>(PropertyAttribute::DontEnum));
 
     // The constructor will be added later, after StringConstructor has been built
-    putDirectWithoutTransition(vm, vm.propertyNames->length, jsNumber(0), DontDelete | ReadOnly | DontEnum);
+    putDirectWithoutTransition(vm, vm.propertyNames->length, jsNumber(0), PropertyAttribute::DontDelete | PropertyAttribute::ReadOnly | PropertyAttribute::DontEnum);
 }
 
 StringPrototype* StringPrototype::create(VM& vm, JSGlobalObject* globalObject, Structure* structure)
@@ -182,6 +182,7 @@ StringPrototype* StringPrototype::create(VM& vm, JSGlobalObject* globalObject, S
 static NEVER_INLINE String substituteBackreferencesSlow(StringView replacement, StringView source, const int* ovector, RegExp* reg, size_t i)
 {
     StringBuilder substitutedReplacement;
+    bool hasNamedCaptures = reg && reg->hasNamedCaptures();
     int offset = 0;
     do {
         if (i + 1 == replacement.length())
@@ -208,6 +209,40 @@ static NEVER_INLINE String substituteBackreferencesSlow(StringView replacement, 
         } else if (ref == '\'') {
             backrefStart = ovector[1];
             backrefLength = source.length() - backrefStart;
+        } else if (reg && ref == '<') {
+            // Named back reference
+            if (!hasNamedCaptures) {
+                substitutedReplacement.append(replacement.substring(i, 2));
+                offset = i + 2;
+                advance = 1;
+                continue;
+            }
+
+            size_t closingBracket = replacement.find('>', i + 2);
+            if (closingBracket == WTF::notFound) {
+                // FIXME: https://bugs.webkit.org/show_bug.cgi?id=176434
+                // Current proposed spec change throws a syntax error in this case.
+                // We have made the case that it makes more sense to treat this a literal
+                // If throwSyntaxError(exec, scope, "Missing closing '>' in replacement text");
+                continue;
+            }
+
+            unsigned nameLength = closingBracket - i - 2;
+            unsigned backrefIndex = reg->subpatternForName(replacement.substring(i + 2, nameLength).toString());
+
+            if (!backrefIndex || backrefIndex > reg->numSubpatterns()) {
+                // FIXME: https://bugs.webkit.org/show_bug.cgi?id=176434
+                // Proposed spec change throws a throw syntax error in this case.
+                // We have made the case that a non-existent back reference should be replaced with
+                // and empty string.
+                // throwSyntaxError(exec, scope, makeString("Replacement text references non-existent backreference \"" + replacement.substring(i + 2, nameLength).toString()));
+                backrefStart = 0;
+                backrefLength = 0;
+            } else {
+                backrefStart = ovector[2 * backrefIndex];
+                backrefLength = ovector[2 * backrefIndex + 1] - backrefStart;
+            }
+            advance = nameLength + 1;
         } else if (reg && isASCIIDigit(ref)) {
             // 1- and 2-digit back references are allowed
             unsigned backrefIndex = ref - '0';
@@ -487,6 +522,7 @@ static ALWAYS_INLINE EncodedJSValue replaceUsingRegExpSearch(
     RegExpObject* regExpObject = asRegExpObject(searchValue);
     RegExp* regExp = regExpObject->regExp();
     bool global = regExp->global();
+    bool hasNamedCaptures = regExp->hasNamedCaptures();
 
     if (global) {
         // ES5.1 15.5.4.10 step 8.a.
@@ -528,18 +564,38 @@ static ALWAYS_INLINE EncodedJSValue replaceUsingRegExpSearch(
 
                 unsigned i = 0;
                 cachedCall.clearArguments();
+
+                JSObject* groups = nullptr;
+
+                if (hasNamedCaptures) {
+                    JSGlobalObject* globalObject = exec->lexicalGlobalObject();
+                    groups = JSFinalObject::create(vm, JSFinalObject::createStructure(vm, globalObject, globalObject->objectPrototype(), 0));
+                }
+
                 for (; i < regExp->numSubpatterns() + 1; ++i) {
                     int matchStart = ovector[i * 2];
                     int matchLen = ovector[i * 2 + 1] - matchStart;
 
+                    JSValue patternValue;
+
                     if (matchStart < 0)
-                        cachedCall.appendArgument(jsUndefined());
+                        patternValue = jsUndefined();
                     else
-                        cachedCall.appendArgument(jsSubstring(&vm, source, matchStart, matchLen));
+                        patternValue = jsSubstring(&vm, source, matchStart, matchLen);
+
+                    cachedCall.appendArgument(patternValue);
+
+                    if (i && hasNamedCaptures) {
+                        String groupName = regExp->getCaptureGroupName(i);
+                        if (!groupName.isEmpty())
+                            groups->putDirect(vm, Identifier::fromString(&vm, groupName), patternValue);
+                    }
                 }
 
                 cachedCall.appendArgument(jsNumber(result.start));
                 cachedCall.appendArgument(string);
+                if (hasNamedCaptures)
+                    cachedCall.appendArgument(groups);
 
                 cachedCall.setThis(jsUndefined());
                 JSValue jsResult = cachedCall.call();
@@ -569,18 +625,38 @@ static ALWAYS_INLINE EncodedJSValue replaceUsingRegExpSearch(
 
                 unsigned i = 0;
                 cachedCall.clearArguments();
+
+                JSObject* groups = nullptr;
+
+                if (hasNamedCaptures) {
+                    JSGlobalObject* globalObject = exec->lexicalGlobalObject();
+                    groups = JSFinalObject::create(vm, JSFinalObject::createStructure(vm, globalObject, globalObject->objectPrototype(), 0));
+                }
+
                 for (; i < regExp->numSubpatterns() + 1; ++i) {
                     int matchStart = ovector[i * 2];
                     int matchLen = ovector[i * 2 + 1] - matchStart;
 
+                    JSValue patternValue;
+
                     if (matchStart < 0)
-                        cachedCall.appendArgument(jsUndefined());
+                        patternValue = jsUndefined();
                     else
-                        cachedCall.appendArgument(jsSubstring(&vm, source, matchStart, matchLen));
+                        patternValue = jsSubstring(&vm, source, matchStart, matchLen);
+
+                    cachedCall.appendArgument(patternValue);
+
+                    if (i && hasNamedCaptures) {
+                        String groupName = regExp->getCaptureGroupName(i);
+                        if (!groupName.isEmpty())
+                            groups->putDirect(vm, Identifier::fromString(&vm, groupName), patternValue);
+                    }
                 }
 
                 cachedCall.appendArgument(jsNumber(result.start));
                 cachedCall.appendArgument(string);
+                if (hasNamedCaptures)
+                    cachedCall.appendArgument(groups);
 
                 cachedCall.setThis(jsUndefined());
                 JSValue jsResult = cachedCall.call();
@@ -611,19 +687,38 @@ static ALWAYS_INLINE EncodedJSValue replaceUsingRegExpSearch(
                     OUT_OF_MEMORY(exec, scope);
 
                 MarkedArgumentBuffer args;
+                JSObject* groups = nullptr;
+
+                if (hasNamedCaptures) {
+                    JSGlobalObject* globalObject = exec->lexicalGlobalObject();
+                    groups = JSFinalObject::create(vm, JSFinalObject::createStructure(vm, globalObject, globalObject->objectPrototype(), 0));
+                }
 
                 for (unsigned i = 0; i < regExp->numSubpatterns() + 1; ++i) {
                     int matchStart = ovector[i * 2];
                     int matchLen = ovector[i * 2 + 1] - matchStart;
 
+                    JSValue patternValue;
+
                     if (matchStart < 0)
-                        args.append(jsUndefined());
+                        patternValue = jsUndefined();
                     else
-                        args.append(jsSubstring(exec, source, matchStart, matchLen));
+                        patternValue = jsSubstring(exec, source, matchStart, matchLen);
+
+                    args.append(patternValue);
+
+                    if (i && hasNamedCaptures) {
+                        String groupName = regExp->getCaptureGroupName(i);
+                        if (!groupName.isEmpty())
+                            groups->putDirect(vm, Identifier::fromString(&vm, groupName), patternValue);
+                    }
+
                 }
 
                 args.append(jsNumber(result.start));
                 args.append(string);
+                if (hasNamedCaptures)
+                    args.append(groups);
 
                 JSValue replacement = call(exec, replaceValue, callType, callData, jsUndefined(), args);
                 RETURN_IF_EXCEPTION(scope, encodedJSValue());
@@ -768,7 +863,7 @@ static inline bool checkObjectCoercible(JSValue thisValue)
     if (thisValue.isUndefinedOrNull())
         return false;
 
-    if (thisValue.isObject() && asObject(thisValue)->isEnvironmentRecord())
+    if (thisValue.isObject() && asObject(thisValue)->isEnvironment())
         return false;
 
     return true;
@@ -925,6 +1020,7 @@ EncodedJSValue JSC_HOST_CALL stringProtoFuncCharAt(ExecState* exec)
         return JSValue::encode(jsEmptyString(exec));
     }
     double dpos = a0.toInteger(exec);
+    RETURN_IF_EXCEPTION(scope, encodedJSValue());
     if (dpos >= 0 && dpos < view.length())
         return JSValue::encode(jsSingleCharacterString(exec, view[static_cast<unsigned>(dpos)]));
     return JSValue::encode(jsEmptyString(exec));
@@ -949,6 +1045,7 @@ EncodedJSValue JSC_HOST_CALL stringProtoFuncCharCodeAt(ExecState* exec)
         return JSValue::encode(jsNaN());
     }
     double dpos = a0.toInteger(exec);
+    RETURN_IF_EXCEPTION(scope, encodedJSValue());
     if (dpos >= 0 && dpos < view.length())
         return JSValue::encode(jsNumber(view[static_cast<int>(dpos)]));
     return JSValue::encode(jsNaN());
@@ -1019,6 +1116,7 @@ EncodedJSValue JSC_HOST_CALL stringProtoFuncIndexOf(ExecState* exec)
             pos = std::min<uint32_t>(a1.asUInt32(), len);
         else {
             double dpos = a1.toInteger(exec);
+            RETURN_IF_EXCEPTION(scope, encodedJSValue());
             if (dpos < 0)
                 dpos = 0;
             else if (dpos > len)
@@ -1059,6 +1157,7 @@ EncodedJSValue JSC_HOST_CALL stringProtoFuncLastIndexOf(ExecState* exec)
     RETURN_IF_EXCEPTION(scope, encodedJSValue());
 
     double dpos = a1.toIntegerPreserveNaN(exec);
+    RETURN_IF_EXCEPTION(scope, encodedJSValue());
     unsigned startPosition;
     if (dpos < 0)
         startPosition = 0;
@@ -1101,7 +1200,9 @@ EncodedJSValue JSC_HOST_CALL stringProtoFuncSlice(ExecState* exec)
 
     // The arg processing is very much like ArrayProtoFunc::Slice
     double start = a0.toInteger(exec);
+    RETURN_IF_EXCEPTION(scope, encodedJSValue());
     double end = a1.isUndefined() ? len : a1.toInteger(exec);
+    RETURN_IF_EXCEPTION(scope, encodedJSValue());
     double from = start < 0 ? len + start : start;
     double to = end < 0 ? len + end : end;
     if (to > from && to > 0 && from < len) {
@@ -1173,6 +1274,7 @@ EncodedJSValue JSC_HOST_CALL stringProtoFuncSplitFast(ExecState* exec)
     // 6. If limit is undefined, let lim = 2^32-1; else let lim = ToUint32(limit).
     JSValue limitValue = exec->uncheckedArgument(1);
     unsigned limit = limitValue.isUndefined() ? 0xFFFFFFFFu : limitValue.toUInt32(exec);
+    RETURN_IF_EXCEPTION(scope, encodedJSValue());
 
     // 8. Let p = 0.
     size_t position = 0;
@@ -1308,7 +1410,9 @@ EncodedJSValue JSC_HOST_CALL stringProtoFuncSubstr(ExecState* exec)
     JSValue a1 = exec->argument(1);
 
     double start = a0.toInteger(exec);
+    RETURN_IF_EXCEPTION(scope, encodedJSValue());
     double length = a1.isUndefined() ? len : a1.toInteger(exec);
+    RETURN_IF_EXCEPTION(scope, encodedJSValue());
     if (start >= len || length <= 0)
         return JSValue::encode(jsEmptyString(exec));
     if (start < 0) {

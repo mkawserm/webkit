@@ -117,9 +117,10 @@ static EncodedJSValue JSC_HOST_CALL functionJITTrue(ExecState* exec)
 
 void JSDollarVMPrototype::gc(ExecState* exec)
 {
+    VM& vm = exec->vm();
     if (!ensureCurrentThreadOwnsJSLock(exec))
         return;
-    exec->heap()->collectNow(Sync, CollectionScope::Full);
+    vm.heap.collectNow(Sync, CollectionScope::Full);
 }
     
 static EncodedJSValue JSC_HOST_CALL functionGC(ExecState* exec)
@@ -130,9 +131,10 @@ static EncodedJSValue JSC_HOST_CALL functionGC(ExecState* exec)
 
 void JSDollarVMPrototype::edenGC(ExecState* exec)
 {
+    VM& vm = exec->vm();
     if (!ensureCurrentThreadOwnsJSLock(exec))
         return;
-    exec->heap()->collectSync(CollectionScope::Eden);
+    vm.heap.collectSync(CollectionScope::Eden);
 }
 
 static EncodedJSValue JSC_HOST_CALL functionEdenGC(ExecState* exec)
@@ -450,7 +452,7 @@ void JSDollarVMPrototype::finishCreation(VM& vm, JSGlobalObject* globalObject)
     
     addFunction(vm, globalObject, "crash", functionCrash, 0);
     
-    putDirectNativeFunction(vm, globalObject, Identifier::fromString(&vm, "dfgTrue"), 0, functionDFGTrue, DFGTrueIntrinsic, DontEnum);
+    putDirectNativeFunction(vm, globalObject, Identifier::fromString(&vm, "dfgTrue"), 0, functionDFGTrue, DFGTrueIntrinsic, static_cast<unsigned>(PropertyAttribute::DontEnum));
     
     addFunction(vm, globalObject, "llintTrue", functionLLintTrue, 0);
     addFunction(vm, globalObject, "jitTrue", functionJITTrue, 0);

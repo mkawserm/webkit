@@ -42,9 +42,9 @@ const ClassInfo MapConstructor::s_info = { "Function", &Base::s_info, nullptr, n
 void MapConstructor::finishCreation(VM& vm, MapPrototype* mapPrototype, GetterSetter* speciesSymbol)
 {
     Base::finishCreation(vm, mapPrototype->classInfo(vm)->className);
-    putDirectWithoutTransition(vm, vm.propertyNames->prototype, mapPrototype, DontEnum | DontDelete | ReadOnly);
-    putDirectWithoutTransition(vm, vm.propertyNames->length, jsNumber(0), DontEnum | ReadOnly);
-    putDirectNonIndexAccessor(vm, vm.propertyNames->speciesSymbol, speciesSymbol, Accessor | ReadOnly | DontEnum);
+    putDirectWithoutTransition(vm, vm.propertyNames->prototype, mapPrototype, PropertyAttribute::DontEnum | PropertyAttribute::DontDelete | PropertyAttribute::ReadOnly);
+    putDirectWithoutTransition(vm, vm.propertyNames->length, jsNumber(0), PropertyAttribute::DontEnum | PropertyAttribute::ReadOnly);
+    putDirectNonIndexAccessor(vm, vm.propertyNames->speciesSymbol, speciesSymbol, PropertyAttribute::Accessor | PropertyAttribute::ReadOnly | PropertyAttribute::DontEnum);
 }
 
 static EncodedJSValue JSC_HOST_CALL callMap(ExecState* exec)
@@ -64,19 +64,23 @@ static EncodedJSValue JSC_HOST_CALL constructMap(ExecState* exec)
     RETURN_IF_EXCEPTION(scope, encodedJSValue());
 
     JSValue iterable = exec->argument(0);
-    if (iterable.isUndefinedOrNull())
+    if (iterable.isUndefinedOrNull()) {
+        scope.release();
         return JSValue::encode(JSMap::create(exec, vm, mapStructure));
+    }
 
     if (isJSMap(iterable)) {
         JSMap* iterableMap = jsCast<JSMap*>(iterable);
-        if (iterableMap->canCloneFastAndNonObservable(mapStructure))
+        if (iterableMap->canCloneFastAndNonObservable(mapStructure)) {
+            scope.release();
             return JSValue::encode(iterableMap->clone(exec, vm, mapStructure));
+        }
     }
 
     JSMap* map = JSMap::create(exec, vm, mapStructure);
     RETURN_IF_EXCEPTION(scope, encodedJSValue());
 
-    JSValue adderFunction = map->JSObject::get(exec, exec->propertyNames().set);
+    JSValue adderFunction = map->JSObject::get(exec, vm.propertyNames->set);
     RETURN_IF_EXCEPTION(scope, encodedJSValue());
 
     CallData adderFunctionCallData;

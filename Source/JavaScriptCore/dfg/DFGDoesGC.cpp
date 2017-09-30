@@ -56,6 +56,7 @@ bool doesGC(Graph& graph, Node* node)
     case GetLocal:
     case SetLocal:
     case MovHint:
+    case InitializeEntrypointArguments:
     case ZombieHint:
     case ExitOK:
     case Phantom:
@@ -114,6 +115,8 @@ bool doesGC(Graph& graph, Node* node)
     case DeleteById:
     case DeleteByVal:
     case CheckStructure:
+    case CheckStructureOrEmpty:
+    case CheckStructureImmediate:
     case GetExecutable:
     case GetButterfly:
     case GetButterflyWithoutCaging:
@@ -122,6 +125,7 @@ bool doesGC(Graph& graph, Node* node)
     case GetScope:
     case SkipScope:
     case GetGlobalObject:
+    case GetGlobalThis:
     case GetClosureVar:
     case PutClosureVar:
     case GetRegExpObjectLastIndex:
@@ -139,6 +143,8 @@ bool doesGC(Graph& graph, Node* node)
     case CompareLessEq:
     case CompareGreater:
     case CompareGreaterEq:
+    case CompareBelow:
+    case CompareBelowEq:
     case CompareEq:
     case CompareStrictEq:
     case CompareEqPtr:
@@ -178,11 +184,13 @@ bool doesGC(Graph& graph, Node* node)
     case ToString:
     case CallStringConstructor:
     case NumberToStringWithRadix:
+    case NumberToStringWithValidRadixConstant:
     case In:
     case HasOwnProperty:
     case Jump:
     case Branch:
     case Switch:
+    case EntrySwitch:
     case Return:
     case TailCall:
     case DirectTailCall:
@@ -198,6 +206,7 @@ bool doesGC(Graph& graph, Node* node)
     case GetMapBucketNext:
     case LoadKeyFromMapBucket:
     case LoadValueFromMapBucket:
+    case WeakMapGet:
     case Unreachable:
     case ExtractCatchLocal:
     case ExtractOSREntryLocal:
@@ -260,7 +269,6 @@ bool doesGC(Graph& graph, Node* node)
     case GetMyArgumentByValOutOfBounds:
     case ForwardVarargs:
     case PutHint:
-    case CheckStructureImmediate:
     case PutStack:
     case KillStack:
     case GetStack:

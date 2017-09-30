@@ -46,7 +46,7 @@ WI.SpreadsheetCSSStyleDeclarationEditor = class SpreadsheetCSSStyleDeclarationEd
         this.element.classList.toggle("no-properties", !properties.length);
 
         for (let property of properties)
-            this.element.append(this._renderProperty(property));
+            this.element.append(new WI.SpreadsheetStyleProperty(property).element);
     }
 
     get style()
@@ -61,7 +61,7 @@ WI.SpreadsheetCSSStyleDeclarationEditor = class SpreadsheetCSSStyleDeclarationEd
 
         this._style = style || null;
 
-        this.needsLayout(WI.View.LayoutReason.Dirty);
+        this.needsLayout();
     }
 
     // Private
@@ -69,30 +69,125 @@ WI.SpreadsheetCSSStyleDeclarationEditor = class SpreadsheetCSSStyleDeclarationEd
     get _propertiesToRender()
     {
         if (this._style._styleSheetTextRange)
-            return this._style.visibleProperties;
+            return this._style.allVisibleProperties;
 
-        return this._style.properties;
-    }
-
-    _renderProperty(cssProperty)
-    {
-        let propertyElement = document.createElement("div");
-        propertyElement.classList.add("property");
-
-        let nameElement = propertyElement.appendChild(document.createElement("span"));
-        nameElement.classList.add("name");
-        nameElement.textContent = cssProperty.name;
-
-        propertyElement.append(": ");
-
-        let valueElement = propertyElement.appendChild(document.createElement("span"));
-        valueElement.classList.add("value");
-        valueElement.textContent = cssProperty.value;
-
-        propertyElement.append(";");
-
-        return propertyElement;
+        return this._style.allProperties;
     }
 };
 
 WI.SpreadsheetCSSStyleDeclarationEditor.StyleClassName = "spreadsheet-style-declaration-editor";
+
+WI.SpreadsheetStyleProperty = class SpreadsheetStyleProperty extends WI.Object
+{
+    constructor(property)
+    {
+        super();
+
+        this._property = property;
+        this._element = document.createElement("div");
+
+        this._update();
+    }
+
+    // Public
+
+    get element() { return this._element; }
+
+    // Private
+
+    _update()
+    {
+        this.element.removeChildren();
+        this.element.className = "";
+
+        let duplicatePropertyExistsBelow = (cssProperty) => {
+            let propertyFound = false;
+
+            for (let property of this._property.ownerStyle.properties) {
+                if (property === cssProperty)
+                    propertyFound = true;
+                else if (property.name === cssProperty.name && propertyFound)
+                    return true;
+            }
+
+            return false;
+        };
+
+        let classNames = ["property"];
+
+        if (this._property.overridden)
+            classNames.push("overridden");
+
+        if (this._property.implicit)
+            classNames.push("implicit");
+
+        if (this._property.ownerStyle.inherited && !this._property.inherited)
+            classNames.push("not-inherited");
+
+        if (!this._property.valid && this._property.hasOtherVendorNameOrKeyword())
+            classNames.push("other-vendor");
+        else if (!this._property.valid) {
+            let propertyNameIsValid = false;
+            if (WI.CSSCompletions.cssNameCompletions)
+                propertyNameIsValid = WI.CSSCompletions.cssNameCompletions.isValidPropertyName(this._property.name);
+
+            if (!propertyNameIsValid || duplicatePropertyExistsBelow(this._property))
+                classNames.push("invalid");
+        }
+
+        if (!this._property.enabled)
+            classNames.push("disabled");
+
+        this._element.classList.add(...classNames);
+
+        if (this._property.editable) {
+            this._checkboxElement = this.element.appendChild(document.createElement("input"));
+            this._checkboxElement.classList.add("property-toggle");
+            this._checkboxElement.type = "checkbox";
+            this._checkboxElement.checked = this._property.enabled;
+            this._checkboxElement.addEventListener("change", () => {
+                let disabled = !this._checkboxElement.checked;
+                this._property.commentOut(disabled);
+                this._update();
+            });
+        }
+
+        if (!this._property.enabled)
+            this.element.append("/* ");
+
+        this._nameElement = this.element.appendChild(document.createElement("span"));
+        this._nameElement.classList.add("name");
+        this._nameElement.textContent = this._property.name;
+
+        this.element.append(": ");
+
+        this._valueElement = this.element.appendChild(document.createElement("span"));
+        this._valueElement.classList.add("value");
+        this._valueElement.textContent = this._property.rawValue;
+
+        if (this._property.editable && this._property.enabled) {
+            this._nameElement.contentEditable = "plaintext-only";
+            this._nameElement.addEventListener("input", this.debounce(WI.SpreadsheetStyleProperty.CommitCoalesceDelay)._handleNameChange);
+
+            this._valueElement.contentEditable = "plaintext-only";
+            this._valueElement.addEventListener("input", this.debounce(WI.SpreadsheetStyleProperty.CommitCoalesceDelay)._handleValueChange);
+        }
+
+        this.element.append(";");
+
+        if (!this._property.enabled)
+            this.element.append(" */");
+    }
+
+    _handleNameChange()
+    {
+        this._property.name = this._nameElement.textContent.trim();
+    }
+
+    _handleValueChange()
+    {
+        this._property.rawValue = this._valueElement.textContent.trim();
+    }
+};
+
+WI.SpreadsheetStyleProperty.CommitCoalesceDelay = 250;

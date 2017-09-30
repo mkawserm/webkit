@@ -39,7 +39,7 @@
 #include "GetterSetter.h"
 #include "HasOwnPropertyCache.h"
 #include "HashMapImpl.h"
-#include "JSEnvironmentRecord.h"
+#include "JSLexicalEnvironment.h"
 #include "JSPropertyNameEnumerator.h"
 #include "ObjectPrototype.h"
 #include "JSCInlines.h"
@@ -2522,6 +2522,14 @@ void SpeculativeJIT::compile(Node* node)
             return;
         break;
 
+    case CompareBelow:
+        compileCompareUnsigned(node, JITCompiler::Below);
+        break;
+
+    case CompareBelowEq:
+        compileCompareUnsigned(node, JITCompiler::BelowOrEqual);
+        break;
+
     case CompareEq:
         if (compare(node, JITCompiler::Equal, JITCompiler::DoubleEqual, operationCompareEq))
             return;
@@ -2593,6 +2601,18 @@ void SpeculativeJIT::compile(Node* node)
             break;
         }
         case Array::Generic: {
+            if (node->child1().useKind() == ObjectUse) {
+                if (node->child2().useKind() == StringUse) {
+                    compileGetByValForObjectWithString(node);
+                    break;
+                }
+
+                if (node->child2().useKind() == SymbolUse) {
+                    compileGetByValForObjectWithSymbol(node);
+                    break;
+                }
+            }
+
             SpeculateCellOperand base(this, node->child1()); // Save a register, speculate cell. We'll probably be right.
             JSValueOperand property(this, node->child2());
             GPRReg baseGPR = base.gpr();
@@ -2843,6 +2863,11 @@ void SpeculativeJIT::compile(Node* node)
         break;
     }
 
+    case NumberToStringWithValidRadixConstant: {
+        compileNumberToStringWithValidRadixConstant(node);
+        break;
+    }
+
     case GetByValWithThis: {
         JSValueOperand base(this, node->child1());
         JSValueRegs baseRegs = base.jsValueRegs();
@@ -2886,6 +2911,20 @@ void SpeculativeJIT::compile(Node* node)
             break;
         case Array::Generic: {
             ASSERT(node->op() == PutByVal || node->op() == PutByValDirect);
+
+            if (child1.useKind() == CellUse) {
+                if (child2.useKind() == StringUse) {
+                    compilePutByValForCellWithString(node, child1, child2, child3);
+                    alreadyHandled = true;
+                    break;
+                }
+
+                if (child2.useKind() == SymbolUse) {
+                    compilePutByValForCellWithSymbol(node, child1, child2, child3);
+                    alreadyHandled = true;
+                    break;
+                }
+            }
             
             SpeculateCellOperand base(this, child1); // Save a register, speculate cell. We'll probably be right.
             JSValueOperand property(this, child2);
@@ -4228,6 +4267,10 @@ void SpeculativeJIT::compile(Node* node)
     case GetGlobalObject:
         compileGetGlobalObject(node);
         break;
+
+    case GetGlobalThis:
+        compileGetGlobalThis(node);
+        break;
         
     case GetClosureVar: {
         SpeculateCellOperand base(this, node->child1());
@@ -4236,8 +4279,8 @@ void SpeculativeJIT::compile(Node* node)
         GPRReg baseGPR = base.gpr();
         GPRReg resultTagGPR = resultTag.gpr();
         GPRReg resultPayloadGPR = resultPayload.gpr();
-        m_jit.load32(JITCompiler::Address(baseGPR, JSEnvironmentRecord::offsetOfVariable(node->scopeOffset()) + TagOffset), resultTagGPR);
-        m_jit.load32(JITCompiler::Address(baseGPR, JSEnvironmentRecord::offsetOfVariable(node->scopeOffset()) + PayloadOffset), resultPayloadGPR);
+        m_jit.load32(JITCompiler::Address(baseGPR, JSLexicalEnvironment::offsetOfVariable(node->scopeOffset()) + TagOffset), resultTagGPR);
+        m_jit.load32(JITCompiler::Address(baseGPR, JSLexicalEnvironment::offsetOfVariable(node->scopeOffset()) + PayloadOffset), resultPayloadGPR);
         jsValueResult(resultTagGPR, resultPayloadGPR, node);
         break;
     }
@@ -4250,8 +4293,8 @@ void SpeculativeJIT::compile(Node* node)
         GPRReg valueTagGPR = value.tagGPR();
         GPRReg valuePayloadGPR = value.payloadGPR();
 
-        m_jit.store32(valueTagGPR, JITCompiler::Address(baseGPR, JSEnvironmentRecord::offsetOfVariable(node->scopeOffset()) + TagOffset));
-        m_jit.store32(valuePayloadGPR, JITCompiler::Address(baseGPR, JSEnvironmentRecord::offsetOfVariable(node->scopeOffset()) + PayloadOffset));
+        m_jit.store32(valueTagGPR, JITCompiler::Address(baseGPR, JSLexicalEnvironment::offsetOfVariable(node->scopeOffset()) + TagOffset));
+        m_jit.store32(valuePayloadGPR, JITCompiler::Address(baseGPR, JSLexicalEnvironment::offsetOfVariable(node->scopeOffset()) + PayloadOffset));
         noResult(node);
         break;
     }
@@ -4931,6 +4974,10 @@ void SpeculativeJIT::compile(Node* node)
 
     case LoadValueFromMapBucket:
         compileLoadValueFromMapBucket(node);
+        break;
+
+    case WeakMapGet:
+        compileWeakMapGet(node);
         break;
 
     case Flush:
@@ -5645,13 +5692,17 @@ void SpeculativeJIT::compile(Node* node)
         GPRReg tagGPR = tag.gpr();
         GPRReg payloadGPR = payload.gpr();
 
-        JSValue* ptr = &reinterpret_cast<JSValue*>(m_jit.jitCode()->catchOSREntryBuffer->dataBuffer())[node->catchOSREntryIndex()];
+        JSValue* ptr = &reinterpret_cast<JSValue*>(m_jit.jitCode()->common.catchOSREntryBuffer->dataBuffer())[node->catchOSREntryIndex()];
         m_jit.move(CCallHelpers::TrustedImmPtr(ptr), tempGPR);
         m_jit.load32(CCallHelpers::Address(tempGPR, TagOffset), tagGPR);
         m_jit.load32(CCallHelpers::Address(tempGPR, PayloadOffset), payloadGPR);
         jsValueResult(tagGPR, payloadGPR, node);
         break;
     }
+
+    case CheckStructureOrEmpty:
+        DFG_CRASH(m_jit.graph(), node, "CheckStructureOrEmpty only used in 64-bit DFG");
+        break;
 
     case LastNodeType:
     case Phi:
@@ -5698,6 +5749,8 @@ void SpeculativeJIT::compile(Node* node)
     case AtomicsSub:
     case AtomicsXor:
     case IdentityWithProfile:
+    case InitializeEntrypointArguments:
+    case EntrySwitch:
         DFG_CRASH(m_jit.graph(), node, "unexpected node in DFG backend");
         break;
     }

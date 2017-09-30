@@ -49,7 +49,6 @@
 #include <WebCore/ActivityState.h>
 #include <WebCore/DictionaryPopupInfo.h>
 #include <WebCore/FrameLoaderTypes.h>
-#include <WebCore/HysteresisActivity.h>
 #include <WebCore/IntRect.h>
 #include <WebCore/IntSizeHash.h>
 #include <WebCore/Page.h>
@@ -61,11 +60,13 @@
 #include <WebCore/UserScriptTypes.h>
 #include <WebCore/WebCoreKeyboardUIMode.h>
 #include <memory>
+#include <pal/HysteresisActivity.h>
 #include <wtf/HashMap.h>
 #include <wtf/MonotonicTime.h>
 #include <wtf/RefPtr.h>
 #include <wtf/RunLoop.h>
 #include <wtf/Seconds.h>
+#include <wtf/WallTime.h>
 #include <wtf/text/WTFString.h>
 
 #if HAVE(ACCESSIBILITY) && PLATFORM(GTK)
@@ -192,7 +193,6 @@ class WebUndoStep;
 class WebUserContentController;
 class VideoFullscreenManager;
 class WebWheelEvent;
-enum FindOptions : uint16_t;
 struct AssistedNodeInformation;
 struct AttributedString;
 struct BackForwardListItemState;
@@ -205,6 +205,9 @@ struct WebsitePolicies;
 struct WebPageCreationParameters;
 struct WebPreferencesStore;
 struct WebSelectionData;
+
+enum class DragControllerAction;
+enum FindOptions : uint16_t;
 
 typedef uint32_t SnapshotOptions;
 typedef uint32_t WKEventModifiers;
@@ -573,6 +576,7 @@ public:
     void stopInteraction();
     void performActionOnElement(uint32_t action);
     void focusNextAssistedNode(bool isForward, CallbackID);
+    void autofillLoginCredentials(const String&, const String&);
     void setAssistedNodeValue(const String&);
     void setAssistedNodeValueAsNumber(double);
     void setAssistedNodeSelectedIndex(uint32_t index, bool allowMultipleSelection);
@@ -734,9 +738,9 @@ public:
 
 #if ENABLE(DRAG_SUPPORT)
 #if PLATFORM(GTK)
-    void performDragControllerAction(uint64_t action, const WebCore::IntPoint& clientPosition, const WebCore::IntPoint& globalPosition, uint64_t draggingSourceOperationMask, WebSelectionData&&, uint32_t flags);
+    void performDragControllerAction(DragControllerAction, const WebCore::IntPoint& clientPosition, const WebCore::IntPoint& globalPosition, uint64_t draggingSourceOperationMask, WebSelectionData&&, uint32_t flags);
 #else
-    void performDragControllerAction(uint64_t action, const WebCore::DragData&, const SandboxExtension::Handle&, const SandboxExtension::HandleArray&);
+    void performDragControllerAction(DragControllerAction, const WebCore::DragData&, const SandboxExtension::Handle&, const SandboxExtension::HandleArray&);
 #endif
     void dragEnded(WebCore::IntPoint clientPosition, WebCore::IntPoint globalPosition, uint64_t operation);
 
@@ -804,9 +808,9 @@ public:
 #endif
 
     // For testing purpose.
-    void simulateMouseDown(int button, WebCore::IntPoint, int clickCount, WKEventModifiers, double time);
-    void simulateMouseUp(int button, WebCore::IntPoint, int clickCount, WKEventModifiers, double time);
-    void simulateMouseMotion(WebCore::IntPoint, double time);
+    void simulateMouseDown(int button, WebCore::IntPoint, int clickCount, WKEventModifiers, WallTime);
+    void simulateMouseUp(int button, WebCore::IntPoint, int clickCount, WKEventModifiers, WallTime);
+    void simulateMouseMotion(WebCore::IntPoint, WallTime);
 
 #if ENABLE(CONTEXT_MENUS)
     void contextMenuShowing() { m_isShowingContextMenu = true; }
@@ -1032,6 +1036,7 @@ private:
     RefPtr<WebCore::Range> switchToBlockSelectionAtPoint(const WebCore::IntPoint&, SelectionHandlePosition);
 #if ENABLE(DATA_INTERACTION)
     void requestStartDataInteraction(const WebCore::IntPoint& clientPosition, const WebCore::IntPoint& globalPosition);
+    void requestAdditionalItemsForDragSession(const WebCore::IntPoint& clientPosition, const WebCore::IntPoint& globalPosition);
 #endif
 #endif
 
@@ -1092,7 +1097,7 @@ private:
     static bool scroll(WebCore::Page*, WebCore::ScrollDirection, WebCore::ScrollGranularity);
     static bool logicalScroll(WebCore::Page*, WebCore::ScrollLogicalDirection, WebCore::ScrollGranularity);
 
-    void loadURLInFrame(const String&, uint64_t frameID);
+    void loadURLInFrame(WebCore::URL&&, uint64_t frameID);
 
     enum class WasRestoredByAPIRequest { No, Yes };
     void restoreSessionInternal(const Vector<BackForwardListItemState>&, WasRestoredByAPIRequest);
@@ -1133,7 +1138,8 @@ private:
     void platformPreferencesDidChange(const WebPreferencesStore&);
     void updatePreferences(const WebPreferencesStore&);
 
-    void didReceivePolicyDecision(uint64_t frameID, uint64_t listenerID, uint32_t policyAction, uint64_t navigationID, const DownloadID&);
+    void didReceivePolicyDecision(uint64_t frameID, uint64_t listenerID, WebCore::PolicyAction, uint64_t navigationID, const DownloadID&);
+    void continueWillSubmitForm(uint64_t frameID, uint64_t listenerID);
     void setUserAgent(const String&);
     void setCustomTextEncodingName(const String&);
     void suspendActiveDOMObjectsAndAnimations();
@@ -1447,7 +1453,7 @@ private:
     RefPtr<SandboxExtension> m_pendingDropSandboxExtension;
     Vector<RefPtr<SandboxExtension>> m_pendingDropExtensionsForFileUpload;
 
-    WebCore::HysteresisActivity m_pageScrolledHysteresis;
+    PAL::HysteresisActivity m_pageScrolledHysteresis;
 
     bool m_canRunBeforeUnloadConfirmPanel { false };
 
@@ -1547,7 +1553,7 @@ private:
 
     bool m_processSuppressionEnabled;
     UserActivity m_userActivity;
-    WebCore::HysteresisActivity m_userActivityHysteresis;
+    PAL::HysteresisActivity m_userActivityHysteresis;
 
     uint64_t m_pendingNavigationID { 0 };
 

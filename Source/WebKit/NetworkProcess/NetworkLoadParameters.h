@@ -33,6 +33,8 @@
 
 namespace WebKit {
 
+enum class PreconnectOnly { No, Yes };
+
 class NetworkLoadParameters {
 public:
     uint64_t webPageID { 0 };
@@ -40,7 +42,7 @@ public:
     PAL::SessionID sessionID { PAL::SessionID::emptySessionID() };
     WebCore::ResourceRequest request;
     WebCore::ContentSniffingPolicy contentSniffingPolicy { WebCore::SniffContent };
-    WebCore::StoredCredentials allowStoredCredentials { WebCore::DoNotAllowStoredCredentials };
+    WebCore::StoredCredentialsPolicy storedCredentialsPolicy { WebCore::StoredCredentialsPolicy::DoNotUse };
     WebCore::ClientCredentialPolicy clientCredentialPolicy { WebCore::ClientCredentialPolicy::CannotAskClientForCredentials };
     bool shouldFollowRedirects { true };
     bool shouldClearReferrerOnHTTPSToHTTPRedirect { true };
@@ -49,6 +51,7 @@ public:
 #if USE(NETWORK_SESSION)
     Vector<RefPtr<WebCore::BlobDataFileReference>> blobFileReferences;
 #endif
+    PreconnectOnly shouldPreconnectOnly { PreconnectOnly::No };
 };
 
 } // namespace WebKit

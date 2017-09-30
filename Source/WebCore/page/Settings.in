@@ -242,8 +242,6 @@ serviceControlsEnabled initial=false, conditional=SERVICE_CONTROLS
 
 appleMailPaginationQuirkEnabled initial=false
 
-attachmentElementEnabled initial=true, conditional=ATTACHMENT_ELEMENT
-
 deferredCSSParserEnabled initial=false
 
 repaintOutsideLayoutEnabled initial=false
@@ -293,6 +291,8 @@ langAttributeAwareFormControlUIEnabled initial=false
 
 subresourceIntegrityEnabled initial=true
 
+linkPreconnectEnabled initial=false
+
 beaconAPIEnabled initial=false
 
 constantPropertiesEnabled initial=false
@@ -302,3 +302,6 @@ viewportFitEnabled initial=false
 allowMediaContentTypesRequiringHardwareSupportAsFallback initial=false
 
 paymentRequestEnabled initial=false, conditional=PAYMENT_REQUEST
+
+storageAccessAPIEnabled initial=false
+

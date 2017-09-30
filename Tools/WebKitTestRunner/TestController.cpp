@@ -369,6 +369,7 @@ void TestController::initialize(int argc, const char* argv[])
     m_paths = options.paths;
     m_allowedHosts = options.allowedHosts;
     m_shouldShowWebView = options.shouldShowWebView;
+    m_shouldShowTouches = options.shouldShowTouches;
 
     if (options.printSupportedFeatures) {
         // FIXME: On Windows, DumpRenderTree uses this to expose whether it supports 3d
@@ -407,6 +408,7 @@ WKRetainPtr<WKContextConfigurationRef> TestController::generateContextConfigurat
 
         WKContextConfigurationSetApplicationCacheDirectory(configuration.get(), toWK(temporaryFolder + separator + "ApplicationCache").get());
         WKContextConfigurationSetDiskCacheDirectory(configuration.get(), toWK(temporaryFolder + separator + "Cache").get());
+        WKContextConfigurationSetCacheStorageDirectory(configuration.get(), toWK(temporaryFolder + separator + "CacheStorage").get());
         WKContextConfigurationSetIndexedDBDatabaseDirectory(configuration.get(), toWK(temporaryFolder + separator + "Databases" + separator + "IndexedDB").get());
         WKContextConfigurationSetLocalStorageDirectory(configuration.get(), toWK(temporaryFolder + separator + "LocalStorage").get());
         WKContextConfigurationSetWebSQLDatabaseDirectory(configuration.get(), toWK(temporaryFolder + separator + "Databases" + separator + "WebSQL").get());
@@ -595,8 +597,8 @@ void TestController::createWebViewWithOptions(const TestOptions& options)
     };
     WKPageSetPageNavigationClient(m_mainWebView->page(), &pageNavigationClient.base);
 
-    WKContextDownloadClientV0 downloadClient = {
-        { 0, this },
+    WKContextDownloadClientV1 downloadClient = {
+        { 1, this },
         downloadDidStart,
         0, // didReceiveAuthenticationChallenge
         0, // didReceiveResponse
@@ -607,7 +609,8 @@ void TestController::createWebViewWithOptions(const TestOptions& options)
         downloadDidFinish,
         downloadDidFail,
         downloadDidCancel,
-        0 // processDidCrash;
+        0, // processDidCrash;
+        downloadDidReceiveServerRedirectToURL
     };
     WKContextSetDownloadClient(context(), &downloadClient.base);
     
@@ -682,6 +685,7 @@ void TestController::resetPreferencesToConsistentValues(const TestOptions& optio
 
     WKPreferencesSetMockScrollbarsEnabled(preferences, options.useMockScrollbars);
     WKPreferencesSetNeedsSiteSpecificQuirks(preferences, options.needsSiteSpecificQuirks);
+    WKPreferencesSetAttachmentElementEnabled(preferences, options.enableAttachmentElement);
     WKPreferencesSetIntersectionObserverEnabled(preferences, options.enableIntersectionObserver);
     WKPreferencesSetModernMediaControlsEnabled(preferences, options.enableModernMediaControls);
     WKPreferencesSetCredentialManagementEnabled(preferences, options.enableCredentialManagement);
@@ -737,6 +741,8 @@ void TestController::resetPreferencesToConsistentValues(const TestOptions& optio
 #if ENABLE(PAYMENT_REQUEST)
     WKPreferencesSetPaymentRequestEnabled(preferences, true);
 #endif
+
+    WKPreferencesSetStorageAccessAPIEnabled(preferences, true);
 
     platformResetPreferencesToConsistentValues();
 }
@@ -1022,6 +1028,8 @@ static void updateTestOptionsFromTestHeader(TestOptions& testOptions, const std:
             testOptions.ignoresViewportScaleLimits = parseBooleanTestHeaderValue(value);
         if (key == "useCharacterSelectionGranularity")
             testOptions.useCharacterSelectionGranularity = parseBooleanTestHeaderValue(value);
+        if (key == "enableAttachmentElement")
+            testOptions.enableAttachmentElement = parseBooleanTestHeaderValue(value);
         if (key == "enableIntersectionObserver")
             testOptions.enableIntersectionObserver = parseBooleanTestHeaderValue(value);
         if (key == "enableModernMediaControls")
@@ -1729,6 +1737,11 @@ void TestController::downloadDidCancel(WKContextRef context, WKDownloadRef downl
     static_cast<TestController*>(const_cast<void*>(clientInfo))->downloadDidCancel(context, download);
 }
 
+void TestController::downloadDidReceiveServerRedirectToURL(WKContextRef context, WKDownloadRef download, WKURLRef url, const void* clientInfo)
+{
+    static_cast<TestController*>(const_cast<void*>(clientInfo))->downloadDidReceiveServerRedirectToURL(context, download, url);
+}
+
 void TestController::downloadDidStart(WKContextRef context, WKDownloadRef download)
 {
     if (m_shouldLogDownloadCallbacks)
@@ -1764,6 +1777,18 @@ void TestController::downloadDidFinish(WKContextRef, WKDownloadRef)
     if (m_shouldLogDownloadCallbacks)
         m_currentInvocation->outputText("Download completed.\n");
     m_currentInvocation->notifyDownloadDone();
+}
+
+void TestController::downloadDidReceiveServerRedirectToURL(WKContextRef, WKDownloadRef, WKURLRef url)
+{
+    if (m_shouldLogDownloadCallbacks) {
+        StringBuilder builder;
+        builder.appendLiteral("Download was redirected to \"");
+        WKRetainPtr<WKStringRef> urlStringWK = adoptWK(WKURLCopyString(url));
+        builder.append(toSTD(urlStringWK).c_str());
+        builder.appendLiteral("\".\n");
+        m_currentInvocation->outputText(builder.toString());
+    }
 }
 
 void TestController::downloadDidFail(WKContextRef, WKDownloadRef, WKErrorRef error)

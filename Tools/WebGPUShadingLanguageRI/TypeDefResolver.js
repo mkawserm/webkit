@@ -34,15 +34,17 @@ class TypeDefResolver extends Visitor {
     visitTypeRef(node)
     {
         this._visiting.doVisit(node, () => {
-            super.visitTypeRef(node);
+            for (let typeArgument of node.typeArguments)
+                typeArgument.visit(this);
             if (node.type instanceof TypeDef) {
                 let unificationContext = new UnificationContext(node.type.typeParameters);
                 if (node.typeArguments.length != node.type.typeParameters.length)
                     throw new Error("argument/parameter mismatch (should have been caught earlier)");
                 for (let i = 0; i < node.typeArguments.length; ++i)
                     node.typeArguments[i].unify(unificationContext, node.type.typeParameters[i]);
-                if (!unificationContext.verify())
-                    throw new WTypeError(node.origin.originString, "Type reference to a type definition violates protocol constraints");
+                let verificationResult = unificationContext.verify();
+                if (!verificationResult.result)
+                    throw new WTypeError(node.origin.originString, "Type reference to a type definition violates protocol constraints: " + verificationResult.reason);
                 
                 let newType = node.type.type.substituteToUnification(node.type.typeParameters, unificationContext);
                 newType.visit(this);

@@ -57,10 +57,9 @@ static UITargetedDragPreview *createTargetedDragPreview(UIImage *image, UIView *
     if (frameInContainerCoordinates.isEmpty())
         return nullptr;
 
-    float widthScalingRatio = frameInContainerCoordinates.width() / frameInRootViewCoordinates.width();
-    float heightScalingRatio = frameInContainerCoordinates.height() / frameInRootViewCoordinates.height();
+    FloatSize scalingRatio = frameInContainerCoordinates.size() / frameInRootViewCoordinates.size();
     for (auto rect : clippingRectsInFrameCoordinates) {
-        rect.scale(widthScalingRatio, heightScalingRatio);
+        rect.scale(scalingRatio);
         [clippingRectValuesInFrameCoordinates addObject:[NSValue valueWithCGRect:rect]];
     }
 
@@ -94,13 +93,24 @@ static RetainPtr<UIImage> uiImageForImage(Image* image)
     return adoptNS([[UIImage alloc] initWithCGImage:cgImage.get()]);
 }
 
-static bool shouldUseTextIndicatorToCreatePreviewForDragAction(DragSourceAction action)
+static bool shouldUseDragImageToCreatePreviewForDragSource(const DragSourceState& source)
 {
-    if (action & (DragSourceActionLink | DragSourceActionSelection))
+    if (!source.image)
+        return false;
+
+    return source.action & (DragSourceActionDHTML | DragSourceActionImage);
+}
+
+static bool shouldUseTextIndicatorToCreatePreviewForDragSource(const DragSourceState& source)
+{
+    if (!source.indicatorData)
+        return false;
+
+    if (source.action & (DragSourceActionLink | DragSourceActionSelection))
         return true;
 
 #if ENABLE(ATTACHMENT_ELEMENT)
-    if (action & DragSourceActionAttachment)
+    if (source.action & DragSourceActionAttachment)
         return true;
 #endif
 
@@ -148,12 +158,10 @@ UITargetedDragPreview *DragDropInteractionState::previewForDragItem(UIDragItem *
         return nil;
 
     auto& source = foundSource.value();
-    if ((source.action & DragSourceActionImage) && source.image) {
-        Vector<FloatRect> emptyClippingRects;
-        return createTargetedDragPreview(source.image.get(), contentView, previewContainer, source.elementBounds, emptyClippingRects, nil);
-    }
+    if (shouldUseDragImageToCreatePreviewForDragSource(source))
+        return createTargetedDragPreview(source.image.get(), contentView, previewContainer, source.dragPreviewFrameInRootViewCoordinates, { }, nil);
 
-    if (shouldUseTextIndicatorToCreatePreviewForDragAction(source.action) && source.indicatorData) {
+    if (shouldUseTextIndicatorToCreatePreviewForDragSource(source)) {
         auto indicator = source.indicatorData.value();
         auto textIndicatorImage = uiImageForImage(indicator.contentImage.get());
         return createTargetedDragPreview(textIndicatorImage.get(), contentView, previewContainer, indicator.textBoundingRectInRootViewCoordinates, indicator.textRectsInBoundingRectCoordinates, [UIColor colorWithCGColor:cachedCGColor(indicator.estimatedBackgroundColor)]);
@@ -165,6 +173,17 @@ UITargetedDragPreview *DragDropInteractionState::previewForDragItem(UIDragItem *
 void DragDropInteractionState::dragSessionWillDelaySetDownAnimation(dispatch_block_t completion)
 {
     m_dragCancelSetDownBlock = completion;
+}
+
+bool DragDropInteractionState::shouldRequestAdditionalItemForDragSession(id <UIDragSession> session) const
+{
+    return m_dragSession == session && !m_addDragItemCompletionBlock && !m_dragStartCompletionBlock;
+}
+
+void DragDropInteractionState::dragSessionWillRequestAdditionalItem(void (^completion)(NSArray <UIDragItem *> *))
+{
+    clearStagedDragSource();
+    m_addDragItemCompletionBlock = completion;
 }
 
 void DragDropInteractionState::dropSessionDidEnterOrUpdate(id <UIDropSession> session, const DragData& dragData)
@@ -181,7 +200,7 @@ void DragDropInteractionState::stageDragItem(const DragItem& item, UIImage *drag
     m_stagedDragSource = {{
         static_cast<DragSourceAction>(item.sourceAction),
         item.eventPositionInContentCoordinates,
-        item.elementBounds,
+        item.dragPreviewFrameInRootViewCoordinates,
         dragImage,
         item.image.indicatorData(),
         item.title.isEmpty() ? nil : (NSString *)item.title,
@@ -209,6 +228,9 @@ void DragDropInteractionState::dragAndDropSessionsDidEnd()
     // to prevent UIKit from getting into an inconsistent state.
     if (auto completionBlock = takeDragCancelSetDownBlock())
         completionBlock();
+
+    if (auto completionBlock = takeAddDragItemCompletionBlock())
+        completionBlock(@[ ]);
 
     if (auto completionBlock = takeDragStartCompletionBlock())
         completionBlock();

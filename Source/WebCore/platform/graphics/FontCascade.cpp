@@ -40,10 +40,6 @@
 #include <wtf/text/AtomicStringHash.h>
 #include <wtf/text/StringBuilder.h>
 
-#if USE(CAIRO)
-#include <cairo.h>
-#endif
-
 using namespace WTF;
 using namespace Unicode;
 
@@ -78,13 +74,11 @@ FontCascade::CodePath FontCascade::s_codePath = Auto;
 // ============================================================================================
 
 FontCascade::FontCascade()
-    : m_weakPtrFactory(this)
 {
 }
 
 FontCascade::FontCascade(const FontCascadeDescription& fd, float letterSpacing, float wordSpacing)
     : m_fontDescription(fd)
-    , m_weakPtrFactory(this)
     , m_letterSpacing(letterSpacing)
     , m_wordSpacing(wordSpacing)
     , m_useBackslashAsYenSymbol(useBackslashAsYenSignForFamily(fd.firstFamily()))
@@ -96,7 +90,6 @@ FontCascade::FontCascade(const FontCascadeDescription& fd, float letterSpacing, 
 // FIXME: We should make this constructor platform-independent.
 FontCascade::FontCascade(const FontPlatformData& fontData, FontSmoothingMode fontSmoothingMode)
     : m_fonts(FontCascadeFonts::createForPlatformFont(fontData))
-    , m_weakPtrFactory(this)
     , m_enableKerning(computeEnableKerning())
     , m_requiresShaping(computeRequiresShaping())
 {
@@ -112,7 +105,6 @@ FontCascade::FontCascade(const FontPlatformData& fontData, FontSmoothingMode fon
 FontCascade::FontCascade(const FontCascade& other)
     : m_fontDescription(other.m_fontDescription)
     , m_fonts(other.m_fonts)
-    , m_weakPtrFactory(this)
     , m_letterSpacing(other.m_letterSpacing)
     , m_wordSpacing(other.m_wordSpacing)
     , m_useBackslashAsYenSymbol(other.m_useBackslashAsYenSymbol)
@@ -415,13 +407,7 @@ float FontCascade::widthForSimpleText(StringView text) const
         runWidth += glyphWidth;
         if (!hasKerningOrLigatures)
             continue;
-#if USE(CAIRO)
-        cairo_glyph_t cairoGlyph;
-        cairoGlyph.index = glyph;
-        glyphs.append(cairoGlyph);
-#else
         glyphs.append(glyph);
-#endif
         advances.append(FloatSize(glyphWidth, 0));
     }
     if (hasKerningOrLigatures) {
@@ -597,7 +583,7 @@ FontCascade::CodePath FontCascade::codePath(const TextRun& run) const
     if (s_codePath != Auto)
         return s_codePath;
 
-#if PLATFORM(COCOA)
+#if PLATFORM(COCOA) || USE(FREETYPE)
     // Because Font::applyTransforms() doesn't know which features to enable/disable in the simple code path, it can't properly handle feature or variant settings.
     // FIXME: https://bugs.webkit.org/show_bug.cgi?id=150791: @font-face features should also cause this to be complex.
     if (m_fontDescription.featureSettings().size() > 0 || !m_fontDescription.variantSettings().isAllNormal())
@@ -819,6 +805,11 @@ FontCascade::CodePath FontCascade::characterRangeCodePath(const UChar* character
                 previousCharacterIsEmojiGroupCandidate = true;
                 continue;
             }
+
+            if (supplementaryCharacter < 0xE0000)
+                continue;
+            if (supplementaryCharacter < 0xE0080) // Tags
+                return Complex;
             if (supplementaryCharacter < 0xE0100) // U+E0100 through U+E01EF Unicode variation selectors.
                 continue;
             if (supplementaryCharacter <= 0xE01EF)

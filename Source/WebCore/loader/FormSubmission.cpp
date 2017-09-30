@@ -191,22 +191,22 @@ Ref<FormSubmission> FormSubmission::create(HTMLFormElement& form, const Attribut
     StringPairVector formValues;
 
     bool containsPasswordData = false;
-    {
-        NoEventDispatchAssertion noEventDispatchAssertion;
+    auto protectedAssociatedElements = WTF::map(form.associatedElements(), [] (auto* rawElement) {
+        return Ref<FormAssociatedElement>(*rawElement);
+    });
 
-        for (auto& control : form.associatedElements()) {
-            auto& element = control->asHTMLElement();
-            if (!element.isDisabledFormControl())
-                control->appendFormData(domFormData, isMultiPartForm);
-            if (is<HTMLInputElement>(element)) {
-                auto& input = downcast<HTMLInputElement>(element);
-                if (input.isTextField()) {
-                    formValues.append({ input.name().string(), input.value() });
-                    input.addSearchResult();
-                }
-                if (input.isPasswordField() && !input.value().isEmpty())
-                    containsPasswordData = true;
+    for (auto& control : protectedAssociatedElements) {
+        auto& element = control->asHTMLElement();
+        if (!element.isDisabledFormControl())
+            control->appendFormData(domFormData, isMultiPartForm);
+        if (is<HTMLInputElement>(element)) {
+            auto& input = downcast<HTMLInputElement>(element);
+            if (input.isTextField()) {
+                formValues.append({ input.name(), input.value() });
+                input.addSearchResult();
             }
+            if (input.isPasswordField() && !input.value().isEmpty())
+                containsPasswordData = true;
         }
     }
 
@@ -214,10 +214,10 @@ Ref<FormSubmission> FormSubmission::create(HTMLFormElement& form, const Attribut
     String boundary;
 
     if (isMultiPartForm) {
-        formData = FormData::createMultiPart(domFormData, domFormData->encoding(), &document);
+        formData = FormData::createMultiPart(domFormData, &document);
         boundary = formData->boundary().data();
     } else {
-        formData = FormData::create(domFormData, domFormData->encoding(), attributes.method() == Method::Get ? FormData::FormURLEncoded : FormData::parseEncodingType(encodingType));
+        formData = FormData::create(domFormData, attributes.method() == Method::Get ? FormData::FormURLEncoded : FormData::parseEncodingType(encodingType));
         if (copiedAttributes.method() == Method::Post && isMailtoForm) {
             // Convert the form data into a string that we put into the URL.
             appendMailtoPostFormDataToURL(actionURL, *formData, encodingType);

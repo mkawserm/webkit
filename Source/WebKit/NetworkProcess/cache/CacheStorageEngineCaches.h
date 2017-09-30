@@ -36,28 +36,38 @@ class Engine;
 
 class Caches : public RefCounted<Caches> {
 public:
-    static Ref<Caches> create(Engine& engine, const String& origin) { return adoptRef(*new Caches { engine, origin }); }
+    static Ref<Caches> create(Engine& engine, String&& origin) { return adoptRef(*new Caches { engine, WTFMove(origin) }); }
 
     void initialize(WebCore::DOMCacheEngine::CompletionCallback&&);
     void open(const String& name, WebCore::DOMCacheEngine::CacheIdentifierCallback&&);
     void remove(uint64_t identifier, WebCore::DOMCacheEngine::CacheIdentifierCallback&&);
     void clearMemoryRepresentation();
+    void dispose(Cache&);
 
     void detach();
 
     bool isInitialized() const { return m_isInitialized; }
     WebCore::DOMCacheEngine::CacheInfos cacheInfos(uint64_t updateCounter) const;
 
-    const Cache* find(const String& name) const;
     Cache* find(uint64_t identifier);
+    void appendRepresentation(StringBuilder&) const;
+
+    void readRecordsList(Cache&, NetworkCache::Storage::TraverseHandler&&);
+    void readRecord(const NetworkCache::Key&, WTF::Function<void(Expected<WebCore::DOMCacheEngine::Record, WebCore::DOMCacheEngine::Error>&&)>&&);
+    void writeRecord(const Cache&, const RecordInformation&, WebCore::DOMCacheEngine::Record&&, WebCore::DOMCacheEngine::CompletionCallback&&);
+    void removeRecord(const NetworkCache::Key&);
+
+    const NetworkCache::Salt& salt() const;
+
+    bool shouldPersist() const { return !m_rootPath.isNull(); }
 
 private:
-    Caches(Engine&, const String& rootPath);
+    Caches(Engine&, String&& origin);
 
     void readCachesFromDisk(WTF::Function<void(Expected<Vector<Cache>, WebCore::DOMCacheEngine::Error>&&)>&&);
     void writeCachesToDisk(WebCore::DOMCacheEngine::CompletionCallback&&);
 
-    bool shouldPersist() const { return !m_rootPath.isNull(); }
+    Cache* find(const String& name);
 
     void makeDirty() { ++m_updateCounter; }
     bool isDirty(uint64_t updateCounter) const;
@@ -65,10 +75,13 @@ private:
     bool m_isInitialized { false };
     Engine* m_engine { nullptr };
     uint64_t m_updateCounter { 0 };
+    String m_origin;
     String m_rootPath;
     Vector<Cache> m_caches;
     Vector<Cache> m_removedCaches;
     RefPtr<NetworkCache::Storage> m_storage;
+    HashMap<NetworkCache::Key, WebCore::DOMCacheEngine::Record> m_volatileStorage;
+    mutable std::optional<NetworkCache::Salt> m_volatileSalt;
     Vector<WebCore::DOMCacheEngine::CompletionCallback> m_pendingInitializationCallbacks;
 };
 

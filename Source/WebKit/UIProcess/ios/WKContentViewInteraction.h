@@ -321,26 +321,17 @@ FOR_EACH_WKCONTENTVIEW_ACTION(DECLARE_WKCONTENTVIEW_ACTION_FOR_WEB_VIEW)
 - (void)_didChangeDragInteractionPolicy;
 - (void)_didPerformDataInteractionControllerOperation:(BOOL)handled;
 - (void)_didHandleStartDataInteractionRequest:(BOOL)started;
+- (void)_didHandleAdditionalDragItemsRequest:(BOOL)added;
 - (void)_startDrag:(RetainPtr<CGImageRef>)image item:(const WebCore::DragItem&)item;
 - (void)_didConcludeEditDataInteraction:(std::optional<WebCore::TextIndicatorData>)data;
 - (void)_didChangeDataInteractionCaretRect:(CGRect)previousRect currentRect:(CGRect)rect;
-
-- (void)_simulateDataInteractionEntered:(id)info;
-- (NSUInteger)_simulateDataInteractionUpdated:(id)info;
-- (void)_simulateDataInteractionPerformOperation:(id)info;
-- (void)_simulateDataInteractionEnded:(id)info;
-- (void)_simulateDataInteractionSessionDidEnd:(id)session;
-- (void)_simulateWillBeginDataInteractionWithSession:(id)session;
-- (NSArray *)_simulatedItemsForSession:(id)session;
-- (void)_simulatePrepareForDataInteractionSession:(id)session completion:(dispatch_block_t)completion;
 #endif
-
-- (void)_simulateLongPressActionAtLocation:(CGPoint)location;
 
 @end
 
 @interface WKContentView (WKTesting)
 
+- (void)_simulateLongPressActionAtLocation:(CGPoint)location;
 - (void)selectFormAccessoryPickerRow:(NSInteger)rowIndex;
 - (NSDictionary *)_contentsOfUserInterfaceItem:(NSString *)userInterfaceItem;
 

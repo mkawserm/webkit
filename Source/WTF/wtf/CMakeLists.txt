@@ -60,6 +60,7 @@ set(WTF_HEADERS
     IndexedContainerIterator.h
     IteratorAdaptors.h
     IteratorRange.h
+    Language.h
     ListHashSet.h
     Liveness.h
     Lock.h
@@ -229,6 +230,7 @@ set(WTF_SOURCES
     GlobalVersion.cpp
     GregorianDateTime.cpp
     HashTable.cpp
+    Language.cpp
     Lock.cpp
     LockedPrintStream.cpp
     MD5.cpp
@@ -391,3 +393,11 @@ if (MSVC)
         COMMAND ${PERL_EXECUTABLE} ${WEBKIT_LIBRARIES_DIR}/tools/scripts/version-stamp.pl ${DERIVED_SOURCES_DIR} $<TARGET_FILE:WTF>
         VERBATIM)
 endif ()
+
+file(MAKE_DIRECTORY ${FORWARDING_HEADERS_DIR}/WTF/Scripts)
+
+file(COPY
+    ../Scripts/generate-unified-source-bundles.rb
+    DESTINATION
+    ${FORWARDING_HEADERS_DIR}/WTF/Scripts
+)

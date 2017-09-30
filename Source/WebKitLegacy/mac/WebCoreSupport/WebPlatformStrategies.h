@@ -32,6 +32,7 @@
 
 struct PasteboardImage;
 struct PasteboardWebContent;
+struct PasteboardCustomData;
 
 class WebPlatformStrategies : public WebCore::PlatformStrategies, private WebCore::CookiesStrategy, private WebCore::PasteboardStrategy {
 public:
@@ -79,9 +80,11 @@ private:
     WebCore::Color color(const String& pasteboardName) override;
     WebCore::URL url(const String& pasteboardName) override;
 
+    long writeCustomData(const WebCore::PasteboardCustomData&, const String& pasteboardName) override;
+    Vector<String> typesSafeForDOMToReadAndWrite(const String& pasteboardName) override;
+
     long addTypes(const Vector<String>& pasteboardTypes, const String& pasteboardName) override;
     long setTypes(const Vector<String>& pasteboardTypes, const String& pasteboardName) override;
-    long copy(const String& fromPasteboard, const String& toPasteboard) override;
     long setBufferForType(WebCore::SharedBuffer*, const String& pasteboardType, const String& pasteboardName) override;
     long setPathnamesForType(const Vector<String>&, const String& pasteboardType, const String& pasteboardName) override;
     long setStringForType(const String&, const String& pasteboardType, const String& pasteboardName) override;

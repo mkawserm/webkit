@@ -523,6 +523,11 @@ PASS Object.getOwnPropertyDescriptor(global, 'FileSystemDirectoryEntry').hasOwnP
 PASS Object.getOwnPropertyDescriptor(global, 'FileSystemDirectoryEntry').hasOwnProperty('set') is false
 PASS Object.getOwnPropertyDescriptor(global, 'FileSystemDirectoryEntry').enumerable is false
 PASS Object.getOwnPropertyDescriptor(global, 'FileSystemDirectoryEntry').configurable is true
+PASS Object.getOwnPropertyDescriptor(global, 'FileSystemDirectoryReader').value is FileSystemDirectoryReader
+PASS Object.getOwnPropertyDescriptor(global, 'FileSystemDirectoryReader').hasOwnProperty('get') is false
+PASS Object.getOwnPropertyDescriptor(global, 'FileSystemDirectoryReader').hasOwnProperty('set') is false
+PASS Object.getOwnPropertyDescriptor(global, 'FileSystemDirectoryReader').enumerable is false
+PASS Object.getOwnPropertyDescriptor(global, 'FileSystemDirectoryReader').configurable is true
 PASS Object.getOwnPropertyDescriptor(global, 'FileSystemEntry').value is FileSystemEntry
 PASS Object.getOwnPropertyDescriptor(global, 'FileSystemEntry').hasOwnProperty('get') is false
 PASS Object.getOwnPropertyDescriptor(global, 'FileSystemEntry').hasOwnProperty('set') is false
@@ -2258,6 +2263,11 @@ PASS Object.getOwnPropertyDescriptor(global, 'UserMessageHandlersNamespace').has
 PASS Object.getOwnPropertyDescriptor(global, 'UserMessageHandlersNamespace').hasOwnProperty('set') is false
 PASS Object.getOwnPropertyDescriptor(global, 'UserMessageHandlersNamespace').enumerable is false
 PASS Object.getOwnPropertyDescriptor(global, 'UserMessageHandlersNamespace').configurable is true
+PASS Object.getOwnPropertyDescriptor(global, 'VRPose').value is VRPose
+PASS Object.getOwnPropertyDescriptor(global, 'VRPose').hasOwnProperty('get') is false
+PASS Object.getOwnPropertyDescriptor(global, 'VRPose').hasOwnProperty('set') is false
+PASS Object.getOwnPropertyDescriptor(global, 'VRPose').enumerable is false
+PASS Object.getOwnPropertyDescriptor(global, 'VRPose').configurable is true
 PASS Object.getOwnPropertyDescriptor(global, 'VTTCue').value is VTTCue
 PASS Object.getOwnPropertyDescriptor(global, 'VTTCue').hasOwnProperty('get') is false
 PASS Object.getOwnPropertyDescriptor(global, 'VTTCue').hasOwnProperty('set') is false

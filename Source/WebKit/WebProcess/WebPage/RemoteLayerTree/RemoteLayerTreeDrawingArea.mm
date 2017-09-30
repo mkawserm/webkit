@@ -60,7 +60,6 @@ RemoteLayerTreeDrawingArea::RemoteLayerTreeDrawingArea(WebPage& webPage, const W
     , m_remoteLayerTreeContext(std::make_unique<RemoteLayerTreeContext>(webPage))
     , m_rootLayer(GraphicsLayer::create(graphicsLayerFactory(), *this))
     , m_layerFlushTimer(*this, &RemoteLayerTreeDrawingArea::flushLayers)
-    , m_weakPtrFactory(this)
 {
     webPage.corePage()->settings().setForceCompositingMode(true);
 #if PLATFORM(IOS)
@@ -156,7 +155,7 @@ void RemoteLayerTreeDrawingArea::updateGeometry(const IntSize& viewSize, const I
 
 bool RemoteLayerTreeDrawingArea::shouldUseTiledBackingForFrameView(const FrameView& frameView)
 {
-    return frameView.frame().isMainFrame();
+    return frameView.frame().isMainFrame() || m_webPage.corePage()->settings().asyncFrameScrollingEnabled();
 }
 
 void RemoteLayerTreeDrawingArea::updatePreferences(const WebPreferencesStore&)

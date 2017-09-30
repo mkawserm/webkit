@@ -66,12 +66,11 @@ class FilterOperations;
 class HitTestRequest;
 class HitTestResult;
 class HitTestingTransformState;
-class RenderFlowThread;
+class RenderFragmentedFlow;
 class RenderGeometryMap;
 class RenderLayerBacking;
 class RenderLayerCompositor;
 class RenderMarquee;
-class RenderNamedFlowFragment;
 class RenderReplica;
 class RenderScrollbarPart;
 class RenderStyle;
@@ -293,7 +292,7 @@ public:
     bool inResizeMode() const { return m_inResizeMode; }
     void setInResizeMode(bool b) { m_inResizeMode = b; }
 
-    bool isRootLayer() const { return m_isRootLayer; }
+    bool isRenderViewLayer() const { return m_isRenderViewLayer; }
 
     RenderLayerCompositor& compositor() const;
     
@@ -513,8 +512,6 @@ public:
     bool hitTest(const HitTestRequest&, const HitTestLocation&, HitTestResult&);
     void paintOverlayScrollbars(GraphicsContext&, const LayoutRect& damageRect, PaintBehavior, RenderObject* subtreePaintRoot = nullptr);
 
-    void paintNamedFlowThreadInsideRegion(GraphicsContext&, RenderNamedFlowFragment*, LayoutRect, LayoutPoint, PaintBehavior = PaintBehaviorNormal, PaintLayerFlags = 0);
-
     struct ClipRectsContext {
         ClipRectsContext(const RenderLayer* inRootLayer, ClipRectsType inClipRectsType, OverlayScrollbarSizeRelevancy inOverlayScrollbarSizeRelevancy = IgnoreOverlayScrollbarSize, ShouldRespectOverflowClip inRespectOverflowClip = RespectOverflowClip)
             : rootLayer(inRootLayer)
@@ -704,19 +701,16 @@ public:
     void setViewportConstrainedNotCompositedReason(ViewportConstrainedNotCompositedReason reason) { m_viewportConstrainedNotCompositedReason = reason; }
     ViewportConstrainedNotCompositedReason viewportConstrainedNotCompositedReason() const { return static_cast<ViewportConstrainedNotCompositedReason>(m_viewportConstrainedNotCompositedReason); }
     
-    bool isRenderFlowThread() const { return renderer().isRenderFlowThread(); }
-    bool isOutOfFlowRenderFlowThread() const { return renderer().isOutOfFlowRenderFlowThread(); }
-    bool isInsideFlowThread() const { return renderer().flowThreadState() != RenderObject::NotInsideFlowThread; }
-    bool isInsideOutOfFlowThread() const { return renderer().flowThreadState() == RenderObject::InsideOutOfFlowThread; }
-    bool isDirtyRenderFlowThread() const
+    bool isRenderFragmentedFlow() const { return renderer().isRenderFragmentedFlow(); }
+    bool isOutOfFlowRenderFragmentedFlow() const { return renderer().isOutOfFlowRenderFragmentedFlow(); }
+    bool isInsideFragmentedFlow() const { return renderer().fragmentedFlowState() != RenderObject::NotInsideFragmentedFlow; }
+    bool isDirtyRenderFragmentedFlow() const
     {
-        ASSERT(isRenderFlowThread());
+        ASSERT(isRenderFragmentedFlow());
         return m_zOrderListsDirty || m_normalFlowListDirty;
     }
 
-    bool isFlowThreadCollectingGraphicsLayersUnderRegions() const;
-
-    RenderLayer* enclosingFlowThreadAncestor() const;
+    RenderLayer* enclosingFragmentedFlowAncestor() const;
 
     bool shouldPlaceBlockDirectionScrollbarOnLeft() const final { return renderer().shouldPlaceBlockDirectionScrollbarOnLeft(); }
 
@@ -760,7 +754,7 @@ private:
 
     // Non-auto z-index always implies stacking context here, because StyleResolver::adjustRenderStyle already adjusts z-index
     // based on positioning and other criteria.
-    bool isStackingContext(const RenderStyle* style) const { return !style->hasAutoZIndex() || isRootLayer() || m_forcedStackingContext; }
+    bool isStackingContext(const RenderStyle* style) const { return !style->hasAutoZIndex() || isRenderViewLayer() || m_forcedStackingContext; }
 
     bool isDirtyStackingContainer() const { return m_zOrderListsDirty && isStackingContainer(); }
 
@@ -838,7 +832,6 @@ private:
     void applyFilters(FilterEffectRendererHelper*, GraphicsContext& originalContext, const LayerPaintingInfo&, const LayerFragments&);
 
     void paintLayer(GraphicsContext&, const LayerPaintingInfo&, PaintLayerFlags);
-    void paintFixedLayersInNamedFlows(GraphicsContext&, const LayerPaintingInfo&, PaintLayerFlags);
     void paintLayerContentsAndReflection(GraphicsContext&, const LayerPaintingInfo&, PaintLayerFlags);
     void paintLayerByApplyingTransform(GraphicsContext&, const LayerPaintingInfo&, PaintLayerFlags, const LayoutSize& translationOffset = LayoutSize());
     void paintLayerContents(GraphicsContext&, const LayerPaintingInfo&, PaintLayerFlags);
@@ -869,14 +862,6 @@ private:
         const LayoutRect& hitTestRect, const HitTestLocation&,
         const HitTestingTransformState*, double* zOffsetForDescendants, double* zOffset,
         const HitTestingTransformState* unflattenedTransformState, bool depthSortDescendants);
-
-    RenderLayer* hitTestFixedLayersInNamedFlows(RenderLayer* rootLayer,
-        const HitTestRequest&, HitTestResult&,
-        const LayoutRect& hitTestRect, const HitTestLocation&,
-        const HitTestingTransformState*,
-        double* zOffsetForDescendants, double* zOffset,
-        const HitTestingTransformState* unflattenedTransformState,
-        bool depthSortDescendants);
 
     Ref<HitTestingTransformState> createLocalTransformState(RenderLayer* rootLayer, RenderLayer* containerLayer,
         const LayoutRect& hitTestRect, const HitTestLocation&,
@@ -1035,18 +1020,9 @@ private:
 
     bool overflowControlsIntersectRect(const IntRect& localRect) const;
 
-    RenderLayer* hitTestFlowThreadIfRegionForFragments(const LayerFragments&, RenderLayer*, const HitTestRequest&, HitTestResult&,
-        const LayoutRect&, const HitTestLocation&,
-        const HitTestingTransformState*, double* zOffsetForDescendants,
-        double* zOffset, const HitTestingTransformState* unflattenedTransformState, bool depthSortDescendants);
-    void paintFlowThreadIfRegionForFragments(const LayerFragments&, GraphicsContext&, const LayerPaintingInfo&, PaintLayerFlags);
-    bool mapLayerClipRectsToFragmentationLayer(ClipRects&) const;
-
-    RenderNamedFlowFragment* currentRenderNamedFlowFragment() const;
-
     // The bitfields are up here so they will fall into the padding from ScrollableArea on 64-bit.
 
-    const bool m_isRootLayer : 1;
+    const bool m_isRenderViewLayer : 1;
     const bool m_forcedStackingContext : 1;
 
     // Keeps track of whether the layer is currently resizing, so events can cause resizing to start and stop.

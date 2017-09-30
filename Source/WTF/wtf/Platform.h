@@ -366,7 +366,7 @@
 
 #endif /* ARM */
 
-#if CPU(ARM) || CPU(MIPS) || CPU(SH4)
+#if CPU(ARM) || CPU(MIPS) || CPU(SH4) || CPU(ALPHA) || CPU(HPPA)
 #define WTF_CPU_NEEDS_ALIGNED_ACCESS 1
 #endif
 
@@ -679,7 +679,7 @@
 #define HAVE_CFNETWORK_STORAGE_PARTITIONING 1
 #endif
 
-#if OS(DARWIN) || ((OS(FREEBSD) || defined(__GLIBC__)) && (CPU(X86) || CPU(X86_64) || CPU(ARM) || CPU(ARM64) || CPU(MIPS)))
+#if OS(DARWIN) || ((OS(FREEBSD) || defined(__GLIBC__) || defined(__BIONIC__)) && (CPU(X86) || CPU(X86_64) || CPU(ARM) || CPU(ARM64) || CPU(MIPS)))
 #define HAVE_MACHINE_CONTEXT 1
 #endif
 
@@ -1079,21 +1079,6 @@
 #define USE_AVFOUNDATION 1
 #endif
 
-#if PLATFORM(WIN) && !USE(WINGDI)
-#include <wtf/AVFoundationHeaderDetection.h>
-#endif
-
-#if PLATFORM(WIN) && USE(CG) && HAVE(AVCF)
-#define USE_AVFOUNDATION 1
-
-#if HAVE(AVCF_LEGIBLE_OUTPUT)
-#define HAVE_AVFOUNDATION_MEDIA_SELECTION_GROUP 1
-#define HAVE_AVFOUNDATION_LEGIBLE_OUTPUT_SUPPORT 1
-#define HAVE_MEDIA_ACCESSIBILITY_FRAMEWORK 1
-#endif
-
-#endif
-
 #if !defined(ENABLE_TREE_DEBUGGING)
 #if !defined(NDEBUG)
 #define ENABLE_TREE_DEBUGGING 1
@@ -1169,6 +1154,10 @@
 
 #if PLATFORM(MAC)
 #define USE_INSERTION_UNDO_GROUPING 1
+#endif
+
+#if PLATFORM(MAC)
+#define HAVE_AVSAMPLEBUFFERGENERATOR 1
 #endif
 
 #if PLATFORM(COCOA)

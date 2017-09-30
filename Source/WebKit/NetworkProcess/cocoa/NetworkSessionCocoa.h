@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 Apple Inc. All rights reserved.
+ * Copyright (C) 2016-2017 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -57,11 +57,13 @@ public:
     static void setCTDataConnectionServiceType(const String&);
 #endif
 
-    NetworkDataTaskCocoa* dataTaskForIdentifier(NetworkDataTaskCocoa::TaskIdentifier, WebCore::StoredCredentials);
+    NetworkDataTaskCocoa* dataTaskForIdentifier(NetworkDataTaskCocoa::TaskIdentifier, WebCore::StoredCredentialsPolicy);
 
     void addDownloadID(NetworkDataTaskCocoa::TaskIdentifier, DownloadID);
     DownloadID downloadID(NetworkDataTaskCocoa::TaskIdentifier);
     DownloadID takeDownloadID(NetworkDataTaskCocoa::TaskIdentifier);
+
+    static bool allowsSpecificHTTPSCertificateForHost(const WebCore::AuthenticationChallenge&);
 
 private:
     NetworkSessionCocoa(PAL::SessionID, LegacyCustomProtocolManager*);
@@ -70,13 +72,13 @@ private:
     void clearCredentials() override;
 
     HashMap<NetworkDataTaskCocoa::TaskIdentifier, NetworkDataTaskCocoa*> m_dataTaskMapWithCredentials;
-    HashMap<NetworkDataTaskCocoa::TaskIdentifier, NetworkDataTaskCocoa*> m_dataTaskMapWithoutCredentials;
+    HashMap<NetworkDataTaskCocoa::TaskIdentifier, NetworkDataTaskCocoa*> m_dataTaskMapWithoutState;
     HashMap<NetworkDataTaskCocoa::TaskIdentifier, DownloadID> m_downloadMap;
 
     RetainPtr<NSURLSession> m_sessionWithCredentialStorage;
     RetainPtr<WKNetworkSessionDelegate> m_sessionWithCredentialStorageDelegate;
-    RetainPtr<NSURLSession> m_sessionWithoutCredentialStorage;
-    RetainPtr<WKNetworkSessionDelegate> m_sessionWithoutCredentialStorageDelegate;
+    RetainPtr<NSURLSession> m_statelessSession;
+    RetainPtr<WKNetworkSessionDelegate> m_statelessSessionDelegate;
 };
 
 } // namespace WebKit

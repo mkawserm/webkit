@@ -816,14 +816,6 @@
       ],
       "status" : "committer"
    },
-   "Dean Johnson" : {
-      "emails" : [
-         "dean_johnson@apple.com"
-      ],
-      "nicks" : [
-         "deanj"
-      ]
-   },
    "Bem Jones-Bey" : {
       "emails" : [
          "bjonesbe@adobe.com"
@@ -1161,7 +1153,8 @@
       ],
       "nicks" : [
          "cturner"
-      ]
+      ],
+      "status" : "committer"
    },
    "Chelsea Pugh" : {
       "emails" : [
@@ -1572,6 +1565,14 @@
          "dino"
       ],
       "status" : "reviewer"
+   },
+   "Dean Johnson" : {
+      "emails" : [
+         "dean_johnson@apple.com"
+      ],
+      "nicks" : [
+         "deanj"
+      ]
    },
    "Denis Nomiyama" : {
       "emails" : [
@@ -2060,7 +2061,7 @@
       "nicks" : [
          "fredw"
       ],
-      "status" : "committer"
+      "status" : "reviewer"
    },
    "Fujii Hironori" : {
       "emails" : [
@@ -4210,7 +4211,8 @@
       ],
       "nicks" : [
          "Ms2ger"
-      ]
+      ],
+      "status" : "committer"
    },
    "Myles C. Maxfield" : {
       "aliases" : [
@@ -4786,6 +4788,16 @@
       ],
       "status" : "committer"
    },
+   "Robin Morisset" : {
+      "emails" : [
+         "rmorisset@apple.com",
+         "robin.morisset@normalesup.org"
+      ],
+      "nicks" : [
+         "rmorisset"
+      ],
+      "status" : "committer"
+   },
    "Roger Fong" : {
       "emails" : [
          "roger_fong@apple.com"
@@ -4821,7 +4833,7 @@
       ],
       "status" : "committer"
    },
-   "Ross Kirsling": {
+   "Ross Kirsling" : {
       "emails" : [
          "ross.kirsling@sony.com"
       ],

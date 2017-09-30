@@ -48,7 +48,7 @@ public:
     ~WebLoaderStrategy() final;
     
     RefPtr<WebCore::SubresourceLoader> loadResource(WebCore::Frame&, WebCore::CachedResource&, const WebCore::ResourceRequest&, const WebCore::ResourceLoaderOptions&) final;
-    void loadResourceSynchronously(WebCore::NetworkingContext*, unsigned long resourceLoadIdentifier, const WebCore::ResourceRequest&, WebCore::StoredCredentials, WebCore::ClientCredentialPolicy, WebCore::ResourceError&, WebCore::ResourceResponse&, Vector<char>& data) final;
+    void loadResourceSynchronously(WebCore::NetworkingContext*, unsigned long resourceLoadIdentifier, const WebCore::ResourceRequest&, WebCore::StoredCredentialsPolicy, WebCore::ClientCredentialPolicy, WebCore::ResourceError&, WebCore::ResourceResponse&, Vector<char>& data) final;
 
     void remove(WebCore::ResourceLoader*) final;
     void setDefersLoading(WebCore::ResourceLoader*, bool) final;
@@ -61,6 +61,9 @@ public:
 
     void startPingLoad(WebCore::Frame&, WebCore::ResourceRequest&, const WebCore::HTTPHeaderMap& originalRequestHeaders, const WebCore::FetchOptions&, PingLoadCompletionHandler&&) final;
     void didFinishPingLoad(uint64_t pingLoadIdentifier, WebCore::ResourceError&&);
+
+    void preconnectTo(PAL::SessionID, const WebCore::URL&, WebCore::StoredCredentialsPolicy, PreconnectCompletionHandler&&) final;
+    void didFinishPreconnection(uint64_t preconnectionIdentifier, WebCore::ResourceError&&);
 
     void storeDerivedDataToCache(const SHA1::Digest& bodyHash, const String& type, const String& partition, WebCore::SharedBuffer&) final;
 
@@ -86,6 +89,7 @@ private:
     HashMap<unsigned long, RefPtr<WebResourceLoader>> m_webResourceLoaders;
     HashMap<unsigned long, WebURLSchemeTaskProxy*> m_urlSchemeTasks;
     HashMap<unsigned long, PingLoadCompletionHandler> m_pingLoadCompletionHandlers;
+    HashMap<unsigned long, PreconnectCompletionHandler> m_preconnectCompletionHandlers;
 };
 
 } // namespace WebKit

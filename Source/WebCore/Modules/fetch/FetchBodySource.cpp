@@ -38,11 +38,6 @@ FetchBodySource::FetchBodySource(FetchBodyOwner& bodyOwner)
 {
 }
 
-bool FetchBodySource::isReadableStreamLocked() const
-{
-    return controller().isControlledReadableStreamLocked();
-}
-
 void FetchBodySource::setActive()
 {
     m_bodyOwner.setPendingActivity(&m_bodyOwner);
@@ -74,6 +69,7 @@ void FetchBodySource::close()
     controller().close();
     clean();
 }
+
 void FetchBodySource::error(const String& value)
 {
     controller().error(value);

@@ -51,7 +51,7 @@
 
 namespace API {
 template<> struct ClientTraits<WKContextDownloadClientBase> {
-    typedef std::tuple<WKContextDownloadClientV0> Versions;
+    typedef std::tuple<WKContextDownloadClientV0, WKContextDownloadClientV1> Versions;
 };
 template<> struct ClientTraits<WKContextHistoryClientBase> {
     typedef std::tuple<WKContextHistoryClientV0> Versions;
@@ -261,6 +261,15 @@ void WKContextSetDownloadClient(WKContextRef contextRef, const WKContextDownload
             m_client.processDidCrash(toAPI(processPool), toAPI(downloadProxy), m_client.base.clientInfo);
         }
 
+        void willSendRequest(WebProcessPool* processPool, DownloadProxy* downloadProxy, const ResourceRequest& request, const ResourceResponse&, WTF::Function<void(const ResourceRequest&)>&& callback) override
+        {
+            if (m_client.didReceiveServerRedirect)
+                m_client.didReceiveServerRedirect(toAPI(processPool), toAPI(downloadProxy), toURLRef(request.url().string().impl()), m_client.base.clientInfo);
+
+            callback(request);
+        }
+
+
     };
 
     toImpl(contextRef)->setDownloadClient(std::make_unique<DownloadClient>(wkClient));
@@ -306,7 +315,7 @@ void WKContextAddVisitedLink(WKContextRef contextRef, WKStringRef visitedURL)
     if (visitedURLString.isEmpty())
         return;
 
-    toImpl(contextRef)->visitedLinkStore().addVisitedLinkHash(visitedLinkHash(visitedURLString));
+    toImpl(contextRef)->visitedLinkStore().addVisitedLinkHash(computeSharedStringHash(visitedURLString));
 }
 
 void WKContextClearVisitedLinks(WKContextRef contextRef)
@@ -398,6 +407,11 @@ void WKContextSetDiskCacheSpeculativeValidationEnabled(WKContextRef contextRef, 
     toImpl(contextRef)->configuration().setDiskCacheSpeculativeValidationEnabled(value);
 }
 
+void WKContextPreconnectToServer(WKContextRef contextRef, WKURLRef serverURLRef)
+{
+    toImpl(contextRef)->preconnectToServer(URL(URL(), toWTFString(serverURLRef)));
+}
+
 WKCookieManagerRef WKContextGetCookieManager(WKContextRef contextRef)
 {
     return toAPI(toImpl(contextRef)->supplement<WebCookieManagerProxy>());
@@ -405,7 +419,14 @@ WKCookieManagerRef WKContextGetCookieManager(WKContextRef contextRef)
 
 WKWebsiteDataStoreRef WKContextGetWebsiteDataStore(WKContextRef context)
 {
-    return toAPI(&toImpl(context)->websiteDataStore());
+    auto* dataStore = toImpl(context)->websiteDataStore();
+    if (!dataStore) {
+        auto defaultDataStore = API::WebsiteDataStore::defaultDataStore();
+        toImpl(context)->setPrimaryDataStore(defaultDataStore.get());
+        dataStore = defaultDataStore.ptr();
+    }
+
+    return toAPI(dataStore);
 }
 
 WKApplicationCacheManagerRef WKContextGetApplicationCacheManager(WKContextRef context)
@@ -583,12 +604,12 @@ void WKContextTerminateNetworkProcess(WKContextRef context)
     toImpl(context)->terminateNetworkProcess();
 }
 
-pid_t WKContextGetNetworkProcessIdentifier(WKContextRef contextRef)
+ProcessID WKContextGetNetworkProcessIdentifier(WKContextRef contextRef)
 {
     return toImpl(contextRef)->networkProcessIdentifier();
 }
 
-pid_t WKContextGetDatabaseProcessIdentifier(WKContextRef contextRef)
+ProcessID WKContextGetDatabaseProcessIdentifier(WKContextRef contextRef)
 {
     return toImpl(contextRef)->storageProcessIdentifier();
 }

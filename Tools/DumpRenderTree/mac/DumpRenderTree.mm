@@ -62,6 +62,7 @@
 #import <WebKit/DOMElement.h>
 #import <WebKit/DOMExtensions.h>
 #import <WebKit/DOMRange.h>
+#import <WebKit/WKCrashReporter.h>
 #import <WebKit/WKRetainPtr.h>
 #import <WebKit/WKString.h>
 #import <WebKit/WKStringCF.h>
@@ -980,6 +981,7 @@ static void setWebPreferencesForTestOptions(const TestOptions& options)
 {
     WebPreferences *preferences = [WebPreferences standardPreferences];
 
+    preferences.attachmentElementEnabled = options.enableAttachmentElement;
     preferences.intersectionObserverEnabled = options.enableIntersectionObserver;
     preferences.modernMediaControlsEnabled = options.enableModernMediaControls;
     preferences.credentialManagementEnabled = options.enableCredentialManagement;
@@ -1940,7 +1942,7 @@ static void runTest(const string& inputLine)
         testPath = [url absoluteString];
 
     NSString *informationString = [@"CRASHING TEST: " stringByAppendingString:testPath];
-    WKSetCrashReportApplicationSpecificInformation((CFStringRef)informationString);
+    WebKit::setCrashReportApplicationSpecificInformation((CFStringRef)informationString);
 
     TestOptions options(url, command);
     if (!mainFrameTestOptions || !options.webViewIsCompatibleWithOptions(mainFrameTestOptions.value())) {

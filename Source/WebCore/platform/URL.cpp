@@ -870,7 +870,16 @@ void URL::removeFragmentIdentifier()
     if (m_isValid && m_string.length() > m_queryEnd)
         m_string = m_string.left(m_queryEnd);
 }
-    
+
+void URL::removeQueryAndFragmentIdentifier()
+{
+    if (!m_isValid)
+        return;
+
+    m_string = m_string.left(m_pathEnd);
+    m_queryEnd = m_pathEnd;
+}
+
 void URL::setQuery(const String& query)
 {
     if (!m_isValid)
@@ -1269,6 +1278,8 @@ bool portAllowed(const URL& url)
         6667, // Standard IRC [Apple addition]
         6668, // Alternate IRC [Apple addition]
         6669, // Alternate IRC [Apple addition]
+        6679, // Alternate IRC SSL [Apple addition]
+        6697, // IRC+SSL [Apple addition]
         invalidPortNumber, // Used to block all invalid port numbers
     };
 

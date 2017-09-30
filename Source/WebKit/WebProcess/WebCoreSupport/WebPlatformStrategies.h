@@ -82,7 +82,6 @@ private:
 
     long addTypes(const Vector<String>& pasteboardTypes, const String& pasteboardName) override;
     long setTypes(const Vector<String>& pasteboardTypes, const String& pasteboardName) override;
-    long copy(const String& fromPasteboard, const String& toPasteboard) override;
     long setBufferForType(WebCore::SharedBuffer*, const String& pasteboardType, const String& pasteboardName) override;
     long setPathnamesForType(const Vector<String>&, const String& pasteboardType, const String& pasteboardName) override;
     long setStringForType(const String&, const String& pasteboardType, const String& pasteboardName) override;
@@ -97,6 +96,9 @@ private:
     void writeToPasteboard(const WebCore::PasteboardWebContent&) override;
     void writeToPasteboard(const String& pasteboardType, const String&) override;
 #endif
+
+    Vector<String> typesSafeForDOMToReadAndWrite(const String& pasteboardName) override;
+    long writeCustomData(const WebCore::PasteboardCustomData&, const String&) override;
 };
 
 } // namespace WebKit

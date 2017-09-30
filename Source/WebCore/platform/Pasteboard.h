@@ -27,6 +27,7 @@
 
 #include "DragImage.h"
 #include "URL.h"
+#include <wtf/HashMap.h>
 #include <wtf/Noncopyable.h>
 #include <wtf/Vector.h>
 #include <wtf/text/WTFString.h>
@@ -65,7 +66,7 @@ enum ShouldSerializeSelectedTextForDataTransfer { DefaultSelectedTextType, Inclu
 // For writing to the pasteboard. Generally sorted with the richest formats on top.
 
 struct PasteboardWebContent {
-#if !(PLATFORM(GTK) || PLATFORM(WIN) || PLATFORM(WPE))
+#if PLATFORM(COCOA)
     WEBCORE_EXPORT PasteboardWebContent();
     WEBCORE_EXPORT ~PasteboardWebContent();
     bool canSmartCopyOrDelete;
@@ -145,6 +146,33 @@ struct PasteboardPlainText {
 #endif
 };
 
+struct PasteboardFileReader {
+    PasteboardFileReader(const String& type)
+        : type(type)
+    { }
+    virtual ~PasteboardFileReader() = default;
+
+    virtual void read(const String&, Ref<SharedBuffer>&&) = 0;
+
+    const String type;
+};
+
+// FIXME: We need to ensure that the contents of sameOriginCustomData are not accessible across different origins.
+struct PasteboardCustomData {
+    Vector<String> orderedTypes;
+    HashMap<String, String> platformData;
+    HashMap<String, String> sameOriginCustomData;
+};
+
+WEBCORE_EXPORT Ref<SharedBuffer> sharedBufferFromCustomData(const PasteboardCustomData&);
+WEBCORE_EXPORT PasteboardCustomData customDataFromSharedBuffer(const SharedBuffer&);
+
+#if PLATFORM(COCOA)
+const char customWebKitPasteboardDataType[] = "com.apple.WebKit.custom-pasteboard-data";
+#endif
+
+bool isSafeTypeForDOMToReadAndWrite(const String& type);
+
 class Pasteboard {
     WTF_MAKE_NONCOPYABLE(Pasteboard); WTF_MAKE_FAST_ALLOCATED;
 public:
@@ -163,11 +191,13 @@ public:
 #endif
 
     WEBCORE_EXPORT static std::unique_ptr<Pasteboard> createForCopyAndPaste();
-    static std::unique_ptr<Pasteboard> createPrivate(); // Temporary pasteboard. Can put data on this and then write to another pasteboard with writePasteboard.
+
+    virtual bool isStatic() const { return false; }
 
     virtual bool hasData();
-    virtual Vector<String> types();
-    virtual String readString(const String& type);
+    virtual Vector<String> typesForBindings();
+    virtual Vector<String> typesTreatedAsFiles();
+    virtual String readStringForBindings(const String& type);
 
     virtual void writeString(const String& type, const String& data);
     virtual void clear();
@@ -175,6 +205,7 @@ public:
 
     virtual void read(PasteboardPlainText&);
     virtual void read(PasteboardWebContentReader&);
+    virtual void read(PasteboardFileReader&);
 
     virtual void write(const PasteboardURL&);
     virtual void writeTrustworthyWebURLsPboardType(const PasteboardURL&);
@@ -187,7 +218,6 @@ public:
     virtual void writeMarkup(const String& markup);
     enum SmartReplaceOption { CanSmartReplace, CannotSmartReplace };
     virtual WEBCORE_EXPORT void writePlainText(const String&, SmartReplaceOption); // FIXME: Two separate functions would be clearer than one function with an argument.
-    virtual void writePasteboard(const Pasteboard& sourcePasteboard);
 
 #if ENABLE(DRAG_SUPPORT)
     WEBCORE_EXPORT static std::unique_ptr<Pasteboard> createForDragAndDrop();
@@ -217,8 +247,10 @@ public:
 #if PLATFORM(COCOA)
     explicit Pasteboard(const String& pasteboardName);
 
+    static bool shouldTreatCocoaTypeAsFile(const String&);
     WEBCORE_EXPORT static NSArray *supportedFileUploadPasteboardTypes();
     const String& name() const { return m_pasteboardName; }
+    long changeCount() const;
 #endif
 
 #if PLATFORM(WIN)
@@ -229,6 +261,8 @@ public:
     COMPtr<WCDataObject> writableDataObject() const { return m_writableDataObject; }
     void writeImageToDataObject(Element&, const URL&); // FIXME: Layering violation.
 #endif
+
+    void writeCustomData(const PasteboardCustomData&);
 
 private:
 #if PLATFORM(IOS)
@@ -241,6 +275,10 @@ private:
     void writeRangeToDataObject(Range&, Frame&); // FIXME: Layering violation.
     void writeURLToDataObject(const URL&, const String&);
     void writePlainTextToDataObject(const String&, SmartReplaceOption);
+#endif
+
+#if PLATFORM(COCOA)
+    String readStringForPlatformType(const String&);
 #endif
 
 #if PLATFORM(GTK)

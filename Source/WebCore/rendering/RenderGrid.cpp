@@ -305,9 +305,6 @@ void RenderGrid::layoutBlock(bool relayoutChildren, LayoutUnit)
         setLogicalHeight(std::max(logicalHeight(), minHeightForEmptyLine));
     }
 
-    applyStretchAlignmentToTracksIfNeeded(ForColumns);
-    applyStretchAlignmentToTracksIfNeeded(ForRows);
-
     layoutGridItems();
     m_trackSizingAlgorithm.reset();
 
@@ -886,36 +883,6 @@ static const StyleContentAlignmentData& contentAlignmentNormalBehaviorGrid()
     return normalBehavior;
 }
 
-void RenderGrid::applyStretchAlignmentToTracksIfNeeded(GridTrackSizingDirection direction)
-{
-    std::optional<LayoutUnit> freeSpace = m_trackSizingAlgorithm.freeSpace(direction);
-    if (!freeSpace
-        || freeSpace.value() <= 0
-        || (direction == ForColumns && style().resolvedJustifyContentDistribution(contentAlignmentNormalBehaviorGrid()) != ContentDistributionStretch)
-        || (direction == ForRows && style().resolvedAlignContentDistribution(contentAlignmentNormalBehaviorGrid()) != ContentDistributionStretch))
-        return;
-
-    // Spec defines auto-sized tracks as the ones with an 'auto' max-sizing function.
-    Vector<GridTrack>& allTracks = m_trackSizingAlgorithm.tracks(direction);
-    Vector<unsigned> autoSizedTracksIndex;
-    for (unsigned i = 0; i < allTracks.size(); ++i) {
-        const GridTrackSize& trackSize = m_trackSizingAlgorithm.gridTrackSize(direction, i);
-        if (trackSize.hasAutoMaxTrackBreadth())
-            autoSizedTracksIndex.append(i);
-    }
-
-    unsigned numberOfAutoSizedTracks = autoSizedTracksIndex.size();
-    if (numberOfAutoSizedTracks < 1)
-        return;
-
-    LayoutUnit sizeToIncrease = freeSpace.value() / numberOfAutoSizedTracks;
-    for (const auto& trackIndex : autoSizedTracksIndex) {
-        auto& track = allTracks[trackIndex];
-        track.setBaseSize(track.baseSize() + sizeToIncrease);
-    }
-    m_trackSizingAlgorithm.setFreeSpace(direction, LayoutUnit());
-}
-
 void RenderGrid::layoutGridItems()
 {
     populateGridPositionsForDirection(ForColumns);
@@ -1187,7 +1154,7 @@ LayoutUnit RenderGrid::computeMarginLogicalSizeForChild(GridTrackSizingDirection
     LayoutUnit marginStart;
     LayoutUnit marginEnd;
     if (direction == ForColumns)
-        child.computeInlineDirectionMargins(*this, child.containingBlockLogicalWidthForContentInRegion(nullptr), child.logicalWidth(), marginStart, marginEnd);
+        child.computeInlineDirectionMargins(*this, child.containingBlockLogicalWidthForContentInFragment(nullptr), child.logicalWidth(), marginStart, marginEnd);
     else
         child.computeBlockDirectionMargins(*this, marginStart, marginEnd);
 
@@ -1614,19 +1581,23 @@ static ContentAlignmentData contentDistributionOffset(const LayoutUnit& availabl
     return ContentAlignmentData::defaultOffsets();
 }
 
+StyleContentAlignmentData RenderGrid::contentAlignment(GridTrackSizingDirection direction) const
+{
+    return direction == ForColumns ? style().resolvedJustifyContent(contentAlignmentNormalBehaviorGrid()) : style().resolvedAlignContent(contentAlignmentNormalBehaviorGrid());
+}
+
 ContentAlignmentData RenderGrid::computeContentPositionAndDistributionOffset(GridTrackSizingDirection direction, const LayoutUnit& availableFreeSpace, unsigned numberOfGridTracks) const
 {
     bool isRowAxis = direction == ForColumns;
-    auto position = isRowAxis ? style().resolvedJustifyContentPosition(contentAlignmentNormalBehaviorGrid()) : style().resolvedAlignContentPosition(contentAlignmentNormalBehaviorGrid());
-    auto distribution = isRowAxis ? style().resolvedJustifyContentDistribution(contentAlignmentNormalBehaviorGrid()) : style().resolvedAlignContentDistribution(contentAlignmentNormalBehaviorGrid());
+    auto contentAlignmentData = contentAlignment(direction);
+    auto position = contentAlignmentData.position();
     // If <content-distribution> value can't be applied, 'position' will become the associated
     // <content-position> fallback value.
-    auto contentAlignment = contentDistributionOffset(availableFreeSpace, position, distribution, numberOfGridTracks);
+    auto contentAlignment = contentDistributionOffset(availableFreeSpace, position, contentAlignmentData.distribution(), numberOfGridTracks);
     if (contentAlignment.isValid())
         return contentAlignment;
 
-    auto overflow = (isRowAxis ? style().justifyContent() : style().alignContent()).overflow();
-    if (availableFreeSpace <= 0 && overflow == OverflowAlignmentSafe)
+    if (availableFreeSpace <= 0 && contentAlignmentData.overflow() == OverflowAlignmentSafe)
         return {0, 0};
 
     switch (position) {

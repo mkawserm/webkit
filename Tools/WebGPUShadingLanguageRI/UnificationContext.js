@@ -29,6 +29,7 @@ class UnificationContext {
     {
         this._typeParameters = new Set(typeParameters);
         this._nextMap = new Map();
+        this._extraNodes = new Set();
     }
     
     union(a, b)
@@ -67,6 +68,11 @@ class UnificationContext {
         return currentNode;
     }
     
+    addExtraNode(node)
+    {
+        this._extraNodes.add(node);
+    }
+    
     get nodes()
     {
         let result = new Set();
@@ -74,6 +80,8 @@ class UnificationContext {
             result.add(key);
             result.add(value);
         }
+        for (let node of this._extraNodes)
+            result.add(node);
         return result;
     }
     
@@ -91,19 +99,46 @@ class UnificationContext {
     
     verify()
     {
+        // We do a two-phase pre-verification. This gives literals a chance to select a more specific type.
+        let preparations = [];
+        for (let node of this.nodes) {
+            let preparation = node.prepareToVerify(this);
+            if (preparation)
+                preparations.push(preparation);
+        }
+        for (let preparation of preparations) {
+            let result = preparation();
+            if (!result.result)
+                return result;
+        }
+        
         for (let typeParameter of this._typeParameters) {
-            if (!typeParameter.verifyAsParameter(this))
-                return false;
+            let result = typeParameter.verifyAsParameter(this);
+            if (!result.result)
+                return result;
         }
         let numTypeVariableArguments = 0;
         let argumentSet = new Set();
         for (let typeArgument of this.typeArguments()) {
-            if (!typeArgument.verifyAsArgument(this))
-                return false;
+            let result = typeArgument.verifyAsArgument(this);
+            if (!result.result)
+                return result;
+            if (typeArgument.isLiteral)
+                continue;
             argumentSet.add(this.find(typeArgument));
             numTypeVariableArguments++;
         }
-        return argumentSet.size == numTypeVariableArguments;
+        if (argumentSet.size == numTypeVariableArguments)
+            return {result: true};
+        return {result: false, reason: "Type variables used as arguments got unified with each other"};
+    }
+    
+    get conversionCost()
+    {
+        let result = 0;
+        for (let typeArgument of this.typeArguments())
+            result += typeArgument.conversionCost(this);
+        return result;
     }
     
     commit()

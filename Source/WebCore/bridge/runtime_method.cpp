@@ -67,9 +67,10 @@ EncodedJSValue RuntimeMethod::lengthGetter(ExecState* exec, EncodedJSValue thisV
 
 bool RuntimeMethod::getOwnPropertySlot(JSObject* object, ExecState* exec, PropertyName propertyName, PropertySlot &slot)
 {
+    VM& vm = exec->vm();
     RuntimeMethod* thisObject = jsCast<RuntimeMethod*>(object);
-    if (propertyName == exec->propertyNames().length) {
-        slot.setCacheableCustom(thisObject, DontDelete | ReadOnly | DontEnum, thisObject->lengthGetter);
+    if (propertyName == vm.propertyNames->length) {
+        slot.setCacheableCustom(thisObject, PropertyAttribute::DontDelete | PropertyAttribute::ReadOnly | PropertyAttribute::DontEnum, thisObject->lengthGetter);
         return true;
     }
     

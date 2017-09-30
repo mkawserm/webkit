@@ -144,10 +144,19 @@ std::optional<WebPageCreationParameters> WebPageCreationParameters::decode(IPC::
         return std::nullopt;
     if (!decoder.decode(parameters.paginationLineGridEnabled))
         return std::nullopt;
-    if (!decoder.decode(parameters.userAgent))
+
+    std::optional<String> userAgent;
+    decoder >> userAgent;
+    if (!userAgent)
         return std::nullopt;
-    if (!decoder.decode(parameters.itemStates))
+    parameters.userAgent = WTFMove(*userAgent);
+
+    std::optional<Vector<BackForwardListItemState>> itemStates;
+    decoder >> itemStates;
+    if (!itemStates)
         return std::nullopt;
+    parameters.itemStates = WTFMove(*itemStates);
+
     if (!decoder.decode(parameters.sessionID))
         return std::nullopt;
     if (!decoder.decode(parameters.highestUsedBackForwardItemID))
@@ -182,8 +191,13 @@ std::optional<WebPageCreationParameters> WebPageCreationParameters::decode(IPC::
         return std::nullopt;
     if (!decoder.decodeEnum(parameters.scrollPinningBehavior))
         return std::nullopt;
-    if (!decoder.decode(parameters.scrollbarOverlayStyle))
+
+    std::optional<std::optional<uint32_t>> scrollbarOverlayStyle;
+    decoder >> scrollbarOverlayStyle;
+    if (!scrollbarOverlayStyle)
         return std::nullopt;
+    parameters.scrollbarOverlayStyle = WTFMove(*scrollbarOverlayStyle);
+
     if (!decoder.decode(parameters.backgroundExtendsBeyondPage))
         return std::nullopt;
     if (!decoder.decodeEnum(parameters.layerHostingMode))
@@ -237,8 +251,11 @@ std::optional<WebPageCreationParameters> WebPageCreationParameters::decode(IPC::
     if (!decoder.decode(parameters.overrideContentSecurityPolicy))
         return std::nullopt;
 
-    if (!decoder.decode(parameters.cpuLimit))
+    std::optional<std::optional<double>> cpuLimit;
+    decoder >> cpuLimit;
+    if (!cpuLimit)
         return std::nullopt;
+    parameters.cpuLimit = WTFMove(*cpuLimit);
 
     if (!decoder.decode(parameters.urlSchemeHandlers))
         return std::nullopt;
@@ -249,17 +266,36 @@ std::optional<WebPageCreationParameters> WebPageCreationParameters::decode(IPC::
     if (!decoder.decode(parameters.enumeratingAllNetworkInterfacesEnabled))
         return std::nullopt;
 
-    if (!decoder.decode(parameters.userContentWorlds))
+    std::optional<Vector<std::pair<uint64_t, String>>> userContentWorlds;
+    decoder >> userContentWorlds;
+    if (!userContentWorlds)
         return std::nullopt;
-    if (!decoder.decode(parameters.userScripts))
+    parameters.userContentWorlds = WTFMove(*userContentWorlds);
+
+    std::optional<Vector<WebUserScriptData>> userScripts;
+    decoder >> userScripts;
+    if (!userScripts)
         return std::nullopt;
-    if (!decoder.decode(parameters.userStyleSheets))
+    parameters.userScripts = WTFMove(*userScripts);
+    
+    std::optional<Vector<WebUserStyleSheetData>> userStyleSheets;
+    decoder >> userStyleSheets;
+    if (!userStyleSheets)
         return std::nullopt;
-    if (!decoder.decode(parameters.messageHandlers))
+    parameters.userStyleSheets = WTFMove(*userStyleSheets);
+    
+    std::optional<Vector<WebScriptMessageHandlerData>> messageHandlers;
+    decoder >> messageHandlers;
+    if (!messageHandlers)
         return std::nullopt;
+    parameters.messageHandlers = WTFMove(*messageHandlers);
+    
 #if ENABLE(CONTENT_EXTENSIONS)
-    if (!decoder.decode(parameters.contentRuleLists))
+    std::optional<Vector<std::pair<String, WebCompiledContentRuleListData>>> contentRuleLists;
+    decoder >> contentRuleLists;
+    if (!contentRuleLists)
         return std::nullopt;
+    parameters.contentRuleLists = WTFMove(*contentRuleLists);
 #endif
     return WTFMove(parameters);
 }

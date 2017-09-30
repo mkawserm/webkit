@@ -158,7 +158,7 @@ public:
     void removeSession(CDMSession&);
 #endif
 
-    WeakPtr<MediaPlayerPrivateAVFoundationObjC> createWeakPtr() { return m_weakPtrFactory.createWeakPtr(); }
+    WeakPtr<MediaPlayerPrivateAVFoundationObjC> createWeakPtr() { return m_weakPtrFactory.createWeakPtr(*this); }
 
 private:
     // engine support
@@ -335,6 +335,10 @@ private:
     Vector<String> preferredAudioCharacteristics() const;
 
     void setShouldDisableSleep(bool) override;
+
+#if !RELEASE_LOG_DISABLED
+    const char* logClassName() const final { return "MediaPlayerPrivateAVFoundationObjC"; }
+#endif
 
     WeakPtrFactory<MediaPlayerPrivateAVFoundationObjC> m_weakPtrFactory;
 

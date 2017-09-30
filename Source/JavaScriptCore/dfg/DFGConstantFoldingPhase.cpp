@@ -161,7 +161,14 @@ private:
                 break;
             }
 
-                
+            case CheckStructureOrEmpty: {
+                const AbstractValue& value = m_state.forNode(node->child1());
+                if (value.m_type & SpecEmpty)
+                    break;
+                node->convertCheckStructureOrEmptyToCheckStructure();
+                changed = true;
+                FALLTHROUGH;
+            }
             case CheckStructure:
             case ArrayifyToStructure: {
                 AbstractValue& value = m_state.forNode(node->child1());
@@ -605,11 +612,17 @@ private:
             }
 
             case ToThis: {
-                if (!isToThisAnIdentity(m_graph.executableFor(node->origin.semantic)->isStrictMode(), m_state.forNode(node->child1())))
+                ToThisResult result = isToThisAnIdentity(m_graph.m_vm, m_graph.executableFor(node->origin.semantic)->isStrictMode(), m_state.forNode(node->child1()));
+                if (result == ToThisResult::Identity) {
+                    node->convertToIdentity();
+                    changed = true;
                     break;
-
-                node->convertToIdentity();
-                changed = true;
+                }
+                if (result == ToThisResult::GlobalThis) {
+                    node->convertToGetGlobalThis();
+                    changed = true;
+                    break;
+                }
                 break;
             }
 
@@ -642,6 +655,23 @@ private:
                     changed = true;
                 }
 
+                break;
+            }
+
+            case NumberToStringWithRadix: {
+                JSValue radixValue = m_state.forNode(node->child2()).m_value;
+                if (radixValue && radixValue.isInt32()) {
+                    int32_t radix = radixValue.asInt32();
+                    if (2 <= radix && radix <= 36) {
+                        if (radix == 10) {
+                            node->setOpAndDefaultFlags(ToString);
+                            node->child2() = Edge();
+                        } else
+                            node->convertToNumberToStringWithValidRadixConstant(radix);
+                        changed = true;
+                        break;
+                    }
+                }
                 break;
             }
 

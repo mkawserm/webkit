@@ -142,7 +142,6 @@ private:
                 node->setArithMode(Arith::CheckOverflow);
             else {
                 node->setArithMode(Arith::DoOverflow);
-                node->clearFlags(NodeMustGenerate);
                 node->setResult(enableInt52() ? NodeResultInt52 : NodeResultDouble);
             }
             break;
@@ -788,6 +787,19 @@ private:
                 RELEASE_ASSERT_NOT_REACHED();
                 break;
             case Array::Generic:
+                if (node->child1()->shouldSpeculateObject()) {
+                    if (node->child2()->shouldSpeculateString()) {
+                        fixEdge<ObjectUse>(node->child1());
+                        fixEdge<StringUse>(node->child2());
+                        break;
+                    }
+
+                    if (node->child2()->shouldSpeculateSymbol()) {
+                        fixEdge<ObjectUse>(node->child1());
+                        fixEdge<SymbolUse>(node->child2());
+                        break;
+                    }
+                }
 #if USE(JSVALUE32_64)
                 fixEdge<CellUse>(node->child1()); // Speculating cell due to register pressure on 32-bit.
 #endif
@@ -852,6 +864,19 @@ private:
                 break;
             case Array::ForceExit:
             case Array::Generic:
+                if (child1->shouldSpeculateCell()) {
+                    if (child2->shouldSpeculateString()) {
+                        fixEdge<CellUse>(child1);
+                        fixEdge<StringUse>(child2);
+                        break;
+                    }
+
+                    if (child2->shouldSpeculateSymbol()) {
+                        fixEdge<CellUse>(child1);
+                        fixEdge<SymbolUse>(child2);
+                        break;
+                    }
+                }
 #if USE(JSVALUE32_64)
                 // Due to register pressure on 32-bit, we speculate cell and
                 // ignore the base-is-not-cell case entirely by letting the
@@ -1311,13 +1336,12 @@ private:
             // FIXME: This should be done in the ByteCodeParser based on reading the
             // PolymorphicAccess, which will surely tell us that this is a AccessCase::ArrayLength.
             // https://bugs.webkit.org/show_bug.cgi?id=154990
+            auto uid = m_graph.identifiers()[node->identifierNumber()];
             if (node->child1()->shouldSpeculateCellOrOther()
                 && !m_graph.hasExitSite(node->origin.semantic, BadType)
                 && !m_graph.hasExitSite(node->origin.semantic, BadCache)
                 && !m_graph.hasExitSite(node->origin.semantic, BadIndexingType)
                 && !m_graph.hasExitSite(node->origin.semantic, ExoticObjectMode)) {
-                
-                auto uid = m_graph.identifiers()[node->identifierNumber()];
                 
                 if (uid == vm().propertyNames->length.impl()) {
                     attemptToMakeGetArrayLength(node);
@@ -1330,6 +1354,30 @@ private:
                     node->clearFlags(NodeMustGenerate);
                     fixEdge<RegExpObjectUse>(node->child1());
                     break;
+                }
+            }
+
+            if (node->child1()->shouldSpeculateNumber()) {
+                if (uid == vm().propertyNames->toString.impl()) {
+                    if (m_graph.isWatchingNumberToStringWatchpoint(node)) {
+                        JSGlobalObject* globalObject = m_graph.globalObjectFor(node->origin.semantic);
+                        if (node->child1()->shouldSpeculateInt32()) {
+                            insertCheck<Int32Use>(node->child1().node());
+                            m_graph.convertToConstant(node, m_graph.freeze(globalObject->numberProtoToStringFunction()));
+                            break;
+                        }
+
+                        if (enableInt52() && node->child1()->shouldSpeculateAnyInt()) {
+                            insertCheck<Int52RepUse>(node->child1().node());
+                            m_graph.convertToConstant(node, m_graph.freeze(globalObject->numberProtoToStringFunction()));
+                            break;
+                        }
+
+                        ASSERT(node->child1()->shouldSpeculateNumber());
+                        insertCheck<DoubleRepUse>(node->child1().node());
+                        m_graph.convertToConstant(node, m_graph.freeze(globalObject->numberProtoToStringFunction()));
+                        break;
+                    }
                 }
             }
 
@@ -1524,8 +1572,16 @@ private:
             break;
         }
 
+        case CompareBelow:
+        case CompareBelowEq: {
+            fixEdge<Int32Use>(node->child1());
+            fixEdge<Int32Use>(node->child2());
+            break;
+        }
+
         case Phi:
         case Upsilon:
+        case EntrySwitch:
         case GetIndexedPropertyStorage:
         case LastNodeType:
         case CheckTierUpInLoop:
@@ -1559,6 +1615,7 @@ private:
         case GetVectorLength:
         case PutHint:
         case CheckStructureImmediate:
+        case CheckStructureOrEmpty:
         case MaterializeNewObject:
         case MaterializeCreateActivation:
         case PutStack:
@@ -1849,6 +1906,13 @@ private:
             break;
         }
 
+        case WeakMapGet: {
+            fixEdge<WeakMapObjectUse>(node->child1());
+            fixEdge<ObjectUse>(node->child2());
+            fixEdge<Int32Use>(node->child3());
+            break;
+        }
+
         case DefineDataProperty: {
             fixEdge<CellUse>(m_graph.varArgChild(node, 0));
             Edge& propertyEdge = m_graph.varArgChild(node, 1);
@@ -2014,6 +2078,7 @@ private:
         case ExtractCatchLocal:
         case LoopHint:
         case MovHint:
+        case InitializeEntrypointArguments:
         case ZombieHint:
         case ExitOK:
         case BottomValue:
@@ -2022,6 +2087,8 @@ private:
         case PutByValWithThis:
         case GetByValWithThis:
         case CompareEqPtr:
+        case NumberToStringWithValidRadixConstant:
+        case GetGlobalThis:
             break;
 #else
         default:

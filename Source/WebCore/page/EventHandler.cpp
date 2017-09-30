@@ -66,6 +66,7 @@
 #include "MouseEventWithHitTestResults.h"
 #include "Page.h"
 #include "PageOverlayController.h"
+#include "Pasteboard.h"
 #include "PlatformEvent.h"
 #include "PlatformKeyboardEvent.h"
 #include "PlatformWheelEvent.h"
@@ -74,7 +75,6 @@
 #include "RenderFrameSet.h"
 #include "RenderLayer.h"
 #include "RenderListBox.h"
-#include "RenderNamedFlowThread.h"
 #include "RenderTextControlSingleLine.h"
 #include "RenderView.h"
 #include "RenderWidget.h"
@@ -86,6 +86,7 @@
 #include "Settings.h"
 #include "ShadowRoot.h"
 #include "SpatialNavigation.h"
+#include "StaticPasteboard.h"
 #include "StyleCachedImage.h"
 #include "TextEvent.h"
 #include "TextIterator.h"
@@ -135,7 +136,7 @@ const int ImageDragHysteresis = 5;
 const int TextDragHysteresis = 3;
 const int GeneralDragHysteresis = 3;
 #if PLATFORM(COCOA)
-const double EventHandler::TextDragDelay = 0.15;
+const Seconds EventHandler::TextDragDelay { 150_ms };
 #endif
 #endif // ENABLE(DRAG_SUPPORT)
 
@@ -328,8 +329,6 @@ static inline bool handleWheelEventInAppropriateEnclosingBox(Node* startNode, Wh
             return true;
 
         currentEnclosingBox = currentEnclosingBox->containingBlock();
-        if (currentEnclosingBox && currentEnclosingBox->isRenderNamedFlowThread())
-            currentEnclosingBox = RenderNamedFlowThread::fragmentFromRenderBoxAsRenderBlock(currentEnclosingBox, roundedIntPoint(wheelEvent.absoluteLocation()), initialEnclosingBox);
         if (!currentEnclosingBox || currentEnclosingBox->isRenderView())
             return false;
     }
@@ -2192,7 +2191,7 @@ bool EventHandler::dispatchDragEvent(const AtomicString& eventType, Element& dra
 
     view->disableLayerFlushThrottlingTemporarilyForInteraction();
     Ref<MouseEvent> me = MouseEvent::create(eventType,
-        true, true, event.timestamp(), m_frame.document()->defaultView(),
+        true, true, event.timestamp().approximateMonotonicTime(), m_frame.document()->defaultView(),
         0, event.globalPosition().x(), event.globalPosition().y(), event.position().x(), event.position().y(),
 #if ENABLE(POINTER_LOCK)
         event.movementDelta().x(), event.movementDelta().y(),
@@ -2941,7 +2940,7 @@ bool EventHandler::sendContextMenuEventForKey()
     PlatformEvent::Type eventType = PlatformEvent::MousePressed;
 #endif
 
-    PlatformMouseEvent platformMouseEvent(position, globalPosition, RightButton, eventType, 1, false, false, false, false, WTF::currentTime(), ForceAtClick, NoTap);
+    PlatformMouseEvent platformMouseEvent(position, globalPosition, RightButton, eventType, 1, false, false, false, false, WallTime::now(), ForceAtClick, NoTap);
 
     return sendContextMenuEvent(platformMouseEvent);
 }
@@ -3023,7 +3022,7 @@ void EventHandler::fakeMouseMoveEventTimerFired()
     bool altKey;
     bool metaKey;
     PlatformKeyboardEvent::getCurrentModifierState(shiftKey, ctrlKey, altKey, metaKey);
-    PlatformMouseEvent fakeMouseMoveEvent(m_lastKnownMousePosition, m_lastKnownMouseGlobalPosition, NoButton, PlatformEvent::MouseMoved, 0, shiftKey, ctrlKey, altKey, metaKey, currentTime(), 0, NoTap);
+    PlatformMouseEvent fakeMouseMoveEvent(m_lastKnownMousePosition, m_lastKnownMouseGlobalPosition, NoButton, PlatformEvent::MouseMoved, 0, shiftKey, ctrlKey, altKey, metaKey, WallTime::now(), 0, NoTap);
     mouseMoved(fakeMouseMoveEvent);
 }
 #endif // !ENABLE(IOS_TOUCH_EVENTS)
@@ -3465,31 +3464,22 @@ void EventHandler::invalidateDataTransfer()
     dragState().dataTransfer = nullptr;
 }
 
-static void repaintContentsOfRange(RefPtr<Range> range)
+static void removeDraggedContentDocumentMarkersFromAllFramesInPage(Page& page)
 {
-    if (!range)
-        return;
-
-    auto* container = range->commonAncestorContainer();
-    if (!container)
-        return;
-
-    // This ensures that all nodes enclosed in this Range are repainted.
-    if (auto rendererToRepaint = container->renderer()) {
-        if (auto* containingRenderer = rendererToRepaint->container())
-            rendererToRepaint = containingRenderer;
-        rendererToRepaint->repaint();
+    for (Frame* frame = &page.mainFrame(); frame; frame = frame->tree().traverseNext()) {
+        if (auto* document = frame->document())
+            document->markers().removeMarkers(DocumentMarker::DraggedContent);
     }
+
+    if (auto* mainFrameRenderer = page.mainFrame().contentRenderer())
+        mainFrameRenderer->repaintRootContents();
 }
 
 void EventHandler::dragCancelled()
 {
 #if ENABLE(DATA_INTERACTION)
-    if (auto range = dragState().draggedContentRange) {
-        range->ownerDocument().markers().removeMarkers(DocumentMarker::DraggedContent);
-        repaintContentsOfRange(range);
-    }
-    dragState().draggedContentRange = nullptr;
+    if (auto* page = m_frame.page())
+        removeDraggedContentDocumentMarkersFromAllFramesInPage(*page);
 #endif
 }
 
@@ -3504,22 +3494,24 @@ void EventHandler::didStartDrag()
     if (!renderer)
         return;
 
+    RefPtr<Range> draggedContentRange;
     if (dragState().type & DragSourceActionSelection)
-        dragState().draggedContentRange = m_frame.selection().selection().toNormalizedRange();
+        draggedContentRange = m_frame.selection().selection().toNormalizedRange();
     else {
         Position startPosition(dragSource.get(), Position::PositionIsBeforeAnchor);
         Position endPosition(dragSource.get(), Position::PositionIsAfterAnchor);
-        dragState().draggedContentRange = Range::create(dragSource->document(), startPosition, endPosition);
+        draggedContentRange = Range::create(dragSource->document(), startPosition, endPosition);
     }
 
-    if (auto range = dragState().draggedContentRange) {
-        range->ownerDocument().markers().addDraggedContentMarker(range.get());
-        repaintContentsOfRange(range);
+    if (draggedContentRange) {
+        draggedContentRange->ownerDocument().markers().addDraggedContentMarker(draggedContentRange.get());
+        if (auto* renderer = m_frame.contentRenderer())
+            renderer->repaintRootContents();
     }
 #endif
 }
 
-void EventHandler::dragSourceEndedAt(const PlatformMouseEvent& event, DragOperation operation)
+void EventHandler::dragSourceEndedAt(const PlatformMouseEvent& event, DragOperation operation, MayExtendDragSession mayExtendDragSession)
 {
     // Send a hit test request so that RenderLayer gets a chance to update the :hover and :active pseudoclasses.
     HitTestRequest request(HitTestRequest::Release | HitTestRequest::DisallowUserAgentShadowContent);
@@ -3532,9 +3524,9 @@ void EventHandler::dragSourceEndedAt(const PlatformMouseEvent& event, DragOperat
     }
     invalidateDataTransfer();
 
-    if (auto range = dragState().draggedContentRange) {
-        range->ownerDocument().markers().removeMarkers(DocumentMarker::DraggedContent);
-        repaintContentsOfRange(range);
+    if (mayExtendDragSession == MayExtendDragSession::No) {
+        if (auto* page = m_frame.page())
+            removeDraggedContentDocumentMarkersFromAllFramesInPage(*page);
     }
 
     dragState().source = nullptr;
@@ -3554,6 +3546,11 @@ void EventHandler::updateDragStateAfterEditDragIfNeeded(Element& rootEditableEle
 bool EventHandler::dispatchDragSrcEvent(const AtomicString& eventType, const PlatformMouseEvent& event)
 {
     return !dispatchDragEvent(eventType, *dragState().source, event, dragState().dataTransfer.get());
+}
+
+bool EventHandler::dispatchDragStartEventOnSourceElement(DataTransfer& dataTransfer)
+{
+    return !dispatchDragEvent(eventNames().dragstartEvent, *dragState().source, m_mouseDown, &dataTransfer) && !m_frame.selection().selection().isInPasswordField();
 }
     
 static bool ExactlyOneBitSet(DragSourceAction n)
@@ -3659,29 +3656,29 @@ bool EventHandler::handleDrag(const MouseEventWithHitTestResults& event, CheckDr
     // This does work only if we missed a dragEnd. Do it anyway, just to make sure the old dataTransfer gets numbed.
     invalidateDataTransfer();
 
-    dragState().dataTransfer = createDraggingDataTransfer();
+    dragState().dataTransfer = DataTransfer::createForDrag();
+    HasNonDefaultPasteboardData hasNonDefaultPasteboardData = HasNonDefaultPasteboardData::No;
     
     if (dragState().shouldDispatchEvents) {
-        // Check to see if the is a DOM based drag. If it is, get the DOM specified drag image and offset.
-        if (dragState().type == DragSourceActionDHTML) {
-            if (RenderObject* renderer = dragState().source->renderer()) {
-                // FIXME: This doesn't work correctly with transforms.
-                FloatPoint absPos = renderer->localToAbsolute();
-                IntSize delta = m_mouseDownPos - roundedIntPoint(absPos);
+        auto dragStartDataTransfer = DataTransfer::createForDragStartEvent();
+        m_mouseDownMayStartDrag = dispatchDragStartEventOnSourceElement(dragStartDataTransfer);
+        hasNonDefaultPasteboardData = dragStartDataTransfer->pasteboard().hasData() ? HasNonDefaultPasteboardData::Yes : HasNonDefaultPasteboardData::No;
+        dragState().dataTransfer->moveDragState(WTFMove(dragStartDataTransfer));
+
+        if (dragState().source && dragState().type == DragSourceActionDHTML && !dragState().dataTransfer->hasDragImage()) {
+            dragState().source->document().updateStyleIfNeeded();
+            if (auto* renderer = dragState().source->renderer()) {
+                auto absolutePosition = renderer->localToAbsolute();
+                auto delta = m_mouseDownPos - roundedIntPoint(absolutePosition);
                 dragState().dataTransfer->setDragImage(dragState().source.get(), delta.width(), delta.height());
             } else {
-                // The renderer has disappeared, this can happen if the onStartDrag handler has hidden
-                // the element in some way.  In this case we just kill the drag.
+                dispatchDragSrcEvent(eventNames().dragendEvent, event.event());
                 m_mouseDownMayStartDrag = false;
                 invalidateDataTransfer();
                 dragState().source = nullptr;
-
                 return true;
             }
-        } 
-
-        m_mouseDownMayStartDrag = dispatchDragSrcEvent(eventNames().dragstartEvent, m_mouseDown)
-            && !m_frame.selection().selection().isInPasswordField();
+        }
 
         dragState().dataTransfer->makeInvalidForSecurity();
 
@@ -3698,7 +3695,7 @@ bool EventHandler::handleDrag(const MouseEventWithHitTestResults& event, CheckDr
     
     if (m_mouseDownMayStartDrag) {
         Page* page = m_frame.page();
-        m_didStartDrag = page && page->dragController().startDrag(m_frame, dragState(), srcOp, event.event(), m_mouseDownPos);
+        m_didStartDrag = page && page->dragController().startDrag(m_frame, dragState(), srcOp, event.event(), m_mouseDownPos, hasNonDefaultPasteboardData);
         // In WebKit2 we could re-enter this code and start another drag.
         // On OS X this causes problems with the ownership of the pasteboard and the promised types.
         if (m_didStartDrag) {

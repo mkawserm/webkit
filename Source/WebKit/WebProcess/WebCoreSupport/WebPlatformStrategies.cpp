@@ -192,7 +192,14 @@ RefPtr<WebCore::SharedBuffer> WebPlatformStrategies::bufferForType(const String&
 
 void WebPlatformStrategies::getPathnamesForType(Vector<String>& pathnames, const String& pasteboardType, const String& pasteboardName)
 {
-    WebProcess::singleton().parentProcessConnection()->sendSync(Messages::WebPasteboardProxy::GetPasteboardPathnamesForType(pasteboardName, pasteboardType), Messages::WebPasteboardProxy::GetPasteboardPathnamesForType::Reply(pathnames), 0);
+    SandboxExtension::HandleArray sandboxExtensionsHandleArray;
+    WebProcess::singleton().parentProcessConnection()->sendSync(Messages::WebPasteboardProxy::GetPasteboardPathnamesForType(pasteboardName, pasteboardType),
+        Messages::WebPasteboardProxy::GetPasteboardPathnamesForType::Reply(pathnames, sandboxExtensionsHandleArray), 0);
+    ASSERT(pathnames.size() == sandboxExtensionsHandleArray.size());
+    for (size_t i = 0; i < sandboxExtensionsHandleArray.size(); i++) {
+        if (RefPtr<SandboxExtension> extension = SandboxExtension::create(sandboxExtensionsHandleArray[i]))
+            extension->consumePermanently();
+    }
 }
 
 String WebPlatformStrategies::stringForType(const String& pasteboardType, const String& pasteboardName)
@@ -200,13 +207,6 @@ String WebPlatformStrategies::stringForType(const String& pasteboardType, const 
     String value;
     WebProcess::singleton().parentProcessConnection()->sendSync(Messages::WebPasteboardProxy::GetPasteboardStringForType(pasteboardName, pasteboardType), Messages::WebPasteboardProxy::GetPasteboardStringForType::Reply(value), 0);
     return value;
-}
-
-long WebPlatformStrategies::copy(const String& fromPasteboard, const String& toPasteboard)
-{
-    uint64_t newChangeCount;
-    WebProcess::singleton().parentProcessConnection()->sendSync(Messages::WebPasteboardProxy::PasteboardCopy(fromPasteboard, toPasteboard), Messages::WebPasteboardProxy::PasteboardCopy::Reply(newChangeCount), 0);
-    return newChangeCount;
 }
 
 long WebPlatformStrategies::changeCount(const WTF::String &pasteboardName)
@@ -404,5 +404,19 @@ void WebPlatformStrategies::writeToPasteboard(const String& pasteboardType, cons
 }
 
 #endif // PLATFORM(WPE)
+
+Vector<String> WebPlatformStrategies::typesSafeForDOMToReadAndWrite(const String& pasteboardName)
+{
+    Vector<String> types;
+    WebProcess::singleton().parentProcessConnection()->sendSync(Messages::WebPasteboardProxy::TypesSafeForDOMToReadAndWrite(pasteboardName), Messages::WebPasteboardProxy::TypesSafeForDOMToReadAndWrite::Reply(types), 0);
+    return types;
+}
+
+long WebPlatformStrategies::writeCustomData(const WebCore::PasteboardCustomData& data, const String& pasteboardName)
+{
+    uint64_t newChangeCount;
+    WebProcess::singleton().parentProcessConnection()->sendSync(Messages::WebPasteboardProxy::WriteCustomData(data, pasteboardName), Messages::WebPasteboardProxy::WriteCustomData::Reply(newChangeCount), 0);
+    return newChangeCount;
+}
 
 } // namespace WebKit

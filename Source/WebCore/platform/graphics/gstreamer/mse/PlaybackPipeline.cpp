@@ -300,7 +300,7 @@ void PlaybackPipeline::attachTrack(RefPtr<SourceBufferPrivateGStreamer> sourceBu
         g_signal_emit(G_OBJECT(stream->parent), webKitMediaSrcSignals[signal], 0, nullptr);
 }
 
-void PlaybackPipeline::reattachTrack(RefPtr<SourceBufferPrivateGStreamer> sourceBufferPrivate, RefPtr<TrackPrivateBase> trackPrivate)
+void PlaybackPipeline::reattachTrack(RefPtr<SourceBufferPrivateGStreamer> sourceBufferPrivate, RefPtr<TrackPrivateBase> trackPrivate, const char* mediaType)
 {
     GST_DEBUG("Re-attaching track");
 
@@ -315,10 +315,6 @@ void PlaybackPipeline::reattachTrack(RefPtr<SourceBufferPrivateGStreamer> source
 
     ASSERT(stream && stream->type != Invalid);
 
-    // The caps change is managed by gst_appsrc_push_sample() in enqueueSample() and
-    // flushAndEnqueueNonDisplayingSamples(), so the caps aren't set from here.
-    GRefPtr<GstCaps> appsrcCaps = adoptGRef(gst_app_src_get_caps(GST_APP_SRC(stream->appsrc)));
-    const gchar* mediaType = gst_structure_get_name(gst_caps_get_structure(appsrcCaps.get(), 0));
     int signal = -1;
 
     GST_OBJECT_LOCK(webKitMediaSrc);
@@ -460,8 +456,8 @@ void PlaybackPipeline::flush(AtomicString trackId)
     gst_segment_do_seek(segment.get(), rate, GST_FORMAT_TIME, GST_SEEK_FLAG_NONE,
         GST_SEEK_TYPE_SET, position, GST_SEEK_TYPE_SET, stop, nullptr);
 
-    GRefPtr<GstPad> sinkPad = gst_element_get_static_pad(appsrc, "src");
-    GRefPtr<GstPad> srcPad = sinkPad ? gst_pad_get_peer(sinkPad.get()) : nullptr;
+    GRefPtr<GstPad> sinkPad = adoptGRef(gst_element_get_static_pad(appsrc, "src"));
+    GRefPtr<GstPad> srcPad = sinkPad ? adoptGRef(gst_pad_get_peer(sinkPad.get())) : nullptr;
     if (srcPad)
         gst_pad_add_probe(srcPad.get(), GST_PAD_PROBE_TYPE_EVENT_DOWNSTREAM, segmentFixerProbe, nullptr, nullptr);
 
@@ -485,8 +481,8 @@ void PlaybackPipeline::enqueueSample(Ref<MediaSample>&& mediaSample)
     GST_TRACE("enqueing sample trackId=%s PTS=%f presentationSize=%.0fx%.0f at %" GST_TIME_FORMAT " duration: %" GST_TIME_FORMAT,
         trackId.string().utf8().data(), mediaSample->presentationTime().toFloat(),
         mediaSample->presentationSize().width(), mediaSample->presentationSize().height(),
-        GST_TIME_ARGS(WebCore::toGstClockTime(mediaSample->presentationTime().toDouble())),
-        GST_TIME_ARGS(WebCore::toGstClockTime(mediaSample->duration().toDouble())));
+        GST_TIME_ARGS(WebCore::toGstClockTime(mediaSample->presentationTime())),
+        GST_TIME_ARGS(WebCore::toGstClockTime(mediaSample->duration())));
 
     WTF::GMutexLocker<GMutex> locker(*GST_OBJECT_GET_LOCK(m_webKitMediaSrc.get()));
     Stream* stream = getStreamByTrackId(m_webKitMediaSrc.get(), trackId);

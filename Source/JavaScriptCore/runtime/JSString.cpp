@@ -442,14 +442,15 @@ JSValue JSString::toThis(JSCell* cell, ExecState* exec, ECMAMode ecmaMode)
 
 bool JSString::getStringPropertyDescriptor(ExecState* exec, PropertyName propertyName, PropertyDescriptor& descriptor)
 {
-    if (propertyName == exec->propertyNames().length) {
-        descriptor.setDescriptor(jsNumber(length()), DontEnum | DontDelete | ReadOnly);
+    VM& vm = exec->vm();
+    if (propertyName == vm.propertyNames->length) {
+        descriptor.setDescriptor(jsNumber(length()), PropertyAttribute::DontEnum | PropertyAttribute::DontDelete | PropertyAttribute::ReadOnly);
         return true;
     }
     
     std::optional<uint32_t> index = parseIndex(propertyName);
     if (index && index.value() < length()) {
-        descriptor.setDescriptor(getIndex(exec, index.value()), DontDelete | ReadOnly);
+        descriptor.setDescriptor(getIndex(exec, index.value()), PropertyAttribute::DontDelete | PropertyAttribute::ReadOnly);
         return true;
     }
     

@@ -23,8 +23,7 @@
  * THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef WebViewImpl_h
-#define WebViewImpl_h
+#pragma once
 
 #if PLATFORM(MAC)
 
@@ -41,6 +40,8 @@
 #include <wtf/RetainPtr.h>
 #include <wtf/WeakPtr.h>
 #include <wtf/text/WTFString.h>
+
+using _WKRectEdge = NSInteger;
 
 OBJC_CLASS NSAccessibilityRemoteUIElement;
 OBJC_CLASS NSImmediateActionGestureRecognizer;
@@ -236,6 +237,10 @@ public:
     void setUnderlayColor(NSColor *);
     NSColor *underlayColor() const;
     NSColor *pageExtendedBackgroundColor() const;
+    
+    _WKRectEdge pinnedState();
+    _WKRectEdge rubberBandingEnabled();
+    void setRubberBandingEnabled(_WKRectEdge);
 
     void setOverlayScrollbarStyle(std::optional<WebCore::ScrollbarOverlayStyle> scrollbarStyle);
     std::optional<WebCore::ScrollbarOverlayStyle> overlayScrollbarStyle() const;
@@ -569,7 +574,7 @@ private:
 #endif // ENABLE(WEB_PLAYBACK_CONTROLS_MANAGER)
 #endif // HAVE(TOUCH_BAR)
 
-    WeakPtr<WebViewImpl> createWeakPtr() { return m_weakPtrFactory.createWeakPtr(); }
+    WeakPtr<WebViewImpl> createWeakPtr() { return m_weakPtrFactory.createWeakPtr(*this); }
 
     bool supportsArbitraryLayoutModes() const;
     float intrinsicDeviceScaleFactor() const;
@@ -732,5 +737,3 @@ private:
 } // namespace WebKit
 
 #endif // PLATFORM(MAC)
-
-#endif // WebViewImpl_h

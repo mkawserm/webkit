@@ -49,7 +49,6 @@
 #include "HTMLParserIdioms.h"
 #include "IdTargetObserver.h"
 #include "KeyboardEvent.h"
-#include "Language.h"
 #include "LocalizedStrings.h"
 #include "MouseEvent.h"
 #include "PlatformMouseEvent.h"
@@ -59,6 +58,7 @@
 #include "SearchInputType.h"
 #include "Settings.h"
 #include "StyleResolver.h"
+#include <wtf/Language.h>
 #include <wtf/MathExtras.h>
 #include <wtf/Ref.h>
 
@@ -103,6 +103,7 @@ HTMLInputElement::HTMLInputElement(const QualifiedName& tagName, Document& docum
     , m_autocomplete(Uninitialized)
     , m_isAutoFilled(false)
     , m_autoFillButtonType(static_cast<uint8_t>(AutoFillButtonType::None))
+    , m_isAutoFillAvailable(false)
 #if ENABLE(DATALIST_ELEMENT)
     , m_hasNonEmptyList(false)
 #endif
@@ -871,9 +872,9 @@ void HTMLInputElement::setActivatedSubmit(bool flag)
     m_isActivatedSubmit = flag;
 }
 
-bool HTMLInputElement::appendFormData(FormDataList& encoding, bool multipart)
+bool HTMLInputElement::appendFormData(DOMFormData& formData, bool multipart)
 {
-    return m_inputType->isFormDataAppendable() && m_inputType->appendFormData(encoding, multipart);
+    return m_inputType->isFormDataAppendable() && m_inputType->appendFormData(formData, multipart);
 }
 
 void HTMLInputElement::reset()
@@ -1117,6 +1118,11 @@ void HTMLInputElement::willDispatchEvent(Event& event, InputElementClickState& s
 void HTMLInputElement::didDispatchClickEvent(Event& event, const InputElementClickState& state)
 {
     m_inputType->didDispatchClick(&event, state);
+}
+
+void HTMLInputElement::didBlur()
+{
+    m_inputType->elementDidBlur();
 }
 
 void HTMLInputElement::defaultEventHandler(Event& event)

@@ -36,7 +36,6 @@
 #include "JSDOMWindowCustom.h"
 #include "JSMainThreadExecState.h"
 #include "JSNode.h"
-#include "Language.h"
 #include "Logging.h"
 #include "Page.h"
 #include "RejectedPromiseTracker.h"
@@ -51,6 +50,7 @@
 #include <runtime/JSInternalPromise.h>
 #include <runtime/JSInternalPromiseDeferred.h>
 #include <runtime/Microtask.h>
+#include <wtf/Language.h>
 #include <wtf/MainThread.h>
 
 #if PLATFORM(IOS)
@@ -94,8 +94,8 @@ void JSDOMWindowBase::finishCreation(VM& vm, JSDOMWindowProxy* proxy)
     auto& builtinNames = static_cast<JSVMClientData*>(vm.clientData)->builtinNames();
 
     GlobalPropertyInfo staticGlobals[] = {
-        GlobalPropertyInfo(builtinNames.documentPublicName(), jsNull(), DontDelete | ReadOnly),
-        GlobalPropertyInfo(builtinNames.windowPublicName(), m_proxy, DontDelete | ReadOnly),
+        GlobalPropertyInfo(builtinNames.documentPublicName(), jsNull(), PropertyAttribute::DontDelete | PropertyAttribute::ReadOnly),
+        GlobalPropertyInfo(builtinNames.windowPublicName(), m_proxy, PropertyAttribute::DontDelete | PropertyAttribute::ReadOnly),
     };
 
     addStaticGlobals(staticGlobals, WTF_ARRAY_LENGTH(staticGlobals));

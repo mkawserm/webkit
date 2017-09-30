@@ -217,6 +217,22 @@
                 { "name": "secure", "type": "boolean", "description": "True if cookie is secure." },
                 { "name": "session", "type": "boolean", "description": "True in case of session cookie." }
             ]
+        },
+        {
+            "id": "SessionPermission",
+            "type": "string",
+            "description": "Enumerates different permissions that must be obtained in order to use privileged APIs.",
+            "enum": [
+                "GetUserMedia"
+            ]
+        },
+        {
+            "id": "SessionPermissionData",
+            "type": "object",
+            "properties": [
+                { "name": "permission", "$ref": "SessionPermission" },
+                { "name": "value", "type": "boolean" }
+            ]
         }
     ],
     "commands": [
@@ -225,7 +241,8 @@
             "description": "Fetches information about all open browsing contexts (windows and tabs) in the automation session.",
             "returns": [
                 { "name": "contexts", "type": "array", "items": { "$ref": "BrowsingContext" }, "description": "All known browsing contexts available to the session." }
-            ]
+            ],
+            "async": true
         },
         {
             "name": "getBrowsingContext",
@@ -235,7 +252,8 @@
             ],
             "returns": [
                 { "name": "context", "$ref": "BrowsingContext", "description": "The browsing context available to the session." }
-            ]
+            ],
+            "async": true
         },
         {
             "name": "createBrowsingContext",
@@ -265,7 +283,8 @@
             "parameters": [
                 { "name": "handle", "$ref": "BrowsingContextHandle", "description": "The handle for the browsing context to be resized." },
                 { "name": "size", "$ref": "Size", "description": "The new size for the browsing context's window." }
-            ]
+            ],
+            "async": true
         },
         {
             "name": "moveWindowOfBrowsingContext",
@@ -273,7 +292,8 @@
             "parameters": [
                 { "name": "handle", "$ref": "BrowsingContextHandle", "description": "The handle for the browsing context to be moved." },
                 { "name": "origin", "$ref": "Point", "description": "The new origin for the browsing context's window. The position is interpreted in screen coordinate space, relative to the upper left corner of the screen." }
-            ]
+            ],
+            "async": true
         },
         {
             "name": "navigateBrowsingContext",
@@ -365,7 +385,8 @@
             ],
             "returns": [
                 { "name": "position", "$ref": "Point", "description": "The updated position of the mouse cursor, specified in viewport coordinates." }
-            ]
+            ],
+            "async": true
         },
         {
             "name": "performKeyboardInteractions",
@@ -528,6 +549,20 @@
             "description": "Delete all cookies that are visible to the specified browsing context.",
             "parameters": [
                 { "name": "browsingContextHandle", "$ref": "BrowsingContextHandle", "description": "The handle for the browsing context." }
+            ]
+        },
+        {
+            "name": "getSessionPermissions",
+            "description": "Returns the state of all session permissions, which control whether privileged Web APIs can be used. Permissions are applied to all browsing contexts associated with the automation session.",
+            "returns": [
+                { "name": "permissions", "type": "array", "items": { "$ref": "SessionPermissionData" }, "description": "Array of available session permissions and their values." }
+            ]
+        },
+        {
+            "name": "setSessionPermissions",
+            "description": "Attempts to set the state of session permissions, which control whether privileged Web APIs can be used. Permissions that are not understood are ignored. Permissions are applied to all browsing contexts associated with the automation session.",
+            "parameters": [
+                { "name": "permissions", "type": "array", "items": { "$ref": "SessionPermissionData" }, "description": "Array of session permissions to set, if they are available." }
             ]
         }
     ],

@@ -50,15 +50,14 @@
 #include "PerformanceLoggingClient.h"
 #include "PluginViewBase.h"
 #include "ProgressTracker.h"
-#include "RenderFlowThread.h"
+#include "RenderFragmentContainer.h"
+#include "RenderFragmentedFlow.h"
 #include "RenderHTMLCanvas.h"
 #include "RenderIFrame.h"
 #include "RenderImage.h"
 #include "RenderLayerCompositor.h"
 #include "RenderEmbeddedObject.h"
 #include "RenderMedia.h"
-#include "RenderNamedFlowFragment.h"
-#include "RenderRegion.h"
 #include "RenderVideo.h"
 #include "RenderView.h"
 #include "ScrollingCoordinator.h"
@@ -209,9 +208,9 @@ PaintedContentsInfo::ContentsTypeDetermination PaintedContentsInfo::contentsType
 RenderLayerBacking::RenderLayerBacking(RenderLayer& layer)
     : m_owningLayer(layer)
 {
-    if (layer.isRootLayer()) {
+    if (layer.isRenderViewLayer()) {
         m_isMainFrameRenderViewLayer = renderer().frame().isMainFrame();
-        m_isMainFrameLayerWithTiledBacking = renderer().page().chrome().client().shouldUseTiledBackingForFrameView(renderer().view().frameView());
+        m_isFrameLayerWithTiledBacking = renderer().page().chrome().client().shouldUseTiledBackingForFrameView(renderer().view().frameView());
     }
     
     createPrimaryGraphicsLayer();
@@ -219,7 +218,7 @@ RenderLayerBacking::RenderLayerBacking(RenderLayer& layer)
     if (TiledBacking* tiledBacking = this->tiledBacking()) {
         tiledBacking->setIsInWindow(renderer().page().isInWindow());
 
-        if (m_isMainFrameLayerWithTiledBacking) {
+        if (m_isFrameLayerWithTiledBacking) {
             tiledBacking->setScrollingPerformanceLoggingEnabled(renderer().settings().scrollingPerformanceLoggingEnabled());
             adjustTiledBackingCoverage();
         }
@@ -322,7 +321,7 @@ static TiledBacking::TileCoverage computePageTiledBackingCoverage(RenderLayerBac
 
 void RenderLayerBacking::adjustTiledBackingCoverage()
 {
-    if (!m_isMainFrameLayerWithTiledBacking)
+    if (!m_isFrameLayerWithTiledBacking)
         return;
 
     TiledBacking::TileCoverage tileCoverage = computePageTiledBackingCoverage(this);
@@ -331,7 +330,7 @@ void RenderLayerBacking::adjustTiledBackingCoverage()
 
 void RenderLayerBacking::setTiledBackingHasMargins(bool hasExtendedBackgroundOnLeftAndRight, bool hasExtendedBackgroundOnTopAndBottom)
 {
-    if (!m_isMainFrameLayerWithTiledBacking)
+    if (!m_isFrameLayerWithTiledBacking)
         return;
 
     tiledBacking()->setHasMargins(hasExtendedBackgroundOnTopAndBottom, hasExtendedBackgroundOnTopAndBottom, hasExtendedBackgroundOnLeftAndRight, hasExtendedBackgroundOnLeftAndRight);
@@ -389,9 +388,9 @@ void RenderLayerBacking::createPrimaryGraphicsLayer()
         layerName.truncate(maxLayerNameLength);
         layerName.append("...");
     }
-    m_graphicsLayer = createGraphicsLayer(layerName, m_isMainFrameLayerWithTiledBacking ? GraphicsLayer::Type::PageTiledBacking : GraphicsLayer::Type::Normal);
+    m_graphicsLayer = createGraphicsLayer(layerName, m_isFrameLayerWithTiledBacking ? GraphicsLayer::Type::PageTiledBacking : GraphicsLayer::Type::Normal);
 
-    if (m_isMainFrameLayerWithTiledBacking) {
+    if (m_isFrameLayerWithTiledBacking) {
         m_childContainmentLayer = createGraphicsLayer("Page TiledBacking containment");
         m_graphicsLayer->addChild(m_childContainmentLayer.get());
     }
@@ -566,13 +565,10 @@ bool RenderLayerBacking::shouldClipCompositedBounds() const
         return false;
 #endif
 
-    if (m_isMainFrameLayerWithTiledBacking)
+    if (m_isFrameLayerWithTiledBacking)
         return false;
 
     if (layerOrAncestorIsTransformedOrUsingCompositedScrolling(m_owningLayer))
-        return false;
-
-    if (m_owningLayer.isFlowThreadCollectingGraphicsLayersUnderRegions())
         return false;
 
     return true;
@@ -720,7 +716,7 @@ bool RenderLayerBacking::updateConfiguration()
 
     PaintedContentsInfo contentsInfo(*this);
 
-    if (!m_owningLayer.isRootLayer()) {
+    if (!m_owningLayer.isRenderViewLayer()) {
         bool didUpdateContentsRect = false;
         updateDirectlyCompositedBoxDecorations(contentsInfo, didUpdateContentsRect);
     } else
@@ -893,11 +889,10 @@ LayoutRect RenderLayerBacking::computeParentGraphicsLayerRect(RenderLayer* compo
 
     auto* ancestorBackingLayer = compositedAncestor->backing();
     LayoutRect parentGraphicsLayerRect;
-    if (m_owningLayer.isInsideFlowThread()) {
+    if (m_owningLayer.isInsideFragmentedFlow()) {
         // FIXME: flows/columns need work.
         LayoutRect ancestorCompositedBounds = ancestorBackingLayer->compositedBounds();
         ancestorCompositedBounds.setLocation(LayoutPoint());
-        adjustAncestorCompositingBoundsForFlowThread(ancestorCompositedBounds, compositedAncestor);
         parentGraphicsLayerRect = ancestorCompositedBounds;
     }
 
@@ -1052,7 +1047,7 @@ void RenderLayerBacking::updateGeometry()
     if (m_maskLayer)
         updateMaskingLayerGeometry();
     
-    if (m_owningLayer.renderer().hasTransformRelatedProperty()) {
+    if (renderer().hasTransformRelatedProperty()) {
         // Update properties that depend on layer dimensions.
         FloatPoint3D transformOrigin = computeTransformOriginForPainting(downcast<RenderBox>(renderer()).borderBoxRect());
         FloatPoint layerOffset = roundPointToDevicePixels(toLayoutPoint(rendererOffset.fromParentGraphicsLayer()), deviceScaleFactor());
@@ -1220,7 +1215,7 @@ void RenderLayerBacking::updateAfterDescendants()
     PaintedContentsInfo contentsInfo(*this);
     contentsInfo.setWantsSubpixelAntialiasedTextState(GraphicsLayer::supportsSubpixelAntialiasedLayerText());
 
-    if (!m_owningLayer.isRootLayer()) {
+    if (!m_owningLayer.isRenderViewLayer()) {
         bool didUpdateContentsRect = false;
         updateDirectlyCompositedBoxDecorations(contentsInfo, didUpdateContentsRect);
         if (!didUpdateContentsRect && m_graphicsLayer->usesContentsLayer())
@@ -1261,48 +1256,6 @@ void RenderLayerBacking::updateMaskingLayerGeometry()
             m_maskLayer->setShapeLayerPath(clipPath);
             m_maskLayer->setShapeLayerWindRule(windRule);
         }
-    }
-}
-
-void RenderLayerBacking::adjustAncestorCompositingBoundsForFlowThread(LayoutRect& ancestorCompositingBounds, const RenderLayer* compositingAncestor) const
-{
-    RenderLayer* flowThreadLayer = m_owningLayer.isInsideOutOfFlowThread() ? m_owningLayer.stackingContainer() : nullptr;
-    if (flowThreadLayer && flowThreadLayer->isRenderFlowThread()) {
-        if (m_owningLayer.isFlowThreadCollectingGraphicsLayersUnderRegions()) {
-            // The RenderNamedFlowThread is not composited, as we need it to paint the 
-            // background layer of the regions. We need to compensate for that by manually
-            // subtracting the position of the flow-thread.
-            IntPoint flowPosition;
-            flowThreadLayer->convertToPixelSnappedLayerCoords(compositingAncestor, flowPosition);
-            ancestorCompositingBounds.moveBy(flowPosition);
-        }
-
-        // Move the ancestor position at the top of the region where the composited layer is going to display.
-        RenderFlowThread& flowThread = downcast<RenderFlowThread>(flowThreadLayer->renderer());
-        RenderNamedFlowFragment* parentRegion = flowThread.cachedRegionForCompositedLayer(m_owningLayer);
-        if (!parentRegion)
-            return;
-
-        IntPoint flowDelta;
-        m_owningLayer.convertToPixelSnappedLayerCoords(flowThreadLayer, flowDelta);
-        parentRegion->adjustRegionBoundsFromFlowThreadPortionRect(ancestorCompositingBounds);
-        RenderBoxModelObject& layerOwner = downcast<RenderBoxModelObject>(parentRegion->layerOwner());
-        RenderLayerBacking* layerOwnerBacking = layerOwner.layer()->backing();
-        if (!layerOwnerBacking)
-            return;
-
-        // Make sure that the region propagates its borders, paddings, outlines or box-shadows to layers inside it.
-        // Note that the composited bounds of the RenderRegion are already calculated because
-        // RenderLayerCompositor::rebuildCompositingLayerTree will only iterate on the content of the region after the
-        // region itself is computed.
-        ancestorCompositingBounds.moveBy(roundedIntPoint(layerOwnerBacking->compositedBounds().location()));
-        ancestorCompositingBounds.move(-layerOwner.borderAndPaddingStart(), -layerOwner.borderAndPaddingBefore());
-
-        // If there's a clipping GraphicsLayer on the hierarchy (region graphics layer -> clipping graphics layer ->
-        // composited content graphics layer), substract the offset of the clipping layer, since it's its parent
-        // that positions us (the graphics layer of the region).
-        if (layerOwnerBacking->clippingLayer())
-            ancestorCompositingBounds.moveBy(roundedIntPoint(layerOwnerBacking->clippingLayer()->position()));
     }
 }
 
@@ -1450,7 +1403,7 @@ bool RenderLayerBacking::updateDescendantClippingLayer(bool needsDescendantClip)
     bool layersChanged = false;
 
     if (needsDescendantClip) {
-        if (!m_childContainmentLayer && !m_isMainFrameLayerWithTiledBacking) {
+        if (!m_childContainmentLayer && !m_isFrameLayerWithTiledBacking) {
             m_childContainmentLayer = createGraphicsLayer("child clipping");
             m_childContainmentLayer->setMasksToBounds(true);
             layersChanged = true;
@@ -1959,7 +1912,7 @@ void RenderLayerBacking::updateDirectlyCompositedBackgroundImage(PaintedContents
 
 void RenderLayerBacking::updateRootLayerConfiguration()
 {
-    if (!m_isMainFrameLayerWithTiledBacking)
+    if (!m_isFrameLayerWithTiledBacking)
         return;
 
     Color backgroundColor;
@@ -2071,9 +2024,6 @@ bool RenderLayerBacking::isSimpleContainerCompositingLayer(PaintedContentsInfo& 
     if (renderer().style().backgroundClip() == TextFillBox)
         return false;
     
-    if (renderer().isRenderNamedFlowFragmentContainer())
-        return false;
-
     if (renderer().isDocumentElementRenderer() && m_owningLayer.isolatesCompositedBlending())
         return false;
 
@@ -2128,35 +2078,33 @@ static LayerTraversal traverseVisibleNonCompositedDescendantLayers(RenderLayer& 
         }
     }
 
-    if (parent.isStackingContainer()) {
-        if (!parent.hasVisibleDescendant())
-            return LayerTraversal::Continue;
+    if (parent.isStackingContainer() && !parent.hasVisibleDescendant())
+        return LayerTraversal::Continue;
 
-        // Use the m_hasCompositingDescendant bit to optimize?
-        if (auto* negZOrderList = parent.negZOrderList()) {
-            for (auto* childLayer : *negZOrderList) {
-                if (compositedWithOwnBackingStore(*childLayer))
-                    continue;
+    // Use the m_hasCompositingDescendant bit to optimize?
+    if (auto* negZOrderList = parent.negZOrderList()) {
+        for (auto* childLayer : *negZOrderList) {
+            if (compositedWithOwnBackingStore(*childLayer))
+                continue;
 
-                if (layerFunc(*childLayer) == LayerTraversal::Stop)
-                    return LayerTraversal::Stop;
+            if (layerFunc(*childLayer) == LayerTraversal::Stop)
+                return LayerTraversal::Stop;
 
-                if (traverseVisibleNonCompositedDescendantLayers(*childLayer, layerFunc) == LayerTraversal::Stop)
-                    return LayerTraversal::Stop;
-            }
+            if (traverseVisibleNonCompositedDescendantLayers(*childLayer, layerFunc) == LayerTraversal::Stop)
+                return LayerTraversal::Stop;
         }
+    }
 
-        if (auto* posZOrderList = parent.posZOrderList()) {
-            for (auto* childLayer : *posZOrderList) {
-                if (compositedWithOwnBackingStore(*childLayer))
-                    continue;
+    if (auto* posZOrderList = parent.posZOrderList()) {
+        for (auto* childLayer : *posZOrderList) {
+            if (compositedWithOwnBackingStore(*childLayer))
+                continue;
 
-                if (layerFunc(*childLayer) == LayerTraversal::Stop)
-                    return LayerTraversal::Stop;
+            if (layerFunc(*childLayer) == LayerTraversal::Stop)
+                return LayerTraversal::Stop;
 
-                if (traverseVisibleNonCompositedDescendantLayers(*childLayer, layerFunc) == LayerTraversal::Stop)
-                    return LayerTraversal::Stop;
-            }
+            if (traverseVisibleNonCompositedDescendantLayers(*childLayer, layerFunc) == LayerTraversal::Stop)
+                return LayerTraversal::Stop;
         }
     }
 
@@ -2399,10 +2347,10 @@ bool RenderLayerBacking::paintsIntoWindow() const
         return false;
 #endif
 
-    if (m_isMainFrameLayerWithTiledBacking)
+    if (m_isFrameLayerWithTiledBacking)
         return false;
 
-    if (m_owningLayer.isRootLayer()) {
+    if (m_owningLayer.isRenderViewLayer()) {
 #if PLATFORM(IOS) || USE(COORDINATED_GRAPHICS)
         if (compositor().inForcedCompositingMode())
             return false;
@@ -2433,7 +2381,7 @@ void RenderLayerBacking::setContentsNeedDisplay(GraphicsLayer::ShouldClipToLayer
 {
     ASSERT(!paintsIntoCompositedAncestor());
 
-    FrameView& frameView = owningLayer().renderer().view().frameView();
+    FrameView& frameView = renderer().view().frameView();
     if (m_isMainFrameRenderViewLayer && frameView.isTrackingRepaints())
         frameView.addTrackedRepaintRect(owningLayer().absoluteBoundingBoxForPainting());
     
@@ -2468,7 +2416,7 @@ void RenderLayerBacking::setContentsNeedDisplayInRect(const LayoutRect& r, Graph
     ASSERT(!paintsIntoCompositedAncestor());
 
     FloatRect pixelSnappedRectForPainting = snapRectToDevicePixels(r, deviceScaleFactor());
-    FrameView& frameView = owningLayer().renderer().view().frameView();
+    FrameView& frameView = renderer().view().frameView();
     if (m_isMainFrameRenderViewLayer && frameView.isTrackingRepaints())
         frameView.addTrackedRepaintRect(pixelSnappedRectForPainting);
 
@@ -2555,17 +2503,17 @@ void RenderLayerBacking::paintIntoLayer(const GraphicsLayer* graphicsLayer, Grap
 #endif
 
     FrameView::PaintingState paintingState;
-    if (m_owningLayer.isRootLayer())
+    if (m_owningLayer.isRenderViewLayer())
         renderer().view().frameView().willPaintContents(context, paintDirtyRect, paintingState);
 
-    // FIXME: GraphicsLayers need a way to split for RenderRegions.
+    // FIXME: GraphicsLayers need a way to split for RenderFragmentContainers.
     RenderLayer::LayerPaintingInfo paintingInfo(&m_owningLayer, paintDirtyRect, paintBehavior, -m_subpixelOffsetFromRenderer);
     m_owningLayer.paintLayerContents(context, paintingInfo, paintFlags);
 
     if (m_owningLayer.containsDirtyOverlayScrollbars())
         m_owningLayer.paintLayerContents(context, paintingInfo, paintFlags | RenderLayer::PaintLayerPaintingOverlayScrollbars);
 
-    if (m_owningLayer.isRootLayer())
+    if (m_owningLayer.isRenderViewLayer())
         renderer().view().frameView().didPaintContents(context, paintDirtyRect, paintingState);
 
     compositor().didPaintBacking(this);
@@ -2617,7 +2565,7 @@ void RenderLayerBacking::paintContents(const GraphicsLayer* graphicsLayer, Graph
     } else if (graphicsLayer == layerForScrollCorner()) {
         const LayoutRect& scrollCornerAndResizer = m_owningLayer.scrollCornerAndResizerRect();
         context.save();
-        context.translate(-scrollCornerAndResizer.x(), -scrollCornerAndResizer.y());
+        context.translate(-scrollCornerAndResizer.location());
         LayoutRect transformedClip = LayoutRect(clip);
         transformedClip.moveBy(scrollCornerAndResizer.location());
         m_owningLayer.paintScrollCorner(context, IntPoint(), snappedIntRect(transformedClip));
@@ -3050,8 +2998,8 @@ TextStream& operator<<(TextStream& ts, const RenderLayerBacking& backing)
 {
     ts << "RenderLayerBacking " << &backing << " bounds " << backing.compositedBounds();
 
-    if (backing.isMainFrameLayerWithTiledBacking())
-        ts << " main tiled backing";
+    if (backing.isFrameLayerWithTiledBacking())
+        ts << " frame layer tiled backing";
     if (backing.paintsIntoWindow())
         ts << " paintsIntoWindow";
     if (backing.paintsIntoCompositedAncestor())

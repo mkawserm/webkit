@@ -218,7 +218,7 @@ void WebLoaderStrategy::scheduleLoad(ResourceLoader& resourceLoader, CachedResou
     LOG(NetworkScheduling, "(WebProcess) WebLoaderStrategy::scheduleLoad, url '%s' will be scheduled with the NetworkProcess with priority %d", resourceLoader.url().string().latin1().data(), static_cast<int>(resourceLoader.request().priority()));
 
     ContentSniffingPolicy contentSniffingPolicy = resourceLoader.shouldSniffContent() ? SniffContent : DoNotSniffContent;
-    StoredCredentials allowStoredCredentials = resourceLoader.shouldUseCredentialStorage() ? AllowStoredCredentials : DoNotAllowStoredCredentials;
+    StoredCredentialsPolicy storedCredentialsPolicy = resourceLoader.shouldUseCredentialStorage() ? StoredCredentialsPolicy::Use : StoredCredentialsPolicy::DoNotUse;
 
     NetworkResourceLoadParameters loadParameters;
     loadParameters.identifier = identifier;
@@ -227,7 +227,7 @@ void WebLoaderStrategy::scheduleLoad(ResourceLoader& resourceLoader, CachedResou
     loadParameters.sessionID = webPage ? webPage->sessionID() : PAL::SessionID::defaultSessionID();
     loadParameters.request = resourceLoader.request();
     loadParameters.contentSniffingPolicy = contentSniffingPolicy;
-    loadParameters.allowStoredCredentials = allowStoredCredentials;
+    loadParameters.storedCredentialsPolicy = storedCredentialsPolicy;
     // If there is no WebFrame then this resource cannot be authenticated with the client.
     loadParameters.clientCredentialPolicy = (webFrame && webPage && resourceLoader.isAllowedToAskUserForCredentials()) ? ClientCredentialPolicy::MayAskClientForCredentials : ClientCredentialPolicy::CannotAskClientForCredentials;
     loadParameters.shouldClearReferrerOnHTTPSToHTTPRedirect = shouldClearReferrerOnHTTPSToHTTPRedirect;
@@ -356,9 +356,13 @@ void WebLoaderStrategy::networkProcessCrashed()
     auto pingLoadCompletionHandlers = WTFMove(m_pingLoadCompletionHandlers);
     for (auto& pingLoadCompletionHandler : pingLoadCompletionHandlers.values())
         pingLoadCompletionHandler(internalError(URL()));
+
+    auto preconnectCompletionHandlers = WTFMove(m_preconnectCompletionHandlers);
+    for (auto& preconnectCompletionHandler : preconnectCompletionHandlers.values())
+        preconnectCompletionHandler(internalError(URL()));
 }
 
-void WebLoaderStrategy::loadResourceSynchronously(NetworkingContext* context, unsigned long resourceLoadIdentifier, const ResourceRequest& request, StoredCredentials storedCredentials, ClientCredentialPolicy clientCredentialPolicy, ResourceError& error, ResourceResponse& response, Vector<char>& data)
+void WebLoaderStrategy::loadResourceSynchronously(NetworkingContext* context, unsigned long resourceLoadIdentifier, const ResourceRequest& request, StoredCredentialsPolicy storedCredentialsPolicy, ClientCredentialPolicy clientCredentialPolicy, ResourceError& error, ResourceResponse& response, Vector<char>& data)
 {
     WebFrameNetworkingContext* webContext = static_cast<WebFrameNetworkingContext*>(context);
     // FIXME: Some entities in WebCore use WebCore's "EmptyFrameLoaderClient" instead of having a proper WebFrameLoaderClient.
@@ -375,7 +379,7 @@ void WebLoaderStrategy::loadResourceSynchronously(NetworkingContext* context, un
     loadParameters.sessionID = webPage ? webPage->sessionID() : PAL::SessionID::defaultSessionID();
     loadParameters.request = request;
     loadParameters.contentSniffingPolicy = SniffContent;
-    loadParameters.allowStoredCredentials = storedCredentials;
+    loadParameters.storedCredentialsPolicy = storedCredentialsPolicy;
     loadParameters.clientCredentialPolicy = clientCredentialPolicy;
     loadParameters.shouldClearReferrerOnHTTPSToHTTPRedirect = context->shouldClearReferrerOnHTTPSToHTTPRedirect();
 
@@ -392,7 +396,7 @@ void WebLoaderStrategy::loadResourceSynchronously(NetworkingContext* context, un
     }
 }
 
-static uint64_t generatePingLoadIdentifier()
+static uint64_t generateLoadIdentifier()
 {
     static uint64_t identifier = 0;
     return ++identifier;
@@ -422,11 +426,11 @@ void WebLoaderStrategy::startPingLoad(Frame& frame, ResourceRequest& request, co
     }
     
     NetworkResourceLoadParameters loadParameters;
-    loadParameters.identifier = generatePingLoadIdentifier();
+    loadParameters.identifier = generateLoadIdentifier();
     loadParameters.request = request;
     loadParameters.sourceOrigin = &document->securityOrigin();
     loadParameters.sessionID = webPage ? webPage->sessionID() : PAL::SessionID::defaultSessionID();
-    loadParameters.allowStoredCredentials = options.credentials == FetchOptions::Credentials::Omit ? DoNotAllowStoredCredentials : AllowStoredCredentials;
+    loadParameters.storedCredentialsPolicy = options.credentials == FetchOptions::Credentials::Omit ? StoredCredentialsPolicy::DoNotUse : StoredCredentialsPolicy::Use;
     loadParameters.mode = options.mode;
     loadParameters.shouldFollowRedirects = options.redirect == FetchOptions::Redirect::Follow;
     loadParameters.shouldClearReferrerOnHTTPSToHTTPRedirect = networkingContext->shouldClearReferrerOnHTTPSToHTTPRedirect();
@@ -456,6 +460,20 @@ void WebLoaderStrategy::startPingLoad(Frame& frame, ResourceRequest& request, co
 void WebLoaderStrategy::didFinishPingLoad(uint64_t pingLoadIdentifier, ResourceError&& error)
 {
     if (auto completionHandler = m_pingLoadCompletionHandlers.take(pingLoadIdentifier))
+        completionHandler(WTFMove(error));
+}
+
+void WebLoaderStrategy::preconnectTo(PAL::SessionID sessionID, const WebCore::URL& url, StoredCredentialsPolicy storedCredentialsPolicy, PreconnectCompletionHandler&& completionHandler)
+{
+    uint64_t preconnectionIdentifier = generateLoadIdentifier();
+    auto addResult = m_preconnectCompletionHandlers.add(preconnectionIdentifier, WTFMove(completionHandler));
+    ASSERT_UNUSED(addResult, addResult.isNewEntry);
+    WebProcess::singleton().networkConnection().connection().send(Messages::NetworkConnectionToWebProcess::PreconnectTo(sessionID, preconnectionIdentifier, url, storedCredentialsPolicy), 0);
+}
+
+void WebLoaderStrategy::didFinishPreconnection(uint64_t preconnectionIdentifier, ResourceError&& error)
+{
+    if (auto completionHandler = m_preconnectCompletionHandlers.take(preconnectionIdentifier))
         completionHandler(WTFMove(error));
 }
 

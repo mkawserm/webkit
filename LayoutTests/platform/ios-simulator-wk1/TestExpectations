@@ -5,4 +5,8 @@
 
 fast/events/offsetX-offsetY.html [ Timeout ]
 
-compositing/regions/composited-content-fixed-region-scrolled.html [ Skip ]
+# Untriage pasteboard test failures
+editing/pasteboard/
+editing/pasteboard/data-transfer-get-data-on-paste-custom.html [ Pass ]
+editing/pasteboard/data-transfer-get-data-on-paste-plain-text.html [ Pass ]
+editing/pasteboard/data-transfer-get-data-on-paste-rich-text.html [ Pass ]

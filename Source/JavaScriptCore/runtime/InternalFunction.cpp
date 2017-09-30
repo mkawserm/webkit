@@ -45,11 +45,11 @@ void InternalFunction::finishCreation(VM& vm, const String& name, NameVisibility
 {
     Base::finishCreation(vm);
     ASSERT(inherits(vm, info()));
-    ASSERT(methodTable()->getCallData != InternalFunction::info()->methodTable.getCallData);
+    ASSERT(methodTable(vm)->getCallData != InternalFunction::info()->methodTable.getCallData);
     JSString* nameString = jsString(&vm, name);
     m_originalName.set(vm, this, nameString);
     if (nameVisibility == NameVisibility::Visible)
-        putDirect(vm, vm.propertyNames->name, nameString, ReadOnly | DontEnum);
+        putDirect(vm, vm.propertyNames->name, nameString, PropertyAttribute::ReadOnly | PropertyAttribute::DontEnum);
 }
 
 void InternalFunction::visitChildren(JSCell* cell, SlotVisitor& visitor)
@@ -112,12 +112,12 @@ Structure* InternalFunction::createSubclassStructureSlow(ExecState* exec, JSValu
             return structure;
 
         // Note, Reflect.construct might cause the profile to churn but we don't care.
-        JSValue prototypeValue = newTarget.get(exec, exec->propertyNames().prototype);
+        JSValue prototypeValue = newTarget.get(exec, vm.propertyNames->prototype);
         RETURN_IF_EXCEPTION(scope, nullptr);
         if (JSObject* prototype = jsDynamicCast<JSObject*>(vm, prototypeValue))
             return targetFunction->rareData(vm)->createInternalFunctionAllocationStructureFromBase(vm, lexicalGlobalObject, prototype, baseClass);
     } else {
-        JSValue prototypeValue = newTarget.get(exec, exec->propertyNames().prototype);
+        JSValue prototypeValue = newTarget.get(exec, vm.propertyNames->prototype);
         RETURN_IF_EXCEPTION(scope, nullptr);
         if (JSObject* prototype = jsDynamicCast<JSObject*>(vm, prototypeValue)) {
             // This only happens if someone Reflect.constructs our builtin constructor with another builtin constructor as the new.target.

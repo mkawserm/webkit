@@ -184,6 +184,10 @@ void clobberize(Graph& graph, Node* node, const ReadFunctor& read, const WriteFu
         def(PureValue(node));
         return;
 
+    case GetGlobalThis:
+        read(World);
+        return;
+
     case AtomicsIsLockFree:
         if (node->child1().useKind() == Int32Use)
             def(PureValue(node));
@@ -426,6 +430,7 @@ void clobberize(Graph& graph, Node* node, const ReadFunctor& read, const WriteFu
     case Jump:
     case Branch:
     case Switch:
+    case EntrySwitch:
     case ForceOSRExit:
     case CheckBadCell:
     case Return:
@@ -437,6 +442,7 @@ void clobberize(Graph& graph, Node* node, const ReadFunctor& read, const WriteFu
     case ProfileType:
     case ProfileControlFlow:
     case PutHint:
+    case InitializeEntrypointArguments:
         write(SideState);
         return;
         
@@ -956,6 +962,7 @@ void clobberize(Graph& graph, Node* node, const ReadFunctor& read, const WriteFu
         return;
     }
         
+    case CheckStructureOrEmpty:
     case CheckStructure:
         read(JSCell_structureID);
         return;
@@ -1479,6 +1486,11 @@ void clobberize(Graph& graph, Node* node, const ReadFunctor& read, const WriteFu
         }
         def(PureValue(node));
         return;
+
+    case CompareBelow:
+    case CompareBelowEq:
+        def(PureValue(node));
+        return;
         
     case CompareEq:
     case CompareLess:
@@ -1544,6 +1556,7 @@ void clobberize(Graph& graph, Node* node, const ReadFunctor& read, const WriteFu
     case MapHash:
         def(PureValue(node));
         return;
+
     case GetMapBucket: {
         read(MiscFields);
         Edge& mapEdge = node->child1();
@@ -1551,12 +1564,14 @@ void clobberize(Graph& graph, Node* node, const ReadFunctor& read, const WriteFu
         def(HeapLocation(MapBucketLoc, MiscFields, mapEdge, keyEdge), LazyNode(node));
         return;
     }
+
     case GetMapBucketHead: {
         read(MiscFields);
         Edge& mapEdge = node->child1();
         def(HeapLocation(MapBucketHeadLoc, MiscFields, mapEdge), LazyNode(node));
         return;
     }
+
     case GetMapBucketNext: {
         read(MiscFields);
         LocationKind locationKind = MapBucketMapNextLoc;
@@ -1566,16 +1581,26 @@ void clobberize(Graph& graph, Node* node, const ReadFunctor& read, const WriteFu
         def(HeapLocation(locationKind, MiscFields, bucketEdge), LazyNode(node));
         return;
     }
+
     case LoadKeyFromMapBucket: {
         read(MiscFields);
         Edge& bucketEdge = node->child1();
         def(HeapLocation(MapBucketKeyLoc, MiscFields, bucketEdge), LazyNode(node));
         return;
     }
+
     case LoadValueFromMapBucket: {
         read(MiscFields);
         Edge& bucketEdge = node->child1();
         def(HeapLocation(MapBucketValueLoc, MiscFields, bucketEdge), LazyNode(node));
+        return;
+    }
+
+    case WeakMapGet: {
+        read(MiscFields);
+        Edge& mapEdge = node->child1();
+        Edge& keyEdge = node->child2();
+        def(HeapLocation(WeakMapGetLoc, MiscFields, mapEdge, keyEdge), LazyNode(node));
         return;
     }
 
@@ -1584,8 +1609,13 @@ void clobberize(Graph& graph, Node* node, const ReadFunctor& read, const WriteFu
         return;
 
     case NumberToStringWithRadix:
+        // If the radix is invalid, NumberToStringWithRadix can throw an error.
         read(World);
         write(Heap);
+        return;
+
+    case NumberToStringWithValidRadixConstant:
+        def(PureValue(node, node->validRadixConstant()));
         return;
         
     case LastNodeType:

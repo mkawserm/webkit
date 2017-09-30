@@ -71,7 +71,6 @@
 #import "WKWebsiteDataStoreInternal.h"
 #import "WebBackForwardList.h"
 #import "WebCertificateInfo.h"
-#import "WebFormSubmissionListenerProxy.h"
 #import "WebFullScreenManagerProxy.h"
 #import "WebKitSystemInterface.h"
 #import "WebPageGroup.h"
@@ -312,7 +311,7 @@ WKWebView* fromWebPageProxy(WebKit::WebPageProxy& page)
     RetainPtr<WKTextFinderClient> _textFinderClient;
 #endif
 
-#if PLATFORM(IOS) && ENABLE(DRAG_SUPPORT)
+#if PLATFORM(IOS)
     _WKDragInteractionPolicy _dragInteractionPolicy;
 #endif
 }
@@ -471,6 +470,8 @@ static uint32_t convertSystemLayoutDirection(NSUserInterfaceLayoutDirection dire
     pageConfiguration->setControlledByAutomation([_configuration _isControlledByAutomation]);
 
 #if PLATFORM(MAC)
+    if (auto cpuLimit = [_configuration _cpuLimit])
+        pageConfiguration->setCPULimit(cpuLimit);
     pageConfiguration->preferenceValues().set(WebKit::WebPreferencesKey::showsURLsInToolTipsEnabledKey(), WebKit::WebPreferencesStore::Value(!![_configuration _showsURLsInToolTips]));
     pageConfiguration->preferenceValues().set(WebKit::WebPreferencesKey::serviceControlsEnabledKey(), WebKit::WebPreferencesStore::Value(!![_configuration _serviceControlsEnabled]));
     pageConfiguration->preferenceValues().set(WebKit::WebPreferencesKey::imageControlsEnabledKey(), WebKit::WebPreferencesStore::Value(!![_configuration _imageControlsEnabled]));
@@ -604,7 +605,7 @@ static uint32_t convertSystemLayoutDirection(NSUserInterfaceLayoutDirection dire
 
     pageToViewMap().add(_page.get(), self);
 
-#if PLATFORM(IOS) && ENABLE(DRAG_SUPPORT)
+#if PLATFORM(IOS)
     _dragInteractionPolicy = _WKDragInteractionPolicyDefault;
 #endif
 }
@@ -1133,8 +1134,6 @@ static NSDictionary *dictionaryRepresentationForEditorState(const WebKit::Editor
 
 #if PLATFORM(IOS)
 
-#if ENABLE(DRAG_SUPPORT)
-
 - (_WKDragInteractionPolicy)_dragInteractionPolicy
 {
     return _dragInteractionPolicy;
@@ -1146,10 +1145,10 @@ static NSDictionary *dictionaryRepresentationForEditorState(const WebKit::Editor
         return;
 
     _dragInteractionPolicy = policy;
+#if ENABLE(DRAG_SUPPORT)
     [_contentView _didChangeDragInteractionPolicy];
-}
-
 #endif
+}
 
 - (void)_populateArchivedSubviews:(NSMutableSet *)encodedViews
 {
@@ -1511,6 +1510,9 @@ static WebCore::Color scrollViewBackgroundColor(WKWebView *webView)
     _scrollViewBackgroundColor = WebCore::Color();
     _delayUpdateVisibleContentRects = NO;
     _hadDelayedUpdateVisibleContentRects = NO;
+    _lastSentMinimumLayoutSize = std::nullopt;
+    _lastSentMaximumUnobscuredSize = std::nullopt;
+    _lastSentDeviceOrientation = std::nullopt;
 
     _frozenVisibleContentRect = std::nullopt;
     _frozenUnobscuredContentRect = std::nullopt;
@@ -1657,8 +1659,8 @@ static inline bool areEssentiallyEqualAsFloat(float a, float b)
 
             if (areEssentiallyEqualAsFloat(contentZoomScale(self), _scaleToRestore)) {
                 CGRect unobscuredRect = UIEdgeInsetsInsetRect(self.bounds, _obscuredInsets);
-                WebCore::FloatSize unobscuredContentSizeAtNewScale(unobscuredRect.size.width / _scaleToRestore, unobscuredRect.size.height / _scaleToRestore);
-                WebCore::FloatPoint topLeftInDocumentCoordinates(unobscuredCenterToRestore.x() - unobscuredContentSizeAtNewScale.width() / 2, unobscuredCenterToRestore.y() - unobscuredContentSizeAtNewScale.height() / 2);
+                WebCore::FloatSize unobscuredContentSizeAtNewScale = WebCore::FloatSize(unobscuredRect.size) / _scaleToRestore;
+                WebCore::FloatPoint topLeftInDocumentCoordinates = unobscuredCenterToRestore - unobscuredContentSizeAtNewScale / 2;
 
                 topLeftInDocumentCoordinates.scale(_scaleToRestore);
                 topLeftInDocumentCoordinates.moveBy(WebCore::FloatPoint(-_obscuredInsets.left, -_obscuredInsets.top));
@@ -3838,7 +3840,7 @@ WEBCORE_COMMAND(yankAndSelect)
 
 - (void)_loadAlternateHTMLString:(NSString *)string baseURL:(NSURL *)baseURL forUnreachableURL:(NSURL *)unreachableURL
 {
-    _page->loadAlternateHTMLString(string, [baseURL _web_originalDataAsWTFString], [unreachableURL _web_originalDataAsWTFString]);
+    _page->loadAlternateHTMLString(string, baseURL, unreachableURL);
 }
 
 - (WKNavigation *)_loadData:(NSData *)data MIMEType:(NSString *)MIMEType characterEncodingName:(NSString *)characterEncodingName baseURL:(NSURL *)baseURL userData:(id)userData
@@ -4446,19 +4448,19 @@ static inline WebKit::FindOptions toFindOptions(_WKFindOptions wkFindOptions)
 
         virtual ~FormClient() { }
 
-        void willSubmitForm(WebKit::WebPageProxy&, WebKit::WebFrameProxy&, WebKit::WebFrameProxy& sourceFrame, const Vector<std::pair<WTF::String, WTF::String>>& textFieldValues, API::Object* userData, Ref<WebKit::WebFormSubmissionListenerProxy>&& listener) override
+        void willSubmitForm(WebKit::WebPageProxy&, WebKit::WebFrameProxy&, WebKit::WebFrameProxy& sourceFrame, const Vector<std::pair<WTF::String, WTF::String>>& textFieldValues, API::Object* userData, WTF::Function<void(void)>&& completionHandler) override
         {
             if (userData && userData->type() != API::Object::Type::Data) {
                 ASSERT(!userData || userData->type() == API::Object::Type::Data);
                 m_webView->_page->process().connection()->markCurrentlyDispatchedMessageAsInvalid();
-                listener->continueSubmission();
+                completionHandler();
                 return;
             }
 
             auto inputDelegate = m_webView->_inputDelegate.get();
 
             if (![inputDelegate respondsToSelector:@selector(_webView:willSubmitFormValues:userObject:submissionHandler:)]) {
-                listener->continueSubmission();
+                completionHandler();
                 return;
             }
 
@@ -4478,14 +4480,13 @@ static inline WebKit::FindOptions toFindOptions(_WKFindOptions wkFindOptions)
                 }
             }
 
-            RefPtr<WebKit::WebFormSubmissionListenerProxy> localListener = WTFMove(listener);
-            RefPtr<WebKit::CompletionHandlerCallChecker> checker = WebKit::CompletionHandlerCallChecker::create(inputDelegate.get(), @selector(_webView:willSubmitFormValues:userObject:submissionHandler:));
-            [inputDelegate _webView:m_webView willSubmitFormValues:valueMap.get() userObject:userObject submissionHandler:[localListener, checker] {
+            auto checker = WebKit::CompletionHandlerCallChecker::create(inputDelegate.get(), @selector(_webView:willSubmitFormValues:userObject:submissionHandler:));
+            [inputDelegate _webView:m_webView willSubmitFormValues:valueMap.get() userObject:userObject submissionHandler:BlockPtr<void(void)>::fromCallable([completionHandler = WTFMove(completionHandler), checker = WTFMove(checker)] {
                 if (checker->completionHandlerHasBeenCalled())
                     return;
                 checker->didCallCompletionHandler();
-                localListener->continueSubmission();
-            }];
+                completionHandler();
+            }).get()];
         }
 
     private:
@@ -5281,6 +5282,21 @@ static WebCore::UserInterfaceLayoutDirection toUserInterfaceLayoutDirection(UISe
     return _impl->pageExtendedBackgroundColor();
 }
 
+- (_WKRectEdge)_pinnedState
+{
+    return _impl->pinnedState();
+}
+
+- (_WKRectEdge)_rubberBandingEnabled
+{
+    return _impl->rubberBandingEnabled();
+}
+
+- (void)_setRubberBandingEnabled:(_WKRectEdge)state
+{
+    _impl->setRubberBandingEnabled(state);
+}
+
 - (id)_immediateActionAnimationControllerForHitTestResult:(_WKHitTestResult *)hitTestResult withType:(_WKImmediateActionType)type userData:(id<NSSecureCoding>)userData
 {
     return nil;
@@ -5637,6 +5653,11 @@ static WebCore::UserInterfaceLayoutDirection toUserInterfaceLayoutDirection(UISe
 #endif // PLATFORM(IOS)
 
 #if PLATFORM(MAC)
+- (WKPageRef)_pageRefForTransitionToWKWebView
+{
+    return toAPI(_page.get());
+}
+
 - (BOOL)_hasActiveVideoForControlsManager
 {
     return _page && _page->hasActiveVideoForControlsManager();
@@ -5777,66 +5798,6 @@ static WebCore::UserInterfaceLayoutDirection toUserInterfaceLayoutDirection(UISe
 }
 
 #if PLATFORM(IOS)
-
-- (void)_simulateDataInteractionEntered:(id)info
-{
-#if ENABLE(DATA_INTERACTION)
-    [_contentView _simulateDataInteractionEntered:info];
-#endif
-}
-
-- (NSUInteger)_simulateDataInteractionUpdated:(id)info
-{
-#if ENABLE(DATA_INTERACTION)
-    return [_contentView _simulateDataInteractionUpdated:info];
-#else
-    return 0;
-#endif
-}
-
-- (void)_simulateDataInteractionPerformOperation:(id)info
-{
-#if ENABLE(DATA_INTERACTION)
-    [_contentView _simulateDataInteractionPerformOperation:info];
-#endif
-}
-
-- (void)_simulateDataInteractionEnded:(id)info
-{
-#if ENABLE(DATA_INTERACTION)
-    [_contentView _simulateDataInteractionEnded:info];
-#endif
-}
-
-- (void)_simulateDataInteractionSessionDidEnd:(id)session
-{
-#if ENABLE(DATA_INTERACTION)
-    [_contentView _simulateDataInteractionSessionDidEnd:session];
-#endif
-}
-
-- (void)_simulateWillBeginDataInteractionWithSession:(id)session
-{
-#if ENABLE(DATA_INTERACTION)
-    [_contentView _simulateWillBeginDataInteractionWithSession:session];
-#endif
-}
-
-- (NSArray *)_simulatedItemsForSession:(id)session
-{
-#if ENABLE(DATA_INTERACTION)
-    return [_contentView _simulatedItemsForSession:session];
-#else
-    return @[ ];
-#endif
-}
-
-- (void)_simulatePrepareForDataInteractionSession:(id)session completion:(dispatch_block_t)completion
-{
-#if ENABLE(DATA_INTERACTION)
-    [_contentView _simulatePrepareForDataInteractionSession:session completion:completion];
-#endif
-}
 
 - (CGRect)_dragCaretRect
 {

@@ -304,7 +304,7 @@ static InlineCacheAction tryCacheGetByID(const GCSafeConcurrentJSLocker& locker,
                 AccessCase::AccessType type;
                 if (slot.isCacheableGetter())
                     type = AccessCase::Getter;
-                else if (slot.attributes() & CustomAccessor)
+                else if (slot.attributes() & PropertyAttribute::CustomAccessor)
                     type = AccessCase::CustomAccessorGetter;
                 else
                     type = AccessCase::CustomValueGetter;
@@ -446,7 +446,7 @@ static InlineCacheAction tryCachePutByID(const GCSafeConcurrentJSLocker& locker,
 
             if (slot.base() != baseValue) {
                 conditionSet =
-                    generateConditionsForPrototypePropertyHitCustom(
+                    generateConditionsForPrototypePropertyHit(
                         vm, codeBlock, exec, structure, slot.base(), ident.impl());
                 if (!conditionSet.isValid())
                     return GiveUpOnCache;

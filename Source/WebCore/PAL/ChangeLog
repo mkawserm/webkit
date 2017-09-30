@@ -1,3 +1,308 @@
+2017-09-28  Ross Kirsling  <ross.kirsling@sony.com>
+
+        [PAL] Move HysteresisActivity into PAL
+        https://bugs.webkit.org/show_bug.cgi?id=177516
+
+        Reviewed by Alex Christensen.
+
+        * PAL.xcodeproj/project.pbxproj:
+        * pal/HysteresisActivity.h: Renamed from Source/WebCore/platform/HysteresisActivity.h.
+
+2017-09-28  Chris Dumez  <cdumez@apple.com>
+
+        Add support for <link rel=preconnect>
+        https://bugs.webkit.org/show_bug.cgi?id=177474
+        <rdar://problem/33141380>
+
+        Reviewed by Alex Christensen.
+
+        Add new CFNetwork SPI for preconnecting.
+
+        * pal/spi/cf/CFNetworkSPI.h:
+
+2017-09-27  Tim Horton  <timothy_horton@apple.com>
+
+        Try to fix the Mac CMake build
+
+        * pal/PlatformMac.cmake:
+
+2017-09-26  Don Olmstead  <don.olmstead@sony.com>
+
+        [PAL][CMake] Include ICU directories
+        https://bugs.webkit.org/show_bug.cgi?id=177504
+
+        Reviewed by Myles C. Maxfield.
+
+        * pal/CMakeLists.txt:
+
+2017-09-26  Yoshiaki Jitsukawa  <Yoshiaki.Jitsukawa@sony.com>
+
+        [PAL] Move Clock into PAL
+        https://bugs.webkit.org/show_bug.cgi?id=174342
+
+        Reviewed by Myles C. Maxfield.
+
+        * PAL.xcodeproj/project.pbxproj:
+        * pal/PlatformGTK.cmake:
+        * pal/PlatformWin.cmake:
+        * pal/system/Clock.h: Renamed from Source/WebCore/platform/Clock.h.
+        * pal/system/ClockGeneric.cpp: Renamed from Source/WebCore/platform/ClockGeneric.cpp.
+        (PAL::Clock::create):
+        * pal/system/ClockGeneric.h: Renamed from Source/WebCore/platform/ClockGeneric.h.
+        * pal/system/mac/ClockCM.h: Renamed from Source/WebCore/platform/mac/PlatformClockCM.h.
+        * pal/system/mac/ClockCM.mm: Renamed from Source/WebCore/platform/mac/PlatformClockCM.mm.
+        (Clock::create):
+        (ClockCM::ClockCM):
+        (ClockCM::initializeWithTimingSource):
+        (ClockCM::setCurrentTime):
+        (ClockCM::currentTime const):
+        (ClockCM::setCurrentMediaTime):
+        (ClockCM::currentMediaTime const):
+        (ClockCM::setPlayRate):
+        (ClockCM::start):
+        (ClockCM::stop):
+
+        * pal/cf/CoreMediaSoftLink.cpp:
+        * pal/cf/CoreMediaSoftLink.h:
+        Add requrired functions.
+2017-09-26  Zan Dobersek  <zdobersek@igalia.com>
+
+        [GCrypt] Only report libgcrypt errors when logging is enabled
+        https://bugs.webkit.org/show_bug.cgi?id=177360
+
+        Reviewed by Xabier Rodriguez-Calvar.
+
+        * pal/crypto/gcrypt/Utilities.h:
+        (PAL::GCrypt::logError): Only print out the libgcrypt error on stderr
+        when logging is enabled at build-time, avoiding unnecessary output in
+        non-debugging use cases.
+
+2017-09-25  Timothy Horton  <timothy_horton@apple.com>
+
+        Make progress on getting Mac CMake building again
+        https://bugs.webkit.org/show_bug.cgi?id=177443
+
+        Unreviewed, just "fixing" the build.
+
+        * pal/PlatformMac.cmake:
+        Add some missing files and include paths.
+
+2017-09-22  Zalan Bujtas  <zalan@apple.com>
+
+        WeakPtrFactory should populate m_ref lazily.
+        https://bugs.webkit.org/show_bug.cgi?id=177375
+
+        Reviewed by Geoffrey Garen.
+
+        * pal/system/mac/SystemSleepListenerMac.mm:
+        (PAL::SystemSleepListenerMac::SystemSleepListenerMac):
+
+2017-09-21  Yoshiaki Jitsukawa  <Yoshiaki.Jitsukawa@sony.com>
+
+        [PAL] Move MediaTimeAVFoundation into PAL
+        https://bugs.webkit.org/show_bug.cgi?id=177222
+
+        Reviewed by Myles C. Maxfield.
+
+        * config.h:
+        Include PALHeaderDetection.h.
+        Define AVFOUNDATION-releavant definitions.
+
+        * pal/PlatformWin.cmake:
+        Add PAL dereived sources directory to include paths.
+
+        * PAL.xcodeproj/project.pbxproj:
+        * pal/CMakeLists.txt:
+        * pal/PlatformAppleWin.cmake:
+        * pal/avfoundation/MediaTimeAVFoundation.cpp: Renamed from Source/WebCore/platform/graphics/avfoundation/MediaTimeAVFoundation.cpp.
+        * pal/avfoundation/MediaTimeAVFoundation.h: Renamed from Source/WebCore/platform/graphics/avfoundation/MediaTimeAVFoundation.h.
+        * pal/cf/CoreMediaSoftLink.cpp: Added.
+        * pal/cf/CoreMediaSoftLink.h: Added.
+
+2017-09-20  Antti Koivisto  <antti@apple.com>
+
+        Remove DOM and styling support for CSS Regions
+        https://bugs.webkit.org/show_bug.cgi?id=177221
+
+        Reviewed by Andreas Kling.
+
+        * Configurations/FeatureDefines.xcconfig:
+
+2017-09-18  Andy Estes  <aestes@apple.com>
+
+        [Mac] Upstream miscellaneous WebKitSystemInterface functions
+        https://bugs.webkit.org/show_bug.cgi?id=177029
+
+        Reviewed by Alex Christensen.
+
+        * PAL.xcodeproj/project.pbxproj:
+        * pal/PlatformMac.cmake:
+        * pal/spi/cf/CFUtilitiesSPI.h:
+        * pal/spi/cocoa/LaunchServicesSPI.h: Renamed from Source/WebCore/PAL/pal/spi/ios/LaunchServicesSPI.h.
+        * pal/spi/mac/HIServicesSPI.h:
+        * pal/spi/mac/NSCellSPI.h: Copied from Source/WebCore/PAL/pal/spi/cf/CFUtilitiesSPI.h.
+        * pal/spi/mac/NSMenuSPI.h:
+        * pal/spi/mac/NSScrollViewSPI.h: Copied from Source/WebCore/PAL/pal/spi/cf/CFUtilitiesSPI.h.
+        * pal/spi/mac/NSScrollerImpSPI.h:
+        * pal/system/cf/DefaultSearchProvider.cpp: Copied from Source/WebCore/PAL/pal/spi/cf/CFUtilitiesSPI.h.
+        (PAL::defaultSearchProviderDisplayName):
+        * pal/system/cf/DefaultSearchProvider.h: Copied from Source/WebCore/PAL/pal/spi/cf/CFUtilitiesSPI.h.
+        * pal/system/mac/PopupMenu.h: Copied from Source/WebCore/PAL/pal/spi/cf/CFUtilitiesSPI.h.
+        * pal/system/mac/PopupMenu.mm: Added.
+        (PAL::popUpMenu):
+
+2017-09-18  Yoshiaki Jitsukawa  <Yoshiaki.Jitsukawa@sony.com>
+
+        [Win][PAL] Move WebCoreHeaderDetection.h to PAL
+        https://bugs.webkit.org/show_bug.cgi?id=176990
+
+        Reviewed by Alex Christensen.
+
+        * AVFoundationSupport.py: Renamed from Source/WebCore/AVFoundationSupport.py.
+        (lookFor):
+        (fileContains):
+
+        * pal/PlatformWin.cmake:
+        Add a custom target PAL_PreBuild to generate PALHeaderDetection.h
+
+2017-09-15  Tim Horton  <timothy_horton@apple.com>
+
+        Fix the macOS CMake build
+        https://bugs.webkit.org/show_bug.cgi?id=177015
+
+        Reviewed by Andy Estes.
+
+        * pal/PlatformMac.cmake:
+        Add WebPanel.
+
+2017-09-15  Andy Estes  <aestes@apple.com>
+
+        [Cocoa] Upstream MediaRemote and VideoToolbox WebKitSystemInterface functions
+        https://bugs.webkit.org/show_bug.cgi?id=176953
+
+        Reviewed by Eric Carlson.
+
+        * pal/spi/mac/AVFoundationSPI.h:
+        * pal/spi/mac/MediaRemoteSPI.h:
+
+2017-09-15  Eric Carlson  <eric.carlson@apple.com>
+
+        Switch text tracks to release logging
+        https://bugs.webkit.org/show_bug.cgi?id=176809
+        <rdar://problem/34397605>
+
+        Reviewed by Jer Noble.
+
+        * pal/Logger.h:
+        (PAL::LogArgument::toString):
+        (PAL::Logger::willLog const):
+
+2017-09-14  Dan Bernstein  <mitz@apple.com>
+
+        Fixed building with the Apple internal macOS 10.12 SDK.
+
+        * pal/spi/cocoa/PassKitSPI.h: Avoid redefining types that are defined in the SDK.
+
+2017-09-14  Andy Estes  <aestes@apple.com>
+
+        [Mac] Upstream SpeechSynthesis-related WebKitSystemInterface functions
+        https://bugs.webkit.org/show_bug.cgi?id=176931
+
+        Reviewed by Joseph Pecoraro.
+
+        * PAL.xcodeproj/project.pbxproj:
+        * pal/spi/mac/SpeechSynthesisSPI.h: Added.
+
+2017-09-13  Andy Estes  <aestes@apple.com>
+
+        [CF] Upstream CFNetwork-related WebKitSystemInterface functions
+        https://bugs.webkit.org/show_bug.cgi?id=176729
+
+        Reviewed by Alex Christensen.
+
+        * pal/spi/cf/CFNetworkSPI.h:
+
+2017-09-12  Myles C. Maxfield  <mmaxfield@apple.com>
+
+        Unskip fast/text/system-font-synthetic-italic.html
+        https://bugs.webkit.org/show_bug.cgi?id=175944
+
+        Reviewed by Jon Lee.
+
+        * pal/spi/cocoa/CoreTextSPI.h:
+
+2017-09-12  Eric Carlson  <eric.carlson@apple.com>
+
+        Switch MediaPlayerPrivateAVFoundation to release logging
+        https://bugs.webkit.org/show_bug.cgi?id=176621
+        <rdar://problem/34335311>
+
+        Reviewed by Jer Noble.
+
+        * pal/Logger.h:
+        (PAL::LogArgument::toString):
+        * pal/LoggerHelper.h:
+
+2017-09-11  Andy Estes  <aestes@apple.com>
+
+        [Mac] Upstream QTKit-related WebKitSystemInterface functions
+        https://bugs.webkit.org/show_bug.cgi?id=176472
+
+        Reviewed by Eric Carlson.
+
+        * pal/spi/mac/QTKitSPI.h:
+
+2017-09-08  Commit Queue  <commit-queue@webkit.org>
+
+        Unreviewed, rolling out r221773.
+        https://bugs.webkit.org/show_bug.cgi?id=176614
+
+        This caused build failures. (Requested by mlewis13 on
+        #webkit).
+
+        Reverted changeset:
+
+        "[Mac] Upstream QTKit-related WebKitSystemInterface functions"
+        https://bugs.webkit.org/show_bug.cgi?id=176472
+        http://trac.webkit.org/changeset/221773
+
+2017-09-07  Andy Estes  <aestes@apple.com>
+
+        [Mac] Upstream QTKit-related WebKitSystemInterface functions
+        https://bugs.webkit.org/show_bug.cgi?id=176472
+
+        Reviewed by Eric Carlson.
+
+        * pal/spi/mac/QTKitSPI.h:
+
+2017-09-07  Wenson Hsieh  <wenson_hsieh@apple.com>
+
+        [Mac] Stop importing NSFunctionBar_Private.h in NSTouchBarSPI.h on the macOS 10.13+ SDK
+        https://bugs.webkit.org/show_bug.cgi?id=176521
+        <rdar://problem/34296289>
+
+        Reviewed by Andy Estes.
+
+        We don't need to import NSFunctionBar_Private.h when building against the macOS 10.13 SDK, or later. Guard this
+        header import with an SDK version check.
+
+        * pal/spi/cocoa/NSTouchBarSPI.h:
+
+2017-09-06  Eric Carlson  <eric.carlson@apple.com>
+
+        Require LoggingHelper overrides to provide identifier
+        https://bugs.webkit.org/show_bug.cgi?id=176477
+
+        Reviewed by Jer Noble.
+
+        * pal/Logger.h:
+        (PAL::Logger::LogSiteIdentifier::LogSiteIdentifier):
+        (PAL::LogArgument<Logger::LogSiteIdentifier>::toString):
+        (PAL::Logger::notice const): Deleted.
+        (PAL::Logger::MethodAndPointer::MethodAndPointer): Deleted.
+        (PAL::LogArgument<Logger::MethodAndPointer>::toString): Deleted.
+        * pal/LoggerHelper.h:
+
 2017-09-04  Commit Queue  <commit-queue@webkit.org>
 
         Unreviewed, rolling out r221494 and r221500.

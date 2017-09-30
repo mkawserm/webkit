@@ -42,6 +42,7 @@
 #include "ErrorHandlingScope.h"
 #include "EvalCodeBlock.h"
 #include "ExceptionFuzz.h"
+#include "FTLOSREntry.h"
 #include "FrameTracers.h"
 #include "FunctionCodeBlock.h"
 #include "GetterSetter.h"
@@ -352,6 +353,7 @@ EncodedJSValue JIT_OPERATION operationIn(ExecState* exec, StructureStubInfo* stu
 
     Identifier ident = Identifier::fromUid(vm, key);
     LOG_IC((ICEvent::OperationIn, base->classInfo(*vm), ident));
+    scope.release();
     return JSValue::encode(jsBoolean(asObject(base)->hasProperty(exec, ident)));
 }
 
@@ -411,7 +413,7 @@ void JIT_OPERATION operationPutByIdDirectStrict(ExecState* exec, StructureStubIn
     Identifier ident = Identifier::fromUid(vm, uid);
     LOG_IC((ICEvent::OperationPutByIdDirectStrict, baseValue.classInfoOrNull(*vm), ident));
     PutPropertySlot slot(baseValue, true, exec->codeBlock()->putByIdContext());
-    asObject(baseValue)->putDirect(exec->vm(), ident, JSValue::decode(encodedValue), slot);
+    asObject(baseValue)->putDirect(*vm, ident, JSValue::decode(encodedValue), slot);
 }
 
 void JIT_OPERATION operationPutByIdDirectNonStrict(ExecState* exec, StructureStubInfo* stubInfo, EncodedJSValue encodedValue, EncodedJSValue encodedBase, UniquedStringImpl* uid)
@@ -427,7 +429,7 @@ void JIT_OPERATION operationPutByIdDirectNonStrict(ExecState* exec, StructureStu
     Identifier ident = Identifier::fromUid(vm, uid);
     LOG_IC((ICEvent::OperationPutByIdDirectNonStrict, baseValue.classInfoOrNull(*vm), ident));
     PutPropertySlot slot(baseValue, false, exec->codeBlock()->putByIdContext());
-    asObject(baseValue)->putDirect(exec->vm(), ident, JSValue::decode(encodedValue), slot);
+    asObject(baseValue)->putDirect(*vm, ident, JSValue::decode(encodedValue), slot);
 }
 
 void JIT_OPERATION operationPutByIdStrictOptimize(ExecState* exec, StructureStubInfo* stubInfo, EncodedJSValue encodedValue, EncodedJSValue encodedBase, UniquedStringImpl* uid)
@@ -503,7 +505,7 @@ void JIT_OPERATION operationPutByIdDirectStrictOptimize(ExecState* exec, Structu
     PutPropertySlot slot(baseObject, true, codeBlock->putByIdContext());
     
     Structure* structure = baseObject->structure(*vm);
-    baseObject->putDirect(exec->vm(), ident, value, slot);
+    baseObject->putDirect(*vm, ident, value, slot);
     
     if (accessType != static_cast<AccessType>(stubInfo->accessType))
         return;
@@ -529,7 +531,7 @@ void JIT_OPERATION operationPutByIdDirectNonStrictOptimize(ExecState* exec, Stru
     PutPropertySlot slot(baseObject, false, codeBlock->putByIdContext());
     
     Structure* structure = baseObject->structure(*vm);
-    baseObject->putDirect(exec->vm(), ident, value, slot);
+    baseObject->putDirect(*vm, ident, value, slot);
     
     if (accessType != static_cast<AccessType>(stubInfo->accessType))
         return;
@@ -552,17 +554,22 @@ static void putByVal(CallFrame* callFrame, JSValue baseValue, JSValue subscript,
         uint32_t i = subscript.asUInt32();
         if (baseValue.isObject()) {
             JSObject* object = asObject(baseValue);
-            if (object->canSetIndexQuickly(i))
-                object->setIndexQuickly(callFrame->vm(), i, value);
-            else {
-                // FIXME: This will make us think that in-bounds typed array accesses are actually
-                // out-of-bounds.
-                // https://bugs.webkit.org/show_bug.cgi?id=149886
-                byValInfo->arrayProfile->setOutOfBounds();
-                object->methodTable(vm)->putByIndex(object, callFrame, i, value, callFrame->codeBlock()->isStrictMode());
+            if (object->canSetIndexQuickly(i)) {
+                object->setIndexQuickly(vm, i, value);
+                return;
             }
-        } else
-            baseValue.putByIndex(callFrame, i, value, callFrame->codeBlock()->isStrictMode());
+
+            // FIXME: This will make us think that in-bounds typed array accesses are actually
+            // out-of-bounds.
+            // https://bugs.webkit.org/show_bug.cgi?id=149886
+            byValInfo->arrayProfile->setOutOfBounds();
+            scope.release();
+            object->methodTable(vm)->putByIndex(object, callFrame, i, value, callFrame->codeBlock()->isStrictMode());
+            return;
+        }
+
+        scope.release();
+        baseValue.putByIndex(callFrame, i, value, callFrame->codeBlock()->isStrictMode());
         return;
     }
 
@@ -602,6 +609,7 @@ static void directPutByVal(CallFrame* callFrame, JSObject* baseObject, JSValue s
             break;
         }
 
+        scope.release();
         baseObject->putDirectIndex(callFrame, index, value, 0, isStrictMode ? PutDirectIndexShouldThrow : PutDirectIndexShouldNotThrow);
         return;
     }
@@ -611,6 +619,7 @@ static void directPutByVal(CallFrame* callFrame, JSObject* baseObject, JSValue s
         uint32_t subscriptAsUInt32 = static_cast<uint32_t>(subscriptAsDouble);
         if (subscriptAsDouble == subscriptAsUInt32 && isIndex(subscriptAsUInt32)) {
             byValInfo->tookSlowPath = true;
+            scope.release();
             baseObject->putDirectIndex(callFrame, subscriptAsUInt32, value, 0, isStrictMode ? PutDirectIndexShouldThrow : PutDirectIndexShouldNotThrow);
             return;
         }
@@ -622,6 +631,7 @@ static void directPutByVal(CallFrame* callFrame, JSObject* baseObject, JSValue s
 
     if (std::optional<uint32_t> index = parseIndex(property)) {
         byValInfo->tookSlowPath = true;
+        scope.release();
         baseObject->putDirectIndex(callFrame, index.value(), value, 0, isStrictMode ? PutDirectIndexShouldThrow : PutDirectIndexShouldNotThrow);
         return;
     }
@@ -630,7 +640,7 @@ static void directPutByVal(CallFrame* callFrame, JSObject* baseObject, JSValue s
         byValInfo->tookSlowPath = true;
 
     PutPropertySlot slot(baseObject, isStrictMode);
-    baseObject->putDirect(callFrame->vm(), property, value, slot);
+    baseObject->putDirect(vm, property, value, slot);
 }
 
 enum class OptimizationResult {
@@ -956,7 +966,7 @@ SlowPathReturnType JIT_OPERATION operationLinkCall(ExecState* execCallee, CallLi
 
         CodeBlock** codeBlockSlot = execCallee->addressOfCodeBlock();
         JSObject* error = functionExecutable->prepareForExecution<FunctionExecutable>(*vm, callee, scope, kind, *codeBlockSlot);
-        ASSERT(throwScope.exception() == reinterpret_cast<Exception*>(error));
+        EXCEPTION_ASSERT(throwScope.exception() == reinterpret_cast<Exception*>(error));
         if (error) {
             return encodeResult(
                 vm->getCTIStub(throwExceptionFromCallSlowPathGenerator).code().executableAddress(),
@@ -1015,7 +1025,7 @@ void JIT_OPERATION operationLinkDirectCall(ExecState* exec, CallLinkInfo* callLi
         RELEASE_ASSERT(isCall(kind) || functionExecutable->constructAbility() != ConstructAbility::CannotConstruct);
         
         JSObject* error = functionExecutable->prepareForExecution<FunctionExecutable>(*vm, callee, scope, kind, codeBlock);
-        ASSERT_UNUSED(throwScope, throwScope.exception() == reinterpret_cast<Exception*>(error));
+        EXCEPTION_ASSERT_UNUSED(throwScope, throwScope.exception() == reinterpret_cast<Exception*>(error));
         if (error)
             return;
         ArityCheckMode arity;
@@ -1042,8 +1052,10 @@ inline SlowPathReturnType virtualForWithFunction(
 
     JSValue calleeAsValue = execCallee->guaranteedJSValueCallee();
     calleeAsFunctionCell = getJSFunction(calleeAsValue);
-    if (UNLIKELY(!calleeAsFunctionCell))
+    if (UNLIKELY(!calleeAsFunctionCell)) {
+        throwScope.release();
         return handleHostCall(execCallee, calleeAsValue, callLinkInfo);
+    }
     
     JSFunction* function = jsCast<JSFunction*>(calleeAsFunctionCell);
     JSScope* scope = function->scopeUnchecked();
@@ -1060,7 +1072,7 @@ inline SlowPathReturnType virtualForWithFunction(
 
         CodeBlock** codeBlockSlot = execCallee->addressOfCodeBlock();
         JSObject* error = functionExecutable->prepareForExecution<FunctionExecutable>(*vm, function, scope, kind, *codeBlockSlot);
-        ASSERT(throwScope.exception() == reinterpret_cast<Exception*>(error));
+        EXCEPTION_ASSERT(throwScope.exception() == reinterpret_cast<Exception*>(error));
         if (error) {
             return encodeResult(
                 vm->getCTIStub(throwExceptionFromCallSlowPathGenerator).code().executableAddress(),
@@ -1533,10 +1545,14 @@ char* JIT_OPERATION operationTryOSREnterAtCatch(ExecState* exec, uint32_t byteco
     NativeCallFrameTracer tracer(&vm, exec);
 
     CodeBlock* optimizedReplacement = exec->codeBlock()->replacement();
-    if (optimizedReplacement->jitType() != JITCode::DFGJIT)
-        return nullptr;
-
-    return static_cast<char*>(DFG::prepareCatchOSREntry(exec, optimizedReplacement, bytecodeIndex));
+    switch (optimizedReplacement->jitType()) {
+    case JITCode::DFGJIT:
+    case JITCode::FTLJIT:
+        return static_cast<char*>(DFG::prepareCatchOSREntry(exec, optimizedReplacement, bytecodeIndex));
+    default:
+        break;
+    }
+    return nullptr;
 }
 
 char* JIT_OPERATION operationTryOSREnterAtCatchAndValueProfile(ExecState* exec, uint32_t bytecodeIndex)
@@ -1546,8 +1562,14 @@ char* JIT_OPERATION operationTryOSREnterAtCatchAndValueProfile(ExecState* exec, 
 
     CodeBlock* codeBlock = exec->codeBlock();
     CodeBlock* optimizedReplacement = codeBlock->replacement();
-    if (optimizedReplacement->jitType() == JITCode::DFGJIT)
+
+    switch (optimizedReplacement->jitType()) {
+    case JITCode::DFGJIT:
+    case JITCode::FTLJIT:
         return static_cast<char*>(DFG::prepareCatchOSREntry(exec, optimizedReplacement, bytecodeIndex));
+    default:
+        break;
+    }
 
     codeBlock->ensureCatchLivenessIsComputedForBytecodeOffset(bytecodeIndex);
     ValueProfileAndOperandBuffer* buffer = static_cast<ValueProfileAndOperandBuffer*>(codeBlock->instructions()[bytecodeIndex + 3].u.pointer);
@@ -1582,6 +1604,7 @@ static void putAccessorByVal(ExecState* exec, JSObject* base, JSValue subscript,
     auto propertyKey = subscript.toPropertyKey(exec);
     RETURN_IF_EXCEPTION(scope, void());
 
+    scope.release();
     if (accessorType == AccessorType::Getter)
         base->putGetter(exec, propertyKey, accessor, attribute);
     else
@@ -1749,6 +1772,7 @@ static JSValue getByVal(ExecState* exec, JSValue baseValue, JSValue subscript, B
         if (isJSString(baseValue)) {
             if (asString(baseValue)->canGetIndex(i)) {
                 ctiPatchCallByReturnAddress(returnAddress, FunctionPtr(operationGetByValString));
+                scope.release();
                 return asString(baseValue)->getIndex(exec, i);
             }
             byValInfo->arrayProfile->setOutOfBounds();
@@ -1765,6 +1789,7 @@ static JSValue getByVal(ExecState* exec, JSValue baseValue, JSValue subscript, B
             }
         }
 
+        scope.release();
         return baseValue.get(exec, i);
     }
 
@@ -1777,6 +1802,7 @@ static JSValue getByVal(ExecState* exec, JSValue baseValue, JSValue subscript, B
     if (byValInfo->stubInfo && (!isStringOrSymbol(subscript) || byValInfo->cachedId != property))
         byValInfo->tookSlowPath = true;
 
+    scope.release();
     return baseValue.get(exec, property);
 }
 
@@ -1968,20 +1994,22 @@ EncodedJSValue JIT_OPERATION operationGetByValString(ExecState* exec, EncodedJSV
     JSValue result;
     if (LIKELY(subscript.isUInt32())) {
         uint32_t i = subscript.asUInt32();
-        if (isJSString(baseValue) && asString(baseValue)->canGetIndex(i))
-            result = asString(baseValue)->getIndex(exec, i);
-        else {
-            result = baseValue.get(exec, i);
-            if (!isJSString(baseValue)) {
-                ASSERT(exec->bytecodeOffset());
-                ctiPatchCallByReturnAddress(ReturnAddressPtr(OUR_RETURN_ADDRESS), FunctionPtr(byValInfo->stubRoutine ? operationGetByValGeneric : operationGetByValOptimize));
-            }
+        if (isJSString(baseValue) && asString(baseValue)->canGetIndex(i)) {
+            scope.release();
+            return JSValue::encode(asString(baseValue)->getIndex(exec, i));
+        }
+        result = baseValue.get(exec, i);
+        RETURN_IF_EXCEPTION(scope, encodedJSValue());
+        if (!isJSString(baseValue)) {
+            ASSERT(exec->bytecodeOffset());
+            ctiPatchCallByReturnAddress(ReturnAddressPtr(OUR_RETURN_ADDRESS), FunctionPtr(byValInfo->stubRoutine ? operationGetByValGeneric : operationGetByValOptimize));
         }
     } else {
         baseValue.requireObjectCoercible(exec);
         RETURN_IF_EXCEPTION(scope, encodedJSValue());
         auto property = subscript.toPropertyKey(exec);
         RETURN_IF_EXCEPTION(scope, encodedJSValue());
+        scope.release();
         result = baseValue.get(exec, property);
     }
 
@@ -2000,9 +2028,11 @@ size_t JIT_OPERATION operationDeleteById(ExecState* exec, EncodedJSValue encoded
     auto scope = DECLARE_THROW_SCOPE(vm);
 
     JSObject* baseObj = JSValue::decode(encodedBase).toObject(exec);
+    RETURN_IF_EXCEPTION(scope, false);
     if (!baseObj)
         return false;
     bool couldDelete = baseObj->methodTable(vm)->deleteProperty(baseObj, exec, Identifier::fromUid(&vm, uid));
+    RETURN_IF_EXCEPTION(scope, false);
     if (!couldDelete && exec->codeBlock()->isStrictMode())
         throwTypeError(exec, scope, ASCIILiteral(UnableToDeletePropertyError));
     return couldDelete;
@@ -2020,6 +2050,7 @@ size_t JIT_OPERATION operationDeleteByVal(ExecState* exec, EncodedJSValue encode
     auto scope = DECLARE_THROW_SCOPE(vm);
 
     JSObject* baseObj = JSValue::decode(encodedBase).toObject(exec);
+    RETURN_IF_EXCEPTION(scope, false);
     JSValue key = JSValue::decode(encodedKey);
     if (!baseObj)
         return false;
@@ -2029,11 +2060,11 @@ size_t JIT_OPERATION operationDeleteByVal(ExecState* exec, EncodedJSValue encode
     if (key.getUInt32(index))
         couldDelete = baseObj->methodTable(vm)->deletePropertyByIndex(baseObj, exec, index);
     else {
-        RETURN_IF_EXCEPTION(scope, false);
         Identifier property = key.toPropertyKey(exec);
         RETURN_IF_EXCEPTION(scope, false);
         couldDelete = baseObj->methodTable(vm)->deleteProperty(baseObj, exec, property);
     }
+    RETURN_IF_EXCEPTION(scope, false);
     if (!couldDelete && exec->codeBlock()->isStrictMode())
         throwTypeError(exec, scope, ASCIILiteral(UnableToDeletePropertyError));
     return couldDelete;
@@ -2186,6 +2217,7 @@ EncodedJSValue JIT_OPERATION operationGetFromScope(ExecState* exec, Instruction*
     // ModuleVar is always converted to ClosureVar for get_from_scope.
     ASSERT(getPutInfo.resolveType() != ModuleVar);
 
+    throwScope.release();
     return JSValue::encode(scope->getPropertySlot(exec, ident, [&] (bool found, PropertySlot& slot) -> JSValue {
         if (!found) {
             if (getPutInfo.resolveMode() == ThrowIfNotFound)
@@ -2237,6 +2269,7 @@ void JIT_OPERATION operationPutToScope(ExecState* exec, Instruction* bytecodePC)
     }
 
     bool hasProperty = scope->hasProperty(exec, ident);
+    EXCEPTION_ASSERT(!throwScope.exception() || !hasProperty);
     if (hasProperty
         && scope->isGlobalLexicalEnvironment()
         && !isInitialization(getPutInfo.initializationMode())) {
@@ -2255,7 +2288,7 @@ void JIT_OPERATION operationPutToScope(ExecState* exec, Instruction* bytecodePC)
     }
 
     PutPropertySlot slot(scope, codeBlock->isStrictMode(), PutPropertySlot::UnknownContext, isInitialization(getPutInfo.initializationMode()));
-    scope->methodTable()->put(scope, exec, ident, value, slot);
+    scope->methodTable(vm)->put(scope, exec, ident, value, slot);
     
     RETURN_IF_EXCEPTION(throwScope, void());
 
@@ -2374,9 +2407,12 @@ JSCell* JIT_OPERATION operationGetPropertyEnumerator(ExecState* exec, JSCell* ce
 {
     VM& vm = exec->vm();
     NativeCallFrameTracer tracer(&vm, exec);
+    auto scope = DECLARE_THROW_SCOPE(vm);
 
     JSObject* base = cell->toObject(exec, exec->lexicalGlobalObject());
+    RETURN_IF_EXCEPTION(scope, { });
 
+    scope.release();
     return propertyNameEnumerator(exec, base);
 }
 
@@ -2508,6 +2544,7 @@ ALWAYS_INLINE static EncodedJSValue unprofiledMul(VM& vm, ExecState* exec, Encod
 
     double a = op1.toNumber(exec);
     RETURN_IF_EXCEPTION(scope, encodedJSValue());
+    scope.release();
     double b = op2.toNumber(exec);
     return JSValue::encode(jsNumber(a * b));
 }
@@ -2609,8 +2646,7 @@ ALWAYS_INLINE static EncodedJSValue unprofiledNegate(ExecState* exec, EncodedJSV
     
     JSValue operand = JSValue::decode(encodedOperand);
     double number = operand.toNumber(exec);
-    if (UNLIKELY(scope.exception()))
-        return JSValue::encode(JSValue());
+    RETURN_IF_EXCEPTION(scope, encodedJSValue());
     return JSValue::encode(jsNumber(-number));
 }
 
@@ -2623,8 +2659,7 @@ ALWAYS_INLINE static EncodedJSValue profiledNegate(ExecState* exec, EncodedJSVal
     JSValue operand = JSValue::decode(encodedOperand);
     arithProfile.observeLHS(operand);
     double number = operand.toNumber(exec);
-    if (UNLIKELY(scope.exception()))
-        return JSValue::encode(JSValue());
+    RETURN_IF_EXCEPTION(scope, encodedJSValue());
 
     JSValue result = jsNumber(-number);
     arithProfile.observeResult(result);
@@ -2660,8 +2695,7 @@ EncodedJSValue JIT_OPERATION operationArithNegateProfiledOptimize(ExecState* exe
 #endif
     
     double number = operand.toNumber(exec);
-    if (UNLIKELY(scope.exception()))
-        return JSValue::encode(JSValue());
+    RETURN_IF_EXCEPTION(scope, encodedJSValue());
     JSValue result = jsNumber(-number);
     arithProfile->observeResult(result);
     return JSValue::encode(result);
@@ -2684,8 +2718,7 @@ EncodedJSValue JIT_OPERATION operationArithNegateOptimize(ExecState* exec, Encod
 #endif
 
     double number = operand.toNumber(exec);
-    if (UNLIKELY(scope.exception()))
-        return JSValue::encode(JSValue());
+    RETURN_IF_EXCEPTION(scope, encodedJSValue());
     return JSValue::encode(jsNumber(-number));
 }
 
@@ -2697,6 +2730,7 @@ ALWAYS_INLINE static EncodedJSValue unprofiledSub(VM& vm, ExecState* exec, Encod
 
     double a = op1.toNumber(exec);
     RETURN_IF_EXCEPTION(scope, encodedJSValue());
+    scope.release();
     double b = op2.toNumber(exec);
     return JSValue::encode(jsNumber(a - b));
 }

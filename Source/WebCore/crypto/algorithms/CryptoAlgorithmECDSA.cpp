@@ -29,14 +29,17 @@
 #if ENABLE(SUBTLE_CRYPTO)
 
 #include "CryptoAlgorithmEcKeyParams.h"
+#include "CryptoAlgorithmEcdsaParams.h"
 #include "CryptoKeyEC.h"
 
 namespace WebCore {
 
 static const char* const ALG256 = "ES256";
 static const char* const ALG384 = "ES384";
+static const char* const ALG512 = "ES512";
 static const char* const P256 = "P-256";
 static const char* const P384 = "P-384";
+static const char* const P521 = "P-521";
 
 Ref<CryptoAlgorithm> CryptoAlgorithmECDSA::create()
 {
@@ -57,7 +60,7 @@ void CryptoAlgorithmECDSA::sign(std::unique_ptr<CryptoAlgorithmParameters>&& par
 
     dispatchOperation(workQueue, context, WTFMove(callback), WTFMove(exceptionCallback),
         [parameters = WTFMove(parameters), key = WTFMove(key), data = WTFMove(data)] {
-            return platformSign(*parameters, key, data);
+            return platformSign(downcast<CryptoAlgorithmEcdsaParams>(*parameters), downcast<CryptoKeyEC>(key.get()), data);
         });
 }
 
@@ -70,7 +73,7 @@ void CryptoAlgorithmECDSA::verify(std::unique_ptr<CryptoAlgorithmParameters>&& p
 
     dispatchOperation(workQueue, context, WTFMove(callback), WTFMove(exceptionCallback),
         [parameters = WTFMove(parameters), key = WTFMove(key), signature = WTFMove(signature), data = WTFMove(data)] {
-            return platformVerify(*parameters, key, signature, data);
+            return platformVerify(downcast<CryptoAlgorithmEcdsaParams>(*parameters), downcast<CryptoKeyEC>(key.get()), signature, data);
         });
 }
 
@@ -119,6 +122,8 @@ void CryptoAlgorithmECDSA::importKey(CryptoKeyFormat format, KeyData&& data, con
             isMatched = key.alg.isNull() || key.alg == ALG256;
         if (key.crv == P384)
             isMatched = key.alg.isNull() || key.alg == ALG384;
+        if (key.crv == P521)
+            isMatched = key.alg.isNull() || key.alg == ALG512;
         if (!isMatched) {
             exceptionCallback(DataError);
             return;

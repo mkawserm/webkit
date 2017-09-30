@@ -28,6 +28,7 @@
 
 #if ENABLE(FTL_JIT)
 
+#include "AirCode.h"
 #include "AirGenerationContext.h"
 #include "AllowMacroScratchRegisterUsage.h"
 #include "AtomicsObject.h"
@@ -151,6 +152,29 @@ public:
                 "_", codeBlock()->hash());
         } else
             name = "jsBody";
+
+        {
+            m_proc.setNumEntrypoints(m_graph.m_numberOfEntrypoints);
+            CodeBlock* codeBlock = m_graph.m_codeBlock;
+
+            Ref<B3::Air::PrologueGenerator> catchPrologueGenerator = createSharedTask<B3::Air::PrologueGeneratorFunction>(
+                [codeBlock] (CCallHelpers& jit, B3::Air::Code& code) {
+                    AllowMacroScratchRegisterUsage allowScratch(jit);
+                    jit.addPtr(CCallHelpers::TrustedImm32(-code.frameSize()), GPRInfo::callFrameRegister, CCallHelpers::stackPointerRegister);
+                    jit.emitSave(code.calleeSaveRegisterAtOffsetList());
+                    jit.emitPutToCallFrameHeader(codeBlock, CallFrameSlot::codeBlock);
+                });
+
+            for (unsigned catchEntrypointIndex : m_graph.m_entrypointIndexToCatchBytecodeOffset.keys()) {
+                RELEASE_ASSERT(catchEntrypointIndex != 0);
+                m_proc.code().setPrologueForEntrypoint(catchEntrypointIndex, catchPrologueGenerator.copyRef());
+            }
+
+            if (m_graph.m_maxLocalsForCatchOSREntry) {
+                uint32_t numberOfLiveLocals = std::max(*m_graph.m_maxLocalsForCatchOSREntry, 1u); // Make sure we always allocate a non-null catchOSREntryBuffer.
+                m_ftlState.jitCode->common.catchOSREntryBuffer = m_graph.m_vm.scratchBufferForSize(sizeof(JSValue) * numberOfLiveLocals);
+            }
+        }
         
         m_graph.ensureSSADominators();
 
@@ -162,7 +186,8 @@ public:
         // We use prologue frequency for all of the initialization code.
         m_out.setFrequency(1);
         
-        m_prologue = m_out.newBlock();
+        LBasicBlock prologue = m_out.newBlock();
+        LBasicBlock callEntrypointArgumentSpeculations = m_out.newBlock();
         m_handleExceptions = m_out.newBlock();
 
         for (BlockIndex blockIndex = 0; blockIndex < m_graph.numBlocks(); ++blockIndex) {
@@ -176,8 +201,8 @@ public:
         // Back to prologue frequency for any bocks that get sneakily created in the initialization code.
         m_out.setFrequency(1);
         
-        m_out.appendTo(m_prologue, m_handleExceptions);
-        m_out.initializeConstants(m_proc, m_prologue);
+        m_out.appendTo(prologue, callEntrypointArgumentSpeculations);
+        m_out.initializeConstants(m_proc, prologue);
         createPhiVariables();
 
         size_t sizeOfCaptured = sizeof(JSValue) * m_graph.m_nextMachineLocal;
@@ -259,51 +284,57 @@ public:
             });
 
         LBasicBlock firstDFGBasicBlock = lowBlock(m_graph.block(0));
-        // Check Arguments.
-        availabilityMap().clear();
-        availabilityMap().m_locals = Operands<Availability>(codeBlock()->numParameters(), 0);
-        for (unsigned i = codeBlock()->numParameters(); i--;) {
-            availabilityMap().m_locals.argument(i) =
-                Availability(FlushedAt(FlushedJSValue, virtualRegisterForArgument(i)));
-        }
-        m_node = nullptr;
-        m_origin = NodeOrigin(CodeOrigin(0), CodeOrigin(0), true);
-        auto& arguments = m_graph.m_entrypointToArguments.find(m_graph.block(0))->value;
-        for (unsigned i = codeBlock()->numParameters(); i--;) {
-            Node* node = arguments[i];
-            m_out.setOrigin(node);
-            VirtualRegister operand = virtualRegisterForArgument(i);
-            
-            LValue jsValue = m_out.load64(addressFor(operand));
-            
-            if (node) {
-                DFG_ASSERT(m_graph, node, operand == node->stackAccessData()->machineLocal);
+
+        {
+            Vector<LBasicBlock> successors(m_graph.m_numberOfEntrypoints);
+            successors[0] = callEntrypointArgumentSpeculations;
+            for (unsigned i = 1; i < m_graph.m_numberOfEntrypoints; ++i) {
+                // Currently, the only other entrypoint is an op_catch entrypoint.
+                // We do OSR entry at op_catch, and we prove argument formats before
+                // jumping to FTL code, so we don't need to check argument types here
+                // for these entrypoints.
+                successors[i] = firstDFGBasicBlock;
+            }
+
+            m_out.entrySwitch(successors);
+            m_out.appendTo(callEntrypointArgumentSpeculations, m_handleExceptions);
+
+            m_node = nullptr;
+            m_origin = NodeOrigin(CodeOrigin(0), CodeOrigin(0), true);
+
+            // Check Arguments.
+            availabilityMap().clear();
+            availabilityMap().m_locals = Operands<Availability>(codeBlock()->numParameters(), 0);
+            for (unsigned i = codeBlock()->numParameters(); i--;) {
+                availabilityMap().m_locals.argument(i) =
+                    Availability(FlushedAt(FlushedJSValue, virtualRegisterForArgument(i)));
+            }
+
+            for (unsigned i = codeBlock()->numParameters(); i--;) {
+                MethodOfGettingAValueProfile profile(&m_graph.m_profiledBlock->valueProfileForArgument(i));
+                VirtualRegister operand = virtualRegisterForArgument(i);
+                LValue jsValue = m_out.load64(addressFor(operand));
                 
-                // This is a hack, but it's an effective one. It allows us to do CSE on the
-                // primordial load of arguments. This assumes that the GetLocal that got put in
-                // place of the original SetArgument doesn't have any effects before it. This
-                // should hold true.
-                m_loadedArgumentValues.add(node, jsValue);
+                switch (m_graph.m_argumentFormats[0][i]) {
+                case FlushedInt32:
+                    speculate(BadType, jsValueValue(jsValue), profile, isNotInt32(jsValue));
+                    break;
+                case FlushedBoolean:
+                    speculate(BadType, jsValueValue(jsValue), profile, isNotBoolean(jsValue));
+                    break;
+                case FlushedCell:
+                    speculate(BadType, jsValueValue(jsValue), profile, isNotCell(jsValue));
+                    break;
+                case FlushedJSValue:
+                    break;
+                default:
+                    DFG_CRASH(m_graph, nullptr, "Bad flush format for argument");
+                    break;
+                }
             }
-            
-            switch (m_graph.m_argumentFormats[i]) {
-            case FlushedInt32:
-                speculate(BadType, jsValueValue(jsValue), node, isNotInt32(jsValue));
-                break;
-            case FlushedBoolean:
-                speculate(BadType, jsValueValue(jsValue), node, isNotBoolean(jsValue));
-                break;
-            case FlushedCell:
-                speculate(BadType, jsValueValue(jsValue), node, isNotCell(jsValue));
-                break;
-            case FlushedJSValue:
-                break;
-            default:
-                DFG_CRASH(m_graph, node, "Bad flush format for argument");
-                break;
-            }
+            m_out.jump(firstDFGBasicBlock);
         }
-        m_out.jump(firstDFGBasicBlock);
+
 
         m_out.appendTo(m_handleExceptions, firstDFGBasicBlock);
         Box<CCallHelpers::Label> exceptionHandler = state->exceptionHandler;
@@ -512,6 +543,9 @@ private:
         case ExtractOSREntryLocal:
             compileExtractOSREntryLocal();
             break;
+        case ExtractCatchLocal:
+            compileExtractCatchLocal();
+            break;
         case GetStack:
             compileGetStack();
             break;
@@ -609,6 +643,9 @@ private:
             break;
         case CheckStructure:
             compileCheckStructure();
+            break;
+        case CheckStructureOrEmpty:
+            compileCheckStructureOrEmpty();
             break;
         case CheckCell:
             compileCheckCell();
@@ -859,6 +896,9 @@ private:
         case GetGlobalObject:
             compileGetGlobalObject();
             break;
+        case GetGlobalThis:
+            compileGetGlobalThis();
+            break;
         case GetClosureVar:
             compileGetClosureVar();
             break;
@@ -891,6 +931,12 @@ private:
             break;
         case CompareGreaterEq:
             compileCompareGreaterEq();
+            break;
+        case CompareBelow:
+            compileCompareBelow();
+            break;
+        case CompareBelowEq:
+            compileCompareBelowEq();
             break;
         case CompareEqPtr:
             compileCompareEqPtr();
@@ -940,6 +986,9 @@ private:
         case DFG::Switch:
             compileSwitch();
             break;
+        case DFG::EntrySwitch:
+            compileEntrySwitch();
+            break;
         case DFG::Return:
             compileReturn();
             break;
@@ -987,6 +1036,9 @@ private:
             break;
         case LoadValueFromMapBucket:
             compileLoadValueFromMapBucket();
+            break;
+        case WeakMapGet:
+            compileWeakMapGet();
             break;
         case IsObject:
             compileIsObject();
@@ -1123,6 +1175,9 @@ private:
         case NumberToStringWithRadix:
             compileNumberToStringWithRadix();
             break;
+        case NumberToStringWithValidRadixConstant:
+            compileNumberToStringWithValidRadixConstant();
+            break;
         case CheckSubClass:
             compileCheckSubClass();
             break;
@@ -1152,6 +1207,7 @@ private:
         case PutHint:
         case BottomValue:
         case KillStack:
+        case InitializeEntrypointArguments:
             break;
         default:
             DFG_CRASH(m_graph, m_node, "Unrecognized node in FTL backend");
@@ -1522,16 +1578,15 @@ private:
             m_ftlState.jitCode->ftlForOSREntry()->entryBuffer()->dataBuffer());
         setJSValue(m_out.load64(m_out.absolute(buffer + m_node->unlinkedLocal().toLocal())));
     }
+
+    void compileExtractCatchLocal()
+    {
+        EncodedJSValue* buffer = static_cast<EncodedJSValue*>(m_ftlState.jitCode->common.catchOSREntryBuffer->dataBuffer());
+        setJSValue(m_out.load64(m_out.absolute(buffer + m_node->catchOSREntryIndex())));
+    }
     
     void compileGetStack()
     {
-        // GetLocals arise only for captured variables and arguments. For arguments, we might have
-        // already loaded it.
-        if (LValue value = m_loadedArgumentValues.get(m_node)) {
-            setJSValue(value);
-            return;
-        }
-        
         StackAccessData* data = m_node->stackAccessData();
         AbstractValue& value = m_state.variables().operand(data->local);
         
@@ -2723,6 +2778,39 @@ private:
             return;
         }
     }
+
+    void compileCheckStructureOrEmpty()
+    {
+        ExitKind exitKind;
+        if (m_node->child1()->hasConstant())
+            exitKind = BadConstantCache;
+        else
+            exitKind = BadCache;
+
+        LValue cell = lowCell(m_node->child1());
+        bool maySeeEmptyValue = m_interpreter.forNode(m_node->child1()).m_type & SpecEmpty;
+        LBasicBlock notEmpty;
+        LBasicBlock continuation;
+        LBasicBlock lastNext;
+        if (maySeeEmptyValue) {
+            notEmpty = m_out.newBlock();
+            continuation = m_out.newBlock();
+            m_out.branch(m_out.isZero64(cell), unsure(continuation), unsure(notEmpty));
+            lastNext = m_out.appendTo(notEmpty, continuation);
+        }
+
+        checkStructure(
+            m_out.load32(cell, m_heaps.JSCell_structureID), jsValueValue(cell),
+            exitKind, m_node->structureSet(),
+            [&] (RegisteredStructure structure) {
+                return weakStructureID(structure);
+            });
+
+        if (maySeeEmptyValue) {
+            m_out.jump(continuation);
+            m_out.appendTo(continuation, lastNext);
+        }
+    }
     
     void compileCheckCell()
     {
@@ -3576,7 +3664,7 @@ private:
                 m_out.equal(scopeOffset, m_out.constInt32(ScopeOffset::invalidOffset)));
             
             address = m_out.baseIndex(
-                m_heaps.JSEnvironmentRecord_variables, caged(Gigacage::JSValue, scope),
+                m_heaps.JSLexicalEnvironment_variables, caged(Gigacage::JSValue, scope),
                 m_out.zeroExtPtr(scopeOffset));
             ValueFromBlock namedResult = m_out.anchor(m_out.load64(address));
             m_out.jump(continuation);
@@ -3597,6 +3685,21 @@ private:
         }
             
         case Array::Generic: {
+            if (m_node->child1().useKind() == ObjectUse) {
+                if (m_node->child2().useKind() == StringUse) {
+                    setJSValue(vmCall(
+                        Int64, m_out.operation(operationGetByValObjectString), m_callFrame,
+                        lowObject(m_node->child1()), lowString(m_node->child2())));
+                    return;
+                }
+
+                if (m_node->child2().useKind() == SymbolUse) {
+                    setJSValue(vmCall(
+                        Int64, m_out.operation(operationGetByValObjectSymbol), m_callFrame,
+                        lowObject(m_node->child1()), lowSymbol(m_node->child2())));
+                    return;
+                }
+            }
             setJSValue(vmCall(
                 Int64, m_out.operation(operationGetByVal), m_callFrame,
                 lowJSValue(m_node->child1()), lowJSValue(m_node->child2())));
@@ -3755,6 +3858,41 @@ private:
         
         switch (m_node->arrayMode().type()) {
         case Array::Generic: {
+            if (child1.useKind() == CellUse) {
+                V_JITOperation_ECCJ operation = nullptr;
+                if (child2.useKind() == StringUse) {
+                    if (m_node->op() == PutByValDirect) {
+                        if (m_graph.isStrictModeFor(m_node->origin.semantic))
+                            operation = operationPutByValDirectCellStringStrict;
+                        else
+                            operation = operationPutByValDirectCellStringNonStrict;
+                    } else {
+                        if (m_graph.isStrictModeFor(m_node->origin.semantic))
+                            operation = operationPutByValCellStringStrict;
+                        else
+                            operation = operationPutByValCellStringNonStrict;
+                    }
+                    vmCall(Void, m_out.operation(operation), m_callFrame, lowCell(child1), lowString(child2), lowJSValue(child3));
+                    return;
+                }
+
+                if (child2.useKind() == SymbolUse) {
+                    if (m_node->op() == PutByValDirect) {
+                        if (m_graph.isStrictModeFor(m_node->origin.semantic))
+                            operation = operationPutByValDirectCellSymbolStrict;
+                        else
+                            operation = operationPutByValDirectCellSymbolNonStrict;
+                    } else {
+                        if (m_graph.isStrictModeFor(m_node->origin.semantic))
+                            operation = operationPutByValCellSymbolStrict;
+                        else
+                            operation = operationPutByValCellSymbolNonStrict;
+                    }
+                    vmCall(Void, m_out.operation(operation), m_callFrame, lowCell(child1), lowSymbol(child2), lowJSValue(child3));
+                    return;
+                }
+            }
+
             V_JITOperation_EJJJ operation;
             if (m_node->op() == PutByValDirect) {
                 if (m_graph.isStrictModeFor(m_node->origin.semantic))
@@ -4057,7 +4195,7 @@ private:
                 m_out.select(m_out.equal(indexingType, m_out.constInt32(ArrayWithContiguous)),
                     weakStructure(m_graph.registerStructure(globalObject->arrayStructureForIndexingTypeDuringAllocation(ArrayWithContiguous))),
                     weakStructure(m_graph.registerStructure(globalObject->arrayStructureForIndexingTypeDuringAllocation(ArrayWithDouble)))));
-            arrayResult = allocateJSArray(resultLength, structure, indexingType, false, false);
+            arrayResult = allocateJSArray(resultLength, resultLength, structure, indexingType, false, false);
         }
 
         LBasicBlock loop = m_out.newBlock();
@@ -4327,7 +4465,7 @@ private:
         for (unsigned i = 0; i < table->scopeSize(); ++i) {
             m_out.store64(
                 m_out.constInt64(JSValue::encode(initializationValue)),
-                fastObject, m_heaps.JSEnvironmentRecord_variables[i]);
+                fastObject, m_heaps.JSLexicalEnvironment_variables[i]);
         }
         
         mutatorFence();
@@ -4982,9 +5120,11 @@ private:
         
         if (!globalObject->isHavingABadTime() && !hasAnyArrayStorage(m_node->indexingType())) {
             unsigned numElements = m_node->numConstants();
-            
+            unsigned vectorLengthHint = m_node->vectorLengthHint();
+           
+            ASSERT(vectorLengthHint >= numElements);
             ArrayValues arrayValues =
-                allocateUninitializedContiguousJSArray(m_out.constInt32(numElements), structure);
+                allocateUninitializedContiguousJSArray(numElements, vectorLengthHint, structure);
             
             JSValue* data = codeBlock()->constantBuffer(m_node->startConstant());
             for (unsigned index = 0; index < m_node->numConstants(); ++index) {
@@ -5023,7 +5163,7 @@ private:
             IndexingType indexingType = m_node->indexingType();
             setJSValue(
                 allocateJSArray(
-                    publicLength, weakPointer(globalObject->arrayStructureForIndexingTypeDuringAllocation(indexingType)), m_out.constInt32(indexingType)).array);
+                    publicLength, publicLength, weakPointer(globalObject->arrayStructureForIndexingTypeDuringAllocation(indexingType)), m_out.constInt32(indexingType)).array);
             mutatorFence();
             return;
         }
@@ -5831,13 +5971,19 @@ private:
         LValue structure = loadStructure(lowCell(m_node->child1()));
         setJSValue(m_out.loadPtr(structure, m_heaps.Structure_globalObject));
     }
+
+    void compileGetGlobalThis()
+    {
+        auto* globalObject = m_graph.globalObjectFor(m_node->origin.semantic);
+        setJSValue(m_out.loadPtr(m_out.absolute(globalObject->addressOfGlobalThis())));
+    }
     
     void compileGetClosureVar()
     {
         setJSValue(
             m_out.load64(
                 lowCell(m_node->child1()),
-                m_heaps.JSEnvironmentRecord_variables[m_node->scopeOffset().offset()]));
+                m_heaps.JSLexicalEnvironment_variables[m_node->scopeOffset().offset()]));
     }
     
     void compilePutClosureVar()
@@ -5845,7 +5991,7 @@ private:
         m_out.store64(
             lowJSValue(m_node->child2()),
             lowCell(m_node->child1()),
-            m_heaps.JSEnvironmentRecord_variables[m_node->scopeOffset().offset()]);
+            m_heaps.JSLexicalEnvironment_variables[m_node->scopeOffset().offset()]);
     }
     
     void compileGetFromArguments()
@@ -6197,6 +6343,16 @@ private:
             operationCompareStringImplGreaterEq,
             operationCompareStringGreaterEq,
             operationCompareGreaterEq);
+    }
+
+    void compileCompareBelow()
+    {
+        setBoolean(m_out.below(lowInt32(m_node->child1()), lowInt32(m_node->child2())));
+    }
+    
+    void compileCompareBelowEq()
+    {
+        setBoolean(m_out.belowOrEqual(lowInt32(m_node->child1()), lowInt32(m_node->child2())));
     }
     
     void compileLogicalNot()
@@ -7788,6 +7944,14 @@ private:
         
         DFG_CRASH(m_graph, m_node, "Bad switch kind");
     }
+
+    void compileEntrySwitch()
+    {
+        Vector<LBasicBlock> successors;
+        for (DFG::BasicBlock* successor : m_node->entrySwitchData()->cases)
+            successors.append(lowBlock(successor));
+        m_out.entrySwitch(successors);
+    }
     
     void compileReturn()
     {
@@ -8335,6 +8499,15 @@ private:
     {
         LValue mapBucket = lowCell(m_node->child1());
         setJSValue(m_out.load64(mapBucket, m_heaps.HashMapBucket_key));
+    }
+
+    void compileWeakMapGet()
+    {
+        LValue weakMap = lowWeakMapObject(m_node->child1());
+        LValue object = lowObject(m_node->child2());
+        LValue hash = lowInt32(m_node->child3());
+
+        setJSValue(vmCall(Int64, m_out.operation(operationWeakMapGet), m_callFrame, weakMap, object, hash));
     }
 
     void compileIsObjectOrNull()
@@ -9400,7 +9573,7 @@ private:
             ASSERT(descriptor.kind() == ClosureVarPLoc);
             m_out.store64(
                 values[i], activation,
-                m_heaps.JSEnvironmentRecord_variables[descriptor.info()]);
+                m_heaps.JSLexicalEnvironment_variables[descriptor.info()]);
         }
 
         if (validationEnabled()) {
@@ -10419,6 +10592,23 @@ private:
         }
     }
 
+    void compileNumberToStringWithValidRadixConstant()
+    {
+        switch (m_node->child1().useKind()) {
+        case Int32Use:
+            setJSValue(vmCall(pointerType(), m_out.operation(operationInt32ToStringWithValidRadix), m_callFrame, lowInt32(m_node->child1()), m_out.constInt32(m_node->validRadixConstant())));
+            break;
+        case Int52RepUse:
+            setJSValue(vmCall(pointerType(), m_out.operation(operationInt52ToStringWithValidRadix), m_callFrame, lowStrictInt52(m_node->child1()), m_out.constInt32(m_node->validRadixConstant())));
+            break;
+        case DoubleRepUse:
+            setJSValue(vmCall(pointerType(), m_out.operation(operationDoubleToStringWithValidRadix), m_callFrame, lowDouble(m_node->child1()), m_out.constInt32(m_node->validRadixConstant())));
+            break;
+        default:
+            RELEASE_ASSERT_NOT_REACHED();
+        }
+    }
+
     void compileResolveScopeForHoistingFuncDeclInEval()
     {
         UniquedStringImpl* uid = m_graph.identifiers()[m_node->identifierNumber()];
@@ -11269,7 +11459,7 @@ private:
         LValue butterfly;
     };
 
-    ArrayValues allocateJSArray(LValue publicLength, LValue structure, LValue indexingType, bool shouldInitializeElements = true, bool shouldLargeArraySizeCreateArrayStorage = true)
+    ArrayValues allocateJSArray(LValue publicLength, LValue vectorLength, LValue structure, LValue indexingType, bool shouldInitializeElements = true, bool shouldLargeArraySizeCreateArrayStorage = true)
     {
         JSGlobalObject* globalObject = m_graph.globalObjectFor(m_node->origin.semantic);
         if (indexingType->hasInt32()) {
@@ -11288,6 +11478,32 @@ private:
         LBasicBlock slowCase = m_out.newBlock();
         
         LBasicBlock lastNext = m_out.insertNewBlocksBefore(fastCase);
+
+        std::optional<unsigned> staticVectorLength;
+        std::optional<unsigned> staticVectorLengthFromPublicLength;
+        if (structure->hasIntPtr()) {
+            if (publicLength->hasInt32()) {
+                unsigned publicLengthConst = static_cast<unsigned>(publicLength->asInt32());
+                if (publicLengthConst <= MAX_STORAGE_VECTOR_LENGTH) {
+                    publicLengthConst = Butterfly::optimalContiguousVectorLength(
+                        bitwise_cast<Structure*>(structure->asIntPtr())->outOfLineCapacity(), publicLengthConst);
+                    staticVectorLengthFromPublicLength = publicLengthConst;
+                }
+
+            }
+            if (vectorLength->hasInt32()) {
+                unsigned vectorLengthConst = static_cast<unsigned>(vectorLength->asInt32());
+                if (vectorLengthConst <= MAX_STORAGE_VECTOR_LENGTH) {
+                    vectorLengthConst = Butterfly::optimalContiguousVectorLength(
+                        bitwise_cast<Structure*>(structure->asIntPtr())->outOfLineCapacity(), vectorLengthConst);
+                    vectorLength = m_out.constInt32(vectorLengthConst);
+                    staticVectorLength = vectorLengthConst;
+                }
+            }
+        } else {
+            // We don't compute the optimal vector length for new Array(blah) where blah is not
+            // statically known, since the compute effort of doing it here is probably not worth it.
+        }
         
         ValueFromBlock noButterfly = m_out.anchor(m_out.intPtrZero);
         
@@ -11300,22 +11516,6 @@ private:
         m_out.branch(predicate, rarely(largeCase), usually(fastCase));
         
         m_out.appendTo(fastCase, largeCase);
-
-        LValue vectorLength = nullptr;
-        if (publicLength->hasInt32() && structure->hasIntPtr()) {
-            unsigned publicLengthConst = static_cast<unsigned>(publicLength->asInt32());
-            if (publicLengthConst <= MAX_STORAGE_VECTOR_LENGTH) {
-                vectorLength = m_out.constInt32(
-                    Butterfly::optimalContiguousVectorLength(
-                        bitwise_cast<Structure*>(structure->asIntPtr())->outOfLineCapacity(), publicLengthConst));
-            }
-        }
-        
-        if (!vectorLength) {
-            // We don't compute the optimal vector length for new Array(blah) where blah is not
-            // statically known, since the compute effort of doing it here is probably not worth it.
-            vectorLength = publicLength;
-        }
             
         LValue payloadSize =
             m_out.shl(m_out.zeroExt(vectorLength, pointerType()), m_out.constIntPtr(3));
@@ -11358,13 +11558,26 @@ private:
         LValue butterflyValue = m_out.phi(pointerType(), noButterfly, haveButterfly);
 
         VM& vm = this->vm();
-        LValue slowResultValue = lazySlowPath(
-            [=, &vm] (const Vector<Location>& locations) -> RefPtr<LazySlowPath::Generator> {
-                return createLazyCallGenerator(vm,
-                    operationNewArrayWithSize, locations[0].directGPR(),
-                    locations[1].directGPR(), locations[2].directGPR(), locations[3].directGPR());
-            },
-            structureValue, publicLength, butterflyValue);
+        LValue slowResultValue = nullptr;
+        if (vectorLength == publicLength
+            || (staticVectorLengthFromPublicLength && staticVectorLength && staticVectorLength.value() == staticVectorLengthFromPublicLength.value())) {
+            slowResultValue = lazySlowPath(
+                [=, &vm] (const Vector<Location>& locations) -> RefPtr<LazySlowPath::Generator> {
+                    return createLazyCallGenerator(vm,
+                        operationNewArrayWithSize, locations[0].directGPR(),
+                        locations[1].directGPR(), locations[2].directGPR(), locations[3].directGPR());
+                },
+                structureValue, publicLength, butterflyValue);
+        } else {
+            slowResultValue = lazySlowPath(
+                [=, &vm] (const Vector<Location>& locations) -> RefPtr<LazySlowPath::Generator> {
+                    return createLazyCallGenerator(vm,
+                        operationNewArrayWithSizeAndHint, locations[0].directGPR(),
+                        locations[1].directGPR(), locations[2].directGPR(), locations[3].directGPR(), locations[4].directGPR());
+                },
+                structureValue, publicLength, vectorLength, butterflyValue);
+        }
+
         ValueFromBlock slowResult = m_out.anchor(slowResultValue);
         ValueFromBlock slowButterfly = m_out.anchor(
             m_out.loadPtr(slowResultValue, m_heaps.JSObject_butterfly));
@@ -11376,13 +11589,24 @@ private:
             m_out.phi(pointerType(), fastButterfly, slowButterfly));
     }
     
-    ArrayValues allocateUninitializedContiguousJSArray(LValue publicLength, RegisteredStructure structure)
+    ArrayValues allocateUninitializedContiguousJSArrayInternal(LValue publicLength, LValue vectorLength, RegisteredStructure structure)
     {
         bool shouldInitializeElements = false;
         bool shouldLargeArraySizeCreateArrayStorage = false;
         return allocateJSArray(
-            publicLength, weakStructure(structure), m_out.constInt32(structure->indexingType()), shouldInitializeElements,
+            publicLength, vectorLength, weakStructure(structure), m_out.constInt32(structure->indexingType()), shouldInitializeElements,
             shouldLargeArraySizeCreateArrayStorage);
+    }
+
+    ArrayValues allocateUninitializedContiguousJSArray(LValue publicLength, RegisteredStructure structure)
+    {
+        return allocateUninitializedContiguousJSArrayInternal(publicLength, publicLength, structure);
+    }
+
+    ArrayValues allocateUninitializedContiguousJSArray(unsigned publicLength, unsigned vectorLength, RegisteredStructure structure)
+    {
+        ASSERT(vectorLength >= publicLength);
+        return allocateUninitializedContiguousJSArrayInternal(m_out.constInt32(publicLength), m_out.constInt32(vectorLength), structure);
     }
     
     LValue ensureShadowChickenPacket()
@@ -12591,6 +12815,12 @@ private:
     {
         appendOSRExit(kind, lowValue, highValue, failCondition, m_origin);
     }
+
+    void speculate(
+        ExitKind kind, FormattedValue lowValue, const MethodOfGettingAValueProfile& profile, LValue failCondition)
+    {
+        appendOSRExit(kind, lowValue, profile, failCondition, m_origin);
+    }
     
     void terminate(ExitKind kind)
     {
@@ -12793,6 +13023,20 @@ private:
     {
         LValue result = lowCell(edge);
         speculateSetObject(edge, result);
+        return result;
+    }
+
+    LValue lowWeakMapObject(Edge edge)
+    {
+        LValue result = lowCell(edge);
+        speculateWeakMapObject(edge, result);
+        return result;
+    }
+
+    LValue lowWeakSetObject(Edge edge)
+    {
+        LValue result = lowCell(edge);
+        speculateWeakSetObject(edge, result);
         return result;
     }
     
@@ -13248,6 +13492,12 @@ private:
         case SetObjectUse:
             speculateSetObject(edge);
             break;
+        case WeakMapObjectUse:
+            speculateWeakMapObject(edge);
+            break;
+        case WeakSetObjectUse:
+            speculateWeakSetObject(edge);
+            break;
         case StringUse:
             speculateString(edge);
             break;
@@ -13642,6 +13892,28 @@ private:
     void speculateSetObject(Edge edge)
     {
         speculateSetObject(edge, lowCell(edge));
+    }
+
+    void speculateWeakMapObject(Edge edge, LValue cell)
+    {
+        FTL_TYPE_CHECK(
+            jsValueValue(cell), edge, SpecWeakMapObject, isNotType(cell, JSWeakMapType));
+    }
+
+    void speculateWeakMapObject(Edge edge)
+    {
+        speculateWeakMapObject(edge, lowCell(edge));
+    }
+
+    void speculateWeakSetObject(Edge edge, LValue cell)
+    {
+        FTL_TYPE_CHECK(
+            jsValueValue(cell), edge, SpecWeakSetObject, isNotType(cell, JSWeakSetType));
+    }
+
+    void speculateWeakSetObject(Edge edge)
+    {
+        speculateWeakSetObject(edge, lowCell(edge));
     }
     
     void speculateString(Edge edge, LValue cell)
@@ -14115,14 +14387,27 @@ private:
 
     OSRExitDescriptor* appendOSRExitDescriptor(FormattedValue lowValue, Node* highValue)
     {
+        return appendOSRExitDescriptor(lowValue, m_graph.methodOfGettingAValueProfileFor(m_node, highValue));
+    }
+
+    OSRExitDescriptor* appendOSRExitDescriptor(FormattedValue lowValue, const MethodOfGettingAValueProfile& profile)
+    {
         return &m_ftlState.jitCode->osrExitDescriptors.alloc(
-            lowValue.format(), m_graph.methodOfGettingAValueProfileFor(m_node, highValue),
+            lowValue.format(), profile,
             availabilityMap().m_locals.numberOfArguments(),
             availabilityMap().m_locals.numberOfLocals());
     }
-    
+
     void appendOSRExit(
         ExitKind kind, FormattedValue lowValue, Node* highValue, LValue failCondition, 
+        NodeOrigin origin, bool isExceptionHandler = false)
+    {
+        return appendOSRExit(kind, lowValue, m_graph.methodOfGettingAValueProfileFor(m_node, highValue),
+            failCondition, origin, isExceptionHandler);
+    }
+    
+    void appendOSRExit(
+        ExitKind kind, FormattedValue lowValue, const MethodOfGettingAValueProfile& profile, LValue failCondition, 
         NodeOrigin origin, bool isExceptionHandler = false)
     {
         if (verboseCompilationEnabled()) {
@@ -14159,12 +14444,17 @@ private:
             return;
 
         blessSpeculation(
-            m_out.speculate(failCondition), kind, lowValue, highValue, origin);
+            m_out.speculate(failCondition), kind, lowValue, profile, origin);
     }
 
     void blessSpeculation(CheckValue* value, ExitKind kind, FormattedValue lowValue, Node* highValue, NodeOrigin origin)
     {
-        OSRExitDescriptor* exitDescriptor = appendOSRExitDescriptor(lowValue, highValue);
+        blessSpeculation(value, kind, lowValue, m_graph.methodOfGettingAValueProfileFor(m_node, highValue), origin);
+    }
+
+    void blessSpeculation(CheckValue* value, ExitKind kind, FormattedValue lowValue, const MethodOfGettingAValueProfile& profile, NodeOrigin origin)
+    {
+        OSRExitDescriptor* exitDescriptor = appendOSRExitDescriptor(lowValue, profile);
         
         value->appendColdAnys(buildExitArguments(exitDescriptor, origin.forExit, lowValue));
 
@@ -14651,7 +14941,6 @@ private:
     Output m_out;
     Procedure& m_proc;
     
-    LBasicBlock m_prologue;
     LBasicBlock m_handleExceptions;
     HashMap<DFG::BasicBlock*, LBasicBlock> m_blocks;
     
@@ -14667,11 +14956,6 @@ private:
     HashMap<Node*, LoweredNodeValue> m_booleanValues;
     HashMap<Node*, LoweredNodeValue> m_storageValues;
     HashMap<Node*, LoweredNodeValue> m_doubleValues;
-    
-    // This is a bit of a hack. It prevents B3 from having to do CSE on loading of arguments.
-    // It's nice to have these optimizations on our end because we can guarantee them a bit better.
-    // Probably also saves B3 compile time.
-    HashMap<Node*, LValue> m_loadedArgumentValues;
     
     HashMap<Node*, LValue> m_phis;
     

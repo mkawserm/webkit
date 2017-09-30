@@ -1,3 +1,45 @@
+2017-09-29  Commit Queue  <commit-queue@webkit.org>
+
+        Unreviewed, rolling out r222625.
+        https://bugs.webkit.org/show_bug.cgi?id=177664
+
+        causes crashes on iOS (Requested by pizlo-mbp on #webkit).
+
+        Reverted changeset:
+
+        "Enable gigacage on iOS"
+        https://bugs.webkit.org/show_bug.cgi?id=177586
+        http://trac.webkit.org/changeset/222625
+
+2017-09-28  Filip Pizlo  <fpizlo@apple.com>
+
+        Enable gigacage on iOS
+        https://bugs.webkit.org/show_bug.cgi?id=177586
+
+        Reviewed by Michael Saboff.
+        
+        This enables Gigacage on iOS using a much smaller cage size. It's not necessary for it to be so
+        small, but this is a good conservative starting point to start to exercise the code.
+
+        * bmalloc/Gigacage.h:
+
+2017-09-26  Filip Pizlo  <fpizlo@apple.com>
+
+        Put g_gigacageBasePtr into its own page and make it read-only
+        https://bugs.webkit.org/show_bug.cgi?id=174972
+
+        Reviewed by Michael Saboff.
+        
+        This puts the gigacage base pointers into their own page and makes that page read-only.
+
+        * bmalloc/Gigacage.cpp:
+        (Gigacage::ensureGigacage):
+        (Gigacage::disablePrimitiveGigacage):
+        (Gigacage::addPrimitiveDisableCallback):
+        * bmalloc/Gigacage.h:
+        (Gigacage::basePtr):
+        (Gigacage::basePtrs):
+
 2017-09-04  Adrian Perez de Castro  <aperez@igalia.com>
 
         Unreviewed build fix for Clang with libc++

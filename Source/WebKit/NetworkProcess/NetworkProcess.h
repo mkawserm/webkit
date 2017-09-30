@@ -54,6 +54,8 @@ class ProtectionSpace;
 class SecurityOrigin;
 struct SecurityOriginData;
 struct SoupNetworkProxySettings;
+enum class StoredCredentialsPolicy;
+class URL;
 }
 
 namespace WebKit {
@@ -86,7 +88,7 @@ public:
     template <typename T>
     void addSupplement()
     {
-        m_supplements.add(T::supplementName(), std::make_unique<T>(this));
+        m_supplements.add(T::supplementName(), std::make_unique<T>(*this));
     }
 
     void removeNetworkConnectionToWebProcess(NetworkConnectionToWebProcess*);
@@ -130,11 +132,14 @@ public:
     void grantSandboxExtensionsToStorageProcessForBlobs(const Vector<String>& filenames, Function<void ()>&& completionHandler);
 
 #if HAVE(CFNETWORK_STORAGE_PARTITIONING)
-    void updateCookiePartitioningForTopPrivatelyOwnedDomains(PAL::SessionID, const Vector<String>& domainsToRemove, const Vector<String>& domainsToAdd, bool shouldClearFirst);
+    void updatePrevalentDomainsToPartitionOrBlockCookies(PAL::SessionID, const Vector<String>& domainsToPartition, const Vector<String>& domainsToBlock, const Vector<String>& domainsToNeitherPartitionNorBlock, bool shouldClearFirst);
+    void removePrevalentDomains(PAL::SessionID, const Vector<String>& domains);
 #endif
 
     Seconds loadThrottleLatency() const { return m_loadThrottleLatency; }
     String cacheStorageDirectory(PAL::SessionID) const;
+
+    void preconnectTo(const WebCore::URL&, WebCore::StoredCredentialsPolicy);
 
 private:
     NetworkProcess();

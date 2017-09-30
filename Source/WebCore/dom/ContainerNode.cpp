@@ -108,9 +108,7 @@ static inline void destroyRenderTreeIfNeeded(Node& child)
 {
     bool isElement = is<Element>(child);
     auto hasDisplayContents = isElement && downcast<Element>(child).hasDisplayContents();
-    auto isNamedFlowElement = isElement && downcast<Element>(child).isNamedFlowContentElement();
-    // FIXME: Get rid of the named flow test.
-    if (!child.renderer() && !hasDisplayContents && !isNamedFlowElement)
+    if (!child.renderer() && !hasDisplayContents)
         return;
     if (isElement)
         RenderTreeUpdater::tearDownRenderers(downcast<Element>(child));
@@ -640,11 +638,9 @@ void ContainerNode::replaceAllChildren(Ref<Node>&& node)
     Ref<ContainerNode> protectedThis(*this);
     ChildListMutationScope mutation(*this);
 
-    // If node is not null, adopt node into parent's node document.
-    node->setTreeScopeRecursively(treeScope());
-
-    // Remove all parent's children, in tree order.
     willRemoveChildren(*this);
+
+    node->setTreeScopeRecursively(treeScope());
 
     {
         WidgetHierarchyUpdatesSuspensionScope suspendWidgetHierarchyUpdates;

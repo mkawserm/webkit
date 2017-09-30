@@ -37,11 +37,6 @@ std::unique_ptr<Pasteboard> Pasteboard::createForCopyAndPaste()
     return std::make_unique<Pasteboard>();
 }
 
-std::unique_ptr<Pasteboard> Pasteboard::createPrivate()
-{
-    return std::make_unique<Pasteboard>();
-}
-
 Pasteboard::Pasteboard()
 {
 }
@@ -54,14 +49,19 @@ bool Pasteboard::hasData()
     return !types.isEmpty();
 }
 
-Vector<String> Pasteboard::types()
+Vector<String> Pasteboard::typesForBindings()
 {
     Vector<String> types;
     platformStrategies()->pasteboardStrategy()->getTypes(types);
     return types;
 }
 
-String Pasteboard::readString(const String& type)
+Vector<String> Pasteboard::typesTreatedAsFiles()
+{
+    return { };
+}
+
+String Pasteboard::readStringForBindings(const String& type)
 {
     return platformStrategies()->pasteboardStrategy()->readStringFromPasteboard(0, type);
 }
@@ -87,6 +87,10 @@ void Pasteboard::read(PasteboardPlainText& text)
 void Pasteboard::read(PasteboardWebContentReader&)
 {
     notImplemented();
+}
+
+void Pasteboard::read(PasteboardFileReader&)
+{
 }
 
 void Pasteboard::write(const PasteboardURL& url)
@@ -127,7 +131,7 @@ void Pasteboard::writePlainText(const String& text, SmartReplaceOption)
     writeString("text/plain;charset=utf-8", text);
 }
 
-void Pasteboard::writePasteboard(const Pasteboard&)
+void Pasteboard::writeCustomData(const PasteboardCustomData&)
 {
 }
 

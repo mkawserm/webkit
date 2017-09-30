@@ -34,7 +34,6 @@
 #include "LinkIcon.h"
 #include <functional>
 #include <wtf/Forward.h>
-#include <wtf/Vector.h>
 #include <wtf/text/WTFString.h>
 
 #if ENABLE(CONTENT_FILTERING)
@@ -85,7 +84,6 @@ class MessageEvent;
 class NavigationAction;
 class Page;
 class PluginViewBase;
-class PolicyChecker;
 class PreviewLoaderClient;
 class ProtectionSpace;
 class RTCPeerConnectionHandler;
@@ -187,7 +185,7 @@ public:
     virtual void dispatchUnableToImplementPolicy(const ResourceError&) = 0;
 
     virtual void dispatchWillSendSubmitEvent(Ref<FormState>&&) = 0;
-    virtual void dispatchWillSubmitForm(FormState&, FramePolicyFunction&&) = 0;
+    virtual void dispatchWillSubmitForm(FormState&, WTF::Function<void(void)>&&) = 0;
 
     virtual void revertToProvisionalState(DocumentLoader*) = 0;
     virtual void setMainDocumentError(DocumentLoader*, const ResourceError&) = 0;

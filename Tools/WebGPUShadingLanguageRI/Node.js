@@ -27,19 +27,21 @@
 class Node {
     visit(visitor)
     {
-        // FIXME: We could stash a memo table in the visitor. So, before calling the visitor, we ask
-        // it if they have seen this node before. If they have, then we return what they returned the
-        // last time. This also trivially makes the rewriter do remapping correctly. The downside of
-        // not doing it is mostly that various visitors might check the same types multiple times.
-        // https://bugs.webkit.org/show_bug.cgi?id=176286
-        
         let visitFunc = visitor["visit" + this.constructor.name];
         if (!visitFunc)
             throw new Error("No visit function for " + this.constructor.name + " in " + visitor.constructor.name);
         let returnValue = visitFunc.call(visitor, this);
         if ("returnValue" in visitor)
-            return visitor.returnValue;
+            returnValue = visitor.returnValue;
+        
         return returnValue;
+    }
+    
+    static visit(node, visitor)
+    {
+        if (node instanceof Node)
+            return node.visit(visitor);
+        return node;
     }
     
     unify(unificationContext, other)
@@ -78,17 +80,21 @@ class Node {
     }
     
     // Most type variables don't care about this.
-    commitUnification(unificatoinContext) { }
+    prepareToVerify(unificationContext) { }
+    commitUnification(unificationContext) { }
     
     get unifyNode() { return this; }
     get isUnifiable() { return false; }
+    get isLiteral() { return false; }
     
     get isNative() { return false; }
+    
+    conversionCost(unificationContext) { return 0; }
     
     equals(other)
     {
         let unificationContext = new UnificationContext();
-        if (this.unify(unificationContext, other) && unificationContext.verify())
+        if (this.unify(unificationContext, other) && unificationContext.verify().result)
             return unificationContext;
         return false;
     }
@@ -102,6 +108,17 @@ class Node {
         return unificationContext;
     }
     
+    commit()
+    {
+        let unificationContext = new UnificationContext();
+        unificationContext.addExtraNode(this);
+        let result = unificationContext.verify();
+        if (!result.result)
+            throw new WError(node.origin.originString, "Could not infer type: " + result.reason);
+        unificationContext.commit();
+        return unificationContext.find(this);
+    }
+    
     substitute(parameters, argumentList)
     {
         return this.visit(new Substitution(parameters, argumentList));
@@ -109,6 +126,8 @@ class Node {
     
     substituteToUnification(parameters, unificationContext)
     {
-        return this.substitute(parameters, parameters.map(type => unificationContext.find(type)));
+        return this.substitute(
+            parameters,
+            parameters.map(type => unificationContext.find(type)));
     }
 }

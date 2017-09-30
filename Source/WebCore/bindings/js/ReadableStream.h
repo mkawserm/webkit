@@ -41,11 +41,16 @@ public:
 
     static Ref<ReadableStream> create(JSC::ExecState&, RefPtr<ReadableStreamSource>&&);
 
+    WEBCORE_EXPORT static bool isDisturbed(JSC::ExecState&, JSC::JSValue);
+
     std::pair<Ref<ReadableStream>, Ref<ReadableStream>> tee();
 
+    void lock();
     void pipeTo(ReadableStreamSink&);
+    bool isLocked() const;
+    bool isDisturbed() const;
 
-    JSReadableStream* readableStream() { return guarded(); }
+    JSReadableStream* readableStream() const { return guarded(); }
 
 protected:
     ReadableStream(JSDOMGlobalObject& globalObject, JSReadableStream& readableStream) : DOMGuarded<JSReadableStream>(globalObject, readableStream) { }

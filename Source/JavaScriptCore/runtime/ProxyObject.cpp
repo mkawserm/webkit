@@ -35,8 +35,9 @@
 #include "SlotVisitorInlines.h"
 #include "StructureInlines.h"
 #include "VMInlines.h"
+#include <wtf/NoTailCalls.h>
 
-// Note that this file is compile with -fno-optimize-sibling-calls because we rely on the machine stack
+// Note that we use NO_TAIL_CALLS() throughout this file because we rely on the machine stack
 // growing larger for throwing OOM errors for when we have an effectively cyclic prototype chain.
 
 namespace JSC {
@@ -57,10 +58,13 @@ String ProxyObject::toStringName(const JSObject* object, ExecState* exec)
     const ProxyObject* proxy = jsCast<const ProxyObject*>(object);
     while (proxy) {
         const JSObject* target = proxy->target();
-        if (isArray(exec, target))
-            return target->classInfo(vm)->methodTable.toStringName(target, exec);
+        bool targetIsArray = isArray(exec, target);
         if (UNLIKELY(scope.exception()))
             break;
+        if (targetIsArray) {
+            scope.release();
+            return target->classInfo(vm)->methodTable.toStringName(target, exec);
+        }
 
         proxy = jsDynamicCast<const ProxyObject*>(vm, target);
     }
@@ -118,6 +122,8 @@ static const char* s_proxyAlreadyRevokedErrorMessage = "Proxy has already been r
 
 static JSValue performProxyGet(ExecState* exec, ProxyObject* proxyObject, JSValue receiver, PropertyName propertyName)
 {
+    NO_TAIL_CALLS();
+
     VM& vm = exec->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
     if (UNLIKELY(!vm.isSafeToRecurseSoft())) {
@@ -130,8 +136,12 @@ static JSValue performProxyGet(ExecState* exec, ProxyObject* proxyObject, JSValu
     auto performDefaultGet = [&] {
         scope.release();
         PropertySlot slot(receiver, PropertySlot::InternalMethodType::Get);
-        if (target->getPropertySlot(exec, propertyName, slot))
+        bool hasProperty = target->getPropertySlot(exec, propertyName, slot);
+        EXCEPTION_ASSERT(!scope.exception() || !hasProperty);
+        if (hasProperty) {
+            scope.release();
             return slot.getValue(exec, propertyName);
+        }
         return jsUndefined();
     };
 
@@ -176,6 +186,8 @@ static JSValue performProxyGet(ExecState* exec, ProxyObject* proxyObject, JSValu
 
 bool ProxyObject::performGet(ExecState* exec, PropertyName propertyName, PropertySlot& slot)
 {
+    NO_TAIL_CALLS();
+
     VM& vm = exec->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
     JSValue result = performProxyGet(exec, this, slot.thisValue(), propertyName);
@@ -187,6 +199,8 @@ bool ProxyObject::performGet(ExecState* exec, PropertyName propertyName, Propert
 
 bool ProxyObject::performInternalMethodGetOwnProperty(ExecState* exec, PropertyName propertyName, PropertySlot& slot)
 {
+    NO_TAIL_CALLS();
+
     VM& vm = exec->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
     if (UNLIKELY(!vm.isSafeToRecurseSoft())) {
@@ -292,6 +306,8 @@ bool ProxyObject::performInternalMethodGetOwnProperty(ExecState* exec, PropertyN
 
 bool ProxyObject::performHasProperty(ExecState* exec, PropertyName propertyName, PropertySlot& slot)
 {
+    NO_TAIL_CALLS();
+
     VM& vm = exec->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
     if (UNLIKELY(!vm.isSafeToRecurseSoft())) {
@@ -299,7 +315,7 @@ bool ProxyObject::performHasProperty(ExecState* exec, PropertyName propertyName,
         return false;
     }
     JSObject* target = this->target();
-    slot.setValue(this, None, jsUndefined()); // Nobody should rely on our value, but be safe and protect against any bad actors reading our value.
+    slot.setValue(this, static_cast<unsigned>(PropertyAttribute::None), jsUndefined()); // Nobody should rely on our value, but be safe and protect against any bad actors reading our value.
 
     auto performDefaultHasProperty = [&] {
         return target->methodTable(vm)->getOwnPropertySlot(target, exec, propertyName, slot);
@@ -400,6 +416,8 @@ bool ProxyObject::getOwnPropertySlotByIndex(JSObject* object, ExecState* exec, u
 template <typename PerformDefaultPutFunction>
 bool ProxyObject::performPut(ExecState* exec, JSValue putValue, JSValue thisValue, PropertyName propertyName, PerformDefaultPutFunction performDefaultPut)
 {
+    NO_TAIL_CALLS();
+
     VM& vm = exec->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
     if (UNLIKELY(!vm.isSafeToRecurseSoft())) {
@@ -442,7 +460,9 @@ bool ProxyObject::performPut(ExecState* exec, JSValue putValue, JSValue thisValu
         return false;
 
     PropertyDescriptor descriptor;
-    if (target->getOwnPropertyDescriptor(exec, propertyName, descriptor)) {
+    bool hasProperty = target->getOwnPropertyDescriptor(exec, propertyName, descriptor);
+    EXCEPTION_ASSERT(!scope.exception() || !hasProperty);
+    if (hasProperty) {
         if (descriptor.isDataDescriptor() && !descriptor.configurable() && !descriptor.writable()) {
             if (!sameValue(exec, descriptor.value(), putValue)) {
                 throwVMTypeError(exec, scope, ASCIILiteral("Proxy handler's 'set' on a non-configurable and non-writable property on 'target' should either return false or be the same value already on the 'target'"));
@@ -493,6 +513,8 @@ bool ProxyObject::putByIndex(JSCell* cell, ExecState* exec, unsigned propertyNam
 
 static EncodedJSValue JSC_HOST_CALL performProxyCall(ExecState* exec)
 {
+    NO_TAIL_CALLS();
+
     VM& vm = exec->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
     if (UNLIKELY(!vm.isSafeToRecurseSoft())) {
@@ -543,6 +565,8 @@ CallType ProxyObject::getCallData(JSCell* cell, CallData& callData)
 
 static EncodedJSValue JSC_HOST_CALL performProxyConstruct(ExecState* exec)
 {
+    NO_TAIL_CALLS();
+
     VM& vm = exec->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
     if (UNLIKELY(!vm.isSafeToRecurseSoft())) {
@@ -597,6 +621,8 @@ ConstructType ProxyObject::getConstructData(JSCell* cell, ConstructData& constru
 template <typename DefaultDeleteFunction>
 bool ProxyObject::performDelete(ExecState* exec, PropertyName propertyName, DefaultDeleteFunction performDefaultDelete)
 {
+    NO_TAIL_CALLS();
+
     VM& vm = exec->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
     if (UNLIKELY(!vm.isSafeToRecurseSoft())) {
@@ -674,6 +700,8 @@ bool ProxyObject::deletePropertyByIndex(JSCell* cell, ExecState* exec, unsigned 
 
 bool ProxyObject::performPreventExtensions(ExecState* exec)
 {
+    NO_TAIL_CALLS();
+
     VM& vm = exec->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
     if (UNLIKELY(!vm.isSafeToRecurseSoft())) {
@@ -725,6 +753,8 @@ bool ProxyObject::preventExtensions(JSObject* object, ExecState* exec)
 
 bool ProxyObject::performIsExtensible(ExecState* exec)
 {
+    NO_TAIL_CALLS();
+
     VM& vm = exec->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
     if (UNLIKELY(!vm.isSafeToRecurseSoft())) {
@@ -782,6 +812,8 @@ bool ProxyObject::isExtensible(JSObject* object, ExecState* exec)
 
 bool ProxyObject::performDefineOwnProperty(ExecState* exec, PropertyName propertyName, const PropertyDescriptor& descriptor, bool shouldThrow)
 {
+    NO_TAIL_CALLS();
+
     VM& vm = exec->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
     if (UNLIKELY(!vm.isSafeToRecurseSoft())) {
@@ -876,6 +908,8 @@ bool ProxyObject::defineOwnProperty(JSObject* object, ExecState* exec, PropertyN
 
 void ProxyObject::performGetOwnPropertyNames(ExecState* exec, PropertyNameArray& trapResult, EnumerationMode enumerationMode)
 {
+    NO_TAIL_CALLS();
+
     VM& vm = exec->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
     if (UNLIKELY(!vm.isSafeToRecurseSoft())) {
@@ -905,7 +939,7 @@ void ProxyObject::performGetOwnPropertyNames(ExecState* exec, PropertyNameArray&
     JSValue arrayLikeObject = call(exec, ownKeysMethod, callType, callData, handler, arguments);
     RETURN_IF_EXCEPTION(scope, void());
 
-    PropertyNameMode propertyNameMode = trapResult.mode();
+    PropertyNameMode propertyNameMode = trapResult.propertyNameMode();
     RuntimeTypeMask resultFilter = 0;
     switch (propertyNameMode) {
     case PropertyNameMode::Symbols:
@@ -943,7 +977,7 @@ void ProxyObject::performGetOwnPropertyNames(ExecState* exec, PropertyNameArray&
     bool targetIsExensible = target->isExtensible(exec);
     RETURN_IF_EXCEPTION(scope, void());
 
-    PropertyNameArray targetKeys(&vm, propertyNameMode);
+    PropertyNameArray targetKeys(&vm, propertyNameMode, trapResult.privateSymbolMode());
     target->methodTable(vm)->getOwnPropertyNames(target, exec, targetKeys, enumerationMode);
     RETURN_IF_EXCEPTION(scope, void());
     Vector<UniquedStringImpl*> targetConfigurableKeys;
@@ -999,6 +1033,7 @@ void ProxyObject::getOwnPropertyNames(JSObject* object, ExecState* exec, Propert
 
 void ProxyObject::getPropertyNames(JSObject* object, ExecState* exec, PropertyNameArray& propertyNameArray, EnumerationMode enumerationMode)
 {
+    NO_TAIL_CALLS();
     JSObject::getPropertyNames(object, exec, propertyNameArray, enumerationMode);
 }
 
@@ -1020,6 +1055,8 @@ void ProxyObject::getGenericPropertyNames(JSObject*, ExecState*, PropertyNameArr
 
 bool ProxyObject::performSetPrototype(ExecState* exec, JSValue prototype, bool shouldThrowIfCantSet)
 {
+    NO_TAIL_CALLS();
+
     ASSERT(prototype.isObject() || prototype.isNull());
 
     VM& vm = exec->vm();
@@ -1084,6 +1121,8 @@ bool ProxyObject::setPrototype(JSObject* object, ExecState* exec, JSValue protot
 
 JSValue ProxyObject::performGetPrototype(ExecState* exec)
 {
+    NO_TAIL_CALLS();
+
     VM& vm = exec->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
     if (UNLIKELY(!vm.isSafeToRecurseSoft())) {

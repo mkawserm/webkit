@@ -35,9 +35,9 @@
 #include "BeforeTextInsertedEvent.h"
 #include "Chrome.h"
 #include "ChromeClient.h"
+#include "DOMFormData.h"
 #include "Editor.h"
 #include "EventNames.h"
-#include "FormDataList.h"
 #include "Frame.h"
 #include "FrameSelection.h"
 #include "HTMLInputElement.h"
@@ -188,29 +188,31 @@ void TextFieldInputType::forwardEvent(Event& event)
             return;
     }
 
-    if (event.isMouseEvent()
-        || event.type() == eventNames().blurEvent
-        || event.type() == eventNames().focusEvent)
-    {
-        element().document().updateStyleIfNeeded();
+    bool isFocusEvent = event.type() == eventNames().focusEvent;
+    bool isBlurEvent = event.type() == eventNames().blurEvent;
+    if (isFocusEvent || isBlurEvent)
+        capsLockStateMayHaveChanged();
+    if (event.isMouseEvent() || isFocusEvent || isBlurEvent)
+        element().forwardEvent(event);
+}
 
-        auto* renderer = element().renderer();
-        if (element().renderer()) {
-            if (event.type() == eventNames().blurEvent) {
-                if (auto* innerTextRenderer = innerTextElement()->renderer()) {
-                    if (auto* innerLayer = innerTextRenderer->layer()) {
-                        bool isLeftToRightDirection = downcast<RenderTextControlSingleLine>(*renderer).style().isLeftToRightDirection();
-                        ScrollOffset scrollOffset(isLeftToRightDirection ? 0 : innerLayer->scrollWidth(), 0);
-                        innerLayer->scrollToOffset(scrollOffset, RenderLayer::ScrollOffsetClamped);
-                    }
-                }
-                capsLockStateMayHaveChanged();
-            } else if (event.type() == eventNames().focusEvent)
-                capsLockStateMayHaveChanged();
+void TextFieldInputType::elementDidBlur()
+{
+    auto* renderer = element().renderer();
+    if (!renderer)
+        return;
 
-            element().forwardEvent(event);
-        }
-    }
+    auto* innerTextRenderer = innerTextElement()->renderer();
+    if (!innerTextRenderer)
+        return;
+
+    auto* innerLayer = innerTextRenderer->layer();
+    if (!innerLayer)
+        return;
+
+    bool isLeftToRightDirection = downcast<RenderTextControlSingleLine>(*renderer).style().isLeftToRightDirection();
+    ScrollOffset scrollOffset(isLeftToRightDirection ? 0 : innerLayer->scrollWidth(), 0);
+    innerLayer->scrollToOffset(scrollOffset, RenderLayer::ScrollOffsetClamped);
 }
 
 void TextFieldInputType::handleFocusEvent(Node* oldFocusedNode, FocusDirection)
@@ -511,12 +513,12 @@ void TextFieldInputType::updatePlaceholderText()
     m_placeholder->setInnerText(placeholderText);
 }
 
-bool TextFieldInputType::appendFormData(FormDataList& list, bool multipart) const
+bool TextFieldInputType::appendFormData(DOMFormData& formData, bool multipart) const
 {
-    InputType::appendFormData(list, multipart);
-    const AtomicString& dirnameAttrValue = element().attributeWithoutSynchronization(dirnameAttr);
+    InputType::appendFormData(formData, multipart);
+    auto& dirnameAttrValue = element().attributeWithoutSynchronization(dirnameAttr);
     if (!dirnameAttrValue.isNull())
-        list.appendData(dirnameAttrValue, element().directionForFormData());
+        formData.append(dirnameAttrValue, element().directionForFormData());
     return true;
 }
 

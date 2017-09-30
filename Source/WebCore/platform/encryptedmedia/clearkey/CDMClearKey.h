@@ -33,6 +33,8 @@
 #include "CDMFactory.h"
 #include "CDMInstance.h"
 #include "CDMPrivate.h"
+#include "SharedBuffer.h"
+#include <wtf/WeakPtr.h>
 
 namespace WebCore {
 
@@ -91,6 +93,18 @@ public:
     void storeRecordOfKeyUsage(const String&) override;
 
     const String& keySystem() const final;
+
+    struct Key {
+        KeyStatus status;
+        RefPtr<SharedBuffer> keyIDData;
+        RefPtr<SharedBuffer> keyValueData;
+    };
+
+    const Vector<Key>& keys() const { return m_keys; }
+
+private:
+    WeakPtrFactory<CDMInstanceClearKey> m_weakPtrFactory;
+    Vector<Key> m_keys;
 };
 
 } // namespace WebCore

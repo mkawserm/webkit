@@ -6,8 +6,8 @@ set(TESTWEBKITAPI_RUNTIME_OUTPUT_DIRECTORY_WTF "${TESTWEBKITAPI_RUNTIME_OUTPUT_D
 add_definitions(-DBUILDING_WEBKIT2__)
 
 add_custom_target(TestWebKitAPI-forwarding-headers
-    COMMAND ${PERL_EXECUTABLE} ${WEBKIT2_DIR}/Scripts/generate-forwarding-headers.pl --include-path ${TESTWEBKITAPI_DIR} --output ${FORWARDING_HEADERS_DIR} --platform wpe --platform soup
-    DEPENDS webkit2wpe-forwarding-headers
+    COMMAND ${PERL_EXECUTABLE} ${WEBKIT_DIR}/Scripts/generate-forwarding-headers.pl --include-path ${TESTWEBKITAPI_DIR} --output ${FORWARDING_HEADERS_DIR} --platform wpe --platform soup
+    DEPENDS webkitwpe-forwarding-headers
 )
 
 set(ForwardingHeadersForTestWebKitAPI_NAME TestWebKitAPI-forwarding-headers)
@@ -45,6 +45,7 @@ add_executable(TestWebCore
     ${TESTWEBKITAPI_DIR}/TestsController.cpp
     ${TESTWEBKITAPI_DIR}/Tests/WebCore/HTMLParserIdioms.cpp
     ${TESTWEBKITAPI_DIR}/Tests/WebCore/LayoutUnit.cpp
+    ${TESTWEBKITAPI_DIR}/Tests/WebCore/MIMETypeRegistry.cpp
     ${TESTWEBKITAPI_DIR}/Tests/WebCore/URL.cpp
     ${TESTWEBKITAPI_DIR}/Tests/WebCore/SharedBuffer.cpp
     ${TESTWEBKITAPI_DIR}/Tests/WebCore/SharedBufferTest.cpp
@@ -52,7 +53,7 @@ add_executable(TestWebCore
     ${TESTWEBKITAPI_DIR}/Tests/WebCore/PublicSuffix.cpp
 )
 
-target_link_libraries(TestWebCore ${test_webcore_LIBRARIES})
+target_link_libraries(TestWebCore ${test_webcore_LIBRARIES} -Wl,--start-group WebCore WebCoreDerivedSources WebCorePlatformWPE -Wl,--end-group)
 add_dependencies(TestWebCore ${ForwardingHeadersForTestWebKitAPI_NAME})
 
 add_test(TestWebCore ${TESTWEBKITAPI_RUNTIME_OUTPUT_DIRECTORY}/WebCore/TestWebCore)

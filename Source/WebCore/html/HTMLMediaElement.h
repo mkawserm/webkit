@@ -36,8 +36,10 @@
 #include "MediaCanStartListener.h"
 #include "MediaControllerInterface.h"
 #include "MediaElementSession.h"
+#include "MediaPlayer.h"
 #include "MediaProducer.h"
 #include "VisibilityChangeClient.h"
+#include <pal/LoggerHelper.h>
 #include <wtf/Function.h>
 #include <wtf/WeakPtr.h>
 
@@ -64,6 +66,7 @@
 #endif
 
 namespace PAL {
+class Logger;
 class SleepDisabler;
 }
 
@@ -73,7 +76,7 @@ class AudioSourceProvider;
 class AudioTrackList;
 class AudioTrackPrivate;
 class Blob;
-class DOMError;
+class DOMException;
 class DeferredPromise;
 class Event;
 class HTMLSourceElement;
@@ -85,7 +88,6 @@ class MediaControlsHost;
 class MediaElementAudioSourceNode;
 class MediaError;
 class MediaKeys;
-class MediaPlayer;
 class MediaResourceLoader;
 class MediaSession;
 class MediaSource;
@@ -138,9 +140,12 @@ class HTMLMediaElement
 #if ENABLE(ENCRYPTED_MEDIA)
     , private CDMClient
 #endif
+#if !RELEASE_LOG_DISABLED
+    , public PAL::LoggerHelper
+#endif
 {
 public:
-    WeakPtr<HTMLMediaElement> createWeakPtr() { return m_weakFactory.createWeakPtr(); }
+    WeakPtr<HTMLMediaElement> createWeakPtr() { return m_weakFactory.createWeakPtr(*this); }
     MediaPlayer* player() const { return m_player.get(); }
 
     virtual bool isVideo() const { return false; }
@@ -179,7 +184,7 @@ public:
     using HTMLMediaElementEnums::DelayedActionType;
     void scheduleDelayedAction(DelayedActionType);
     void scheduleResolvePendingPlayPromises();
-    void rejectPendingPlayPromises(DOMError&);
+    void rejectPendingPlayPromises(DOMException&);
     void resolvePendingPlayPromises();
     void scheduleNotifyAboutPlaying();
     void notifyAboutPlaying();
@@ -532,6 +537,11 @@ public:
 #endif
 
     bool supportsSeeking() const override;
+
+#if !RELEASE_LOG_DISABLED
+    const PAL::Logger& logger() const final { return *m_logger.get(); }
+    const void* logIdentifier() const final { return reinterpret_cast<const void*>(m_logIdentifier); }
+#endif
 
 protected:
     HTMLMediaElement(const QualifiedName&, Document&, bool createdByParser);
@@ -889,6 +899,16 @@ private:
     void handleSeekToPlaybackPosition(double);
     void seekToPlaybackPositionEndedTimerFired();
 
+#if !RELEASE_LOG_DISABLED
+    const char* logClassName() const final { return "HTMLMediaElement"; }
+    WTFLogChannel& logChannel() const final;
+
+    const void* mediaPlayerLogIdentifier() final { return logIdentifier(); }
+    const PAL::Logger& mediaPlayerLogger() final { return logger(); }
+#endif
+
+    bool willLog(WTFLogLevel) const;
+
     WeakPtrFactory<HTMLMediaElement> m_weakFactory;
     Timer m_pendingActionTimer;
     Timer m_progressEventTimer;
@@ -1105,6 +1125,11 @@ private:
 
     std::unique_ptr<MediaElementSession> m_mediaSession;
     size_t m_reportedExtraMemoryCost { 0 };
+
+#if !RELEASE_LOG_DISABLED
+    RefPtr<PAL::Logger> m_logger;
+    uint64_t m_logIdentifier;
+#endif
 
 #if ENABLE(MEDIA_CONTROLS_SCRIPT)
     friend class MediaControlsHost;

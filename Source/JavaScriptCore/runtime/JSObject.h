@@ -79,11 +79,11 @@ extern JS_EXPORTDATA const char* const UnconfigurablePropertyChangeConfigurabili
 extern JS_EXPORTDATA const char* const UnconfigurablePropertyChangeEnumerabilityError;
 extern JS_EXPORTDATA const char* const UnconfigurablePropertyChangeWritabilityError;
 
-COMPILE_ASSERT(None < FirstInternalAttribute, None_is_below_FirstInternalAttribute);
-COMPILE_ASSERT(ReadOnly < FirstInternalAttribute, ReadOnly_is_below_FirstInternalAttribute);
-COMPILE_ASSERT(DontEnum < FirstInternalAttribute, DontEnum_is_below_FirstInternalAttribute);
-COMPILE_ASSERT(DontDelete < FirstInternalAttribute, DontDelete_is_below_FirstInternalAttribute);
-COMPILE_ASSERT(Accessor < FirstInternalAttribute, Accessor_is_below_FirstInternalAttribute);
+COMPILE_ASSERT(PropertyAttribute::None < FirstInternalAttribute, None_is_below_FirstInternalAttribute);
+COMPILE_ASSERT(PropertyAttribute::ReadOnly < FirstInternalAttribute, ReadOnly_is_below_FirstInternalAttribute);
+COMPILE_ASSERT(PropertyAttribute::DontEnum < FirstInternalAttribute, DontEnum_is_below_FirstInternalAttribute);
+COMPILE_ASSERT(PropertyAttribute::DontDelete < FirstInternalAttribute, DontDelete_is_below_FirstInternalAttribute);
+COMPILE_ASSERT(PropertyAttribute::Accessor < FirstInternalAttribute, Accessor_is_below_FirstInternalAttribute);
 
 class JSFinalObject;
 
@@ -718,7 +718,7 @@ public:
 
     JS_EXPORT_PRIVATE static bool defineOwnProperty(JSObject*, ExecState*, PropertyName, const PropertyDescriptor&, bool shouldThrow);
 
-    bool isEnvironmentRecord() const;
+    bool isEnvironment() const;
     bool isGlobalObject() const;
     bool isJSLexicalEnvironment() const;
     bool isGlobalLexicalEnvironment() const;
@@ -1004,7 +1004,7 @@ private:
         
     template<PutMode>
     bool putDirectInternal(VM&, PropertyName, JSValue, unsigned attr, PutPropertySlot&);
-    bool canPerformFastPutInline(ExecState* exec, VM&, PropertyName);
+    bool canPerformFastPutInline(VM&, PropertyName);
 
     JS_EXPORT_PRIVATE NEVER_INLINE bool putInlineSlow(ExecState*, PropertyName, JSValue, PutPropertySlot&);
 
@@ -1147,28 +1147,30 @@ JS_EXPORT_PRIVATE EncodedJSValue JSC_HOST_CALL objectPrivateFuncInstanceOf(ExecS
 inline JSObject* JSObject::createRawObject(
     ExecState* exec, Structure* structure, Butterfly* butterfly)
 {
+    VM& vm = exec->vm();
     JSObject* finalObject = new (
         NotNull, 
         allocateCell<JSFinalObject>(
-            *exec->heap(),
+            vm.heap,
             JSFinalObject::allocationSize(structure->inlineCapacity())
         )
-    ) JSObject(exec->vm(), structure, butterfly);
-    finalObject->finishCreation(exec->vm());
+    ) JSObject(vm, structure, butterfly);
+    finalObject->finishCreation(vm);
     return finalObject;
 }
 
 inline JSFinalObject* JSFinalObject::create(
     ExecState* exec, Structure* structure, Butterfly* butterfly)
 {
+    VM& vm = exec->vm();
     JSFinalObject* finalObject = new (
         NotNull, 
         allocateCell<JSFinalObject>(
-            *exec->heap(),
+            vm.heap,
             allocationSize(structure->inlineCapacity())
         )
-    ) JSFinalObject(exec->vm(), structure, butterfly);
-    finalObject->finishCreation(exec->vm());
+    ) JSFinalObject(vm, structure, butterfly);
+    finalObject->finishCreation(vm);
     return finalObject;
 }
 
@@ -1214,7 +1216,7 @@ inline bool JSObject::isStrictEvalActivation() const
     return type() == StrictEvalActivationType;
 }
 
-inline bool JSObject::isEnvironmentRecord() const
+inline bool JSObject::isEnvironment() const
 {
     bool result = GlobalObjectType <= type() && type() <= StrictEvalActivationType;
     ASSERT((isGlobalObject() || isJSLexicalEnvironment() || isGlobalLexicalEnvironment() || isStrictEvalActivation()) == result);
@@ -1411,19 +1413,29 @@ ALWAYS_INLINE bool JSObject::getPropertySlot(ExecState* exec, PropertyName prope
 
 inline JSValue JSObject::get(ExecState* exec, PropertyName propertyName) const
 {
+    VM& vm = exec->vm();
+    auto scope = DECLARE_THROW_SCOPE(vm);
     PropertySlot slot(this, PropertySlot::InternalMethodType::Get);
-    if (const_cast<JSObject*>(this)->getPropertySlot(exec, propertyName, slot))
+    bool hasProperty = const_cast<JSObject*>(this)->getPropertySlot(exec, propertyName, slot);
+    EXCEPTION_ASSERT(!scope.exception() || !hasProperty);
+    if (hasProperty) {
+        scope.release();
         return slot.getValue(exec, propertyName);
-    
+    }
     return jsUndefined();
 }
 
 inline JSValue JSObject::get(ExecState* exec, unsigned propertyName) const
 {
+    VM& vm = exec->vm();
+    auto scope = DECLARE_THROW_SCOPE(vm);
     PropertySlot slot(this, PropertySlot::InternalMethodType::Get);
-    if (const_cast<JSObject*>(this)->getPropertySlot(exec, propertyName, slot))
+    bool hasProperty = const_cast<JSObject*>(this)->getPropertySlot(exec, propertyName, slot);
+    EXCEPTION_ASSERT(!scope.exception() || !hasProperty);
+    if (hasProperty) {
+        scope.release();
         return slot.getValue(exec, propertyName);
-
+    }
     return jsUndefined();
 }
 
@@ -1452,7 +1464,7 @@ inline bool JSObject::putOwnDataPropertyMayBeIndex(ExecState* exec, PropertyName
 
 inline bool JSObject::putDirect(VM& vm, PropertyName propertyName, JSValue value, unsigned attributes)
 {
-    ASSERT(!value.isGetterSetter() && !(attributes & Accessor));
+    ASSERT(!value.isGetterSetter() && !(attributes & PropertyAttribute::Accessor));
     ASSERT(!value.isCustomGetterSetter());
     PutPropertySlot slot(this);
     return putDirectInternal<PutModeDefineOwnProperty>(vm, propertyName, value, attributes, slot);
@@ -1592,7 +1604,7 @@ JS_EXPORT_PRIVATE NEVER_INLINE bool ordinarySetSlow(ExecState*, JSObject*, Prope
 #define JSC_NATIVE_INTRINSIC_GETTER(jsName, cppName, attributes, intrinsic)  \
     putDirectNativeIntrinsicGetter(\
         vm, globalObject, makeIdentifier(vm, (jsName)), (cppName), \
-        (intrinsic), ((attributes) | Accessor))
+        (intrinsic), ((attributes) | PropertyAttribute::Accessor))
 
 #define JSC_NATIVE_GETTER(jsName, cppName, attributes) \
     JSC_NATIVE_INTRINSIC_GETTER((jsName), (cppName), (attributes), NoIntrinsic)

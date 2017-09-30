@@ -65,7 +65,7 @@ void JSONObject::finishCreation(VM& vm)
     Base::finishCreation(vm);
     ASSERT(inherits(vm, info()));
 
-    putDirectWithoutTransition(vm, vm.propertyNames->toStringTagSymbol, jsString(&vm, "JSON"), DontEnum | ReadOnly);
+    putDirectWithoutTransition(vm, vm.propertyNames->toStringTagSymbol, jsString(&vm, "JSON"), PropertyAttribute::DontEnum | PropertyAttribute::ReadOnly);
 }
 
 // PropertyNameForFunctionCall objects must be on the stack, since the JSValue that they create is not marked.
@@ -224,7 +224,7 @@ Stringifier::Stringifier(ExecState* exec, const Local<Unknown>& replacer, const 
     : m_exec(exec)
     , m_replacer(replacer)
     , m_usingArrayReplacer(false)
-    , m_arrayReplacerPropertyNames(exec, PropertyNameMode::Strings)
+    , m_arrayReplacerPropertyNames(&exec->vm(), PropertyNameMode::Strings, PrivateSymbolMode::Exclude)
     , m_replacerCallType(CallType::None)
 {
     VM& vm = exec->vm();
@@ -259,7 +259,7 @@ Stringifier::Stringifier(ExecState* exec, const Local<Unknown>& replacer, const 
         return;
     }
 
-    m_replacerCallType = m_replacer.asObject()->methodTable()->getCallData(m_replacer.asObject().get(), m_replacerCallData);
+    m_replacerCallType = m_replacer.asObject()->methodTable(vm)->getCallData(m_replacer.asObject().get(), m_replacerCallData);
 }
 
 Local<Unknown> Stringifier::stringify(Handle<Unknown> value)
@@ -275,7 +275,7 @@ Local<Unknown> Stringifier::stringify(Handle<Unknown> value)
     StringBuilder result;
     Holder root(Holder::RootHolder, vm, object);
     auto stringifyResult = appendStringifiedValue(result, value.get(), root, emptyPropertyName);
-    ASSERT(!scope.exception() || (stringifyResult != StringifySucceeded));
+    EXCEPTION_ASSERT(!scope.exception() || (stringifyResult != StringifySucceeded));
     if (UNLIKELY(stringifyResult != StringifySucceeded))
         return Local<Unknown>(vm, jsUndefined());
 
@@ -294,7 +294,7 @@ ALWAYS_INLINE JSValue Stringifier::toJSON(JSValue value, const PropertyNameForFu
     JSObject* object = asObject(value);
     PropertySlot slot(object, PropertySlot::InternalMethodType::Get);
     bool hasProperty = object->getPropertySlot(m_exec, vm.propertyNames->toJSON, slot);
-    ASSERT(!scope.exception() || !hasProperty);
+    EXCEPTION_ASSERT(!scope.exception() || !hasProperty);
     if (!hasProperty)
         return value;
 
@@ -378,7 +378,7 @@ Stringifier::StringifyResult Stringifier::appendStringifiedValue(StringBuilder& 
     JSObject* object = asObject(value);
 
     CallData callData;
-    if (object->methodTable()->getCallData(object, callData) != CallType::None) {
+    if (object->methodTable(vm)->getCallData(object, callData) != CallType::None) {
         if (holder.isArray()) {
             builder.appendLiteral("null");
             return StringifySucceeded;
@@ -484,8 +484,8 @@ bool Stringifier::Holder::appendNextProperty(Stringifier& stringifier, StringBui
             if (stringifier.m_usingArrayReplacer)
                 m_propertyNames = stringifier.m_arrayReplacerPropertyNames.data();
             else {
-                PropertyNameArray objectPropertyNames(exec, PropertyNameMode::Strings);
-                m_object->methodTable()->getOwnPropertyNames(m_object.get(), exec, objectPropertyNames, EnumerationMode());
+                PropertyNameArray objectPropertyNames(&vm, PropertyNameMode::Strings, PrivateSymbolMode::Exclude);
+                m_object->methodTable(vm)->getOwnPropertyNames(m_object.get(), exec, objectPropertyNames, EnumerationMode());
                 RETURN_IF_EXCEPTION(scope, false);
                 m_propertyNames = objectPropertyNames.releaseData();
             }
@@ -515,7 +515,7 @@ bool Stringifier::Holder::appendNextProperty(Stringifier& stringifier, StringBui
             value = asArray(m_object.get())->getIndexQuickly(index);
         else {
             PropertySlot slot(m_object.get(), PropertySlot::InternalMethodType::Get);
-            if (m_object->methodTable()->getOwnPropertySlotByIndex(m_object.get(), exec, index, slot))
+            if (m_object->methodTable(vm)->getOwnPropertySlotByIndex(m_object.get(), exec, index, slot))
                 value = slot.getValue(exec, index);
             else
                 value = jsUndefined();
@@ -534,7 +534,7 @@ bool Stringifier::Holder::appendNextProperty(Stringifier& stringifier, StringBui
         // Get the value.
         PropertySlot slot(m_object.get(), PropertySlot::InternalMethodType::Get);
         Identifier& propertyName = m_propertyNames->propertyNameVector()[index];
-        if (!m_object->methodTable()->getOwnPropertySlot(m_object.get(), exec, propertyName, slot))
+        if (!m_object->methodTable(vm)->getOwnPropertySlot(m_object.get(), exec, propertyName, slot))
             return true;
         JSValue value = slot.getValue(exec, propertyName);
         RETURN_IF_EXCEPTION(scope, false);
@@ -705,7 +705,7 @@ NEVER_INLINE JSValue Walker::walk(JSValue unfiltered)
                 JSObject* object = asObject(inValue);
                 objectStack.push(object);
                 indexStack.append(0);
-                propertyStack.append(PropertyNameArray(m_exec, PropertyNameMode::Strings));
+                propertyStack.append(PropertyNameArray(&vm, PropertyNameMode::Strings, PrivateSymbolMode::Exclude));
                 object->methodTable(vm)->getOwnPropertyNames(object, m_exec, propertyStack.last(), EnumerationMode());
                 RETURN_IF_EXCEPTION(scope, { });
             }
@@ -794,7 +794,7 @@ EncodedJSValue JSC_HOST_CALL JSONProtoFuncParse(ExecState* exec)
     if (view.is8Bit()) {
         LiteralParser<LChar> jsonParser(exec, view.characters8(), view.length(), StrictJSON);
         unfiltered = jsonParser.tryLiteralParse();
-        ASSERT(!scope.exception() || !unfiltered);
+        EXCEPTION_ASSERT(!scope.exception() || !unfiltered);
         if (!unfiltered) {
             RETURN_IF_EXCEPTION(scope, { });
             return throwVMError(exec, scope, createSyntaxError(exec, jsonParser.getErrorMessage()));
@@ -802,7 +802,7 @@ EncodedJSValue JSC_HOST_CALL JSONProtoFuncParse(ExecState* exec)
     } else {
         LiteralParser<UChar> jsonParser(exec, view.characters16(), view.length(), StrictJSON);
         unfiltered = jsonParser.tryLiteralParse();
-        ASSERT(!scope.exception() || !unfiltered);
+        EXCEPTION_ASSERT(!scope.exception() || !unfiltered);
         if (!unfiltered) {
             RETURN_IF_EXCEPTION(scope, { });
             return throwVMError(exec, scope, createSyntaxError(exec, jsonParser.getErrorMessage()));

@@ -60,12 +60,6 @@ public:
     bool styleAffectedByFocusWithin() const { return m_styleAffectedByFocusWithin; }
     void setStyleAffectedByFocusWithin(bool value) { m_styleAffectedByFocusWithin = value; }
 
-    RegionOversetState regionOversetState() const { return m_regionOversetState; }
-    void setRegionOversetState(RegionOversetState state) { m_regionOversetState = state; }
-
-    bool isNamedFlowContentElement() const { return m_isNamedFlowContentElement; }
-    void setIsNamedFlowContentElement(bool value) { m_isNamedFlowContentElement = value; }
-
 #if ENABLE(FULLSCREEN_API)
     bool containsFullScreenElement() { return m_containsFullScreenElement; }
     void setContainsFullScreenElement(bool value) { m_containsFullScreenElement = value; }
@@ -113,6 +107,9 @@ public:
     bool hasPendingResources() const { return m_hasPendingResources; }
     void setHasPendingResources(bool has) { m_hasPendingResources = has; }
 
+    bool hasCSSAnimation() const { return m_hasCSSAnimation; }
+    void setHasCSSAnimation(bool value) { m_hasCSSAnimation = value; }
+
 private:
     int m_tabIndex;
     unsigned short m_childIndex;
@@ -124,6 +121,7 @@ private:
     unsigned m_containsFullScreenElement : 1;
 #endif
     unsigned m_hasPendingResources : 1;
+    unsigned m_hasCSSAnimation : 1;
     unsigned m_childrenAffectedByHover : 1;
     unsigned m_childrenAffectedByDrag : 1;
     // Bits for dynamic child matching.
@@ -132,9 +130,6 @@ private:
     unsigned m_childrenAffectedByLastChildRules : 1;
     unsigned m_childrenAffectedByBackwardPositionalRules : 1;
     unsigned m_childrenAffectedByPropertyBasedBackwardPositionalRules : 1;
-    unsigned m_isNamedFlowContentElement : 1;
-
-    RegionOversetState m_regionOversetState;
 
     LayoutSize m_minimumSizeForResizing;
     IntPoint m_savedLayerScrollPosition;
@@ -169,13 +164,12 @@ inline ElementRareData::ElementRareData(RenderElement* renderer)
     , m_containsFullScreenElement(false)
 #endif
     , m_hasPendingResources(false)
+    , m_hasCSSAnimation(false)
     , m_childrenAffectedByHover(false)
     , m_childrenAffectedByDrag(false)
     , m_childrenAffectedByLastChildRules(false)
     , m_childrenAffectedByBackwardPositionalRules(false)
     , m_childrenAffectedByPropertyBasedBackwardPositionalRules(false)
-    , m_isNamedFlowContentElement(false)
-    , m_regionOversetState(RegionUndefined)
     , m_minimumSizeForResizing(defaultMinimumSizeForResizing())
 {
 }

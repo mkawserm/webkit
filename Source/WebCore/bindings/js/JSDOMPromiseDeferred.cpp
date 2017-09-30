@@ -27,7 +27,6 @@
 #include "JSDOMPromiseDeferred.h"
 
 #include "DOMWindow.h"
-#include "JSDOMError.h"
 #include "JSDOMWindow.h"
 #include <builtins/BuiltinNames.h>
 #include <runtime/Exception.h>
@@ -63,7 +62,7 @@ void DeferredPromise::callFunction(ExecState& exec, JSValue function, JSValue re
 
     // DeferredPromise should only be used by internal implementations that are well behaved.
     // In practice, the only exception we should ever see here is the TerminatedExecutionException.
-    ASSERT_UNUSED(scope, !scope.exception() || isTerminatedExecutionException(vm, scope.exception()));
+    EXCEPTION_ASSERT_UNUSED(scope, !scope.exception() || isTerminatedExecutionException(vm, scope.exception()));
 
     if (m_mode == Mode::ClearPromiseOnResolve)
         clear();
@@ -106,7 +105,7 @@ void DeferredPromise::reject(Exception exception)
     if (exception.code() == ExistingExceptionError) {
         auto scope = DECLARE_CATCH_SCOPE(state.vm());
 
-        ASSERT(scope.exception());
+        EXCEPTION_ASSERT(scope.exception());
 
         auto error = scope.exception()->value();
         scope.clearException();
@@ -138,7 +137,7 @@ void DeferredPromise::reject(ExceptionCode ec, const String& message)
     if (ec == ExistingExceptionError) {
         auto scope = DECLARE_CATCH_SCOPE(state.vm());
 
-        ASSERT(scope.exception());
+        EXCEPTION_ASSERT(scope.exception());
 
         auto error = scope.exception()->value();
         scope.clearException();

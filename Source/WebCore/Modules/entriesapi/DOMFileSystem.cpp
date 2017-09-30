@@ -56,7 +56,7 @@ static ExceptionOr<Vector<ListedChild>> listDirectoryWithMetadata(const String& 
     listedChildren.reserveInitialCapacity(childPaths.size());
     for (auto& childPath : childPaths) {
         auto metadata = fileMetadata(childPath);
-        if (!metadata)
+        if (!metadata || metadata.value().isHidden)
             continue;
         listedChildren.uncheckedAppend(ListedChild { pathGetFileName(childPath), metadata.value().type });
     }
@@ -164,7 +164,7 @@ static ExceptionOr<String> validatePathIsExpectedType(const String& fullPath, St
     ASSERT(!isMainThread());
 
     auto metadata = fileMetadata(fullPath);
-    if (!metadata)
+    if (!metadata || metadata.value().isHidden)
         return Exception { NotFoundError, ASCIILiteral("Path does not exist") };
 
     if (metadata.value().type != expectedType)
@@ -173,16 +173,26 @@ static ExceptionOr<String> validatePathIsExpectedType(const String& fullPath, St
     return WTFMove(virtualPath);
 }
 
+static std::optional<FileMetadata::Type> fileType(const String& fullPath)
+{
+    auto metadata = fileMetadata(fullPath);
+    if (!metadata || metadata.value().isHidden)
+        return std::nullopt;
+    return metadata.value().type;
+}
+
 // https://wicg.github.io/entries-api/#resolve-a-relative-path
-static String resolveRelativeVirtualPath(const String& baseVirtualPath, StringView relativeVirtualPath)
+static String resolveRelativeVirtualPath(StringView baseVirtualPath, StringView relativeVirtualPath)
 {
     ASSERT(baseVirtualPath[0] == '/');
     if (relativeVirtualPath[0] == '/')
-        return relativeVirtualPath.length() == 1 ? relativeVirtualPath.toString() : resolveRelativeVirtualPath(ASCIILiteral("/"), relativeVirtualPath.substring(1));
+        return relativeVirtualPath.length() == 1 ? relativeVirtualPath.toString() : resolveRelativeVirtualPath("/", relativeVirtualPath.substring(1));
 
-    auto virtualPathSegments = baseVirtualPath.split('/');
-    auto relativePathSegments = relativeVirtualPath.split('/');
-    for (auto segment : relativePathSegments) {
+    Vector<StringView> virtualPathSegments;
+    for (auto segment : baseVirtualPath.split('/'))
+        virtualPathSegments.append(segment);
+
+    for (auto segment : relativeVirtualPath.split('/')) {
         ASSERT(!segment.isEmpty());
         if (segment == ".")
             continue;
@@ -191,7 +201,7 @@ static String resolveRelativeVirtualPath(const String& baseVirtualPath, StringVi
                 virtualPathSegments.removeLast();
             continue;
         }
-        virtualPathSegments.append(segment.toStringWithoutCopying());
+        virtualPathSegments.append(segment);
     }
 
     if (virtualPathSegments.isEmpty())
@@ -209,10 +219,9 @@ static String resolveRelativeVirtualPath(const String& baseVirtualPath, StringVi
 String DOMFileSystem::evaluatePath(StringView virtualPath)
 {
     ASSERT(virtualPath[0] == '/');
-    auto components = virtualPath.split('/');
 
-    Vector<String> resolvedComponents;
-    for (auto component : components) {
+    Vector<StringView> resolvedComponents;
+    for (auto component : virtualPath.split('/')) {
         if (component == ".")
             continue;
         if (component == "..") {
@@ -220,7 +229,7 @@ String DOMFileSystem::evaluatePath(StringView virtualPath)
                 resolvedComponents.removeLast();
             continue;
         }
-        resolvedComponents.append(component.toStringWithoutCopying());
+        resolvedComponents.append(component);
     }
 
     return pathByAppendingComponents(m_rootPath, resolvedComponents);
@@ -296,9 +305,7 @@ void DOMFileSystem::getEntry(ScriptExecutionContext& context, FileSystemDirector
     }
 
     m_workQueue->dispatch([this, context = makeRef(context), fullPath = crossThreadCopy(fullPath), resolvedVirtualPath = crossThreadCopy(resolvedVirtualPath), completionCallback = WTFMove(completionCallback)]() mutable {
-        std::optional<FileMetadata::Type> entryType;
-        if (auto metadata = fileMetadata(fullPath))
-            entryType = metadata.value().type;
+        auto entryType = fileType(fullPath);
         callOnMainThread([this, context = WTFMove(context), resolvedVirtualPath = crossThreadCopy(resolvedVirtualPath), entryType, completionCallback = WTFMove(completionCallback)]() mutable {
             if (!entryType) {
                 completionCallback(Exception { NotFoundError, ASCIILiteral("Cannot find entry at given path") });

@@ -562,6 +562,16 @@ static _WKStorageBlockingPolicy toAPI(WebCore::SecurityOrigin::StorageBlockingPo
     _preferences->setLoadsImagesAutomatically(loadsImagesAutomatically);
 }
 
+- (BOOL)_peerConnectionEnabled
+{
+    return _preferences->peerConnectionEnabled();
+}
+
+- (void)_setPeerConnectionEnabled:(BOOL)enabled
+{
+    _preferences->setPeerConnectionEnabled(enabled);
+}
+
 - (BOOL)_mediaDevicesEnabled
 {
     return _preferences->mediaDevicesEnabled();
@@ -635,6 +645,16 @@ static _WKStorageBlockingPolicy toAPI(WebCore::SecurityOrigin::StorageBlockingPo
 - (void)_setJavaScriptCanAccessClipboard:(BOOL)javaScriptCanAccessClipboard
 {
     _preferences->setJavaScriptCanAccessClipboard(javaScriptCanAccessClipboard);
+}
+
+- (void)_setPlugInsEnabled:(BOOL)enabled
+{
+    _preferences->setPluginsEnabled(enabled);
+}
+
+- (BOOL)_plugInsEnabled
+{
+    return _preferences->pluginsEnabled();
 }
 
 - (BOOL)_javaScriptCanAccessClipboard

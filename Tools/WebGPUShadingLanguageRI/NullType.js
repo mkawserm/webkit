@@ -39,6 +39,7 @@ class NullType extends Type {
     
     get isPrimitive() { return true; }
     get isUnifiable() { return true; }
+    get isLiteral() { return true; }
     
     typeVariableUnify(unificationContext, other)
     {
@@ -56,7 +57,9 @@ class NullType extends Type {
     verifyAsArgument(unificationContext)
     {
         let realThis = unificationContext.find(this);
-        return realThis.isPtr || realThis.isArrayRef;
+        if (realThis.isPtr || realThis.isArrayRef)
+            return {result: true};
+        return {result: false, reason: "Null cannot be used with non-pointer type " + realThis};
     }
     
     verifyAsParameter(unificationContext)
@@ -71,7 +74,7 @@ class NullType extends Type {
     
     toString()
     {
-        return "null";
+        return "nullType";
     }
 }
 

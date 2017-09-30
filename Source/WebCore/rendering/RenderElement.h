@@ -83,7 +83,6 @@ public:
     bool isRenderBlockFlow() const;
     bool isRenderReplaced() const;
     bool isRenderInline() const;
-    bool isRenderNamedFlowFragmentContainer() const;
 
     virtual bool isChildAllowed(const RenderObject&, const RenderStyle&) const { return true; }
     virtual void addChild(RenderObject* newChild, RenderObject* beforeChild = nullptr);
@@ -130,9 +129,6 @@ public:
     // Updates only the local style ptr of the object. Does not update the state of the object,
     // and so only should be called when the style is known not to have changed (or from setStyle).
     void setStyleInternal(RenderStyle&& style) { m_style = WTFMove(style); }
-
-    bool hasInitialAnimatedStyle() const { return m_hasInitialAnimatedStyle; }
-    void setHasInitialAnimatedStyle(bool b) { m_hasInitialAnimatedStyle = b; }
 
     // Repaint only if our old bounds and new bounds are different. The caller may pass in newBounds and newOutlineBox if they are known.
     bool repaintAfterLayoutIfNeeded(const RenderLayerModelObject* repaintContainer, const LayoutRect& oldBounds, const LayoutRect& oldOutlineBox, const LayoutRect* newBoundsPtr = nullptr, const LayoutRect* newOutlineBoxPtr = nullptr);
@@ -203,9 +199,6 @@ public:
     bool hasCounterNodeMap() const { return m_hasCounterNodeMap; }
     void setHasCounterNodeMap(bool f) { m_hasCounterNodeMap = f; }
 
-    bool isCSSAnimating() const { return m_isCSSAnimating; }
-    void setIsCSSAnimating(bool b) { m_isCSSAnimating = b; }
-    
     const RenderElement* enclosingRendererWithTextDecoration(TextDecoration, bool firstLine) const;
     void drawLineForBoxSide(GraphicsContext&, const FloatRect&, BoxSide, Color, EBorderStyle, float adjacentWidth1, float adjacentWidth2, bool antialias = false) const;
 
@@ -221,8 +214,8 @@ public:
 
     RespectImageOrientationEnum shouldRespectImageOrientation() const;
 
-    void removeFromRenderFlowThread();
-    virtual void resetFlowThreadContainingBlockAndChildInfoIncludingDescendants(RenderFlowThread*);
+    void removeFromRenderFragmentedFlow();
+    virtual void resetEnclosingFragmentedFlowAndChildInfoIncludingDescendants(RenderFragmentedFlow*);
 
     // Called before anonymousChild.setStyle(). Override to set custom styles for
     // the child.
@@ -283,8 +276,8 @@ protected:
     void paintOutline(PaintInfo&, const LayoutRect&);
     void updateOutlineAutoAncestor(bool hasOutlineAuto);
 
-    void removeFromRenderFlowThreadIncludingDescendants(bool shouldUpdateState);
-    void adjustFlowThreadStateOnContainingBlockChangeIfNeeded();
+    void removeFromRenderFragmentedFlowIncludingDescendants(bool shouldUpdateState);
+    void adjustFragmentedFlowStateOnContainingBlockChangeIfNeeded();
     
     bool noLongerAffectsParentBlock() const { return s_noLongerAffectsParentBlock; }
     bool isVisibleInViewport() const;
@@ -332,13 +325,11 @@ private:
     unsigned m_baseTypeFlags : 6;
     unsigned m_ancestorLineBoxDirty : 1;
     unsigned m_hasInitializedStyle : 1;
-    unsigned m_hasInitialAnimatedStyle : 1;
 
     unsigned m_renderInlineAlwaysCreatesLineBoxes : 1;
     unsigned m_renderBoxNeedsLazyRepaint : 1;
     unsigned m_hasPausedImageAnimations : 1;
     unsigned m_hasCounterNodeMap : 1;
-    unsigned m_isCSSAnimating : 1;
     unsigned m_hasContinuation : 1;
     mutable unsigned m_hasValidCachedFirstLineStyle : 1;
 
@@ -426,8 +417,6 @@ inline bool RenderElement::isRenderInline() const
 
 inline Element* RenderElement::generatingElement() const
 {
-    if (parent() && isRenderNamedFlowFragment())
-        return parent()->generatingElement();
     return downcast<Element>(RenderObject::generatingNode());
 }
 
@@ -436,7 +425,7 @@ inline bool RenderElement::canContainFixedPositionObjects() const
     return isRenderView()
         || (hasTransform() && isRenderBlock())
         || isSVGForeignObject()
-        || isOutOfFlowRenderFlowThread();
+        || isOutOfFlowRenderFragmentedFlow();
 }
 
 inline bool RenderElement::canContainAbsolutelyPositionedObjects() const

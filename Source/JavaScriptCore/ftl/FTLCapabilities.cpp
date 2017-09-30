@@ -65,6 +65,7 @@ inline CapabilityLevel canCompile(Node* node)
     case BitLShift:
     case BitURShift:
     case CheckStructure:
+    case CheckStructureOrEmpty:
     case DoubleAsInt32:
     case ArrayifyToStructure:
     case PutStructure:
@@ -111,9 +112,11 @@ inline CapabilityLevel canCompile(Node* node)
     case Phi:
     case Upsilon:
     case ExtractOSREntryLocal:
+    case ExtractCatchLocal:
     case LoopHint:
     case SkipScope:
     case GetGlobalObject:
+    case GetGlobalThis:
     case CreateActivation:
     case PushWithScope:
     case NewFunction:
@@ -199,6 +202,7 @@ inline CapabilityLevel canCompile(Node* node)
     case GetMapBucketNext:
     case LoadKeyFromMapBucket:
     case LoadValueFromMapBucket:
+    case WeakMapGet:
     case IsEmpty:
     case IsUndefined:
     case IsBoolean:
@@ -245,6 +249,7 @@ inline CapabilityLevel canCompile(Node* node)
     case GetMyArgumentByVal:
     case GetMyArgumentByValOutOfBounds:
     case ForwardVarargs:
+    case EntrySwitch:
     case Switch:
     case TypeOf:
     case PutById:
@@ -279,11 +284,14 @@ inline CapabilityLevel canCompile(Node* node)
     case CompareLessEq:
     case CompareGreater:
     case CompareGreaterEq:
+    case CompareBelow:
+    case CompareBelowEq:
     case CompareStrictEq:
     case DefineDataProperty:
     case DefineAccessorProperty:
     case ToLowerCase:
     case NumberToStringWithRadix:
+    case NumberToStringWithValidRadixConstant:
     case CheckSubClass:
     case CallDOM:
     case CallDOMGetter:
@@ -300,6 +308,7 @@ inline CapabilityLevel canCompile(Node* node)
     case AtomicsSub:
     case AtomicsXor:
     case AtomicsIsLockFree:
+    case InitializeEntrypointArguments:
         // These are OK.
         break;
 
@@ -486,6 +495,8 @@ CapabilityLevel canCompile(Graph& graph)
                 case SymbolUse:
                 case MapObjectUse:
                 case SetObjectUse:
+                case WeakMapObjectUse:
+                case WeakSetObjectUse:
                 case FinalObjectUse:
                 case RegExpObjectUse:
                 case ProxyObjectUse:

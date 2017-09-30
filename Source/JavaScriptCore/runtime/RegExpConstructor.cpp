@@ -88,10 +88,10 @@ void RegExpConstructor::finishCreation(VM& vm, RegExpPrototype* regExpPrototype,
     Base::finishCreation(vm, ASCIILiteral("RegExp"));
     ASSERT(inherits(vm, info()));
 
-    putDirectWithoutTransition(vm, vm.propertyNames->prototype, regExpPrototype, DontEnum | DontDelete | ReadOnly);
-    putDirectWithoutTransition(vm, vm.propertyNames->length, jsNumber(2), ReadOnly | DontEnum);
+    putDirectWithoutTransition(vm, vm.propertyNames->prototype, regExpPrototype, PropertyAttribute::DontEnum | PropertyAttribute::DontDelete | PropertyAttribute::ReadOnly);
+    putDirectWithoutTransition(vm, vm.propertyNames->length, jsNumber(2), PropertyAttribute::ReadOnly | PropertyAttribute::DontEnum);
 
-    putDirectNonIndexAccessor(vm, vm.propertyNames->speciesSymbol, speciesSymbol, Accessor | ReadOnly | DontEnum);
+    putDirectNonIndexAccessor(vm, vm.propertyNames->speciesSymbol, speciesSymbol, PropertyAttribute::Accessor | PropertyAttribute::ReadOnly | PropertyAttribute::DontEnum);
 }
 
 void RegExpConstructor::destroy(JSCell* cell)
@@ -213,7 +213,7 @@ inline RegExpFlags toFlags(ExecState* exec, JSValue flags)
     if (flags.isUndefined())
         return NoFlags;
     JSString* flagsString = flags.toStringOrNull(exec);
-    ASSERT(!!scope.exception() == !flagsString);
+    EXCEPTION_ASSERT(!!scope.exception() == !flagsString);
     if (UNLIKELY(!flagsString))
         return InvalidFlags;
 
@@ -233,7 +233,7 @@ static JSObject* regExpCreate(ExecState* exec, JSGlobalObject* globalObject, JSV
     RETURN_IF_EXCEPTION(scope, nullptr);
 
     RegExpFlags flags = toFlags(exec, flagsArg);
-    ASSERT(!!scope.exception() == (flags == InvalidFlags));
+    EXCEPTION_ASSERT(!!scope.exception() == (flags == InvalidFlags));
     if (UNLIKELY(flags == InvalidFlags))
         return nullptr;
 
@@ -273,7 +273,7 @@ JSObject* constructRegExp(ExecState* exec, JSGlobalObject* globalObject, const A
 
         if (!flagsArg.isUndefined()) {
             RegExpFlags flags = toFlags(exec, flagsArg);
-            ASSERT(!!scope.exception() == (flags == InvalidFlags));
+            EXCEPTION_ASSERT(!!scope.exception() == (flags == InvalidFlags));
             if (flags == InvalidFlags)
                 return nullptr;
             regExp = RegExp::create(vm, regExp->pattern(), flags);

@@ -25,10 +25,11 @@
  */
 
 #include "config.h"
+#include "CurlContext.h"
 
 #if USE(CURL)
-#include "CurlContext.h"
 #include "HTTPHeaderMap.h"
+#include <NetworkLoadMetrics.h>
 #include <wtf/MainThread.h>
 #include <wtf/text/CString.h>
 
@@ -38,34 +39,9 @@
 #include <shlwapi.h>
 #endif
 
-#if USE(CF)
-#include <wtf/RetainPtr.h>
-#endif
-
 using namespace WebCore;
 
 namespace WebCore {
-
-static CString certificatePath()
-{
-    char* envPath = getenv("CURL_CA_BUNDLE_PATH");
-    if (envPath)
-        return envPath;
-
-#if USE(CF)
-    CFBundleRef webKitBundleRef = webKitBundle();
-    if (webKitBundleRef) {
-        RetainPtr<CFURLRef> certURLRef = adoptCF(CFBundleCopyResourceURL(webKitBundleRef, CFSTR("cacert"), CFSTR("pem"), CFSTR("certificates")));
-        if (certURLRef) {
-            char path[MAX_PATH];
-            CFURLGetFileSystemRepresentation(certURLRef.get(), false, reinterpret_cast<UInt8*>(path), MAX_PATH);
-            return path;
-        }
-    }
-#endif
-
-    return CString();
-}
 
 static CString cookieJarPath()
 {
@@ -101,16 +77,11 @@ static CString cookieJarPath()
 
 // CurlContext -------------------------------------------------------------------
 
-const char* const CurlContext::errorDomain = "CurlErrorDomain";
-
 CurlContext::CurlContext()
 : m_cookieJarFileName { cookieJarPath() }
-, m_certificatePath { certificatePath() }
 , m_cookieJar { std::make_unique<CookieJarCurlFileSystem>() }
 {
     initCookieSession();
-
-    m_ignoreSSLErrors = getenv("WEBKIT_IGNORE_SSL_ERRORS");
 
 #ifndef NDEBUG
     m_verbose = getenv("DEBUG_CURL");
@@ -196,10 +167,8 @@ CurlShareHandle::CurlShareHandle()
 
 CurlShareHandle::~CurlShareHandle()
 {
-    if (m_shareHandle) {
+    if (m_shareHandle)
         curl_share_cleanup(m_shareHandle);
-        m_shareHandle = nullptr;
-    }
 }
 
 void CurlShareHandle::lockCallback(CURL*, curl_lock_data data, curl_lock_access, void*)
@@ -242,10 +211,8 @@ CurlMultiHandle::CurlMultiHandle()
 
 CurlMultiHandle::~CurlMultiHandle()
 {
-    if (m_multiHandle) {
+    if (m_multiHandle)
         curl_multi_cleanup(m_multiHandle);
-        m_multiHandle = nullptr;
-    }
 }
 
 CURLMcode CurlMultiHandle::addHandle(CURL* handle)
@@ -287,32 +254,28 @@ CurlHandle::CurlHandle()
 
 CurlHandle::~CurlHandle()
 {
-    clearUrl();
-
-    curl_easy_cleanup(m_handle);
+    if (m_handle)
+        curl_easy_cleanup(m_handle);
 }
 
-const String CurlHandle::errorDescription() const
+const String CurlHandle::errorDescription(CURLcode errorCode)
 {
-    return String(curl_easy_strerror(m_errorCode));
+    return String(curl_easy_strerror(errorCode));
 }
 
 void CurlHandle::initialize()
 {
     curl_easy_setopt(m_handle, CURLOPT_ERRORBUFFER, m_errorBuffer);
-    curl_easy_setopt(m_handle, CURLOPT_PRIVATE, this);
 }
 
 CURLcode CurlHandle::perform()
 {
-    m_errorCode = curl_easy_perform(m_handle);
-    return m_errorCode;
+    return curl_easy_perform(m_handle);
 }
 
 CURLcode CurlHandle::pause(int bitmask)
 {
-    m_errorCode = curl_easy_pause(m_handle, CURLPAUSE_ALL);
-    return m_errorCode;
+    return curl_easy_pause(m_handle, bitmask);
 }
 
 void CurlHandle::enableShareHandle()
@@ -320,21 +283,22 @@ void CurlHandle::enableShareHandle()
     curl_easy_setopt(m_handle, CURLOPT_SHARE, CurlContext::singleton().shareHandle().handle());
 }
 
-void CurlHandle::setUrl(const String& url)
+void CurlHandle::setUrl(const URL& url)
 {
-    clearUrl();
+    URL curlUrl = url;
+
+    // Remove any fragment part, otherwise curl will send it as part of the request.
+    curlUrl.removeFragmentIdentifier();
+
+    // Remove any query part sent to a local file.
+    if (curlUrl.isLocalFile()) {
+        // By setting the query to a null string it'll be removed.
+        if (!curlUrl.query().isEmpty())
+            curlUrl.setQuery(String());
+    }
 
     // url is in ASCII so latin1() will only convert it to char* without character translation.
-    m_url = fastStrDup(url.latin1().data());
-    curl_easy_setopt(m_handle, CURLOPT_URL, m_url);
-}
-
-void CurlHandle::clearUrl()
-{
-    if (m_url) {
-        fastFree(m_url);
-        m_url = nullptr;
-    }
+    curl_easy_setopt(m_handle, CURLOPT_URL, curlUrl.string().latin1().data());
 }
 
 void CurlHandle::appendRequestHeaders(const HTTPHeaderMap& headers)
@@ -344,8 +308,6 @@ void CurlHandle::appendRequestHeaders(const HTTPHeaderMap& headers)
             auto& value = entry.value;
             appendRequestHeader(entry.key, entry.value);
         }
-
-        enableRequestHeaders();
     }
 }
 
@@ -364,17 +326,32 @@ void CurlHandle::appendRequestHeader(const String& name, const String& value)
     appendRequestHeader(header);
 }
 
+void CurlHandle::removeRequestHeader(const String& name)
+{
+    // Add a header with no content, the internally used header will get disabled. 
+    String header(name);
+    header.append(":");
+
+    appendRequestHeader(header);
+}
+
 void CurlHandle::appendRequestHeader(const String& header)
 {
+    bool needToEnable = m_requestHeaders.isEmpty();
+
     m_requestHeaders.append(header);
+
+    if (needToEnable)
+        enableRequestHeaders();
 }
 
 void CurlHandle::enableRequestHeaders()
 {
-    if (!m_requestHeaders.isEmpty()) {
-        const struct curl_slist* headers = m_requestHeaders.head();
-        curl_easy_setopt(m_handle, CURLOPT_HTTPHEADER, headers);
-    }
+    if (m_requestHeaders.isEmpty())
+        return;
+
+    const struct curl_slist* headers = m_requestHeaders.head();
+    curl_easy_setopt(m_handle, CURLOPT_HTTPHEADER, headers);
 }
 
 void CurlHandle::enableHttpGetRequest()
@@ -468,11 +445,10 @@ void CurlHandle::setHttpAuthUserPass(const String& user, const String& password)
     curl_easy_setopt(m_handle, CURLOPT_USERPWD, userpass.utf8().data());
 }
 
-void CurlHandle::enableCAInfoIfExists()
+void CurlHandle::setCACertPath(const char* path)
 {
-    const char* certPath = CurlContext::singleton().getCertificatePath();
-    if (certPath)
-        curl_easy_setopt(m_handle, CURLOPT_CAINFO, certPath);
+    if (path)
+        curl_easy_setopt(m_handle, CURLOPT_CAINFO, path);
 }
 
 void CurlHandle::setSslVerifyPeer(VerifyPeer verifyPeer)
@@ -498,16 +474,6 @@ void CurlHandle::setSslCertType(const char* type)
 void CurlHandle::setSslKeyPassword(const char* password)
 {
     curl_easy_setopt(m_handle, CURLOPT_KEYPASSWD, password);
-}
-
-void CurlHandle::setSslErrors(unsigned sslErrors)
-{
-    m_sslErrors = sslErrors;
-}
-
-unsigned CurlHandle::getSslErrors()
-{
-    return m_sslErrors;
 }
 
 void CurlHandle::enableCookieJarIfExists()
@@ -571,92 +537,131 @@ void CurlHandle::setSslCtxCallbackFunction(curl_ssl_ctx_callback callbackFunc, v
     curl_easy_setopt(m_handle, CURLOPT_SSL_CTX_FUNCTION, callbackFunc);
 }
 
-URL CurlHandle::getEffectiveURL() const
+URL CurlHandle::getEffectiveURL()
 {
-    CURLcode errCd = CURLE_FAILED_INIT;
-    char* url = nullptr;
+    if (!m_handle)
+        return URL();
 
-    if (m_handle)
-        errCd = curl_easy_getinfo(m_handle, CURLINFO_EFFECTIVE_URL, &url);
+    char* url;
+    CURLcode errorCode = curl_easy_getinfo(m_handle, CURLINFO_EFFECTIVE_URL, &url);
+    if (errorCode != CURLE_OK)
+        return URL();
 
-    if ((errCd == CURLE_OK) && url)
-        return URL(URL(), url);
-
-    return URL();
+    return URL(URL(), url);
 }
 
-CURLcode CurlHandle::getPrimaryPort(long& port)
+std::optional<uint16_t> CurlHandle::getPrimaryPort()
 {
-    CURLcode errCd = CURLE_FAILED_INIT;
-    port = 0;
+    if (!m_handle)
+        return std::nullopt;
 
-    if (m_handle)
-        errCd = curl_easy_getinfo(m_handle, CURLINFO_PRIMARY_PORT, &port);
+    long port;
+    CURLcode errorCode = curl_easy_getinfo(m_handle, CURLINFO_PRIMARY_PORT, &port);
+    if (errorCode != CURLE_OK)
+        return std::nullopt;
 
-    return errCd;
+    /*
+     * https://github.com/curl/curl/blob/master/lib/connect.c#L612-L660
+     * confirmed that `port` is originally unsigned short.
+     */
+    return static_cast<uint16_t>(port);
 }
 
-CURLcode CurlHandle::getResponseCode(long& responseCode)
+std::optional<long> CurlHandle::getResponseCode()
 {
-    CURLcode errCd = CURLE_FAILED_INIT;
-    responseCode = 0L;
+    if (!m_handle)
+        return std::nullopt;
 
-    if (m_handle)
-        errCd = curl_easy_getinfo(m_handle, CURLINFO_RESPONSE_CODE, &responseCode);
+    long responseCode;
+    CURLcode errorCode = curl_easy_getinfo(m_handle, CURLINFO_RESPONSE_CODE, &responseCode);
+    if (errorCode != CURLE_OK)
+        return std::nullopt;
 
-    return errCd;
+    return responseCode;
 }
 
-CURLcode CurlHandle::getContentLenghtDownload(long long& contentLength)
+std::optional<long> CurlHandle::getHttpConnectCode()
 {
-    CURLcode errCd = CURLE_FAILED_INIT;
-    contentLength = 0;
+    if (!m_handle)
+        return std::nullopt;
 
-    if (m_handle) {
-        double tmpContentLength = 0;
+    long httpConnectCode;
+    CURLcode errorCode = curl_easy_getinfo(m_handle, CURLINFO_HTTP_CONNECTCODE, &httpConnectCode);
+    if (errorCode != CURLE_OK)
+        return std::nullopt;
 
-        errCd = curl_easy_getinfo(m_handle, CURLINFO_CONTENT_LENGTH_DOWNLOAD, &tmpContentLength);
-        if (errCd == CURLE_OK)
-            contentLength = static_cast<long long>(tmpContentLength);
-    }
-
-    return errCd;
+    return httpConnectCode;
 }
 
-CURLcode CurlHandle::getHttpAuthAvail(long& httpAuthAvail)
+std::optional<long long> CurlHandle::getContentLength()
 {
-    CURLcode errCd = CURLE_FAILED_INIT;
+    if (!m_handle)
+        return std::nullopt;
 
-    if (m_handle)
-        errCd = curl_easy_getinfo(m_handle, CURLINFO_HTTPAUTH_AVAIL, &httpAuthAvail);
+    double contentLength;
 
-    return errCd;
+    CURLcode errorCode = curl_easy_getinfo(m_handle, CURLINFO_CONTENT_LENGTH_DOWNLOAD, &contentLength);
+    if (errorCode != CURLE_OK)
+        return std::nullopt;
+
+    return static_cast<long long>(contentLength);
 }
 
-CURLcode CurlHandle::getTimes(double& namelookup, double& connect, double& appconnect, double& pretransfer)
+std::optional<long> CurlHandle::getHttpAuthAvail()
 {
-    CURLcode errCd = CURLE_FAILED_INIT;
+    if (!m_handle)
+        return std::nullopt;
+
+    long httpAuthAvailable;
+    CURLcode errorCode = curl_easy_getinfo(m_handle, CURLINFO_HTTPAUTH_AVAIL, &httpAuthAvailable);
+    if (errorCode != CURLE_OK)
+        return std::nullopt;
+
+    return httpAuthAvailable;
+}
+
+std::optional<NetworkLoadMetrics> CurlHandle::getNetworkLoadMetrics()
+{
+    double nameLookup = 0.0;
+    double connect = 0.0;
+    double appConnect = 0.0;
+    double startTransfer = 0.0;
 
     if (!m_handle)
-        return errCd;
+        return std::nullopt;
 
-    errCd = curl_easy_getinfo(m_handle, CURLINFO_NAMELOOKUP_TIME, &namelookup);
-    if (errCd != CURLE_OK)
-        return errCd;
+    CURLcode errorCode = curl_easy_getinfo(m_handle, CURLINFO_NAMELOOKUP_TIME, &nameLookup);
+    if (errorCode != CURLE_OK)
+        return std::nullopt;
 
-    errCd = curl_easy_getinfo(m_handle, CURLINFO_CONNECT_TIME, &connect);
-    if (errCd != CURLE_OK)
-        return errCd;
+    errorCode = curl_easy_getinfo(m_handle, CURLINFO_CONNECT_TIME, &connect);
+    if (errorCode != CURLE_OK)
+        return std::nullopt;
 
-    errCd = curl_easy_getinfo(m_handle, CURLINFO_APPCONNECT_TIME, &appconnect);
-    if (errCd != CURLE_OK)
-        return errCd;
+    errorCode = curl_easy_getinfo(m_handle, CURLINFO_APPCONNECT_TIME, &appConnect);
+    if (errorCode != CURLE_OK)
+        return std::nullopt;
 
-    errCd = curl_easy_getinfo(m_handle, CURLINFO_PRETRANSFER_TIME, &pretransfer);
-    if (errCd != CURLE_OK)
-        return errCd;
+    errorCode = curl_easy_getinfo(m_handle, CURLINFO_STARTTRANSFER_TIME, &startTransfer);
+    if (errorCode != CURLE_OK)
+        return std::nullopt;
 
-    return errCd;
+    NetworkLoadMetrics networkLoadMetrics;
+
+    networkLoadMetrics.domainLookupStart = Seconds(0);
+    networkLoadMetrics.domainLookupEnd = Seconds(nameLookup);
+    networkLoadMetrics.connectStart = Seconds(nameLookup);
+    networkLoadMetrics.connectEnd = Seconds(connect);
+
+    if (appConnect > 0.0) {
+        networkLoadMetrics.secureConnectionStart = Seconds(connect);
+        networkLoadMetrics.connectEnd = Seconds(appConnect);
+    }
+
+    networkLoadMetrics.requestStart = networkLoadMetrics.connectEnd;
+    networkLoadMetrics.responseStart = Seconds(startTransfer);
+
+    return networkLoadMetrics;
 }
 
 long long CurlHandle::maxCurlOffT()

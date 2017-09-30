@@ -33,11 +33,13 @@
 #include <WebKit/WKPageContextMenuClient.h>
 #include <WebKit/WKPreferencesPrivate.h>
 #include <WebKit/WKRetainPtr.h>
+#include <WebKit/_WKDownload.h>
 
 namespace TestWebKitAPI {
 
 static bool didFinishLoad;
 static bool didDecideDownloadDestination;
+static WKPageRef expectedOriginatingPage;
 
 static void didFinishLoadForFrame(WKPageRef, WKFrameRef, WKTypeRef, const void*)
 {
@@ -67,6 +69,9 @@ static WKStringRef decideDestinationWithSuggestedFilename(WKContextRef, WKDownlo
 
     WKDownloadCancel(download);
     didDecideDownloadDestination = true;
+
+    EXPECT_EQ(expectedOriginatingPage, WKDownloadGetOriginatingPage(download));
+    EXPECT_TRUE(WKDownloadGetWasUserInitiated(download)); // Download was started via context menu so it is user initiated.
 
     return Util::toWK("/tmp/WebKitAPITest/ContextMenuDownload").leakRef();
 }
@@ -100,6 +105,7 @@ TEST(WebKit, ContextMenuDownloadHTMLDownloadAttribute)
 
     WKRetainPtr<WKURLRef> url(AdoptWK, Util::createURLForResource("link-with-download-attribute", "html"));
 
+    expectedOriginatingPage = webView.page();
     WKPageLoadURL(webView.page(), url.get());
     Util::run(&didFinishLoad);
 
@@ -146,6 +152,7 @@ TEST(WebKit, ContextMenuDownloadHTMLDownloadAttributeWithSlashes)
 
     WKRetainPtr<WKURLRef> url(AdoptWK, Util::createURLForResource("link-with-download-attribute-with-slashes", "html"));
 
+    expectedOriginatingPage = webView.page();
     WKPageLoadURL(webView.page(), url.get());
     Util::run(&didFinishLoad);
 

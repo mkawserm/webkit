@@ -99,12 +99,6 @@ std::unique_ptr<Pasteboard> Pasteboard::createForCopyAndPaste()
     return pasteboard;
 }
 
-std::unique_ptr<Pasteboard> Pasteboard::createPrivate()
-{
-    // Windows has no "Private pasteboard" concept.
-    return createForCopyAndPaste();
-}
-
 #if ENABLE(DRAG_SUPPORT)
 std::unique_ptr<Pasteboard> Pasteboard::createForDragAndDrop()
 {
@@ -249,7 +243,7 @@ static void addMimeTypesForFormat(ListHashSet<String>& results, const FORMATETC&
     }
 }
 
-Vector<String> Pasteboard::types()
+Vector<String> Pasteboard::typesForBindings()
 {
     ListHashSet<String> results;
 
@@ -283,7 +277,12 @@ Vector<String> Pasteboard::types()
     return vector;
 }
 
-String Pasteboard::readString(const String& type)
+Vector<String> Pasteboard::typesTreatedAsFiles()
+{
+    return { };
+}
+
+String Pasteboard::readStringForBindings(const String& type)
 {
     if (!m_dataObject && m_dragDataMap.isEmpty())
         return "";
@@ -760,11 +759,6 @@ void Pasteboard::writeImage(Element& element, const URL&, const String&)
     }
 }
 
-void Pasteboard::writePasteboard(const Pasteboard& sourcePasteboard)
-{
-    notImplemented();
-}
-
 bool Pasteboard::canSmartReplace()
 { 
     return ::IsClipboardFormatAvailable(WebSmartPasteFormat);
@@ -1061,7 +1055,15 @@ void Pasteboard::read(PasteboardWebContentReader&)
 {
 }
 
+void Pasteboard::read(PasteboardFileReader&)
+{
+}
+
 void Pasteboard::write(const PasteboardImage&)
+{
+}
+
+void Pasteboard::writeCustomData(const PasteboardCustomData&)
 {
 }
 

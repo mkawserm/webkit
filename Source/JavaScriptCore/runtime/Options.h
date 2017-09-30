@@ -257,6 +257,7 @@ typedef const char* optionString;
     v(bool, useMovHintRemoval, true, Normal, nullptr) \
     v(bool, usePutStackSinking, true, Normal, nullptr) \
     v(bool, useObjectAllocationSinking, true, Normal, nullptr) \
+    v(bool, useArityFixupInlining, true, Normal, nullptr) \
     v(bool, logExecutableAllocation, false, Normal, nullptr) \
     \
     v(bool, useConcurrentJIT, true, Normal, "allows the DFG / FTL compilation in threads other than the executing JS thread") \
@@ -394,7 +395,7 @@ typedef const char* optionString;
     v(bool, useExceptionFuzz, false, Normal, nullptr) \
     v(unsigned, fireExceptionFuzzAt, 0, Normal, nullptr) \
     v(bool, validateDFGExceptionHandling, false, Normal, "Causes the DFG to emit code validating exception handling for each node that can exit") /* This is true by default on Debug builds */\
-    v(bool, dumpSimulatedThrows, false, Normal, "Dumps the call stack at each simulated throw for exception scope verification") \
+    v(bool, dumpSimulatedThrows, false, Normal, "Dumps the call stack of the last simulated throw if exception scope verification fails") \
     v(bool, validateExceptionChecks, false, Normal, "Verifies that needed exception checks are performed.") \
     v(unsigned, unexpectedExceptionStackTraceLimit, 100, Normal, "Stack trace limit for debugging unexpected exceptions observed in the VM") \
     \

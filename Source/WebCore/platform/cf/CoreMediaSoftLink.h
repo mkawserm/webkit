@@ -47,6 +47,8 @@ SOFT_LINK_FUNCTION_FOR_HEADER(WebCore, CoreMedia, CMSampleBufferGetFormatDescrip
 #define CMSampleBufferGetFormatDescription softLink_CoreMedia_CMSampleBufferGetFormatDescription
 SOFT_LINK_FUNCTION_FOR_HEADER(WebCore, CoreMedia, CMSampleBufferGetSampleTimingInfo, OSStatus, (CMSampleBufferRef sbuf, CMItemIndex sampleIndex, CMSampleTimingInfo* timingInfoOut), (sbuf, sampleIndex, timingInfoOut))
 #define CMSampleBufferGetSampleTimingInfo softLink_CoreMedia_CMSampleBufferGetSampleTimingInfo
+SOFT_LINK_FUNCTION_FOR_HEADER(WebCore, CoreMedia, CMSampleBufferDataIsReady, Boolean, (CMSampleBufferRef sbuf), (sbuf))
+#define CMSampleBufferDataIsReady softLink_CoreMedia_CMSampleBufferDataIsReady
 SOFT_LINK_FUNCTION_FOR_HEADER(WebCore, CoreMedia, CMTimeConvertScale, CMTime, (CMTime time, int32_t newTimescale, CMTimeRoundingMethod method), (time, newTimescale, method))
 #define CMTimeConvertScale softLink_CoreMedia_CMTimeConvertScale
 SOFT_LINK_FUNCTION_FOR_HEADER(WebCore, CoreMedia, CMTimeAdd, CMTime, (CMTime time1, CMTime time2), (time1, time2))
@@ -163,6 +165,8 @@ SOFT_LINK_FUNCTION_FOR_HEADER(WebCore, CoreMedia, CMTimebaseCreateWithMasterCloc
 #define CMTimebaseCreateWithMasterClock softLink_CoreMedia_CMTimebaseCreateWithMasterClock
 SOFT_LINK_FUNCTION_FOR_HEADER(WebCore, CoreMedia, CMTimebaseGetTime, CMTime, (CMTimebaseRef timebase), (timebase))
 #define CMTimebaseGetTime softLink_CoreMedia_CMTimebaseGetTime
+SOFT_LINK_FUNCTION_FOR_HEADER(WebCore, CoreMedia, CMTimebaseGetRate, Float64, (CMTimebaseRef timebase), (timebase))
+#define CMTimebaseGetRate softLink_CoreMedia_CMTimebaseGetRate
 SOFT_LINK_FUNCTION_FOR_HEADER(WebCore, CoreMedia, CMTimebaseSetRate, OSStatus, (CMTimebaseRef timebase, Float64 rate), (timebase, rate))
 #define CMTimebaseSetRate softLink_CoreMedia_CMTimebaseSetRate
 SOFT_LINK_FUNCTION_FOR_HEADER(WebCore, CoreMedia, CMTimebaseSetTime, OSStatus, (CMTimebaseRef timebase, CMTime time), (timebase, time))

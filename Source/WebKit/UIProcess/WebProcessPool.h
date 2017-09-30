@@ -44,11 +44,12 @@
 #include "WebContextClient.h"
 #include "WebContextConnectionClient.h"
 #include "WebProcessProxy.h"
-#include <WebCore/LinkHash.h>
+#include <WebCore/SharedStringHash.h>
 #include <pal/SessionID.h>
 #include <wtf/Forward.h>
 #include <wtf/HashMap.h>
 #include <wtf/HashSet.h>
+#include <wtf/ProcessID.h>
 #include <wtf/RefCounter.h>
 #include <wtf/RefPtr.h>
 #include <wtf/text/StringHash.h>
@@ -168,7 +169,8 @@ public:
     // Disconnect the process from the context.
     void disconnectProcess(WebProcessProxy*);
 
-    API::WebsiteDataStore& websiteDataStore() const { return m_websiteDataStore.get(); }
+    API::WebsiteDataStore* websiteDataStore() const { return m_websiteDataStore.get(); }
+    void setPrimaryDataStore(API::WebsiteDataStore& dataStore) { m_websiteDataStore = &dataStore; }
 
     Ref<WebPageProxy> createWebPage(PageClient&, Ref<API::PageConfiguration>&&);
 
@@ -198,8 +200,8 @@ public:
     const HashMap<String, HashMap<String, HashMap<String, uint8_t>>>& pluginLoadClientPolicies() const { return m_pluginLoadClientPolicies; }
 #endif
 
-    pid_t networkProcessIdentifier();
-    pid_t storageProcessIdentifier();
+    ProcessID networkProcessIdentifier();
+    ProcessID storageProcessIdentifier();
 
     void setAlwaysUsesComplexTextCodePath(bool);
     void setShouldUseFontSmoothing(bool);
@@ -214,6 +216,7 @@ public:
     void registerURLSchemeAsDisplayIsolated(const String&);
     void registerURLSchemeAsCORSEnabled(const String&);
     void registerURLSchemeAsCachePartitioned(const String&);
+    void preconnectToServer(const WebCore::URL&);
 
     VisitedLinkStore& visitedLinkStore() { return m_visitedLinkStore.get(); }
 
@@ -232,7 +235,7 @@ public:
     void setEnhancedAccessibility(bool);
     
     // Downloads.
-    DownloadProxy* createDownloadProxy(const WebCore::ResourceRequest&);
+    DownloadProxy* createDownloadProxy(const WebCore::ResourceRequest&, WebPageProxy* originatingPage);
     API::DownloadClient& downloadClient() { return *m_downloadClient; }
 
     API::LegacyContextHistoryClient& historyClient() { return *m_historyClient; }
@@ -520,7 +523,7 @@ private:
     bool m_memorySamplerEnabled;
     double m_memorySamplerInterval;
 
-    const Ref<API::WebsiteDataStore> m_websiteDataStore;
+    RefPtr<API::WebsiteDataStore> m_websiteDataStore;
 
     typedef HashMap<const char*, RefPtr<WebContextSupplement>, PtrHash<const char*>> WebContextSupplementMap;
     WebContextSupplementMap m_supplements;

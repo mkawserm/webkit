@@ -25,10 +25,6 @@
 "use strict";
 
 class Visitor {
-    constructor()
-    {
-    }
-    
     visitProgram(node)
     {
         for (let statement of node.topLevelStatements)
@@ -67,8 +63,8 @@ class Visitor {
     
     visitNativeFuncInstance(node)
     {
-        node.func.visit(this);
         this.visitFunc(node);
+        node.func.visitImplementationData(node.implementationData, this);
     }
     
     visitBlock(node)
@@ -89,6 +85,8 @@ class Visitor {
     
     visitProtocolDecl(node)
     {
+        for (let protocol of node.extends)
+            protocol.visit(this);
         for (let signature of node.signatures)
             signature.visit(this);
     }
@@ -97,8 +95,6 @@ class Visitor {
     {
         for (let typeArgument of node.typeArguments)
             typeArgument.visit(this);
-        if (node.type)
-            node.type.visit(this);
     }
     
     visitNativeType(node)
@@ -109,7 +105,7 @@ class Visitor {
     
     visitNativeTypeInstance(node)
     {
-        node.type.visit(node);
+        node.type.visit(this);
         for (let typeArgument of node.typeArguments)
             typeArgument.visit(this);
     }
@@ -131,8 +127,7 @@ class Visitor {
     
     visitTypeVariable(node)
     {
-        if (node.protocol)
-            node.protocol.visit(this);
+        Node.visit(node.protocol, this);
     }
     
     visitConstexprTypeParameter(node)
@@ -143,6 +138,22 @@ class Visitor {
     visitField(node)
     {
         node.type.visit(this);
+    }
+    
+    visitEnumType(node)
+    {
+        node.baseType.visit(this);
+        for (let member of node.members)
+            member.visit(this);
+    }
+    
+    visitEnumMember(node)
+    {
+        Node.visit(node.value, this);
+    }
+    
+    visitEnumLiteral(node)
+    {
     }
     
     visitElementalType(node)
@@ -174,14 +185,23 @@ class Visitor {
     visitVariableDecl(node)
     {
         node.type.visit(this);
-        if (node.initializer)
-            node.initializer.visit(this);
+        Node.visit(node.initializer, this);
     }
     
     visitAssignment(node)
     {
         node.lhs.visit(this);
         node.rhs.visit(this);
+        Node.visit(node.type, this);
+    }
+    
+    visitReadModifyWriteExpression(node)
+    {
+        node.lValue.visit(this);
+        node.oldValueVar.visit(this);
+        node.newValueVar.visit(this);
+        node.newValueExp.visit(this);
+        node.resultExp.visit(this);
     }
     
     visitDereferenceExpression(node)
@@ -189,11 +209,27 @@ class Visitor {
         node.ptr.visit(this);
     }
     
+    _handlePropertyAccessExpression(node)
+    {
+        Node.visit(node.baseType, this);
+        Node.visit(node.callForGet, this);
+        Node.visit(node.resultTypeForGet, this);
+        Node.visit(node.callForAnd, this);
+        Node.visit(node.resultTypeForAnd, this);
+        Node.visit(node.callForSet, this);
+    }
+    
     visitDotExpression(node)
     {
         node.struct.visit(this);
-        if (node.structType)
-            node.structType.visit(this);
+        this._handlePropertyAccessExpression(node);
+    }
+    
+    visitIndexExpression(node)
+    {
+        node.array.visit(this);
+        node.index.visit(this);
+        this._handlePropertyAccessExpression(node);
     }
     
     visitMakePtrExpression(node)
@@ -201,31 +237,87 @@ class Visitor {
         node.lValue.visit(this);
     }
     
+    visitMakeArrayRefExpression(node)
+    {
+        node.lValue.visit(this);
+        Node.visit(node.numElements, this);
+    }
+    
+    visitConvertPtrToArrayRefExpression(node)
+    {
+        node.lValue.visit(this);
+    }
+    
     visitVariableRef(node)
     {
-        if (node.variable)
-            node.variable.visit(this);
     }
     
+    visitIfStatement(node)
+    {
+        node.conditional.visit(this);
+        node.body.visit(this);
+        Node.visit(node.elseBody, this);
+    }
+    
+    visitWhileLoop(node)
+    {
+        node.conditional.visit(this);
+        node.body.visit(this);
+    }
+    
+    visitDoWhileLoop(node)
+    {
+        node.body.visit(this);
+        node.conditional.visit(this);
+    }
+    
+    visitForLoop(node)
+    {
+        Node.visit(node.initialization, this);
+        Node.visit(node.condition, this);
+        Node.visit(node.increment, this);
+        node.body.visit(this);
+    }
+    
+    visitSwitchStatement(node)
+    {
+        node.value.visit(this);
+        for (let switchCase of node.switchCases)
+            switchCase.visit(this);
+    }
+    
+    visitSwitchCase(node)
+    {
+        Node.visit(node.value, this);
+        node.body.visit(this);
+    }
+
     visitReturn(node)
     {
-        if (node.value)
-            node.value.visit(this);
+        Node.visit(node.value, this);
+    }
+
+    visitContinue(node)
+    {
+    }
+
+    visitBreak(node)
+    {
+    }
+
+    visitTrapStatement(node)
+    {
     }
     
-    visitIntLiteral(node)
+    visitGenericLiteral(node)
     {
         node.type.visit(this);
     }
     
-    visitIntLiteralType(node)
+    visitGenericLiteralType(node)
     {
-        if (node.type)
-            node.type.visit(this);
-    }
-    
-    visitUintLiteral(node)
-    {
+        Node.visit(node.type, this);
+        node.preferredType.visit(this);
     }
     
     visitNullLiteral(node)
@@ -233,10 +325,13 @@ class Visitor {
         node.type.visit(this);
     }
     
+    visitBoolLiteral(node)
+    {
+    }
+    
     visitNullType(node)
     {
-        if (node.type)
-            node.type.visit(this);
+        Node.visit(node.type, this);
     }
     
     visitCallExpression(node)
@@ -244,21 +339,50 @@ class Visitor {
         for (let typeArgument of node.typeArguments)
             typeArgument.visit(this);
         for (let argument of node.argumentList)
-            argument.visit(this);
-        let actualTypeArguments = node.actualTypeArguments;
-        if (actualTypeArguments) {
-            for (let argument of actualTypeArguments)
-                argument.visit(this);
-        }
+            Node.visit(argument, this);
+        let handleTypeArguments = actualTypeArguments => {
+            if (actualTypeArguments) {
+                for (let argument of actualTypeArguments)
+                    argument.visit(this);
+            }
+        };
+        handleTypeArguments(node.actualTypeArguments);
+        handleTypeArguments(node.instantiatedActualTypeArguments);
+        Node.visit(node.nativeFuncInstance, this);
+        Node.visit(node.returnType, this);
+        Node.visit(node.resultType, this);
+    }
+    
+    visitLogicalNot(node)
+    {
+        node.operand.visit(this);
+    }
+    
+    visitLogicalExpression(node)
+    {
+        node.left.visit(this);
+        node.right.visit(this);
     }
     
     visitFunctionLikeBlock(node)
     {
+        Node.visit(node.returnType, this);
         for (let argument of node.argumentList)
             argument.visit(this);
         for (let parameter of node.parameters)
             parameter.visit(this);
         node.body.visit(this);
+        Node.visit(node.resultType, this);
+    }
+    
+    visitAnonymousVariable(node)
+    {
+        Node.visit(node.type, this);
+    }
+    
+    visitIdentityExpression(node)
+    {
+        node.target.visit(this);
     }
 }
 

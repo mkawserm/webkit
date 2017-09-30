@@ -75,6 +75,10 @@ class ExecState;
 class InputCursor;
 }
 
+namespace PAL {
+class Logger;
+}
+
 namespace WebCore {
 
 class AXObjectCache;
@@ -93,12 +97,12 @@ class CharacterData;
 class Comment;
 class ConstantPropertyMap;
 class DOMImplementation;
-class DOMNamedFlowCollection;
 class DOMSelection;
 class DOMWindow;
 class DOMWrapperWorld;
 class Database;
 class DatabaseThread;
+class DeferredPromise;
 class DocumentFragment;
 class DocumentLoader;
 class DocumentMarkerController;
@@ -141,7 +145,6 @@ class MediaPlaybackTargetClient;
 class MediaQueryList;
 class MediaQueryMatcher;
 class MouseEventWithHitTestResults;
-class NamedFlowCollection;
 class NodeFilter;
 class NodeIterator;
 class Page;
@@ -165,6 +168,7 @@ class SelectorQuery;
 class SelectorQueryCache;
 class SerializedScriptValue;
 class Settings;
+class StringCallback;
 class StyleResolver;
 class StyleSheet;
 class StyleSheetContents;
@@ -403,11 +407,6 @@ public:
     static CustomElementNameValidationStatus validateCustomElementName(const AtomicString&);
 
     bool isCSSGridLayoutEnabled() const;
-#if ENABLE(CSS_REGIONS)
-    RefPtr<DOMNamedFlowCollection> webkitGetNamedFlows();
-#endif
-
-    NamedFlowCollection& namedFlows();
 
     WEBCORE_EXPORT RefPtr<Range> caretRangeFromPoint(int x, int y);
     RefPtr<Range> caretRangeFromPoint(const LayoutPoint& clientPoint);
@@ -1274,7 +1273,7 @@ public:
     bool isCapturing() const { return MediaProducer::isCapturing(m_mediaState); }
     WEBCORE_EXPORT void updateIsPlayingMedia(uint64_t = HTMLMediaElementInvalidID);
     void pageMutedStateDidChange();
-    WeakPtr<Document> createWeakPtr() { return m_weakFactory.createWeakPtr(); }
+    WeakPtr<Document> createWeakPtr() { return m_weakFactory.createWeakPtr(*this); }
 
 #if ENABLE(WIRELESS_PLAYBACK_TARGET)
     void addPlaybackTargetPickerClient(MediaPlaybackTargetClient&);
@@ -1355,6 +1354,14 @@ public:
     TextAutoSizing& textAutoSizing();
 #endif
 
+    PAL::Logger& logger() const;
+
+    bool hasStorageAccess() const { return m_hasStorageAccess; };
+    void requestStorageAccess(Ref<DeferredPromise>&& passedPromise);
+    void setUserGrantsStorageAccessOverride(bool value) { m_grantStorageAccessOverride = value; }
+
+    WEBCORE_EXPORT void setConsoleMessageListener(RefPtr<StringCallback>&&); // For testing.
+
 protected:
     enum ConstructionFlags { Synthesized = 1, NonRenderedPlaceholder = 1 << 1 };
     Document(Frame*, const URL&, unsigned = DefaultDocumentClass, unsigned constructionFlags = 0);
@@ -1372,7 +1379,7 @@ private:
 
     void detachFromFrame() { observeFrame(nullptr); }
 
-    void updateTitleElement(Element* newTitleElement);
+    void updateTitleElement(Element& changingTitleElement);
     void frameDestroyed() final;
 
     void commonTeardown();
@@ -1661,8 +1668,6 @@ private:
 
     Timer m_visualUpdatesSuppressionTimer;
 
-    RefPtr<NamedFlowCollection> m_namedFlows;
-
     void clearSharedObjectPool();
     Timer m_sharedObjectPoolClearTimer;
 
@@ -1805,8 +1810,13 @@ private:
 
     OrientationNotifier m_orientationNotifier;
     mutable PAL::SessionID m_sessionID;
+    mutable RefPtr<PAL::Logger> m_logger;
+    RefPtr<StringCallback> m_consoleMessageListener;
 
     static bool hasEverCreatedAnAXObjectCache;
+
+    bool m_hasStorageAccess { false };
+    bool m_grantStorageAccessOverride { false };
 };
 
 Element* eventTargetElementForDocument(Document*);

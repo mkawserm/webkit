@@ -44,7 +44,6 @@
 #include <runtime/ConsoleTypes.h>
 #include <wtf/Forward.h>
 #include <wtf/Seconds.h>
-#include <wtf/Vector.h>
 
 #if ENABLE(WIRELESS_PLAYBACK_TARGET)
 #include "MediaPlaybackTargetContext.h"
@@ -370,6 +369,8 @@ public:
 
     virtual void enableSuddenTermination() { }
     virtual void disableSuddenTermination() { }
+
+    virtual void contentRuleListNotification(const WebCore::URL&, const HashSet<std::pair<String, String>>&) { };
 
 #if PLATFORM(WIN)
     virtual void setLastSetCursorToCurrentCursor() = 0;

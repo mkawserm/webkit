@@ -847,16 +847,15 @@ var
 -internal-variable-value
 
 //
-// UA Constants
+// Environment Variables
 //
-constant
+env
 
 //
 // CSS_PROP_BREAK_BEFORE/AFTER/INSIDE
 //
 avoid-column
 avoid-page
-avoid-region
 page
 recto
 region
@@ -1097,8 +1096,6 @@ x
 y
 #endif
 
-// -webkit-region-fragment
-// auto
 break
 
 wrap
@@ -1249,6 +1246,8 @@ path
 
 calc
 -webkit-calc
+min
+max
 
 #if defined(ENABLE_CSS_IMAGE_RESOLUTION) && ENABLE_CSS_IMAGE_RESOLUTION
 from-image

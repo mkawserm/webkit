@@ -121,7 +121,7 @@ namespace JSC { namespace DFG {
     /* Bitwise operators call ToInt32 on their operands. */\
     macro(ValueToInt32, NodeResultInt32) \
     /* Used to box the result of URShift nodes (result has range 0..2^32-1). */\
-    macro(UInt32ToNumber, NodeResultNumber | NodeMustGenerate) \
+    macro(UInt32ToNumber, NodeResultNumber) \
     /* Converts booleans to numbers but passes everything else through. */\
     macro(BooleanToNumber, NodeResultJS) \
     \
@@ -203,6 +203,7 @@ namespace JSC { namespace DFG {
     macro(DeleteById, NodeResultBoolean | NodeMustGenerate) \
     macro(DeleteByVal, NodeResultBoolean | NodeMustGenerate) \
     macro(CheckStructure, NodeMustGenerate) \
+    macro(CheckStructureOrEmpty, NodeMustGenerate) \
     macro(GetExecutable, NodeResultJS) \
     macro(PutStructure, NodeMustGenerate) \
     macro(AllocatePropertyStorage, NodeMustGenerate | NodeResultStorage) \
@@ -230,6 +231,7 @@ namespace JSC { namespace DFG {
     macro(ResolveScope, NodeResultJS | NodeMustGenerate) \
     macro(ResolveScopeForHoistingFuncDeclInEval, NodeResultJS | NodeMustGenerate) \
     macro(GetGlobalObject, NodeResultJS) \
+    macro(GetGlobalThis, NodeResultJS) \
     macro(GetClosureVar, NodeResultJS) \
     macro(PutClosureVar, NodeMustGenerate) \
     macro(GetGlobalVar, NodeResultJS) \
@@ -284,6 +286,8 @@ namespace JSC { namespace DFG {
     macro(CompareLessEq, NodeResultBoolean | NodeMustGenerate) \
     macro(CompareGreater, NodeResultBoolean | NodeMustGenerate) \
     macro(CompareGreaterEq, NodeResultBoolean | NodeMustGenerate) \
+    macro(CompareBelow, NodeResultBoolean) \
+    macro(CompareBelowEq, NodeResultBoolean) \
     macro(CompareEq, NodeResultBoolean | NodeMustGenerate) \
     macro(CompareStrictEq, NodeResultBoolean) \
     macro(CompareEqPtr, NodeResultBoolean) \
@@ -354,6 +358,7 @@ namespace JSC { namespace DFG {
     macro(CallObjectConstructor, NodeResultJS) \
     macro(CallStringConstructor, NodeResultJS | NodeMustGenerate) \
     macro(NumberToStringWithRadix, NodeResultJS | NodeMustGenerate) \
+    macro(NumberToStringWithValidRadixConstant, NodeResultJS) \
     macro(NewStringObject, NodeResultJS) \
     macro(MakeRope, NodeResultJS) \
     macro(In, NodeResultBoolean | NodeMustGenerate) \
@@ -389,6 +394,7 @@ namespace JSC { namespace DFG {
     macro(Jump, NodeMustGenerate) \
     macro(Branch, NodeMustGenerate) \
     macro(Switch, NodeMustGenerate) \
+    macro(EntrySwitch, NodeMustGenerate) \
     macro(Return, NodeMustGenerate) \
     macro(TailCall, NodeMustGenerate | NodeHasVarArgs) \
     macro(DirectTailCall, NodeMustGenerate | NodeHasVarArgs) \
@@ -434,11 +440,17 @@ namespace JSC { namespace DFG {
     macro(GetMapBucketNext, NodeResultJS) \
     macro(LoadKeyFromMapBucket, NodeResultJS) \
     macro(LoadValueFromMapBucket, NodeResultJS) \
+    /* Nodes for JSWeakMap and JSWeakSet */ \
+    macro(WeakMapGet, NodeResultJS) \
     \
     macro(ToLowerCase, NodeResultJS) \
     /* Nodes for DOM JIT */\
     macro(CallDOMGetter, NodeResultJS | NodeMustGenerate) \
     macro(CallDOM, NodeResultJS | NodeMustGenerate) \
+    /* Metadata node that initializes the state for flushed argument types at an entrypoint in the program. */ \
+    /* Currently, we only use this for the blocks an EntrySwitch branches to at the root of the program. */ \
+    /* This is only used in SSA. */ \
+    macro(InitializeEntrypointArguments, NodeMustGenerate)
 
 // This enum generates a monotonically increasing id for all Node types,
 // and is used by the subsequent enum to fill out the id (as accessed via the NodeIdMask).

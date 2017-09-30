@@ -26,36 +26,72 @@
 #include "config.h"
 #include "StaticPasteboard.h"
 
+#include "Settings.h"
+#include "SharedBuffer.h"
+
 namespace WebCore {
 
-std::unique_ptr<StaticPasteboard> StaticPasteboard::create(TypeToStringMap&& typeToStringMap)
-{
-    return std::make_unique<StaticPasteboard>(WTFMove(typeToStringMap));
-}
-
-StaticPasteboard::StaticPasteboard(TypeToStringMap&& typeToStringMap)
-    : m_typeToStringMap(typeToStringMap)
+StaticPasteboard::StaticPasteboard()
 {
 }
 
 bool StaticPasteboard::hasData()
 {
-    return !m_typeToStringMap.isEmpty();
+    return !m_platformData.isEmpty() || !m_customData.isEmpty();
 }
 
-Vector<String> StaticPasteboard::types()
+String StaticPasteboard::readStringForBindings(const String& type)
 {
-    Vector<String> allTypes(m_typeToStringMap.size());
-    for (auto& type : m_typeToStringMap.keys())
-        allTypes.append(type);
-    return allTypes;
+    if (m_platformData.contains(type))
+        return m_platformData.get(type);
+
+    if (m_customData.contains(type))
+        return m_customData.get(type);
+
+    return { };
 }
 
-String StaticPasteboard::readString(const String& type)
+void StaticPasteboard::writeString(const String& type, const String& value)
 {
-    if (!m_typeToStringMap.contains(type))
-        return { };
-    return m_typeToStringMap.get(type);
+    auto& pasteboardData = isSafeTypeForDOMToReadAndWrite(type) ? m_platformData : m_customData;
+    if (pasteboardData.set(type, value).isNewEntry)
+        m_types.append(type);
+    else {
+        m_types.removeFirst(type);
+        ASSERT(!m_types.contains(type));
+        m_types.append(type);
+    }
+}
+
+void StaticPasteboard::clear()
+{
+    m_customData.clear();
+    m_platformData.clear();
+    m_types.clear();
+}
+
+void StaticPasteboard::clear(const String& type)
+{
+    if (!m_platformData.remove(type) && !m_customData.remove(type))
+        return;
+    m_types.removeFirst(type);
+    ASSERT(!m_types.contains(type));
+}
+
+void StaticPasteboard::commitToPasteboard(Pasteboard& pasteboard)
+{
+    if (m_platformData.isEmpty() && m_customData.isEmpty())
+        return;
+
+    if (Settings::customPasteboardDataEnabled()) {
+        pasteboard.writeCustomData({ WTFMove(m_types), WTFMove(m_platformData), WTFMove(m_customData) });
+        return;
+    }
+
+    for (auto& entry : m_platformData)
+        pasteboard.writeString(entry.key, entry.value);
+    for (auto& entry : m_customData)
+        pasteboard.writeString(entry.key, entry.value);
 }
 
 }

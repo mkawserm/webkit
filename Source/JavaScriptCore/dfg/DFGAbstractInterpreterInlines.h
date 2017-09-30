@@ -140,18 +140,38 @@ void AbstractInterpreter<AbstractStateType>::verifyEdges(Node* node)
     DFG_NODE_DO_TO_CHILDREN(m_graph, node, verifyEdge);
 }
 
-inline bool isToThisAnIdentity(bool isStrictMode, AbstractValue& valueForNode)
+enum class ToThisResult {
+    Identity,
+    Undefined,
+    GlobalThis,
+    Dynamic,
+};
+inline ToThisResult isToThisAnIdentity(VM& vm, bool isStrictMode, AbstractValue& valueForNode)
 {
     // We look at the type first since that will cover most cases and does not require iterating all the structures.
     if (isStrictMode) {
         if (valueForNode.m_type && !(valueForNode.m_type & SpecObjectOther))
-            return true;
+            return ToThisResult::Identity;
     } else {
         if (valueForNode.m_type && !(valueForNode.m_type & (~SpecObject | SpecObjectOther)))
-            return true;
+            return ToThisResult::Identity;
+    }
+
+    if (JSValue value = valueForNode.value()) {
+        if (value.isCell()) {
+            auto* toThisMethod = value.asCell()->classInfo(vm)->methodTable.toThis;
+            if (toThisMethod == &JSObject::toThis)
+                return ToThisResult::Identity;
+            if (toThisMethod == &JSScope::toThis) {
+                if (isStrictMode)
+                    return ToThisResult::Undefined;
+                return ToThisResult::GlobalThis;
+            }
+        }
     }
 
     if ((isStrictMode || (valueForNode.m_type && !(valueForNode.m_type & ~SpecObject))) && valueForNode.m_structure.isFinite()) {
+        bool allStructuresAreJSScope = !valueForNode.m_structure.isClear();
         bool overridesToThis = false;
         valueForNode.m_structure.forEach([&](RegisteredStructure structure) {
             TypeInfo type = structure->typeInfo();
@@ -163,11 +183,20 @@ inline bool isToThisAnIdentity(bool isStrictMode, AbstractValue& valueForNode)
             // 2) The AI has proven that the type of this is a subtype of object
             if (type.isObject() && type.overridesToThis())
                 overridesToThis = true;
+
+            // If all the structures are JSScope's ones, we know the details of JSScope::toThis() operation.
+            allStructuresAreJSScope &= structure->classInfo()->methodTable.toThis == JSScope::info()->methodTable.toThis;
         });
-        return !overridesToThis;
+        if (!overridesToThis)
+            return ToThisResult::Identity;
+        if (allStructuresAreJSScope) {
+            if (isStrictMode)
+                return ToThisResult::Undefined;
+            return ToThisResult::GlobalThis;
+        }
     }
 
-    return false;
+    return ToThisResult::Dynamic;
 }
 
 template<typename AbstractStateType>
@@ -260,7 +289,7 @@ bool AbstractInterpreter<AbstractStateType>::executeEffects(unsigned clobberLimi
         // DFG execution.
         break;
     }
-        
+
     case KillStack: {
         // This is just a hint telling us that the OSR state of the local is no longer inside the
         // flushed data.
@@ -273,7 +302,33 @@ bool AbstractInterpreter<AbstractStateType>::executeEffects(unsigned clobberLimi
         // non-clear value.
         ASSERT(!m_state.variables().operand(node->local()).isClear());
         break;
-        
+
+    case InitializeEntrypointArguments: {
+        unsigned entrypointIndex = node->entrypointIndex();
+        const Vector<FlushFormat>& argumentFormats = m_graph.m_argumentFormats[entrypointIndex];
+        for (unsigned argument = 0; argument < argumentFormats.size(); ++argument) {
+            AbstractValue& value = m_state.variables().argument(argument);
+            switch (argumentFormats[argument]) {
+            case FlushedInt32:
+                value.setType(SpecInt32Only);
+                break;
+            case FlushedBoolean:
+                value.setType(SpecBoolean);
+                break;
+            case FlushedCell:
+                value.setType(m_graph, SpecCell);
+                break;
+            case FlushedJSValue:
+                value.makeBytecodeTop();
+                break;
+            default:
+                DFG_CRASH(m_graph, node, "Bad flush format for argument");
+                break;
+            }
+        }
+        break;
+    }
+
     case LoadVarargs:
     case ForwardVarargs: {
         // FIXME: ForwardVarargs should check if the count becomes known, and if it does, it should turn
@@ -1073,6 +1128,10 @@ bool AbstractInterpreter<AbstractStateType>::executeEffects(unsigned clobberLimi
         }
         break;
 
+    case WeakMapGet:
+        forNode(node).makeHeapTop();
+        break;
+
     case IsEmpty:
     case IsUndefined:
     case IsBoolean:
@@ -1348,7 +1407,48 @@ bool AbstractInterpreter<AbstractStateType>::executeEffects(unsigned clobberLimi
         forNode(node).setType(m_graph, SpecStringIdent);
         break;
     }
-            
+
+    case CompareBelow:
+    case CompareBelowEq: {
+        JSValue leftConst = forNode(node->child1()).value();
+        JSValue rightConst = forNode(node->child2()).value();
+        if (leftConst && rightConst) {
+            if (leftConst.isInt32() && rightConst.isInt32()) {
+                uint32_t a = static_cast<uint32_t>(leftConst.asInt32());
+                uint32_t b = static_cast<uint32_t>(rightConst.asInt32());
+                switch (node->op()) {
+                case CompareBelow:
+                    setConstant(node, jsBoolean(a < b));
+                    break;
+                case CompareBelowEq:
+                    setConstant(node, jsBoolean(a <= b));
+                    break;
+                default:
+                    RELEASE_ASSERT_NOT_REACHED();
+                    break;
+                }
+                break;
+            }
+        }
+
+        if (node->child1() == node->child2()) {
+            switch (node->op()) {
+            case CompareBelow:
+                setConstant(node, jsBoolean(false));
+                break;
+            case CompareBelowEq:
+                setConstant(node, jsBoolean(true));
+                break;
+            default:
+                DFG_CRASH(m_graph, node, "Unexpected node type");
+                break;
+            }
+            break;
+        }
+        forNode(node).setType(SpecBoolean);
+        break;
+    }
+
     case CompareLess:
     case CompareLessEq:
     case CompareGreater:
@@ -1807,9 +1907,10 @@ bool AbstractInterpreter<AbstractStateType>::executeEffects(unsigned clobberLimi
             if (JSGlobalObject* globalObject = jsDynamicCast<JSGlobalObject*>(m_vm, globalObjectValue)) {
                 if (!globalObject->isHavingABadTime()) {
                     m_graph.watchpoints().addLazily(globalObject->havingABadTimeWatchpoint());
-                    Structure* structure = globalObject->regExpMatchesArrayStructure();
-                    m_graph.registerStructure(structure);
-                    forNode(node).set(m_graph, structure);
+                    RegisteredStructureSet structureSet;
+                    structureSet.add(m_graph.registerStructure(globalObject->regExpMatchesArrayStructure()));
+                    structureSet.add(m_graph.registerStructure(globalObject->regExpMatchesArrayWithGroupsStructure()));
+                    forNode(node).set(m_graph, structureSet);
                     forNode(node).merge(SpecOther);
                     break;
                 }
@@ -1865,6 +1966,9 @@ bool AbstractInterpreter<AbstractStateType>::executeEffects(unsigned clobberLimi
         // FIXME: Do sparse conditional things.
         break;
     }
+
+    case EntrySwitch:
+        break;
 
     case Return:
         m_state.setIsValid(false);
@@ -1949,10 +2053,25 @@ bool AbstractInterpreter<AbstractStateType>::executeEffects(unsigned clobberLimi
         break;
     }
 
-    case NumberToStringWithRadix:
+    case NumberToStringWithRadix: {
+        JSValue radixValue = forNode(node->child2()).m_value;
+        if (radixValue && radixValue.isInt32()) {
+            int32_t radix = radixValue.asInt32();
+            if (2 <= radix && radix <= 36) {
+                m_state.setFoundConstants(true);
+                forNode(node).set(m_graph, m_graph.m_vm.stringStructure.get());
+                break;
+            }
+        }
         clobberWorld(node->origin.semantic, clobberLimit);
         forNode(node).set(m_graph, m_graph.m_vm.stringStructure.get());
         break;
+    }
+
+    case NumberToStringWithValidRadixConstant: {
+        forNode(node).set(m_graph, m_graph.m_vm.stringStructure.get());
+        break;
+    }
         
     case NewStringObject: {
         ASSERT(node->structure()->classInfo() == StringObject::info());
@@ -2023,9 +2142,23 @@ bool AbstractInterpreter<AbstractStateType>::executeEffects(unsigned clobberLimi
         AbstractValue& destination = forNode(node);
         bool strictMode = m_graph.executableFor(node->origin.semantic)->isStrictMode();
 
-        if (isToThisAnIdentity(strictMode, source)) {
-            m_state.setFoundConstants(true);
-            destination = source;
+        ToThisResult result = isToThisAnIdentity(m_vm, strictMode, source);
+        if (result != ToThisResult::Dynamic) {
+            switch (result) {
+            case ToThisResult::Identity:
+                m_state.setFoundConstants(true);
+                destination = source;
+                break;
+            case ToThisResult::Undefined:
+                setConstant(node, jsUndefined());
+                break;
+            case ToThisResult::GlobalThis:
+                m_state.setFoundConstants(true);
+                destination.setType(m_graph, SpecObject);
+                break;
+            case ToThisResult::Dynamic:
+                RELEASE_ASSERT_NOT_REACHED();
+            }
             break;
         }
 
@@ -2230,6 +2363,11 @@ bool AbstractInterpreter<AbstractStateType>::executeEffects(unsigned clobberLimi
         break;
     }
 
+    case GetGlobalThis: {
+        forNode(node).setType(m_graph, SpecObject);
+        break;
+    }
+
     case GetClosureVar:
         if (JSValue value = m_graph.tryGetConstantClosureVar(forNode(node->child1()), node->scopeOffset())) {
             setConstant(node, *m_graph.freeze(value));
@@ -2360,6 +2498,18 @@ bool AbstractInterpreter<AbstractStateType>::executeEffects(unsigned clobberLimi
         }
         
         filter(value, set, admittedTypes);
+        break;
+    }
+
+    case CheckStructureOrEmpty: {
+        AbstractValue& value = forNode(node->child1());
+
+        bool mayBeEmpty = value.m_type & SpecEmpty;
+        if (!mayBeEmpty)
+            m_state.setFoundConstants(true);
+
+        SpeculatedType admittedTypes = mayBeEmpty ? SpecEmpty : SpecNone;
+        filter(value, node->structureSet(), admittedTypes);
         break;
     }
         

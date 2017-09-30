@@ -92,10 +92,23 @@ void DownloadProxy::processDidClose()
     m_processPool->downloadClient().processDidCrash(m_processPool.get(), this);
 }
 
+WebPageProxy* DownloadProxy::originatingPage() const
+{
+    return m_originatingPage.get();
+}
+
+void DownloadProxy::setOriginatingPage(WebPageProxy* page)
+{
+    m_originatingPage = page ? page->createWeakPtr() : nullptr;
+}
+
 void DownloadProxy::didStart(const ResourceRequest& request, const String& suggestedFilename)
 {
     m_request = request;
     m_suggestedFilename = suggestedFilename;
+
+    if (m_redirectChain.isEmpty() || m_redirectChain.last() != request.url())
+        m_redirectChain.append(request.url());
 
     if (!m_processPool)
         return;
@@ -113,8 +126,7 @@ void DownloadProxy::didReceiveAuthenticationChallenge(const AuthenticationChalle
     m_processPool->downloadClient().didReceiveAuthenticationChallenge(m_processPool.get(), this, authenticationChallengeProxy.get());
 }
 
-#if USE(NETWORK_SESSION)
-#if USE(PROTECTION_SPACE_AUTH_CALLBACK)
+#if USE(NETWORK_SESSION) && USE(PROTECTION_SPACE_AUTH_CALLBACK)
 void DownloadProxy::canAuthenticateAgainstProtectionSpace(const ProtectionSpace& protectionSpace)
 {
     if (!m_processPool)
@@ -135,19 +147,21 @@ void DownloadProxy::willSendRequest(const ResourceRequest& proposedRequest, cons
     if (!m_processPool)
         return;
 
-    RefPtr<DownloadProxy> protectedThis(this);
-    m_processPool->downloadClient().willSendRequest(proposedRequest, redirectResponse, [protectedThis](const ResourceRequest& newRequest) {
+    m_processPool->downloadClient().willSendRequest(m_processPool.get(), this, proposedRequest, redirectResponse, [this, protectedThis = makeRef(*this)](const ResourceRequest& newRequest) {
+        m_redirectChain.append(newRequest.url());
+
+#if USE(NETWORK_SESSION)
         if (!protectedThis->m_processPool)
             return;
-        
+
         auto* networkProcessProxy = protectedThis->m_processPool->networkProcess();
         if (!networkProcessProxy)
             return;
-        
+
         networkProcessProxy->send(Messages::NetworkProcess::ContinueWillSendRequest(protectedThis->m_downloadID, newRequest), 0);
+#endif
     });
 }
-#endif
 
 void DownloadProxy::didReceiveResponse(const ResourceResponse& response)
 {
@@ -193,7 +207,7 @@ void DownloadProxy::decideDestinationWithSuggestedFilenameAsync(DownloadID downl
     
     SandboxExtension::Handle sandboxExtensionHandle;
     if (!destination.isNull())
-        SandboxExtension::createHandle(destination, SandboxExtension::ReadWrite, sandboxExtensionHandle);
+        SandboxExtension::createHandle(destination, SandboxExtension::Type::ReadWrite, sandboxExtensionHandle);
 
     if (NetworkProcessProxy* networkProcess = m_processPool->networkProcess())
         networkProcess->send(Messages::NetworkProcess::ContinueDecidePendingDownloadDestination(downloadID, destination, sandboxExtensionHandle, allowOverwrite), 0);
@@ -212,7 +226,7 @@ void DownloadProxy::decideDestinationWithSuggestedFilename(const String& filenam
     destination = m_processPool->downloadClient().decideDestinationWithSuggestedFilename(m_processPool.get(), this, suggestedFilename, allowOverwrite);
 
     if (!destination.isNull())
-        SandboxExtension::createHandle(destination, SandboxExtension::ReadWrite, sandboxExtensionHandle);
+        SandboxExtension::createHandle(destination, SandboxExtension::Type::ReadWrite, sandboxExtensionHandle);
 }
 
 #endif

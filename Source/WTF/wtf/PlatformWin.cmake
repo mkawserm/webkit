@@ -3,20 +3,15 @@ list(APPEND WTF_HEADERS
 )
 
 list(APPEND WTF_SOURCES
-    PlatformUserPreferredLanguagesWin.cpp
-
     text/win/TextBreakIteratorInternalICUWin.cpp
 
     win/CPUTimeWin.cpp
+    win/LanguageWin.cpp
     win/MainThreadWin.cpp
     win/MemoryFootprintWin.cpp
     win/MemoryPressureHandlerWin.cpp
     win/RunLoopWin.cpp
     win/WorkQueueWin.cpp
-)
-
-list(APPEND WTF_HEADERS
-    "${DERIVED_SOURCES_WTF_DIR}/AVFoundationHeaderDetection.h"
 )
 
 if (USE_CF)
@@ -29,12 +24,6 @@ if (USE_CF)
 
     list(APPEND WTF_LIBRARIES ${COREFOUNDATION_LIBRARY})
 endif ()
-
-add_custom_command(
-    OUTPUT "${DERIVED_SOURCES_WTF_DIR}/AVFoundationHeaderDetection.h"
-    WORKING_DIRECTORY "${DERIVED_SOURCES_WTF_DIR}"
-    COMMAND ${PYTHON_EXECUTABLE} ${WTF_DIR}/AVFoundationSupport.py ${WEBKIT_LIBRARIES_DIR} > AVFoundationHeaderDetection.h
-    VERBATIM)
 
 set(WTF_PRE_BUILD_COMMAND "${CMAKE_BINARY_DIR}/DerivedSources/WTF/preBuild.cmd")
 file(WRITE "${WTF_PRE_BUILD_COMMAND}" "@xcopy /y /s /d /f \"${WTF_DIR}/wtf/*.h\" \"${DERIVED_SOURCES_DIR}/ForwardingHeaders/WTF\" >nul 2>nul\n@xcopy /y /s /d /f \"${DERIVED_SOURCES_DIR}/WTF/*.h\" \"${DERIVED_SOURCES_DIR}/ForwardingHeaders/WTF\" >nul 2>nul\n")

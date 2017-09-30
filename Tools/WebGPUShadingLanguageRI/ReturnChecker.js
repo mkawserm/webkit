@@ -25,27 +25,167 @@
 "use strict";
 
 class ReturnChecker extends Visitor {
+    constructor(program)
+    {
+        super();
+        this.returnStyle = {
+            DefinitelyReturns: "Definitely Returns",
+            DefinitelyDoesntReturn: "Definitely Doesn't Return",
+            HasntReturnedYet: "Hasn't Returned Yet"
+        };
+        this._program = program;
+    }
+    
+    _mergeReturnStyle(a, b)
+    {
+        if (!a)
+            return b;
+        if (!b)
+            return a;
+        switch (a) {
+        case this.returnStyle.DefinitelyReturns:
+        case this.returnStyle.DefinitelyDoesntReturn:
+            if (a == b)
+                return a;
+            return this.returnStyle.HasntReturnedYet;
+        case this.returnStyle.HasntReturnedYet:
+            return this.returnStyle.HasntReturnedYet;
+        default:
+            throw new Error("Bad return style: " + a);
+        }
+    }
+
     visitFuncDef(node)
     {
         if (node.returnType.equals(node.program.intrinsics.void))
             return;
         
-        if (!node.body.visit(this))
+        let bodyValue = node.body.visit(this);
+        if (bodyValue == this.returnStyle.DefinitelyDoesntReturn || bodyValue == this.returnStyle.HasntReturnedYet)
             throw new WTypeError(node.origin.originString, "Function does not return");
     }
     
     visitBlock(node)
     {
-        // FIXME: This isn't right for break/continue.
-        // https://bugs.webkit.org/show_bug.cgi?id=176263
-        return node.statements.reduce((result, statement) => result || statement.visit(this), false);
+        for (let statement of node.statements) {
+            switch (statement.visit(this)) {
+            case this.returnStyle.DefinitelyReturns:
+                return this.returnStyle.DefinitelyReturns;
+            case this.returnStyle.DefinitelyDoesntReturn:
+                return this.returnStyle.DefinitelyDoesntReturn;
+            case this.returnStyle.HasntReturnedYet:
+                continue;
+            }
+        }
+        return this.returnStyle.HasntReturnedYet;
+    }
+
+    visitIfStatement(node)
+    {
+        if (node.elseBody) {
+            let bodyValue = node.body.visit(this);
+            let elseValue = node.elseBody.visit(this);
+            return this._mergeReturnStyle(bodyValue, elseValue);
+        }
+        return this.returnStyle.HasntReturnedYet;
+    }
+
+    _isBoolCastFromLiteralTrue(node)
+    {
+        return node.isCast && node.returnType instanceof TypeRef && node.returnType.equals(this._program.intrinsics.bool) && node.argumentList.length == 1 && node.argumentList[0] instanceof BoolLiteral && node.argumentList[0].value;
+    }
+
+    visitWhileLoop(node)
+    {
+        let bodyReturn = node.body.visit(this);
+        if (node.conditional instanceof CallExpression && this._isBoolCastFromLiteralTrue(node.conditional)) {
+            switch (bodyReturn) {
+            case this.returnStyle.DefinitelyReturns:
+                return this.returnStyle.DefinitelyReturns;
+            case this.returnStyle.DefinitelyDoesntReturn:
+            case this.returnStyle.HasntReturnedYet:
+                return this.returnStyle.HasntReturnedYet;
+            }
+        }
+        return this.returnStyle.HasntReturnedYet;
+    }
+
+    visitDoWhileLoop(node)
+    {
+        let result = this.returnStyle.HasntReturnedYet;
+        switch (node.body.visit(this)) {
+        case this.returnStyle.DefinitelyReturns:
+            result = this.returnStyle.DefinitelyReturns;
+        case this.returnStyle.DefinitelyDoesntReturn:
+        case this.returnStyle.HasntReturnedYet:
+            result = this.returnStyle.HasntReturnedYet;
+        }
+        return result;
+    }
+
+    visitForLoop(node)
+    {
+        let bodyReturn = node.body.visit(this);
+        if (node.condition === undefined || this._isBoolCastFromLiteralTrue(node.condition)) {
+            switch (bodyReturn) {
+            case this.returnStyle.DefinitelyReturns:
+                return this.returnStyle.DefinitelyReturns;
+            case this.returnStyle.DefinitelyDoesntReturn:
+            case this.returnStyle.HasntReturnedYet:
+                return this.returnStyle.HasntReturnedYet;
+            }
+        }
     }
     
-    // When we add control flow statements, we'll need to return true only if both blocks return true.
-    // If a loop returns, then it counts only if the loop is guaranteed to run at least once.
+    visitSwitchStatement(node)
+    {
+        // FIXME: This seems like it's missing things. For example, we need to be smart about this:
+        //
+        // for (;;) {
+        //     switch (...) {
+        //     ...
+        //         continue; // This continues the for loop
+        //     }
+        // }
+        //
+        // I'm not sure what that means for this analysis. I'm starting to think that the right way to
+        // build this analysis is to run a visitor that builds a CFG and then analyze the CFG.
+        // https://bugs.webkit.org/show_bug.cgi?id=177172
+        
+        let returnStyle = null;
+        for (let switchCase of node.switchCases) {
+            let bodyStyle = switchCase.body.visit(this);
+            // FIXME: The fact that we need this demonstrates the need for CFG analysis.
+            if (bodyStyle == this.returnStyle.DefinitelyDoesntReturn)
+                bodyStyle = this.returnStyle.HasntReturnedYet;
+            returnStyle = this._mergeReturnStyle(returnStyle, bodyStyle);
+        }
+        return returnStyle;
+    }
     
     visitReturn(node)
     {
-        return true;
+        return this.returnStyle.DefinitelyReturns;
+    }
+    
+    visitTrapStatement(node)
+    {
+        return this.returnStyle.DefinitelyReturns;
+    }
+
+    visitBreak(node)
+    {
+        return this.returnStyle.DefinitelyDoesntReturn;
+    }
+
+    visitContinue(node)
+    {
+        // FIXME: This seems wrong. Consider a loop like:
+        //
+        // int foo() { for (;;) { continue; } }
+        //
+        // This program shouldn't claim that the problem is that it doesn't return.
+        // https://bugs.webkit.org/show_bug.cgi?id=177172
+        return this.returnStyle.DefinitelyDoesntReturn;
     }
 }

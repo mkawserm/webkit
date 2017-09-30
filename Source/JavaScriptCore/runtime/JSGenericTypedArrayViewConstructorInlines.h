@@ -47,12 +47,12 @@ template<typename ViewClass>
 void JSGenericTypedArrayViewConstructor<ViewClass>::finishCreation(VM& vm, JSGlobalObject* globalObject, JSObject* prototype, const String& name, FunctionExecutable* privateAllocator)
 {
     Base::finishCreation(vm, name);
-    putDirectWithoutTransition(vm, vm.propertyNames->prototype, prototype, DontEnum | DontDelete | ReadOnly);
-    putDirectWithoutTransition(vm, vm.propertyNames->length, jsNumber(3), DontEnum | ReadOnly);
-    putDirectWithoutTransition(vm, vm.propertyNames->BYTES_PER_ELEMENT, jsNumber(ViewClass::elementSize), DontEnum | ReadOnly | DontDelete);
+    putDirectWithoutTransition(vm, vm.propertyNames->prototype, prototype, PropertyAttribute::DontEnum | PropertyAttribute::DontDelete | PropertyAttribute::ReadOnly);
+    putDirectWithoutTransition(vm, vm.propertyNames->length, jsNumber(3), PropertyAttribute::DontEnum | PropertyAttribute::ReadOnly);
+    putDirectWithoutTransition(vm, vm.propertyNames->BYTES_PER_ELEMENT, jsNumber(ViewClass::elementSize), PropertyAttribute::DontEnum | PropertyAttribute::ReadOnly | PropertyAttribute::DontDelete);
 
     if (privateAllocator)
-        putDirectBuiltinFunction(vm, globalObject, vm.propertyNames->builtinNames().allocateTypedArrayPrivateName(), privateAllocator, DontEnum | DontDelete | ReadOnly);
+        putDirectBuiltinFunction(vm, globalObject, vm.propertyNames->builtinNames().allocateTypedArrayPrivateName(), privateAllocator, PropertyAttribute::DontEnum | PropertyAttribute::DontDelete | PropertyAttribute::ReadOnly);
 }
 
 template<typename ViewClass>
@@ -77,36 +77,25 @@ Structure* JSGenericTypedArrayViewConstructor<ViewClass>::createStructure(
 }
 
 template<typename ViewClass>
-inline JSObject* constructGenericTypedArrayViewFromIterator(ExecState* exec, Structure* structure, JSValue iterator)
+inline JSObject* constructGenericTypedArrayViewFromIterator(ExecState* exec, Structure* structure, JSObject* iterable, JSValue iteratorMethod)
 {
     VM& vm = exec->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
 
-    if (!iterator.isObject())
-        return throwTypeError(exec, scope, ASCIILiteral("Symbol.Iterator for the first argument did not return an object."));
-
     MarkedArgumentBuffer storage;
-    while (true) {
-        JSValue next = iteratorStep(exec, iterator);
-        RETURN_IF_EXCEPTION(scope, nullptr);
-
-        if (next.isFalse())
-            break;
-
-        JSValue nextItem = iteratorValue(exec, next);
-        RETURN_IF_EXCEPTION(scope, nullptr);
-
-        storage.append(nextItem);
-    }
+    forEachInIterable(*exec, iterable, iteratorMethod, [&] (VM&, ExecState&, JSValue value) {
+        storage.append(value);
+    });
+    RETURN_IF_EXCEPTION(scope, nullptr);
 
     ViewClass* result = ViewClass::createUninitialized(exec, structure, storage.size());
-    ASSERT(!!scope.exception() == !result);
+    EXCEPTION_ASSERT(!!scope.exception() == !result);
     if (UNLIKELY(!result))
         return nullptr;
 
     for (unsigned i = 0; i < storage.size(); ++i) {
         bool success = result->setIndex(exec, i, storage.at(i));
-        ASSERT(scope.exception() || success);
+        EXCEPTION_ASSERT(scope.exception() || success);
         if (!success)
             return nullptr;
     }
@@ -172,26 +161,23 @@ inline JSObject* constructGenericTypedArrayViewWithArguments(ExecState* exec, St
                     || lengthSlot.isAccessor() || lengthSlot.isCustom() || lengthSlot.isTaintedByOpaqueObject()
                     || hasAnyArrayStorage(object->indexingType()))) {
 
-                    CallData callData;
-                    CallType callType = getCallData(iteratorFunc, callData);
-                    if (callType == CallType::None)
-                        return throwTypeError(exec, scope, ASCIILiteral("Symbol.Iterator for the first argument cannot be called."));
-
-                    ArgList arguments;
-                    JSValue iterator = call(exec, iteratorFunc, callType, callData, object, arguments);
-                    RETURN_IF_EXCEPTION(scope, nullptr);
-
                     scope.release();
-                    return constructGenericTypedArrayViewFromIterator<ViewClass>(exec, structure, iterator);
+                    return constructGenericTypedArrayViewFromIterator<ViewClass>(exec, structure, object, iteratorFunc);
             }
 
-            length = lengthSlot.isUnset() ? 0 : lengthSlot.getValue(exec, vm.propertyNames->length).toUInt32(exec);
-            RETURN_IF_EXCEPTION(scope, nullptr);
+            if (lengthSlot.isUnset())
+                length = 0;
+            else {
+                JSValue value = lengthSlot.getValue(exec, vm.propertyNames->length);
+                RETURN_IF_EXCEPTION(scope, nullptr);
+                length = value.toUInt32(exec);
+                RETURN_IF_EXCEPTION(scope, nullptr);
+            }
         }
 
         
         ViewClass* result = ViewClass::createUninitialized(exec, structure, length);
-        ASSERT(!!scope.exception() == !result);
+        EXCEPTION_ASSERT(!!scope.exception() == !result);
         if (UNLIKELY(!result))
             return nullptr;
         

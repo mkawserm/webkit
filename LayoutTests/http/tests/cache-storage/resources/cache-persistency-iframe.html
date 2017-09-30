@@ -2,6 +2,7 @@
 <html>
 <body>
     <script>
+var cache;
 function doTest()
 {
     if (window.location.hash === "#check") {
@@ -11,7 +12,20 @@ function doTest()
         return;
     }
 
-    self.caches.open("testCacheName").then(() => {
+    if (window.location.hash === "#remove") {
+        self.caches.open("testCacheName").then(c => {
+            cache = c
+            self.caches.delete("testCacheName").then(() => {
+                window.parent.postMessage("removed", "*");
+            });
+        });
+        return;
+    }
+
+    var cacheName = "testCacheName";
+    if (window.location.hash.indexOf("#name=") === 0)
+        cacheName = window.location.hash.substring(6);
+    self.caches.open(cacheName).then(() => {
         window.parent.postMessage("ready", "*");
     });
 }

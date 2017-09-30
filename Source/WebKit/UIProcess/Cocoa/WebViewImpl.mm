@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2016 Apple Inc. All rights reserved.
+ * Copyright (C) 2015-2017 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -57,7 +57,7 @@
 #import "WKPrintingView.h"
 #import "WKTextInputWindowController.h"
 #import "WKViewLayoutStrategy.h"
-#import "WKWebView.h"
+#import "WKWebViewPrivate.h"
 #import "WebBackForwardList.h"
 #import "WebEditCommandProxy.h"
 #import "WebEventFactory.h"
@@ -94,6 +94,7 @@
 #import <pal/spi/mac/NSAccessibilitySPI.h>
 #import <pal/spi/mac/NSApplicationSPI.h>
 #import <pal/spi/mac/NSImmediateActionGestureRecognizerSPI.h>
+#import <pal/spi/mac/NSScrollerImpSPI.h>
 #import <pal/spi/mac/NSSpellCheckerSPI.h>
 #import <pal/spi/mac/NSTextFinderSPI.h>
 #import <pal/spi/mac/NSWindowSPI.h>
@@ -1259,7 +1260,7 @@ static NSTrackingAreaOptions trackingAreaOptions()
 {
     // Legacy style scrollbars have design details that rely on tracking the mouse all the time.
     NSTrackingAreaOptions options = NSTrackingMouseMoved | NSTrackingMouseEnteredAndExited | NSTrackingInVisibleRect | NSTrackingCursorUpdate;
-    if (WKRecommendedScrollerStyle() == NSScrollerStyleLegacy)
+    if (_NSRecommendedScrollerStyle() == NSScrollerStyleLegacy)
         options |= NSTrackingActiveAlways;
     else
         options |= NSTrackingActiveInKeyWindow;
@@ -1270,7 +1271,6 @@ WebViewImpl::WebViewImpl(NSView <WebViewImplDelegate> *view, WKWebView *outerWeb
     : m_view(view)
     , m_pageClient(std::make_unique<PageClientImpl>(view, outerWebView))
     , m_page(processPool.createWebPage(*m_pageClient, WTFMove(configuration)))
-    , m_weakPtrFactory(this)
     , m_needsViewFrameInWindowCoordinates(m_page->preferences().pluginsEnabled())
     , m_intrinsicContentSize(CGSizeMake(NSViewNoInstrinsicMetric, NSViewNoInstrinsicMetric))
     , m_layoutStrategy([WKViewLayoutStrategy layoutStrategyWithPage:m_page view:view viewImpl:*this mode:kWKLayoutModeViewSize])
@@ -1624,11 +1624,11 @@ bool WebViewImpl::canChangeFrameLayout(WebFrameProxy& frame)
 
 NSPrintOperation *WebViewImpl::printOperationWithPrintInfo(NSPrintInfo *printInfo, WebFrameProxy& frame)
 {
-    LOG(Printing, "Creating an NSPrintOperation for frame '%s'", frame.url().utf8().data());
+    LOG(Printing, "Creating an NSPrintOperation for frame '%s'", frame.url().string().utf8().data());
 
     // FIXME: If the frame cannot be printed (e.g. if it contains an encrypted PDF that disallows
     // printing), this function should return nil.
-    RetainPtr<WKPrintingView> printingView = adoptNS([[WKPrintingView alloc] initWithFrameProxy:&frame view:m_view.getAutoreleased()]);
+    RetainPtr<WKPrintingView> printingView = adoptNS([[WKPrintingView alloc] initWithFrameProxy:frame view:m_view.getAutoreleased()]);
     // NSPrintOperation takes ownership of the view.
     NSPrintOperation *printOperation = [NSPrintOperation printOperationWithView:printingView.get() printInfo:printInfo];
     [printOperation setCanSpawnSeparateThread:YES];
@@ -1945,7 +1945,7 @@ bool WebViewImpl::mightBeginDragWhileInactive()
 bool WebViewImpl::mightBeginScrollWhileInactive()
 {
     // Legacy style scrollbars have design details that rely on tracking the mouse all the time.
-    if (WKRecommendedScrollerStyle() == NSScrollerStyleLegacy)
+    if (_NSRecommendedScrollerStyle() == NSScrollerStyleLegacy)
         return true;
 
     return false;
@@ -4842,6 +4842,54 @@ void WebViewImpl::mouseMoved(NSEvent *event)
         return;
 
     mouseMovedInternal(event);
+}
+
+_WKRectEdge WebViewImpl::pinnedState()
+{
+#if WK_API_ENABLED
+    _WKRectEdge state = _WKRectEdgeNone;
+    if (m_page->isPinnedToLeftSide())
+        state |= _WKRectEdgeLeft;
+    if (m_page->isPinnedToRightSide())
+        state |= _WKRectEdgeRight;
+    if (m_page->isPinnedToTopSide())
+        state |= _WKRectEdgeTop;
+    if (m_page->isPinnedToBottomSide())
+        state |= _WKRectEdgeBottom;
+    return state;
+#else
+    return 0;
+#endif
+}
+
+_WKRectEdge WebViewImpl::rubberBandingEnabled()
+{
+#if WK_API_ENABLED
+    _WKRectEdge state = _WKRectEdgeNone;
+    if (m_page->rubberBandsAtLeft())
+        state |= _WKRectEdgeLeft;
+    if (m_page->rubberBandsAtRight())
+        state |= _WKRectEdgeRight;
+    if (m_page->rubberBandsAtTop())
+        state |= _WKRectEdgeTop;
+    if (m_page->rubberBandsAtBottom())
+        state |= _WKRectEdgeBottom;
+    return state;
+#else
+    return 0;
+#endif
+}
+
+void WebViewImpl::setRubberBandingEnabled(_WKRectEdge state)
+{
+#if WK_API_ENABLED
+    m_page->setRubberBandsAtLeft(state & _WKRectEdgeLeft);
+    m_page->setRubberBandsAtRight(state & _WKRectEdgeRight);
+    m_page->setRubberBandsAtTop(state & _WKRectEdgeTop);
+    m_page->setRubberBandsAtBottom(state & _WKRectEdgeBottom);
+#else
+    UNUSED_PARAM(state);
+#endif
 }
 
 void WebViewImpl::mouseDown(NSEvent *event)

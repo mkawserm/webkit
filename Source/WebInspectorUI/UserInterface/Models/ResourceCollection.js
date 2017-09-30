@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2013 Apple Inc. All rights reserved.
- * Copyright (C) 2016 Devin Rousso <dcrousso+webkit@gmail.com>. All rights reserved.
+ * Copyright (C) 2016 Devin Rousso <webkit@devinrousso.com>. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -63,6 +63,8 @@ WI.ResourceCollection = class ResourceCollection extends WI.Collection
     }
 
     // Public
+
+    get resourceType() { return this._resourceType; }
 
     resourceForURL(url)
     {

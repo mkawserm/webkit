@@ -110,7 +110,7 @@
 
   <autotools id="fonts" supports-non-srcdir-builds="no"
              skip-autogen="true">
-    <branch repo="github.com" module="mrobinson/webkitgtk-test-fonts.git" checkoutdir="webkitgtk-test-fonts" tag="0.0.5"/>
+    <branch repo="github.com" module="WebKitGTK/webkitgtk-test-fonts.git" checkoutdir="webkitgtk-test-fonts" tag="0.0.6"/>
   </autotools>
 
   <autotools id="dicts" supports-non-srcdir-builds="no"
@@ -119,12 +119,9 @@
   </autotools>
 
   <autotools id="freetype6" autogen-sh="configure">
-    <branch module="freetype/freetype-2.4.11.tar.bz2" version="2.4.11"
+    <branch module="freetype/freetype-2.8.tar.bz2" version="2.8"
             repo="savannah.gnu.org"
-            hash="sha256:ef9d0bcb64647d9e5125dc7534d7ca371c98310fec87677c410f397f71ffbe3f"
-            md5sum="b93435488942486c8d0ca22e8f768034">
-      <patch file="freetype6-2.4.11-truetype-font-height-fix.patch" strip="1"/>
-    </branch>
+            hash="sha256:a3c603ed84c3c2495f9c9331fe6bba3bb0ee65e06ec331e0a0fb52158291b40b"/>
   </autotools>
 
   <autotools id="harfbuzz" autogen-sh="configure">
@@ -172,8 +169,7 @@
             hash="sha256:d48bcf6b03fa98f07df10332fb49d8c010786ddca6ab34cbba217684f533ff2e"/>
   </autotools>
 
-  <autotools id="gtk+" autogen-sh="configure"
-             autogenargs="--disable-introspection">
+  <autotools id="gtk+" autogen-sh="configure">
     <if condition-set="macos">
       <autogenargs value="--enable-x11-backend=no --enable-quartz-backend" />
       <makeargs value="-j1" />
@@ -185,6 +181,7 @@
       <if condition-set="linux">
         <dep package="at-spi2-atk"/>
         <dep package="wayland"/>
+        <dep package="wayland-protocols"/>
       </if>
       <dep package="gdk-pixbuf"/>
       <dep package="pango"/>
@@ -249,22 +246,9 @@
       <dep package="freetype6"/>
       <dep package="libxml2"/>
     </dependencies>
-    <branch module="software/fontconfig/release/fontconfig-2.11.1.tar.gz" version="2.11.1"
+    <branch module="software/fontconfig/release/fontconfig-2.12.4.tar.bz2" version="2.12.4"
             repo="freedesktop.org"
-            hash="sha256:b6b066c7dce3f436fdc0dfbae9d36122b38094f4f53bd8dffd45e195b0540d8d"
-            md5sum="e75e303b4f7756c2b16203a57ac87eba">
-      <patch file="fontconfig-fix-osx-cache.diff" strip="1"/>
-
-      <!-- These will be in the next release after 2.12.1
-           https://cgit.freedesktop.org/fontconfig/commit/?id=1ab5258f7c2abfafcd63a760ca08bf93591912da
-           https://cgit.freedesktop.org/fontconfig/commit/?id=9878b306f6c673d3d6cd9db487f67eb426cc03df -->
-      <patch file="fontconfig-Avoid-conflicts-with-integer-width-macros-from-TS-18661-1-2014.patch" strip="1"/>
-      <patch file="fontconfig-Fix-the-build-issue-with-gperf-3.1.patch" strip="1"/>
-
-      <!-- The previous patch modifies "configure.ac", and tarballs don't
-           include the "autogen.sh" script, so let's re-add it here. -->
-      <patch file="fontconfig-2.11.1-add-autogen.patch" strip="0"/>
-    </branch>
+            hash="sha256:668293fcc4b3c59765cdee5cee05941091c0879edcc24dfec5455ef83912e45c"/>
   </autotools>
 
   <autotools id="adwaita-icon-theme" autogen-sh="configure">
@@ -312,10 +296,9 @@
 
   <autotools id="libxml2" supports-non-srcdir-builds="no"
              autogen-sh="./autogen.sh; ./configure --with-python=no">
-    <branch module="/sources/libxml2-2.9.1.tar.gz" version="2.9.1"
+    <branch module="/sources/libxml2-2.9.5.tar.gz" version="2.9.5"
             repo="xmlsoft.org"
-            hash="sha256:fd3c64cb66f2c4ea27e934d275904d92cec494a8e8405613780cbc8a71680fdb"
-            md5sum="9c0cfef285d5c4a5c80d00904ddab380"/>
+            hash="sha256:4031c1ecee9ce7ba4f313e91ef6284164885cdb69937a123f6a83bb6a72dcd38"/>
   </autotools>
 
   <autotools id="xserver" autogenargs="--disable-xinerama --enable-glx --enable-composite --disable-xorg --disable-dmx --disable-xnest --disable-xquartz --disable-xwin --disable-xephyr --disable-xfake --disable-xfbdev --disable-install-setuid --disable-unit-tests --disable-present --enable-unix-transport --enable-tcp-transport --disable-local-transport --with-xkb-path=/usr/share/X11/xkb --with-xkb-output=/var/lib/xkb --with-xkb-bin-directory=/usr/bin --without-dtrace">

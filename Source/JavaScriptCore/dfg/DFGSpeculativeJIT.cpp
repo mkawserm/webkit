@@ -52,7 +52,6 @@
 #include "JSAsyncFunction.h"
 #include "JSAsyncGeneratorFunction.h"
 #include "JSCInlines.h"
-#include "JSEnvironmentRecord.h"
 #include "JSFixedArray.h"
 #include "JSGeneratorFunction.h"
 #include "JSLexicalEnvironment.h"
@@ -1808,7 +1807,7 @@ void SpeculativeJIT::checkArgumentTypes()
     ASSERT(!m_currentNode);
     m_origin = NodeOrigin(CodeOrigin(0), CodeOrigin(0), true);
 
-    auto& arguments = m_jit.graph().m_entrypointToArguments.find(m_jit.graph().block(0))->value;
+    auto& arguments = m_jit.graph().m_rootToArguments.find(m_jit.graph().block(0))->value;
     for (int i = 0; i < m_jit.codeBlock()->numParameters(); ++i) {
         Node* node = arguments[i];
         if (!node) {
@@ -1912,7 +1911,7 @@ void SpeculativeJIT::linkOSREntries(LinkBuffer& linkBuffer)
         if (!block->isOSRTarget && !block->isCatchEntrypoint)
             continue;
         if (block->isCatchEntrypoint) {
-            auto& argumentsVector = m_jit.graph().m_entrypointToArguments.find(block)->value;
+            auto& argumentsVector = m_jit.graph().m_rootToArguments.find(block)->value;
             Vector<FlushFormat> argumentFormats;
             argumentFormats.reserveInitialCapacity(argumentsVector.size());
             for (Node* setArgument : argumentsVector) {
@@ -1931,6 +1930,7 @@ void SpeculativeJIT::linkOSREntries(LinkBuffer& linkBuffer)
     }
 
     m_jit.jitCode()->finalizeOSREntrypoints();
+    m_jit.jitCode()->common.finalizeCatchEntrypoints();
 
     ASSERT(osrEntryIndex == m_osrEntryHeads.size());
     
@@ -3140,6 +3140,100 @@ void SpeculativeJIT::compilePutByValForFloatTypedArray(GPRReg base, GPRReg prope
     JITCompiler::Jump done = jumpForTypedArrayIsNeuteredIfOutOfBounds(node, base, outOfBounds);
     if (done.isSet())
         done.link(&m_jit);
+    noResult(node);
+}
+
+void SpeculativeJIT::compileGetByValForObjectWithString(Node* node)
+{
+    SpeculateCellOperand arg1(this, node->child1());
+    SpeculateCellOperand arg2(this, node->child2());
+
+    GPRReg arg1GPR = arg1.gpr();
+    GPRReg arg2GPR = arg2.gpr();
+
+    speculateObject(node->child1(), arg1GPR);
+    speculateString(node->child2(), arg2GPR);
+
+    GPRFlushedCallResult resultPayload(this);
+    GPRReg resultPayloadGPR = resultPayload.gpr();
+#if USE(JSVALUE64)
+    JSValueRegs resultRegs(resultPayloadGPR);
+#else
+    GPRFlushedCallResult2 resultTag(this);
+    GPRReg resultTagGPR = resultTag.gpr();
+    JSValueRegs resultRegs(resultTagGPR, resultPayloadGPR);
+#endif
+
+    flushRegisters();
+    callOperation(operationGetByValObjectString, extractResult(resultRegs), arg1GPR, arg2GPR);
+    m_jit.exceptionCheck();
+
+    jsValueResult(resultRegs, node);
+}
+
+void SpeculativeJIT::compileGetByValForObjectWithSymbol(Node* node)
+{
+    SpeculateCellOperand arg1(this, node->child1());
+    SpeculateCellOperand arg2(this, node->child2());
+
+    GPRReg arg1GPR = arg1.gpr();
+    GPRReg arg2GPR = arg2.gpr();
+
+    speculateObject(node->child1(), arg1GPR);
+    speculateSymbol(node->child2(), arg2GPR);
+
+    GPRFlushedCallResult resultPayload(this);
+    GPRReg resultPayloadGPR = resultPayload.gpr();
+#if USE(JSVALUE64)
+    JSValueRegs resultRegs(resultPayloadGPR);
+#else
+    GPRFlushedCallResult2 resultTag(this);
+    GPRReg resultTagGPR = resultTag.gpr();
+    JSValueRegs resultRegs(resultTagGPR, resultPayloadGPR);
+#endif
+
+    flushRegisters();
+    callOperation(operationGetByValObjectSymbol, extractResult(resultRegs), arg1GPR, arg2GPR);
+    m_jit.exceptionCheck();
+
+    jsValueResult(resultRegs, node);
+}
+
+void SpeculativeJIT::compilePutByValForCellWithString(Node* node, Edge& child1, Edge& child2, Edge& child3)
+{
+    SpeculateCellOperand arg1(this, child1);
+    SpeculateCellOperand arg2(this, child2);
+    JSValueOperand arg3(this, child3);
+
+    GPRReg arg1GPR = arg1.gpr();
+    GPRReg arg2GPR = arg2.gpr();
+    JSValueRegs arg3Regs = arg3.jsValueRegs();
+
+    speculateString(child2, arg2GPR);
+
+    flushRegisters();
+    callOperation(m_jit.isStrictModeFor(node->origin.semantic) ? operationPutByValCellStringStrict : operationPutByValCellStringNonStrict, arg1GPR, arg2GPR, arg3Regs);
+    m_jit.exceptionCheck();
+
+    noResult(node);
+}
+
+void SpeculativeJIT::compilePutByValForCellWithSymbol(Node* node, Edge& child1, Edge& child2, Edge& child3)
+{
+    SpeculateCellOperand arg1(this, child1);
+    SpeculateCellOperand arg2(this, child2);
+    JSValueOperand arg3(this, child3);
+
+    GPRReg arg1GPR = arg1.gpr();
+    GPRReg arg2GPR = arg2.gpr();
+    JSValueRegs arg3Regs = arg3.jsValueRegs();
+
+    speculateSymbol(child2, arg2GPR);
+
+    flushRegisters();
+    callOperation(m_jit.isStrictModeFor(node->origin.semantic) ? operationPutByValCellSymbolStrict : operationPutByValCellSymbolNonStrict, arg1GPR, arg2GPR, arg3Regs);
+    m_jit.exceptionCheck();
+
     noResult(node);
 }
 
@@ -5616,6 +5710,11 @@ bool SpeculativeJIT::compare(Node* node, MacroAssembler::RelationalCondition con
     return false;
 }
 
+void SpeculativeJIT::compileCompareUnsigned(Node* node, MacroAssembler::RelationalCondition condition)
+{
+    compileInt32Compare(node, condition);
+}
+
 bool SpeculativeJIT::compileStrictEq(Node* node)
 {
     // FIXME: Currently, we have op_jless, op_jgreater etc. But we don't have op_jeq, op_jstricteq etc.
@@ -6376,7 +6475,7 @@ void SpeculativeJIT::compileGetByValOnScopedArguments(Node* node)
     m_jit.loadValue(
         MacroAssembler::BaseIndex(
             scratch2Reg, propertyReg, MacroAssembler::TimesEight,
-            JSEnvironmentRecord::offsetOfVariables()),
+            JSLexicalEnvironment::offsetOfVariables()),
         resultRegs);
     
     MacroAssembler::Jump done = m_jit.jump();
@@ -6423,6 +6522,15 @@ void SpeculativeJIT::compileGetGlobalObject(Node* node)
     m_jit.emitLoadStructure(*m_jit.vm(), object.gpr(), result.gpr(), scratch.gpr());
     m_jit.loadPtr(JITCompiler::Address(result.gpr(), Structure::globalObjectOffset()), result.gpr());
     cellResult(result.gpr(), node);
+}
+
+void SpeculativeJIT::compileGetGlobalThis(Node* node)
+{
+    GPRTemporary result(this);
+    GPRReg resultGPR = result.gpr();
+    auto* globalObject = m_jit.graph().globalObjectFor(node->origin.semantic);
+    m_jit.loadPtr(globalObject->addressOfGlobalThis(), resultGPR);
+    cellResult(resultGPR, node);
 }
 
 void SpeculativeJIT::compileGetArrayLength(Node* node)
@@ -7890,7 +7998,7 @@ void SpeculativeJIT::compileTypeOf(Node* node)
     cellResult(resultGPR, node);
 }
 
-void SpeculativeJIT::compileCheckStructure(Node* node, GPRReg cellGPR, GPRReg tempGPR)
+void SpeculativeJIT::emitStructureCheck(Node* node, GPRReg cellGPR, GPRReg tempGPR)
 {
     ASSERT(node->structureSet().size());
     
@@ -7935,7 +8043,7 @@ void SpeculativeJIT::compileCheckStructure(Node* node)
     case CellUse:
     case KnownCellUse: {
         SpeculateCellOperand cell(this, node->child1());
-        compileCheckStructure(node, cell.gpr(), InvalidGPRReg);
+        emitStructureCheck(node, cell.gpr(), InvalidGPRReg);
         noResult(node);
         return;
     }
@@ -7953,7 +8061,7 @@ void SpeculativeJIT::compileCheckStructure(Node* node)
             m_jit.branchIfNotOther(valueRegs, tempGPR));
         JITCompiler::Jump done = m_jit.jump();
         cell.link(&m_jit);
-        compileCheckStructure(node, valueRegs.payloadGPR(), tempGPR);
+        emitStructureCheck(node, valueRegs.payloadGPR(), tempGPR);
         done.link(&m_jit);
         noResult(node);
         return;
@@ -8353,7 +8461,7 @@ void SpeculativeJIT::compileToStringOrCallStringConstructor(Node* node)
     case Int32Use:
     case Int52RepUse:
     case DoubleRepUse:
-        compileToStringOrCallStringConstructorOnNumber(node);
+        compileNumberToStringWithValidRadixConstant(node, 10);
         return;
 
     default:
@@ -8434,11 +8542,16 @@ void SpeculativeJIT::compileToStringOrCallStringConstructor(Node* node)
     }
 }
 
-void SpeculativeJIT::compileToStringOrCallStringConstructorOnNumber(Node* node)
+void SpeculativeJIT::compileNumberToStringWithValidRadixConstant(Node* node)
+{
+    compileNumberToStringWithValidRadixConstant(node, node->validRadixConstant());
+}
+
+void SpeculativeJIT::compileNumberToStringWithValidRadixConstant(Node* node, int32_t radix)
 {
     auto callToString = [&] (auto operation, GPRReg resultGPR, auto valueReg) {
         flushRegisters();
-        callOperation(operation, resultGPR, valueReg, CCallHelpers::TrustedImm32(10));
+        callOperation(operation, resultGPR, valueReg, TrustedImm32(radix));
         m_jit.exceptionCheck();
         cellResult(resultGPR, node);
     };
@@ -8884,6 +8997,34 @@ void SpeculativeJIT::speculateSetObject(Edge edge)
     speculateSetObject(edge, operand.gpr());
 }
 
+void SpeculativeJIT::speculateWeakMapObject(Edge edge, GPRReg cell)
+{
+    speculateCellType(edge, cell, SpecWeakMapObject, JSWeakMapType);
+}
+
+void SpeculativeJIT::speculateWeakMapObject(Edge edge)
+{
+    if (!needsTypeCheck(edge, SpecWeakMapObject))
+        return;
+
+    SpeculateCellOperand operand(this, edge);
+    speculateWeakMapObject(edge, operand.gpr());
+}
+
+void SpeculativeJIT::speculateWeakSetObject(Edge edge, GPRReg cell)
+{
+    speculateCellType(edge, cell, SpecWeakSetObject, JSWeakSetType);
+}
+
+void SpeculativeJIT::speculateWeakSetObject(Edge edge)
+{
+    if (!needsTypeCheck(edge, SpecWeakSetObject))
+        return;
+
+    SpeculateCellOperand operand(this, edge);
+    speculateWeakSetObject(edge, operand.gpr());
+}
+
 void SpeculativeJIT::speculateObjectOrOther(Edge edge)
 {
     if (!needsTypeCheck(edge, SpecObject | SpecOther))
@@ -9201,6 +9342,12 @@ void SpeculativeJIT::speculate(Node*, Edge edge)
         break;
     case SetObjectUse:
         speculateSetObject(edge);
+        break;
+    case WeakMapObjectUse:
+        speculateWeakMapObject(edge);
+        break;
+    case WeakSetObjectUse:
+        speculateWeakSetObject(edge);
         break;
     case ObjectOrOtherUse:
         speculateObjectOrOther(edge);
@@ -10305,6 +10452,28 @@ void SpeculativeJIT::compileThrowStaticError(Node* node)
     m_jit.exceptionCheck();
     m_jit.breakpoint();
     noResult(node);
+}
+
+void SpeculativeJIT::compileWeakMapGet(Node* node)
+{
+    SpeculateCellOperand weakMap(this, node->child1());
+    SpeculateCellOperand object(this, node->child2());
+    SpeculateInt32Operand hash(this, node->child3());
+    JSValueRegsTemporary result(this);
+
+    GPRReg weakMapGPR = weakMap.gpr();
+    GPRReg objectGPR = object.gpr();
+    GPRReg hashGPR = hash.gpr();
+    JSValueRegs resultRegs = result.regs();
+
+    speculateWeakMapObject(node->child1(), weakMapGPR);
+    speculateObject(node->child2(), objectGPR);
+
+    flushRegisters();
+    callOperation(operationWeakMapGet, resultRegs, weakMapGPR, objectGPR, hashGPR);
+    // No exception check here since operationWeakMapGet never throws an exception.
+
+    jsValueResult(resultRegs, node);
 }
 
 } } // namespace JSC::DFG

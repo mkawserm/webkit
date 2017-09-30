@@ -29,7 +29,6 @@
 #include "BreakLines.h"
 #include "BreakingContext.h"
 #include "CharacterProperties.h"
-#include "DocumentMarker.h"
 #include "DocumentMarkerController.h"
 #include "EllipsisBox.h"
 #include "FloatQuad.h"
@@ -69,13 +68,13 @@ using namespace Unicode;
 namespace WebCore {
 
 struct SameSizeAsRenderText : public RenderObject {
+    void* pointers[2];
     uint32_t bitfields : 16;
 #if ENABLE(TEXT_AUTOSIZING)
     float candidateTextSize;
 #endif
     float widths[4];
     String text;
-    void* pointers[2];
 };
 
 COMPILE_ASSERT(sizeof(RenderText) == sizeof(SameSizeAsRenderText), RenderText_should_stay_small);
@@ -447,14 +446,18 @@ Vector<FloatQuad> RenderText::absoluteQuadsForRange(unsigned start, unsigned end
 Position RenderText::positionForPoint(const LayoutPoint& point)
 {
     if (simpleLineLayout() && parent()->firstChild() == parent()->lastChild()) {
-        auto position = Position(textNode(), SimpleLineLayout::textOffsetForPoint(point, *this, *simpleLineLayout()));
+        auto offset = SimpleLineLayout::textOffsetForPoint(point, *this, *simpleLineLayout());
+        // Did not find a valid offset. Fall back to the normal line layout based Position.
+        if (offset == textLength())
+            return positionForPoint(point, nullptr).deepEquivalent();
+        auto position = Position(textNode(), offset);
         ASSERT(position == positionForPoint(point, nullptr).deepEquivalent());
         return position;
     }
     return positionForPoint(point, nullptr).deepEquivalent();
 }
 
-VisiblePosition RenderText::positionForPoint(const LayoutPoint& point, const RenderRegion*)
+VisiblePosition RenderText::positionForPoint(const LayoutPoint& point, const RenderFragmentContainer*)
 {
     ensureLineBoxes();
     return m_lineBoxes.positionForPoint(*this, point);
@@ -511,9 +514,6 @@ ALWAYS_INLINE float RenderText::widthFromCache(const FontCascade& f, unsigned st
     }
 
     TextRun run = RenderBlock::constructTextRun(*this, start, len, style);
-    run.setCharactersLength(textLength() - start);
-    ASSERT(run.charactersLength() >= run.length());
-
     run.setCharacterScanForCodePath(!canUseSimpleFontCodePath());
     run.setTabSize(!style.collapseWhiteSpace(), style.tabSize());
     run.setXPos(xPos);
@@ -778,7 +778,6 @@ static float maxWordFragmentWidth(RenderText& renderer, const RenderStyle& style
         fragmentWithHyphen.append(style.hyphenString());
 
         TextRun run = RenderBlock::constructTextRun(fragmentWithHyphen.toString(), style);
-        run.setCharactersLength(fragmentWithHyphen.length());
         run.setCharacterScanForCodePath(!renderer.canUseSimpleFontCodePath());
         float fragmentWidth = font.width(run, &fallbackFonts, &glyphOverflow);
 
@@ -1004,8 +1003,6 @@ void RenderText::computePreferredLogicalWidths(float leadWidth, HashSet<const Fo
                 currMaxWidth = 0;
             } else {
                 TextRun run = RenderBlock::constructTextRun(*this, i, 1, style);
-                run.setCharactersLength(len - i);
-                ASSERT(run.charactersLength() >= run.length());
                 run.setTabSize(!style.collapseWhiteSpace(), style.tabSize());
                 run.setXPos(leadWidth + currMaxWidth);
 
@@ -1392,12 +1389,10 @@ float RenderText::width(unsigned from, unsigned len, const FontCascade& f, float
             w = widthFromCache(f, from, len, xPos, fallbackFonts, glyphOverflow, style);
     } else {
         TextRun run = RenderBlock::constructTextRun(*this, from, len, style);
-        run.setCharactersLength(textLength() - from);
-        ASSERT(run.charactersLength() >= run.length());
-
         run.setCharacterScanForCodePath(!canUseSimpleFontCodePath());
         run.setTabSize(!style.collapseWhiteSpace(), style.tabSize());
         run.setXPos(xPos);
+
         w = f.width(run, fallbackFonts, glyphOverflow);
     }
 

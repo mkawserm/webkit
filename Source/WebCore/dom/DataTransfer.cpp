@@ -38,6 +38,7 @@
 #include "Image.h"
 #include "Pasteboard.h"
 #include "StaticPasteboard.h"
+#include "WebCorePasteboardFileReader.h"
 
 namespace WebCore {
 
@@ -74,7 +75,7 @@ DataTransfer::DataTransfer(StoreMode mode, std::unique_ptr<Pasteboard> pasteboar
 
 Ref<DataTransfer> DataTransfer::createForCopyAndPaste(StoreMode mode)
 {
-    return adoptRef(*new DataTransfer(mode, mode == StoreMode::ReadWrite ? Pasteboard::createPrivate() : Pasteboard::createForCopyAndPaste()));
+    return adoptRef(*new DataTransfer(mode, mode == StoreMode::ReadWrite ? std::make_unique<StaticPasteboard>() : Pasteboard::createForCopyAndPaste()));
 }
 
 DataTransfer::~DataTransfer()
@@ -140,7 +141,7 @@ String DataTransfer::getData(const String& type) const
         return { };
 #endif
 
-    return m_pasteboard->readString(normalizeType(type));
+    return m_pasteboard->readStringForBindings(normalizeType(type));
 }
 
 void DataTransfer::setData(const String& type, const String& data)
@@ -171,7 +172,7 @@ Vector<String> DataTransfer::types() const
     if (!canReadTypes())
         return { };
 
-    return m_pasteboard->types();
+    return m_pasteboard->typesForBindings();
 }
 
 FileList& DataTransfer::files() const
@@ -193,8 +194,16 @@ FileList& DataTransfer::files() const
 #endif
 
     if (newlyCreatedFileList) {
-        for (const String& filename : m_pasteboard->readFilenames())
+        for (auto& filename : m_pasteboard->readFilenames())
             m_fileList->append(File::create(filename));
+        if (m_fileList->isEmpty()) {
+            for (auto& type : m_pasteboard->typesTreatedAsFiles()) {
+                WebCorePasteboardFileReader reader(type);
+                m_pasteboard->read(reader);
+                if (reader.file)
+                    m_fileList->append(reader.file.releaseNonNull());
+            }
+        }
     }
     return *m_fileList;
 }
@@ -203,7 +212,7 @@ bool DataTransfer::hasFileOfType(const String& type)
 {
     ASSERT_WITH_SECURITY_IMPLICATION(canReadTypes());
 
-    for (const String& path : m_pasteboard->readFilenames()) {
+    for (auto& path : m_pasteboard->readFilenames()) {
         if (equalIgnoringASCIICase(File::contentTypeForFile(path), type))
             return true;
     }
@@ -220,10 +229,10 @@ bool DataTransfer::hasStringOfType(const String& type)
 
 Ref<DataTransfer> DataTransfer::createForInputEvent(const String& plainText, const String& htmlText)
 {
-    TypeToStringMap typeToStringMap;
-    typeToStringMap.set(ASCIILiteral("text/plain"), plainText);
-    typeToStringMap.set(ASCIILiteral("text/html"), htmlText);
-    return adoptRef(*new DataTransfer(StoreMode::Readonly, StaticPasteboard::create(WTFMove(typeToStringMap)), Type::InputEvent));
+    auto pasteboard = std::make_unique<StaticPasteboard>();
+    pasteboard->writeString(ASCIILiteral("text/plain"), plainText);
+    pasteboard->writeString(ASCIILiteral("text/html"), htmlText);
+    return adoptRef(*new DataTransfer(StoreMode::Readonly, WTFMove(pasteboard), Type::InputEvent));
 }
 
 #if !ENABLE(DRAG_SUPPORT)
@@ -255,6 +264,11 @@ void DataTransfer::setDragImage(Element*, int, int)
 Ref<DataTransfer> DataTransfer::createForDrag()
 {
     return adoptRef(*new DataTransfer(StoreMode::ReadWrite, Pasteboard::createForDragAndDrop(), Type::DragAndDropData));
+}
+
+Ref<DataTransfer> DataTransfer::createForDragStartEvent()
+{
+    return adoptRef(*new DataTransfer(StoreMode::ReadWrite, std::make_unique<StaticPasteboard>(), Type::DragAndDropData));
 }
 
 Ref<DataTransfer> DataTransfer::createForDrop(StoreMode accessMode, const DragData& dragData)
@@ -301,6 +315,11 @@ void DataTransfer::updateDragImage()
         return;
 
     m_pasteboard->setDragImage(WTFMove(computedImage), computedHotSpot);
+}
+
+RefPtr<Element> DataTransfer::dragImageElement() const
+{
+    return m_dragImageElement;
 }
 
 #if !PLATFORM(MAC)
@@ -453,6 +472,31 @@ void DataTransfer::setEffectAllowed(const String& effect)
         return;
 
     m_effectAllowed = effect;
+}
+
+void DataTransfer::moveDragState(Ref<DataTransfer>&& other)
+{
+    RELEASE_ASSERT(is<StaticPasteboard>(other->pasteboard()));
+    // We clear the platform pasteboard here to ensure that the pasteboard doesn't contain any data
+    // that may have been written before starting the drag, and after ending the last drag session.
+    // After pushing the static pasteboard's contents to the platform, the pasteboard should only
+    // contain data that was in the static pasteboard.
+    m_pasteboard->clear();
+    downcast<StaticPasteboard>(other->pasteboard()).commitToPasteboard(*m_pasteboard);
+
+    m_dropEffect = other->m_dropEffect;
+    m_effectAllowed = other->m_effectAllowed;
+    m_dragLocation = other->m_dragLocation;
+    m_dragImage = other->m_dragImage;
+    m_dragImageElement = WTFMove(other->m_dragImageElement);
+    m_dragImageLoader = WTFMove(other->m_dragImageLoader);
+    m_itemList = WTFMove(other->m_itemList);
+    m_fileList = WTFMove(other->m_fileList);
+}
+
+bool DataTransfer::hasDragImage() const
+{
+    return m_dragImage || m_dragImageElement;
 }
 
 #endif // ENABLE(DRAG_SUPPORT)

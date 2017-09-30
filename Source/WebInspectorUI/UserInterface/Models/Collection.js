@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 Devin Rousso <dcrousso+webkit@gmail.com>. All rights reserved.
+ * Copyright (C) 2016 Devin Rousso <webkit@devinrousso.com>. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -112,7 +112,6 @@ WI.Collection = class Collection extends WI.Object
 
  WI.Collection.TypeVerifier = {
     Any: (object) => true,
-    ContentFlow: (object) => object instanceof WI.ContentFlow,
     Frame: (object) => object instanceof WI.Frame,
     Resource: (object) => object instanceof WI.Resource,
     Script: (object) => object instanceof WI.Script,

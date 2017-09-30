@@ -71,9 +71,9 @@ void WebCacheStorageConnection::doRetrieveCaches(uint64_t requestIdentifier, con
     connection().send(Messages::CacheStorageEngineConnection::Caches(m_sessionID, requestIdentifier, origin, updateCounter), 0);
 }
 
-void WebCacheStorageConnection::doRetrieveRecords(uint64_t requestIdentifier, uint64_t cacheIdentifier)
+void WebCacheStorageConnection::doRetrieveRecords(uint64_t requestIdentifier, uint64_t cacheIdentifier, const WebCore::URL& url)
 {
-    connection().send(Messages::CacheStorageEngineConnection::Records(m_sessionID, requestIdentifier, cacheIdentifier), 0);
+    connection().send(Messages::CacheStorageEngineConnection::RetrieveRecords(m_sessionID, requestIdentifier, cacheIdentifier, url), 0);
 }
 
 void WebCacheStorageConnection::doBatchDeleteOperation(uint64_t requestIdentifier, uint64_t cacheIdentifier, const WebCore::ResourceRequest& request, WebCore::CacheQueryOptions&& options)
@@ -86,10 +86,14 @@ void WebCacheStorageConnection::doBatchPutOperation(uint64_t requestIdentifier, 
     connection().send(Messages::CacheStorageEngineConnection::PutRecords(m_sessionID, requestIdentifier, cacheIdentifier, records), 0);
 }
 
-void WebCacheStorageConnection::clearMemoryRepresentation(const String& origin, CompletionCallback&& callback)
+void WebCacheStorageConnection::reference(uint64_t cacheIdentifier)
 {
-    connection().send(Messages::CacheStorageEngineConnection::ClearMemoryRepresentation(m_sessionID, origin), 0);
-    callback(std::nullopt);
+    connection().send(Messages::CacheStorageEngineConnection::Reference(m_sessionID, cacheIdentifier), 0);
+}
+
+void WebCacheStorageConnection::dereference(uint64_t cacheIdentifier)
+{
+    connection().send(Messages::CacheStorageEngineConnection::Dereference(m_sessionID, cacheIdentifier), 0);
 }
 
 void WebCacheStorageConnection::openCompleted(uint64_t requestIdentifier, const CacheIdentifierOrError& result)
@@ -120,6 +124,32 @@ void WebCacheStorageConnection::deleteRecordsCompleted(uint64_t requestIdentifie
 void WebCacheStorageConnection::putRecordsCompleted(uint64_t requestIdentifier, RecordIdentifiersOrError&& result)
 {
     CacheStorageConnection::putRecordsCompleted(requestIdentifier, WTFMove(result));
+}
+
+void WebCacheStorageConnection::clearMemoryRepresentation(const String& origin, CompletionCallback&& callback)
+{
+    uint64_t requestIdentifier = ++m_engineRepresentationNextIdentifier;
+    m_clearRepresentationCallbacks.set(requestIdentifier, WTFMove(callback));
+    connection().send(Messages::CacheStorageEngineConnection::ClearMemoryRepresentation(m_sessionID, requestIdentifier, origin), 0);
+}
+
+void WebCacheStorageConnection::clearMemoryRepresentationCompleted(uint64_t requestIdentifier, std::optional<Error>&& result)
+{
+    if (auto callback = m_clearRepresentationCallbacks.take(requestIdentifier))
+        callback(WTFMove(result));
+}
+
+void WebCacheStorageConnection::engineRepresentation(WTF::Function<void(const String&)>&& callback)
+{
+    uint64_t requestIdentifier = ++m_engineRepresentationNextIdentifier;
+    m_engineRepresentationCallbacks.set(requestIdentifier, WTFMove(callback));
+    connection().send(Messages::CacheStorageEngineConnection::EngineRepresentation(m_sessionID, requestIdentifier), 0);
+}
+
+void WebCacheStorageConnection::engineRepresentationCompleted(uint64_t requestIdentifier, const String& result)
+{
+    if (auto callback = m_engineRepresentationCallbacks.take(requestIdentifier))
+        callback(result);
 }
 
 }

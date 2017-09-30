@@ -163,7 +163,7 @@ else
 end
 const SlotSize = 8
 
-const JSEnvironmentRecord_variables = (sizeof JSEnvironmentRecord + SlotSize - 1) & ~(SlotSize - 1)
+const JSLexicalEnvironment_variables = (sizeof JSLexicalEnvironment + SlotSize - 1) & ~(SlotSize - 1)
 const DirectArguments_storage = (sizeof DirectArguments + SlotSize - 1) & ~(SlotSize - 1)
 
 const StackAlignment = 16
@@ -1398,6 +1398,18 @@ _llint_op_greatereq:
     dispatch(constexpr op_greatereq_length)
 
 
+_llint_op_below:
+    traceExecution()
+    compareUnsigned(
+        macro (left, right, result) cib left, right, result end)
+
+
+_llint_op_beloweq:
+    traceExecution()
+    compareUnsigned(
+        macro (left, right, result) cibeq left, right, result end)
+
+
 _llint_op_mod:
     traceExecution()
     callOpcodeSlowPath(_slow_path_mod)
@@ -1575,6 +1587,18 @@ _llint_op_jngreatereq:
         macro (left, right, target) bilt left, right, target end,
         macro (left, right, target) bdltun left, right, target end,
         _llint_slow_path_jngreatereq)
+
+
+_llint_op_jbelow:
+    traceExecution()
+    compareUnsignedJump(
+        macro (left, right, target) bib left, right, target end)
+
+
+_llint_op_jbeloweq:
+    traceExecution()
+    compareUnsignedJump(
+        macro (left, right, target) bibeq left, right, target end)
 
 
 _llint_op_loop_hint:

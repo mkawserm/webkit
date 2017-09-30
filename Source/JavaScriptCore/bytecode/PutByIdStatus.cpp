@@ -100,7 +100,7 @@ PutByIdStatus PutByIdStatus::computeFromLLInt(CodeBlock* profiledBlock, unsigned
     if (!(instruction[8].u.putByIdFlags & PutByIdIsDirect)) {
         conditionSet =
             generateConditionsForPropertySetterMissConcurrently(
-                *profiledBlock->vm(), profiledBlock->globalObject(), structure, uid);
+                vm, profiledBlock->globalObject(), structure, uid);
         if (!conditionSet.isValid())
             return PutByIdStatus(NoInformation);
     }
@@ -303,6 +303,7 @@ PutByIdStatus PutByIdStatus::computeFor(JSGlobalObject* globalObject, const Stru
     if (set.isEmpty())
         return PutByIdStatus();
     
+    VM& vm = globalObject->vm();
     PutByIdStatus result;
     result.m_state = Simple;
     for (unsigned i = 0; i < set.size(); ++i) {
@@ -317,10 +318,10 @@ PutByIdStatus PutByIdStatus::computeFor(JSGlobalObject* globalObject, const Stru
         unsigned attributes;
         PropertyOffset offset = structure->getConcurrently(uid, attributes);
         if (isValidOffset(offset)) {
-            if (attributes & CustomAccessor)
+            if (attributes & PropertyAttribute::CustomAccessor)
                 return PutByIdStatus(MakesCalls);
 
-            if (attributes & (Accessor | ReadOnly))
+            if (attributes & (PropertyAttribute::Accessor | PropertyAttribute::ReadOnly))
                 return PutByIdStatus(TakesSlowPath);
             
             WatchpointSet* replaceSet = structure->propertyReplacementWatchpointSet(offset);
@@ -355,7 +356,7 @@ PutByIdStatus PutByIdStatus::computeFor(JSGlobalObject* globalObject, const Stru
         ObjectPropertyConditionSet conditionSet;
         if (!isDirect) {
             conditionSet = generateConditionsForPropertySetterMissConcurrently(
-                globalObject->vm(), globalObject, structure, uid);
+                vm, globalObject, structure, uid);
             if (!conditionSet.isValid())
                 return PutByIdStatus(TakesSlowPath);
         }

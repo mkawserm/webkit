@@ -81,7 +81,6 @@ static void moveWidgetToParentSoon(Widget& child, FrameView* parent)
 
 RenderWidget::RenderWidget(HTMLFrameOwnerElement& element, RenderStyle&& style)
     : RenderReplaced(element, WTFMove(style))
-    , m_weakPtrFactory(this)
 {
     setInline(false);
 }
@@ -129,7 +128,7 @@ bool RenderWidget::setWidgetGeometry(const LayoutRect& frame)
 
     m_clipRect = clipRect;
 
-    WeakPtr<RenderWidget> weakThis = createWeakPtr();
+    auto weakThis = createWeakPtr<RenderWidget>();
     // These calls *may* cause this renderer to disappear from underneath...
     if (boundsChanged)
         m_widget->setFrameRect(newFrameRect);
@@ -179,7 +178,7 @@ void RenderWidget::setWidget(RefPtr<Widget>&& widget)
         // widget immediately, but we have to have really been fully constructed.
         if (hasInitializedStyle()) {
             if (!needsLayout()) {
-                WeakPtr<RenderWidget> weakThis = createWeakPtr();
+                auto weakThis = createWeakPtr<RenderWidget>();
                 updateWidgetGeometry();
                 if (!weakThis)
                     return;
@@ -323,7 +322,7 @@ RenderWidget::ChildWidgetState RenderWidget::updateWidgetPosition()
     if (!m_widget)
         return ChildWidgetState::Destroyed;
 
-    WeakPtr<RenderWidget> weakThis = createWeakPtr();
+    auto weakThis = createWeakPtr<RenderWidget>();
     bool widgetSizeChanged = updateWidgetGeometry();
     if (!weakThis || !m_widget)
         return ChildWidgetState::Destroyed;

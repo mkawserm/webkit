@@ -891,6 +891,8 @@ void WebPageProxy::didGetTapHighlightGeometries(uint64_t requestID, const WebCor
 
 void WebPageProxy::startAssistingNode(const AssistedNodeInformation& information, bool userIsInteracting, bool blurPreviousNode, const UserData& userData)
 {
+    m_acceptsAutofilledLoginCredentials = information.acceptsAutofilledLoginCredentials;
+    m_representingPageURL = information.representingPageURL;
     API::Object* userDataObject = process().transformHandlesToObjects(userData.object()).get();
     if (m_editorState.isMissingPostLayoutData) {
         m_deferredNodeAssistanceArguments = std::make_unique<NodeAssistanceArguments>(NodeAssistanceArguments { information, userIsInteracting, blurPreviousNode, userDataObject });
@@ -908,6 +910,21 @@ void WebPageProxy::stopAssistingNode()
         m_deferredNodeAssistanceArguments = nullptr;
     }
     m_pageClient.stopAssistingNode();
+}
+
+bool WebPageProxy::acceptsAutofilledLoginCredentials()
+{
+    return m_acceptsAutofilledLoginCredentials;
+}
+
+WebCore::URL WebPageProxy::representingPageURL()
+{
+    return m_representingPageURL;
+}
+
+void WebPageProxy::autofillLoginCredentials(const String& username, const String& password)
+{
+    m_process->send(Messages::WebPage::AutofillLoginCredentials(username, password), m_pageID);
 }
 
 void WebPageProxy::showInspectorHighlight(const WebCore::Highlight& highlight)
@@ -1094,10 +1111,21 @@ void WebPageProxy::didHandleStartDataInteractionRequest(bool started)
     m_pageClient.didHandleStartDataInteractionRequest(started);
 }
 
+void WebPageProxy::didHandleAdditionalDragItemsRequest(bool added)
+{
+    m_pageClient.didHandleAdditionalDragItemsRequest(added);
+}
+
 void WebPageProxy::requestStartDataInteraction(const WebCore::IntPoint& clientPosition, const WebCore::IntPoint& globalPosition)
 {
     if (isValid())
         m_process->send(Messages::WebPage::RequestStartDataInteraction(clientPosition, globalPosition), m_pageID);
+}
+
+void WebPageProxy::requestAdditionalItemsForDragSession(const IntPoint& clientPosition, const IntPoint& globalPosition)
+{
+    if (isValid())
+        m_process->send(Messages::WebPage::RequestAdditionalItemsForDragSession(clientPosition, globalPosition), m_pageID);
 }
 
 void WebPageProxy::didConcludeEditDataInteraction(std::optional<TextIndicatorData> data)

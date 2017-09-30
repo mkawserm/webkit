@@ -163,6 +163,26 @@ void WorkerCacheStorageConnection::doRetrieveCaches(uint64_t requestIdentifier, 
     });
 }
 
+void WorkerCacheStorageConnection::reference(uint64_t cacheIdentifier)
+{
+    m_proxy.postTaskToLoader([this, protectedThis = makeRef(*this), cacheIdentifier](ScriptExecutionContext&) {
+        ASSERT(isMainThread());
+        ASSERT(m_mainThreadConnection);
+
+        m_mainThreadConnection->reference(cacheIdentifier);
+    });
+}
+
+void WorkerCacheStorageConnection::dereference(uint64_t cacheIdentifier)
+{
+    m_proxy.postTaskToLoader([this, protectedThis = makeRef(*this), cacheIdentifier](ScriptExecutionContext&) {
+        ASSERT(isMainThread());
+        ASSERT(m_mainThreadConnection);
+
+        m_mainThreadConnection->dereference(cacheIdentifier);
+    });
+}
+
 static inline Vector<CrossThreadRecordData> recordsDataFromRecords(const Vector<Record>& records)
 {
     Vector<CrossThreadRecordData> recordsData;
@@ -196,13 +216,13 @@ static inline RecordsOrError recordsOrErrorFromRecordsData(Expected<Vector<Cross
     return recordsFromRecordsData(WTFMove(recordsData.value()));
 }
 
-void WorkerCacheStorageConnection::doRetrieveRecords(uint64_t requestIdentifier, uint64_t cacheIdentifier)
+void WorkerCacheStorageConnection::doRetrieveRecords(uint64_t requestIdentifier, uint64_t cacheIdentifier, const URL& url)
 {
-    m_proxy.postTaskToLoader([this, protectedThis = makeRef(*this), requestIdentifier, cacheIdentifier](ScriptExecutionContext&) mutable {
+    m_proxy.postTaskToLoader([this, protectedThis = makeRef(*this), requestIdentifier, cacheIdentifier, url = url.isolatedCopy()](ScriptExecutionContext&) mutable {
         ASSERT(isMainThread());
         ASSERT(m_mainThreadConnection);
 
-        m_mainThreadConnection->retrieveRecords(cacheIdentifier, [this, protectedThis = WTFMove(protectedThis), requestIdentifier](RecordsOrError&& result) mutable {
+        m_mainThreadConnection->retrieveRecords(cacheIdentifier, url, [this, protectedThis = WTFMove(protectedThis), requestIdentifier](RecordsOrError&& result) mutable {
             m_proxy.postTaskForModeToWorkerGlobalScope([this, protectedThis = WTFMove(protectedThis), result = recordsDataOrErrorFromRecords(result), requestIdentifier](ScriptExecutionContext& context) mutable {
                 ASSERT_UNUSED(context, context.isWorkerGlobalScope());
                 updateRecords(requestIdentifier, recordsOrErrorFromRecordsData(WTFMove(result)));

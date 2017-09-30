@@ -97,6 +97,7 @@ public:
     ExceptionOr<void> setSystemLayoutDirection(const String&);
     ExceptionOr<void> setShouldMockBoldSystemFontForAccessibility(bool);
     ExceptionOr<void> setShouldManageAudioSessionCategory(bool);
+    ExceptionOr<void> setCustomPasteboardDataEnabled(bool);
 
     enum class FrameFlatteningValue { Disabled, EnabledForNonFullScreenIFrames, FullyEnabled };
     ExceptionOr<void> setFrameFlattening(const FrameFlatteningValue&);
@@ -119,6 +120,7 @@ public:
     static void setCSSGridLayoutEnabled(bool);
     static void setWebGL2Enabled(bool);
     static void setWebGPUEnabled(bool);
+    static void setWebVREnabled(bool);
 
 private:
     explicit InternalSettings(Page*);
@@ -197,11 +199,13 @@ private:
         bool m_cssGridLayoutEnabled;
         bool m_webGL2Enabled;
         bool m_webGPUEnabled;
+        bool m_webVREnabled;
         
         bool m_shouldMockBoldSystemFontForAccessibility;
 #if USE(AUDIO_SESSION)
         bool m_shouldManageAudioSessionCategory;
 #endif
+        bool m_customPasteboardDataEnabled;
     };
 
     Page* m_page;

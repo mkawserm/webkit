@@ -55,6 +55,7 @@ VPATH = \
     $(WebCore)/Modules/webdatabase \
     $(WebCore)/Modules/webdriver \
     $(WebCore)/Modules/websockets \
+    $(WebCore)/Modules/webvr \
     $(WebCore)/animation \
     $(WebCore)/bindings/js \
     $(WebCore)/crypto \
@@ -74,12 +75,12 @@ VPATH = \
     $(WebCore)/platform/network \
     $(WebCore)/plugins \
     $(WebCore)/storage \
-    $(WebCore)/xml \
-    $(WebCore)/workers \
-    $(WebCore)/workers/service \
     $(WebCore)/svg \
     $(WebCore)/testing \
     $(WebCore)/websockets \
+    $(WebCore)/workers \
+    $(WebCore)/workers/service \
+    $(WebCore)/xml \
 #
 
 JS_BINDING_IDLS = \
@@ -104,9 +105,9 @@ JS_BINDING_IDLS = \
     $(WebCore)/Modules/applepay/ApplePayValidateMerchantEvent.idl \
     $(WebCore)/Modules/beacon/NavigatorBeacon.idl \
     $(WebCore)/Modules/cache/DOMWindowCaches.idl \
-    $(WebCore)/Modules/cache/DOMCache.idl \
     $(WebCore)/Modules/cache/CacheQueryOptions.idl \
-    $(WebCore)/Modules/cache/CacheStorage.idl \
+    $(WebCore)/Modules/cache/DOMCache.idl \
+    $(WebCore)/Modules/cache/DOMCacheStorage.idl \
     $(WebCore)/Modules/cache/WorkerGlobalScopeCaches.idl \
     $(WebCore)/Modules/credentials/BasicCredential.idl \
     $(WebCore)/Modules/credentials/CredentialCreationOptions.idl \
@@ -143,6 +144,7 @@ JS_BINDING_IDLS = \
     $(WebCore)/Modules/entriesapi/FileSystemEntry.idl \
     $(WebCore)/Modules/entriesapi/FileSystemEntryCallback.idl \
     $(WebCore)/Modules/entriesapi/FileSystemFileEntry.idl \
+    $(WebCore)/Modules/entriesapi/HTMLInputElementEntriesAPI.idl \
     $(WebCore)/Modules/fetch/DOMWindowFetch.idl \
     $(WebCore)/Modules/fetch/FetchBody.idl \
     $(WebCore)/Modules/fetch/FetchHeaders.idl \
@@ -320,6 +322,20 @@ JS_BINDING_IDLS = \
     $(WebCore)/Modules/webdriver/NavigatorWebDriver.idl \
     $(WebCore)/Modules/websockets/CloseEvent.idl \
     $(WebCore)/Modules/websockets/WebSocket.idl \
+    $(WebCore)/Modules/webvr/DOMWindowWebVR.idl \
+    $(WebCore)/Modules/webvr/GamepadWebVR.idl \
+    $(WebCore)/Modules/webvr/NavigatorWebVR.idl \
+    $(WebCore)/Modules/webvr/VRDisplay.idl \
+    $(WebCore)/Modules/webvr/VRDisplayCapabilities.idl \
+    $(WebCore)/Modules/webvr/VRDisplayEvent.idl \
+    $(WebCore)/Modules/webvr/VRDisplayEventReason.idl \
+    $(WebCore)/Modules/webvr/VREye.idl \
+    $(WebCore)/Modules/webvr/VREyeParameters.idl \
+    $(WebCore)/Modules/webvr/VRFieldOfView.idl \
+    $(WebCore)/Modules/webvr/VRFrameData.idl \
+    $(WebCore)/Modules/webvr/VRLayerInit.idl \
+    $(WebCore)/Modules/webvr/VRPose.idl \
+    $(WebCore)/Modules/webvr/VRStageParameters.idl \
     $(WebCore)/animation/Animatable.idl \
     $(WebCore)/animation/AnimationEffect.idl \
     $(WebCore)/animation/AnimationTimeline.idl \
@@ -390,7 +406,6 @@ JS_BINDING_IDLS = \
     $(WebCore)/css/StyleSheet.idl \
     $(WebCore)/css/StyleSheetList.idl \
     $(WebCore)/css/WebKitCSSMatrix.idl \
-    $(WebCore)/css/WebKitCSSRegionRule.idl \
     $(WebCore)/css/WebKitCSSViewportRule.idl \
     $(WebCore)/dom/AnimationEvent.idl \
     $(WebCore)/dom/Attr.idl \
@@ -404,10 +419,8 @@ JS_BINDING_IDLS = \
     $(WebCore)/dom/CompositionEvent.idl \
     $(WebCore)/dom/CustomElementRegistry.idl \
     $(WebCore)/dom/CustomEvent.idl \
-    $(WebCore)/dom/DOMError.idl \
     $(WebCore)/dom/DOMException.idl \
     $(WebCore)/dom/DOMImplementation.idl \
-    $(WebCore)/dom/DOMNamedFlowCollection.idl \
     $(WebCore)/dom/DOMPoint.idl \
     $(WebCore)/dom/DOMPointInit.idl \
     $(WebCore)/dom/DOMPointReadOnly.idl \
@@ -481,7 +494,6 @@ JS_BINDING_IDLS = \
     $(WebCore)/dom/UIEvent.idl \
     $(WebCore)/dom/UIEventInit.idl \
     $(WebCore)/dom/WebKitAnimationEvent.idl \
-    $(WebCore)/dom/WebKitNamedFlow.idl \
     $(WebCore)/dom/WebKitTransitionEvent.idl \
     $(WebCore)/dom/WheelEvent.idl \
     $(WebCore)/dom/XMLDocument.idl \
@@ -1361,9 +1373,18 @@ JSMathMLElementWrapperFactory%cpp JSMathMLElementWrapperFactory%h MathMLElementF
 
 # Internal Settings
 
+GENERATE_SETTINGS_SCRIPTS = \
+    $(WebCore)/Scripts/GenerateSettings/GenerateInternalSettingsHeaderFile.py \
+    $(WebCore)/Scripts/GenerateSettings/GenerateInternalSettingsIDLFile.py \
+    $(WebCore)/Scripts/GenerateSettings/GenerateInternalSettingsImplementationFile.py \
+    $(WebCore)/Scripts/GenerateSettings/GenerateSettings.py \
+    $(WebCore)/Scripts/GenerateSettings/GenerateSettingsMacrosHeader.py \
+    $(WebCore)/Scripts/GenerateSettings/Settings.py \
+    $(WebCore)/Scripts/GenerateSettings/__init__.py
+
 all : InternalSettingsGenerated.idl InternalSettingsGenerated.cpp InternalSettingsGenerated.h SettingsMacros.h
-InternalSettingsGenerated%idl InternalSettingsGenerated%cpp InternalSettingsGenerated%h SettingsMacros%h : page/make_settings.pl page/Settings.in
-	$(PERL) $< --input $(WebCore)/page/Settings.in
+InternalSettingsGenerated%idl InternalSettingsGenerated%cpp InternalSettingsGenerated%h SettingsMacros%h : $(WebCore)/Scripts/GenerateSettings.py $(GENERATE_SETTINGS_SCRIPTS) page/Settings.in
+	$(PYTHON) $< --input $(WebCore)/page/Settings.in
 
 # --------
 
@@ -1453,8 +1474,6 @@ CommandLineAPIModuleSource.h : CommandLineAPIModuleSource.js
 # WebCore JS Builtins
 
 WebCore_BUILTINS_SOURCES = \
-    $(WebCore)/Modules/fetch/FetchInternals.js \
-    $(WebCore)/Modules/fetch/FetchResponse.js \
     $(WebCore)/Modules/mediastream/NavigatorUserMedia.js \
     $(WebCore)/Modules/mediastream/RTCPeerConnection.js \
     $(WebCore)/Modules/mediastream/RTCPeerConnectionInternals.js \

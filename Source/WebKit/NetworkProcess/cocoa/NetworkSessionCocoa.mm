@@ -57,11 +57,11 @@ using namespace WebKit;
 static NSURLSessionResponseDisposition toNSURLSessionResponseDisposition(WebCore::PolicyAction disposition)
 {
     switch (disposition) {
-    case WebCore::PolicyAction::PolicyIgnore:
+    case WebCore::PolicyAction::Ignore:
         return NSURLSessionResponseCancel;
-    case WebCore::PolicyAction::PolicyUse:
+    case WebCore::PolicyAction::Use:
         return NSURLSessionResponseAllow;
-    case WebCore::PolicyAction::PolicyDownload:
+    case WebCore::PolicyAction::Download:
         return NSURLSessionResponseBecomeDownload;
     }
 }
@@ -126,8 +126,8 @@ static WebCore::NetworkLoadPriority toNetworkLoadPriority(float priority)
     if (!task)
         return nullptr;
 
-    auto allowStoredCredentials = _withCredentials ? WebCore::StoredCredentials::AllowStoredCredentials : WebCore::StoredCredentials::DoNotAllowStoredCredentials;
-    return _session->dataTaskForIdentifier(task.taskIdentifier, allowStoredCredentials);
+    auto storedCredentialsPolicy = _withCredentials ? WebCore::StoredCredentialsPolicy::Use : WebCore::StoredCredentialsPolicy::DoNotUse;
+    return _session->dataTaskForIdentifier(task.taskIdentifier, storedCredentialsPolicy);
 }
 
 - (void)URLSession:(NSURLSession *)session didBecomeInvalidWithError:(nullable NSError *)error
@@ -222,6 +222,22 @@ static WebCore::NetworkLoadPriority toNetworkLoadPriority(float priority)
     auto taskIdentifier = task.taskIdentifier;
     LOG(NetworkSession, "%llu didReceiveChallenge", taskIdentifier);
     
+    // Proxy authentication is handled by CFNetwork internally. We can get here if the user cancels
+    // CFNetwork authentication dialog, and we shouldn't ask the client to display another one in that case.
+    if (challenge.protectionSpace.isProxy) {
+        completionHandler(NSURLSessionAuthChallengeUseCredential, nil);
+        return;
+    }
+
+    // Handle server trust evaluation at platform-level if requested, for performance reasons.
+    if ([challenge.protectionSpace.authenticationMethod isEqualToString:NSURLAuthenticationMethodServerTrust] && !NetworkProcess::singleton().canHandleHTTPSServerTrustEvaluation()) {
+        if (NetworkSessionCocoa::allowsSpecificHTTPSCertificateForHost(challenge))
+            completionHandler(NSURLSessionAuthChallengeUseCredential, [NSURLCredential credentialForTrust:challenge.protectionSpace.serverTrust]);
+        else
+            completionHandler(NSURLSessionAuthChallengeRejectProtectionSpace, nil);
+        return;
+    }
+
     if (auto* networkDataTask = [self existingTask:task]) {
         WebCore::AuthenticationChallenge authenticationChallenge(challenge);
         auto completionHandlerCopy = Block_copy(completionHandler);
@@ -597,12 +613,16 @@ NetworkSessionCocoa::NetworkSessionCocoa(PAL::SessionID sessionID, LegacyCustomP
 
     m_sessionWithCredentialStorageDelegate = adoptNS([[WKNetworkSessionDelegate alloc] initWithNetworkSession:*this withCredentials:true]);
     m_sessionWithCredentialStorage = [NSURLSession sessionWithConfiguration:configuration delegate:static_cast<id>(m_sessionWithCredentialStorageDelegate.get()) delegateQueue:[NSOperationQueue mainQueue]];
+    LOG(NetworkSession, "Created NetworkSession with cookieAcceptPolicy %lu", configuration.HTTPCookieStorage.cookieAcceptPolicy);
 
     configuration.URLCredentialStorage = nil;
     configuration._shouldSkipPreferredClientCertificateLookup = YES;
-    m_sessionWithoutCredentialStorageDelegate = adoptNS([[WKNetworkSessionDelegate alloc] initWithNetworkSession:*this withCredentials:false]);
-    m_sessionWithoutCredentialStorage = [NSURLSession sessionWithConfiguration:configuration delegate:static_cast<id>(m_sessionWithoutCredentialStorageDelegate.get()) delegateQueue:[NSOperationQueue mainQueue]];
-    LOG(NetworkSession, "Created NetworkSession with cookieAcceptPolicy %lu", configuration.HTTPCookieStorage.cookieAcceptPolicy);
+    // FIXME: https://bugs.webkit.org/show_bug.cgi?id=177394
+    // configuration.HTTPCookieStorage = nil;
+    // configuration.HTTPCookieAcceptPolicy = NSHTTPCookieAcceptPolicyNever;
+
+    m_statelessSessionDelegate = adoptNS([[WKNetworkSessionDelegate alloc] initWithNetworkSession:*this withCredentials:false]);
+    m_statelessSession = [NSURLSession sessionWithConfiguration:configuration delegate:static_cast<id>(m_statelessSessionDelegate.get()) delegateQueue:[NSOperationQueue mainQueue]];
 }
 
 NetworkSessionCocoa::~NetworkSessionCocoa()
@@ -614,29 +634,29 @@ void NetworkSessionCocoa::invalidateAndCancel()
     NetworkSession::invalidateAndCancel();
 
     [m_sessionWithCredentialStorage invalidateAndCancel];
-    [m_sessionWithoutCredentialStorage invalidateAndCancel];
+    [m_statelessSession invalidateAndCancel];
     [m_sessionWithCredentialStorageDelegate sessionInvalidated];
-    [m_sessionWithoutCredentialStorageDelegate sessionInvalidated];
+    [m_statelessSessionDelegate sessionInvalidated];
 }
 
 void NetworkSessionCocoa::clearCredentials()
 {
 #if !USE(CREDENTIAL_STORAGE_WITH_NETWORK_SESSION)
     ASSERT(m_dataTaskMapWithCredentials.isEmpty());
-    ASSERT(m_dataTaskMapWithoutCredentials.isEmpty());
+    ASSERT(m_dataTaskMapWithoutState.isEmpty());
     ASSERT(m_downloadMap.isEmpty());
     // FIXME: Use resetWithCompletionHandler instead.
     m_sessionWithCredentialStorage = [NSURLSession sessionWithConfiguration:m_sessionWithCredentialStorage.get().configuration delegate:static_cast<id>(m_sessionWithCredentialStorageDelegate.get()) delegateQueue:[NSOperationQueue mainQueue]];
-    m_sessionWithoutCredentialStorage = [NSURLSession sessionWithConfiguration:m_sessionWithoutCredentialStorage.get().configuration delegate:static_cast<id>(m_sessionWithoutCredentialStorageDelegate.get()) delegateQueue:[NSOperationQueue mainQueue]];
+    m_statelessSession = [NSURLSession sessionWithConfiguration:m_statelessSession.get().configuration delegate:static_cast<id>(m_statelessSessionDelegate.get()) delegateQueue:[NSOperationQueue mainQueue]];
 #endif
 }
 
-NetworkDataTaskCocoa* NetworkSessionCocoa::dataTaskForIdentifier(NetworkDataTaskCocoa::TaskIdentifier taskIdentifier, WebCore::StoredCredentials storedCredentials)
+NetworkDataTaskCocoa* NetworkSessionCocoa::dataTaskForIdentifier(NetworkDataTaskCocoa::TaskIdentifier taskIdentifier, WebCore::StoredCredentialsPolicy storedCredentialsPolicy)
 {
     ASSERT(RunLoop::isMain());
-    if (storedCredentials == WebCore::StoredCredentials::AllowStoredCredentials)
+    if (storedCredentialsPolicy == WebCore::StoredCredentialsPolicy::Use)
         return m_dataTaskMapWithCredentials.get(taskIdentifier);
-    return m_dataTaskMapWithoutCredentials.get(taskIdentifier);
+    return m_dataTaskMapWithoutState.get(taskIdentifier);
 }
 
 void NetworkSessionCocoa::addDownloadID(NetworkDataTaskCocoa::TaskIdentifier taskIdentifier, DownloadID downloadID)
@@ -659,6 +679,46 @@ DownloadID NetworkSessionCocoa::takeDownloadID(NetworkDataTaskCocoa::TaskIdentif
 {
     auto downloadID = m_downloadMap.take(taskIdentifier);
     return downloadID;
+}
+
+static bool certificatesMatch(SecTrustRef trust1, SecTrustRef trust2)
+{
+    if (!trust1 || !trust2)
+        return false;
+
+    CFIndex count1 = SecTrustGetCertificateCount(trust1);
+    CFIndex count2 = SecTrustGetCertificateCount(trust2);
+    if (count1 != count2)
+        return false;
+
+    for (CFIndex i = 0; i < count1; i++) {
+        auto cert1 = SecTrustGetCertificateAtIndex(trust1, i);
+        auto cert2 = SecTrustGetCertificateAtIndex(trust2, i);
+        RELEASE_ASSERT(cert1);
+        RELEASE_ASSERT(cert2);
+        if (!CFEqual(cert1, cert2))
+            return false;
+    }
+
+    return true;
+}
+
+bool NetworkSessionCocoa::allowsSpecificHTTPSCertificateForHost(const WebCore::AuthenticationChallenge& challenge)
+{
+    const String& host = challenge.protectionSpace().host();
+    NSArray *certificates = [NSURLRequest allowsSpecificHTTPSCertificateForHost:host];
+    if (!certificates)
+        return false;
+
+    bool requireServerCertificates = challenge.protectionSpace().authenticationScheme() == WebCore::ProtectionSpaceAuthenticationScheme::ProtectionSpaceAuthenticationSchemeServerTrustEvaluationRequested;
+    RetainPtr<SecPolicyRef> policy = adoptCF(SecPolicyCreateSSL(requireServerCertificates, host.createCFString().get()));
+
+    SecTrustRef trustRef = nullptr;
+    if (SecTrustCreateWithCertificates((CFArrayRef)certificates, policy.get(), &trustRef) != noErr)
+        return false;
+    RetainPtr<SecTrustRef> trust = adoptCF(trustRef);
+
+    return certificatesMatch(trust.get(), challenge.nsURLAuthenticationChallenge().protectionSpace.serverTrust);
 }
 
 }

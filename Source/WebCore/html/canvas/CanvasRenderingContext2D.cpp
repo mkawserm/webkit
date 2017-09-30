@@ -581,9 +581,9 @@ void CanvasRenderingContext2D::setLineJoin(const String& stringValue)
     CanvasLineJoin join;
     if (stringValue == "round")
         join = CanvasLineJoin::Round;
-    if (stringValue == "bevel")
+    else if (stringValue == "bevel")
         join = CanvasLineJoin::Bevel;
-    if (stringValue == "miter")
+    else if (stringValue == "miter")
         join = CanvasLineJoin::Miter;
     else
         return;
@@ -1048,19 +1048,6 @@ static bool isFullCanvasCompositeMode(CompositeOperator op)
 static WindRule toWindRule(CanvasFillRule rule)
 {
     return rule == CanvasFillRule::Nonzero ? RULE_NONZERO : RULE_EVENODD;
-}
-
-String CanvasRenderingContext2D::stringForCanvasFillRule(CanvasFillRule windingRule)
-{
-    switch (windingRule) {
-    case CanvasFillRule::Nonzero:
-        return ASCIILiteral("nonzero");
-    case CanvasFillRule::Evenodd:
-        return ASCIILiteral("evenodd");
-    }
-
-    ASSERT_NOT_REACHED();
-    return String();
 }
 
 void CanvasRenderingContext2D::fill(CanvasFillRule windingRule)
@@ -1664,9 +1651,9 @@ ExceptionOr<void> CanvasRenderingContext2D::drawImage(HTMLVideoElement& video, c
 
     GraphicsContextStateSaver stateSaver(*c);
     c->clip(dstRect);
-    c->translate(dstRect.x(), dstRect.y());
+    c->translate(dstRect.location());
     c->scale(FloatSize(dstRect.width() / srcRect.width(), dstRect.height() / srcRect.height()));
-    c->translate(-srcRect.x(), -srcRect.y());
+    c->translate(-srcRect.location());
     video.paintCurrentFrameInContext(*c, FloatRect(FloatPoint(), size(video)));
     stateSaver.restore();
     didDraw(dstRect);
@@ -1683,16 +1670,6 @@ void CanvasRenderingContext2D::drawImageFromRect(HTMLImageElement& imageElement,
     if (!parseCompositeAndBlendOperator(compositeOperation, op, blendOp) || blendOp != BlendModeNormal)
         op = CompositeSourceOver;
     drawImage(imageElement, FloatRect { sx, sy, sw, sh }, FloatRect { dx, dy, dw, dh }, op, BlendModeNormal);
-}
-
-void CanvasRenderingContext2D::setAlpha(float alpha)
-{
-    setGlobalAlpha(alpha);
-}
-
-void CanvasRenderingContext2D::setCompositeOperation(const String& operation)
-{
-    setGlobalCompositeOperation(operation);
 }
 
 void CanvasRenderingContext2D::clearCanvas()
@@ -1801,8 +1778,8 @@ template<class T> void CanvasRenderingContext2D::fullCanvasCompositedDrawImage(T
     adjustedDest.setLocation(FloatPoint(0, 0));
     AffineTransform effectiveTransform = c->getCTM();
     IntRect transformedAdjustedRect = enclosingIntRect(effectiveTransform.mapRect(adjustedDest));
-    buffer->context().translate(-transformedAdjustedRect.location().x(), -transformedAdjustedRect.location().y());
-    buffer->context().translate(croppedOffset.width(), croppedOffset.height());
+    buffer->context().translate(-transformedAdjustedRect.location());
+    buffer->context().translate(croppedOffset);
     buffer->context().concatCTM(effectiveTransform);
     drawImageToContext(image, buffer->context(), adjustedDest, src, CompositeSourceOver);
 
@@ -2665,12 +2642,12 @@ void CanvasRenderingContext2D::drawTextInternal(const String& text, float x, flo
         maskImageContext.setTextDrawingMode(fill ? TextModeFill : TextModeStroke);
 
         if (useMaxWidth) {
-            maskImageContext.translate(location.x() - maskRect.x(), location.y() - maskRect.y());
+            maskImageContext.translate(location - maskRect.location());
             // We draw when fontWidth is 0 so compositing operations (eg, a "copy" op) still work.
             maskImageContext.scale(FloatSize((fontWidth > 0 ? (width / fontWidth) : 0), 1));
             fontProxy.drawBidiText(maskImageContext, textRun, FloatPoint(0, 0), FontCascade::UseFallbackIfFontNotReady);
         } else {
-            maskImageContext.translate(-maskRect.x(), -maskRect.y());
+            maskImageContext.translate(-maskRect.location());
             fontProxy.drawBidiText(maskImageContext, textRun, location, FontCascade::UseFallbackIfFontNotReady);
         }
 
@@ -2686,7 +2663,7 @@ void CanvasRenderingContext2D::drawTextInternal(const String& text, float x, flo
 
     GraphicsContextStateSaver stateSaver(*c);
     if (useMaxWidth) {
-        c->translate(location.x(), location.y());
+        c->translate(location);
         // We draw when fontWidth is 0 so compositing operations (eg, a "copy" op) still work.
         c->scale(FloatSize((fontWidth > 0 ? (width / fontWidth) : 0), 1));
         location = FloatPoint();

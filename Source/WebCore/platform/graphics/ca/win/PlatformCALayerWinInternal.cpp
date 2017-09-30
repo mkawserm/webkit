@@ -35,7 +35,6 @@
 #include "TileController.h"
 #include "TiledBacking.h"
 #include <QuartzCore/CACFLayer.h>
-#include <wtf/AVFoundationHeaderDetection.h>
 #include <wtf/MainThread.h>
 
 using namespace std;

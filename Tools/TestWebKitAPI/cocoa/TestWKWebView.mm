@@ -45,6 +45,7 @@
 #endif
 
 #if PLATFORM(IOS)
+#import <UIKit/UIKit.h>
 #import <wtf/SoftLinking.h>
 SOFT_LINK_FRAMEWORK(UIKit)
 SOFT_LINK_CLASS(UIKit, UIWindow)
@@ -292,6 +293,11 @@ NSEventMask __simulated_forceClickAssociatedEventsMask(id self, SEL _cmd)
 
 @implementation TestWKWebView (IOSOnly)
 
+- (UIView <UITextInput> *)textInputContentView
+{
+    return (UIView <UITextInput> *)[self valueForKey:@"_currentContentView"];
+}
+
 - (RetainPtr<NSArray>)selectionRectsAfterPresentationUpdate
 {
     RetainPtr<TestWKWebView> retainedSelf = self;
@@ -336,12 +342,22 @@ NSEventMask __simulated_forceClickAssociatedEventsMask(id self, SEL _cmd)
     [_hostWindow _mouseUpAtPoint:point clickCount:1];
 }
 
+- (void)mouseMoveToPoint:(NSPoint)point withFlags:(NSEventModifierFlags)flags
+{
+    [self mouseMoved:[NSEvent mouseEventWithType:NSEventTypeMouseMoved location:point modifierFlags:flags timestamp:GetCurrentEventTime() windowNumber:[_hostWindow windowNumber] context:[NSGraphicsContext currentContext] eventNumber:++gEventNumber clickCount:0 pressure:0]];
+}
+
 - (void)sendClicksAtPoint:(NSPoint)point numberOfClicks:(NSUInteger)numberOfClicks
 {
     for (NSUInteger clickCount = 1; clickCount <= numberOfClicks; ++clickCount) {
         [_hostWindow _mouseDownAtPoint:point simulatePressure:NO clickCount:clickCount];
         [_hostWindow _mouseUpAtPoint:point clickCount:clickCount];
     }
+}
+
+- (NSWindow *)hostWindow
+{
+    return _hostWindow.get();
 }
 
 - (void)typeCharacter:(char)character {

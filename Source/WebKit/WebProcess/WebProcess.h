@@ -34,8 +34,8 @@
 #include "ViewUpdateDispatcher.h"
 #include "WebInspectorInterruptDispatcher.h"
 #include <WebCore/ActivityState.h>
-#include <WebCore/HysteresisActivity.h>
 #include <WebCore/Timer.h>
+#include <pal/HysteresisActivity.h>
 #include <pal/SessionID.h>
 #include <wtf/Forward.h>
 #include <wtf/HashMap.h>
@@ -113,7 +113,7 @@ public:
     template <typename T>
     void addSupplement()
     {
-        m_supplements.add(T::supplementName(), std::make_unique<T>(this));
+        m_supplements.add(T::supplementName(), std::make_unique<T>(*this));
     }
 
     WebConnectionToUIProcess* webConnectionToUIProcess() const { return m_webConnection.get(); }
@@ -389,7 +389,7 @@ private:
 #endif
 
     HashSet<String> m_dnsPrefetchedHosts;
-    WebCore::HysteresisActivity m_dnsPrefetchHystereris;
+    PAL::HysteresisActivity m_dnsPrefetchHystereris;
 
     std::unique_ptr<WebAutomationSessionProxy> m_automationSessionProxy;
 

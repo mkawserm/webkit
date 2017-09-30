@@ -40,6 +40,7 @@
 #include "NetworkProcessProxyMessages.h"
 #include "NetworkResourceLoader.h"
 #include "NetworkSession.h"
+#include "PreconnectTask.h"
 #include "RemoteNetworkingContext.h"
 #include "SessionTracker.h"
 #include "StatisticsData.h"
@@ -66,6 +67,7 @@
 #include <pal/SessionID.h>
 #include <wtf/OptionSet.h>
 #include <wtf/RunLoop.h>
+#include <wtf/text/AtomicString.h>
 #include <wtf/text/CString.h>
 
 #if ENABLE(SEC_ITEM_SHIM)
@@ -207,6 +209,7 @@ void NetworkProcess::initializeNetworkProcess(NetworkProcessCreationParameters&&
     platformInitializeNetworkProcess(parameters);
 
     WTF::Thread::setCurrentThreadIsUserInitiated();
+    AtomicString::init();
 
     m_suppressMemoryPressureHandler = parameters.shouldSuppressMemoryPressureHandler;
     m_loadThrottleLatency = parameters.loadThrottleLatency;
@@ -319,10 +322,16 @@ void NetworkProcess::didGrantSandboxExtensionsToStorageProcessForBlobs(uint64_t 
 }
 
 #if HAVE(CFNETWORK_STORAGE_PARTITIONING)
-void NetworkProcess::updateCookiePartitioningForTopPrivatelyOwnedDomains(PAL::SessionID sessionID, const Vector<String>& domainsToRemove, const Vector<String>& domainsToAdd,  bool shouldClearFirst)
+void NetworkProcess::updatePrevalentDomainsToPartitionOrBlockCookies(PAL::SessionID sessionID, const Vector<String>& domainsToPartition, const Vector<String>& domainsToBlock, const Vector<String>& domainsToNeitherPartitionNorBlock, bool shouldClearFirst)
 {
     if (auto* networkStorageSession = NetworkStorageSession::storageSession(sessionID))
-        networkStorageSession->setShouldPartitionCookiesForHosts(domainsToRemove, domainsToAdd, shouldClearFirst);
+        networkStorageSession->setPrevalentDomainsToPartitionOrBlockCookies(domainsToPartition, domainsToBlock, domainsToNeitherPartitionNorBlock, shouldClearFirst);
+}
+
+void NetworkProcess::removePrevalentDomains(PAL::SessionID sessionID, const Vector<String>& domains)
+{
+    if (auto* networkStorageSession = NetworkStorageSession::storageSession(sessionID))
+        networkStorageSession->removePrevalentDomains(domains);
 }
 #endif
 
@@ -715,6 +724,16 @@ String NetworkProcess::cacheStorageDirectory(PAL::SessionID sessionID) const
         return { };
 
     return session->cacheStorageDirectory();
+}
+
+void NetworkProcess::preconnectTo(const WebCore::URL& url, WebCore::StoredCredentialsPolicy storedCredentialsPolicy)
+{
+#if ENABLE(SERVER_PRECONNECT)
+    new PreconnectTask(PAL::SessionID::defaultSessionID(), url, storedCredentialsPolicy);
+#else
+    UNUSED_PARAM(url);
+    UNUSED_PARAM(storedCredentialsPolicy);
+#endif
 }
 
 #if !PLATFORM(COCOA)

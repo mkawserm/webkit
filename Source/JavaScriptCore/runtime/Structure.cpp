@@ -253,7 +253,8 @@ Structure::Structure(VM& vm, Structure* previous, DeferredStructureTransitionWat
     , m_offset(invalidOffset)
 {
     setDictionaryKind(previous->dictionaryKind());
-    setIsPinnedPropertyTable(previous->hasBeenFlattenedBefore());
+    setIsPinnedPropertyTable(false);
+    setHasBeenFlattenedBefore(previous->hasBeenFlattenedBefore());
     setHasGetterSetterProperties(previous->hasGetterSetterProperties());
     setHasCustomGetterSetterProperties(previous->hasCustomGetterSetterProperties());
     setHasReadOnlyOrGetterSetterPropertiesExcludingProto(previous->hasReadOnlyOrGetterSetterPropertiesExcludingProto());
@@ -689,9 +690,9 @@ Structure* Structure::nonPropertyTransition(VM& vm, Structure* structure, NonPro
         RELEASE_ASSERT(table);
         for (auto& entry : *table) {
             if (setsDontDeleteOnAllProperties(transitionKind))
-                entry.attributes |= DontDelete;
-            if (setsReadOnlyOnNonAccessorProperties(transitionKind) && !(entry.attributes & Accessor))
-                entry.attributes |= ReadOnly;
+                entry.attributes |= static_cast<unsigned>(PropertyAttribute::DontDelete);
+            if (setsReadOnlyOnNonAccessorProperties(transitionKind) && !(entry.attributes & PropertyAttribute::Accessor))
+                entry.attributes |= static_cast<unsigned>(PropertyAttribute::ReadOnly);
         }
     } else {
         transition->setPropertyTable(vm, structure->takePropertyTableOrCloneIfPinned(vm));
@@ -727,7 +728,7 @@ bool Structure::isSealed(VM& vm)
     
     PropertyTable::iterator end = table->end();
     for (PropertyTable::iterator iter = table->begin(); iter != end; ++iter) {
-        if ((iter->attributes & DontDelete) != DontDelete)
+        if ((iter->attributes & PropertyAttribute::DontDelete) != static_cast<unsigned>(PropertyAttribute::DontDelete))
             return false;
     }
     return true;
@@ -745,9 +746,9 @@ bool Structure::isFrozen(VM& vm)
     
     PropertyTable::iterator end = table->end();
     for (PropertyTable::iterator iter = table->begin(); iter != end; ++iter) {
-        if (!(iter->attributes & DontDelete))
+        if (!(iter->attributes & PropertyAttribute::DontDelete))
             return false;
-        if (!(iter->attributes & (ReadOnly | Accessor)))
+        if (!(iter->attributes & (PropertyAttribute::ReadOnly | PropertyAttribute::Accessor)))
             return false;
     }
     return true;
@@ -1017,9 +1018,9 @@ void Structure::getPropertyNamesFromStructure(VM& vm, PropertyNameArray& propert
     
     PropertyTable::iterator end = table->end();
     for (PropertyTable::iterator iter = table->begin(); iter != end; ++iter) {
-        ASSERT(!isQuickPropertyAccessAllowedForEnumeration() || !(iter->attributes & DontEnum));
+        ASSERT(!isQuickPropertyAccessAllowedForEnumeration() || !(iter->attributes & PropertyAttribute::DontEnum));
         ASSERT(!isQuickPropertyAccessAllowedForEnumeration() || !iter->key->isSymbol());
-        if (!(iter->attributes & DontEnum) || mode.includeDontEnumProperties()) {
+        if (!(iter->attributes & PropertyAttribute::DontEnum) || mode.includeDontEnumProperties()) {
             if (iter->key->isSymbol() && !propertyNames.includeSymbolProperties())
                 continue;
             if (knownUnique)
@@ -1138,7 +1139,7 @@ bool Structure::prototypeChainMayInterceptStoreTo(VM& vm, PropertyName propertyN
         if (!JSC::isValidOffset(offset))
             continue;
         
-        if (attributes & (ReadOnly | Accessor))
+        if (attributes & (PropertyAttribute::ReadOnly | PropertyAttribute::Accessor))
             return true;
         
         return false;
@@ -1287,6 +1288,8 @@ bool Structure::canCachePropertyNameEnumerator() const
     while (true) {
         if (!structure->get())
             break;
+        if (structure->get()->isDictionary())
+            return false;
         if (structure->get()->typeInfo().overridesGetPropertyNames())
             return false;
         structure++;

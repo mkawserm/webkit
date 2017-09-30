@@ -85,6 +85,7 @@
 #include "SimplifyMarkupCommand.h"
 #include "SpellChecker.h"
 #include "SpellingCorrectionCommand.h"
+#include "StaticPasteboard.h"
 #include "StyleProperties.h"
 #include "TelephoneNumberDetector.h"
 #include "Text.h"
@@ -345,7 +346,7 @@ static bool dispatchClipboardEvent(RefPtr<Element>&& target, const AtomicString&
     if (noDefaultProcessing && storeMode == DataTransfer::StoreMode::ReadWrite) {
         auto pasteboard = Pasteboard::createForCopyAndPaste();
         pasteboard->clear();
-        pasteboard->writePasteboard(dataTransfer->pasteboard());
+        downcast<StaticPasteboard>(dataTransfer->pasteboard()).commitToPasteboard(*pasteboard);
     }
 
     dataTransfer->makeInvalidForSecurity();
@@ -1301,16 +1302,17 @@ void Editor::performCutOrCopy(EditorActionSpecifier action)
             imageElement = imageElementFromImageDocument(document());
 
         if (imageElement) {
-#if PLATFORM(COCOA) || PLATFORM(GTK) || PLATFORM(WPE)
+#if !PLATFORM(WIN)
             writeImageToPasteboard(*Pasteboard::createForCopyAndPaste(), *imageElement, document().url(), document().title());
 #else
+            // FIXME: Delete after <http://webkit.org/b/177618> lands.
             Pasteboard::createForCopyAndPaste()->writeImage(*imageElement, document().url(), document().title());
 #endif
         } else {
-#if PLATFORM(COCOA) || PLATFORM(GTK) || PLATFORM(WPE)
+#if !PLATFORM(WIN)
             writeSelectionToPasteboard(*Pasteboard::createForCopyAndPaste());
 #else
-            // FIXME: Convert all other platforms to match Mac and delete this.
+            // FIXME: Delete after <http://webkit.org/b/177618> lands.
             Pasteboard::createForCopyAndPaste()->writeSelection(*selection, canSmartCopyOrDelete(), m_frame, IncludeImageAltTextForDataTransfer);
 #endif
         }
@@ -1432,9 +1434,10 @@ void Editor::copyImage(const HitTestResult& result)
     if (url.isEmpty())
         url = result.absoluteImageURL();
 
-#if PLATFORM(COCOA) || PLATFORM(GTK) || PLATFORM(WPE)
+#if !PLATFORM(WIN)
     writeImageToPasteboard(*Pasteboard::createForCopyAndPaste(), *element, url, result.altDisplayString());
 #else
+    // FIXME: Delete after <http://webkit.org/b/177618> lands.
     Pasteboard::createForCopyAndPaste()->writeImage(*element, url, result.altDisplayString());
 #endif
 }
@@ -3816,17 +3819,6 @@ const Font* Editor::fontForSelection(bool& hasMultipleFonts) const
     }
 
     return font;
-}
-
-Ref<DocumentFragment> Editor::createFragmentForImageAndURL(const String& url)
-{
-    auto imageElement = HTMLImageElement::create(*m_frame.document());
-    imageElement->setAttributeWithoutSynchronization(HTMLNames::srcAttr, url);
-
-    auto fragment = document().createDocumentFragment();
-    fragment->appendChild(imageElement);
-
-    return fragment;
 }
 
 } // namespace WebCore

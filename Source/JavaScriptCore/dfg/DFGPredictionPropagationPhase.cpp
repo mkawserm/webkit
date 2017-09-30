@@ -722,7 +722,8 @@ private:
         case ToNumber:
         case GetArgument:
         case CallDOMGetter:
-        case GetDynamicVar: {
+        case GetDynamicVar:
+        case WeakMapGet: {
             setPrediction(m_currentNode->getHeapPrediction());
             break;
         }
@@ -817,6 +818,8 @@ private:
         case CompareLessEq:
         case CompareGreater:
         case CompareGreaterEq:
+        case CompareBelow:
+        case CompareBelowEq:
         case CompareEq:
         case CompareStrictEq:
         case CompareEqPtr:
@@ -861,6 +864,10 @@ private:
             setPrediction(SpecObjectOther);
             break;
         }
+
+        case GetGlobalThis:
+            setPrediction(SpecObject);
+            break;
 
         case ResolveScope: {
             setPrediction(SpecObjectOther);
@@ -912,6 +919,7 @@ private:
         case CallStringConstructor:
         case ToString:
         case NumberToStringWithRadix:
+        case NumberToStringWithValidRadixConstant:
         case MakeRope:
         case StrCat: {
             setPrediction(SpecString);
@@ -1068,6 +1076,7 @@ private:
         case GetMyArgumentByValOutOfBounds:
         case PutHint:
         case CheckStructureImmediate:
+        case CheckStructureOrEmpty:
         case MaterializeNewObject:
         case MaterializeCreateActivation:
         case PutStack:
@@ -1080,8 +1089,7 @@ private:
         case RecordRegExpCachedResult:
         case LazyJSConstant:
         case CallDOM: {
-            // This node should never be visible at this stage of compilation. It is
-            // inserted by fixup(), which follows this phase.
+            // This node should never be visible at this stage of compilation.
             DFG_CRASH(m_graph, m_currentNode, "Unexpected node during prediction propagation");
             break;
         }
@@ -1092,6 +1100,7 @@ private:
             RELEASE_ASSERT_NOT_REACHED();
             break;
             
+        case EntrySwitch:
         case Upsilon:
             // These don't get inserted until we go into SSA.
             RELEASE_ASSERT_NOT_REACHED();
@@ -1155,6 +1164,7 @@ private:
         case ForwardVarargs:
         case PutDynamicVar:
         case NukeStructureAndSetButterfly:
+        case InitializeEntrypointArguments:
             break;
             
         // This gets ignored because it only pretends to produce a value.

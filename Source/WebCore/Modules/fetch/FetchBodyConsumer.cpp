@@ -92,6 +92,13 @@ void FetchBodyConsumer::resolveWithData(Ref<DeferredPromise>&& promise, const un
     resolveWithTypeAndData(WTFMove(promise), m_type, m_contentType, data, length);
 }
 
+void FetchBodyConsumer::extract(ReadableStream& stream, ReadableStreamToSharedBufferSink::Callback&& callback)
+{
+    ASSERT(!m_sink);
+    m_sink = ReadableStreamToSharedBufferSink::create(WTFMove(callback));
+    m_sink->pipeFrom(stream);
+}
+
 void FetchBodyConsumer::resolve(Ref<DeferredPromise>&& promise, ReadableStream* stream)
 {
     if (stream) {
@@ -107,6 +114,11 @@ void FetchBodyConsumer::resolve(Ref<DeferredPromise>&& promise, ReadableStream* 
             resolveWithTypeAndData(WTFMove(promise), type, contentType, data, size);
         });
         m_sink->pipeFrom(*stream);
+        return;
+    }
+
+    if (m_isLoading) {
+        m_consumePromise = WTFMove(promise);
         return;
     }
 
@@ -200,6 +212,7 @@ void FetchBodyConsumer::setSource(Ref<FetchBodySource>&& source)
 
 void FetchBodyConsumer::loadingFailed()
 {
+    m_isLoading = false;
     if (m_consumePromise) {
         m_consumePromise->reject();
         m_consumePromise = nullptr;
@@ -212,6 +225,8 @@ void FetchBodyConsumer::loadingFailed()
 
 void FetchBodyConsumer::loadingSucceeded()
 {
+    m_isLoading = false;
+
     if (m_consumePromise)
         resolve(m_consumePromise.releaseNonNull(), nullptr);
     if (m_source) {

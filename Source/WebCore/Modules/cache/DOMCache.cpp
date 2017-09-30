@@ -47,10 +47,12 @@ DOMCache::DOMCache(ScriptExecutionContext& context, String&& name, uint64_t iden
     , m_connection(WTFMove(connection))
 {
     suspendIfNeeded();
+    m_connection->reference(m_identifier);
 }
 
 DOMCache::~DOMCache()
 {
+    m_connection->dereference(m_identifier);
 }
 
 void DOMCache::match(RequestInfo&& info, CacheQueryOptions&& options, Ref<DeferredPromise>&& promise)
@@ -80,7 +82,7 @@ void DOMCache::doMatch(RequestInfo&& info, CacheQueryOptions&& options, MatchCal
     }
     auto request = requestOrException.releaseReturnValue();
 
-    queryCache(request.get(), WTFMove(options), [callback = WTFMove(callback)](ExceptionOr<Vector<CacheStorageRecord>>&& result) mutable {
+    queryCache(request.get(), WTFMove(options), [this, callback = WTFMove(callback)](ExceptionOr<Vector<CacheStorageRecord>>&& result) mutable {
         if (result.hasException()) {
             callback(result.releaseException());
             return;
@@ -89,7 +91,7 @@ void DOMCache::doMatch(RequestInfo&& info, CacheQueryOptions&& options, MatchCal
             callback(nullptr);
             return;
         }
-        callback(result.returnValue()[0].response->cloneForJS().ptr());
+        callback(result.returnValue()[0].response->clone(*scriptExecutionContext()).releaseReturnValue().ptr());
     });
 }
 
@@ -109,7 +111,7 @@ void DOMCache::matchAll(std::optional<RequestInfo>&& info, CacheQueryOptions&& o
     }
 
     if (!request) {
-        retrieveRecords([this, promise = WTFMove(promise)](std::optional<Exception>&& exception) mutable {
+        retrieveRecords(URL { }, [this, promise = WTFMove(promise)](std::optional<Exception>&& exception) mutable {
             if (exception) {
                 promise.reject(WTFMove(exception.value()));
                 return;
@@ -117,12 +119,12 @@ void DOMCache::matchAll(std::optional<RequestInfo>&& info, CacheQueryOptions&& o
             Vector<Ref<FetchResponse>> responses;
             responses.reserveInitialCapacity(m_records.size());
             for (auto& record : m_records)
-                responses.uncheckedAppend(record.response->cloneForJS());
-            promise.resolve(responses);
+                responses.uncheckedAppend(record.response->clone(*scriptExecutionContext()).releaseReturnValue());
+            promise.resolve(WTFMove(responses));
         });
         return;
     }
-    queryCache(request.releaseNonNull(), WTFMove(options), [promise = WTFMove(promise)](ExceptionOr<Vector<CacheStorageRecord>>&& result) mutable {
+    queryCache(request.releaseNonNull(), WTFMove(options), [this, promise = WTFMove(promise)](ExceptionOr<Vector<CacheStorageRecord>>&& result) mutable {
         if (result.hasException()) {
             promise.reject(result.releaseException());
             return;
@@ -131,7 +133,7 @@ void DOMCache::matchAll(std::optional<RequestInfo>&& info, CacheQueryOptions&& o
         Vector<Ref<FetchResponse>> responses;
         responses.reserveInitialCapacity(records.size());
         for (auto& record : records)
-            responses.uncheckedAppend(record.response->cloneForJS());
+            responses.uncheckedAppend(record.response->clone(*scriptExecutionContext()).releaseReturnValue());
         promise.resolve(responses);
     });
 }
@@ -289,6 +291,21 @@ void DOMCache::addAll(Vector<RequestInfo>&& infos, DOMPromiseDeferred<void>&& pr
     }
 }
 
+void DOMCache::putWithResponseData(DOMPromiseDeferred<void>&& promise, Ref<FetchRequest>&& request, Ref<FetchResponse>&& response, ExceptionOr<RefPtr<SharedBuffer>>&& responseBody)
+{
+    if (responseBody.hasException()) {
+        promise.reject(responseBody.releaseException());
+        return;
+    }
+
+    DOMCacheEngine::ResponseBody body;
+    if (auto buffer = responseBody.releaseReturnValue())
+        body = buffer.releaseNonNull();
+    batchPutOperation(request.get(), response.get(), WTFMove(body), [promise = WTFMove(promise)](ExceptionOr<void>&& result) mutable {
+        promise.settle(WTFMove(result));
+    });
+}
+
 void DOMCache::put(RequestInfo&& info, Ref<FetchResponse>&& response, DOMPromiseDeferred<void>&& promise)
 {
     if (UNLIKELY(!scriptExecutionContext()))
@@ -312,30 +329,24 @@ void DOMCache::put(RequestInfo&& info, Ref<FetchResponse>&& response, DOMPromise
         return;
     }
 
-    // FIXME: Add support for ReadableStream.
-    if (response->hasReadableStreamBody()) {
-        promise.reject(Exception { NotSupportedError, ASCIILiteral("Caching a Response with data stored in a ReadableStream is not yet supported") });
+    if (response->isDisturbedOrLocked()) {
+        promise.reject(Exception { TypeError, ASCIILiteral("Response is disturbed or locked") });
         return;
     }
 
-    if (response->isDisturbed()) {
-        promise.reject(Exception { TypeError, ASCIILiteral("Response is disturbed or locked") });
+    if (response->hasReadableStreamBody()) {
+        setPendingActivity(this);
+        response->consumeBodyFromReadableStream([promise = WTFMove(promise), request = WTFMove(request), response = WTFMove(response), this](ExceptionOr<RefPtr<SharedBuffer>>&& result) mutable {
+            putWithResponseData(WTFMove(promise), WTFMove(request), WTFMove(response), WTFMove(result));
+            unsetPendingActivity(this);
+        });
         return;
     }
 
     if (response->isLoading()) {
         setPendingActivity(this);
         response->consumeBodyWhenLoaded([promise = WTFMove(promise), request = WTFMove(request), response = WTFMove(response), this](ExceptionOr<RefPtr<SharedBuffer>>&& result) mutable {
-            if (result.hasException())
-                promise.reject(result.releaseException());
-            else {
-                DOMCacheEngine::ResponseBody body;
-                if (auto buffer = result.releaseReturnValue())
-                    body = buffer.releaseNonNull();
-                batchPutOperation(request.get(), response.get(), WTFMove(body), [promise = WTFMove(promise)](ExceptionOr<void>&& result) mutable {
-                    promise.settle(WTFMove(result));
-                });
-            }
+            putWithResponseData(WTFMove(promise), WTFMove(request), WTFMove(response), WTFMove(result));
             unsetPendingActivity(this);
         });
         return;
@@ -378,7 +389,7 @@ void DOMCache::keys(std::optional<RequestInfo>&& info, CacheQueryOptions&& optio
     }
 
     if (!request) {
-        retrieveRecords([this, promise = WTFMove(promise)](std::optional<Exception>&& exception) mutable {
+        retrieveRecords(URL { }, [this, promise = WTFMove(promise)](std::optional<Exception>&& exception) mutable {
             if (exception) {
                 promise.reject(WTFMove(exception.value()));
                 return;
@@ -407,10 +418,14 @@ void DOMCache::keys(std::optional<RequestInfo>&& info, CacheQueryOptions&& optio
     });
 }
 
-void DOMCache::retrieveRecords(WTF::Function<void(std::optional<Exception>&&)>&& callback)
+void DOMCache::retrieveRecords(const URL& url, WTF::Function<void(std::optional<Exception>&&)>&& callback)
 {
     setPendingActivity(this);
-    m_connection->retrieveRecords(m_identifier, [this, callback = WTFMove(callback)](RecordsOrError&& result) {
+
+    URL retrieveURL = url;
+    retrieveURL.removeQueryAndFragmentIdentifier();
+
+    m_connection->retrieveRecords(m_identifier, retrieveURL, [this, callback = WTFMove(callback)](RecordsOrError&& result) {
         if (!m_isStopped) {
             if (!result.hasValue()) {
                 callback(DOMCacheEngine::errorToException(result.error()));
@@ -427,7 +442,8 @@ void DOMCache::retrieveRecords(WTF::Function<void(std::optional<Exception>&&)>&&
 
 void DOMCache::queryCache(Ref<FetchRequest>&& request, CacheQueryOptions&& options, WTF::Function<void(ExceptionOr<Vector<CacheStorageRecord>>&&)>&& callback)
 {
-    retrieveRecords([this, request = WTFMove(request), options = WTFMove(options), callback = WTFMove(callback)](std::optional<Exception>&& exception) mutable {
+    auto url = request->url();
+    retrieveRecords(url, [this, request = WTFMove(request), options = WTFMove(options), callback = WTFMove(callback)](std::optional<Exception>&& exception) mutable {
         if (exception) {
             callback(WTFMove(exception.value()));
             return;

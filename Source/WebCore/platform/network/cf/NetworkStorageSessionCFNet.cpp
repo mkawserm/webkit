@@ -205,21 +205,79 @@ bool NetworkStorageSession::shouldPartitionCookies(const String& topPrivatelyCon
     if (topPrivatelyControlledDomain.isEmpty())
         return false;
 
-    return m_topPrivatelyControlledDomainsForCookiePartitioning.contains(topPrivatelyControlledDomain);
+    return m_topPrivatelyControlledDomainsToPartition.contains(topPrivatelyControlledDomain);
 }
 
-void NetworkStorageSession::setShouldPartitionCookiesForHosts(const Vector<String>& domainsToRemove, const Vector<String>& domainsToAdd, bool clearFirst)
+bool NetworkStorageSession::shouldBlockThirdPartyCookies(const String& topPrivatelyControlledDomain) const
 {
-    if (clearFirst)
-        m_topPrivatelyControlledDomainsForCookiePartitioning.clear();
+    if (topPrivatelyControlledDomain.isEmpty())
+        return false;
 
-    if (!domainsToRemove.isEmpty()) {
-        for (auto& domain : domainsToRemove)
-            m_topPrivatelyControlledDomainsForCookiePartitioning.remove(domain);
+    return m_topPrivatelyControlledDomainsToBlock.contains(topPrivatelyControlledDomain);
+}
+
+bool NetworkStorageSession::shouldBlockCookies(const ResourceRequest& request) const
+{
+    if (!cookieStoragePartitioningEnabled)
+        return false;
+
+    return shouldBlockCookies(request.firstPartyForCookies(), request.url());
+}
+    
+bool NetworkStorageSession::shouldBlockCookies(const URL& firstPartyForCookies, const URL& resource) const
+{
+    if (!cookieStoragePartitioningEnabled)
+        return false;
+    
+    auto firstPartyDomain = getPartitioningDomain(firstPartyForCookies);
+    if (firstPartyDomain.isEmpty())
+        return false;
+
+    auto resourceDomain = getPartitioningDomain(resource);
+    if (resourceDomain.isEmpty())
+        return false;
+
+    if (firstPartyDomain == resourceDomain)
+        return false;
+
+    return shouldBlockThirdPartyCookies(resourceDomain);
+}
+
+void NetworkStorageSession::setPrevalentDomainsToPartitionOrBlockCookies(const Vector<String>& domainsToPartition, const Vector<String>& domainsToBlock, const Vector<String>& domainsToNeitherPartitionNorBlock, bool clearFirst)
+{
+    if (clearFirst) {
+        m_topPrivatelyControlledDomainsToPartition.clear();
+        m_topPrivatelyControlledDomainsToBlock.clear();
     }
-        
-    if (!domainsToAdd.isEmpty())
-        m_topPrivatelyControlledDomainsForCookiePartitioning.add(domainsToAdd.begin(), domainsToAdd.end());
+
+    for (auto& domain : domainsToPartition) {
+        m_topPrivatelyControlledDomainsToPartition.add(domain);
+        if (!clearFirst)
+            m_topPrivatelyControlledDomainsToBlock.remove(domain);
+    }
+
+    for (auto& domain : domainsToBlock) {
+        // FIXME: https://bugs.webkit.org/show_bug.cgi?id=177394
+        // m_topPrivatelyControlledDomainsToBlock.add(domain);
+        // if (!clearFirst)
+        //     m_topPrivatelyControlledDomainsToPartition.remove(domain);
+        m_topPrivatelyControlledDomainsToPartition.add(domain);
+    }
+    
+    if (!clearFirst) {
+        for (auto& domain : domainsToNeitherPartitionNorBlock) {
+            m_topPrivatelyControlledDomainsToPartition.remove(domain);
+            m_topPrivatelyControlledDomainsToBlock.remove(domain);
+        }
+    }
+}
+
+void NetworkStorageSession::removePrevalentDomains(const Vector<String>& domains)
+{
+    for (auto& domain : domains) {
+        m_topPrivatelyControlledDomainsToPartition.remove(domain);
+        m_topPrivatelyControlledDomainsToBlock.remove(domain);
+    }
 }
 
 #endif // HAVE(CFNETWORK_STORAGE_PARTITIONING)

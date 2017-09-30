@@ -32,6 +32,7 @@
 #include <pal/SessionID.h>
 #include <wtf/MainThread.h>
 #include <wtf/NeverDestroyed.h>
+#include <wtf/text/StringBuilder.h>
 #include <wtf/text/StringHash.h>
 
 using namespace WebCore::DOMCacheEngine;
@@ -124,15 +125,14 @@ void Engine::retrieveCaches(const String& origin, uint64_t updateCounter, CacheI
     });
 }
 
-void Engine::retrieveRecords(uint64_t cacheIdentifier, RecordsCallback&& callback)
+void Engine::retrieveRecords(uint64_t cacheIdentifier, WebCore::URL&& url, RecordsCallback&& callback)
 {
-    readCache(cacheIdentifier, [callback = WTFMove(callback)](CacheOrError&& result) mutable {
+    readCache(cacheIdentifier, [url = WTFMove(url), callback = WTFMove(callback)](CacheOrError&& result) mutable {
         if (!result.hasValue()) {
             callback(makeUnexpected(result.error()));
             return;
         }
-
-        callback(result.value().get().records());
+        result.value().get().retrieveRecords(url, WTFMove(callback));
     });
 }
 
@@ -188,41 +188,54 @@ void Engine::initialize(Function<void(std::optional<Error>&&)>&& callback)
 
 void Engine::readCachesFromDisk(const String& origin, CachesCallback&& callback)
 {
-    auto& caches = m_caches.ensure(origin, [&origin, this] {
-        return Caches::create(*this, origin);
-    }).iterator->value;
-
-    if (caches->isInitialized()) {
-        callback(std::reference_wrapper<Caches> { caches.get() });
-        return;
-    }
-
     initialize([this, origin, callback = WTFMove(callback)](std::optional<Error>&& error) mutable {
+        auto& caches = m_caches.ensure(origin, [&origin, this] {
+            return Caches::create(*this, String { origin });
+        }).iterator->value;
+
+        if (caches->isInitialized()) {
+            callback(std::reference_wrapper<Caches> { caches.get() });
+            return;
+        }
+
         if (error) {
             callback(makeUnexpected(error.value()));
             return;
         }
 
-        auto caches = m_caches.get(origin);
-        ASSERT(caches);
-
-        caches->initialize([callback = WTFMove(callback), caches](std::optional<Error>&& error) mutable {
+        caches->initialize([callback = WTFMove(callback), caches = caches.copyRef()](std::optional<Error>&& error) mutable {
             if (error) {
                 callback(makeUnexpected(error.value()));
                 return;
             }
 
-            callback(std::reference_wrapper<Caches> { *caches });
+            callback(std::reference_wrapper<Caches> { caches.get() });
         });
     });
 }
 
 void Engine::readCache(uint64_t cacheIdentifier, CacheCallback&& callback)
 {
-    // FIXME: Implement reading.
     auto* cache = this->cache(cacheIdentifier);
     if (!cache) {
         callback(makeUnexpected(Error::Internal));
+        return;
+    }
+    if (!cache->isOpened()) {
+        cache->open([this, protectedThis = makeRef(*this), cacheIdentifier, callback = WTFMove(callback)](std::optional<Error>&& error) mutable {
+            if (error) {
+                callback(makeUnexpected(error.value()));
+                return;
+            }
+
+            auto* cache = this->cache(cacheIdentifier);
+            if (!cache) {
+                callback(makeUnexpected(Error::Internal));
+                return;
+            }
+            ASSERT(cache->isOpened());
+            callback(std::reference_wrapper<Cache> { *cache });
+        });
         return;
     }
     callback(std::reference_wrapper<Cache> { *cache });
@@ -292,13 +305,69 @@ void Engine::removeFile(const String& filename)
     });
 }
 
-void Engine::clearMemoryRepresentation(const String& origin)
+void Engine::removeCaches(const String& origin)
 {
-    readCachesFromDisk(origin, [](CachesOrError&& result) {
-        if (!result.hasValue())
+    ASSERT(m_caches.contains(origin));
+    m_caches.remove(origin);
+}
+
+void Engine::clearMemoryRepresentation(const String& origin, WebCore::DOMCacheEngine::CompletionCallback&& callback)
+{
+    readCachesFromDisk(origin, [callback = WTFMove(callback)](CachesOrError&& result) {
+        if (!result.hasValue()) {
+            callback(result.error());
             return;
+        }
         result.value().get().clearMemoryRepresentation();
+        callback(std::nullopt);
     });
+}
+
+void Engine::lock(uint64_t cacheIdentifier)
+{
+    auto& counter = m_cacheLocks.ensure(cacheIdentifier, []() {
+        return 0;
+    }).iterator->value;
+
+    ++counter;
+}
+
+void Engine::unlock(uint64_t cacheIdentifier)
+{
+    auto lockCount = m_cacheLocks.find(cacheIdentifier);
+    ASSERT(lockCount != m_cacheLocks.end());
+    if (lockCount == m_cacheLocks.end())
+        return;
+
+    ASSERT(lockCount->value);
+    if (--lockCount->value)
+        return;
+
+    auto* cache = this->cache(cacheIdentifier);
+    if (!cache)
+        return;
+
+    cache->dispose();
+}
+
+String Engine::representation()
+{
+    bool isFirst = true;
+    StringBuilder builder;
+    builder.append("[");
+    for (auto& keyValue : m_caches) {
+        if (!isFirst)
+            builder.append(",");
+        isFirst = false;
+
+        builder.append("\n{ \"origin\" : \"");
+        builder.append(keyValue.key);
+        builder.append("\", \"caches\" : ");
+        keyValue.value->appendRepresentation(builder);
+        builder.append("}");
+    }
+    builder.append("\n]");
+    return builder.toString();
 }
 
 } // namespace CacheStorage

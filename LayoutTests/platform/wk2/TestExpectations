@@ -135,7 +135,8 @@ plugins/open-and-close-window-with-plugin.html
 editing/undo/undo-iframe-location-change.html
 
 # PasteBoard::plainText() does not support file names.
-editing/pasteboard/drag-files-to-editable-element.html
+editing/pasteboard/drag-files-to-editable-element-as-attachment.html [ Skip ]
+editing/pasteboard/drag-files-to-editable-element-as-URLs.html [ Skip ]
 
 # Times out
 # https://bugs.webkit.org/show_bug.cgi?id=63806
@@ -564,7 +565,8 @@ platform/mac/fast/events/objc-event-api.html
 # WebKitTestRunner needs an implementation of eventSender.beginDragWithFiles
 # https://bugs.webkit.org/show_bug.cgi?id=64285
 editing/pasteboard/datatransfer-items-drop-plaintext-file.html
-editing/pasteboard/enties-api
+editing/pasteboard/datatransfer-types-dropping-text-file.html
+editing/pasteboard/entries-api
 editing/pasteboard/file-drag-to-editable.html [ Skip ]
 editing/pasteboard/file-input-files-access.html
 fast/dom/FileList-iterator.html
@@ -596,7 +598,9 @@ fast/files/workers/worker-read-blob-async.html
 fast/files/workers/worker-read-blob-sync.html
 fast/files/workers/worker-read-file-async.html
 fast/files/workers/worker-read-file-sync.html
+fast/forms/file/entries-api/drag-folder-webkitEntries.html
 fast/forms/file/entries-api/webkitdirectory-drag-folder.html
+fast/forms/file/entries-api/webkitdirectory-drag-folder-webkitEntries.html
 fast/forms/file/file-input-change-event.html
 fast/forms/file/file-input-reset.html
 fast/forms/file/get-file-upload.html
@@ -685,6 +689,7 @@ webkit.org/b/175263 http/tests/loading/resourceLoadStatistics/clear-in-memory-an
 webkit.org/b/172452 http/tests/loading/resourceLoadStatistics/grandfathering.html [ Pass Failure Timeout ]
 webkit.org/b/173499 http/tests/loading/resourceLoadStatistics/telemetry-generation.html [ Pass Failure ]
 http/tests/loading/resourceLoadStatistics/prune-statistics.html [ Pass ]
+http/tests/storageAccess/request-storage-access-top-frame.html [ Pass ]
 
 ### END OF (5) Progressions, expected successes that are expected failures in WebKit1.
 ########################################
@@ -704,4 +709,10 @@ webkit.org/b/172662 [ Debug ] http/tests/cache/disk-cache/disk-cache-vary-cookie
 webkit.org/b/172662 [ Debug ] http/tests/cache/disk-cache/redirect-chain-limits.html [ Pass Failure ]
 
 webkit.org/b/174471 webrtc/filtering-ice-candidate-after-reload.html [ Pass Timeout ]
+
+webkit.org/b/175678 media/W3C/video/events/event_progress.html [ Pass Failure ]
+
+webkit.org/b/177673 http/tests/preconnect/link-rel-preconnect-https.html [ Pass Failure ]
+
+webkit.org/b/177440 imported/w3c/web-platform-tests/html/browsers/origin/relaxing-the-same-origin-restriction/document_domain_setter_null.tentative.html [ Pass Failure ]
 

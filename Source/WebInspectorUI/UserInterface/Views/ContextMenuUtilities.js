@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 Devin Rousso <dcrousso+webkit@gmail.com>. All rights reserved.
+ * Copyright (C) 2016 Devin Rousso <webkit@devinrousso.com>. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -159,15 +159,10 @@ WI.appendContextMenuItemsForDOMNode = function(contextMenu, domNode, options = {
                 result.release();
             }
 
-            function didResolveNode(remoteObject) {
-                if (!remoteObject)
-                    return;
-
+            WI.RemoteObject.resolveNode(domNode).then((remoteObject) => {
                 remoteObject.getProperty("constructor", didGetProperty);
                 remoteObject.release();
-            }
-
-            WI.RemoteObject.resolveNode(domNode, "", didResolveNode);
+            });
         });
     }
 
@@ -189,10 +184,7 @@ WI.appendContextMenuItemsForDOMNode = function(contextMenu, domNode, options = {
     if (!options.excludeLogElement && !domNode.isInUserAgentShadowTree() && !domNode.isPseudoElement()) {
         let label = isElement ? WI.UIString("Log Element") : WI.UIString("Log Node");
         contextMenu.appendItem(label, () => {
-            WI.RemoteObject.resolveNode(domNode, WI.RuntimeManager.ConsoleObjectGroup, (remoteObject) => {
-                if (!remoteObject)
-                    return;
-
+            WI.RemoteObject.resolveNode(domNode, WI.RuntimeManager.ConsoleObjectGroup).then((remoteObject) => {
                 let text = isElement ? WI.UIString("Selected Element") : WI.UIString("Selected Node");
                 const addSpecialUserLogClass = true;
                 WI.consoleLogViewController.appendImmediateExecutionWithResult(text, remoteObject, addSpecialUserLogClass);

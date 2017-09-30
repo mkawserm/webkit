@@ -125,12 +125,16 @@ if (COMPILER_IS_GCC_OR_CLANG)
     # Warnings to be disabled
     # FIXME: We should probably not be disabling -Wno-maybe-uninitialized?
     WEBKIT_PREPEND_GLOBAL_COMPILER_FLAGS(-Qunused-arguments
-                                         -Wno-expansion-to-defined
                                          -Wno-maybe-uninitialized
                                          -Wno-noexcept-type
                                          -Wno-parentheses-equality)
 endif ()
 
+# -Wexpansion-to-defined produces false positives with GCC but not Clang
+# https://bugs.webkit.org/show_bug.cgi?id=167643#c13
+if (CMAKE_COMPILER_IS_GNUCXX)
+    WEBKIT_PREPEND_GLOBAL_COMPILER_FLAGS(-Wno-expansion-to-defined)
+endif ()
 
 # Ninja tricks compilers into turning off color support.
 if (CMAKE_GENERATOR STREQUAL "Ninja")
@@ -189,12 +193,9 @@ macro(DETERMINE_GCC_SYSTEM_INCLUDE_DIRS _lang _compiler _flags _result)
     endif ()
 endmacro()
 
-if (CMAKE_COMPILER_IS_GNUCC)
+if (COMPILER_IS_GCC_OR_CLANG)
    DETERMINE_GCC_SYSTEM_INCLUDE_DIRS("c" "${CMAKE_C_COMPILER}" "${CMAKE_C_FLAGS}" SYSTEM_INCLUDE_DIRS)
    set(CMAKE_C_IMPLICIT_INCLUDE_DIRECTORIES ${CMAKE_C_IMPLICIT_INCLUDE_DIRECTORIES} ${SYSTEM_INCLUDE_DIRS})
-endif ()
-
-if (CMAKE_COMPILER_IS_GNUCXX)
    DETERMINE_GCC_SYSTEM_INCLUDE_DIRS("c++" "${CMAKE_CXX_COMPILER}" "${CMAKE_CXX_FLAGS}" SYSTEM_INCLUDE_DIRS)
    set(CMAKE_CXX_IMPLICIT_INCLUDE_DIRECTORIES ${CMAKE_CXX_IMPLICIT_INCLUDE_DIRECTORIES} ${SYSTEM_INCLUDE_DIRS})
 endif ()

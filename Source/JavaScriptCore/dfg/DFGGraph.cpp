@@ -321,6 +321,7 @@ void Graph::dump(PrintStream& out, const char* prefix, Node* node, DumpContext* 
         for (unsigned i = 0; i < node->numConstants(); ++i)
             out.print(anotherComma, pointerDumpInContext(freeze(m_codeBlock->constantBuffer(node->startConstant())[i]), context));
         out.print("]");
+        out.print(comma, "vectorLengthHint = ", node->vectorLengthHint());
     }
     if (node->hasLazyJSValue())
         out.print(comma, node->lazyJSValue());
@@ -368,6 +369,11 @@ void Graph::dump(PrintStream& out, const char* prefix, Node* node, DumpContext* 
             out.print(comma, inContext(data->cases[i].value, context), ":", data->cases[i].target);
         out.print(comma, "default:", data->fallThrough);
     }
+    if (node->isEntrySwitch()) {
+        EntrySwitchData* data = node->entrySwitchData();
+        for (unsigned i = 0; i < data->cases.size(); ++i)
+            out.print(comma, BranchTarget(data->cases[i]));
+    }
     ClobberSet reads;
     ClobberSet writes;
     addReadsAndWrites(*this, node, reads, writes);
@@ -385,8 +391,7 @@ void Graph::dump(PrintStream& out, const char* prefix, Node* node, DumpContext* 
         if (node->origin.semantic != node->origin.forExit && node->origin.forExit.isSet())
             out.print(comma, "exit: ", node->origin.forExit);
     }
-    if (!node->origin.exitOK)
-        out.print(comma, "ExitInvalid");
+    out.print(comma, node->origin.exitOK ? "ExitValid" : "ExitInvalid");
     if (node->origin.wasHoisted)
         out.print(comma, "WasHoisted");
     out.print(")");
@@ -515,10 +520,12 @@ void Graph::dump(PrintStream& out, DumpContext* context)
     out.print("\n");
     out.print("DFG for ", CodeBlockWithJITType(m_codeBlock, JITCode::DFGJIT), ":\n");
     out.print("  Fixpoint state: ", m_fixpointState, "; Form: ", m_form, "; Unification state: ", m_unificationState, "; Ref count state: ", m_refCountState, "\n");
-    if (m_form == SSA)
-        out.print("  Argument formats: ", listDump(m_argumentFormats), "\n");
+    if (m_form == SSA) {
+        for (unsigned entrypointIndex = 0; entrypointIndex < m_argumentFormats.size(); ++entrypointIndex)
+            out.print("  Argument formats for entrypoint index: ", entrypointIndex, " : ", listDump(m_argumentFormats[entrypointIndex]), "\n");
+    }
     else {
-        for (auto pair : m_entrypointToArguments)
+        for (auto pair : m_rootToArguments)
             out.print("  Arguments for block#", pair.key->index, ": ", listDump(pair.value), "\n");
     }
     out.print("\n");
@@ -657,7 +664,7 @@ void Graph::handleSuccessor(Vector<BasicBlock*, 16>& worklist, BasicBlock* block
 void Graph::determineReachability()
 {
     Vector<BasicBlock*, 16> worklist;
-    for (BasicBlock* entrypoint : m_entrypoints) {
+    for (BasicBlock* entrypoint : m_roots) {
         entrypoint->isReachable = true;
         worklist.append(entrypoint);
     }
@@ -824,6 +831,7 @@ void Graph::invalidateCFG()
     m_controlEquivalenceAnalysis = nullptr;
     m_backwardsDominators = nullptr;
     m_backwardsCFG = nullptr;
+    m_cpsCFG = nullptr;
 }
 
 void Graph::invalidateNodeLiveness()
@@ -870,7 +878,7 @@ BlockList Graph::blocksInPreOrder()
 {
     BlockList result;
     BlockWorklist worklist;
-    for (BasicBlock* entrypoint : m_entrypoints)
+    for (BasicBlock* entrypoint : m_roots)
         worklist.push(entrypoint);
     while (BasicBlock* block = worklist.pop()) {
         result.append(block);
@@ -908,7 +916,7 @@ BlockList Graph::blocksInPostOrder()
 {
     BlockList result;
     PostOrderBlockWorklist worklist;
-    for (BasicBlock* entrypoint : m_entrypoints)
+    for (BasicBlock* entrypoint : m_roots)
         worklist.push(entrypoint);
     while (BlockWithOrder item = worklist.pop()) {
         switch (item.order) {
@@ -1543,6 +1551,14 @@ void Graph::logAssertionFailure(
     logDFGAssertionFailure(*this, toCString("While handling block ", pointerDump(block), "\n\n"), file, line, function, assertion);
 }
 
+CPSCFG& Graph::ensureCPSCFG()
+{
+    RELEASE_ASSERT(m_form != SSA && !m_isInSSAConversion);
+    if (!m_cpsCFG)
+        m_cpsCFG = std::make_unique<CPSCFG>(*this);
+    return *m_cpsCFG;
+}
+
 CPSDominators& Graph::ensureCPSDominators()
 {
     RELEASE_ASSERT(m_form != SSA && !m_isInSSAConversion);
@@ -1610,21 +1626,14 @@ MethodOfGettingAValueProfile Graph::methodOfGettingAValueProfileFor(Node* curren
             CodeBlock* profiledBlock = baselineCodeBlockFor(node->origin.semantic);
 
             if (node->accessesStack(*this)) {
-                ValueProfile* result = [&] () -> ValueProfile* {
-                    if (!node->local().isArgument())
-                        return nullptr;
+                if (m_form != SSA && node->local().isArgument()) {
                     int argument = node->local().toArgument();
+                    Node* argumentNode = m_rootToArguments.find(block(0))->value[argument];
                     // FIXME: We should match SetArgument nodes at other entrypoints as well:
                     // https://bugs.webkit.org/show_bug.cgi?id=175841
-                    Node* argumentNode = m_entrypointToArguments.find(block(0))->value[argument];
-                    if (!argumentNode)
-                        return nullptr;
-                    if (node->variableAccessData() != argumentNode->variableAccessData())
-                        return nullptr;
-                    return &profiledBlock->valueProfileForArgument(argument);
-                }();
-                if (result)
-                    return result;
+                    if (argumentNode && node->variableAccessData() == argumentNode->variableAccessData())
+                        return &profiledBlock->valueProfileForArgument(argument);
+                }
 
                 if (node->op() == GetLocal) {
                     return MethodOfGettingAValueProfile::fromLazyOperand(

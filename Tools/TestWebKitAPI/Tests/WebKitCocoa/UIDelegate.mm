@@ -27,13 +27,21 @@
 
 #if WK_API_ENABLED
 
+#import "PlatformUtilities.h"
 #import "TestWKWebView.h"
 #import "Utilities.h"
 #import "WKWebViewConfigurationExtras.h"
+#import <WebKit/WKContext.h>
+#import <WebKit/WKContextPrivateMac.h>
+#import <WebKit/WKGeolocationManager.h>
+#import <WebKit/WKGeolocationPosition.h>
 #import <WebKit/WKPreferencesPrivate.h>
+#import <WebKit/WKRetainPtr.h>
 #import <WebKit/WKUIDelegatePrivate.h>
 #import <WebKit/WKWebViewPrivate.h>
+#import <WebKit/_WKHitTestResult.h>
 #import <wtf/RetainPtr.h>
+#import <wtf/Vector.h>
 
 #if PLATFORM(MAC)
 #import <Carbon/Carbon.h>
@@ -66,6 +74,78 @@ TEST(WebKit, WKWebViewIsPlayingAudio)
     [webView addObserver:observer.get() forKeyPath:@"_isPlayingAudio" options:NSKeyValueObservingOptionNew | NSKeyValueObservingOptionOld context:nil];
     [webView synchronouslyLoadTestPageNamed:@"file-with-video"];
     [webView evaluateJavaScript:@"playVideo()" completionHandler:nil];
+    TestWebKitAPI::Util::run(&done);
+}
+
+@interface GeolocationDelegate : NSObject <WKUIDelegatePrivate> {
+    bool _allowGeolocation;
+}
+
+- (id)initWithAllowGeolocation:(bool)allowGeolocation;
+
+@end
+
+@implementation GeolocationDelegate
+
+- (id)initWithAllowGeolocation:(bool)allowGeolocation
+{
+    if (!(self = [super init]))
+        return nil;
+    _allowGeolocation = allowGeolocation;
+    return self;
+}
+
+- (void)_webView:(WKWebView *)webView requestGeolocationPermissionForFrame:(WKFrameInfo *)frame decisionHandler:(void (^)(BOOL allowed))decisionHandler
+{
+    EXPECT_TRUE(frame.isMainFrame);
+    EXPECT_STREQ(frame.request.URL.absoluteString.UTF8String, _allowGeolocation ? "https://example.org/" : "https://example.com/");
+    EXPECT_EQ(frame.securityOrigin.port, 0);
+    EXPECT_STREQ(frame.securityOrigin.protocol.UTF8String, "https");
+    EXPECT_STREQ(frame.securityOrigin.host.UTF8String, _allowGeolocation ? "example.org" : "example.com");
+    decisionHandler(_allowGeolocation);
+}
+
+- (void)webView:(WKWebView *)webView runJavaScriptAlertPanelWithMessage:(NSString *)message initiatedByFrame:(WKFrameInfo *)frame completionHandler:(void (^)(void))completionHandler
+{
+    if (_allowGeolocation)
+        EXPECT_STREQ(message.UTF8String, "position 50.644358 3.345453");
+    else
+        EXPECT_STREQ(message.UTF8String, "error 1 User denied Geolocation");
+    completionHandler();
+    done = true;
+}
+
+@end
+
+TEST(WebKit, GeolocationPermission)
+{
+    NSString *html = @"<script>navigator.geolocation.watchPosition("
+        "function(p) { alert('position ' + p.coords.latitude + ' ' + p.coords.longitude) },"
+        "function(e) { alert('error ' + e.code + ' ' + e.message) })"
+    "</script>";
+
+    auto pool = adoptNS([[WKProcessPool alloc] init]);
+    
+    WKGeolocationProviderV1 providerCallback;
+    memset(&providerCallback, 0, sizeof(WKGeolocationProviderV1));
+    providerCallback.base.version = 1;
+    providerCallback.startUpdating = [] (WKGeolocationManagerRef manager, const void*) {
+        WKGeolocationManagerProviderDidChangePosition(manager, adoptWK(WKGeolocationPositionCreate(0, 50.644358, 3.345453, 2.53)).get());
+    };
+    WKGeolocationManagerSetProvider(WKContextGetGeolocationManager((WKContextRef)pool.get()), &providerCallback.base);
+
+    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    configuration.get().processPool = pool.get();
+    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
+    auto delegate1 = adoptNS([[GeolocationDelegate alloc] initWithAllowGeolocation:false]);
+    [webView setUIDelegate:delegate1.get()];
+    [webView loadHTMLString:html baseURL:[NSURL URLWithString:@"https://example.com/"]];
+    TestWebKitAPI::Util::run(&done);
+
+    done = false;
+    auto delegate2 = adoptNS([[GeolocationDelegate alloc] initWithAllowGeolocation:true]);
+    [webView setUIDelegate:delegate2.get()];
+    [webView loadHTMLString:html baseURL:[NSURL URLWithString:@"https://example.org/"]];
     TestWebKitAPI::Util::run(&done);
 }
 
@@ -122,6 +202,232 @@ TEST(WebKit, ShowWebView)
     ASSERT_EQ(webViewFromDelegateCallback, createdWebView);
 }
 
+static bool resizableSet;
+
+@interface ModalDelegate : NSObject <WKUIDelegatePrivate>
+@end
+
+@implementation ModalDelegate
+
+- (void)_webViewRunModal:(WKWebView *)webView
+{
+    EXPECT_TRUE(resizableSet);
+    EXPECT_EQ(webView, createdWebView.get());
+    done = true;
+}
+
+- (void)_webView:(WKWebView *)webView setResizable:(BOOL)isResizable
+{
+    EXPECT_FALSE(isResizable);
+    resizableSet = true;
+}
+
+- (nullable WKWebView *)webView:(WKWebView *)webView createWebViewWithConfiguration:(WKWebViewConfiguration *)configuration forNavigationAction:(WKNavigationAction *)navigationAction windowFeatures:(WKWindowFeatures *)windowFeatures
+{
+    createdWebView = [[[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration] autorelease];
+    [createdWebView setUIDelegate:self];
+    return createdWebView.get();
+}
+
+@end
+
+TEST(WebKit, RunModal)
+{
+    auto delegate = adoptNS([[ModalDelegate alloc] init]);
+    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600)]);
+    [webView setUIDelegate:delegate.get()];
+    NSURL *url = [[NSBundle mainBundle] URLForResource:@"simple" withExtension:@"html" subdirectory:@"TestWebKitAPI.resources"];
+    NSString *html = [NSString stringWithFormat:@"%@%@%@", @"<script> function openModal() { window.showModalDialog('", url, @"'); } </script> <input type='button' value='Click to open modal' onclick='openModal();'>"];
+    [webView synchronouslyLoadHTMLString:html];
+    [webView sendClicksAtPoint:NSMakePoint(20, 600 - 20) numberOfClicks:1];
+    TestWebKitAPI::Util::run(&done);
+}
+
+static bool receivedWindowFrame;
+
+@interface WindowFrameDelegate : NSObject <WKUIDelegatePrivate>
+@end
+
+@implementation WindowFrameDelegate
+
+- (void)_webView:(WKWebView *)webView setWindowFrame:(CGRect)frame
+{
+    EXPECT_EQ(frame.origin.x, 160);
+    EXPECT_EQ(frame.origin.y, 230);
+    EXPECT_EQ(frame.size.width, 350);
+    EXPECT_EQ(frame.size.height, 450);
+    receivedWindowFrame = true;
+}
+
+- (void)_webView:(WKWebView *)webView getWindowFrameWithCompletionHandler:(void (^)(CGRect))completionHandler
+{
+    completionHandler(CGRectMake(150, 250, 350, 450));
+}
+
+- (void)webView:(WKWebView *)webView runJavaScriptAlertPanelWithMessage:(NSString *)message initiatedByFrame:(WKFrameInfo *)frame completionHandler:(void (^)(void))completionHandler
+{
+    EXPECT_STREQ("350", message.UTF8String);
+    completionHandler();
+    done = true;
+}
+
+@end
+
+TEST(WebKit, WindowFrame)
+{
+    auto delegate = adoptNS([[WindowFrameDelegate alloc] init]);
+    auto webView = adoptNS([[WKWebView alloc] init]);
+    [webView setUIDelegate:delegate.get()];
+    [webView loadHTMLString:@"<script>moveBy(10,20);alert(outerWidth);</script>" baseURL:nil];
+    TestWebKitAPI::Util::run(&receivedWindowFrame);
+    TestWebKitAPI::Util::run(&done);
+}
+
+static bool headerHeightCalled;
+static bool footerHeightCalled;
+static bool drawHeaderCalled;
+static bool drawFooterCalled;
+
+@interface PrintDelegate : NSObject <WKUIDelegatePrivate>
+@end
+
+@implementation PrintDelegate
+
+- (void)_webView:(WKWebView *)webView printFrame:(_WKFrameHandle *)frame
+{
+    done = true;
+}
+
+- (CGFloat)_webViewHeaderHeight:(WKWebView *)webView
+{
+    headerHeightCalled = true;
+    return 3.14159;
+}
+
+- (CGFloat)_webViewFooterHeight:(WKWebView *)webView
+{
+    footerHeightCalled = true;
+    return 2.71828;
+}
+
+- (void)_webView:(WKWebView *)webView drawHeaderInRect:(CGRect)rect forPageWithTitle:(NSString *)title URL:(NSURL *)url
+{
+    EXPECT_EQ(rect.origin.x, 72);
+    EXPECT_TRUE(fabs(rect.origin.y - 698.858398) < .00001);
+    EXPECT_TRUE(fabs(rect.size.height - 3.141590) < .00001);
+    EXPECT_EQ(rect.size.width, 468.000000);
+    EXPECT_STREQ(title.UTF8String, "test_title");
+    EXPECT_STREQ(url.absoluteString.UTF8String, "http://example.com/");
+    drawHeaderCalled = true;
+}
+
+- (void)_webView:(WKWebView *)webView drawFooterInRect:(CGRect)rect forPageWithTitle:(NSString *)title URL:(NSURL *)url
+{
+    EXPECT_EQ(rect.origin.x, 72);
+    EXPECT_EQ(rect.origin.y, 90);
+    EXPECT_TRUE(fabs(rect.size.height - 2.718280) < .00001);
+    EXPECT_EQ(rect.size.width, 468.000000);
+    EXPECT_STREQ(url.absoluteString.UTF8String, "http://example.com/");
+    drawFooterCalled = true;
+}
+
+@end
+
+TEST(WebKit, PrintFrame)
+{
+    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    auto delegate = adoptNS([[PrintDelegate alloc] init]);
+    [webView setUIDelegate:delegate.get()];
+    [webView loadHTMLString:@"<head><title>test_title</title></head><body onload='print()'>hello world!</body>" baseURL:[NSURL URLWithString:@"http://example.com/"]];
+    TestWebKitAPI::Util::run(&done);
+
+    NSPrintOperation *operation = [webView _printOperationWithPrintInfo:[NSPrintInfo sharedPrintInfo]];
+    EXPECT_TRUE(operation.canSpawnSeparateThread);
+    EXPECT_STREQ(operation.jobTitle.UTF8String, "test_title");
+
+    [operation runOperationModalForWindow:[webView hostWindow] delegate:nil didRunSelector:nil contextInfo:nil];
+    TestWebKitAPI::Util::run(&headerHeightCalled);
+    TestWebKitAPI::Util::run(&footerHeightCalled);
+    TestWebKitAPI::Util::run(&drawHeaderCalled);
+    TestWebKitAPI::Util::run(&drawFooterCalled);
+}
+
+@interface NotificationDelegate : NSObject <WKUIDelegatePrivate> {
+    bool _allowNotifications;
+}
+- (id)initWithAllowNotifications:(bool)allowNotifications;
+@end
+
+@implementation NotificationDelegate
+
+- (id)initWithAllowNotifications:(bool)allowNotifications
+{
+    if (!(self = [super init]))
+        return nil;
+    _allowNotifications = allowNotifications;
+    return self;
+}
+
+- (void)webView:(WKWebView *)webView runJavaScriptAlertPanelWithMessage:(NSString *)message initiatedByFrame:(WKFrameInfo *)frame completionHandler:(void (^)(void))completionHandler
+{
+    if (_allowNotifications)
+        EXPECT_STREQ(message.UTF8String, "permission granted");
+    else
+        EXPECT_STREQ(message.UTF8String, "permission denied");
+    completionHandler();
+    done = true;
+}
+
+- (void)_webView:(WKWebView *)webView requestNotificationPermissionForSecurityOrigin:(WKSecurityOrigin *)securityOrigin decisionHandler:(void (^)(BOOL))decisionHandler
+{
+    if (_allowNotifications)
+        EXPECT_STREQ(securityOrigin.host.UTF8String, "example.org");
+    else
+        EXPECT_STREQ(securityOrigin.host.UTF8String, "example.com");
+    decisionHandler(_allowNotifications);
+}
+
+@end
+
+TEST(WebKit, NotificationPermission)
+{
+    NSString *html = @"<script>Notification.requestPermission(function(p){alert('permission '+p)})</script>";
+    auto webView = adoptNS([[WKWebView alloc] init]);
+    [webView setUIDelegate:[[[NotificationDelegate alloc] initWithAllowNotifications:YES] autorelease]];
+    [webView loadHTMLString:html baseURL:[NSURL URLWithString:@"http://example.org"]];
+    TestWebKitAPI::Util::run(&done);
+    done = false;
+    [webView setUIDelegate:[[[NotificationDelegate alloc] initWithAllowNotifications:NO] autorelease]];
+    [webView loadHTMLString:html baseURL:[NSURL URLWithString:@"http://example.com"]];
+    TestWebKitAPI::Util::run(&done);
+}
+
+@interface PlugInDelegate : NSObject <WKUIDelegatePrivate>
+@end
+
+@implementation PlugInDelegate
+
+- (void)_webView:(WKWebView *)webView unavailablePlugInButtonClickedWithReason:(_WKPlugInUnavailabilityReason)reason plugInInfo:(NSDictionary *)plugInInfo
+{
+    ASSERT_EQ(_WKPlugInUnavailabilityReasonPluginMissing, reason);
+    ASSERT_TRUE([@"application/x-shockwave-flash" isEqualToString:[plugInInfo objectForKey:@"PluginInformationMIMEType"]]);
+    done = true;
+}
+
+@end
+
+TEST(WebKit, UnavailablePlugIn)
+{
+    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    [[configuration preferences] _setPlugInsEnabled:YES];
+    auto delegate = adoptNS([[PlugInDelegate alloc] init]);
+    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration.get()]);
+    [webView setUIDelegate:delegate.get()];
+    [webView synchronouslyLoadHTMLString:@"<object type='application/x-shockwave-flash'/>"];
+    [webView sendClicksAtPoint:NSMakePoint(210, 600 - 80) numberOfClicks:1];
+    TestWebKitAPI::Util::run(&done);
+}
+
 bool firstToolbarDone;
 
 @interface ToolbarDelegate : NSObject <WKUIDelegatePrivate>
@@ -154,6 +460,31 @@ TEST(WebKit, ToolbarVisible)
     auto delegate = adoptNS([[ToolbarDelegate alloc] init]);
     [webView setUIDelegate:delegate.get()];
     [webView synchronouslyLoadHTMLString:@"<script>alert('visible:' + window.toolbar.visible);alert('visible:' + window.toolbar.visible)</script>"];
+    TestWebKitAPI::Util::run(&done);
+}
+
+@interface MouseMoveOverElementDelegate : NSObject <WKUIDelegatePrivate>
+@end
+
+@implementation MouseMoveOverElementDelegate
+
+- (void)_webView:(WKWebView *)webview mouseDidMoveOverElement:(_WKHitTestResult *)hitTestResult withFlags:(NSEventModifierFlags)flags userInfo:(id <NSSecureCoding>)userInfo
+{
+    EXPECT_STREQ(hitTestResult.absoluteLinkURL.absoluteString.UTF8String, "http://example.com/path");
+    EXPECT_STREQ(hitTestResult.linkLabel.UTF8String, "link label");
+    EXPECT_STREQ(hitTestResult.linkTitle.UTF8String, "link title");
+    EXPECT_EQ(flags, NSEventModifierFlagShift);
+    done = true;
+}
+
+@end
+
+TEST(WebKit, MouseMoveOverElement)
+{
+    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600)]);
+    [webView setUIDelegate:[[[MouseMoveOverElementDelegate alloc] init] autorelease]];
+    [webView synchronouslyLoadHTMLString:@"<a href='http://example.com/path' title='link title'>link label</a>"];
+    [webView mouseMoveToPoint:NSMakePoint(20, 600 - 20) withFlags:NSEventModifierFlagShift];
     TestWebKitAPI::Util::run(&done);
 }
 
@@ -191,6 +522,77 @@ TEST(WebKit, ClickAutoFillButton)
     NSPoint buttonLocation = NSMakePoint(130, 575);
     [webView mouseDownAtPoint:buttonLocation simulatePressure:NO];
     [webView mouseUpAtPoint:buttonLocation];
+    TestWebKitAPI::Util::run(&done);
+}
+
+@interface AutoFillAvailableDelegate : NSObject <WKUIDelegatePrivate>
+@end
+
+@implementation AutoFillAvailableDelegate
+
+- (void)webView:(WKWebView *)webView runJavaScriptAlertPanelWithMessage:(NSString *)message initiatedByFrame:(WKFrameInfo *)frame completionHandler:(void (^)())completionHandler
+{
+    completionHandler();
+    ASSERT_STREQ(message.UTF8String, "autofill available");
+    done = true;
+}
+
+@end
+
+TEST(WebKit, AutoFillAvailable)
+{
+    WKWebViewConfiguration *configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"AutoFillAvailable"];
+
+    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration]);
+    auto delegate = adoptNS([[AutoFillAvailableDelegate alloc] init]);
+    [webView setUIDelegate:delegate.get()];
+    TestWebKitAPI::Util::run(&done);
+}
+
+@interface PinnedStateObserver : NSObject
+@end
+
+@implementation PinnedStateObserver
+
+- (void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary<NSString *, id> *)change context:(void *)context
+{
+    EXPECT_TRUE([keyPath isEqualToString:NSStringFromSelector(@selector(_pinnedState))]);
+    EXPECT_TRUE([[object class] isEqual:[TestWKWebView class]]);
+    EXPECT_EQ([[change objectForKey:NSKeyValueChangeOldKey] integerValue], _WKRectEdgeAll);
+    EXPECT_EQ([[change objectForKey:NSKeyValueChangeNewKey] integerValue], _WKRectEdgeLeft | _WKRectEdgeRight);
+    EXPECT_TRUE(context == nullptr);
+    done = true;
+}
+
+@end
+
+TEST(WebKit, PinnedState)
+{
+    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600)]);
+    auto observer = adoptNS([[PinnedStateObserver alloc] init]);
+    [webView addObserver:observer.get() forKeyPath:@"_pinnedState" options:NSKeyValueObservingOptionNew | NSKeyValueObservingOptionOld context:nil];
+    [webView loadHTMLString:@"<body onload='scroll(100, 100)' style='height:10000vh;'/>" baseURL:[NSURL URLWithString:@"http://example.com/"]];
+    TestWebKitAPI::Util::run(&done);
+}
+
+@interface DidScrollDelegate : NSObject <WKUIDelegatePrivate>
+@end
+
+@implementation DidScrollDelegate
+
+- (void)_webViewDidScroll:(WKWebView *)webView
+{
+    done = true;
+}
+
+@end
+
+TEST(WebKit, DidScroll)
+{
+    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600)]);
+    auto delegate = adoptNS([[DidScrollDelegate alloc] init]);
+    [webView setUIDelegate:delegate.get()];
+    [webView loadHTMLString:@"<body onload='scroll(100, 100)' style='height:10000vh;'/>" baseURL:[NSURL URLWithString:@"http://example.com/"]];
     TestWebKitAPI::Util::run(&done);
 }
 

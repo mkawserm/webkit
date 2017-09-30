@@ -113,7 +113,7 @@ inline JSPropertyNameEnumerator* propertyNameEnumerator(ExecState* exec, JSObjec
 
     uint32_t numberStructureProperties = 0;
 
-    PropertyNameArray propertyNames(exec, PropertyNameMode::Strings);
+    PropertyNameArray propertyNames(&vm, PropertyNameMode::Strings, PrivateSymbolMode::Exclude);
 
     if (structure->canAccessPropertiesQuicklyForEnumeration() && indexedLength == base->getArrayLength()) {
         base->methodTable(vm)->getStructurePropertyNames(base, exec, propertyNames, EnumerationMode());
@@ -133,11 +133,11 @@ inline JSPropertyNameEnumerator* propertyNameEnumerator(ExecState* exec, JSObjec
 
     ASSERT(propertyNames.size() < UINT32_MAX);
 
-    normalizePrototypeChain(exec, structure);
+    bool successfullyNormalizedChain = normalizePrototypeChain(exec, structure) != InvalidPrototypeChain;
 
     enumerator = JSPropertyNameEnumerator::create(vm, structure, indexedLength, numberStructureProperties, WTFMove(propertyNames));
     enumerator->setCachedPrototypeChain(vm, structure->prototypeChain(exec));
-    if (!indexedLength && structure->canCachePropertyNameEnumerator())
+    if (!indexedLength && successfullyNormalizedChain && structure->canCachePropertyNameEnumerator())
         structure->setCachedPropertyNameEnumerator(vm, enumerator);
     return enumerator;
 }

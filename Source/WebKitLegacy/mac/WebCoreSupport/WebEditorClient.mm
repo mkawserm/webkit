@@ -57,6 +57,7 @@
 #import <WebCore/Document.h>
 #import <WebCore/DocumentFragment.h>
 #import <WebCore/Editor.h>
+#import <WebCore/Event.h>
 #import <WebCore/FloatQuad.h>
 #import <WebCore/Frame.h>
 #import <WebCore/FrameView.h>
@@ -74,6 +75,7 @@
 #import <WebCore/UndoStep.h>
 #import <WebCore/UserTypingGestureIndicator.h>
 #import <WebCore/VisibleUnits.h>
+#import <WebCore/WebContentReader.h>
 #import <WebCore/WebCoreObjCExtras.h>
 #import <pal/spi/mac/NSSpellCheckerSPI.h>
 #import <runtime/InitializeThreading.h>
@@ -99,9 +101,11 @@ using namespace HTMLNames;
 @end
 #endif
 
+#if (PLATFORM(IOS) && __IPHONE_OS_VERSION_MIN_REQUIRED < 110000) || (PLATFORM(MAC) && __MAC_OS_X_VERSION_MIN_REQUIRED < 101300)
 @interface NSAttributedString (WebNSAttributedStringDetails)
 - (DOMDocumentFragment *)_documentFromRange:(NSRange)range document:(DOMDocument *)document documentAttributes:(NSDictionary *)attributes subresources:(NSArray **)subresources;
 @end
+#endif
 
 static WebViewInsertAction kit(EditorInsertAction action)
 {
@@ -191,7 +195,6 @@ static WebViewInsertAction kit(EditorInsertAction action)
 WebEditorClient::WebEditorClient(WebView *webView)
     : m_webView(webView)
     , m_undoTarget(adoptNS([[WebEditorUndoTarget alloc] init]))
-    , m_weakPtrFactory(this)
 {
 }
 
@@ -415,26 +418,21 @@ void WebEditorClient::getClientPasteboardDataForRange(WebCore::Range*, Vector<St
     // Not implemented WebKit, only WebKit2.
 }
 
-NSString *WebEditorClient::userVisibleString(NSURL *URL)
+#if (PLATFORM(IOS) && __IPHONE_OS_VERSION_MIN_REQUIRED >= 110000) || (PLATFORM(MAC) && __MAC_OS_X_VERSION_MIN_REQUIRED >= 101300)
+
+// FIXME: Remove both this stub and the real version of this function below once we don't need the real version on any supported platform.
+// This stub is not used outside WebKit, but it's here so we won't get a linker error.
+__attribute__((__noreturn__))
+void _WebCreateFragment(Document&, NSAttributedString *, FragmentAndResources&)
 {
-    return [URL _web_userVisibleString];
+    RELEASE_ASSERT_NOT_REACHED();
 }
 
-NSURL *WebEditorClient::canonicalizeURL(NSURL *URL)
-{
-    return [URL _webkit_canonicalize];
-}
-
-NSURL *WebEditorClient::canonicalizeURLString(NSString *URLString)
-{
-    NSURL *URL = nil;
-    if ([URLString _webkit_looksLikeAbsoluteURL])
-        URL = [[NSURL _webkit_URLWithUserTypedString:URLString] _webkit_canonicalize];
-    return URL;
-}
+#else
 
 static NSDictionary *attributesForAttributedStringConversion()
 {
+    // This function needs to be kept in sync with identically named one in WebCore, which is used on newer OS versions.
     NSArray *excludedElements = [[NSArray alloc] initWithObjects:
         // Omit style since we want style to be inline so the fragment can be easily inserted.
         @"style",
@@ -468,6 +466,8 @@ void _WebCreateFragment(Document& document, NSAttributedString *string, Fragment
     for (WebResource* resource in subresources)
         result.resources.append([resource _coreResource]);
 }
+
+#endif
 
 void WebEditorClient::setInsertionPasteboard(const String& pasteboardName)
 {
@@ -866,28 +866,6 @@ void WebEditorClient::textDidChangeInTextArea(Element* element)
 
 #if PLATFORM(IOS)
 
-void WebEditorClient::writeDataToPasteboard(NSDictionary* representation)
-{
-    if ([[m_webView _UIKitDelegateForwarder] respondsToSelector:@selector(writeDataToPasteboard:)])
-        [[m_webView _UIKitDelegateForwarder] writeDataToPasteboard:representation];
-}
-
-NSArray *WebEditorClient::supportedPasteboardTypesForCurrentSelection()
-{
-    if ([[m_webView _UIKitDelegateForwarder] respondsToSelector:@selector(supportedPasteboardTypesForCurrentSelection)]) 
-        return [[m_webView _UIKitDelegateForwarder] supportedPasteboardTypesForCurrentSelection]; 
-
-    return nil; 
-}
-
-NSArray *WebEditorClient::readDataFromPasteboard(NSString* type, int index)
-{
-    if ([[m_webView _UIKitDelegateForwarder] respondsToSelector:@selector(readDataFromPasteboard:withIndex:)])
-        return [[m_webView _UIKitDelegateForwarder] readDataFromPasteboard:type withIndex:index];
-    
-    return nil;
-}
-
 bool WebEditorClient::hasRichlyEditableSelection()
 {
     if ([[m_webView _UIKitDelegateForwarder] respondsToSelector:@selector(hasRichlyEditableSelection)])
@@ -929,14 +907,6 @@ bool WebEditorClient::performTwoStepDrop(DocumentFragment& fragment, Range& dest
         return [[m_webView _UIKitDelegateForwarder] performTwoStepDrop:kit(&fragment) atDestination:kit(&destination) isMove:isMove];
 
     return false;
-}
-
-int WebEditorClient::pasteboardChangeCount()
-{
-    if ([[m_webView _UIKitDelegateForwarder] respondsToSelector:@selector(getPasteboardChangeCount)])
-        return [[m_webView _UIKitDelegateForwarder] getPasteboardChangeCount];
-    
-    return 0;
 }
 
 Vector<TextCheckingResult> WebEditorClient::checkTextOfParagraph(StringView string, TextCheckingTypeMask checkingTypes, const VisibleSelection&)
@@ -1228,7 +1198,7 @@ void WebEditorClient::requestCandidatesForSelection(const VisibleSelection& sele
     m_paragraphContextForCandidateRequest = plainText(frame->editor().contextRangeForCandidateRequest().get());
 
     NSTextCheckingTypes checkingTypes = NSTextCheckingTypeSpelling | NSTextCheckingTypeReplacement | NSTextCheckingTypeCorrection;
-    auto weakEditor = m_weakPtrFactory.createWeakPtr();
+    auto weakEditor = m_weakPtrFactory.createWeakPtr(*this);
     m_lastCandidateRequestSequenceNumber = [[NSSpellChecker sharedSpellChecker] requestCandidatesForSelectedRange:m_rangeForCandidates inString:m_paragraphContextForCandidateRequest.get() types:checkingTypes options:nil inSpellDocumentWithTag:spellCheckerDocumentTag() completionHandler:[weakEditor](NSInteger sequenceNumber, NSArray<NSTextCheckingResult *> *candidates) {
         dispatch_async(dispatch_get_main_queue(), ^{
             if (!weakEditor)

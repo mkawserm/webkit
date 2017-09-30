@@ -39,8 +39,8 @@ BooleanConstructor::BooleanConstructor(VM& vm, Structure* structure)
 void BooleanConstructor::finishCreation(VM& vm, BooleanPrototype* booleanPrototype)
 {
     Base::finishCreation(vm, booleanPrototype->classInfo()->className);
-    putDirectWithoutTransition(vm, vm.propertyNames->prototype, booleanPrototype, DontEnum | DontDelete | ReadOnly);
-    putDirectWithoutTransition(vm, vm.propertyNames->length, jsNumber(1), ReadOnly | DontEnum);
+    putDirectWithoutTransition(vm, vm.propertyNames->prototype, booleanPrototype, PropertyAttribute::DontEnum | PropertyAttribute::DontDelete | PropertyAttribute::ReadOnly);
+    putDirectWithoutTransition(vm, vm.propertyNames->length, jsNumber(1), PropertyAttribute::ReadOnly | PropertyAttribute::DontEnum);
 }
 
 // ECMA 15.6.2
@@ -76,8 +76,9 @@ CallType BooleanConstructor::getCallData(JSCell*, CallData& callData)
 
 JSObject* constructBooleanFromImmediateBoolean(ExecState* exec, JSGlobalObject* globalObject, JSValue immediateBooleanValue)
 {
-    BooleanObject* obj = BooleanObject::create(exec->vm(), globalObject->booleanObjectStructure());
-    obj->setInternalValue(exec->vm(), immediateBooleanValue);
+    VM& vm = exec->vm();
+    BooleanObject* obj = BooleanObject::create(vm, globalObject->booleanObjectStructure());
+    obj->setInternalValue(vm, immediateBooleanValue);
     return obj;
 }
 

@@ -31,7 +31,6 @@
 #include "Document.h"
 #include "FontCache.h"
 #include "FrameView.h"
-#include "Language.h"
 #include "LocaleToScriptMapping.h"
 #include "MainFrame.h"
 #include "Page.h"
@@ -40,7 +39,7 @@
 #include "RuntimeEnabledFeatures.h"
 #include "Settings.h"
 #include "Supplementable.h"
-#include "TextRun.h"
+#include <wtf/Language.h>
 
 #if ENABLE(INPUT_TYPE_COLOR)
 #include "ColorChooser.h"
@@ -110,10 +109,12 @@ InternalSettings::Backup::Backup(Settings& settings)
 #if ENABLE(WEBGPU)
     , m_webGPUEnabled(RuntimeEnabledFeatures::sharedFeatures().webGPUEnabled())
 #endif
+    , m_webVREnabled(RuntimeEnabledFeatures::sharedFeatures().webVREnabled())
     , m_shouldMockBoldSystemFontForAccessibility(RenderTheme::singleton().shouldMockBoldSystemFontForAccessibility())
 #if USE(AUDIO_SESSION)
     , m_shouldManageAudioSessionCategory(Settings::shouldManageAudioSessionCategory())
 #endif
+    , m_customPasteboardDataEnabled(Settings::customPasteboardDataEnabled())
 {
 }
 
@@ -205,10 +206,12 @@ void InternalSettings::Backup::restoreTo(Settings& settings)
 #if ENABLE(WEBGPU)
     RuntimeEnabledFeatures::sharedFeatures().setWebGPUEnabled(m_webGPUEnabled);
 #endif
+    RuntimeEnabledFeatures::sharedFeatures().setWebVREnabled(m_webVREnabled);
 
 #if USE(AUDIO_SESSION)
     Settings::setShouldManageAudioSessionCategory(m_shouldManageAudioSessionCategory);
 #endif
+    Settings::setCustomPasteboardDataEnabled(m_customPasteboardDataEnabled);
 }
 
 class InternalSettingsWrapper : public Supplement<Page> {
@@ -731,6 +734,11 @@ void InternalSettings::setWebGPUEnabled(bool enabled)
 #endif
 }
 
+void InternalSettings::setWebVREnabled(bool enabled)
+{
+    RuntimeEnabledFeatures::sharedFeatures().setWebVREnabled(enabled);
+}
+
 ExceptionOr<String> InternalSettings::userInterfaceDirectionPolicy()
 {
     if (!m_page)
@@ -844,6 +852,12 @@ ExceptionOr<void> InternalSettings::setShouldManageAudioSessionCategory(bool sho
     UNUSED_PARAM(should);
     return Exception { InvalidAccessError };
 #endif
+}
+
+ExceptionOr<void> InternalSettings::setCustomPasteboardDataEnabled(bool enabled)
+{
+    Settings::setCustomPasteboardDataEnabled(enabled);
+    return { };
 }
 
 static InternalSettings::ForcedAccessibilityValue settingsToInternalSettingsValue(Settings::ForcedAccessibilityValue value)

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 Apple Inc. All rights reserved.
+ * Copyright (C) 2016-2017 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -74,15 +74,15 @@ static float toNSURLSessionTaskPriority(WebCore::ResourceLoadPriority priority)
     return NSURLSessionTaskPriorityDefault;
 }
 
-NetworkDataTaskCocoa::NetworkDataTaskCocoa(NetworkSession& session, NetworkDataTaskClient& client, const WebCore::ResourceRequest& requestWithCredentials, WebCore::StoredCredentials storedCredentials, WebCore::ContentSniffingPolicy shouldContentSniff, bool shouldClearReferrerOnHTTPSToHTTPRedirect)
-    : NetworkDataTask(session, client, requestWithCredentials, storedCredentials, shouldClearReferrerOnHTTPSToHTTPRedirect)
+NetworkDataTaskCocoa::NetworkDataTaskCocoa(NetworkSession& session, NetworkDataTaskClient& client, const WebCore::ResourceRequest& requestWithCredentials, WebCore::StoredCredentialsPolicy storedCredentialsPolicy, WebCore::ContentSniffingPolicy shouldContentSniff, bool shouldClearReferrerOnHTTPSToHTTPRedirect, PreconnectOnly shouldPreconnectOnly)
+    : NetworkDataTask(session, client, requestWithCredentials, storedCredentialsPolicy, shouldClearReferrerOnHTTPSToHTTPRedirect)
 {
     if (m_scheduledFailureType != NoFailure)
         return;
 
     auto request = requestWithCredentials;
     auto url = request.url();
-    if (storedCredentials == WebCore::AllowStoredCredentials && url.protocolIsInHTTPFamily()) {
+    if (storedCredentialsPolicy == WebCore::StoredCredentialsPolicy::Use && url.protocolIsInHTTPFamily()) {
         m_user = url.user();
         m_password = url.pass();
         request.removeCredentials();
@@ -111,22 +111,38 @@ NetworkDataTaskCocoa::NetworkDataTaskCocoa(NetworkSession& session, NetworkDataT
     }
 
     auto& cocoaSession = static_cast<NetworkSessionCocoa&>(m_session.get());
-    if (storedCredentials == WebCore::AllowStoredCredentials) {
+    if (session.networkStorageSession().shouldBlockCookies(request)) {
+        storedCredentialsPolicy = WebCore::StoredCredentialsPolicy::DoNotUse;
+        m_storedCredentialsPolicy = WebCore::StoredCredentialsPolicy::DoNotUse;
+    }
+
+    if (storedCredentialsPolicy == WebCore::StoredCredentialsPolicy::Use) {
         m_task = [cocoaSession.m_sessionWithCredentialStorage dataTaskWithRequest:nsRequest];
         ASSERT(!cocoaSession.m_dataTaskMapWithCredentials.contains([m_task taskIdentifier]));
         cocoaSession.m_dataTaskMapWithCredentials.add([m_task taskIdentifier], this);
+        LOG(NetworkSession, "%llu Creating stateless NetworkDataTask with URL %s", [m_task taskIdentifier], nsRequest.URL.absoluteString.UTF8String);
     } else {
-        m_task = [cocoaSession.m_sessionWithoutCredentialStorage dataTaskWithRequest:nsRequest];
-        ASSERT(!cocoaSession.m_dataTaskMapWithoutCredentials.contains([m_task taskIdentifier]));
-        cocoaSession.m_dataTaskMapWithoutCredentials.add([m_task taskIdentifier], this);
+        m_task = [cocoaSession.m_statelessSession dataTaskWithRequest:nsRequest];
+        ASSERT(!cocoaSession.m_dataTaskMapWithoutState.contains([m_task taskIdentifier]));
+        cocoaSession.m_dataTaskMapWithoutState.add([m_task taskIdentifier], this);
+        LOG(NetworkSession, "%llu Creating NetworkDataTask with URL %s", [m_task taskIdentifier], nsRequest.URL.absoluteString.UTF8String);
     }
-    LOG(NetworkSession, "%llu Creating NetworkDataTask with URL %s", [m_task taskIdentifier], nsRequest.URL.absoluteString.UTF8String);
+
+    if (shouldPreconnectOnly == PreconnectOnly::Yes) {
+#if ENABLE(SERVER_PRECONNECT)
+        m_task.get()._preconnect = true;
+#else
+        ASSERT_NOT_REACHED();
+#endif
+    }
 
 #if HAVE(CFNETWORK_STORAGE_PARTITIONING)
-    String storagePartition = session.networkStorageSession().cookieStoragePartition(request);
-    if (!storagePartition.isEmpty()) {
-        LOG(NetworkSession, "%llu Partitioning cookies for URL %s", [m_task taskIdentifier], nsRequest.URL.absoluteString.UTF8String);
-        m_task.get()._storagePartitionIdentifier = storagePartition;
+    if (storedCredentialsPolicy == WebCore::StoredCredentialsPolicy::Use) {
+        String storagePartition = session.networkStorageSession().cookieStoragePartition(request);
+        if (!storagePartition.isEmpty()) {
+            LOG(NetworkSession, "%llu Partitioning cookies for URL %s", [m_task taskIdentifier], nsRequest.URL.absoluteString.UTF8String);
+            m_task.get()._storagePartitionIdentifier = storagePartition;
+        }
     }
 #endif
 
@@ -140,12 +156,12 @@ NetworkDataTaskCocoa::~NetworkDataTaskCocoa()
         return;
 
     auto& cocoaSession = static_cast<NetworkSessionCocoa&>(m_session.get());
-    if (m_storedCredentials == WebCore::StoredCredentials::AllowStoredCredentials) {
+    if (m_storedCredentialsPolicy == WebCore::StoredCredentialsPolicy::Use) {
         ASSERT(cocoaSession.m_dataTaskMapWithCredentials.get([m_task taskIdentifier]) == this);
         cocoaSession.m_dataTaskMapWithCredentials.remove([m_task taskIdentifier]);
     } else {
-        ASSERT(cocoaSession.m_dataTaskMapWithoutCredentials.get([m_task taskIdentifier]) == this);
-        cocoaSession.m_dataTaskMapWithoutCredentials.remove([m_task taskIdentifier]);
+        ASSERT(cocoaSession.m_dataTaskMapWithoutState.get([m_task taskIdentifier]) == this);
+        cocoaSession.m_dataTaskMapWithoutState.remove([m_task taskIdentifier]);
     }
 }
 
@@ -157,13 +173,6 @@ void NetworkDataTaskCocoa::didSendData(uint64_t totalBytesSent, uint64_t totalBy
 
 void NetworkDataTaskCocoa::didReceiveChallenge(const WebCore::AuthenticationChallenge& challenge, ChallengeCompletionHandler&& completionHandler)
 {
-    // Proxy authentication is handled by CFNetwork internally. We can get here if the user cancels
-    // CFNetwork authentication dialog, and we shouldn't ask the client to display another one in that case.
-    if (challenge.protectionSpace().isProxy()) {
-        completionHandler(AuthenticationChallengeDisposition::UseCredential, { });
-        return;
-    }
-
     if (tryPasswordBasedAuthentication(challenge, completionHandler))
         return;
 
@@ -260,7 +269,7 @@ bool NetworkDataTaskCocoa::tryPasswordBasedAuthentication(const WebCore::Authent
         return false;
     
     if (!m_user.isNull() && !m_password.isNull()) {
-        auto persistence = m_storedCredentials == WebCore::StoredCredentials::AllowStoredCredentials ? WebCore::CredentialPersistenceForSession : WebCore::CredentialPersistenceNone;
+        auto persistence = m_storedCredentialsPolicy == WebCore::StoredCredentialsPolicy::Use ? WebCore::CredentialPersistenceForSession : WebCore::CredentialPersistenceNone;
         completionHandler(AuthenticationChallengeDisposition::UseCredential, WebCore::Credential(m_user, m_password, persistence));
         m_user = String();
         m_password = String();
@@ -268,7 +277,7 @@ bool NetworkDataTaskCocoa::tryPasswordBasedAuthentication(const WebCore::Authent
     }
 
 #if USE(CREDENTIAL_STORAGE_WITH_NETWORK_SESSION)
-    if (m_storedCredentials == WebCore::AllowStoredCredentials) {
+    if (m_storedCredentialsPolicy == WebCore::StoredCredentialsPolicy::Use) {
         if (!m_initialCredential.isEmpty() || challenge.previousFailureCount()) {
             // The stored credential wasn't accepted, stop using it.
             // There is a race condition here, since a different credential might have already been stored by another ResourceHandle,
@@ -302,53 +311,6 @@ bool NetworkDataTaskCocoa::tryPasswordBasedAuthentication(const WebCore::Authent
 void NetworkDataTaskCocoa::transferSandboxExtensionToDownload(Download& download)
 {
     download.setSandboxExtension(WTFMove(m_sandboxExtension));
-}
-
-#if !USE(CFURLCONNECTION)
-static bool certificatesMatch(SecTrustRef trust1, SecTrustRef trust2)
-{
-    if (!trust1 || !trust2)
-        return false;
-
-    CFIndex count1 = SecTrustGetCertificateCount(trust1);
-    CFIndex count2 = SecTrustGetCertificateCount(trust2);
-    if (count1 != count2)
-        return false;
-
-    for (CFIndex i = 0; i < count1; i++) {
-        auto cert1 = SecTrustGetCertificateAtIndex(trust1, i);
-        auto cert2 = SecTrustGetCertificateAtIndex(trust2, i);
-        RELEASE_ASSERT(cert1);
-        RELEASE_ASSERT(cert2);
-        if (!CFEqual(cert1, cert2))
-            return false;
-    }
-
-    return true;
-}
-#endif
-
-bool NetworkDataTaskCocoa::allowsSpecificHTTPSCertificateForHost(const WebCore::AuthenticationChallenge& challenge)
-{
-    const String& host = challenge.protectionSpace().host();
-    NSArray *certificates = [NSURLRequest allowsSpecificHTTPSCertificateForHost:host];
-    if (!certificates)
-        return false;
-    
-    bool requireServerCertificates = challenge.protectionSpace().authenticationScheme() == WebCore::ProtectionSpaceAuthenticationScheme::ProtectionSpaceAuthenticationSchemeServerTrustEvaluationRequested;
-    RetainPtr<SecPolicyRef> policy = adoptCF(SecPolicyCreateSSL(requireServerCertificates, host.createCFString().get()));
-    
-    SecTrustRef trustRef = nullptr;
-    if (SecTrustCreateWithCertificates((CFArrayRef)certificates, policy.get(), &trustRef) != noErr)
-        return false;
-    RetainPtr<SecTrustRef> trust = adoptCF(trustRef);
-
-#if USE(CFURLCONNECTION)
-    notImplemented();
-    return false;
-#else
-    return certificatesMatch(trust.get(), challenge.nsURLAuthenticationChallenge().protectionSpace.serverTrust);
-#endif
 }
 
 String NetworkDataTaskCocoa::suggestedFilename() const

@@ -273,13 +273,8 @@ void PageClientImpl::didFinishLoadingDataForCustomContentProvider(const String& 
 {
 }
 
-void PageClientImpl::handleDownloadRequest(DownloadProxy* download)
+void PageClientImpl::handleDownloadRequest(DownloadProxy*)
 {
-    ASSERT_ARG(download, download);
-#if WK_API_ENABLED
-    ASSERT([download->wrapper() isKindOfClass:[_WKDownload class]]);
-    [static_cast<_WKDownload *>(download->wrapper()) setOriginatingWebView:m_webView];
-#endif
 }
 
 void PageClientImpl::didChangeContentSize(const WebCore::IntSize& newSize)
@@ -402,6 +397,20 @@ FloatRect PageClientImpl::convertToUserSpace(const FloatRect& rect)
     return toUserSpace(rect, [m_view window]);
 }
 
+void PageClientImpl::pinnedStateWillChange()
+{
+#if WK_API_ENABLED
+    [m_webView willChangeValueForKey:@"_pinnedState"];
+#endif
+}
+
+void PageClientImpl::pinnedStateDidChange()
+{
+#if WK_API_ENABLED
+    [m_webView didChangeValueForKey:@"_pinnedState"];
+#endif
+}
+    
 IntPoint PageClientImpl::screenToRootView(const IntPoint& point)
 {
 #pragma clang diagnostic push

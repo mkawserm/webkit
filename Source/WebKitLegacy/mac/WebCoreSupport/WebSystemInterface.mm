@@ -42,57 +42,12 @@ void InitWebCoreSystemInterface(void)
     if (didInit)
         return;
 
-    INIT(CopyCONNECTProxyResponse);
 #if !PLATFORM(IOS)
-    INIT(DrawBezeledTextArea);
     INIT(DrawMediaUIPart);
     INIT(DrawMediaSliderTrack);
     INIT(HitTestMediaUIPart);
     INIT(MeasureMediaUIPart);
-    INIT(CreateMediaUIBackgroundView);
-    INIT(CreateMediaUIControl);
 #endif
-    INIT(SetCONNECTProxyAuthorizationForStream);
-    INIT(SetCONNECTProxyForStream);
-#if ENABLE(VIDEO) && !PLATFORM(IOS)
-    INIT(QTIncludeOnlyModernMediaFileTypes);
-    INIT(QTMovieDisableComponent);
-    INIT(QTMovieMaxTimeLoaded);
-    INIT(QTMovieMaxTimeLoadedChangeNotification);
-    INIT(QTMovieGetType);
-    INIT(QTMovieHasClosedCaptions);
-    INIT(QTMovieResolvedURL);
-    INIT(QTMovieSetShowClosedCaptions);
-    INIT(QTMovieSelectPreferredAlternates);
-    INIT(QTGetSitesInMediaDownloadCache);
-    INIT(QTClearMediaDownloadCacheForSite);
-    INIT(QTClearMediaDownloadCache);
-#endif
-
-#if !PLATFORM(IOS)
-    INIT(ExecutableWasLinkedOnOrBeforeSnowLeopard);
-    INIT(CopyDefaultSearchProviderDisplayName);
-    INIT(Cursor);
-    INIT(SpeechSynthesisGetVoiceIdentifiers);
-    INIT(SpeechSynthesisGetDefaultVoiceIdentifierForLocale);
-#endif
-
-#if !PLATFORM(IOS)
-    INIT(NSElasticDeltaForTimeDelta);
-    INIT(NSElasticDeltaForReboundDelta);
-    INIT(NSReboundDeltaForElasticDelta);
-#endif
-
-#if ENABLE(PUBLIC_SUFFIX_LIST)
-    INIT(IsPublicSuffix);
-#endif
-
-    INIT(CachePartitionKey);
-
-    INIT(ExernalDeviceTypeForPlayer);
-    INIT(ExernalDeviceDisplayNameForPlayer);
-
-    INIT(QueryDecoderAvailability);
 
     didInit = true;
 }

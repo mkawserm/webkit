@@ -166,10 +166,8 @@ void JIT_OPERATION OSRExit::compileOSRExit(ExecState* exec)
     uint32_t exitIndex = vm->osrExitIndex;
     OSRExit& exit = codeBlock->jitCode()->dfg()->osrExit[exitIndex];
 
-    if (vm->callFrameForCatch)
-        ASSERT(exit.m_kind == GenericUnwind);
-    if (exit.isExceptionHandler())
-        ASSERT_UNUSED(scope, !!scope.exception());
+    ASSERT(!vm->callFrameForCatch || exit.m_kind == GenericUnwind);
+    EXCEPTION_ASSERT_UNUSED(scope, !!scope.exception() || !exit.isExceptionHandler());
     
     prepareCodeOriginForOSRExit(exec, exit.m_codeOrigin);
 

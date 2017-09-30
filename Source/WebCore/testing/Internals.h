@@ -77,6 +77,7 @@ class RTCPeerConnection;
 class SVGSVGElement;
 class SerializedScriptValue;
 class SourceBuffer;
+class StringCallback;
 class StyleSheet;
 class TimeRanges;
 class TypeConversions;
@@ -538,6 +539,7 @@ public:
 
     String resourceLoadStatisticsForOrigin(const String& origin);
     void setResourceLoadStatisticsEnabled(bool);
+    void setUserGrantsStorageAccess(bool);
 
 #if ENABLE(STREAMS_API)
     bool isReadableStreamDisturbed(JSC::ExecState&, JSC::JSValue);
@@ -599,7 +601,10 @@ public:
 
     String audioSessionCategory() const;
 
-    void clearCacheStorageMemoryRepresentation();
+    void clearCacheStorageMemoryRepresentation(DOMPromiseDeferred<void>&&);
+    void cacheStorageEngineRepresentation(DOMPromiseDeferred<IDLDOMString>&&);
+
+    void setConsoleMessageListener(RefPtr<StringCallback>&&);
 
 private:
     explicit Internals(Document&);

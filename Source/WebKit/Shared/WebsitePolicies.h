@@ -25,8 +25,11 @@
 
 #pragma once
 
+#include <WebCore/HTTPHeaderField.h>
+#include <wtf/EnumTraits.h>
 #include <wtf/OptionSet.h>
 #include <wtf/Optional.h>
+#include <wtf/Vector.h>
 
 namespace WebKit {
 
@@ -47,33 +50,66 @@ struct WebsitePolicies {
     bool contentBlockersEnabled { true };
     OptionSet<WebsiteAutoplayQuirk> allowedAutoplayQuirks;
     WebsiteAutoplayPolicy autoplayPolicy { WebsiteAutoplayPolicy::Default };
+    Vector<WebCore::HTTPHeaderField> customHeaderFields;
 
     template<class Encoder> void encode(Encoder&) const;
     template<class Decoder> static std::optional<WebsitePolicies> decode(Decoder&);
 };
 
+} // namespace WebKit
+
+namespace WTF {
+
+template<> struct EnumTraits<WebKit::WebsiteAutoplayPolicy> {
+    using values = EnumValues<
+        WebKit::WebsiteAutoplayPolicy,
+        WebKit::WebsiteAutoplayPolicy::Default,
+        WebKit::WebsiteAutoplayPolicy::Allow,
+        WebKit::WebsiteAutoplayPolicy::AllowWithoutSound,
+        WebKit::WebsiteAutoplayPolicy::Deny
+    >;
+};
+
+} // namespace WTF
+
+namespace WebKit {
+
 template<class Encoder> void WebsitePolicies::encode(Encoder& encoder) const
 {
     encoder << contentBlockersEnabled;
-    encoder.encodeEnum(autoplayPolicy);
+    encoder << autoplayPolicy;
     encoder << allowedAutoplayQuirks;
+    encoder << customHeaderFields;
 }
 
 template<class Decoder> std::optional<WebsitePolicies> WebsitePolicies::decode(Decoder& decoder)
 {
-    bool contentBlockersEnabled;
-    if (!decoder.decode(contentBlockersEnabled))
+    std::optional<bool> contentBlockersEnabled;
+    decoder >> contentBlockersEnabled;
+    if (!contentBlockersEnabled)
         return std::nullopt;
     
-    WebsiteAutoplayPolicy autoplayPolicy;
-    if (!decoder.decodeEnum(autoplayPolicy))
+    std::optional<WebsiteAutoplayPolicy> autoplayPolicy;
+    decoder >> autoplayPolicy;
+    if (!autoplayPolicy)
         return std::nullopt;
 
-    OptionSet<WebsiteAutoplayQuirk> allowedAutoplayQuirks;
-    if (!decoder.decode(allowedAutoplayQuirks))
+    std::optional<OptionSet<WebsiteAutoplayQuirk>> allowedAutoplayQuirks;
+    decoder >> allowedAutoplayQuirks;
+    if (!allowedAutoplayQuirks)
+        return std::nullopt;
+    
+    std::optional<Vector<WebCore::HTTPHeaderField>> customHeaderFields;
+    decoder >> customHeaderFields;
+    if (!customHeaderFields)
         return std::nullopt;
 
-    return { { contentBlockersEnabled, allowedAutoplayQuirks, autoplayPolicy } };
+    return { {
+        WTFMove(*contentBlockersEnabled),
+        WTFMove(*allowedAutoplayQuirks),
+        WTFMove(*autoplayPolicy),
+        WTFMove(*customHeaderFields),
+    } };
 }
 
 } // namespace WebKit

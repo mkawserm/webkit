@@ -43,8 +43,10 @@
 #import "LoaderNSURLExtras.h"
 #import "MIMETypeRegistry.h"
 #import "PasteboardStrategy.h"
+#import "PlatformPasteboard.h"
 #import "PlatformStrategies.h"
 #import "RenderImage.h"
+#import "Settings.h"
 #import "Text.h"
 #import "URL.h"
 #import "UTIUtilities.h"
@@ -68,24 +70,6 @@ const char WebSmartPastePboardType[] = "NeXT smart paste pasteboard type";
 const char WebURLPboardType[] = "public.url";
 const char WebURLsWithTitlesPboardType[] = "WebURLsWithTitlesPboardType";
 
-// Making this non-inline so that WebKit 2's decoding doesn't have to include SharedBuffer.h.
-PasteboardWebContent::PasteboardWebContent()
-{
-}
-
-PasteboardWebContent::~PasteboardWebContent()
-{
-}
-
-// Making this non-inline so that WebKit 2's decoding doesn't have to include Image.h.
-PasteboardImage::PasteboardImage()
-{
-}
-
-PasteboardImage::~PasteboardImage()
-{
-}
-
 static const Vector<String> writableTypesForURL()
 {
     Vector<String> types;
@@ -105,6 +89,11 @@ static Vector<String> writableTypesForImage()
     types.appendVector(writableTypesForURL());
     types.append(String(NSRTFDPboardType));
     return types;
+}
+
+long Pasteboard::changeCount() const
+{
+    return platformStrategies()->pasteboardStrategy()->changeCount(m_pasteboardName);
 }
 
 NSArray *Pasteboard::supportedFileUploadPasteboardTypes()
@@ -131,11 +120,6 @@ std::unique_ptr<Pasteboard> Pasteboard::createForCopyAndPaste()
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
     return std::make_unique<Pasteboard>(NSGeneralPboard);
 #pragma clang diagnostic pop
-}
-
-std::unique_ptr<Pasteboard> Pasteboard::createPrivate()
-{
-    return std::make_unique<Pasteboard>(platformStrategies()->pasteboardStrategy()->uniqueName());
 }
 
 #if ENABLE(DRAG_SUPPORT)
@@ -193,6 +177,11 @@ void Pasteboard::write(const PasteboardWebContent& content)
         m_changeCount = platformStrategies()->pasteboardStrategy()->setStringForType(content.dataInHTMLFormat, NSHTMLPboardType, m_pasteboardName);
     if (!content.dataInStringFormat.isNull())
         m_changeCount = platformStrategies()->pasteboardStrategy()->setStringForType(content.dataInStringFormat, NSStringPboardType, m_pasteboardName);
+}
+
+void Pasteboard::writeCustomData(const PasteboardCustomData& data)
+{
+    m_changeCount = platformStrategies()->pasteboardStrategy()->writeCustomData(data, m_pasteboardName);
 }
 
 void Pasteboard::writePlainText(const String& text, SmartReplaceOption smartReplaceOption)
@@ -291,11 +280,6 @@ void Pasteboard::write(const PasteboardImage& pasteboardImage)
     if (pasteboardImage.dataInWebArchiveFormat)
         m_changeCount = platformStrategies()->pasteboardStrategy()->setBufferForType(pasteboardImage.dataInWebArchiveFormat.get(), WebArchivePboardType, m_pasteboardName);
     writeFileWrapperAsRTFDAttachment(fileWrapper(pasteboardImage), m_pasteboardName, m_changeCount);
-}
-
-void Pasteboard::writePasteboard(const Pasteboard& pasteboard)
-{
-    m_changeCount = platformStrategies()->pasteboardStrategy()->copy(pasteboard.m_pasteboardName, m_pasteboardName);
 }
 
 bool Pasteboard::canSmartReplace()
@@ -465,12 +449,9 @@ bool Pasteboard::hasData()
 
 static String cocoaTypeFromHTMLClipboardType(const String& type)
 {
-    // Ignore any trailing charset - strings are already UTF-16, and the charset issue has already been dealt with.
-    if (type == "text/plain")
-        return NSStringPboardType;
-    if (type == "text/uri-list") {
-        // Special case because UTI doesn't work with Cocoa's URL type.
-        return NSURLPboardType;
+    if (NSString *platformType = PlatformPasteboard::platformPasteboardTypeForSafeTypeForDOMToReadAndWrite(type)) {
+        if (platformType.length)
+            return platformType;
     }
 
     // Blacklist types that might contain subframe information.
@@ -512,54 +493,36 @@ static Vector<String> absoluteURLsFromPasteboardFilenames(const String& pasteboa
     return urls;
 }
 
-static Vector<String> absoluteURLsFromPasteboard(const String& pasteboardName, bool onlyFirstURL = false)
+static String readPlatformValueAsString(const String& domType, long changeCount, const String& pasteboardName)
 {
-    // NOTE: We must always check [availableTypes containsObject:] before accessing pasteboard data
-    // or CoreFoundation will printf when there is not data of the corresponding type.
-    Vector<String> availableTypes;
-    Vector<String> absoluteURLs;
-    platformStrategies()->pasteboardStrategy()->getTypes(availableTypes, pasteboardName);
-
-    // Try NSFilenamesPboardType because it contains a list
-    if (availableTypes.contains(String(NSFilenamesPboardType))) {
-        absoluteURLs = absoluteURLsFromPasteboardFilenames(pasteboardName, onlyFirstURL);
-        if (!absoluteURLs.isEmpty())
-            return absoluteURLs;
-    }
-
-    // Fallback to NSURLPboardType (which is a single URL)
-    if (availableTypes.contains(String(NSURLPboardType))) {
-        absoluteURLs.append(platformStrategies()->pasteboardStrategy()->stringForType(String(NSURLPboardType), pasteboardName));
-        return absoluteURLs;
-    }
-
-    // No file paths on the pasteboard, return nil
-    return Vector<String>();
-}
-
-String Pasteboard::readString(const String& type)
-{
-    const String& cocoaType = cocoaTypeFromHTMLClipboardType(type);
+    const String& cocoaType = cocoaTypeFromHTMLClipboardType(domType);
     String cocoaValue;
 
-    // Grab the value off the pasteboard corresponding to the cocoaType
-    if (cocoaType == String(NSURLPboardType)) {
-        // "url" and "text/url-list" both map to NSURLPboardType in cocoaTypeFromHTMLClipboardType(), "url" only wants the first URL
-        bool onlyFirstURL = equalLettersIgnoringASCIICase(type, "url");
-        Vector<String> absoluteURLs = absoluteURLsFromPasteboard(m_pasteboardName, onlyFirstURL);
-        for (size_t i = 0; i < absoluteURLs.size(); i++)
-            cocoaValue = i ? "\n" + absoluteURLs[i]: absoluteURLs[i];
-    } else if (cocoaType == String(NSStringPboardType))
-        cocoaValue = [platformStrategies()->pasteboardStrategy()->stringForType(cocoaType, m_pasteboardName) precomposedStringWithCanonicalMapping];
+    if (cocoaType == String(NSStringPboardType))
+        cocoaValue = [platformStrategies()->pasteboardStrategy()->stringForType(cocoaType, pasteboardName) precomposedStringWithCanonicalMapping];
     else if (!cocoaType.isEmpty())
-        cocoaValue = platformStrategies()->pasteboardStrategy()->stringForType(cocoaType, m_pasteboardName);
+        cocoaValue = platformStrategies()->pasteboardStrategy()->stringForType(cocoaType, pasteboardName);
 
     // Enforce changeCount ourselves for security.  We check after reading instead of before to be
     // sure it doesn't change between our testing the change count and accessing the data.
-    if (!cocoaValue.isEmpty() && m_changeCount == platformStrategies()->pasteboardStrategy()->changeCount(m_pasteboardName))
+    if (!cocoaValue.isEmpty() && changeCount == platformStrategies()->pasteboardStrategy()->changeCount(pasteboardName))
         return cocoaValue;
 
     return String();
+}
+
+String Pasteboard::readStringForBindings(const String& type)
+{
+    if (!Settings::customPasteboardDataEnabled() || isSafeTypeForDOMToReadAndWrite(type))
+        return readPlatformValueAsString(type, m_changeCount, m_pasteboardName);
+
+    if (auto buffer = platformStrategies()->pasteboardStrategy()->bufferForType(customWebKitPasteboardDataType, m_pasteboardName)) {
+        NSString *customDataValue = customDataFromSharedBuffer(*buffer).sameOriginCustomData.get(type);
+        if (customDataValue.length)
+            return customDataValue;
+    }
+
+    return { };
 }
 
 static String utiTypeFromCocoaType(const String& type)
@@ -573,6 +536,9 @@ static String utiTypeFromCocoaType(const String& type)
 
 static void addHTMLClipboardTypesForCocoaType(ListHashSet<String>& resultTypes, const String& cocoaType, const String& pasteboardName)
 {
+    if (cocoaType == "NeXT plain ascii pasteboard type")
+        return; // Skip this ancient type that gets auto-supplied by some system conversion.
+
     // UTI may not do these right, so make sure we get the right, predictable result
     if (cocoaType == String(NSStringPboardType) || cocoaType == String(NSPasteboardTypeString)) {
         resultTypes.add(ASCIILiteral("text/plain"));
@@ -588,12 +554,12 @@ static void addHTMLClipboardTypesForCocoaType(ListHashSet<String>& resultTypes, 
         // However, this is not really an issue for us doing a sanity check here.
         Vector<String> fileList;
         platformStrategies()->pasteboardStrategy()->getPathnamesForType(fileList, String(NSFilenamesPboardType), pasteboardName);
-        if (!fileList.isEmpty()) {
-            // It is unknown if NSFilenamesPboardType always implies NSURLPboardType in Cocoa,
-            // but NSFilenamesPboardType should imply both 'text/uri-list' and 'Files'
-            resultTypes.add(ASCIILiteral("text/uri-list"));
+        if (!fileList.isEmpty())
             resultTypes.add(ASCIILiteral("Files"));
-        }
+        return;
+    }
+    if (Pasteboard::shouldTreatCocoaTypeAsFile(cocoaType)) {
+        resultTypes.add(ASCIILiteral("Files"));
         return;
     }
     String utiType = utiTypeFromCocoaType(cocoaType);
@@ -632,25 +598,25 @@ void Pasteboard::writeString(const String& type, const String& data)
     }
 }
 
-Vector<String> Pasteboard::types()
+Vector<String> Pasteboard::typesForBindings()
 {
     Vector<String> types;
-    platformStrategies()->pasteboardStrategy()->getTypes(types, m_pasteboardName);
+    if (Settings::customPasteboardDataEnabled())
+        types = platformStrategies()->pasteboardStrategy()->typesSafeForDOMToReadAndWrite(m_pasteboardName);
+    else
+        platformStrategies()->pasteboardStrategy()->getTypes(types, m_pasteboardName);
 
     // Enforce changeCount ourselves for security. We check after reading instead of before to be
     // sure it doesn't change between our testing the change count and accessing the data.
     if (m_changeCount != platformStrategies()->pasteboardStrategy()->changeCount(m_pasteboardName))
-        return Vector<String>();
+        return { };
+
+    if (Settings::customPasteboardDataEnabled())
+        return types;
 
     ListHashSet<String> result;
-    // FIXME: This loop could be split into two stages. One which adds all the HTML5 specified types
-    // and a second which adds all the extra types from the cocoa clipboard (which is Mac-only behavior).
-    for (size_t i = 0; i < types.size(); i++) {
-        if (types[i] == "NeXT plain ascii pasteboard type")
-            continue;   // skip this ancient type that gets auto-supplied by some system conversion
-
-        addHTMLClipboardTypesForCocoaType(result, types[i], m_pasteboardName);
-    }
+    for (auto& cocoaType : types)
+        addHTMLClipboardTypesForCocoaType(result, cocoaType, m_pasteboardName);
 
     copyToVector(result, types);
     return types;

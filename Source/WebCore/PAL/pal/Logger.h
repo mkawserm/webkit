@@ -39,10 +39,14 @@ template<typename T>
 struct LogArgument {
     template<typename U = T> static typename std::enable_if<std::is_same<U, bool>::value, String>::type toString(bool argument) { return argument ? ASCIILiteral("true") : ASCIILiteral("false"); }
     template<typename U = T> static typename std::enable_if<std::is_same<U, int>::value, String>::type toString(int argument) { return String::number(argument); }
+    template<typename U = T> static typename std::enable_if<std::is_same<U, unsigned>::value, String>::type toString(unsigned argument) { return String::number(argument); }
+    template<typename U = T> static typename std::enable_if<std::is_same<U, unsigned long>::value, String>::type toString(unsigned long argument) { return String::number(argument); }
+    template<typename U = T> static typename std::enable_if<std::is_same<U, long>::value, String>::type toString(long argument) { return String::number(argument); }
     template<typename U = T> static typename std::enable_if<std::is_same<U, float>::value, String>::type toString(float argument) { return String::number(argument); }
     template<typename U = T> static typename std::enable_if<std::is_same<U, double>::value, String>::type toString(double argument) { return String::number(argument); }
     template<typename U = T> static typename std::enable_if<std::is_same<typename std::remove_reference<U>::type, AtomicString>::value, String>::type toString(AtomicString argument) { return argument.string(); }
     template<typename U = T> static typename std::enable_if<std::is_same<typename std::remove_reference<U>::type, String>::value, String>::type toString(String argument) { return argument; }
+    template<typename U = T> static typename std::enable_if<std::is_same<typename std::remove_reference<U>::type, StringBuilder*>::value, String>::type toString(StringBuilder* argument) { return argument->toString(); }
     template<typename U = T> static typename std::enable_if<std::is_same<U, const char*>::value, String>::type toString(const char* argument) { return String(argument); }
     template<size_t length> static String toString(const char (&argument)[length]) { return String(argument); }
 };
@@ -54,7 +58,7 @@ public:
     class Observer {
     public:
         virtual ~Observer() { }
-        virtual void didLogMessage(const WTFLogChannel&, const String&) = 0;
+        virtual void didLogMessage(const WTFLogChannel&, WTFLogLevel, const String&) = 0;
     };
 
     static Ref<Logger> create(const void* owner)
@@ -63,7 +67,7 @@ public:
     }
 
     template<typename... Arguments>
-    inline void logAlways(WTFLogChannel& channel, const Arguments&... arguments) const
+    inline void logAlways(WTFLogChannel& channel, UNUSED_FUNCTION const Arguments&... arguments) const
     {
 #if RELEASE_LOG_DISABLED
         // "Standard" WebCore logging goes to stderr, which is captured in layout test output and can generally be a problem
@@ -73,7 +77,7 @@ public:
         if (!willLog(channel, WTFLogLevelAlways))
             return;
 
-        log(channel, arguments...);
+        log(channel, WTFLogLevelAlways, arguments...);
 #endif
     }
 
@@ -83,7 +87,7 @@ public:
         if (!willLog(channel, WTFLogLevelError))
             return;
 
-        log(channel, arguments...);
+        log(channel, WTFLogLevelError, arguments...);
     }
 
     template<typename... Arguments>
@@ -92,16 +96,7 @@ public:
         if (!willLog(channel, WTFLogLevelWarning))
             return;
 
-        log(channel, arguments...);
-    }
-
-    template<typename... Arguments>
-    inline void notice(WTFLogChannel& channel, const Arguments&... arguments) const
-    {
-        if (!willLog(channel, WTFLogLevelNotice))
-            return;
-
-        log(channel, arguments...);
+        log(channel, WTFLogLevelWarning, arguments...);
     }
 
     template<typename... Arguments>
@@ -110,7 +105,7 @@ public:
         if (!willLog(channel, WTFLogLevelInfo))
             return;
 
-        log(channel, arguments...);
+        log(channel, WTFLogLevelInfo, arguments...);
     }
 
     template<typename... Arguments>
@@ -119,7 +114,7 @@ public:
         if (!willLog(channel, WTFLogLevelDebug))
             return;
 
-        log(channel, arguments...);
+        log(channel, WTFLogLevelDebug, arguments...);
     }
 
     inline bool willLog(const WTFLogChannel& channel, WTFLogLevel level) const
@@ -141,14 +136,14 @@ public:
             m_enabled = enabled;
     }
 
-    struct MethodAndPointer {
-        MethodAndPointer(const char* methodName, const void* objectPtr)
+    struct LogSiteIdentifier {
+        LogSiteIdentifier(const char* methodName, const void* objectPtr)
             : methodName { methodName }
             , objectPtr { reinterpret_cast<uintptr_t>(objectPtr) }
         {
         }
 
-        MethodAndPointer(const char* className, const char* methodName, const void* objectPtr)
+        LogSiteIdentifier(const char* className, const char* methodName, const void* objectPtr)
             : className { className }
             , methodName { methodName }
             , objectPtr { reinterpret_cast<uintptr_t>(objectPtr) }
@@ -178,7 +173,7 @@ private:
     }
 
     template<typename... Argument>
-    static inline void log(WTFLogChannel& channel, const Argument&... arguments)
+    static inline void log(WTFLogChannel& channel, WTFLogLevel level, const Argument&... arguments)
     {
         String logMessage = makeString(LogArgument<Argument>::toString(arguments)...);
 
@@ -189,7 +184,7 @@ private:
 #endif
 
         for (Observer& observer : observers())
-            observer.didLogMessage(channel, logMessage);
+            observer.didLogMessage(channel, level, logMessage);
     }
 
     static Vector<std::reference_wrapper<Observer>>& observers()
@@ -202,28 +197,9 @@ private:
     bool m_enabled { true };
 };
 
-class LogHelper {
-public:
-    virtual ~LogHelper() = default;
-
-    virtual const Logger& logger() const = 0;
-    virtual const char* className() const = 0;
-    virtual WTFLogChannel& logChannel() const = 0;
-
-    inline bool willLog(WTFLogLevel level) const { return logger().willLog(logChannel(), level); }
-
-#define ALWAYS_LOG(...)     logger().logAlways(logChannel(), Logger::MethodAndPointer(className(), __func__, this), ##__VA_ARGS__)
-#define ERROR_LOG(...)      logger().error(logChannel(), Logger::MethodAndPointer(className(), __func__, this), ##__VA_ARGS__)
-#define WARNING_LOG(...)    logger().warning(logChannel(), Logger::MethodAndPointer(className(), __func__, this), ##__VA_ARGS__)
-#define NOTICE_LOG(...)     logger().notice(logChannel(), Logger::MethodAndPointer(className(), __func__, this), ##__VA_ARGS__)
-#define INFO_LOG(...)       logger().info(logChannel(), Logger::MethodAndPointer(className(), __func__, this), ##__VA_ARGS__)
-#define DEBUG_LOG(...)      logger().debug(logChannel(), Logger::MethodAndPointer(className(), __func__, this), ##__VA_ARGS__)
-
-};
-
 template <>
-struct LogArgument<Logger::MethodAndPointer> {
-    static String toString(const Logger::MethodAndPointer& value)
+struct LogArgument<Logger::LogSiteIdentifier> {
+    static String toString(const Logger::LogSiteIdentifier& value)
     {
         StringBuilder builder;
 
@@ -232,7 +208,7 @@ struct LogArgument<Logger::MethodAndPointer> {
             builder.appendLiteral("::");
         }
         builder.append(value.methodName);
-        builder.appendLiteral("(0x");
+        builder.appendLiteral("(");
         appendUnsigned64AsHex(value.objectPtr, builder);
         builder.appendLiteral(") ");
         return builder.toString();

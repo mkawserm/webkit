@@ -25,7 +25,6 @@
 #include "Element.h"
 #include "FloatQuad.h"
 #include "FloatingObjects.h"
-#include "FlowThreadController.h"
 #include "Frame.h"
 #include "FrameSelection.h"
 #include "FrameView.h"
@@ -44,10 +43,9 @@
 #include "RenderLayer.h"
 #include "RenderLayerBacking.h"
 #include "RenderLayerCompositor.h"
-#include "RenderMultiColumnFlowThread.h"
+#include "RenderMultiColumnFlow.h"
 #include "RenderMultiColumnSet.h"
 #include "RenderMultiColumnSpannerPlaceholder.h"
-#include "RenderNamedFlowThread.h"
 #include "RenderQuote.h"
 #include "RenderSelectionInfo.h"
 #include "RenderWidget.h"
@@ -123,7 +121,6 @@ private:
 RenderView::RenderView(Document& document, RenderStyle&& style)
     : RenderBlockFlow(document, WTFMove(style))
     , m_frameView(*document.view())
-    , m_weakFactory(this)
     , m_lazyRepaintTimer(*this, &RenderView::lazyRepaintTimerFired)
 #if ENABLE(SERVICE_CONTROLS)
     , m_selectionRectGatherer(*this)
@@ -226,8 +223,8 @@ LayoutUnit RenderView::availableLogicalHeight(AvailableLogicalHeightType) const
 {
     // Make sure block progression pagination for percentages uses the column extent and
     // not the view's extent. See https://bugs.webkit.org/show_bug.cgi?id=135204.
-    if (multiColumnFlowThread() && multiColumnFlowThread()->firstMultiColumnSet())
-        return multiColumnFlowThread()->firstMultiColumnSet()->computedColumnHeight();
+    if (multiColumnFlow() && multiColumnFlow()->firstMultiColumnSet())
+        return multiColumnFlow()->firstMultiColumnSet()->computedColumnHeight();
 
 #if PLATFORM(IOS)
     // Workaround for <rdar://problem/7166808>.
@@ -248,8 +245,6 @@ void RenderView::layoutContent(const LayoutState& state)
     ASSERT(needsLayout());
 
     RenderBlockFlow::layout();
-    if (hasRenderNamedFlowThreads())
-        flowThreadController().layoutRenderNamedFlowThreads();
 #ifndef NDEBUG
     checkLayoutState(state);
 #endif
@@ -273,67 +268,6 @@ void RenderView::initializeLayoutState(LayoutState& state)
     state.m_pageLogicalHeightChanged = m_pageLogicalHeightChanged;
     ASSERT(state.m_pageLogicalHeight >= 0);
     state.m_isPaginated = state.m_pageLogicalHeight > 0;
-}
-
-// The algorithm below assumes this is a full layout. In case there are previously computed values for regions, supplemental steps are taken
-// to ensure the results are the same as those obtained from a full layout (i.e. the auto-height regions from all the flows are marked as needing
-// layout).
-// 1. The flows are laid out from the outer flow to the inner flow. This successfully computes the outer non-auto-height regions size so the 
-// inner flows have the necessary information to correctly fragment the content.
-// 2. The flows are laid out from the inner flow to the outer flow. After an inner flow is laid out it goes into the constrained layout phase
-// and marks the auto-height regions they need layout. This means the outer flows will relayout if they depend on regions with auto-height regions
-// belonging to inner flows. This step will correctly set the computedAutoHeight for the auto-height regions. It's possible for non-auto-height
-// regions to relayout if they depend on auto-height regions. This will invalidate the inner flow threads and mark them as needing layout.
-// 3. The last step is to do one last layout if there are pathological dependencies between non-auto-height regions and auto-height regions
-// as detected in the previous step.
-void RenderView::layoutContentInAutoLogicalHeightRegions(const LayoutState& state)
-{
-    // We need to invalidate all the flows with auto-height regions if one such flow needs layout.
-    // If none is found we do a layout a check back again afterwards.
-    if (!flowThreadController().updateFlowThreadsNeedingLayout()) {
-        // Do a first layout of the content. In some cases more layouts are not needed (e.g. only flows with non-auto-height regions have changed).
-        layoutContent(state);
-
-        // If we find no named flow needing a two step layout after the first layout, exit early.
-        // Otherwise, initiate the two step layout algorithm and recompute all the flows.
-        if (!flowThreadController().updateFlowThreadsNeedingTwoStepLayout())
-            return;
-    }
-
-    // Layout to recompute all the named flows with auto-height regions.
-    layoutContent(state);
-
-    // Propagate the computed auto-height values upwards.
-    // Non-auto-height regions may invalidate the flow thread because they depended on auto-height regions, but that's ok.
-    flowThreadController().updateFlowThreadsIntoConstrainedPhase();
-
-    // Do one last layout that should update the auto-height regions found in the main flow
-    // and solve pathological dependencies between regions (e.g. a non-auto-height region depending
-    // on an auto-height one).
-    if (needsLayout())
-        layoutContent(state);
-}
-
-void RenderView::layoutContentToComputeOverflowInRegions(const LayoutState& state)
-{
-    if (!hasRenderNamedFlowThreads())
-        return;
-
-    // First pass through the flow threads and mark the regions as needing a simple layout.
-    // The regions extract the overflow from the flow thread and pass it to their containg
-    // block chain.
-    flowThreadController().updateFlowThreadsIntoOverflowPhase();
-    if (needsLayout())
-        layoutContent(state);
-
-    // In case scrollbars resized the regions a new pass is necessary to update the flow threads
-    // and recompute the overflow on regions. This is the final state of the flow threads.
-    flowThreadController().updateFlowThreadsIntoFinalPhase();
-    if (needsLayout())
-        layoutContent(state);
-
-    // Finally reset the layout state of the flow threads.
-    flowThreadController().updateFlowThreadsIntoMeasureContentPhase();
 }
 
 void RenderView::layout()
@@ -374,12 +308,7 @@ void RenderView::layout()
 
     m_pageLogicalHeightChanged = false;
 
-    if (checkTwoPassLayoutForAutoHeightRegions())
-        layoutContentInAutoLogicalHeightRegions(*m_layoutState);
-    else
-        layoutContent(*m_layoutState);
-
-    layoutContentToComputeOverflowInRegions(*m_layoutState);
+    layoutContent(*m_layoutState);
 
 #ifndef NDEBUG
     checkLayoutState(*m_layoutState);
@@ -393,7 +322,7 @@ LayoutUnit RenderView::pageOrViewLogicalHeight() const
     if (document().printing())
         return m_pageLogicalSize->height();
     
-    if (multiColumnFlowThread() && !style().hasInlineColumnAxis()) {
+    if (multiColumnFlow() && !style().hasInlineColumnAxis()) {
         if (int pageLength = frameView().pagination().pageLength)
             return pageLength;
     }
@@ -779,31 +708,23 @@ static RenderObject* rendererAfterPosition(RenderObject* object, unsigned offset
 
 IntRect RenderView::selectionBounds(bool clipToVisibleContent) const
 {
-    LayoutRect selRect = subtreeSelectionBounds(*this, clipToVisibleContent);
-
-    if (hasRenderNamedFlowThreads()) {
-        for (auto* namedFlowThread : *m_flowThreadController->renderNamedFlowThreadList()) {
-            LayoutRect currRect = subtreeSelectionBounds(*namedFlowThread, clipToVisibleContent);
-            selRect.unite(currRect);
-        }
-    }
-
+    LayoutRect selRect = subtreeSelectionBounds(clipToVisibleContent);
     return snappedIntRect(selRect);
 }
 
-LayoutRect RenderView::subtreeSelectionBounds(const SelectionSubtreeRoot& root, bool clipToVisibleContent) const
+LayoutRect RenderView::subtreeSelectionBounds(bool clipToVisibleContent) const
 {
     typedef HashMap<RenderObject*, std::unique_ptr<RenderSelectionInfo>> SelectionMap;
     SelectionMap selectedObjects;
 
-    RenderObject* os = root.selectionData().selectionStart();
-    auto* selectionEnd = root.selectionData().selectionEnd();
+    RenderObject* os = selectionData().selectionStart();
+    auto* selectionEnd = selectionData().selectionEnd();
     RenderObject* stop = nullptr;
     if (selectionEnd)
-        stop = rendererAfterPosition(selectionEnd, root.selectionData().selectionEndPos().value());
+        stop = rendererAfterPosition(selectionEnd, selectionData().selectionEndPos().value());
     SelectionIterator selectionIterator(os);
     while (os && os != stop) {
-        if ((os->canBeSelectionLeaf() || os == root.selectionData().selectionStart() || os == root.selectionData().selectionEnd()) && os->selectionState() != SelectionNone) {
+        if ((os->canBeSelectionLeaf() || os == selectionData().selectionStart() || os == selectionData().selectionEnd()) && os->selectionState() != SelectionNone) {
             // Blocks are responsible for painting line gaps and margin gaps. They must be examined as well.
             selectedObjects.set(os, std::make_unique<RenderSelectionInfo>(*os, clipToVisibleContent));
             RenderBlock* cb = os->containingBlock();
@@ -837,25 +758,20 @@ LayoutRect RenderView::subtreeSelectionBounds(const SelectionSubtreeRoot& root, 
 
 void RenderView::repaintSelection() const
 {
-    repaintSubtreeSelection(*this);
-
-    if (hasRenderNamedFlowThreads()) {
-        for (auto* namedFlowThread : *m_flowThreadController->renderNamedFlowThreadList())
-            repaintSubtreeSelection(*namedFlowThread);
-    }
+    repaintSubtreeSelection();
 }
 
-void RenderView::repaintSubtreeSelection(const SelectionSubtreeRoot& root) const
+void RenderView::repaintSubtreeSelection() const
 {
     HashSet<RenderBlock*> processedBlocks;
 
-    auto* selectionEnd = root.selectionData().selectionEnd();
+    auto* selectionEnd = selectionData().selectionEnd();
     RenderObject* end = nullptr;
     if (selectionEnd)
-        end = rendererAfterPosition(selectionEnd, root.selectionData().selectionEndPos().value());
-    SelectionIterator selectionIterator(root.selectionData().selectionStart());
+        end = rendererAfterPosition(selectionEnd, selectionData().selectionEndPos().value());
+    SelectionIterator selectionIterator(selectionData().selectionStart());
     for (RenderObject* o = selectionIterator.current(); o && o != end; o = selectionIterator.next()) {
-        if (!o->canBeSelectionLeaf() && o != root.selectionData().selectionStart() && o != root.selectionData().selectionEnd())
+        if (!o->canBeSelectionLeaf() && o != selectionData().selectionStart() && o != selectionData().selectionEnd())
             continue;
         if (o->selectionState() == SelectionNone)
             continue;
@@ -896,110 +812,36 @@ void RenderView::setSelection(RenderObject* start, std::optional<unsigned> start
     m_selectionUnsplitStartPos = startPos;
     m_selectionUnsplitEnd = end;
     m_selectionUnsplitEndPos = endPos;
-
-    // If there is no RenderNamedFlowThreads we follow the regular selection.
-    if (!hasRenderNamedFlowThreads()) {
-        RenderSubtreesMap singleSubtreeMap;
-        singleSubtreeMap.set(this, SelectionSubtreeData(start, startPos, end, endPos));
-        updateSelectionForSubtrees(singleSubtreeMap, blockRepaintMode);
-        return;
-    }
-
-    splitSelectionBetweenSubtrees(start, startPos, end, endPos, blockRepaintMode);
+    auto oldSelectionData = std::make_unique<OldSelectionData>();
+    clearSubtreeSelection(blockRepaintMode, *oldSelectionData);
+    setSelectionData(SelectionSubtreeData(start, startPos, end, endPos));
+    applySubtreeSelection(blockRepaintMode, *oldSelectionData);
 }
 
-void RenderView::splitSelectionBetweenSubtrees(const RenderObject* start, std::optional<unsigned> startPos, const RenderObject* end, std::optional<unsigned> endPos, SelectionRepaintMode blockRepaintMode)
+static inline bool isValidObjectForNewSelection(const RenderView& view, const RenderObject& object)
 {
-    // Compute the visible selection end points for each of the subtrees.
-    RenderSubtreesMap renderSubtreesMap;
-
-    SelectionSubtreeData initialSelection;
-    renderSubtreesMap.set(this, initialSelection);
-    for (auto* namedFlowThread : *flowThreadController().renderNamedFlowThreadList())
-        renderSubtreesMap.set(namedFlowThread, initialSelection);
-
-    if (start && end) {
-        Node* startNode = start->node();
-        Node* endNode = end->node();
-        ASSERT(endNode);
-        Node* stopNode = NodeTraversal::nextSkippingChildren(*endNode);
-
-        for (Node* node = startNode; node != stopNode; node = NodeTraversal::next(*node)) {
-            RenderObject* renderer = node->renderer();
-            if (!renderer)
-                continue;
-
-            SelectionSubtreeRoot& root = renderer->selectionRoot();
-            SelectionSubtreeData selectionData = renderSubtreesMap.get(&root);
-            if (selectionData.selectionClear()) {
-                selectionData.setSelectionStart(node->renderer());
-                selectionData.setSelectionStartPos(node == startNode ? startPos : std::optional<unsigned>(0));
-            }
-
-            selectionData.setSelectionEnd(node->renderer());
-            if (node == endNode)
-                selectionData.setSelectionEndPos(endPos);
-            else {
-                unsigned newEndPos = node->offsetInCharacters() ? node->maxCharacterOffset() : node->countChildNodes();
-                selectionData.setSelectionEndPos(newEndPos);
-            }
-
-            renderSubtreesMap.set(&root, selectionData);
-        }
-    }
-    
-    updateSelectionForSubtrees(renderSubtreesMap, blockRepaintMode);
+    return (object.canBeSelectionLeaf() || &object == view.selectionData().selectionStart() || &object == view.selectionData().selectionEnd()) && object.selectionState() != RenderObject::SelectionNone && object.containingBlock();
 }
 
-void RenderView::updateSelectionForSubtrees(RenderSubtreesMap& renderSubtreesMap, SelectionRepaintMode blockRepaintMode)
-{
-    SubtreeOldSelectionDataMap oldSelectionDataMap;
-    for (auto& subtreeSelectionInfo : renderSubtreesMap) {
-        SelectionSubtreeRoot& root = *subtreeSelectionInfo.key;
-        std::unique_ptr<OldSelectionData> oldSelectionData = std::make_unique<OldSelectionData>();
-
-        clearSubtreeSelection(root, blockRepaintMode, *oldSelectionData);
-        oldSelectionDataMap.set(&root, WTFMove(oldSelectionData));
-
-        root.setSelectionData(subtreeSelectionInfo.value);
-        if (hasRenderNamedFlowThreads())
-            root.adjustForVisibleSelection(document());
-    }
-
-    // Update selection status for the objects inside the selection subtrees.
-    // This needs to be done after the previous loop updated the selectionStart/End
-    // parameters of all subtrees because we're going to be climbing up the containing
-    // block chain and we might end up in a different selection subtree.
-    for (const auto* subtreeSelectionRoot : renderSubtreesMap.keys()) {
-        OldSelectionData& oldSelectionData = *oldSelectionDataMap.get(subtreeSelectionRoot);
-        applySubtreeSelection(*subtreeSelectionRoot, blockRepaintMode, oldSelectionData);
-    }
-}
-
-static inline bool isValidObjectForNewSelection(const SelectionSubtreeRoot& root, const RenderObject& object)
-{
-    return (object.canBeSelectionLeaf() || &object == root.selectionData().selectionStart() || &object == root.selectionData().selectionEnd()) && object.selectionState() != RenderObject::SelectionNone && object.containingBlock();
-}
-
-void RenderView::clearSubtreeSelection(const SelectionSubtreeRoot& root, SelectionRepaintMode blockRepaintMode, OldSelectionData& oldSelectionData) const
+void RenderView::clearSubtreeSelection(SelectionRepaintMode blockRepaintMode, OldSelectionData& oldSelectionData) const
 {
     // Record the old selected objects.  These will be used later
     // when we compare against the new selected objects.
-    oldSelectionData.selectionStartPos = root.selectionData().selectionStartPos();
-    oldSelectionData.selectionEndPos = root.selectionData().selectionEndPos();
+    oldSelectionData.selectionStartPos = selectionData().selectionStartPos();
+    oldSelectionData.selectionEndPos = selectionData().selectionEndPos();
     
     // Blocks contain selected objects and fill gaps between them, either on the left, right, or in between lines and blocks.
     // In order to get the repaint rect right, we have to examine left, middle, and right rects individually, since otherwise
     // the union of those rects might remain the same even when changes have occurred.
 
-    RenderObject* os = root.selectionData().selectionStart();
-    auto* selectionEnd = root.selectionData().selectionEnd();
+    RenderObject* os = selectionData().selectionStart();
+    auto* selectionEnd = selectionData().selectionEnd();
     RenderObject* stop = nullptr;
     if (selectionEnd)
-        stop = rendererAfterPosition(selectionEnd, root.selectionData().selectionEndPos().value());
+        stop = rendererAfterPosition(selectionEnd, selectionData().selectionEndPos().value());
     SelectionIterator selectionIterator(os);
     while (os && os != stop) {
-        if (isValidObjectForNewSelection(root, *os)) {
+        if (isValidObjectForNewSelection(*this, *os)) {
             // Blocks are responsible for painting line gaps and margin gaps.  They must be examined as well.
             oldSelectionData.selectedObjects.set(os, std::make_unique<RenderSelectionInfo>(*os, true));
             if (blockRepaintMode == RepaintNewXOROld) {
@@ -1021,31 +863,28 @@ void RenderView::clearSubtreeSelection(const SelectionSubtreeRoot& root, Selecti
         selectedObject->setSelectionStateIfNeeded(SelectionNone);
 }
 
-void RenderView::applySubtreeSelection(const SelectionSubtreeRoot& root, SelectionRepaintMode blockRepaintMode, const OldSelectionData& oldSelectionData)
+void RenderView::applySubtreeSelection(SelectionRepaintMode blockRepaintMode, const OldSelectionData& oldSelectionData)
 {
     // Update the selection status of all objects between selectionStart and selectionEnd
-    if (root.selectionData().selectionStart() && root.selectionData().selectionStart() == root.selectionData().selectionEnd())
-        root.selectionData().selectionStart()->setSelectionStateIfNeeded(SelectionBoth);
+    if (selectionData().selectionStart() && selectionData().selectionStart() == selectionData().selectionEnd())
+        selectionData().selectionStart()->setSelectionStateIfNeeded(SelectionBoth);
     else {
-        if (root.selectionData().selectionStart())
-            root.selectionData().selectionStart()->setSelectionStateIfNeeded(SelectionStart);
-        if (root.selectionData().selectionEnd())
-            root.selectionData().selectionEnd()->setSelectionStateIfNeeded(SelectionEnd);
+        if (selectionData().selectionStart())
+            selectionData().selectionStart()->setSelectionStateIfNeeded(SelectionStart);
+        if (selectionData().selectionEnd())
+            selectionData().selectionEnd()->setSelectionStateIfNeeded(SelectionEnd);
     }
 
-    RenderObject* selectionStart = root.selectionData().selectionStart();
-    auto* selectionDataEnd = root.selectionData().selectionEnd();
+    RenderObject* selectionStart = selectionData().selectionStart();
+    auto* selectionDataEnd = selectionData().selectionEnd();
     RenderObject* selectionEnd = nullptr;
     if (selectionDataEnd)
-        selectionEnd = rendererAfterPosition(selectionDataEnd, root.selectionData().selectionEndPos().value());
+        selectionEnd = rendererAfterPosition(selectionDataEnd, selectionData().selectionEndPos().value());
     SelectionIterator selectionIterator(selectionStart);
     for (RenderObject* currentRenderer = selectionStart; currentRenderer && currentRenderer != selectionEnd; currentRenderer = selectionIterator.next()) {
-        if (currentRenderer == root.selectionData().selectionStart() || currentRenderer == root.selectionData().selectionEnd())
+        if (currentRenderer == selectionData().selectionStart() || currentRenderer == selectionData().selectionEnd())
             continue;
         if (!currentRenderer->canBeSelectionLeaf())
-            continue;
-        // FIXME: Move this logic to SelectionIterator::next()
-        if (&currentRenderer->selectionRoot() != &root)
             continue;
         currentRenderer->setSelectionStateIfNeeded(SelectionInside);
     }
@@ -1059,7 +898,7 @@ void RenderView::applySubtreeSelection(const SelectionSubtreeRoot& root, Selecti
     SelectedBlockMap newSelectedBlocks;
     selectionIterator = SelectionIterator(selectionStart);
     for (RenderObject* currentRenderer = selectionStart; currentRenderer && currentRenderer != selectionEnd; currentRenderer = selectionIterator.next()) {
-        if (isValidObjectForNewSelection(root, *currentRenderer)) {
+        if (isValidObjectForNewSelection(*this, *currentRenderer)) {
             std::unique_ptr<RenderSelectionInfo> selectionInfo = std::make_unique<RenderSelectionInfo>(*currentRenderer, true);
 
 #if ENABLE(SERVICE_CONTROLS)
@@ -1095,8 +934,8 @@ void RenderView::applySubtreeSelection(const SelectionSubtreeRoot& root, Selecti
         RenderSelectionInfo* newInfo = newSelectedObjects.get(obj);
         RenderSelectionInfo* oldInfo = selectedObjectInfo.value.get();
         if (!newInfo || oldInfo->rect() != newInfo->rect() || oldInfo->state() != newInfo->state()
-            || (root.selectionData().selectionStart() == obj && oldSelectionData.selectionStartPos != root.selectionData().selectionStartPos())
-            || (root.selectionData().selectionEnd() == obj && oldSelectionData.selectionEndPos != root.selectionData().selectionEndPos())) {
+            || (selectionData().selectionStart() == obj && oldSelectionData.selectionStartPos != selectionData().selectionStartPos())
+            || (selectionData().selectionEnd() == obj && oldSelectionData.selectionEndPos != selectionData().selectionEndPos())) {
             oldInfo->repaint();
             if (newInfo) {
                 newInfo->repaint();
@@ -1243,7 +1082,6 @@ void RenderView::pushLayoutState(RenderObject& root)
     ASSERT(m_layoutState == 0);
 
     m_layoutState = std::make_unique<LayoutState>(root);
-    pushLayoutStateForCurrentFlowThread(root);
 }
 
 bool RenderView::pushLayoutStateForPaginationIfNeeded(RenderBlockFlow& layoutRoot)
@@ -1254,7 +1092,6 @@ bool RenderView::pushLayoutStateForPaginationIfNeeded(RenderBlockFlow& layoutRoo
     m_layoutState->m_isPaginated = true;
     // This is just a flag for known page height (see RenderBlockFlow::checkForPaginationLogicalHeightChange).
     m_layoutState->m_pageLogicalHeight = 1;
-    pushLayoutStateForCurrentFlowThread(layoutRoot);
     return true;
 }
 
@@ -1268,8 +1105,8 @@ void RenderView::updateHitTestResult(HitTestResult& result, const LayoutPoint& p
     if (result.innerNode())
         return;
 
-    if (multiColumnFlowThread() && multiColumnFlowThread()->firstMultiColumnSet())
-        return multiColumnFlowThread()->firstMultiColumnSet()->updateHitTestResult(result, point);
+    if (multiColumnFlow() && multiColumnFlow()->firstMultiColumnSet())
+        return multiColumnFlow()->firstMultiColumnSet()->updateHitTestResult(result, point);
 
     Node* node = document().documentElement();
     if (node) {
@@ -1331,54 +1168,8 @@ void RenderView::setIsInWindow(bool isInWindow)
 void RenderView::styleDidChange(StyleDifference diff, const RenderStyle* oldStyle)
 {
     RenderBlockFlow::styleDidChange(diff, oldStyle);
-    if (hasRenderNamedFlowThreads())
-        flowThreadController().styleDidChange();
 
     frameView().styleDidChange();
-}
-
-bool RenderView::hasRenderNamedFlowThreads() const
-{
-    return m_flowThreadController && m_flowThreadController->hasRenderNamedFlowThreads();
-}
-
-bool RenderView::checkTwoPassLayoutForAutoHeightRegions() const
-{
-    return hasRenderNamedFlowThreads() && m_flowThreadController->hasFlowThreadsWithAutoLogicalHeightRegions();
-}
-
-FlowThreadController& RenderView::flowThreadController()
-{
-    if (!m_flowThreadController)
-        m_flowThreadController = std::make_unique<FlowThreadController>(this);
-
-    return *m_flowThreadController;
-}
-
-void RenderView::pushLayoutStateForCurrentFlowThread(const RenderObject& object)
-{
-    if (!m_flowThreadController)
-        return;
-
-    RenderFlowThread* currentFlowThread = object.flowThreadContainingBlock();
-    if (!currentFlowThread)
-        return;
-
-    m_layoutState->setCurrentRenderFlowThread(currentFlowThread);
-
-    currentFlowThread->pushFlowThreadLayoutState(object);
-}
-
-void RenderView::popLayoutStateForCurrentFlowThread()
-{
-    if (!m_flowThreadController)
-        return;
-
-    RenderFlowThread* currentFlowThread = m_layoutState->currentRenderFlowThread();
-    if (!currentFlowThread)
-        return;
-
-    currentFlowThread->popFlowThreadLayoutState();
 }
 
 ImageQualityController& RenderView::imageQualityController()
@@ -1471,19 +1262,19 @@ RenderView::RepaintRegionAccumulator::RepaintRegionAccumulator(RenderView* view)
     if (!rootRenderView)
         return;
 
-    m_rootView = rootRenderView->createWeakPtr();
-    m_wasAccumulatingRepaintRegion = !!m_rootView->m_accumulatedRepaintRegion;
+    m_wasAccumulatingRepaintRegion = !!rootRenderView->m_accumulatedRepaintRegion;
     if (!m_wasAccumulatingRepaintRegion)
-        m_rootView->m_accumulatedRepaintRegion = std::make_unique<Region>();
+        rootRenderView->m_accumulatedRepaintRegion = std::make_unique<Region>();
+    m_rootView = rootRenderView->createWeakPtr<RenderView>();
 }
 
 RenderView::RepaintRegionAccumulator::~RepaintRegionAccumulator()
 {
-    if (!m_rootView)
-        return;
     if (m_wasAccumulatingRepaintRegion)
         return;
-    m_rootView->flushAccumulatedRepaintRegion();
+    if (!m_rootView)
+        return;
+    m_rootView.get()->flushAccumulatedRepaintRegion();
 }
 
 unsigned RenderView::pageNumberForBlockProgressionOffset(int offset) const
@@ -1496,9 +1287,9 @@ unsigned RenderView::pageNumberForBlockProgressionOffset(int offset) const
     bool progressionIsInline = false;
     bool progressionIsReversed = false;
     
-    if (multiColumnFlowThread()) {
-        progressionIsInline = multiColumnFlowThread()->progressionIsInline();
-        progressionIsReversed = multiColumnFlowThread()->progressionIsReversed();
+    if (multiColumnFlow()) {
+        progressionIsInline = multiColumnFlow()->progressionIsInline();
+        progressionIsReversed = multiColumnFlow()->progressionIsReversed();
     } else
         return columnNumber;
     
@@ -1518,8 +1309,8 @@ unsigned RenderView::pageCount() const
     if (pagination.mode == Pagination::Unpaginated)
         return 0;
     
-    if (multiColumnFlowThread() && multiColumnFlowThread()->firstMultiColumnSet())
-        return multiColumnFlowThread()->firstMultiColumnSet()->columnCount();
+    if (multiColumnFlow() && multiColumnFlow()->firstMultiColumnSet())
+        return multiColumnFlow()->firstMultiColumnSet()->columnCount();
 
     return 0;
 }

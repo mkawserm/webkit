@@ -75,6 +75,8 @@ public:
     }
 
 private:
+    enum class UInt32Result { UInt32, Constant };
+
     void handleNode()
     {
         switch (m_node->op()) {
@@ -265,6 +267,66 @@ private:
             }
             break;
         }
+
+        case CompareEq:
+        case CompareLess:
+        case CompareLessEq:
+        case CompareGreater:
+        case CompareGreaterEq: {
+            if (m_node->isBinaryUseKind(Int32Use)) {
+                auto isUInt32 = [&] (Edge& edge) -> std::optional<UInt32Result> {
+                    if (edge->op() == UInt32ToNumber)
+                        return UInt32Result::UInt32;
+                    if (edge->isInt32Constant()) {
+                        if (edge->asInt32() >= 0)
+                            return UInt32Result::Constant;
+                    }
+                    return std::nullopt;
+                };
+
+                auto child1Result = isUInt32(m_node->child1());
+                auto child2Result = isUInt32(m_node->child2());
+                if ((child1Result && child2Result) && (child1Result.value() == UInt32Result::UInt32 || child2Result.value() == UInt32Result::UInt32)) {
+                    NodeType op = m_node->op();
+                    bool replaceOperands = false;
+                    switch (m_node->op()) {
+                    case CompareEq:
+                        op = CompareEq;
+                        break;
+                    case CompareLess:
+                        op = CompareBelow;
+                        break;
+                    case CompareLessEq:
+                        op = CompareBelowEq;
+                        break;
+                    case CompareGreater:
+                        op = CompareBelow;
+                        replaceOperands = true;
+                        break;
+                    case CompareGreaterEq:
+                        op = CompareBelowEq;
+                        replaceOperands = true;
+                        break;
+                    default:
+                        RELEASE_ASSERT_NOT_REACHED();
+                    }
+
+                    auto extractChild = [&] (Edge& edge) {
+                        if (edge->op() == UInt32ToNumber)
+                            return edge->child1().node();
+                        return edge.node();
+                    };
+
+                    m_node->setOp(op);
+                    m_node->child1() = Edge(extractChild(m_node->child1()), Int32Use);
+                    m_node->child2() = Edge(extractChild(m_node->child2()), Int32Use);
+                    if (replaceOperands)
+                        std::swap(m_node->child1(), m_node->child2());
+                    m_changed = true;
+                }
+            }
+            break;
+        }
             
         case Flush: {
             ASSERT(m_graph.m_form != SSA);
@@ -426,6 +488,19 @@ private:
             break;
         }
 
+        case NumberToStringWithValidRadixConstant: {
+            Edge& child1 = m_node->child1();
+            if (child1->hasConstant()) {
+                JSValue value = child1->constant()->value();
+                if (value && value.isNumber()) {
+                    String result = toStringWithRadix(value.asNumber(), m_node->validRadixConstant());
+                    m_node->convertToLazyJSConstant(m_graph, LazyJSValue::newString(m_graph, result));
+                    m_changed = true;
+                }
+            }
+            break;
+        }
+
         case GetArrayLength: {
             if (m_node->arrayMode().type() == Array::Generic
                 || m_node->arrayMode().type() == Array::String) {
@@ -497,7 +572,15 @@ private:
                     dataLog("Giving up because of pattern limit.\n");
                 break;
             }
-            
+
+            if (m_node->op() == RegExpExec && regExp->hasNamedCaptures()) {
+                // FIXME: https://bugs.webkit.org/show_bug.cgi?id=176464
+                // Implement strength reduction optimization for named capture groups.
+                if (verbose)
+                    dataLog("Giving up because of named capture groups.\n");
+                break;
+            }
+
             unsigned lastIndex;
             if (regExp->globalOrSticky()) {
                 // This will only work if we can prove what the value of lastIndex is. To do this
@@ -532,7 +615,12 @@ private:
 
             m_graph.watchpoints().addLazily(globalObject->havingABadTimeWatchpoint());
             
-            Structure* structure = globalObject->regExpMatchesArrayStructure();
+            Structure* structure;
+            if (m_node->op() == RegExpExec && regExp->hasNamedCaptures())
+                structure = globalObject->regExpMatchesArrayWithGroupsStructure();
+            else
+                structure = globalObject->regExpMatchesArrayStructure();
+
             if (structure->indexingType() != ArrayWithContiguous) {
                 // This is further protection against a race with haveABadTime.
                 if (verbose)

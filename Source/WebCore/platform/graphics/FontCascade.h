@@ -195,7 +195,7 @@ public:
 
     bool primaryFontIsSystemFont() const;
 
-    WeakPtr<FontCascade> createWeakPtr() const { return m_weakPtrFactory.createWeakPtr(); }
+    WeakPtr<FontCascade> createWeakPtr() const { return m_weakPtrFactory.createWeakPtr(*const_cast<FontCascade*>(this)); }
 
 private:
     enum ForTextEmphasisOrNot { NotForTextEmphasis, ForTextEmphasis };
@@ -275,7 +275,7 @@ private:
             return true;
         if (textRenderingMode == OptimizeSpeed)
             return false;
-#if PLATFORM(COCOA)
+#if PLATFORM(COCOA) || USE(FREETYPE)
         return true;
 #else
         return false;
@@ -294,7 +294,7 @@ private:
 
     bool computeRequiresShaping() const
     {
-#if PLATFORM(COCOA)
+#if PLATFORM(COCOA) || USE(FREETYPE)
         if (!m_fontDescription.variantSettings().isAllNormal())
             return true;
         if (m_fontDescription.featureSettings().size())

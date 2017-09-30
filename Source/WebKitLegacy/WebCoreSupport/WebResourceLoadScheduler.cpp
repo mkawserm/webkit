@@ -105,9 +105,9 @@ RefPtr<SubresourceLoader> WebResourceLoadScheduler::loadResource(Frame& frame, C
     return loader;
 }
 
-void WebResourceLoadScheduler::loadResourceSynchronously(NetworkingContext* context, unsigned long, const ResourceRequest& request, StoredCredentials storedCredentials, ClientCredentialPolicy, ResourceError& error, ResourceResponse& response, Vector<char>& data)
+void WebResourceLoadScheduler::loadResourceSynchronously(NetworkingContext* context, unsigned long, const ResourceRequest& request, StoredCredentialsPolicy storedCredentialsPolicy, ClientCredentialPolicy, ResourceError& error, ResourceResponse& response, Vector<char>& data)
 {
-    ResourceHandle::loadResourceSynchronously(context, request, storedCredentials, error, response, data);
+    ResourceHandle::loadResourceSynchronously(context, request, storedCredentialsPolicy, error, response, data);
 }
 
 RefPtr<NetscapePlugInStreamLoader> WebResourceLoadScheduler::schedulePluginStreamLoad(Frame& frame, NetscapePlugInStreamLoaderClient& client, const ResourceRequest& request)
@@ -367,5 +367,9 @@ void WebResourceLoadScheduler::startPingLoad(Frame& frame, ResourceRequest& requ
 {
     // PingHandle manages its own lifetime, deleting itself when its purpose has been fulfilled.
     new PingHandle(frame.loader().networkingContext(), request, options.credentials != FetchOptions::Credentials::Omit, PingHandle::UsesAsyncCallbacks::No, options.redirect == FetchOptions::Redirect::Follow, WTFMove(completionHandler));
+}
+
+void WebResourceLoadScheduler::preconnectTo(PAL::SessionID, const URL&, StoredCredentialsPolicy, PreconnectCompletionHandler&&)
+{
 }
 

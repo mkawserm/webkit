@@ -50,11 +50,6 @@ std::unique_ptr<Pasteboard> Pasteboard::createForGlobalSelection()
     return std::make_unique<Pasteboard>("PRIMARY");
 }
 
-std::unique_ptr<Pasteboard> Pasteboard::createPrivate()
-{
-    return std::make_unique<Pasteboard>(SelectionData::create());
-}
-
 #if ENABLE(DRAG_SUPPORT)
 std::unique_ptr<Pasteboard> Pasteboard::createForDragAndDrop()
 {
@@ -67,15 +62,6 @@ std::unique_ptr<Pasteboard> Pasteboard::createForDragAndDrop(const DragData& dra
     return std::make_unique<Pasteboard>(*dragData.platformData());
 }
 #endif
-
-// Making this non-inline so that WebKit 2's decoding doesn't have to include Image.h.
-PasteboardImage::PasteboardImage()
-{
-}
-
-PasteboardImage::~PasteboardImage()
-{
-}
 
 Pasteboard::Pasteboard(SelectionData& selectionData)
     : m_selectionData(selectionData)
@@ -138,19 +124,20 @@ void Pasteboard::writeString(const String& type, const String& data)
     case ClipboardDataTypeURIList:
     case ClipboardDataTypeURL:
         m_selectionData->setURIList(data);
-        return;
+        break;
     case ClipboardDataTypeMarkup:
         m_selectionData->setMarkup(data);
-        return;
+        break;
     case ClipboardDataTypeText:
         m_selectionData->setText(data);
-        return;
+        break;
     case ClipboardDataTypeUnknown:
         m_selectionData->setUnknownTypeData(type, data);
-        return;
+        break;
     case ClipboardDataTypeImage:
         break;
     }
+    writeToClipboard();
 }
 
 void Pasteboard::writePlainText(const String& text, SmartReplaceOption smartReplaceOption)
@@ -195,29 +182,6 @@ void Pasteboard::write(const PasteboardWebContent& pasteboardContent)
     m_selectionData->setText(pasteboardContent.text);
     m_selectionData->setMarkup(pasteboardContent.markup);
     m_selectionData->setCanSmartReplace(pasteboardContent.canSmartCopyOrDelete);
-
-    writeToClipboard();
-}
-
-void Pasteboard::writePasteboard(const Pasteboard& sourcePasteboard)
-{
-    const auto& sourceDataObject = sourcePasteboard.selectionData();
-    m_selectionData->clearAll();
-
-    if (sourceDataObject.hasText())
-        m_selectionData->setText(sourceDataObject.text());
-    if (sourceDataObject.hasMarkup())
-        m_selectionData->setMarkup(sourceDataObject.markup());
-    if (sourceDataObject.hasURL())
-        m_selectionData->setURL(sourceDataObject.url(), sourceDataObject.urlLabel());
-    if (sourceDataObject.hasURIList())
-        m_selectionData->setURIList(sourceDataObject.uriList());
-    if (sourceDataObject.hasImage())
-        m_selectionData->setImage(sourceDataObject.image());
-    if (sourceDataObject.hasUnknownTypeData()) {
-        for (auto& it : sourceDataObject.unknownTypes())
-            m_selectionData->setUnknownTypeData(it.key, it.value);
-    }
 
     writeToClipboard();
 }
@@ -278,13 +242,17 @@ void Pasteboard::read(PasteboardWebContentReader&)
 {
 }
 
+void Pasteboard::read(PasteboardFileReader&)
+{
+}
+
 bool Pasteboard::hasData()
 {
     readFromClipboard();
     return m_selectionData->hasText() || m_selectionData->hasMarkup() || m_selectionData->hasURIList() || m_selectionData->hasImage() || m_selectionData->hasUnknownTypeData();
 }
 
-Vector<String> Pasteboard::types()
+Vector<String> Pasteboard::typesForBindings()
 {
     readFromClipboard();
 
@@ -312,7 +280,12 @@ Vector<String> Pasteboard::types()
     return types;
 }
 
-String Pasteboard::readString(const String& type)
+Vector<String> Pasteboard::typesTreatedAsFiles()
+{
+    return { };
+}
+
+String Pasteboard::readStringForBindings(const String& type)
 {
     readFromClipboard();
 
@@ -341,6 +314,10 @@ Vector<String> Pasteboard::readFilenames()
 }
 
 void Pasteboard::writeMarkup(const String&)
+{
+}
+
+void Pasteboard::writeCustomData(const PasteboardCustomData&)
 {
 }
 

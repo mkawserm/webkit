@@ -33,17 +33,17 @@
 
 namespace WebCore {
 
-class RenderMultiColumnFlowThread;
+class RenderMultiColumnFlow;
 
 class RenderMultiColumnSpannerPlaceholder final : public RenderBox {
 public:
-    static RenderMultiColumnSpannerPlaceholder* createAnonymous(RenderMultiColumnFlowThread*, RenderBox& spanner, const RenderStyle* parentStyle);
+    static RenderMultiColumnSpannerPlaceholder* createAnonymous(RenderMultiColumnFlow*, RenderBox& spanner, const RenderStyle* parentStyle);
 
     RenderBox* spanner() const { return m_spanner; }
-    RenderMultiColumnFlowThread* flowThread() const { return m_flowThread; }
+    RenderMultiColumnFlow* fragmentedFlow() const { return m_fragmentedFlow; }
 
 private:
-    RenderMultiColumnSpannerPlaceholder(RenderMultiColumnFlowThread*, RenderBox& spanner, RenderStyle&&);
+    RenderMultiColumnSpannerPlaceholder(RenderMultiColumnFlow*, RenderBox& spanner, RenderStyle&&);
     bool isRenderMultiColumnSpannerPlaceholder() const override { return true; }
 
     bool canHaveChildren() const override { return false; }
@@ -51,7 +51,7 @@ private:
     const char* renderName() const override;
 
     RenderBox* m_spanner;
-    RenderMultiColumnFlowThread* m_flowThread;
+    RenderMultiColumnFlow* m_fragmentedFlow;
 };
 
 } // namespace WebCore

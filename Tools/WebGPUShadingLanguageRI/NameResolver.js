@@ -30,26 +30,15 @@
 // more convenient to check here than in the Checker. This usually involves things that need to be
 // checked before TypeRefToTypeDefSkipper.
 class NameResolver extends Visitor {
-    // It's totally OK to instantiate this with zero arguments (i.e. passing undefined for both of
-    // them) if you're creating a NameResolver to visit a Program.
     constructor(nameContext)
     {
         super();
         this._nameContext = nameContext;
     }
-    
-    visitProgram(node)
+
+    doStatement(statement)
     {
-        let nameContext = new NameContext(this._nameContext);
-        nameContext.program = node;
-        nameContext.recognizeIntrinsics();
-        nameContext.handleDefining();
-        node.intrinsics = nameContext.intrinsics;
-        for (let statement of node.topLevelStatements)
-            nameContext.add(statement);
-        let checker = new NameResolver(nameContext);
-        for (let statement of node.topLevelStatements)
-            nameContext.doStatement(statement, () => statement.visit(checker));
+        this._nameContext.doStatement(statement, () => statement.visit(this));
     }
     
     _visitTypeParametersAndBuildNameContext(node)
@@ -90,9 +79,46 @@ class NameResolver extends Visitor {
         for (let statement of node.statements)
             statement.visit(checker);
     }
+
+    visitIfStatement(node)
+    {
+        node.conditional.visit(this);
+        // The bodies might not be Blocks, so we need to explicitly give them a new context.
+        node.body.visit(new NameResolver(new NameContext(this._nameContext)));
+        if (node.elseBody)
+            node.elseBody.visit(new NameResolver(new NameContext(this._nameContext)));
+    }
+
+    visitWhileLoop(node)
+    {
+        node.conditional.visit(this);
+        // The bodies might not be Blocks, so we need to explicitly give them a new context.
+        node.body.visit(new NameResolver(new NameContext(this._nameContext)));
+    }
+
+    visitDoWhileLoop(node)
+    {
+        // The bodies might not be Blocks, so we need to explicitly give them a new context.
+        node.body.visit(new NameResolver(new NameContext(this._nameContext)));
+        node.conditional.visit(this);
+    }
+
+    visitForLoop(node)
+    {
+        let newResolver = new NameResolver(new NameContext(this._nameContext))
+        if (node.initialization)
+            node.initialization.visit(newResolver);
+        if (node.condition)
+            node.condition.visit(newResolver);
+        if (node.increment)
+            node.increment.visit(newResolver);
+        node.body.visit(newResolver);
+    }
     
     visitProtocolDecl(node)
     {
+        for (let parent of node.extends)
+            parent.visit(this);
         let nameContext = new NameContext(this._nameContext);
         nameContext.add(node.typeVariable);
         let checker = new NameResolver(nameContext);
@@ -106,6 +132,15 @@ class NameResolver extends Visitor {
         if (!result)
             throw new WTypeError(node.origin.originString, "Could not find protocol named " + node.name);
         node.protocolDecl = result;
+    }
+    
+    visitProtocolFuncDecl(node)
+    {
+        this.visitFunc(node);
+        let funcs = this._nameContext.get(Func, node.name);
+        if (!funcs)
+            throw new WTypeError(node.origin.originString, "Cannot find any functions named " + node.name);
+        node.possibleOverloads = funcs;
     }
     
     visitTypeDef(node)
@@ -136,13 +171,15 @@ class NameResolver extends Visitor {
         for (let i = 0; i < typeArguments.length; ++i) {
             let typeArgument = typeArguments[i];
             if (typeArgument instanceof TypeOrVariableRef) {
-                let thing = this._nameContext.get(NotFunc, typeArgument.name);
+                let thing = this._nameContext.get(Anything, typeArgument.name);
                 if (!thing)
                     new WTypeError(typeArgument.origin.originString, "Could not find type or variable named " + typeArgument.name);
-                if (thing instanceof Value) {
+                if (thing instanceof Value)
                     typeArguments[i] = new VariableRef(typeArgument.origin, typeArgument.name);
-                } else
+                else if (thing instanceof Type)
                     typeArguments[i] = new TypeRef(typeArgument.origin, typeArgument.name, []);
+                else
+                    throw new WTypeError(typeArgument.origin.originString, "Type argument resolved to wrong kind of thing: " + thing.kind);
             }
             
             if (typeArgument[i] instanceof Value
@@ -155,12 +192,13 @@ class NameResolver extends Visitor {
     {
         this._resolveTypeArguments(node.typeArguments);
         
-        let type = this._nameContext.get(Type, node.name);
-        if (!type)
-            throw new WTypeError(node.origin.originString, "Could not find type named " + node.name);
-        if (!this._nameContext.isDefined(type))
-            throw new WTypeError(node.origin.originString, "Illegal forward use of type named " + node.name);
-        node.type = type;
+        let type = node.type;
+        if (!type) {
+            type = this._nameContext.get(Type, node.name);
+            if (!type)
+                throw new WTypeError(node.origin.originString, "Could not find type named " + node.name);
+            node.type = type;
+        }
         
         if (type.typeParameters.length != node.typeArguments.length)
             throw new WTypeError(node.origin.originString, "Wrong number of type arguments (passed " + node.typeArguments.length + ", expected " + type.typeParameters.length + ")");
@@ -173,14 +211,11 @@ class NameResolver extends Visitor {
             if (!parameterIsType && argumentIsType)
                 throw new WTypeError(node.origin.originString, "Expected value, but got type at argument #" + i);
         }
-
-        super.visitTypeRef(node);
     }
     
     visitReferenceType(node)
     {
         let nameContext = new NameContext(this._nameContext);
-        nameContext.defineAll();
         node.elementType.visit(new NameResolver(nameContext));
     }
     
@@ -191,9 +226,11 @@ class NameResolver extends Visitor {
         if (node.initializer)
             node.initializer.visit(this);
     }
-    
+
     visitVariableRef(node)
     {
+        if (node.variable)
+            return;
         let result = this._nameContext.get(Value, node.name);
         if (!result)
             throw new WTypeError(node.origin.originString, "Could not find variable named " + node.name);
@@ -206,9 +243,57 @@ class NameResolver extends Visitor {
         super.visitReturn(node);
     }
     
+    _handlePropertyAccess(node)
+    {
+        node.possibleGetOverloads = this._nameContext.get(Func, node.getFuncName);
+        node.possibleSetOverloads = this._nameContext.get(Func, node.setFuncName);
+        node.possibleAndOverloads = this._nameContext.get(Func, node.andFuncName);
+
+        if (!node.possibleGetOverloads && !node.possibleAndOverloads)
+            throw new WTypeError(node.origin.originString, "Cannot find either " + node.getFuncName + " or " + node.andFuncName);
+    }
+    
+    visitDotExpression(node)
+    {
+        // This could be a reference to an enum. Let's resolve that now.
+        if (node.struct instanceof VariableRef) {
+            let enumType = this._nameContext.get(Type, node.struct.name);
+            if (enumType && enumType instanceof EnumType) {
+                let enumMember = enumType.memberByName(node.fieldName);
+                if (!enumMember)
+                    throw new WTypeError(node.origin.originString, "Enum " + enumType.name + " does not have a member named " + node.fieldName);
+                node.become(new EnumLiteral(node.origin, enumMember));
+                return;
+            }
+        }
+        
+        this._handlePropertyAccess(node);
+        super.visitDotExpression(node);
+    }
+    
+    visitIndexExpression(node)
+    {
+        this._handlePropertyAccess(node);
+        super.visitIndexExpression(node);
+    }
+    
     visitCallExpression(node)
     {
         this._resolveTypeArguments(node.typeArguments);
+        
+        let funcs = this._nameContext.get(Func, node.name);
+        if (funcs)
+            node.possibleOverloads = funcs;
+        else {
+            let type = this._nameContext.get(Type, node.name);
+            if (!type)
+                throw new WTypeError(node.origin.originString, "Cannot find any function or type named \"" + node.name + "\"");
+            node.becomeCast(type);
+            node.possibleOverloads = this._nameContext.get(Func, "operator cast");
+            if (!node.possibleOverloads)
+                throw new WTypeError(node.origin.originString, "Cannot find any operator cast implementations in cast to " + type);
+        }
+        
         super.visitCallExpression(node);
     }
 }

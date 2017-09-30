@@ -41,7 +41,6 @@ class ReadableStream;
 
 class FetchBodyConsumer {
 public:
-    // Type is used in FetchResponse.js and should be kept synchronized with it.
     enum class Type { None, ArrayBuffer, Blob, JSON, Text };
 
     FetchBodyConsumer(Type type) : m_type(type) { }
@@ -61,6 +60,7 @@ public:
 
     void clean();
 
+    void extract(ReadableStream&, ReadableStreamToSharedBufferSink::Callback&&);
     void resolve(Ref<DeferredPromise>&&, ReadableStream*);
     void resolveWithData(Ref<DeferredPromise>&&, const unsigned char*, unsigned);
 
@@ -72,6 +72,8 @@ public:
     void setConsumePromise(Ref<DeferredPromise>&&);
     void setSource(Ref<FetchBodySource>&&);
 
+    void setAsLoading() { m_isLoading = true; }
+
 private:
     Type m_type;
     String m_contentType;
@@ -79,6 +81,7 @@ private:
     RefPtr<DeferredPromise> m_consumePromise;
     RefPtr<ReadableStreamToSharedBufferSink> m_sink;
     RefPtr<FetchBodySource> m_source;
+    bool m_isLoading { false };
 };
 
 } // namespace WebCore

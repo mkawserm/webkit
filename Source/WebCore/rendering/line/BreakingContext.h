@@ -628,9 +628,6 @@ ALWAYS_INLINE float textWidth(RenderText& text, unsigned from, unsigned len, con
         return FontCascade::width(*layout, from, len, &fallbackFonts);
 
     TextRun run = RenderBlock::constructTextRun(text, from, len, style);
-    run.setCharactersLength(text.textLength() - from);
-    ASSERT(run.charactersLength() >= run.length());
-
     run.setCharacterScanForCodePath(!text.canUseSimpleFontCodePath());
     run.setTabSize(!collapseWhiteSpace, style.tabSize());
     run.setXPos(xPos);
@@ -675,9 +672,6 @@ inline void tryHyphenating(RenderText& text, const FontCascade& font, const Atom
 
     const RenderStyle& style = text.style();
     TextRun run = RenderBlock::constructTextRun(text, lastSpace, pos - lastSpace, style);
-    run.setCharactersLength(text.textLength() - lastSpace);
-    ASSERT(run.charactersLength() >= run.length());
-
     run.setTabSize(!collapseWhiteSpace, style.tabSize());
     run.setXPos(xPos + lastSpaceWordSpacing);
 
@@ -755,7 +749,7 @@ inline bool BreakingContext::handleText(WordMeasurements& wordMeasurements, bool
 
     if (renderText.style().hasTextCombine() && is<RenderCombineText>(*m_current.renderer())) {
         auto& combineRenderer = downcast<RenderCombineText>(*m_current.renderer());
-        combineRenderer.combineText();
+        combineRenderer.combineTextIfNeeded();
         // The length of the renderer's text may have changed. Increment stale iterator positions
         if (iteratorIsBeyondEndOfRenderCombineText(m_lineBreakHistory.current(), combineRenderer)) {
             ASSERT(iteratorIsBeyondEndOfRenderCombineText(m_resolver.position(), combineRenderer));

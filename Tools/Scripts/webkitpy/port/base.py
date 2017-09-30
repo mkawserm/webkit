@@ -1432,7 +1432,6 @@ class Port(object):
 
     def _build_driver(self):
         environment = self.host.copy_current_environment()
-        environment.disable_gcc_smartquotes()
         env = environment.to_dictionary()
 
         # FIXME: We build both DumpRenderTree and WebKitTestRunner for WebKitTestRunner runs because
@@ -1448,7 +1447,6 @@ class Port(object):
 
     def _build_image_diff(self):
         environment = self.host.copy_current_environment()
-        environment.disable_gcc_smartquotes()
         env = environment.to_dictionary()
         try:
             self._run_script("build-imagediff", env=env)
@@ -1549,3 +1547,8 @@ class Port(object):
     def test_expectations_file_position(self):
         # By default baseline search path schema is i.e. port-wk2 -> wk2 -> port -> generic, so port expectations file is at second to last position.
         return 1
+
+    def did_spawn_worker(self, worker_number):
+        # This is overridden by ports that need to do work in the parent process after a worker subprocess is spawned,
+        # such as closing file descriptors that were implicitly cloned to the worker.
+        pass

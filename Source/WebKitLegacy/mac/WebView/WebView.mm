@@ -209,6 +209,7 @@
 #import <mach-o/dyld.h>
 #import <objc/runtime.h>
 #import <pal/spi/cf/CFNetworkSPI.h>
+#import <pal/spi/cf/CFUtilitiesSPI.h>
 #import <pal/spi/cocoa/NSTouchBarSPI.h>
 #import <pal/spi/cocoa/NSURLFileTypeMappingsSPI.h>
 #import <pal/spi/mac/NSResponderSPI.h>
@@ -1454,7 +1455,7 @@ static void WebKitInitializeGamepadProviderIfNecessary()
     _private->page->setGroupName(groupName);
 
 #if ENABLE(GEOLOCATION)
-    WebCore::provideGeolocationTo(_private->page, new WebGeolocationClient(self));
+    WebCore::provideGeolocationTo(_private->page, *new WebGeolocationClient(self));
 #endif
 #if ENABLE(NOTIFICATIONS)
     WebCore::provideNotification(_private->page, new WebNotificationClient(self));
@@ -1812,7 +1813,7 @@ static void WebKitInitializeGamepadProviderIfNecessary()
         _private->textIndicatorData = adoptNS([[WebUITextIndicatorData alloc] initWithImage:image scale:_private->page->deviceScaleFactor()]);
     _private->draggedLinkURL = dragItem.url.isEmpty() ? nil : (NSURL *)dragItem.url;
     _private->draggedLinkTitle = dragItem.title.isEmpty() ? nil : (NSString *)dragItem.title;
-    _private->draggedElementBounds = dragItem.elementBounds;
+    _private->dragPreviewFrameInRootViewCoordinates = dragItem.dragPreviewFrameInRootViewCoordinates;
     _private->dragSourceAction = static_cast<WebDragSourceAction>(dragItem.sourceAction);
 }
 
@@ -1847,7 +1848,7 @@ static void WebKitInitializeGamepadProviderIfNecessary()
 
 - (CGRect)_draggedElementBounds
 {
-    return _private->draggedElementBounds;
+    return _private->dragPreviewFrameInRootViewCoordinates;
 }
 
 - (WebUITextIndicatorData *)_getDataInteractionData
@@ -1903,7 +1904,7 @@ static void WebKitInitializeGamepadProviderIfNecessary()
     WebThreadLock();
     _private->page->dragController().dragEnded();
     _private->dataOperationTextIndicator = nullptr;
-    _private->draggedElementBounds = CGRectNull;
+    _private->dragPreviewFrameInRootViewCoordinates = CGRectNull;
     _private->dragSourceAction = WebDragSourceActionNone;
     _private->draggedLinkTitle = nil;
     _private->draggedLinkURL = nil;
@@ -2609,16 +2610,16 @@ static bool fastDocumentTeardownEnabled()
 #if !PLATFORM(IOS)
 - (BOOL)_needsAdobeFrameReloadingQuirk
 {
-    static BOOL needsQuirk = WKAppVersionCheckLessThan(@"com.adobe.Acrobat", -1, 9.0)
-        || WKAppVersionCheckLessThan(@"com.adobe.Acrobat.Pro", -1, 9.0)
-        || WKAppVersionCheckLessThan(@"com.adobe.Reader", -1, 9.0)
-        || WKAppVersionCheckLessThan(@"com.adobe.distiller", -1, 9.0)
-        || WKAppVersionCheckLessThan(@"com.adobe.Contribute", -1, 4.2)
-        || WKAppVersionCheckLessThan(@"com.adobe.dreamweaver-9.0", -1, 9.1)
-        || WKAppVersionCheckLessThan(@"com.macromedia.fireworks", -1, 9.1)
-        || WKAppVersionCheckLessThan(@"com.adobe.InCopy", -1, 5.1)
-        || WKAppVersionCheckLessThan(@"com.adobe.InDesign", -1, 5.1)
-        || WKAppVersionCheckLessThan(@"com.adobe.Soundbooth", -1, 2);
+    static BOOL needsQuirk = _CFAppVersionCheckLessThan(CFSTR("com.adobe.Acrobat"), -1, 9.0)
+        || _CFAppVersionCheckLessThan(CFSTR("com.adobe.Acrobat.Pro"), -1, 9.0)
+        || _CFAppVersionCheckLessThan(CFSTR("com.adobe.Reader"), -1, 9.0)
+        || _CFAppVersionCheckLessThan(CFSTR("com.adobe.distiller"), -1, 9.0)
+        || _CFAppVersionCheckLessThan(CFSTR("com.adobe.Contribute"), -1, 4.2)
+        || _CFAppVersionCheckLessThan(CFSTR("com.adobe.dreamweaver-9.0"), -1, 9.1)
+        || _CFAppVersionCheckLessThan(CFSTR("com.macromedia.fireworks"), -1, 9.1)
+        || _CFAppVersionCheckLessThan(CFSTR("com.adobe.InCopy"), -1, 5.1)
+        || _CFAppVersionCheckLessThan(CFSTR("com.adobe.InDesign"), -1, 5.1)
+        || _CFAppVersionCheckLessThan(CFSTR("com.adobe.Soundbooth"), -1, 2);
 
     return needsQuirk;
 }
@@ -2626,13 +2627,13 @@ static bool fastDocumentTeardownEnabled()
 - (BOOL)_needsLinkElementTextCSSQuirk
 {
     static BOOL needsQuirk = !WebKitLinkedOnOrAfter(WEBKIT_FIRST_VERSION_WITHOUT_LINK_ELEMENT_TEXT_CSS_QUIRK)
-        && WKAppVersionCheckLessThan(@"com.e-frontier.shade10", -1, 10.6);
+        && _CFAppVersionCheckLessThan(CFSTR("com.e-frontier.shade10"), -1, 10.6);
     return needsQuirk;
 }
 
 - (BOOL)_needsIsLoadingInAPISenseQuirk
 {
-    static BOOL needsQuirk = WKAppVersionCheckLessThan(@"com.apple.iAdProducer", -1, 2.1);
+    static BOOL needsQuirk = _CFAppVersionCheckLessThan(CFSTR("com.apple.iAdProducer"), -1, 2.1);
     
     return needsQuirk;
 }
@@ -2645,7 +2646,7 @@ static bool fastDocumentTeardownEnabled()
 
 - (BOOL)_needsFrameLoadDelegateRetainQuirk
 {
-    static BOOL needsQuirk = WKAppVersionCheckLessThan(@"com.equinux.iSale5", -1, 5.6);    
+    static BOOL needsQuirk = _CFAppVersionCheckLessThan(CFSTR("com.equinux.iSale5"), -1, 5.6);
     return needsQuirk;
 }
 
@@ -2927,7 +2928,7 @@ static bool needsSelfRetainWhileLoadingQuirk()
     settings.setNeedsAdobeFrameReloadingQuirk([self _needsAdobeFrameReloadingQuirk]);
     settings.setTreatsAnyTextCSSLinkAsStylesheet([self _needsLinkElementTextCSSQuirk]);
     settings.setNeedsKeyboardEventDisambiguationQuirks([self _needsKeyboardEventDisambiguationQuirks]);
-    settings.setEnforceCSSMIMETypeInNoQuirksMode(!WKAppVersionCheckLessThan(@"com.apple.iWeb", -1, 2.1));
+    settings.setEnforceCSSMIMETypeInNoQuirksMode(!_CFAppVersionCheckLessThan(CFSTR("com.apple.iWeb"), -1, 2.1));
     settings.setNeedsIsLoadingInAPISenseQuirk([self _needsIsLoadingInAPISenseQuirk]);
     settings.setTextAreasAreResizable([preferences textAreasAreResizable]);
     settings.setExperimentalNotificationsEnabled([preferences experimentalNotificationsEnabled]);
@@ -2994,6 +2995,10 @@ static bool needsSelfRetainWhileLoadingQuirk()
     RuntimeEnabledFeatures::sharedFeatures().setShadowDOMEnabled([preferences shadowDOMEnabled]);
     RuntimeEnabledFeatures::sharedFeatures().setCustomElementsEnabled([preferences customElementsEnabled]);
     RuntimeEnabledFeatures::sharedFeatures().setDataTransferItemsEnabled([preferences dataTransferItemsEnabled]);
+
+#if ENABLE(ATTACHMENT_ELEMENT)
+    RuntimeEnabledFeatures::sharedFeatures().setAttachmentElementEnabled([preferences attachmentElementEnabled]);
+#endif
 
     RuntimeEnabledFeatures::sharedFeatures().setInteractiveFormValidationEnabled([self interactiveFormValidationEnabled]);
     RuntimeEnabledFeatures::sharedFeatures().setModernMediaControlsEnabled([preferences modernMediaControlsEnabled]);
@@ -3068,10 +3073,6 @@ static bool needsSelfRetainWhileLoadingQuirk()
 #endif
 
     settings.setMediaDataLoadsAutomatically([preferences mediaDataLoadsAutomatically]);
-
-#if ENABLE(ATTACHMENT_ELEMENT)
-    settings.setAttachmentElementEnabled([preferences attachmentElementEnabled]);
-#endif
 
     settings.setAllowContentSecurityPolicySourceStarToMatchAnyProtocol(shouldAllowContentSecurityPolicySourceStarToMatchAnyProtocol());
 
@@ -8573,7 +8574,7 @@ static WebFrameView *containingFrameView(NSView *view)
     if (s_didSetCacheModel && cacheModel == s_cacheModel)
         return;
 
-    NSString *nsurlCacheDirectory = CFBridgingRelease(WKCopyFoundationCacheDirectory());
+    NSString *nsurlCacheDirectory = CFBridgingRelease(_CFURLCacheCopyCacheDirectory([[NSURLCache sharedURLCache] _CFURLCache]));
     if (!nsurlCacheDirectory)
         nsurlCacheDirectory = NSHomeDirectory();
 
@@ -9984,7 +9985,7 @@ static NSTextAlignment nsTextAlignmentFromRenderStyle(const RenderStyle* style)
 {
 #if ENABLE(GEOLOCATION)
     if (_private && _private->page) {
-        RefPtr<GeolocationError> geolocatioError = GeolocationError::create(GeolocationError::PositionUnavailable, errorMessage);
+        auto geolocatioError = GeolocationError::create(GeolocationError::PositionUnavailable, errorMessage);
         WebCore::GeolocationController::from(_private->page)->errorOccurred(geolocatioError.get());
     }
 #endif // ENABLE(GEOLOCATION)

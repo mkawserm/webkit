@@ -14,6 +14,7 @@ find_library(AUDIOUNIT_LIBRARY AudioUnit)
 find_library(CARBON_LIBRARY Carbon)
 find_library(COCOA_LIBRARY Cocoa)
 find_library(COREAUDIO_LIBRARY CoreAudio)
+find_library(CORESERVICES_LIBRARY CoreServices)
 find_library(DISKARBITRATION_LIBRARY DiskArbitration)
 find_library(IOKIT_LIBRARY IOKit)
 find_library(IOSURFACE_LIBRARY IOSurface)
@@ -35,6 +36,7 @@ list(APPEND WebCore_LIBRARIES
     ${CARBON_LIBRARY}
     ${COCOA_LIBRARY}
     ${COREAUDIO_LIBRARY}
+    ${CORESERVICES_LIBRARY}
     ${DISKARBITRATION_LIBRARY}
     ${IOKIT_LIBRARY}
     ${IOSURFACE_LIBRARY}
@@ -43,15 +45,17 @@ list(APPEND WebCore_LIBRARIES
     ${QUARTZ_LIBRARY}
     ${QUARTZCORE_LIBRARY}
     ${SECURITY_LIBRARY}
-    ${SQLITE3_LIBRARY}
+    ${SQLITE_LIBRARIES}
     ${SYSTEMCONFIGURATION_LIBRARY}
     ${WEBKITSYSTEMINTERFACE_LIBRARY}
     ${XML2_LIBRARY}
+    ${ZLIB_LIBRARY}
 )
 
 add_definitions(-iframework ${APPLICATIONSERVICES_LIBRARY}/Versions/Current/Frameworks)
 add_definitions(-iframework ${AVFOUNDATION_LIBRARY}/Versions/Current/Frameworks)
 add_definitions(-iframework ${CARBON_LIBRARY}/Versions/Current/Frameworks)
+add_definitions(-iframework ${CORESERVICES_LIBRARY}/Versions/Current/Frameworks)
 add_definitions(-iframework ${QUARTZ_LIBRARY}/Frameworks)
 
 find_library(DATADETECTORSCORE_FRAMEWORK DataDetectorsCore HINTS /System/Library/PrivateFrameworks)
@@ -71,6 +75,7 @@ list(APPEND WebCore_INCLUDE_DIRECTORIES
     "${WEBCORE_DIR}/accessibility/mac"
     "${WEBCORE_DIR}/bridge/objc"
     "${WEBCORE_DIR}/editing/cocoa"
+    "${WEBCORE_DIR}/editing/ios"
     "${WEBCORE_DIR}/editing/mac"
     "${WEBCORE_DIR}/ForwardingHeaders"
     "${WEBCORE_DIR}/ForwardingHeaders/bindings"
@@ -203,6 +208,11 @@ list(APPEND WebCore_SOURCES
     editing/cocoa/DataDetection.mm
     editing/cocoa/EditorCocoa.mm
     editing/cocoa/HTMLConverter.mm
+    editing/cocoa/WebArchiveResourceFromNSAttributedString.mm
+    editing/cocoa/WebArchiveResourceWebResourceHandler.mm
+    editing/cocoa/WebContentReaderCocoa.mm
+
+    editing/ios/AutofillElements.cpp
 
     editing/mac/AlternativeTextUIController.mm
     editing/mac/DictionaryLookup.mm
@@ -210,6 +220,7 @@ list(APPEND WebCore_SOURCES
     editing/mac/FrameSelectionMac.mm
     editing/mac/TextAlternativeWithRange.mm
     editing/mac/TextUndoInsertionMarkupMac.mm
+    editing/mac/WebContentReaderMac.mm
 
     fileapi/FileCocoa.mm
 
@@ -310,6 +321,7 @@ list(APPEND WebCore_SOURCES
     platform/cocoa/MachSendRight.cpp
     platform/cocoa/NetworkExtensionContentFilter.mm
     platform/cocoa/ParentalControlsContentFilter.mm
+    platform/cocoa/PasteboardCocoa.mm
     platform/cocoa/RuntimeApplicationChecksCocoa.mm
     platform/cocoa/ScrollController.mm
     platform/cocoa/ScrollSnapAnimatorState.mm
@@ -336,7 +348,6 @@ list(APPEND WebCore_SOURCES
     platform/graphics/avfoundation/MediaPlaybackTargetMac.mm
     platform/graphics/avfoundation/MediaPlayerPrivateAVFoundation.cpp
     platform/graphics/avfoundation/MediaSelectionGroupAVFObjC.mm
-    platform/graphics/avfoundation/MediaTimeAVFoundation.cpp
 
     platform/graphics/avfoundation/objc/AVAssetTrackUtilities.mm
     platform/graphics/avfoundation/objc/AVFoundationMIMETypeCache.mm
@@ -346,6 +357,7 @@ list(APPEND WebCore_SOURCES
     platform/graphics/avfoundation/objc/CDMSessionAVFoundationObjC.mm
     platform/graphics/avfoundation/objc/CDMSessionAVStreamSession.mm
     platform/graphics/avfoundation/objc/CDMSessionMediaSourceAVFObjC.mm
+    platform/graphics/avfoundation/objc/ImageDecoderAVFObjC.mm
     platform/graphics/avfoundation/objc/InbandTextTrackPrivateAVFObjC.mm
     platform/graphics/avfoundation/objc/InbandTextTrackPrivateLegacyAVFObjC.mm
     platform/graphics/avfoundation/objc/MediaPlayerPrivateAVFoundationObjC.mm
@@ -484,8 +496,6 @@ list(APPEND WebCore_SOURCES
     platform/mac/NSScrollerImpDetails.mm
     platform/mac/PasteboardMac.mm
     platform/mac/PasteboardWriter.mm
-    platform/mac/PlatformClockCA.cpp
-    platform/mac/PlatformClockCM.mm
     platform/mac/PlatformEventFactoryMac.mm
     platform/mac/PlatformPasteboardMac.mm
     platform/mac/PlatformScreenMac.mm
@@ -604,6 +614,7 @@ set(WebCore_FORWARDING_HEADERS_DIRECTORIES
     workers
 
     Modules/applepay
+    Modules/cache
     Modules/geolocation
     Modules/indexeddb
     Modules/mediastream
@@ -624,6 +635,7 @@ set(WebCore_FORWARDING_HEADERS_DIRECTORIES
 
     editing/cocoa
     editing/mac
+    editing/ios
 
     html/canvas
     html/forms
@@ -688,6 +700,10 @@ set(WebCore_FORWARDING_HEADERS_DIRECTORIES
 
     svg/graphics
     svg/properties
+
+    workers/service
+
+    workers/service/server
 
     xml
 )
