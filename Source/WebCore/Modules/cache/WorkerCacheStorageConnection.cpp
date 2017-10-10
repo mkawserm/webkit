@@ -53,6 +53,7 @@ struct CrossThreadRecordData {
     FetchHeaders::Guard responseHeadersGuard;
     ResourceResponse::CrossThreadData response;
     ResponseBody responseBody;
+    uint64_t responseBodySize;
 };
 
 static CrossThreadRecordData toCrossThreadRecordData(const Record& record)
@@ -66,7 +67,8 @@ static CrossThreadRecordData toCrossThreadRecordData(const Record& record)
         record.referrer.isolatedCopy(),
         record.responseHeadersGuard,
         record.response.crossThreadData(),
-        isolatedResponseBody(record.responseBody)
+        isolatedResponseBody(record.responseBody),
+        record.responseBodySize
     };
 }
 
@@ -81,7 +83,8 @@ static Record fromCrossThreadRecordData(CrossThreadRecordData&& data)
         WTFMove(data.referrer),
         data.responseHeadersGuard,
         ResourceResponse::fromCrossThreadData(WTFMove(data.response)),
-        WTFMove(data.responseBody)
+        WTFMove(data.responseBody),
+        data.responseBodySize
     };
 }
 
@@ -185,11 +188,7 @@ void WorkerCacheStorageConnection::dereference(uint64_t cacheIdentifier)
 
 static inline Vector<CrossThreadRecordData> recordsDataFromRecords(const Vector<Record>& records)
 {
-    Vector<CrossThreadRecordData> recordsData;
-    recordsData.reserveInitialCapacity(records.size());
-    for (const auto& record : records)
-        recordsData.uncheckedAppend(toCrossThreadRecordData(record));
-    return recordsData;
+    return WTF::map(records, toCrossThreadRecordData);
 }
 
 static inline Expected<Vector<CrossThreadRecordData>, Error> recordsDataOrErrorFromRecords(const RecordsOrError& result)
@@ -202,11 +201,7 @@ static inline Expected<Vector<CrossThreadRecordData>, Error> recordsDataOrErrorF
 
 static inline Vector<Record> recordsFromRecordsData(Vector<CrossThreadRecordData>&& recordsData)
 {
-    Vector<Record> records;
-    records.reserveInitialCapacity(recordsData.size());
-    for (auto& recordData : recordsData)
-        records.uncheckedAppend(fromCrossThreadRecordData(WTFMove(recordData)));
-    return records;
+    return WTF::map(WTFMove(recordsData), fromCrossThreadRecordData);
 }
 
 static inline RecordsOrError recordsOrErrorFromRecordsData(Expected<Vector<CrossThreadRecordData>, Error>&& recordsData)

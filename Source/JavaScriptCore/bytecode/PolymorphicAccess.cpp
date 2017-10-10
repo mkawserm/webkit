@@ -258,6 +258,40 @@ AccessGenerationResult PolymorphicAccess::addCases(
     if (casesToAdd.isEmpty())
         return AccessGenerationResult::MadeNoChanges;
 
+    bool shouldReset = false;
+    AccessGenerationResult resetResult(AccessGenerationResult::ResetStubAndFireWatchpoints);
+    auto considerPolyProtoReset = [&] (Structure* a, Structure* b) {
+        if (Structure::shouldConvertToPolyProto(a, b)) {
+            // For now, we only reset if this is our first time invalidating this watchpoint.
+            // The reason we don't immediately fire this watchpoint is that we may be already
+            // watching the poly proto watchpoint, which if fired, would destroy us. We let
+            // the person handling the result to do a delayed fire.
+            ASSERT(a->rareData()->sharedPolyProtoWatchpoint().get() == b->rareData()->sharedPolyProtoWatchpoint().get());
+            if (a->rareData()->sharedPolyProtoWatchpoint()->isStillValid()) {
+                shouldReset = true;
+                resetResult.addWatchpointToFire(*a->rareData()->sharedPolyProtoWatchpoint(), StringFireDetail("Detected poly proto optimization opportunity."));
+            }
+        }
+    };
+
+    for (auto& caseToAdd : casesToAdd) {
+        for (auto& existingCase : m_list) {
+            Structure* a = caseToAdd->structure();
+            Structure* b = existingCase->structure();
+            considerPolyProtoReset(a, b);
+        }
+    }
+    for (unsigned i = 0; i < casesToAdd.size(); ++i) {
+        for (unsigned j = i + 1; j < casesToAdd.size(); ++j) {
+            Structure* a = casesToAdd[i]->structure();
+            Structure* b = casesToAdd[j]->structure();
+            considerPolyProtoReset(a, b);
+        }
+    }
+
+    if (shouldReset)
+        return resetResult;
+
     // Now add things to the new list. Note that at this point, we will still have old cases that
     // may be replaced by the new ones. That's fine. We will sort that out when we regenerate.
     for (auto& caseToAdd : casesToAdd) {
@@ -339,7 +373,7 @@ AccessGenerationResult PolymorphicAccess::regenerate(
     if (PolymorphicAccessInternal::verbose)
         dataLog("Regenerate with m_list: ", listDump(m_list), "\n");
     
-    AccessGenerationState state(vm);
+    AccessGenerationState state(vm, codeBlock->globalObject());
 
     state.access = this;
     state.stubInfo = &stubInfo;
@@ -589,6 +623,9 @@ void printInternal(PrintStream& out, AccessGenerationResult::Kind kind)
         return;
     case AccessGenerationResult::GeneratedFinalCode:
         out.print("GeneratedFinalCode");
+        return;
+    case AccessGenerationResult::ResetStubAndFireWatchpoints:
+        out.print("ResetStubAndFireWatchpoints");
         return;
     }
     

@@ -1892,7 +1892,7 @@ int distanceBetweenPositions(const VisiblePosition& vp, const VisiblePosition& o
 void charactersAroundPosition(const VisiblePosition& position, UChar32& oneAfter, UChar32& oneBefore, UChar32& twoBefore)
 {
     const int maxCharacters = 3;
-    Vector<UChar32> characters(maxCharacters);
+    UChar32 characters[maxCharacters] = { 0 };
 
     if (position.isNull() || isStartOfDocument(position))
         return;
@@ -1971,7 +1971,7 @@ VisiblePosition closestWordBoundaryForPosition(const VisiblePosition& position)
 {
     VisiblePosition result;
 
-    // move the the position at the end of the word
+    // move the position at the end of the word
     if (atBoundaryOfGranularity(position, LineGranularity, DirectionForward)) {
         // Don't cross line boundaries.
         result = position;

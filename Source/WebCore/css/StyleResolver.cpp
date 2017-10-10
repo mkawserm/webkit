@@ -779,9 +779,11 @@ static bool hasEffectiveDisplayNoneForDisplayContents(const Element& element)
     // FIXME: <g>, <use> and <tspan> have special (?) behavior for display:contents in the current draft spec.
     if (is<SVGElement>(element))
         return true;
+#if ENABLE(MATHML)
     // Not sure MathML code can handle it.
     if (is<MathMLElement>(element))
         return true;
+#endif // ENABLE(MATHML)
     if (!is<HTMLElement>(element))
         return false;
     return tagNames.get().contains(element.localName());
@@ -1046,7 +1048,7 @@ void StyleResolver::adjustRenderStyle(RenderStyle& style, const RenderStyle& par
     }
 
     // If the inherited value of justify-items includes the 'legacy' keyword,
-    // 'auto' computes to the the inherited value. Otherwise, 'auto' computes to
+    // 'auto' computes to the inherited value. Otherwise, 'auto' computes to
     // 'normal'.
     if (style.justifyItems().position() == ItemPositionAuto) {
         if (parentBoxStyle->justifyItems().positionType() == LegacyPosition)

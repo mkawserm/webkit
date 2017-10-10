@@ -40,27 +40,34 @@ bool StaticPasteboard::hasData()
     return !m_platformData.isEmpty() || !m_customData.isEmpty();
 }
 
-String StaticPasteboard::readStringForBindings(const String& type)
+String StaticPasteboard::readString(const String& type)
 {
-    if (m_platformData.contains(type))
-        return m_platformData.get(type);
+    return m_platformData.get(type);
+}
 
-    if (m_customData.contains(type))
-        return m_customData.get(type);
+String StaticPasteboard::readStringInCustomData(const String& type)
+{
+    return m_customData.get(type);
+}
 
-    return { };
+static void updateTypes(Vector<String>& types, String type, bool moveToEnd)
+{
+    if (moveToEnd)
+        types.removeFirst(type);
+    ASSERT(!types.contains(type));
+    types.append(type);
 }
 
 void StaticPasteboard::writeString(const String& type, const String& value)
 {
-    auto& pasteboardData = isSafeTypeForDOMToReadAndWrite(type) ? m_platformData : m_customData;
-    if (pasteboardData.set(type, value).isNewEntry)
-        m_types.append(type);
-    else {
-        m_types.removeFirst(type);
-        ASSERT(!m_types.contains(type));
-        m_types.append(type);
-    }
+    bool typeWasAlreadyPresent = !m_platformData.set(type, value).isNewEntry || m_customData.contains(type);
+    updateTypes(m_types, type, typeWasAlreadyPresent);
+}
+
+void StaticPasteboard::writeStringInCustomData(const String& type, const String& value)
+{
+    bool typeWasAlreadyPresent = !m_customData.set(type, value).isNewEntry || m_platformData.contains(type);
+    updateTypes(m_types, type, typeWasAlreadyPresent);
 }
 
 void StaticPasteboard::clear()
@@ -84,7 +91,7 @@ void StaticPasteboard::commitToPasteboard(Pasteboard& pasteboard)
         return;
 
     if (Settings::customPasteboardDataEnabled()) {
-        pasteboard.writeCustomData({ WTFMove(m_types), WTFMove(m_platformData), WTFMove(m_customData) });
+        pasteboard.writeCustomData({ { }, WTFMove(m_types), WTFMove(m_platformData), WTFMove(m_customData) });
         return;
     }
 

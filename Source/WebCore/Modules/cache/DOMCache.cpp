@@ -38,8 +38,6 @@ using namespace WebCore::DOMCacheEngine;
 
 namespace WebCore {
 
-static Record toConnectionRecord(const FetchRequest&, FetchResponse&, ResponseBody&&);
-
 DOMCache::DOMCache(ScriptExecutionContext& context, String&& name, uint64_t identifier, Ref<CacheStorageConnection>&& connection)
     : ActiveDOMObject(&context)
     , m_name(WTFMove(name))
@@ -95,6 +93,14 @@ void DOMCache::doMatch(RequestInfo&& info, CacheQueryOptions&& options, MatchCal
     });
 }
 
+Vector<Ref<FetchResponse>> DOMCache::cloneResponses(const Vector<CacheStorageRecord>& records)
+{
+    auto& context = *scriptExecutionContext();
+    return WTF::map(records, [&context] (const auto& record) {
+        return record.response->clone(context).releaseReturnValue();
+    });
+}
+
 void DOMCache::matchAll(std::optional<RequestInfo>&& info, CacheQueryOptions&& options, MatchAllPromise&& promise)
 {
     if (UNLIKELY(!scriptExecutionContext()))
@@ -116,11 +122,7 @@ void DOMCache::matchAll(std::optional<RequestInfo>&& info, CacheQueryOptions&& o
                 promise.reject(WTFMove(exception.value()));
                 return;
             }
-            Vector<Ref<FetchResponse>> responses;
-            responses.reserveInitialCapacity(m_records.size());
-            for (auto& record : m_records)
-                responses.uncheckedAppend(record.response->clone(*scriptExecutionContext()).releaseReturnValue());
-            promise.resolve(WTFMove(responses));
+            promise.resolve(cloneResponses(m_records));
         });
         return;
     }
@@ -129,12 +131,7 @@ void DOMCache::matchAll(std::optional<RequestInfo>&& info, CacheQueryOptions&& o
             promise.reject(result.releaseException());
             return;
         }
-        auto records = result.releaseReturnValue();
-        Vector<Ref<FetchResponse>> responses;
-        responses.reserveInitialCapacity(records.size());
-        for (auto& record : records)
-            responses.uncheckedAppend(record.response->clone(*scriptExecutionContext()).releaseReturnValue());
-        promise.resolve(responses);
+        promise.resolve(cloneResponses(result.releaseReturnValue()));
     });
 }
 
@@ -373,6 +370,11 @@ void DOMCache::remove(RequestInfo&& info, CacheQueryOptions&& options, DOMPromis
     });
 }
 
+static inline Ref<FetchRequest> copyRequestRef(const CacheStorageRecord& record)
+{
+    return record.request.copyRef();
+}
+
 void DOMCache::keys(std::optional<RequestInfo>&& info, CacheQueryOptions&& options, KeysPromise&& promise)
 {
     if (UNLIKELY(!scriptExecutionContext()))
@@ -394,11 +396,7 @@ void DOMCache::keys(std::optional<RequestInfo>&& info, CacheQueryOptions&& optio
                 promise.reject(WTFMove(exception.value()));
                 return;
             }
-            Vector<Ref<FetchRequest>> requests;
-            requests.reserveInitialCapacity(m_records.size());
-            for (auto& record : m_records)
-                requests.uncheckedAppend(record.request.copyRef());
-            promise.resolve(requests);
+            promise.resolve(WTF::map(m_records, copyRequestRef));
         });
         return;
     }
@@ -409,12 +407,7 @@ void DOMCache::keys(std::optional<RequestInfo>&& info, CacheQueryOptions&& optio
             return;
         }
 
-        auto records = result.releaseReturnValue();
-        Vector<Ref<FetchRequest>> requests;
-        requests.reserveInitialCapacity(records.size());
-        for (auto& record : records)
-            requests.uncheckedAppend(record.request.copyRef());
-        promise.resolve(requests);
+        promise.resolve(WTF::map(result.releaseReturnValue(), copyRequestRef));
     });
 }
 
@@ -485,7 +478,7 @@ void DOMCache::batchDeleteOperation(const FetchRequest& request, CacheQueryOptio
     });
 }
 
-Record toConnectionRecord(const FetchRequest& request, FetchResponse& response, DOMCacheEngine::ResponseBody&& responseBody)
+Record DOMCache::toConnectionRecord(const FetchRequest& request, FetchResponse& response, DOMCacheEngine::ResponseBody&& responseBody)
 {
     // FIXME: Add a setHTTPHeaderFields on ResourceResponseBase.
     ResourceResponse cachedResponse = response.resourceResponse();
@@ -498,9 +491,15 @@ Record toConnectionRecord(const FetchRequest& request, FetchResponse& response, 
     ASSERT(!cachedRequest.isNull());
     ASSERT(!cachedResponse.isNull());
 
+    auto sizeWithPadding = response.bodySizeWithPadding();
+    if (!sizeWithPadding) {
+        sizeWithPadding = m_connection->computeRecordBodySize(response, responseBody, cachedResponse.tainting());
+        response.setBodySizeWithPadding(sizeWithPadding);
+    }
+
     return { 0, 0,
         request.headers().guard(), WTFMove(cachedRequest), request.fetchOptions(), request.internalRequestReferrer(),
-        response.headers().guard(), WTFMove(cachedResponse), WTFMove(responseBody)
+        response.headers().guard(), WTFMove(cachedResponse), WTFMove(responseBody), sizeWithPadding
     };
 }
 
@@ -538,7 +537,7 @@ void DOMCache::updateRecords(Vector<Record>&& records)
             if (current.updateResponseCounter != record.updateResponseCounter) {
                 auto responseHeaders = FetchHeaders::create(record.responseHeadersGuard, HTTPHeaderMap { record.response.httpHeaderFields() });
                 auto response = FetchResponse::create(*scriptExecutionContext(), std::nullopt, WTFMove(responseHeaders), WTFMove(record.response));
-                response->setBodyData(WTFMove(record.responseBody));
+                response->setBodyData(WTFMove(record.responseBody), record.responseBodySize);
 
                 current.response = WTFMove(response);
                 current.updateResponseCounter = record.updateResponseCounter;
@@ -550,7 +549,7 @@ void DOMCache::updateRecords(Vector<Record>&& records)
 
             auto responseHeaders = FetchHeaders::create(record.responseHeadersGuard, HTTPHeaderMap { record.response.httpHeaderFields() });
             auto response = FetchResponse::create(*scriptExecutionContext(), std::nullopt, WTFMove(responseHeaders), WTFMove(record.response));
-            response->setBodyData(WTFMove(record.responseBody));
+            response->setBodyData(WTFMove(record.responseBody), record.responseBodySize);
 
             newRecords.append(CacheStorageRecord { record.identifier, record.updateResponseCounter, WTFMove(request), WTFMove(response) });
         }

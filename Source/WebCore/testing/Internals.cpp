@@ -58,6 +58,7 @@
 #include "Element.h"
 #include "EventHandler.h"
 #include "ExtensionStyleSheets.h"
+#include "FetchResponse.h"
 #include "File.h"
 #include "FontCache.h"
 #include "FormController.h"
@@ -199,7 +200,6 @@
 #endif
 
 #if ENABLE(WEB_RTC)
-#include "MockMediaEndpoint.h"
 #include "RTCPeerConnection.h"
 #endif
 
@@ -239,6 +239,11 @@
 #if USE(QUICK_LOOK)
 #include "MockPreviewLoaderClient.h"
 #include "PreviewLoader.h"
+#endif
+
+#if ENABLE(APPLE_PAY)
+#include "MockPaymentCoordinator.h"
+#include "PaymentCoordinator.h"
 #endif
 
 using JSC::CallData;
@@ -486,12 +491,6 @@ Internals::Internals(Document& document)
     WebCore::Settings::setMediaCaptureRequiresSecureConnection(false);
 #endif
 
-#if ENABLE(WEB_RTC)
-#if USE(OPENWEBRTC)
-    enableMockMediaEndpoint();
-#endif
-#endif
-
 #if ENABLE(WIRELESS_PLAYBACK_TARGET)
     if (document.page())
         document.page()->setMockMediaPlaybackTargetPickerEnabled(true);
@@ -506,6 +505,11 @@ Internals::Internals(Document& document)
     }
 
     setConsoleMessageListener(nullptr);
+
+#if ENABLE(APPLE_PAY)
+    if (auto frame = document.frame())
+        frame->mainFrame().setPaymentCoordinator(std::make_unique<PaymentCoordinator>(*new MockPaymentCoordinator()));
+#endif
 }
 
 Document* Internals::contextDocument() const
@@ -1248,13 +1252,6 @@ void Internals::enableMockSpeechSynthesizer()
 #endif
 
 #if ENABLE(WEB_RTC)
-
-#if USE(OPENWEBRTC)
-void Internals::enableMockMediaEndpoint()
-{
-    MediaEndpoint::create = MockMediaEndpoint::create;
-}
-#endif
 
 void Internals::emulateRTCPeerConnectionPlatformEvent(RTCPeerConnection& connection, const String& action)
 {
@@ -2965,8 +2962,8 @@ void Internals::enableAutoSizeMode(bool enabled, int minimumWidth, int minimumHe
 
 void Internals::initializeMockCDM()
 {
-    CDM::registerCDMFactory([] (CDM* cdm) { return std::make_unique<MockCDM>(cdm); },
-        MockCDM::supportsKeySystem, MockCDM::supportsKeySystemAndMimeType);
+    LegacyCDM::registerCDMFactory([] (LegacyCDM* cdm) { return std::make_unique<LegacyMockCDM>(cdm); },
+        LegacyMockCDM::supportsKeySystem, LegacyMockCDM::supportsKeySystemAndMimeType);
 }
 
 #endif
@@ -4186,6 +4183,16 @@ void Internals::setConsoleMessageListener(RefPtr<StringCallback>&& listener)
         return;
 
     contextDocument()->setConsoleMessageListener(WTFMove(listener));
+}
+
+void Internals::setResponseSizeWithPadding(FetchResponse& response, uint64_t size)
+{
+    response.setBodySizeWithPadding(size);
+}
+
+uint64_t Internals::responseSizeWithPadding(FetchResponse& response) const
+{
+    return response.bodySizeWithPadding();
 }
 
 } // namespace WebCore

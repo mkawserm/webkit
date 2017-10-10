@@ -34,13 +34,16 @@ WI.NetworkTableContentView = class NetworkTableContentView extends WI.ContentVie
         this._filteredEntries = [];
         this._pendingInsertions = [];
         this._pendingUpdates = [];
+        this._pendingFilter = false;
 
         this._table = null;
         this._nameColumnWidthSetting = new WI.Setting("network-table-content-view-name-column-width", 250);
 
-        // FIXME: Resource Detail View.
+        this._selectedResource = null;
+        this._resourceDetailView = null;
+        this._resourceDetailViewMap = new Map;
+
         // FIXME: Network Timeline.
-        // FIXME: Filter text field.
         // FIXME: Throttling.
         // FIXME: HAR Export.
 
@@ -67,7 +70,19 @@ WI.NetworkTableContentView = class NetworkTableContentView extends WI.ContentVie
         this._typeFilterScopeBar = new WI.ScopeBar("network-type-filter-scope-bar", typeFilterScopeBarItems, typeFilterScopeBarItems[0]);
         this._typeFilterScopeBar.addEventListener(WI.ScopeBar.Event.SelectionChanged, this._typeFilterScopeBarSelectionChanged, this);
 
+        this._textFilterSearchId = 0;
+        this._textFilterSearchText = null;
+        this._textFilterIsActive = false;
+
+        this._textFilterNavigationItem = new WI.FilterBarNavigationItem;
+        this._textFilterNavigationItem.filterBar.incremental = false;
+        this._textFilterNavigationItem.filterBar.addEventListener(WI.FilterBar.Event.FilterDidChange, this._textFilterDidChange, this);
+        this._textFilterNavigationItem.filterBar.placeholder = WI.UIString("Filter Full URL and Text");
+
         this._activeTypeFilters = this._generateTypeFilter();
+        this._activeTextFilterResources = new Set;
+
+        this._emptyFilterResultsMessageElement = null;
 
         // COMPATIBILITY (iOS 10.3): Network.setDisableResourceCaching did not exist.
         if (window.NetworkAgent && NetworkAgent.setResourceCachingDisabled) {
@@ -108,6 +123,10 @@ WI.NetworkTableContentView = class NetworkTableContentView extends WI.ContentVie
         case WI.Resource.Type.XHR:
         case WI.Resource.Type.Fetch:
             return "XHR";
+        case WI.Resource.Type.Ping:
+            return WI.UIString("Ping");
+        case WI.Resource.Type.Beacon:
+            return WI.UIString("Beacon");
         case WI.Resource.Type.WebSocket:
         case WI.Resource.Type.Other:
             return WI.UIString("Other");
@@ -126,12 +145,19 @@ WI.NetworkTableContentView = class NetworkTableContentView extends WI.ContentVie
 
     get navigationItems()
     {
-        let items = [this._typeFilterScopeBar];
-
+        let items = [];
         if (this._disableResourceCacheNavigationItem)
             items.push(this._disableResourceCacheNavigationItem);
         items.push(this._clearNetworkItemsNavigationItem);
+        return items;
+    }
 
+    get filterNavigationItems()
+    {
+        let items = [];
+        if (window.PageAgent)
+            items.push(this._textFilterNavigationItem);
+        items.push(this._typeFilterScopeBar);
         return items;
     }
 
@@ -139,17 +165,34 @@ WI.NetworkTableContentView = class NetworkTableContentView extends WI.ContentVie
     {
         super.shown();
 
+        if (this._resourceDetailView)
+            this._resourceDetailView.shown();
+
         if (this._table)
             this._table.restoreScrollPosition();
     }
 
+    hidden()
+    {
+        if (this._resourceDetailView)
+            this._resourceDetailView.hidden();
+
+        super.hidden();
+    }
+
     closed()
     {
-        super.closed();
+        this._hideResourceDetailView();
+
+        for (let detailView of this._resourceDetailViewMap.values())
+            detailView.dispose();
+        this._resourceDetailViewMap.clear();
 
         WI.Frame.removeEventListener(null, null, this);
         WI.Resource.removeEventListener(null, null, this);
         WI.timelineManager.persistentNetworkTimeline.removeEventListener(WI.Timeline.Event.RecordAdded, this._networkTimelineRecordAdded, this);
+
+        super.closed();
     }
 
     reset()
@@ -158,10 +201,25 @@ WI.NetworkTableContentView = class NetworkTableContentView extends WI.ContentVie
         this._filteredEntries = [];
         this._pendingInsertions = [];
 
+        for (let detailView of this._resourceDetailViewMap.values())
+            detailView.dispose();
+        this._resourceDetailViewMap.clear();
+
         if (this._table) {
+            this._hideResourceDetailView();
+            this._selectedResource = null;
             this._table.clearSelectedRow();
             this._table.reloadData();
         }
+    }
+
+    // NetworkResourceDetailView delegate
+
+    networkResourceDetailViewClose(resourceDetailView)
+    {
+        this._hideResourceDetailView();
+        this._selectedResource = null;
+        this._table.clearSelectedRow();
     }
 
     // Table dataSource
@@ -178,6 +236,8 @@ WI.NetworkTableContentView = class NetworkTableContentView extends WI.ContentVie
         if (!this._entriesSortComparator)
             return;
 
+        this._hideResourceDetailView();
+
         this._entries = this._entries.sort(this._entriesSortComparator);
         this._updateFilteredEntries();
         this._table.reloadData();
@@ -185,9 +245,12 @@ WI.NetworkTableContentView = class NetworkTableContentView extends WI.ContentVie
 
     // Table delegate
 
-    tableCellClicked(table, cell, column, rowIndex, event)
+    tableCellMouseDown(table, cell, column, rowIndex, event)
     {
-        // FIXME: Show resource detail view.
+        if (column !== this._nameColumn)
+            return;
+
+        this._table.selectRow(rowIndex);
     }
 
     tableCellContextMenuClicked(table, cell, column, rowIndex, event)
@@ -204,7 +267,18 @@ WI.NetworkTableContentView = class NetworkTableContentView extends WI.ContentVie
 
     tableSelectedRowChanged(table, rowIndex)
     {
-        // FIXME: Show resource detail view.
+        if (isNaN(rowIndex)) {
+            this._selectedResource = null;
+            this._hideResourceDetailView();
+            return;
+        }
+
+        let entry = this._filteredEntries[rowIndex];
+        if (entry.resource === this._selectedResource)
+            return;
+
+        this._selectedResource = entry.resource;
+        this._showResourceDetailView(this._selectedResource);
     }
 
     tablePopulateCell(table, cell, column, rowIndex)
@@ -511,12 +585,19 @@ WI.NetworkTableContentView = class NetworkTableContentView extends WI.ContentVie
         this._table.addColumn(this._timeColumn);
         this._table.addColumn(this._waterfallColumn);
 
+        if (!this._table.sortColumnIdentifier) {
+            this._table.sortOrder = WI.Table.SortOrder.Ascending;
+            this._table.sortColumnIdentifier = "waterfall";
+        }
+
         this.addSubview(this._table);
     }
 
     layout()
     {
         this._processPendingEntries();
+        this._positionDetailView();
+        this._positionEmptyFilterMessage();
     }
 
     handleClearShortcut(event)
@@ -529,9 +610,10 @@ WI.NetworkTableContentView = class NetworkTableContentView extends WI.ContentVie
     _processPendingEntries()
     {
         let needsSort = this._pendingUpdates.length > 0;
+        let needsFilter = this._pendingFilter;
 
-        // No global sort is needed, so just insert new records into their sorted position.
-        if (!needsSort) {
+        // No global sort or filter is needed, so just insert new records into their sorted position.
+        if (!needsSort && !needsFilter) {
             let originalLength = this._pendingInsertions.length;
             for (let resource of this._pendingInsertions)
                 this._insertResourceAndReloadTable(resource);
@@ -548,8 +630,47 @@ WI.NetworkTableContentView = class NetworkTableContentView extends WI.ContentVie
             this._updateEntryForResource(resource);
         this._pendingUpdates = [];
 
+        this._pendingFilter = false;
+
         this._updateSortAndFilteredEntries();
         this._table.reloadData();
+    }
+
+    _checkTextFilterAgainstFinishedResource(resource)
+    {
+        let frame = resource.parentFrame;
+        if (!frame)
+            return;
+
+        let searchQuery = this._textFilterSearchText;
+        if (resource.url.includes(searchQuery)) {
+            this._activeTextFilterResources.add(resource);
+            return;
+        }
+
+        let searchId = this._textFilterSearchId;
+
+        const isCaseSensitive = true;
+        const isRegex = false;
+        PageAgent.searchInResource(frame.id, resource.url, searchQuery, isCaseSensitive, isRegex, resource.requestIdentifier, (error, searchResults) => {
+            if (searchId !== this._textFilterSearchId)
+                return;
+
+            if (error || !searchResults || !searchResults.length)
+                return;
+
+            this._activeTextFilterResources.add(resource);
+
+            this._pendingFilter = true;
+            this.needsLayout();
+        });
+    }
+
+    _checkTextFilterAgainstFailedResource(resource)
+    {
+        let searchQuery = this._textFilterSearchText;
+        if (resource.url.includes(searchQuery))
+            this._activeTextFilterResources.add(resource);
     }
 
     _rowIndexForResource(resource)
@@ -571,6 +692,108 @@ WI.NetworkTableContentView = class NetworkTableContentView extends WI.ContentVie
             return;
 
         this._filteredEntries[rowIndex] = entry;
+    }
+
+    _hideResourceDetailView()
+    {
+        if (!this._resourceDetailView)
+            return;
+
+        this.element.classList.remove("showing-detail");
+        this._table.scrollContainer.style.removeProperty("width");
+
+        this.removeSubview(this._resourceDetailView);
+
+        this._resourceDetailView.hidden();
+        this._resourceDetailView = null;
+
+        this._table.resize();
+    }
+
+    _showResourceDetailView(resource)
+    {
+        let oldResourceDetailView = this._resourceDetailView;
+
+        this._resourceDetailView = this._resourceDetailViewMap.get(resource);
+        if (!this._resourceDetailView) {
+            this._resourceDetailView = new WI.NetworkResourceDetailView(resource, this);
+            this._resourceDetailViewMap.set(resource, this._resourceDetailView);
+        }
+
+        if (oldResourceDetailView) {
+            oldResourceDetailView.hidden();
+            this.replaceSubview(oldResourceDetailView, this._resourceDetailView);
+        } else
+            this.addSubview(this._resourceDetailView);
+        this._resourceDetailView.shown();
+
+        this.element.classList.add("showing-detail");
+        this._table.scrollContainer.style.width = this._nameColumn.width + "px";
+
+        // FIXME: It would be nice to avoid this.
+        // Currently the ResourceDetailView is in the heirarchy but has not yet done a layout so we
+        // end up seeing the table behind it. This forces us to layout now instead of after a beat.
+        this.updateLayout();
+    }
+
+    _positionDetailView()
+    {
+        if (!this._resourceDetailView)
+            return;
+
+        let side = WI.resolvedLayoutDirection() === WI.LayoutDirection.RTL ? "right" : "left";
+        this._resourceDetailView.element.style[side] = this._nameColumn.width + "px";
+        this._table.scrollContainer.style.width = this._nameColumn.width + "px";
+    }
+
+    _updateTextFilterActiveIndicator()
+    {
+        this._textFilterNavigationItem.filterBar.indicatingActive = this._hasTextFilter();
+    }
+
+    _updateEmptyFilterResultsMessage()
+    {
+        if (this._hasActiveFilter() && !this._filteredEntries.length)
+            this._showEmptyFilterResultsMessage();
+        else
+            this._hideEmptyFilterResultsMessage();
+    }
+
+    _showEmptyFilterResultsMessage()
+    {
+        if (!this._emptyFilterResultsMessageElement) {
+            let message = WI.UIString("No Filter Results");
+            let buttonElement = document.createElement("button");
+            buttonElement.textContent = WI.UIString("Clear filters");
+            buttonElement.addEventListener("click", () => { this._resetFilters(); });
+
+            this._emptyFilterResultsMessageElement = document.createElement("div");
+            this._emptyFilterResultsMessageElement.className = "empty-content-placeholder";
+
+            let messageElement = this._emptyFilterResultsMessageElement.appendChild(document.createElement("div"));
+            messageElement.className = "message";
+            messageElement.append(message, document.createElement("br"), buttonElement);
+        }
+
+        this.element.appendChild(this._emptyFilterResultsMessageElement);
+        this._positionEmptyFilterMessage();
+    }
+
+    _hideEmptyFilterResultsMessage()
+    {
+        if (!this._emptyFilterResultsMessageElement)
+            return;
+
+        this._emptyFilterResultsMessageElement.remove();
+    }
+
+    _positionEmptyFilterMessage()
+    {
+        if (!this._emptyFilterResultsMessageElement)
+            return;
+
+        let width = this._nameColumn.width - 1; // For the 1px border.
+        this._emptyFilterResultsMessageElement.style.width = width + "px";
     }
 
     _resourceCachingDisabledSettingChanged()
@@ -598,6 +821,10 @@ WI.NetworkTableContentView = class NetworkTableContentView extends WI.ContentVie
     {
         let resource = event.target;
         this._pendingUpdates.push(resource);
+
+        if (this._hasTextFilter())
+            this._checkTextFilterAgainstFinishedResource(resource);
+
         this.needsLayout();
     }
 
@@ -605,6 +832,10 @@ WI.NetworkTableContentView = class NetworkTableContentView extends WI.ContentVie
     {
         let resource = event.target;
         this._pendingUpdates.push(resource);
+
+        if (this._hasTextFilter())
+            this._checkTextFilterAgainstFailedResource(resource);
+
         this.needsLayout();
     }
 
@@ -642,7 +873,7 @@ WI.NetworkTableContentView = class NetworkTableContentView extends WI.ContentVie
         console.assert(resourceTimelineRecord instanceof WI.ResourceTimelineRecord);
 
         let resource = resourceTimelineRecord.resource;
-        this._insertResourceAndReloadTable(resource)
+        this._insertResourceAndReloadTable(resource);
     }
 
     _isDefaultSort()
@@ -654,6 +885,7 @@ WI.NetworkTableContentView = class NetworkTableContentView extends WI.ContentVie
     {
         if (!(WI.tabBrowser.selectedTabContentView instanceof WI.NetworkTabContentView)) {
             this._pendingInsertions.push(resource);
+            this.needsLayout();
             return;
         }
 
@@ -729,12 +961,40 @@ WI.NetworkTableContentView = class NetworkTableContentView extends WI.ContentVie
         };
     }
 
+    _hasTypeFilter()
+    {
+        return !!this._activeTypeFilters;
+    }
+
+    _hasTextFilter()
+    {
+        return this._textFilterIsActive;
+    }
+
+    _hasActiveFilter()
+    {
+        return this._hasTypeFilter()
+            || this._hasTextFilter();
+    }
+
+    _passTypeFilter(entry)
+    {
+        if (!this._hasTypeFilter())
+            return true;
+        return this._activeTypeFilters.some((checker) => checker(entry.resource.type));
+    }
+
+    _passTextFilter(entry)
+    {
+        if (!this._hasTextFilter())
+            return true;
+        return this._activeTextFilterResources.has(entry.resource);
+    }
+
     _passFilter(entry)
     {
-        if (!this._activeTypeFilters)
-            return true;
-
-        return this._activeTypeFilters.some((checker) => checker(entry.resource.type));
+        return this._passTypeFilter(entry)
+            && this._passTextFilter(entry);
     }
 
     _updateSortAndFilteredEntries()
@@ -745,10 +1005,15 @@ WI.NetworkTableContentView = class NetworkTableContentView extends WI.ContentVie
 
     _updateFilteredEntries()
     {
-        if (this._activeTypeFilters)
+        if (this._hasActiveFilter())
             this._filteredEntries = this._entries.filter(this._passFilter, this);
         else
             this._filteredEntries = this._entries.slice();
+
+        this._restoreSelectedRow();
+
+        this._updateTextFilterActiveIndicator();
+        this._updateEmptyFilterResultsMessage();
     }
 
     _generateTypeFilter()
@@ -758,6 +1023,29 @@ WI.NetworkTableContentView = class NetworkTableContentView extends WI.ContentVie
             return null;
 
         return selectedItems.map((item) => item.__checker);
+    }
+
+    _resetFilters()
+    {
+        console.assert(this._hasActiveFilter());
+
+        // Clear text filter.
+        this._textFilterSearchId++;
+        this._textFilterNavigationItem.filterBar.indicatingProgress = false;
+        this._textFilterSearchText = null;
+        this._textFilterIsActive = false;
+        this._activeTextFilterResources.clear();
+        this._textFilterNavigationItem.filterBar.clear();
+        console.assert(!this._hasTextFilter());
+
+        // Clear type filter.
+        this._typeFilterScopeBar.resetToDefault();
+        console.assert(!this._hasTypeFilter());
+
+        console.assert(!this._hasActiveFilter());
+
+        this._updateFilteredEntries();
+        this._table.reloadData();
     }
 
     _areFilterListsIdentical(listA, listB)
@@ -786,13 +1074,117 @@ WI.NetworkTableContentView = class NetworkTableContentView extends WI.ContentVie
         if (this._areFilterListsIdentical(oldFilter, newFilter))
             return;
 
+        // Even if the selected resource would still be visible, lets close the detail view if a filter changes.
+        this._hideResourceDetailView();
+
         this._activeTypeFilters = newFilter;
         this._updateFilteredEntries();
         this._table.reloadData();
     }
 
+    _textFilterDidChange(event)
+    {
+        let searchQuery = this._textFilterNavigationItem.filterBar.filters.text;
+        if (searchQuery === this._textFilterSearchText)
+            return;
+
+        // Even if the selected resource would still be visible, lets close the detail view if a filter changes.
+        this._hideResourceDetailView();
+
+        let searchId = ++this._textFilterSearchId;
+
+        // Search cleared.
+        if (!searchQuery) {
+            this._textFilterNavigationItem.filterBar.indicatingProgress = false;
+            this._textFilterSearchText = null;
+            this._textFilterIsActive = false;
+            this._activeTextFilterResources.clear();
+
+            this._updateFilteredEntries();
+            this._table.reloadData();
+            return;
+        }
+
+        this._textFilterSearchText = searchQuery;
+        this._textFilterNavigationItem.filterBar.indicatingProgress = true;
+
+        // NetworkTable text filter currently searches:
+        //   - Resource URL
+        //   - Resource Text Content
+        // It does not search all the content in the table (like mimeType, headers, etc).
+        // For those we should provide more custom filters.
+
+        const isCaseSensitive = true;
+        const isRegex = false;
+        PageAgent.searchInResources(searchQuery, isCaseSensitive, isRegex, (error, searchResults) => {
+            if (searchId !== this._textFilterSearchId)
+                return;
+
+            this._textFilterIsActive = true;
+            this._activeTextFilterResources.clear();
+            this._textFilterNavigationItem.filterBar.indicatingProgress = false;
+
+            // Add resources based on URL.
+            for (let entry of this._entries) {
+                let resource = entry.resource;
+                if (resource.url.includes(searchQuery))
+                    this._activeTextFilterResources.add(resource);
+            }
+
+            // Add resources based on content.
+            if (!error) {
+                for (let {url, frameId, requestId} of searchResults) {
+                    if (requestId) {
+                        let resource = WI.frameResourceManager.resourceForRequestIdentifier(requestId);
+                        if (resource) {
+                            this._activeTextFilterResources.add(resource);
+                            continue;
+                        }
+                    }
+
+                    if (frameId && url) {
+                        let frame = WI.frameResourceManager.frameForIdentifier(frameId);
+                        if (frame) {
+                            if (frame.mainResource.url === url) {
+                                this._activeTextFilterResources.add(frame.mainResource);
+                                continue;
+                            }
+                            let resource = frame.resourceForURL(url);
+                            if (resource) {
+                                this._activeTextFilterResources.add(resource);
+                                continue;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Apply.
+            this._updateFilteredEntries();
+            this._table.reloadData();
+        });
+    }
+
+    _restoreSelectedRow()
+    {
+        if (!this._selectedResource)
+            return;
+
+        let rowIndex = this._rowIndexForResource(this._selectedResource);
+        if (rowIndex === -1) {
+            this._selectedResource = null;
+            this._table.clearSelectedRow();
+            return;
+        }
+
+        this._table.selectRow(rowIndex);
+    }
+
     _tableNameColumnDidChangeWidth(event)
     {
         this._nameColumnWidthSetting.value = event.target.width;
+
+        this._positionDetailView();
+        this._positionEmptyFilterMessage();
     }
 };

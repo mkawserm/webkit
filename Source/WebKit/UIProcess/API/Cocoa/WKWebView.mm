@@ -72,7 +72,6 @@
 #import "WebBackForwardList.h"
 #import "WebCertificateInfo.h"
 #import "WebFullScreenManagerProxy.h"
-#import "WebKitSystemInterface.h"
 #import "WebPageGroup.h"
 #import "WebPageProxy.h"
 #import "WebPreferencesKeys.h"
@@ -1521,6 +1520,9 @@ static WebCore::Color scrollViewBackgroundColor(WKWebView *webView)
     _firstTransactionIDAfterPageRestore = 0;
     _resizeAnimationTransformTransactionID = std::nullopt;
 
+    _hasScheduledVisibleRectUpdate = NO;
+    _commitDidRestoreScrollPosition = NO;
+
     _avoidsUnsafeArea = YES;
 }
 
@@ -2694,7 +2696,7 @@ static bool scrollViewCanScroll(UIScrollView *scrollView)
 {
     // Ignore keyboard will hide notifications sent during rotation. They're just there for
     // backwards compatibility reasons and processing the will hide notification would
-    // temporarily screw up the the unobscured view area.
+    // temporarily screw up the unobscured view area.
     if ([[UIPeripheralHost sharedInstance] rotationState])
         return;
 

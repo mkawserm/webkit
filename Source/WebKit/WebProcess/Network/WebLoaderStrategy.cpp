@@ -355,7 +355,7 @@ void WebLoaderStrategy::networkProcessCrashed()
 
     auto pingLoadCompletionHandlers = WTFMove(m_pingLoadCompletionHandlers);
     for (auto& pingLoadCompletionHandler : pingLoadCompletionHandlers.values())
-        pingLoadCompletionHandler(internalError(URL()));
+        pingLoadCompletionHandler(internalError(URL()), { });
 
     auto preconnectCompletionHandlers = WTFMove(m_preconnectCompletionHandlers);
     for (auto& preconnectCompletionHandler : preconnectCompletionHandlers.values())
@@ -409,7 +409,7 @@ void WebLoaderStrategy::startPingLoad(Frame& frame, ResourceRequest& request, co
     auto* networkingContext = frame.loader().networkingContext();
     if (!networkingContext) {
         if (completionHandler)
-            completionHandler(internalError(request.url()));
+            completionHandler(internalError(request.url()), { });
         return;
     }
 
@@ -421,7 +421,7 @@ void WebLoaderStrategy::startPingLoad(Frame& frame, ResourceRequest& request, co
     auto* document = frame.document();
     if (!document) {
         if (completionHandler)
-            completionHandler(internalError(request.url()));
+            completionHandler(internalError(request.url()), { });
         return;
     }
     
@@ -457,18 +457,44 @@ void WebLoaderStrategy::startPingLoad(Frame& frame, ResourceRequest& request, co
     WebProcess::singleton().networkConnection().connection().send(Messages::NetworkConnectionToWebProcess::LoadPing(WTFMove(loadParameters), originalRequestHeaders), 0);
 }
 
-void WebLoaderStrategy::didFinishPingLoad(uint64_t pingLoadIdentifier, ResourceError&& error)
+void WebLoaderStrategy::didFinishPingLoad(uint64_t pingLoadIdentifier, ResourceError&& error, ResourceResponse&& response)
 {
     if (auto completionHandler = m_pingLoadCompletionHandlers.take(pingLoadIdentifier))
-        completionHandler(WTFMove(error));
+        completionHandler(WTFMove(error), WTFMove(response));
 }
 
-void WebLoaderStrategy::preconnectTo(PAL::SessionID sessionID, const WebCore::URL& url, StoredCredentialsPolicy storedCredentialsPolicy, PreconnectCompletionHandler&& completionHandler)
+void WebLoaderStrategy::preconnectTo(NetworkingContext& context, const WebCore::URL& url, StoredCredentialsPolicy storedCredentialsPolicy, PreconnectCompletionHandler&& completionHandler)
 {
     uint64_t preconnectionIdentifier = generateLoadIdentifier();
     auto addResult = m_preconnectCompletionHandlers.add(preconnectionIdentifier, WTFMove(completionHandler));
     ASSERT_UNUSED(addResult, addResult.isNewEntry);
-    WebProcess::singleton().networkConnection().connection().send(Messages::NetworkConnectionToWebProcess::PreconnectTo(sessionID, preconnectionIdentifier, url, storedCredentialsPolicy), 0);
+
+    auto& webContext = static_cast<WebFrameNetworkingContext&>(context);
+    auto* webFrameLoaderClient = webContext.webFrameLoaderClient();
+    if (!webFrameLoaderClient) {
+        completionHandler(internalError(url));
+        return;
+    }
+    auto* webFrame = webFrameLoaderClient->webFrame();
+    if (!webFrame) {
+        completionHandler(internalError(url));
+        return;
+    }
+    auto* webPage = webFrame->page();
+    if (!webPage) {
+        completionHandler(internalError(url));
+        return;
+    }
+
+    NetworkResourceLoadParameters parameters;
+    parameters.request = ResourceRequest { url };
+    parameters.webPageID = webPage ? webPage->pageID() : 0;
+    parameters.webFrameID = webFrame ? webFrame->frameID() : 0;
+    parameters.sessionID = webPage ? webPage->sessionID() : PAL::SessionID::defaultSessionID();
+    parameters.storedCredentialsPolicy = storedCredentialsPolicy;
+    parameters.shouldPreconnectOnly = PreconnectOnly::Yes;
+
+    WebProcess::singleton().networkConnection().connection().send(Messages::NetworkConnectionToWebProcess::PreconnectTo(preconnectionIdentifier, WTFMove(parameters)), 0);
 }
 
 void WebLoaderStrategy::didFinishPreconnection(uint64_t preconnectionIdentifier, ResourceError&& error)

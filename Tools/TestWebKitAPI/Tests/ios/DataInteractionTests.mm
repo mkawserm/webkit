@@ -184,8 +184,6 @@ static void checkJSONWithLogging(NSString *jsonString, NSDictionary *expected)
         NSLog(@"Expected JSON: %@ to match values: %@", jsonString, expected);
 }
 
-#endif // __IPHONE_OS_VERSION_MIN_REQUIRED >= 110300
-
 static void runTestWithTemporaryTextFile(void(^runTest)(NSURL *fileURL))
 {
     NSString *fileName = [NSString stringWithFormat:@"drag-drop-text-file-%@.txt", [NSUUID UUID].UUIDString];
@@ -234,6 +232,8 @@ static void runTestWithTemporaryFolder(void(^runTest)(NSURL *folderURL))
         [[NSFileManager defaultManager] removeItemAtURL:temporaryFolder.get() error:nil];
     }
 }
+
+#endif // __IPHONE_OS_VERSION_MIN_REQUIRED >= 110300
 
 namespace TestWebKitAPI {
 
@@ -983,6 +983,8 @@ TEST(DataInteractionTests, ExternalSourceOverrideDropFileUpload)
     EXPECT_WK_STREQ("text/html", outputValue.UTF8String);
 }
 
+#if __IPHONE_OS_VERSION_MIN_REQUIRED >= 110300
+
 static RetainPtr<TestWKWebView> setUpTestWebViewForDataTransferItems()
 {
     auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
@@ -1036,7 +1038,6 @@ TEST(DataInteractionTests, ExternalSourceDataTransferItemGetFolderAsEntry)
 TEST(DataInteractionTests, ExternalSourceDataTransferItemGetPlainTextFileAsEntry)
 {
     NSArray<NSString *> *expectedOutput = @[
-        @"Found data transfer item (kind: 'string', type: 'text/plain')",
         @"Found data transfer item (kind: 'file', type: 'text/plain')",
         @"FILE: /foo.txt ('text/plain', 28 bytes)"
     ];
@@ -1063,6 +1064,8 @@ TEST(DataInteractionTests, ExternalSourceDataTransferItemGetPlainTextFileAsEntry
     TestWebKitAPI::Util::run(&done);
     EXPECT_WK_STREQ([expectedOutput componentsJoinedByString:@"\n"], [webView stringByEvaluatingJavaScript:@"output.value"]);
 }
+
+#endif // __IPHONE_OS_VERSION_MIN_REQUIRED >= 110300
 
 TEST(DataInteractionTests, ExternalSourceOverrideDropInsertURL)
 {
@@ -1557,8 +1560,8 @@ TEST(DataInteractionTests, DataTransferGetDataWhenDroppingImageWithFileURL)
 
     // File URLs should never be exposed directly to web content, so DataTransfer.getData should return an empty string here.
     checkJSONWithLogging([webView stringByEvaluatingJavaScript:@"output.value"], @{
-        @"dragover": @{ @"Files": @"", @"text/uri-list" : @"" },
-        @"drop": @{ @"Files": @"", @"text/uri-list" : @"" }
+        @"dragover": @{ @"Files": @"" },
+        @"drop": @{ @"Files": @"" }
     });
 }
 
@@ -1579,8 +1582,8 @@ TEST(DataInteractionTests, DataTransferGetDataWhenDroppingRespectsPresentationSt
         [itemProvider setPreferredPresentationStyle:UIPreferredPresentationStyleAttachment];
         [simulator runFrom:CGPointMake(300, 375) to:CGPointMake(50, 375)];
         checkJSONWithLogging([webView stringByEvaluatingJavaScript:@"output.value"], @{
-            @"dragover": @{ @"text/plain" : @"" },
-            @"drop": @{ @"text/plain" : @"" }
+            @"dragover": @{ @"Files" : @"" },
+            @"drop": @{ @"Files" : @"" }
         });
 
         [itemProvider setPreferredPresentationStyle:UIPreferredPresentationStyleInline];

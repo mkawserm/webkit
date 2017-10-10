@@ -91,6 +91,9 @@ mhtml
 # ENABLE(MEDIA_CAPTURE) is not enabled
 fast/forms/file/file-input-capture.html
 
+# Spelling and grammar markers are not supported
+webkit.org/b/105616 editing/spelling/spelling-marker-includes-hyphen.html [ WontFix ]
+
 # Plugins are not supported on iOS
 plugins
 compositing/plugins
@@ -230,6 +233,7 @@ fast/dom/DeviceOrientation
 
 # WebP image format is not supported
 fast/canvas/canvas-toDataURL-webp.html
+fast/images/animated-webp-expected.html
 
 # Drag-and-drop is not supported:
 editing/pasteboard/datatransfer-items-drop-plaintext-file.html
@@ -507,6 +511,7 @@ fast/css/variables/env/ios [ Pass ]
 
 # This test relies on APIs not available on iOS
 fast/images/animated-image-mp4.html [ Skip ]
+
 
 ###
 # Known failures
@@ -833,7 +838,6 @@ scrollbars/scrollbar-miss-mousemove-disabled.html [ Failure ]
 
 # JavaScript tests that fail:
 js/dom/dom-static-property-for-in-iteration.html [ Failure ]
-js/dom/global-constructors-attributes.html [ Failure ]
 
 # Page overlay tests that fail:
 pageoverlay/overlay-large-document-scrolled.html [ Failure ]
@@ -1127,6 +1131,10 @@ userscripts/user-script-plugin-document.html [ Failure ]
 webarchive/test-css-url-resources-in-stylesheets.html [ Failure ]
 webarchive/test-css-url-resources-inline-styles.html [ Failure ]
 webarchive/test-link-rel-icon.html [ Failure ]
+
+# The following two tests are expected to fail until <rdar://problem/34063313> is available on test systems.
+webarchive/loading/cache-expired-subresource.html [ Failure ]
+webarchive/loading/test-loading-archive-subresource-null-mimetype.html [ Crash ]
 
 # Webarchive tests that fail due to <https://bugs.webkit.org/show_bug.cgi?id=82665>:
 http/tests/webarchive/test-css-url-encoding-shift-jis.html
@@ -2060,7 +2068,7 @@ editing/pasteboard/copy-in-password-field.html [ Failure ]
 editing/pasteboard/copy-inside-h1-preserves-h1.html [ Failure ]
 editing/pasteboard/copy-text-with-backgroundcolor.html [ Failure ]
 editing/pasteboard/copy-two-pasteboard-types-both-work.html [ Failure ]
-editing/pasteboard/data-transfer-items.html [ Failure ]
+webkit.org/b/177961 editing/pasteboard/data-transfer-items.html [ Skip ]
 editing/pasteboard/dataTransfer-setData-getData.html [ Failure ]
 editing/pasteboard/display-block-on-spans.html [ Failure ]
 editing/pasteboard/emacs-ctrl-k-with-move.html [ Failure ]
@@ -2537,11 +2545,6 @@ media/track/track-in-band-subtitles-too-large.html [ Failure ]
 media/track/track-long-word-container-sizing.html [ Failure ]
 media/track/track-manual-mode.html [ Failure ]
 media/track/w3c/interfaces/TextTrackCue/align.html [ Failure ]
-media/track/w3c/interfaces/TextTrackCue/endTime.html [ Failure ]
-media/track/w3c/interfaces/TextTrackCue/id.html [ Failure ]
-media/track/w3c/interfaces/TextTrackCue/pauseOnExit.html [ Failure ]
-media/track/w3c/interfaces/TextTrackCue/startTime.html [ Failure ]
-media/track/w3c/interfaces/TextTrackCue/track.html [ Failure ]
 media/video-autoplay-allowed-but-fullscreen-required.html [ Failure ]
 media/video-background-tab-playback.html [ Failure ]
 media/video-colorspace-yuv420.html [ Failure ]

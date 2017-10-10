@@ -96,11 +96,12 @@ const String InternalFunction::calculatedDisplayName(VM& vm)
 
 Structure* InternalFunction::createSubclassStructureSlow(ExecState* exec, JSValue newTarget, Structure* baseClass)
 {
-
     VM& vm = exec->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
     ASSERT(!newTarget || newTarget.isConstructor());
     ASSERT(newTarget && newTarget != exec->jsCallee());
+
+    ASSERT(baseClass->hasMonoProto());
 
     // newTarget may be an InternalFunction if we were called from Reflect.construct.
     JSFunction* targetFunction = jsDynamicCast<JSFunction*>(vm, newTarget);
@@ -122,7 +123,7 @@ Structure* InternalFunction::createSubclassStructureSlow(ExecState* exec, JSValu
         if (JSObject* prototype = jsDynamicCast<JSObject*>(vm, prototypeValue)) {
             // This only happens if someone Reflect.constructs our builtin constructor with another builtin constructor as the new.target.
             // Thus, we don't care about the cost of looking up the structure from our hash table every time.
-            return vm.prototypeMap.emptyStructureForPrototypeFromBaseStructure(lexicalGlobalObject, prototype, baseClass);
+            return vm.structureCache.emptyStructureForPrototypeFromBaseStructure(lexicalGlobalObject, prototype, baseClass);
         }
     }
     

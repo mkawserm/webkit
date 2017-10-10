@@ -131,6 +131,9 @@ AccessGenerationResult StructureStubInfo::addAccessCase(
         if (StructureStubInfoInternal::verbose)
             dataLog("Had stub, result: ", result, "\n");
 
+        if (result.shouldResetStubAndFireWatchpoints())
+            return result;
+
         if (!result.buffered()) {
             bufferedStructures.clear();
             return result;
@@ -151,6 +154,9 @@ AccessGenerationResult StructureStubInfo::addAccessCase(
         
         if (StructureStubInfoInternal::verbose)
             dataLog("Created stub, result: ", result, "\n");
+
+        if (result.shouldResetStubAndFireWatchpoints())
+            return result;
 
         if (!result.buffered()) {
             bufferedStructures.clear();
@@ -202,10 +208,10 @@ AccessGenerationResult StructureStubInfo::addAccessCase(
 void StructureStubInfo::reset(CodeBlock* codeBlock)
 {
     bufferedStructures.clear();
-    
+
     if (cacheType == CacheType::Unset)
         return;
-    
+
     if (Options::verboseOSR()) {
         // This can be called from GC destructor calls, so we don't try to do a full dump
         // of the CodeBlock.

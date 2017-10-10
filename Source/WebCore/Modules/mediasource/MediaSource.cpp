@@ -195,7 +195,7 @@ std::unique_ptr<PlatformTimeRanges> MediaSource::buffered() const
         if (ended && sourceRanges.length())
             sourceRanges.add(sourceRanges.start(sourceRanges.length() - 1), highestEndTime);
 
-        // 5.3 Let new intersection ranges equal the the intersection between the intersection ranges and the source ranges.
+        // 5.3 Let new intersection ranges equal the intersection between the intersection ranges and the source ranges.
         // 5.4 Replace the ranges in intersection ranges with the new intersection ranges.
         m_buffered->intersectWith(sourceRanges);
     }
@@ -232,7 +232,10 @@ void MediaSource::seekToTime(const MediaTime& time)
     // ↳ Otherwise
     // Continue
 
+// https://bugs.webkit.org/show_bug.cgi?id=125157 broke seek on MediaPlayerPrivateGStreamerMSE
+#if !USE(GSTREAMER)
     m_private->waitForSeekCompleted();
+#endif
     completeSeek();
 }
 
@@ -394,7 +397,7 @@ void MediaSource::monitorSourceBuffers()
         return;
     }
 
-    // ↳ If the the HTMLMediaElement.readyState attribute equals HAVE_NOTHING:
+    // ↳ If the HTMLMediaElement.readyState attribute equals HAVE_NOTHING:
     if (mediaElement()->readyState() == HTMLMediaElement::HAVE_NOTHING) {
         // 1. Abort these steps.
         return;

@@ -127,7 +127,6 @@
 #import <WebKitLegacy/DOM.h>
 #import <WebKitLegacy/DOMExtensions.h>
 #import <WebKitLegacy/DOMPrivate.h>
-#import <WebKitSystemInterface.h>
 #import <dlfcn.h>
 #import <limits>
 #import <pal/spi/cf/CFUtilitiesSPI.h>
@@ -6698,7 +6697,7 @@ static void extractUnderlines(NSAttributedString *string, Vector<CompositionUnde
         NSString *rangeString = [string attribute:NSTextInputReplacementRangeAttributeName atIndex:0 longestEffectiveRange:0 inRange:NSMakeRange(0, [text length])];
         LOG(TextInput, "    ReplacementRange: %@", rangeString);
         // The AppKit adds a 'secret' property to the string that contains the replacement range.
-        // The replacement range is the range of the the text that should be replaced with the new string.
+        // The replacement range is the range of the text that should be replaced with the new string.
         if (rangeString)
             replacementRange = NSRangeFromString(rangeString);
 
@@ -7292,9 +7291,8 @@ static CGImageRef selectionImage(Frame* frame, bool forceBlackText)
 
 @end
 
-#if (PLATFORM(IOS) && __IPHONE_OS_VERSION_MIN_REQUIRED < 110000) || (PLATFORM(MAC) && __MAC_OS_X_VERSION_MIN_REQUIRED < 101300)
-// This is used by AppKit/TextKit and is implemented here in part so that WebDataProtocolScheme is only defined once.
-// FIXME: Really should have an @interface for this somewhere in this file or an include. Not sure why it compiles without one.
+// This is used by AppKit/TextKit. It should be possible to remove this once
+// -[NSAttributedString _documentFromRange:document:documentAttributes:subresources:] is removed.
 @implementation NSURL (WebDataURL)
 
 + (NSURL *)_web_uniqueWebDataURL
@@ -7303,7 +7301,6 @@ static CGImageRef selectionImage(Frame* frame, bool forceBlackText)
 }
 
 @end
-#endif
 
 #if PLATFORM(MAC)
 

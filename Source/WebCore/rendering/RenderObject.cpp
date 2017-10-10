@@ -108,6 +108,11 @@ COMPILE_ASSERT(sizeof(RenderObject) == sizeof(SameSizeAsRenderObject), RenderObj
 
 DEFINE_DEBUG_ONLY_GLOBAL(WTF::RefCountedLeakCounter, renderObjectCounter, ("RenderObject"));
 
+void RenderObjectDeleter::operator() (RenderObject* renderer) const
+{
+    renderer->destroy();
+}
+
 RenderObject::RenderObject(Node& node)
     : CachedImageClient()
     , m_node(node)
@@ -241,10 +246,10 @@ void RenderObject::setParent(RenderElement* parent)
     m_parent = parent;
 }
 
-void RenderObject::removeFromParent()
+void RenderObject::removeFromParentAndDestroy()
 {
-    if (parent())
-        parent()->removeChild(*this);
+    ASSERT(m_parent);
+    m_parent->removeAndDestroyChild(*this);
 }
 
 RenderObject* RenderObject::nextInPreOrder() const
@@ -812,7 +817,7 @@ void RenderObject::propagateRepaintToParentWithOutlineAutoIfNeeded(const RenderL
     if (!hasOutlineAutoAncestor())
         return;
 
-    // FIXME: We should really propagate only when the the child renderer sticks out.
+    // FIXME: We should really propagate only when the child renderer sticks out.
     bool repaintRectNeedsConverting = false;
     // Issue repaint on the renderer with outline: auto.
     for (const auto* renderer = this; renderer; renderer = renderer->parent()) {
@@ -1202,26 +1207,6 @@ void RenderObject::outputRenderSubTreeAndMark(TextStream& stream, const RenderOb
 
 #endif // NDEBUG
 
-SelectionSubtreeRoot& RenderObject::selectionRoot() const
-{
-    RenderFragmentedFlow* fragmentedFlow = enclosingFragmentedFlow();
-    if (!fragmentedFlow)
-        return view();
-
-    if (is<RenderMultiColumnFlow>(*fragmentedFlow)) {
-        if (!fragmentedFlow->containingBlock())
-            return view();
-        return fragmentedFlow->containingBlock()->selectionRoot();
-    }
-    ASSERT_NOT_REACHED();
-    return view();
-}
-
-void RenderObject::selectionStartEnd(unsigned& spos, unsigned& epos) const
-{
-    selectionRoot().selectionData().selectionStartEndPositions(spos, epos);
-}
-
 FloatPoint RenderObject::localToAbsolute(const FloatPoint& localPoint, MapCoordinatesFlags mode, bool* wasFixed) const
 {
     TransformState transformState(TransformState::ApplyTransformDirection, localPoint);
@@ -1437,8 +1422,8 @@ bool RenderObject::isSelectionBorder() const
     return st == SelectionStart
         || st == SelectionEnd
         || st == SelectionBoth
-        || view().selectionUnsplitStart() == this
-        || view().selectionUnsplitEnd() == this;
+        || view().selection().start() == this
+        || view().selection().end() == this;
 }
 
 void RenderObject::willBeDestroyed()
@@ -1448,7 +1433,12 @@ void RenderObject::willBeDestroyed()
     if (AXObjectCache* cache = document().existingAXObjectCache())
         cache->childrenChanged(this->parent());
 
-    removeFromParent();
+    if (m_parent) {
+        // FIXME: We should have always been removed from the parent before being destroyed.
+        auto takenThis = m_parent->takeChild(*this);
+        auto* leakedPtr = takenThis.release();
+        UNUSED_PARAM(leakedPtr);
+    }
 
     ASSERT(renderTreeBeingDestroyed() || !is<RenderElement>(*this) || !view().frameView().hasSlowRepaintObject(downcast<RenderElement>(*this)));
 
@@ -1518,6 +1508,7 @@ void RenderObject::destroyAndCleanupAnonymousWrappers()
 
 void RenderObject::destroy()
 {
+    ASSERT(!m_bitfields.beingDestroyed());
     m_bitfields.setBeingDestroyed(true);
 
 #if PLATFORM(IOS)

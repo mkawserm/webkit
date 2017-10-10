@@ -46,6 +46,8 @@ WI.Resource = class Resource extends WI.SourceCode
         this._requestData = requestData || null;
         this._requestHeaders = requestHeaders || {};
         this._responseHeaders = {};
+        this._requestCookies = null;
+        this._responseCookies = null;
         this._parentFrame = null;
         this._initiatorSourceCodeLocation = initiatorSourceCodeLocation || null;
         this._initiatedResources = [];
@@ -140,6 +142,14 @@ WI.Resource = class Resource extends WI.SourceCode
             if (plural)
                 return WI.UIString("Fetches");
             return WI.UIString("Fetch");
+        case WI.Resource.Type.Ping:
+            if (plural)
+                return WI.UIString("Pings");
+            return WI.UIString("Ping");
+        case WI.Resource.Type.Beacon:
+            if (plural)
+                return WI.UIString("Beacons");
+            return WI.UIString("Beacon");
         case WI.Resource.Type.WebSocket:
             if (plural)
                 return WI.UIString("Sockets");
@@ -415,6 +425,36 @@ WI.Resource = class Resource extends WI.SourceCode
         return this._responseHeaders;
     }
 
+    get requestCookies()
+    {
+        if (!this._requestCookies)
+            this._requestCookies = WI.Cookie.parseCookieRequestHeader(this._requestHeaders.valueForCaseInsensitiveKey("Cookie"));
+
+        return this._requestCookies;
+    }
+
+    get responseCookies()
+    {
+        if (!this._responseCookies) {
+            // FIXME: The backend sends multiple "Set-Cookie" headers in one "Set-Cookie" with multiple values
+            // separated by ", ". This doesn't allow us to safely distinguish between a ", " that separates
+            // multiple headers or one that may be valid part of a Cookie's value or attribute, such as the
+            // ", " in the the date format "Expires=Tue, 03-Oct-2017 04:39:21 GMT". To improve heuristics
+            // we do a negative lookahead for numbers, but we can still fail on cookie values containing ", ".
+            let rawCombinedHeader = this._responseHeaders.valueForCaseInsensitiveKey("Set-Cookie") || "";
+            let setCookieHeaders = rawCombinedHeader.split(/, (?![0-9])/);
+            let cookies = [];
+            for (let header of setCookieHeaders) {
+                let cookie = WI.Cookie.parseSetCookieResponseHeader(header);
+                if (cookie)
+                    cookies.push(cookie);
+            }
+            this._responseCookies = cookies;
+        }
+
+        return this._responseCookies;
+    }
+
     get requestSentTimestamp()
     {
         return this._requestSentTimestamp;
@@ -597,6 +637,7 @@ WI.Resource = class Resource extends WI.SourceCode
 
         this._url = url;
         this._requestHeaders = requestHeaders || {};
+        this._requestCookies = null;
         this._lastRedirectReceivedTimestamp = elapsedTime || NaN;
 
         if (oldURL !== url) {
@@ -634,6 +675,7 @@ WI.Resource = class Resource extends WI.SourceCode
         this._statusCode = statusCode;
         this._statusText = statusText;
         this._responseHeaders = responseHeaders || {};
+        this._responseCookies = null;
         this._responseReceivedTimestamp = elapsedTime || NaN;
         this._timingData = WI.ResourceTimingData.fromPayload(timingData, this);
 
@@ -694,6 +736,7 @@ WI.Resource = class Resource extends WI.SourceCode
             this._connectionIdentifier = WI.Resource.connectionIdentifierFromPayload(metrics.connectionIdentifier);
         if (metrics.requestHeaders) {
             this._requestHeaders = metrics.requestHeaders;
+            this._requestCookies = null;
             this.dispatchEventToListeners(WI.Resource.Event.RequestHeadersDidChange);
         }
 
@@ -713,6 +756,8 @@ WI.Resource = class Resource extends WI.SourceCode
             this.dispatchEventToListeners(WI.Resource.Event.SizeDidChange, {previousSize: this._estimatedSize});
             this.dispatchEventToListeners(WI.Resource.Event.TransferSizeDidChange);
         }
+
+        this.dispatchEventToListeners(WI.Resource.Event.MetricsDidChange);
     }
 
     setCachedResponseBodySize(size)
@@ -954,6 +999,7 @@ WI.Resource = class Resource extends WI.SourceCode
                                  .replace(/'/g, "\\'")
                                  .replace(/\n/g, "\\n")
                                  .replace(/\r/g, "\\r")
+                                 .replace(/!/g, "\\041")
                                  .replace(/[^\x20-\x7E]/g, escapeCharacter) + "'";
             } else {
                 // Use single quote syntax.
@@ -996,6 +1042,7 @@ WI.Resource.Event = {
     SizeDidChange: "resource-size-did-change",
     TransferSizeDidChange: "resource-transfer-size-did-change",
     CacheStatusDidChange: "resource-cached-did-change",
+    MetricsDidChange: "resource-metrics-did-change",
     InitiatedResourcesDidChange: "resource-initiated-resources-did-change",
 };
 
@@ -1008,8 +1055,10 @@ WI.Resource.Type = {
     Script: "resource-type-script",
     XHR: "resource-type-xhr",
     Fetch: "resource-type-fetch",
+    Ping: "resource-type-ping",
+    Beacon: "resource-type-beacon",
     WebSocket: "resource-type-websocket",
-    Other: "resource-type-other"
+    Other: "resource-type-other",
 };
 
 WI.Resource.ResponseSource = {

@@ -55,6 +55,11 @@ public:
 
     void dispatchSynchronousJob();
 
+    void continueDidReceiveResponse();
+    void platformContinueSynchronousDidReceiveResponse();
+
+    void continueWillSendRequest(ResourceRequest&&);
+
 private:
     // Called from main thread.
     ResourceResponse& response();
@@ -63,11 +68,17 @@ private:
 
     bool cancelledOrClientless();
 
-    RefPtr<CurlRequest> createCurlRequest(ResourceRequest&);
+    Ref<CurlRequest> createCurlRequest(ResourceRequest&);
     void curlDidReceiveResponse(const CurlResponse&) override;
     void curlDidReceiveBuffer(Ref<SharedBuffer>&&) override;
     void curlDidComplete() override;
     void curlDidFailWithError(const ResourceError&) override;
+
+    void continueAfterDidReceiveResponse();
+
+    bool shouldRedirectAsGET(const ResourceRequest&, bool crossOrigin);
+    void willSendRequest();
+    void continueAfterWillSendRequest(ResourceRequest&&);
 
     void handleDataURL();
 
@@ -75,7 +86,8 @@ private:
     ResourceHandle* m_handle;
     std::unique_ptr<MultipartHandle> m_multipartHandle;
     unsigned m_authFailureCount { 0 };
-    // Used by worker thread.
+    unsigned m_redirectCount { 0 };
+
     ResourceRequest m_firstRequest;
     ResourceRequest m_currentRequest;
     bool m_shouldUseCredentialStorage;

@@ -62,7 +62,7 @@ class RenderLayer;
 class RenderLayerModelObject;
 class RenderFragmentContainer;
 class RenderTheme;
-class SelectionSubtreeRoot;
+class SelectionRangeData;
 class TransformState;
 class VisiblePosition;
 
@@ -109,8 +109,7 @@ public:
     explicit RenderObject(Node&);
     virtual ~RenderObject();
 
-    template<typename T>
-    WeakPtr<T> createWeakPtr() { return m_weakFactory.createWeakPtr<T>(*this); }
+    auto& weakPtrFactory() const { return m_weakFactory; }
 
     RenderTheme& theme() const;
 
@@ -415,7 +414,6 @@ public:
     bool isElementContinuation() const { return node() && node()->renderer() != this; }
     bool isInlineElementContinuation() const { return isElementContinuation() && isInline(); }
     bool isBlockElementContinuation() const { return isElementContinuation() && !isInline(); }
-    virtual RenderBoxModelObject* virtualContinuation() const { return nullptr; }
 
     bool isFloating() const { return m_bitfields.floating(); }
 
@@ -752,10 +750,7 @@ public:
     void imageChanged(CachedImage*, const IntRect* = nullptr) override;
     virtual void imageChanged(WrappedImagePtr, const IntRect* = nullptr) { }
 
-    SelectionSubtreeRoot& selectionRoot() const;
-    void selectionStartEnd(unsigned& spos, unsigned& epos) const;
-    
-    void removeFromParent();
+    void removeFromParentAndDestroy();
 
     CSSAnimationController& animation() const;
 

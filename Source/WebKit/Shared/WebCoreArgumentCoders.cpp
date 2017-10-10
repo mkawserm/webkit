@@ -52,6 +52,7 @@
 #include <WebCore/Length.h>
 #include <WebCore/LengthBox.h>
 #include <WebCore/MediaSelectionOption.h>
+#include <WebCore/Pasteboard.h>
 #include <WebCore/Path.h>
 #include <WebCore/PluginData.h>
 #include <WebCore/ProtectionSpace.h>
@@ -90,10 +91,6 @@
 #include <WebCore/SelectionRect.h>
 #include <WebCore/SharedBuffer.h>
 #endif // PLATFORM(IOS)
-
-#if PLATFORM(COCOA) || PLATFORM(WPE) || PLATFORM(GTK)
-#include <WebCore/Pasteboard.h>
-#endif
 
 #if ENABLE(WIRELESS_PLAYBACK_TARGET)
 #include <WebCore/MediaPlaybackTargetContext.h>
@@ -264,6 +261,7 @@ void ArgumentCoder<DOMCacheEngine::Record>::encode(Encoder& encoder, const DOMCa
     encoder << record.responseHeadersGuard;
     encoder << record.response;
     encoder << record.updateResponseCounter;
+    encoder << record.responseBodySize;
 
     WTF::switchOn(record.responseBody, [&](const Ref<SharedBuffer>& buffer) {
         encoder << true;
@@ -312,6 +310,10 @@ std::optional<DOMCacheEngine::Record> ArgumentCoder<DOMCacheEngine::Record>::dec
     if (!decoder.decode(updateResponseCounter))
         return std::nullopt;
 
+    uint64_t responseBodySize;
+    if (!decoder.decode(responseBodySize))
+        return std::nullopt;
+
     WebCore::DOMCacheEngine::ResponseBody responseBody;
     bool hasSharedBufferBody;
     if (!decoder.decode(hasSharedBufferBody))
@@ -335,7 +337,7 @@ std::optional<DOMCacheEngine::Record> ArgumentCoder<DOMCacheEngine::Record>::dec
         }
     }
 
-    return {{ WTFMove(identifier), WTFMove(updateResponseCounter), WTFMove(requestHeadersGuard), WTFMove(request), WTFMove(options), WTFMove(referrer), WTFMove(responseHeadersGuard), WTFMove(response), WTFMove(responseBody) }};
+    return {{ WTFMove(identifier), WTFMove(updateResponseCounter), WTFMove(requestHeadersGuard), WTFMove(request), WTFMove(options), WTFMove(referrer), WTFMove(responseHeadersGuard), WTFMove(response), WTFMove(responseBody), responseBodySize }};
 }
 
 void ArgumentCoder<EventTrackingRegions>::encode(Encoder& encoder, const EventTrackingRegions& eventTrackingRegions)
@@ -1580,6 +1582,7 @@ bool ArgumentCoder<DatabaseDetails>::decode(Decoder& decoder, DatabaseDetails& d
 
 void ArgumentCoder<PasteboardCustomData>::encode(Encoder& encoder, const PasteboardCustomData& data)
 {
+    encoder << data.origin;
     encoder << data.orderedTypes;
     encoder << data.platformData;
     encoder << data.sameOriginCustomData;
@@ -1587,6 +1590,9 @@ void ArgumentCoder<PasteboardCustomData>::encode(Encoder& encoder, const Pastebo
 
 bool ArgumentCoder<PasteboardCustomData>::decode(Decoder& decoder, PasteboardCustomData& data)
 {
+    if (!decoder.decode(data.origin))
+        return false;
+
     if (!decoder.decode(data.orderedTypes))
         return false;
 

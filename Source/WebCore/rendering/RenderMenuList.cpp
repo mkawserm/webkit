@@ -71,8 +71,6 @@ static size_t selectedOptionCount(const RenderMenuList& renderMenuList)
 
 RenderMenuList::RenderMenuList(HTMLSelectElement& element, RenderStyle&& style)
     : RenderFlexibleBox(element, WTFMove(style))
-    , m_buttonText(nullptr)
-    , m_innerBlock(nullptr)
     , m_needsOptionsWidthUpdate(true)
     , m_optionsWidth(0)
 #if !PLATFORM(IOS)
@@ -107,9 +105,10 @@ void RenderMenuList::createInnerBlock()
 
     // Create an anonymous block.
     ASSERT(!firstChild());
-    m_innerBlock = createAnonymousBlock();
+    auto newInnerBlock = createAnonymousBlock();
+    m_innerBlock = makeWeakPtr(*newInnerBlock.get());
     adjustInnerStyle();
-    RenderFlexibleBox::addChild(m_innerBlock);
+    RenderFlexibleBox::addChild(WTFMove(newInnerBlock));
 }
 
 void RenderMenuList::adjustInnerStyle()
@@ -171,23 +170,22 @@ HTMLSelectElement& RenderMenuList::selectElement() const
     return downcast<HTMLSelectElement>(nodeForNonAnonymous());
 }
 
-void RenderMenuList::addChild(RenderObject* newChild, RenderObject* beforeChild)
+void RenderMenuList::addChild(RenderPtr<RenderObject> newChild, RenderObject* beforeChild)
 {
     createInnerBlock();
-    m_innerBlock->addChild(newChild, beforeChild);
+    auto& child = *newChild;
+    m_innerBlock->addChild(WTFMove(newChild), beforeChild);
     ASSERT(m_innerBlock == firstChild());
 
     if (AXObjectCache* cache = document().existingAXObjectCache())
-        cache->childrenChanged(this, newChild);
+        cache->childrenChanged(this, &child);
 }
 
-void RenderMenuList::removeChild(RenderObject& oldChild)
+RenderPtr<RenderObject> RenderMenuList::takeChild(RenderObject& oldChild)
 {
-    if (&oldChild == m_innerBlock || !m_innerBlock) {
-        RenderFlexibleBox::removeChild(oldChild);
-        m_innerBlock = 0;
-    } else
-        m_innerBlock->removeChild(oldChild);
+    if (!m_innerBlock || &oldChild == m_innerBlock)
+        return RenderFlexibleBox::takeChild(oldChild);
+    return m_innerBlock->takeChild(oldChild);
 }
 
 void RenderMenuList::styleDidChange(StyleDifference diff, const RenderStyle* oldStyle)
@@ -294,9 +292,11 @@ void RenderMenuList::setText(const String& s)
     if (m_buttonText)
         m_buttonText->setText(textToUse.impl(), true);
     else {
-        m_buttonText = new RenderText(document(), textToUse);
-        addChild(m_buttonText);
+        auto newButtonText = createRenderer<RenderText>(document(), textToUse);
+        m_buttonText = makeWeakPtr(*newButtonText);
+        addChild(WTFMove(newButtonText));
     }
+
     adjustInnerStyle();
 }
 
@@ -428,7 +428,7 @@ void RenderMenuList::didUpdateActiveOption(int optionIndex)
     if (!axCache)
         return;
 
-    if (m_lastActiveIndex && *m_lastActiveIndex == optionIndex)
+    if (m_lastActiveIndex == optionIndex)
         return;
     m_lastActiveIndex = optionIndex;
 
@@ -436,7 +436,7 @@ void RenderMenuList::didUpdateActiveOption(int optionIndex)
     if (listIndex < 0 || listIndex >= static_cast<int>(selectElement().listItems().size()))
         return;
 
-    if (AccessibilityMenuList* menuList = downcast<AccessibilityMenuList>(axCache->get(this)))
+    if (auto* menuList = downcast<AccessibilityMenuList>(axCache->get(this)))
         menuList->didUpdateActiveOption(optionIndex);
 }
 

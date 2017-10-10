@@ -15,6 +15,9 @@
 		0F5BF1521F22E1570029D91D /* Scavenger.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 0F5BF1501F22E1570029D91D /* Scavenger.cpp */; };
 		0F5BF1531F22E1570029D91D /* Scavenger.h in Headers */ = {isa = PBXBuildFile; fileRef = 0F5BF1511F22E1570029D91D /* Scavenger.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		0F5BF1731F23C5710029D91D /* BExport.h in Headers */ = {isa = PBXBuildFile; fileRef = 0F5BF1721F23C5710029D91D /* BExport.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		0F74B93E1F89713E00B935D3 /* CryptoRandom.h in Headers */ = {isa = PBXBuildFile; fileRef = 0F74B93C1F89713E00B935D3 /* CryptoRandom.h */; };
+		0F74B93F1F89713E00B935D3 /* CryptoRandom.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 0F74B93D1F89713E00B935D3 /* CryptoRandom.cpp */; };
+		0FD557331F7EDB7B00B1F0A3 /* HeapKind.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 0FD557321F7EDB7B00B1F0A3 /* HeapKind.cpp */; };
 		1400274918F89C1300115C97 /* Heap.h in Headers */ = {isa = PBXBuildFile; fileRef = 14DA320C18875B09007269E0 /* Heap.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		1400274A18F89C2300115C97 /* VMHeap.h in Headers */ = {isa = PBXBuildFile; fileRef = 144F7BFC18BFC517003537F3 /* VMHeap.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		140FA00319CE429C00FFD3C8 /* BumpRange.h in Headers */ = {isa = PBXBuildFile; fileRef = 140FA00219CE429C00FFD3C8 /* BumpRange.h */; settings = {ATTRIBUTES = (Private, ); }; };
@@ -48,7 +51,6 @@
 		14DD78BC18F48D6B00950702 /* SmallLine.h in Headers */ = {isa = PBXBuildFile; fileRef = 1452478618BC757C00F80098 /* SmallLine.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		14DD78BD18F48D6B00950702 /* SmallPage.h in Headers */ = {isa = PBXBuildFile; fileRef = 143E29ED18CAE90500FE8A0F /* SmallPage.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		14DD78C518F48D7500950702 /* Algorithm.h in Headers */ = {isa = PBXBuildFile; fileRef = 1421A87718EE462A00B4DD68 /* Algorithm.h */; settings = {ATTRIBUTES = (Private, ); }; };
-		14DD78C618F48D7500950702 /* AsyncTask.h in Headers */ = {isa = PBXBuildFile; fileRef = 1417F65218BA88A00076FA3F /* AsyncTask.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		14DD78C718F48D7500950702 /* BAssert.h in Headers */ = {isa = PBXBuildFile; fileRef = 1413E468189EEDE400546D68 /* BAssert.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		14DD78C818F48D7500950702 /* FixedVector.h in Headers */ = {isa = PBXBuildFile; fileRef = 14D9DB4517F2447100EAAB79 /* FixedVector.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		14DD78C918F48D7500950702 /* BInline.h in Headers */ = {isa = PBXBuildFile; fileRef = 1413E460189DCE1E00546D68 /* BInline.h */; settings = {ATTRIBUTES = (Private, ); }; };
@@ -91,6 +93,9 @@
 		0F5BF1501F22E1570029D91D /* Scavenger.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = Scavenger.cpp; path = bmalloc/Scavenger.cpp; sourceTree = "<group>"; };
 		0F5BF1511F22E1570029D91D /* Scavenger.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = Scavenger.h; path = bmalloc/Scavenger.h; sourceTree = "<group>"; };
 		0F5BF1721F23C5710029D91D /* BExport.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = BExport.h; path = bmalloc/BExport.h; sourceTree = "<group>"; };
+		0F74B93C1F89713E00B935D3 /* CryptoRandom.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = CryptoRandom.h; path = bmalloc/CryptoRandom.h; sourceTree = "<group>"; };
+		0F74B93D1F89713E00B935D3 /* CryptoRandom.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = CryptoRandom.cpp; path = bmalloc/CryptoRandom.cpp; sourceTree = "<group>"; };
+		0FD557321F7EDB7B00B1F0A3 /* HeapKind.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = HeapKind.cpp; path = bmalloc/HeapKind.cpp; sourceTree = "<group>"; };
 		140FA00219CE429C00FFD3C8 /* BumpRange.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = BumpRange.h; path = bmalloc/BumpRange.h; sourceTree = "<group>"; };
 		140FA00419CE4B6800FFD3C8 /* LineMetadata.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = LineMetadata.h; path = bmalloc/LineMetadata.h; sourceTree = "<group>"; };
 		14105E8318E14374003A106E /* ObjectType.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = ObjectType.cpp; path = bmalloc/ObjectType.cpp; sourceTree = "<group>"; };
@@ -98,7 +103,6 @@
 		1413E462189DE1CD00546D68 /* BumpAllocator.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; lineEnding = 0; name = BumpAllocator.h; path = bmalloc/BumpAllocator.h; sourceTree = "<group>"; };
 		1413E468189EEDE400546D68 /* BAssert.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = BAssert.h; path = bmalloc/BAssert.h; sourceTree = "<group>"; };
 		1417F64F18B7280C0076FA3F /* Syscall.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = Syscall.h; path = bmalloc/Syscall.h; sourceTree = "<group>"; };
-		1417F65218BA88A00076FA3F /* AsyncTask.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = AsyncTask.h; path = bmalloc/AsyncTask.h; sourceTree = "<group>"; };
 		141D9AFF1C8E51C0000ABBA0 /* List.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = List.h; path = bmalloc/List.h; sourceTree = "<group>"; };
 		1421A87718EE462A00B4DD68 /* Algorithm.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = Algorithm.h; path = bmalloc/Algorithm.h; sourceTree = "<group>"; };
 		142B44341E2839E7001DA6E9 /* DebugHeap.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = DebugHeap.cpp; path = bmalloc/DebugHeap.cpp; sourceTree = "<group>"; };
@@ -282,14 +286,16 @@
 			children = (
 				4408F2961C9896C40012EC64 /* darwin */,
 				1421A87718EE462A00B4DD68 /* Algorithm.h */,
-				1417F65218BA88A00076FA3F /* AsyncTask.h */,
 				6599C5CA1EC3F15900A2F7BB /* AvailableMemory.cpp */,
 				6599C5CB1EC3F15900A2F7BB /* AvailableMemory.h */,
 				1413E468189EEDE400546D68 /* BAssert.h */,
 				0F5BF1721F23C5710029D91D /* BExport.h */,
 				1413E460189DCE1E00546D68 /* BInline.h */,
 				14C919C818FCC59F0028DB43 /* BPlatform.h */,
+				0F74B93D1F89713E00B935D3 /* CryptoRandom.cpp */,
+				0F74B93C1F89713E00B935D3 /* CryptoRandom.h */,
 				14D9DB4517F2447100EAAB79 /* FixedVector.h */,
+				0FD557321F7EDB7B00B1F0A3 /* HeapKind.cpp */,
 				0F5BF1461F22A8B10029D91D /* HeapKind.h */,
 				141D9AFF1C8E51C0000ABBA0 /* List.h */,
 				4426E27E1C838EE0008EB042 /* Logging.cpp */,
@@ -336,13 +342,13 @@
 				14DD789818F48D4A00950702 /* Allocator.h in Headers */,
 				0F5BF1531F22E1570029D91D /* Scavenger.h in Headers */,
 				0F5BF1471F22A8B10029D91D /* HeapKind.h in Headers */,
-				14DD78C618F48D7500950702 /* AsyncTask.h in Headers */,
 				6599C5CD1EC3F15900A2F7BB /* AvailableMemory.h in Headers */,
 				14DD78C718F48D7500950702 /* BAssert.h in Headers */,
 				1448C30118F3754C00502839 /* bmalloc.h in Headers */,
 				14C919C918FCC59F0028DB43 /* BPlatform.h in Headers */,
 				4426E2831C839547008EB042 /* BSoftLinking.h in Headers */,
 				14DD789C18F48D4A00950702 /* BumpAllocator.h in Headers */,
+				0F74B93E1F89713E00B935D3 /* CryptoRandom.h in Headers */,
 				140FA00319CE429C00FFD3C8 /* BumpRange.h in Headers */,
 				14DD789918F48D4A00950702 /* Cache.h in Headers */,
 				147DC6E31CA5B70B00724E8D /* Chunk.h in Headers */,
@@ -460,6 +466,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				0F5BF1521F22E1570029D91D /* Scavenger.cpp in Sources */,
+				0FD557331F7EDB7B00B1F0A3 /* HeapKind.cpp in Sources */,
 				14F271C318EA3978008C152F /* Allocator.cpp in Sources */,
 				6599C5CC1EC3F15900A2F7BB /* AvailableMemory.cpp in Sources */,
 				14F271C418EA397B008C152F /* Cache.cpp in Sources */,
@@ -467,6 +474,7 @@
 				142B44361E2839E7001DA6E9 /* DebugHeap.cpp in Sources */,
 				14895D911A3A319C0006235D /* Environment.cpp in Sources */,
 				14F271C718EA3990008C152F /* Heap.cpp in Sources */,
+				0F74B93F1F89713E00B935D3 /* CryptoRandom.cpp in Sources */,
 				0F5BF14F1F22DEAF0029D91D /* Gigacage.cpp in Sources */,
 				144C07F41C7B70260051BB6A /* LargeMap.cpp in Sources */,
 				4426E2801C838EE0008EB042 /* Logging.cpp in Sources */,

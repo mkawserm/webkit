@@ -28,7 +28,6 @@
 
 #import "Color.h"
 #import "Pasteboard.h"
-#import "Settings.h"
 #import "URL.h"
 #import "SharedBuffer.h"
 #import <wtf/HashCountedSet.h>
@@ -105,34 +104,27 @@ static const char* safeTypeForDOMToReadAndWriteForPlatformType(const String& pla
     if (platformType == String(NSHTMLPboardType))
         return ASCIILiteral("text/html");
 
-    if (platformType == String(NSFilenamesPboardType) || platformType == String(NSFilesPromisePboardType) || Pasteboard::shouldTreatCocoaTypeAsFile(platformType))
-        return ASCIILiteral("Files");
-
     return nullptr;
 }
 
 Vector<String> PlatformPasteboard::typesSafeForDOMToReadAndWrite() const
 {
     ListHashSet<String> domPasteboardTypes;
-    if (NSData *serializedCustomData = [m_pasteboard dataForType:@(customWebKitPasteboardDataType)]) {
+    if (NSData *serializedCustomData = [m_pasteboard dataForType:@(PasteboardCustomData::cocoaType())]) {
         auto buffer = SharedBuffer::create(serializedCustomData);
-        for (auto& type : customDataFromSharedBuffer(buffer.get()).orderedTypes)
+        for (auto& type : PasteboardCustomData::fromSharedBuffer(buffer.get()).orderedTypes)
             domPasteboardTypes.add(type);
     }
 
     NSArray<NSString *> *allTypes = [m_pasteboard types];
     for (NSString *type in allTypes) {
-        if ([type isEqualToString:@(customWebKitPasteboardDataType)])
+        if ([type isEqualToString:@(PasteboardCustomData::cocoaType())])
             continue;
 
-        if (isSafeTypeForDOMToReadAndWrite(type))
+        if (Pasteboard::isSafeTypeForDOMToReadAndWrite(type))
             domPasteboardTypes.add(type);
-        else if (auto* domType = safeTypeForDOMToReadAndWriteForPlatformType(type)) {
-            auto coercedType = String::fromUTF8(domType);
-            if (coercedType == "Files" && !numberOfFiles())
-                continue;
-            domPasteboardTypes.add(WTFMove(coercedType));
-        }
+        else if (auto* domType = safeTypeForDOMToReadAndWriteForPlatformType(type))
+            domPasteboardTypes.add(String::fromUTF8(domType));
     }
 
     Vector<String> result;
@@ -146,7 +138,7 @@ long PlatformPasteboard::write(const PasteboardCustomData& data)
     for (auto& entry : data.platformData)
         [types addObject:platformPasteboardTypeForSafeTypeForDOMToReadAndWrite(entry.key)];
     if (data.sameOriginCustomData.size())
-        [types addObject:@(customWebKitPasteboardDataType)];
+        [types addObject:@(PasteboardCustomData::cocoaType())];
 
     [m_pasteboard declareTypes:types owner:nil];
 
@@ -158,8 +150,8 @@ long PlatformPasteboard::write(const PasteboardCustomData& data)
     }
 
     if (data.sameOriginCustomData.size()) {
-        if (auto serializedCustomData = sharedBufferFromCustomData(data)->createNSData())
-            [m_pasteboard setData:serializedCustomData.get() forType:@(customWebKitPasteboardDataType)];
+        if (auto serializedCustomData = data.createSharedBuffer()->createNSData())
+            [m_pasteboard setData:serializedCustomData.get() forType:@(PasteboardCustomData::cocoaType())];
     }
 
     return changeCount();

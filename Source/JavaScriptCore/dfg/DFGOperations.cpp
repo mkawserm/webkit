@@ -244,7 +244,15 @@ JSCell* JIT_OPERATION operationCreateThis(ExecState* exec, JSObject* constructor
     if (constructor->type() == JSFunctionType) {
         auto rareData = jsCast<JSFunction*>(constructor)->rareData(exec, inlineCapacity);
         RETURN_IF_EXCEPTION(scope, nullptr);
-        return constructEmptyObject(exec, rareData->objectAllocationProfile()->structure());
+        Structure* structure = rareData->objectAllocationProfile()->structure();
+        JSObject* result = constructEmptyObject(exec, structure);
+        if (structure->hasPolyProto()) {
+            JSObject* prototype = jsCast<JSFunction*>(constructor)->prototypeForConstruction(vm, exec);
+            result->putDirect(vm, structure->polyProtoOffset(), prototype);
+            prototype->didBecomePrototype();
+            ASSERT_WITH_MESSAGE(!hasIndexedProperties(result->indexingType()), "We rely on JSFinalObject not starting out with an indexing type otherwise we would potentially need to convert to slow put storage");
+        }
+        return result;
     }
 
     JSValue proto = constructor->get(exec, vm.propertyNames->prototype);
@@ -869,7 +877,7 @@ EncodedJSValue JIT_OPERATION operationArrayPush(ExecState* exec, EncodedJSValue 
     VM* vm = &exec->vm();
     NativeCallFrameTracer tracer(vm, exec);
     
-    array->push(exec, JSValue::decode(encodedValue));
+    array->pushInline(exec, JSValue::decode(encodedValue));
     return JSValue::encode(jsNumber(array->length()));
 }
 
@@ -878,7 +886,51 @@ EncodedJSValue JIT_OPERATION operationArrayPushDouble(ExecState* exec, double va
     VM* vm = &exec->vm();
     NativeCallFrameTracer tracer(vm, exec);
     
-    array->push(exec, JSValue(JSValue::EncodeAsDouble, value));
+    array->pushInline(exec, JSValue(JSValue::EncodeAsDouble, value));
+    return JSValue::encode(jsNumber(array->length()));
+}
+
+EncodedJSValue JIT_OPERATION operationArrayPushMultiple(ExecState* exec, JSArray* array, void* buffer, int32_t elementCount)
+{
+    VM& vm = exec->vm();
+    NativeCallFrameTracer tracer(&vm, exec);
+    auto scope = DECLARE_THROW_SCOPE(vm);
+
+    // We assume that multiple JSArray::push calls with ArrayWithInt32/ArrayWithContiguous do not cause JS traps.
+    // If it can cause any JS interactions, we can call the caller JS function of this function and overwrite the
+    // content of ScratchBuffer. If the IndexingType is now ArrayWithInt32/ArrayWithContiguous, we can ensure
+    // that there is no indexed accessors in this object and its prototype chain.
+    //
+    // ArrayWithArrayStorage is also OK. It can have indexed accessors. But if you define an indexed accessor, the array's length
+    // becomes larger than that index. So Array#push never overlaps with this accessor. So accessors are never called unless
+    // the IndexingType is ArrayWithSlowPutArrayStorage which could have an indexed accessor in a prototype chain.
+    RELEASE_ASSERT(!shouldUseSlowPut(array->indexingType()));
+
+    EncodedJSValue* values = static_cast<EncodedJSValue*>(buffer);
+    for (int32_t i = 0; i < elementCount; ++i) {
+        array->pushInline(exec, JSValue::decode(values[i]));
+        RETURN_IF_EXCEPTION(scope, encodedJSValue());
+    }
+    return JSValue::encode(jsNumber(array->length()));
+}
+
+EncodedJSValue JIT_OPERATION operationArrayPushDoubleMultiple(ExecState* exec, JSArray* array, void* buffer, int32_t elementCount)
+{
+    VM& vm = exec->vm();
+    NativeCallFrameTracer tracer(&vm, exec);
+    auto scope = DECLARE_THROW_SCOPE(vm);
+
+    // We assume that multiple JSArray::push calls with ArrayWithDouble do not cause JS traps.
+    // If it can cause any JS interactions, we can call the caller JS function of this function and overwrite the
+    // content of ScratchBuffer. If the IndexingType is now ArrayWithDouble, we can ensure
+    // that there is no indexed accessors in this object and its prototype chain.
+    ASSERT(array->indexingType() == ArrayWithDouble);
+
+    double* values = static_cast<double*>(buffer);
+    for (int32_t i = 0; i < elementCount; ++i) {
+        array->pushInline(exec, JSValue(JSValue::EncodeAsDouble, values[i]));
+        RETURN_IF_EXCEPTION(scope, encodedJSValue());
+    }
     return JSValue::encode(jsNumber(array->length()));
 }
 
@@ -2489,6 +2541,8 @@ extern "C" void JIT_OPERATION triggerReoptimizationNow(CodeBlock* codeBlock, OSR
     // really be profitable.
     DeferGCForAWhile deferGC(codeBlock->vm()->heap);
     
+    sanitizeStackForVM(codeBlock->vm());
+
     if (Options::verboseOSR())
         dataLog(*codeBlock, ": Entered reoptimize\n");
     // We must be called with the baseline code block.
@@ -2614,6 +2668,8 @@ void JIT_OPERATION triggerTierUpNow(ExecState* exec)
     DeferGCForAWhile deferGC(vm->heap);
     CodeBlock* codeBlock = exec->codeBlock();
     
+    sanitizeStackForVM(vm);
+
     if (codeBlock->jitType() != JITCode::DFGJIT) {
         dataLog("Unexpected code block in DFG->FTL tier-up: ", *codeBlock, "\n");
         RELEASE_ASSERT_NOT_REACHED();
@@ -2668,7 +2724,7 @@ static char* tierUpCommon(ExecState* exec, unsigned originBytecodeIndex, unsigne
     // The following is only true for triggerTierUpNowInLoop, which can never
     // be an OSR entry.
     bool canOSRFromHere = originBytecodeIndex == osrEntryBytecodeIndex;
-
+    
     bool triggeredSlowPathToStartCompilation = false;
     auto tierUpEntryTriggers = jitCode->tierUpEntryTriggers.find(originBytecodeIndex);
     if (tierUpEntryTriggers != jitCode->tierUpEntryTriggers.end()) {
@@ -2848,6 +2904,8 @@ void JIT_OPERATION triggerTierUpNowInLoop(ExecState* exec, unsigned bytecodeInde
     DeferGCForAWhile deferGC(vm->heap);
     CodeBlock* codeBlock = exec->codeBlock();
 
+    sanitizeStackForVM(vm);
+
     if (codeBlock->jitType() != JITCode::DFGJIT) {
         dataLog("Unexpected code block in DFG->FTL tier-up: ", *codeBlock, "\n");
         RELEASE_ASSERT_NOT_REACHED();
@@ -2881,6 +2939,8 @@ char* JIT_OPERATION triggerOSREntryNow(ExecState* exec, unsigned bytecodeIndex)
     NativeCallFrameTracer tracer(vm, exec);
     DeferGCForAWhile deferGC(vm->heap);
     CodeBlock* codeBlock = exec->codeBlock();
+
+    sanitizeStackForVM(vm);
 
     if (codeBlock->jitType() != JITCode::DFGJIT) {
         dataLog("Unexpected code block in DFG->FTL tier-up: ", *codeBlock, "\n");

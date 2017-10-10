@@ -167,11 +167,12 @@ typedef const char* optionString;
     v(bool, dumpDFGFTLGraphAtEachPhase, false, Normal, "dumps the DFG graph at each phase of DFG compilation when compiling FTL code") \
     v(bool, dumpB3GraphAtEachPhase, false, Normal, "dumps the B3 graph at each phase of compilation") \
     v(bool, dumpAirGraphAtEachPhase, false, Normal, "dumps the Air graph at each phase of compilation") \
-    v(bool, verboseDFGByteCodeParsing, false, Normal, nullptr) \
+    v(bool, verboseDFGBytecodeParsing, false, Normal, nullptr) \
     v(bool, safepointBeforeEachPhase, true, Normal, nullptr) \
     v(bool, verboseCompilation, false, Normal, nullptr) \
     v(bool, verboseFTLCompilation, false, Normal, nullptr) \
     v(bool, logCompilationChanges, false, Normal, nullptr) \
+    v(bool, useProbeOSRExit, false, Normal, nullptr) \
     v(bool, printEachOSRExit, false, Normal, nullptr) \
     v(bool, validateGraph, false, Normal, nullptr) \
     v(bool, validateGraphAtEachPhase, false, Normal, nullptr) \
@@ -471,7 +472,8 @@ typedef const char* optionString;
     v(bool, useFastTLSForWasmContext, true, Normal, "If true (and fast TLS is enabled), we will store context in fast TLS. If false, we will pin it to a register.") \
     v(bool, useCallICsForWebAssemblyToJSCalls, true, Normal, "If true, we will use CallLinkInfo to inline cache Wasm to JS calls.") \
     v(bool, useObjectRestSpread, true, Normal, "If true, we will enable Object Rest/Spread feature.") \
-    v(bool, useArrayAllocationProfiling, true, Normal, "If true, we will use our normal array allocation profiling. If false, the allocation profile will always claim to be undecided.")
+    v(bool, useArrayAllocationProfiling, true, Normal, "If true, we will use our normal array allocation profiling. If false, the allocation profile will always claim to be undecided.")\
+    v(bool, forcePolyProto, false, Normal, "If true, create_this will always create an object with a poly proto structure.")
 
 
 enum OptionEquivalence {
@@ -512,6 +514,7 @@ enum OptionEquivalence {
     v(enableDollarVM, useDollarVM, SameOption) \
     v(enableWebAssembly, useWebAssembly, SameOption) \
     v(enableAsyncIterator, useAsyncIterator, SameOption) \
+    v(verboseDFGByteCodeParsing, verboseDFGBytecodeParsing, SameOption) \
 
 
 class Options {

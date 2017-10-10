@@ -427,6 +427,7 @@ WI.contentLoaded = function()
     // These tabs are always available for selecting, modulo isTabAllowed().
     // Other tabs may be engineering-only or toggled at runtime if incomplete.
     let productionTabClasses = [
+        WI.CanvasTabContentView,
         WI.ConsoleTabContentView,
         WI.DebuggerTabContentView,
         WI.ElementsTabContentView,
@@ -1105,6 +1106,9 @@ WI.tabContentViewClassForRepresentedObject = function(representedObject)
         representedObject instanceof WI.ApplicationCacheFrame || representedObject instanceof WI.IndexedDatabaseObjectStore ||
         representedObject instanceof WI.IndexedDatabaseObjectStoreIndex)
         return WI.ResourcesTabContentView;
+
+    if (representedObject instanceof WI.CanvasCollection)
+        return WI.CanvasTabContentView;
 
     if (representedObject instanceof WI.Recording)
         return WI.RecordingTabContentView;
@@ -1880,8 +1884,14 @@ WI._focusConsolePrompt = function(event)
 
 WI._focusedContentBrowser = function()
 {
+    if (this.currentFocusElement) {
+        let contentBrowserElement = this.currentFocusElement.enclosingNodeOrSelfWithClass("content-browser");
+        if (contentBrowserElement && contentBrowserElement.__view && contentBrowserElement.__view instanceof WI.ContentBrowser)
+            return contentBrowserElement.__view;
+    }
+
     if (this.tabBrowser.element.isSelfOrAncestor(this.currentFocusElement) || document.activeElement === document.body) {
-        var tabContentView = this.tabBrowser.selectedTabContentView;
+        let tabContentView = this.tabBrowser.selectedTabContentView;
         if (tabContentView.contentBrowser)
             return tabContentView.contentBrowser;
         return null;
@@ -2541,7 +2551,7 @@ WI.highlightRangesWithStyleClass = function(element, resultRanges, styleClass, c
     return highlightNodes;
 };
 
-WI.revertDomChanges = function(domChanges)
+WI.revertDOMChanges = function(domChanges)
 {
     for (var i = domChanges.length - 1; i >= 0; --i) {
         var entry = domChanges[i];

@@ -65,6 +65,13 @@ bool ResourceHandle::start()
     if (d->m_context && !d->m_context->isValid())
         return false;
 
+    // Only allow the POST and GET methods for non-HTTP requests.
+    const ResourceRequest& request = firstRequest();
+    if (!request.url().protocolIsInHTTPFamily() && request.httpMethod() != "GET" && request.httpMethod() != "POST") {
+        scheduleFailure(InvalidURLFailure); // Error must not be reported immediately
+        return true;
+    }
+
     d->m_delegate = adoptRef(new ResourceHandleCurlDelegate(this));
     return d->m_delegate->start();
 }
@@ -206,10 +213,10 @@ void ResourceHandle::receivedRequestToContinueWithoutCredential(const Authentica
     if (challenge != d->m_currentWebChallenge)
         return;
 
-    if (d->m_delegate)
-        d->m_delegate->setAuthentication("", "");
-
     clearAuthentication();
+
+    auto protectedThis = makeRef(*this);
+    didReceiveResponse(ResourceResponse(d->m_response));
 }
 
 void ResourceHandle::receivedCancellation(const AuthenticationChallenge& challenge)
@@ -248,6 +255,31 @@ void ResourceHandle::platformLoadResourceSynchronously(NetworkingContext* contex
     error = client.error();
     data.swap(client.mutableData());
     response = client.response();
+}
+
+void ResourceHandle::continueDidReceiveResponse()
+{
+    ASSERT(isMainThread());
+
+    if (d->m_delegate)
+        d->m_delegate->continueDidReceiveResponse();
+}
+
+void ResourceHandle::platformContinueSynchronousDidReceiveResponse()
+{
+    ASSERT(isMainThread());
+
+    if (d->m_delegate)
+        d->m_delegate->platformContinueSynchronousDidReceiveResponse();
+}
+
+void ResourceHandle::continueWillSendRequest(ResourceRequest&& request)
+{
+    ASSERT(isMainThread());
+    ASSERT(!client() || client()->usesAsyncCallbacks());
+
+    if (d->m_delegate)
+        d->m_delegate->continueWillSendRequest(WTFMove(request));
 }
 
 } // namespace WebCore

@@ -33,11 +33,14 @@
 #include "JSDOMPromiseDeferred.h"
 #include "PaymentDetailsInit.h"
 #include "PaymentOptions.h"
+#include "URL.h"
+#include <wtf/Variant.h>
 
 namespace WebCore {
 
 class Document;
 class PaymentAddress;
+class PaymentHandler;
 class PaymentResponse;
 enum class PaymentShippingType;
 struct PaymentMethodData;
@@ -60,6 +63,10 @@ public:
     const String& shippingOption() const { return m_shippingOption; }
     std::optional<PaymentShippingType> shippingType() const;
 
+    const PaymentOptions& paymentOptions() const { return m_options; }
+    const PaymentDetailsInit& paymentDetails() const { return m_details; }
+
+    using MethodIdentifier = Variant<String, URL>;
     using RefCounted<PaymentRequest>::ref;
     using RefCounted<PaymentRequest>::deref;
 
@@ -71,18 +78,16 @@ private:
     };
 
     struct Method {
-        String supportedMethods;
+        MethodIdentifier identifier;
         String serializedData;
     };
 
     PaymentRequest(Document&, PaymentOptions&&, PaymentDetailsInit&&, Vector<String>&& serializedModifierData, Vector<Method>&& serializedMethodData, String&& selectedShippingOption);
 
-    void finishShowing();
-
     // ActiveDOMObject
     const char* activeDOMObjectName() const final { return "PaymentRequest"; }
-    bool canSuspendForDocumentSuspension() const final { return true; }
-    void stop() final { }
+    bool canSuspendForDocumentSuspension() const final;
+    void stop() final;
 
     // EventTarget
     EventTargetInterface eventTargetInterface() const final { return PaymentRequestEventTargetInterfaceType; }
@@ -98,9 +103,11 @@ private:
     RefPtr<PaymentAddress> m_shippingAddress;
     State m_state { State::Created };
     std::optional<ShowPromise> m_showPromise;
-    std::optional<AbortPromise> m_abortPromise;
     std::optional<CanMakePaymentPromise> m_canMakePaymentPromise;
+    RefPtr<PaymentHandler> m_activePaymentHandler;
 };
+
+std::optional<PaymentRequest::MethodIdentifier> convertAndValidatePaymentMethodIdentifier(const String& identifier);
 
 } // namespace WebCore
 

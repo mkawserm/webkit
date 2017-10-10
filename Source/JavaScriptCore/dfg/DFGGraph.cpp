@@ -817,7 +817,8 @@ void Graph::killUnreachableBlocks()
             continue;
         if (block->isReachable)
             continue;
-        
+
+        dataLogIf(Options::verboseDFGBytecodeParsing(), "Basic block #", blockIndex, " was killed because it was unreachable\n");
         killBlockAndItsContents(block);
     }
 }
@@ -1787,7 +1788,8 @@ bool Graph::canDoFastSpread(Node* node, const AbstractValue& value)
     ArrayPrototype* arrayPrototype = globalObjectFor(node->child1()->origin.semantic)->arrayPrototype();
     bool allGood = true;
     value.m_structure.forEach([&] (RegisteredStructure structure) {
-        allGood &= structure->storedPrototype() == arrayPrototype
+        allGood &= structure->hasMonoProto()
+            && structure->storedPrototype() == arrayPrototype
             && !structure->isDictionary()
             && structure->getConcurrently(m_vm.propertyNames->iteratorSymbol.impl()) == invalidOffset
             && !structure->mayInterceptIndexedAccesses();

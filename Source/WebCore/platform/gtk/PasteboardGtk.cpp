@@ -242,8 +242,11 @@ void Pasteboard::read(PasteboardWebContentReader&)
 {
 }
 
-void Pasteboard::read(PasteboardFileReader&)
+void Pasteboard::read(PasteboardFileReader& reader)
 {
+    readFromClipboard();
+    for (auto& filename : m_selectionData->filenames())
+        reader.readFilename(filename);
 }
 
 bool Pasteboard::hasData()
@@ -252,7 +255,13 @@ bool Pasteboard::hasData()
     return m_selectionData->hasText() || m_selectionData->hasMarkup() || m_selectionData->hasURIList() || m_selectionData->hasImage() || m_selectionData->hasUnknownTypeData();
 }
 
-Vector<String> Pasteboard::typesForBindings()
+Vector<String> Pasteboard::typesSafeForBindings()
+{
+    notImplemented(); // webkit.org/b/177633: [GTK] Move to new Pasteboard API
+    return { };
+}
+
+Vector<String> Pasteboard::typesForLegacyUnsafeBindings()
 {
     readFromClipboard();
 
@@ -271,21 +280,13 @@ Vector<String> Pasteboard::typesForBindings()
         types.append(ASCIILiteral("URL"));
     }
 
-    if (m_selectionData->hasFilenames())
-        types.append(ASCIILiteral("Files"));
-
     for (auto& key : m_selectionData->unknownTypes().keys())
         types.append(key);
 
     return types;
 }
 
-Vector<String> Pasteboard::typesTreatedAsFiles()
-{
-    return { };
-}
-
-String Pasteboard::readStringForBindings(const String& type)
+String Pasteboard::readString(const String& type)
 {
     readFromClipboard();
 
@@ -307,10 +308,16 @@ String Pasteboard::readStringForBindings(const String& type)
     return String();
 }
 
-Vector<String> Pasteboard::readFilenames()
+String Pasteboard::readStringInCustomData(const String&)
+{
+    notImplemented(); // webkit.org/b/177633: [GTK] Move to new Pasteboard API
+    return { };
+}
+
+bool Pasteboard::containsFiles()
 {
     readFromClipboard();
-    return m_selectionData->filenames();
+    return !m_selectionData->filenames().isEmpty();
 }
 
 void Pasteboard::writeMarkup(const String&)

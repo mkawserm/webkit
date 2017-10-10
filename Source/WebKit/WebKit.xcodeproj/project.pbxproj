@@ -898,6 +898,7 @@
 		41897ED81F415D8A0016FA42 /* CacheStorageEngine.h in Headers */ = {isa = PBXBuildFile; fileRef = 41897ED21F415D850016FA42 /* CacheStorageEngine.h */; };
 		41897ED91F415D8A0016FA42 /* CacheStorageEngineConnection.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 41897ED31F415D850016FA42 /* CacheStorageEngineConnection.cpp */; };
 		41897EDA1F415D8A0016FA42 /* CacheStorageEngineConnection.h in Headers */ = {isa = PBXBuildFile; fileRef = 41897ED41F415D850016FA42 /* CacheStorageEngineConnection.h */; };
+		41B28B0A1F83AD4200FB52AC /* RTCPacketOptions.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 41B28B091F83AD3E00FB52AC /* RTCPacketOptions.cpp */; };
 		41C8581A1F5136CA0065E085 /* CacheStorageEngineCache.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 41C858191F510DEE0065E085 /* CacheStorageEngineCache.cpp */; };
 		41D129DA1F3D101800D15E47 /* WebCacheStorageProvider.h in Headers */ = {isa = PBXBuildFile; fileRef = 41D129D91F3D101400D15E47 /* WebCacheStorageProvider.h */; };
 		41DC45961E3D6E2200B11F51 /* NetworkRTCProvider.h in Headers */ = {isa = PBXBuildFile; fileRef = 41DC45941E3D6E1E00B11F51 /* NetworkRTCProvider.h */; };
@@ -1818,8 +1819,6 @@
 		BCC43ABB127B95DC00317F16 /* PlatformPopupMenuData.h in Headers */ = {isa = PBXBuildFile; fileRef = BCC43AB9127B95DC00317F16 /* PlatformPopupMenuData.h */; };
 		BCC43AC7127B99DE00317F16 /* WebPopupMenuMac.mm in Sources */ = {isa = PBXBuildFile; fileRef = BCC43AC6127B99DE00317F16 /* WebPopupMenuMac.mm */; };
 		BCC56F791159957D001CCAF9 /* MachPort.h in Headers */ = {isa = PBXBuildFile; fileRef = BCC56F771159957D001CCAF9 /* MachPort.h */; };
-		BCC5715B115ADAEF001CCAF9 /* WebSystemInterface.h in Headers */ = {isa = PBXBuildFile; fileRef = BCC57159115ADAEF001CCAF9 /* WebSystemInterface.h */; };
-		BCC5715C115ADAEF001CCAF9 /* WebSystemInterface.mm in Sources */ = {isa = PBXBuildFile; fileRef = BCC5715A115ADAEF001CCAF9 /* WebSystemInterface.mm */; };
 		BCC8B374125FB69000DE46A4 /* WKGeometry.h in Headers */ = {isa = PBXBuildFile; fileRef = BCC8B373125FB69000DE46A4 /* WKGeometry.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		BCC938E11180DE440085E5FE /* WKContextPrivate.h in Headers */ = {isa = PBXBuildFile; fileRef = BCC938E01180DE440085E5FE /* WKContextPrivate.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		BCCF6ABC12C91EF9008F9C35 /* WebImage.cpp in Sources */ = {isa = PBXBuildFile; fileRef = BCCF6ABA12C91EF9008F9C35 /* WebImage.cpp */; };
@@ -3187,6 +3186,8 @@
 		41897ED51F415D850016FA42 /* CacheStorageEngineConnection.messages.in */ = {isa = PBXFileReference; lastKnownFileType = text; path = CacheStorageEngineConnection.messages.in; sourceTree = "<group>"; };
 		41897ED61F415D860016FA42 /* CacheStorageEngine.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = CacheStorageEngine.cpp; sourceTree = "<group>"; };
 		41AC86811E042E5300303074 /* WebRTCResolver.messages.in */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; lineEnding = 0; name = WebRTCResolver.messages.in; path = Network/webrtc/WebRTCResolver.messages.in; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = "<none>"; };
+		41B28B081F83AD3E00FB52AC /* RTCPacketOptions.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = RTCPacketOptions.h; sourceTree = "<group>"; };
+		41B28B091F83AD3E00FB52AC /* RTCPacketOptions.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = RTCPacketOptions.cpp; sourceTree = "<group>"; };
 		41C858191F510DEE0065E085 /* CacheStorageEngineCache.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = CacheStorageEngineCache.cpp; sourceTree = "<group>"; };
 		41D129D91F3D101400D15E47 /* WebCacheStorageProvider.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WebCacheStorageProvider.h; sourceTree = "<group>"; };
 		41DC45941E3D6E1E00B11F51 /* NetworkRTCProvider.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = NetworkRTCProvider.h; path = NetworkProcess/webrtc/NetworkRTCProvider.h; sourceTree = "<group>"; };
@@ -4205,8 +4206,6 @@
 		BCC43AB9127B95DC00317F16 /* PlatformPopupMenuData.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = PlatformPopupMenuData.h; sourceTree = "<group>"; };
 		BCC43AC6127B99DE00317F16 /* WebPopupMenuMac.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = WebPopupMenuMac.mm; sourceTree = "<group>"; };
 		BCC56F771159957D001CCAF9 /* MachPort.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MachPort.h; sourceTree = "<group>"; };
-		BCC57159115ADAEF001CCAF9 /* WebSystemInterface.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = WebSystemInterface.h; sourceTree = "<group>"; };
-		BCC5715A115ADAEF001CCAF9 /* WebSystemInterface.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = WebSystemInterface.mm; sourceTree = "<group>"; };
 		BCC8B373125FB69000DE46A4 /* WKGeometry.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = WKGeometry.h; sourceTree = "<group>"; };
 		BCC938E01180DE440085E5FE /* WKContextPrivate.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = WKContextPrivate.h; sourceTree = "<group>"; };
 		BCCF6ABA12C91EF9008F9C35 /* WebImage.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = WebImage.cpp; sourceTree = "<group>"; };
@@ -5023,6 +5022,8 @@
 				F6A0C13F13281E6E0070430F /* ResourceCachesToClear.h */,
 				410482CB1DDD2FB500F006D0 /* RTCNetwork.cpp */,
 				410482CC1DDD2FB500F006D0 /* RTCNetwork.h */,
+				41B28B091F83AD3E00FB52AC /* RTCPacketOptions.cpp */,
+				41B28B081F83AD3E00FB52AC /* RTCPacketOptions.h */,
 				BC2D021612AC41CB00E732A3 /* SameDocumentNavigationType.h */,
 				1AAB4A8C1296F0A20023952F /* SandboxExtension.h */,
 				E1E552C316AE065E004ED653 /* SandboxInitializationParameters.h */,
@@ -7300,8 +7301,6 @@
 				9391F283121B38F500EBF7E8 /* WebFrameNetworkingContext.h */,
 				9391F284121B38F500EBF7E8 /* WebFrameNetworkingContext.mm */,
 				BCC43AC6127B99DE00317F16 /* WebPopupMenuMac.mm */,
-				BCC57159115ADAEF001CCAF9 /* WebSystemInterface.h */,
-				BCC5715A115ADAEF001CCAF9 /* WebSystemInterface.mm */,
 			);
 			path = mac;
 			sourceTree = "<group>";
@@ -9006,7 +9005,6 @@
 				517A53101F47A86200DCDC0A /* WebSWClientConnectionMessages.h in Headers */,
 				517A530B1F479E3600DCDC0A /* WebSWServerConnection.h in Headers */,
 				517A52D91F43A9DA00DCDC0A /* WebSWServerConnectionMessages.h in Headers */,
-				BCC5715B115ADAEF001CCAF9 /* WebSystemInterface.h in Headers */,
 				5118E99C1F295266003EF9F5 /* WebToStorageProcessConnection.h in Headers */,
 				BCA0EF7F12331E78007D3CFB /* WebUndoStep.h in Headers */,
 				1AAF08AE1926936700B6390C /* WebUserContentController.h in Headers */,
@@ -10346,6 +10344,7 @@
 				51E6C1601F29356000FD3437 /* ResourceLoadStatisticsPersistentStorageIOS.mm in Sources */,
 				BC111B09112F5E3C00337BAB /* ResponsivenessTimer.cpp in Sources */,
 				410482CD1DDD324C00F006D0 /* RTCNetwork.cpp in Sources */,
+				41B28B0A1F83AD4200FB52AC /* RTCPacketOptions.cpp in Sources */,
 				1AAB4AAA1296F1540023952F /* SandboxExtensionMac.mm in Sources */,
 				E1E552C416AE065F004ED653 /* SandboxInitialiationParametersMac.mm in Sources */,
 				E19BDA8B19368D4600B97F57 /* SandboxUtilities.mm in Sources */,
@@ -10654,7 +10653,6 @@
 				517A530F1F47A86200DCDC0A /* WebSWClientConnectionMessageReceiver.cpp in Sources */,
 				517A530A1F479E3600DCDC0A /* WebSWServerConnection.cpp in Sources */,
 				517A52D81F43A9DA00DCDC0A /* WebSWServerConnectionMessageReceiver.cpp in Sources */,
-				BCC5715C115ADAEF001CCAF9 /* WebSystemInterface.mm in Sources */,
 				5118E99B1F295266003EF9F5 /* WebToStorageProcessConnection.cpp in Sources */,
 				C0337DD8127A51B6008FF4F4 /* WebTouchEvent.cpp in Sources */,
 				2DA944A31884E4F000ED86DB /* WebTouchEventIOS.cpp in Sources */,
@@ -11036,7 +11034,6 @@
 			buildSettings = {
 				OTHER_LDFLAGS = (
 					"$(OTHER_LDFLAGS)",
-					"-l$(WEBKIT_SYSTEM_INTERFACE_LIBRARY)",
 				);
 				PRODUCT_NAME = PluginProcessShim;
 			};
@@ -11048,7 +11045,6 @@
 			buildSettings = {
 				OTHER_LDFLAGS = (
 					"$(OTHER_LDFLAGS)",
-					"-l$(WEBKIT_SYSTEM_INTERFACE_LIBRARY)",
 				);
 				PRODUCT_NAME = PluginProcessShim;
 			};
@@ -11060,7 +11056,6 @@
 			buildSettings = {
 				OTHER_LDFLAGS = (
 					"$(OTHER_LDFLAGS)",
-					"-lWebKitSystemInterface",
 				);
 				PRODUCT_NAME = PluginProcessShim;
 			};
@@ -11072,7 +11067,6 @@
 			buildSettings = {
 				OTHER_LDFLAGS = (
 					"$(OTHER_LDFLAGS)",
-					"-l$(WEBKIT_SYSTEM_INTERFACE_LIBRARY)",
 				);
 			};
 			name = Debug;
@@ -11083,7 +11077,6 @@
 			buildSettings = {
 				OTHER_LDFLAGS = (
 					"$(OTHER_LDFLAGS)",
-					"-l$(WEBKIT_SYSTEM_INTERFACE_LIBRARY)",
 				);
 			};
 			name = Release;
@@ -11170,7 +11163,6 @@
 			buildSettings = {
 				OTHER_LDFLAGS = (
 					"$(OTHER_LDFLAGS)",
-					"-lWebKitSystemInterface",
 				);
 			};
 			name = Production;

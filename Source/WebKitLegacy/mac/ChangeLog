@@ -1,3 +1,126 @@
+2017-10-09  Robin Morisset  <rmorisset@apple.com>
+
+        Make the names of the options consistent
+        https://bugs.webkit.org/show_bug.cgi?id=177933
+
+        Reviewed by Saam Barati.
+
+        * WebView/WebFrame.h:
+        * WebView/WebHTMLView.mm:
+        (-[WebHTMLView setMarkedText:selectedRange:]):
+        * WebView/WebView.h:
+
+2017-10-06  Wenson Hsieh  <wenson_hsieh@apple.com>
+
+        [iOS] Tweak support for classifying form controls (followup to r222487)
+        https://bugs.webkit.org/show_bug.cgi?id=177917
+        <rdar://problem/34820122>
+
+        Reviewed by Dean Jackson.
+
+        Implement _autofillContext in legacy WebKit, and remove the two previous SPI hooks.
+
+        * DOM/DOMHTMLInputElement.mm:
+        (-[DOMHTMLInputElement _autofillContext]):
+        (-[DOMHTMLInputElement acceptsAutofilledLoginCredentials]): Deleted.
+        (-[DOMHTMLInputElement representingPageURL]): Deleted.
+
+2017-10-05  Keith Miller  <keith_miller@apple.com>
+
+        Unreviewed, tapi builds without optimization so we should have TAPI passes -DRELEASE_WITHOUT_OPTIMIZATIONS.
+
+        * Configurations/WebKitLegacy.xcconfig:
+
+2017-10-05  Jer Noble  <jer.noble@apple.com>
+
+        [Cocoa] Enable ENABLE_ENCRYPTED_MEDIA build-time setting
+        https://bugs.webkit.org/show_bug.cgi?id=177261
+
+        Reviewed by Eric Carlson.
+
+        * Configurations/FeatureDefines.xcconfig:
+
+2017-10-05  Chris Dumez  <cdumez@apple.com>
+
+        Drop unused parameters for CookiesStrategy::cookiesEnabled()
+        https://bugs.webkit.org/show_bug.cgi?id=177957
+
+        Reviewed by Alex Christensen.
+
+        * WebCoreSupport/WebPlatformStrategies.h:
+        * WebCoreSupport/WebPlatformStrategies.mm:
+        (WebPlatformStrategies::cookiesEnabled):
+
+2017-10-05  Youenn Fablet  <youenn@apple.com>
+
+        Make LibWebRTCProvider port agnostic
+        https://bugs.webkit.org/show_bug.cgi?id=177747
+
+        Reviewed by Alex Christensen & Alex Garcia.
+
+        * WebView/WebView.mm:
+        (-[WebView _commonInitializationWithFrameName:groupName:]):
+        (-[WebView initSimpleHTMLDocumentWithStyle:frame:preferences:groupName:]):
+
+2017-10-04  Alex Christensen  <achristensen@webkit.org>
+
+        Stop linking with WebKitSystemInterface
+        https://bugs.webkit.org/show_bug.cgi?id=177915
+
+        Reviewed by Antti Koivisto.
+
+        * Configurations/DebugRelease.xcconfig:
+        * Configurations/WebKitLegacy.xcconfig:
+
+2017-10-04  Alex Christensen  <achristensen@webkit.org>
+
+        Remove unnecessary includes of WebKitSystemInterface on Cocoa platforms
+        https://bugs.webkit.org/show_bug.cgi?id=177912
+
+        Reviewed by Saam Barati.
+
+        * Carbon/CarbonUtils.m:
+        * Carbon/CarbonWindowAdapter.mm:
+        * Carbon/HIWebView.mm:
+        * DefaultDelegates/WebDefaultContextMenuDelegate.mm:
+        * Misc/WebNSFileManagerExtras.mm:
+        * Misc/WebNSPasteboardExtras.mm:
+        * Misc/WebNSURLExtras.mm:
+        * Plugins/Hosted/HostedNetscapePluginStream.mm:
+        * Plugins/Hosted/NetscapePluginHostManager.mm:
+        * Plugins/Hosted/NetscapePluginHostProxy.mm:
+        * Plugins/Hosted/NetscapePluginInstanceProxy.mm:
+        * Plugins/Hosted/WebHostedNetscapePluginView.h:
+        * Plugins/Hosted/WebTextInputWindowController.m:
+        * Plugins/WebBaseNetscapePluginView.mm:
+        * Plugins/WebNetscapePluginEventHandlerCarbon.mm:
+        * Plugins/WebNetscapePluginEventHandlerCocoa.mm:
+        * Plugins/WebNetscapePluginStream.mm:
+        * Plugins/WebNetscapePluginView.mm:
+        * Plugins/WebPluginDatabase.mm:
+        * WebCoreSupport/PopupMenuMac.mm:
+        * WebCoreSupport/WebChromeClient.mm:
+        * WebCoreSupport/WebFrameLoaderClient.mm:
+        * WebCoreSupport/WebInspectorClient.mm:
+        * WebCoreSupport/WebPlatformStrategies.mm:
+        * WebCoreSupport/WebSystemInterface.mm:
+        * WebView/WebDynamicScrollBarsView.mm:
+        * WebView/WebFrame.mm:
+        * WebView/WebFrameView.mm:
+        * WebView/WebFullScreenController.mm:
+        * WebView/WebHTMLView.mm:
+        * WebView/WebPreferences.mm:
+        * WebView/WebView.mm:
+
+2017-09-29  Alexey Proskuryakov  <ap@apple.com>
+
+        Follow-up to https://trac.webkit.org/r222239 to fix crashes.
+        rdar://problem/34705779
+
+        Addressing review comments that I somehow landed without.
+
+        * WebView/WebHTMLView.mm: Undo adding #if guards around -_web_uniqueWebDataURL
+
 2017-09-29  Chris Dumez  <cdumez@apple.com>
 
         Split some logic out of VisitedLinkStore and make it reusable

@@ -353,7 +353,7 @@ public:
 
         // Make sure everything is decorated. This does a bunch of deferred decorating. This has
         // to happen last because our abstract heaps are generated lazily. They have to be
-        // generated lazily because we have an infiniten number of numbered, indexed, and
+        // generated lazily because we have an infinite number of numbered, indexed, and
         // absolute heaps. We only become aware of the ones we actually mention while lowering.
         m_heaps.computeRangesAndDecorateInstructions();
 
@@ -931,12 +931,6 @@ private:
             break;
         case CompareGreaterEq:
             compileCompareGreaterEq();
-            break;
-        case CompareBelow:
-            compileCompareBelow();
-            break;
-        case CompareBelowEq:
-            compileCompareBelowEq();
             break;
         case CompareEqPtr:
             compileCompareEqPtr();
@@ -4088,68 +4082,134 @@ private:
     
     void compileArrayPush()
     {
-        LValue base = lowCell(m_node->child1());
-        LValue storage = lowStorage(m_node->child3());
-        
+        LValue base = lowCell(m_graph.varArgChild(m_node, 1));
+        LValue storage = lowStorage(m_graph.varArgChild(m_node, 0));
+        unsigned elementOffset = 2;
+        unsigned elementCount = m_node->numChildren() - elementOffset;
+
         switch (m_node->arrayMode().type()) {
         case Array::Int32:
         case Array::Contiguous:
         case Array::Double: {
-            LValue value;
-            Output::StoreType storeType;
-            
-            if (m_node->arrayMode().type() != Array::Double) {
-                value = lowJSValue(m_node->child2(), ManualOperandSpeculation);
-                if (m_node->arrayMode().type() == Array::Int32) {
-                    FTL_TYPE_CHECK(
-                        jsValueValue(value), m_node->child2(), SpecInt32Only, isNotInt32(value));
-                }
-                storeType = Output::Store64;
-            } else {
-                value = lowDouble(m_node->child2());
-                FTL_TYPE_CHECK(
-                    doubleValue(value), m_node->child2(), SpecDoubleReal,
-                    m_out.doubleNotEqualOrUnordered(value, value));
-                storeType = Output::StoreDouble;
-            }
-            
             IndexedAbstractHeap& heap = m_heaps.forArrayType(m_node->arrayMode().type());
 
+            if (elementCount == 1) {
+                LValue value;
+                Output::StoreType storeType;
+                
+                Edge& element = m_graph.varArgChild(m_node, elementOffset);
+                if (m_node->arrayMode().type() != Array::Double) {
+                    value = lowJSValue(element, ManualOperandSpeculation);
+                    if (m_node->arrayMode().type() == Array::Int32)
+                        RELEASE_ASSERT(!m_interpreter.needsTypeCheck(element, SpecInt32Only));
+                    storeType = Output::Store64;
+                } else {
+                    value = lowDouble(element);
+                    RELEASE_ASSERT(!m_interpreter.needsTypeCheck(element, SpecDoubleReal));
+                    storeType = Output::StoreDouble;
+                }
+
+                LValue prevLength = m_out.load32(storage, m_heaps.Butterfly_publicLength);
+                
+                LBasicBlock fastPath = m_out.newBlock();
+                LBasicBlock slowPath = m_out.newBlock();
+                LBasicBlock continuation = m_out.newBlock();
+                
+                m_out.branch(
+                    m_out.aboveOrEqual(
+                        prevLength, m_out.load32(storage, m_heaps.Butterfly_vectorLength)),
+                    unsure(slowPath), unsure(fastPath));
+                
+                LBasicBlock lastNext = m_out.appendTo(fastPath, slowPath);
+                m_out.store(
+                    value, m_out.baseIndex(heap, storage, m_out.zeroExtPtr(prevLength)), storeType);
+                LValue newLength = m_out.add(prevLength, m_out.int32One);
+                m_out.store32(newLength, storage, m_heaps.Butterfly_publicLength);
+                
+                ValueFromBlock fastResult = m_out.anchor(boxInt32(newLength));
+                m_out.jump(continuation);
+                
+                m_out.appendTo(slowPath, continuation);
+                LValue operation;
+                if (m_node->arrayMode().type() != Array::Double)
+                    operation = m_out.operation(operationArrayPush);
+                else
+                    operation = m_out.operation(operationArrayPushDouble);
+                ValueFromBlock slowResult = m_out.anchor(
+                    vmCall(Int64, operation, m_callFrame, value, base));
+                m_out.jump(continuation);
+                
+                m_out.appendTo(continuation, lastNext);
+                setJSValue(m_out.phi(Int64, fastResult, slowResult));
+                return;
+            }
+
             LValue prevLength = m_out.load32(storage, m_heaps.Butterfly_publicLength);
-            
+            LValue newLength = m_out.add(prevLength, m_out.constInt32(elementCount));
+
             LBasicBlock fastPath = m_out.newBlock();
             LBasicBlock slowPath = m_out.newBlock();
+            LBasicBlock setup = m_out.newBlock();
+            LBasicBlock slowCallPath = m_out.newBlock();
             LBasicBlock continuation = m_out.newBlock();
-            
-            m_out.branch(
-                m_out.aboveOrEqual(
-                    prevLength, m_out.load32(storage, m_heaps.Butterfly_vectorLength)),
-                unsure(slowPath), unsure(fastPath));
-            
+
+            LValue beyondVectorLength = m_out.above(newLength, m_out.load32(storage, m_heaps.Butterfly_vectorLength));
+
+            m_out.branch(beyondVectorLength, unsure(slowPath), unsure(fastPath));
+
             LBasicBlock lastNext = m_out.appendTo(fastPath, slowPath);
-            m_out.store(
-                value, m_out.baseIndex(heap, storage, m_out.zeroExtPtr(prevLength)), storeType);
-            LValue newLength = m_out.add(prevLength, m_out.int32One);
             m_out.store32(newLength, storage, m_heaps.Butterfly_publicLength);
-            
+            ValueFromBlock fastBufferResult = m_out.anchor(m_out.baseIndex(storage, m_out.zeroExtPtr(prevLength), ScaleEight));
+            m_out.jump(setup);
+
+            m_out.appendTo(slowPath, setup);
+            size_t scratchSize = sizeof(EncodedJSValue) * elementCount;
+            static_assert(sizeof(EncodedJSValue) == sizeof(double), "");
+            ASSERT(scratchSize);
+            ScratchBuffer* scratchBuffer = vm().scratchBufferForSize(scratchSize);
+            m_out.storePtr(m_out.constIntPtr(scratchSize), m_out.absolute(scratchBuffer->addressOfActiveLength()));
+            ValueFromBlock slowBufferResult = m_out.anchor(m_out.constIntPtr(static_cast<EncodedJSValue*>(scratchBuffer->dataBuffer())));
+            m_out.jump(setup);
+
+            m_out.appendTo(setup, slowCallPath);
+            LValue buffer = m_out.phi(pointerType(), fastBufferResult, slowBufferResult);
+            for (unsigned elementIndex = 0; elementIndex < elementCount; ++elementIndex) {
+                Edge& element = m_graph.varArgChild(m_node, elementIndex + elementOffset);
+
+                LValue value;
+                Output::StoreType storeType;
+                if (m_node->arrayMode().type() != Array::Double) {
+                    value = lowJSValue(element, ManualOperandSpeculation);
+                    if (m_node->arrayMode().type() == Array::Int32)
+                        RELEASE_ASSERT(!m_interpreter.needsTypeCheck(element, SpecInt32Only));
+                    storeType = Output::Store64;
+                } else {
+                    value = lowDouble(element);
+                    RELEASE_ASSERT(!m_interpreter.needsTypeCheck(element, SpecDoubleReal));
+                    storeType = Output::StoreDouble;
+                }
+
+                m_out.store(value, m_out.baseIndex(heap, buffer, m_out.constInt32(elementIndex), jsNumber(elementIndex)), storeType);
+            }
             ValueFromBlock fastResult = m_out.anchor(boxInt32(newLength));
-            m_out.jump(continuation);
-            
-            m_out.appendTo(slowPath, continuation);
+
+            m_out.branch(beyondVectorLength, unsure(slowCallPath), unsure(continuation));
+
+            m_out.appendTo(slowCallPath, continuation);
             LValue operation;
             if (m_node->arrayMode().type() != Array::Double)
-                operation = m_out.operation(operationArrayPush);
+                operation = m_out.operation(operationArrayPushMultiple);
             else
-                operation = m_out.operation(operationArrayPushDouble);
-            ValueFromBlock slowResult = m_out.anchor(
-                vmCall(Int64, operation, m_callFrame, value, base));
+                operation = m_out.operation(operationArrayPushDoubleMultiple);
+            ValueFromBlock slowResult = m_out.anchor(vmCall(Int64, operation, m_callFrame, base, buffer, m_out.constInt32(elementCount)));
+            m_out.storePtr(m_out.constIntPtr(0), m_out.absolute(scratchBuffer->addressOfActiveLength()));
             m_out.jump(continuation);
-            
+
             m_out.appendTo(continuation, lastNext);
             setJSValue(m_out.phi(Int64, fastResult, slowResult));
             return;
         }
-            
+
         default:
             DFG_CRASH(m_graph, m_node, "Bad array type");
             return;
@@ -6343,16 +6403,6 @@ private:
             operationCompareStringImplGreaterEq,
             operationCompareStringGreaterEq,
             operationCompareGreaterEq);
-    }
-
-    void compileCompareBelow()
-    {
-        setBoolean(m_out.below(lowInt32(m_node->child1()), lowInt32(m_node->child2())));
-    }
-    
-    void compileCompareBelowEq()
-    {
-        setBoolean(m_out.belowOrEqual(lowInt32(m_node->child1()), lowInt32(m_node->child2())));
     }
     
     void compileLogicalNot()
@@ -8903,10 +8953,12 @@ private:
         
         LBasicBlock isCellCase = m_out.newBlock();
         LBasicBlock loop = m_out.newBlock();
+        LBasicBlock loadPrototypeBits = m_out.newBlock();
+        LBasicBlock loadPolyProto = m_out.newBlock();
+        LBasicBlock comparePrototype = m_out.newBlock();
         LBasicBlock notYetInstance = m_out.newBlock();
-        LBasicBlock continuation = m_out.newBlock();
-        LBasicBlock loadPrototypeDirect = m_out.newBlock();
         LBasicBlock defaultHasInstanceSlow = m_out.newBlock();
+        LBasicBlock continuation = m_out.newBlock();
         
         LValue condition;
         if (m_node->child1().useKind() == UntypedUse)
@@ -8924,16 +8976,28 @@ private:
         ValueFromBlock originalValue = m_out.anchor(cell);
         m_out.jump(loop);
         
-        m_out.appendTo(loop, loadPrototypeDirect);
+        m_out.appendTo(loop, loadPrototypeBits);
         LValue value = m_out.phi(Int64, originalValue);
         LValue type = m_out.load8ZeroExt32(value, m_heaps.JSCell_typeInfoType);
         m_out.branch(
             m_out.notEqual(type, m_out.constInt32(ProxyObjectType)),
-            usually(loadPrototypeDirect), rarely(defaultHasInstanceSlow));
+            usually(loadPrototypeBits), rarely(defaultHasInstanceSlow));
 
-        m_out.appendTo(loadPrototypeDirect, notYetInstance);
+        m_out.appendTo(loadPrototypeBits, loadPolyProto);
         LValue structure = loadStructure(value);
-        LValue currentPrototype = m_out.load64(structure, m_heaps.Structure_prototype);
+
+        LValue prototypeBits = m_out.load64(structure, m_heaps.Structure_prototype);
+        ValueFromBlock directProtoype = m_out.anchor(prototypeBits);
+        m_out.branch(isInt32(prototypeBits), unsure(loadPolyProto), unsure(comparePrototype));
+
+        m_out.appendTo(loadPolyProto, comparePrototype);
+        LValue index = m_out.bitAnd(prototypeBits, m_out.constInt64(UINT_MAX));
+        ValueFromBlock polyProto = m_out.anchor(
+            m_out.load64(m_out.baseIndex(m_heaps.properties.atAnyNumber(), value, index, ScaleEight, JSObject::offsetOfInlineStorage())));
+        m_out.jump(comparePrototype);
+
+        m_out.appendTo(comparePrototype, notYetInstance);
+        LValue currentPrototype = m_out.phi(Int64, directProtoype, polyProto);
         ValueFromBlock isInstanceResult = m_out.anchor(m_out.booleanTrue);
         m_out.branch(
             m_out.equal(currentPrototype, prototype),
@@ -11930,7 +11994,7 @@ private:
     
     LValue caged(Gigacage::Kind kind, LValue ptr)
     {
-        if (!Gigacage::shouldBeEnabled())
+        if (!Gigacage::isEnabled(kind))
             return ptr;
         
         if (kind == Gigacage::Primitive && Gigacage::canPrimitiveGigacageBeDisabled()) {

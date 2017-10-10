@@ -77,7 +77,7 @@ using namespace HTMLNames;
 // an anonymous block (that houses other blocks) or it will be an inline flow.
 // <b><i><p>Hello</p></i></b>. In this example the <i> will have a block as
 // its continuation but the <b> will just have an inline as its continuation.
-typedef HashMap<const RenderBoxModelObject*, RenderBoxModelObject*> ContinuationMap;
+typedef HashMap<const RenderBoxModelObject*, WeakPtr<RenderBoxModelObject>> ContinuationMap;
 static ContinuationMap& continuationMap()
 {
     static NeverDestroyed<ContinuationMap> map;
@@ -2449,13 +2449,13 @@ RenderBoxModelObject* RenderBoxModelObject::continuation() const
 {
     if (!hasContinuation())
         return nullptr;
-    return continuationMap().get(this);
+    return continuationMap().get(this).get();
 }
 
 void RenderBoxModelObject::setContinuation(RenderBoxModelObject* continuation)
 {
     if (continuation)
-        continuationMap().set(this, continuation);
+        continuationMap().set(this, makeWeakPtr(continuation));
     else if (hasContinuation())
         continuationMap().remove(this);
     setHasContinuation(!!continuation);
@@ -2596,12 +2596,12 @@ void RenderBoxModelObject::moveChildTo(RenderBoxModelObject* toBoxModelObject, R
     if (fullRemoveInsert && (toBoxModelObject->isRenderBlock() || toBoxModelObject->isRenderInline())) {
         // Takes care of adding the new child correctly if toBlock and fromBlock
         // have different kind of children (block vs inline).
-        removeChildInternal(*child, NotifyChildren);
-        toBoxModelObject->addChild(child, beforeChild);
+        auto childToMove = takeChildInternal(*child, NotifyChildren);
+        toBoxModelObject->addChild(WTFMove(childToMove), beforeChild);
     } else {
         NotifyChildrenType notifyType = fullRemoveInsert ? NotifyChildren : DontNotifyChildren;
-        removeChildInternal(*child, notifyType);
-        toBoxModelObject->insertChildInternal(child, beforeChild, notifyType);
+        auto childToMove = takeChildInternal(*child, notifyType);
+        toBoxModelObject->insertChildInternal(WTFMove(childToMove), beforeChild, notifyType);
     }
 }
 

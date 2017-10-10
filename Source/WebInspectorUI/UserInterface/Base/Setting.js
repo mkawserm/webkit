@@ -123,10 +123,12 @@ WI.settings = {
     showScopeChainOnPause: new WI.Setting("show-scope-chain-sidebar", true),
     showImageGrid: new WI.Setting("show-image-grid", false),
     showCanvasPath: new WI.Setting("show-canvas-path", false),
+    selectedNetworkDetailContentViewIdentifier: new WI.Setting("network-detail-content-view-identifier", "preview"),
 
     // Experimental
     experimentalShowCanvasContextsInResources: new WI.Setting("experimental-show-canvas-contexts-in-resources", false),
     experimentalSpreadsheetStyleEditor: new WI.Setting("experimental-spreadsheet-style-editor", false),
+    experimentalEnableCanvasTab: new WI.Setting("experimental-enable-canvas-tab", false),
     experimentalEnableLayersTab: new WI.Setting("experimental-enable-layers-tab", false),
     experimentalEnableNewNetworkTab: new WI.Setting("experimental-enable-new-network-tab", false),
 };

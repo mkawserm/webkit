@@ -1,3 +1,430 @@
+2017-10-09  Youenn Fablet  <youenn@apple.com>
+
+        Vector should be able to easily create from a list of movable only items
+        https://bugs.webkit.org/show_bug.cgi?id=176432
+
+        Reviewed by Darin Adler.
+
+        Adding static from method to construct a Vector from movable-only items.
+        This may also be used instead of initializer list constructor for types that would benefit of being moved.
+
+        * wtf/Vector.h:
+        (WTF::Vector::Vector):
+        (WTF::Vector::from):
+        (WTF::Vector::uncheckedInitialize): Introduced as an optimization to set the vector size once.
+        (WTF::Malloc>::reserveInitialCapacity):
+
+2017-10-09  Tim Horton  <timothy_horton@apple.com>
+
+        Disable INPUT_TYPE_COLOR in FeatureDefines.h
+        https://bugs.webkit.org/show_bug.cgi?id=178103
+        <rdar://problem/34872127>
+
+        Reviewed by Simon Fraser.
+
+        * wtf/FeatureDefines.h:
+        Because FeatureDefines.h overrides features that are not enabled in
+        FeatureDefines.xcconfig, you currently have to turn INPUT_TYPE_COLOR
+        off in two places. Since we only ever want it on for Mac, it's OK
+        to depend on the xcconfig defining it.
+
+2017-10-09  Sam Weinig  <sam@webkit.org>
+
+        Make HashMap::keys() and HashMap::values() work with WTF::map/WTF::copyToVector
+        https://bugs.webkit.org/show_bug.cgi?id=178072
+
+        Reviewed by Darin Adler.
+
+        Introduce SizedIteratorRange, a variant of IteratorRange that includes
+        a reference to a backing container in order to get the size of container.
+        This is useful for algorithms like WTF::map and WTF::copyToVector, that
+        can use the size to efficiently allocate things of the correct size.
+
+        The main beneficiary are HashMap's keys() and values() functions which
+        used to return IteratorRanges and now return SizedIteratorRange. This
+        allows us to remove (in a future change) copyKeysToVector() and
+        copyValuesToVector() by replacing them with copyToVector(map.keys()) and
+        copyToVector(map.values()) respectively.
+
+        * wtf/HashMap.h:
+        * wtf/IteratorRange.h:
+        (WTF::SizedIteratorRange::SizedIteratorRange):
+        (WTF::SizedIteratorRange::size const):
+        (WTF::SizedIteratorRange::begin const):
+        (WTF::SizedIteratorRange::end const):
+        (WTF::makeSizedIteratorRange):
+
+2017-10-08  Sam Weinig  <sam@webkit.org>
+
+        It should be possible to create a ListHashSet with a std::initializer_list.
+        https://bugs.webkit.org/show_bug.cgi?id=178070
+
+        Reviewed by Darin Adler.
+
+        * wtf/ListHashSet.h:
+        (WTF::U>::ListHashSet):
+        Add a constructor that takes a std::initializer_list.
+
+2017-10-08  Sam Weinig  <sam@webkit.org>
+
+        Address additional feedback from Darin for r223039 and sort the using declarations.
+
+        * wtf/Vector.h:
+
+2017-10-08  Sam Weinig  <sam@webkit.org>
+
+        There should be a version of copyToVector that returns a Vector, rather than using an out parameter
+        https://bugs.webkit.org/show_bug.cgi?id=177732
+
+        Reviewed by Saam Barati.
+
+        Add two new helper functions, copyToVector and copyToVectorOf, which will be able to
+        replace the existing out parameter taking copyToVector. Like it's ancestral namesake,
+        copyToVector takes an object that is both iterable (supports begin() and end()) and
+        has a size, and returns a Vector with a copy of all the items iterated. The copyToVectorOf
+        variant allow the user to specify a type to convert to, so if you have a HashSet<int>
+        but want those as floats in a Vector, you can do:
+        
+            auto floatVector = copyToVectorOf<float>(intSet);
+
+        * wtf/Vector.h:
+        (WTF::copyToVector):
+        (WTF::copyToVectorOf):
+
+2017-10-08  Darin Adler  <darin@apple.com>
+
+        Fix bugs related to setting reflected floating point DOM attributes
+        https://bugs.webkit.org/show_bug.cgi?id=178061
+
+        Reviewed by Sam Weinig.
+
+        * wtf/dtoa.cpp:
+        (WTF::formatStringTruncatingTrailingZerosIfNeeded): Fix a bug where
+        this function would remove trailing zeroes from the exponent if
+        present instead of from the mantissa. This meant that it would
+        format 1e10 as "1.00000e+1" instead of "1e+10". Added regression
+        tests for this to TestWebKitAPI.
+
+        * wtf/dtoa/utils.h:
+        (WTF::double_conversion::StringBuilder::RemoveCharacters): Added.
+        Used by the fix above.
+
+        * wtf/text/AtomicString.cpp:
+        (WTF::AtomicString::number): Note: This function is used by code
+        that sets the values of reflected floating point DOM attributes.
+        Changed the function to use the rules from numberToString rather
+        ones from numberToFixedPrecisionString. This is analogous to
+        String::numberToStringECMAScript, and in the future we should change
+        String and StringBuilder so this "ECMAScript" semantic is the default
+        way to convert a floating point number to a string, and rename the fixed
+        precision version that is currently called String::number. I audited
+        the small number of sites calling AtomicString::number, by temporarily
+        renaming it, and discovered that this is the correct behavior for all;
+        none needed fixed precision. Also, fixed a mistake where this explicitly
+        converted to String. That was defeating the purpose of having these
+        functions in AtomicString: It would allocate a new String and then
+        destroy it in the case where an equal string was already in the
+        AtomicString table.
+
+2017-10-06  Commit Queue  <commit-queue@webkit.org>
+
+        Unreviewed, rolling out r222791 and r222873.
+        https://bugs.webkit.org/show_bug.cgi?id=178031
+
+        Caused crashes with workers/wasm LayoutTests (Requested by
+        ryanhaddad on #webkit).
+
+        Reverted changesets:
+
+        "WebAssembly: no VM / JS version of everything but Instance"
+        https://bugs.webkit.org/show_bug.cgi?id=177473
+        http://trac.webkit.org/changeset/222791
+
+        "WebAssembly: address no VM / JS follow-ups"
+        https://bugs.webkit.org/show_bug.cgi?id=177887
+        http://trac.webkit.org/changeset/222873
+
+2017-10-06  Antti Koivisto  <antti@apple.com>
+
+        Minor WeakPtr improvements
+        https://bugs.webkit.org/show_bug.cgi?id=177958
+
+        Reviewed by Sam Weinig.
+
+        * wtf/WeakPtr.h:
+        (WTF::WeakPtr::operator bool const):
+
+            Make explicit.
+
+        (WTF::WeakPtrFactory::createWeakPtr const):
+        (WTF::makeWeakPtr):
+
+            Remove templating from createWeakPtr, makeWeakPtr() is now the
+            canonical way to make derived-type WeakPtrs.
+
+2017-10-04  Filip Pizlo  <fpizlo@apple.com>
+
+        bmalloc mutex should be adaptive
+        https://bugs.webkit.org/show_bug.cgi?id=177839
+
+        Reviewed by Michael Saboff.
+        
+        Add some comments that I thought of while copy-pasting this code.
+
+        Reland after fixing ancient WordLock bug: the notify_one has to happen with the lock held
+        to ensure it doesn't run after that thread has died.
+
+        * wtf/LockAlgorithmInlines.h:
+        * wtf/WordLock.cpp:
+
+2017-10-05  Carlos Alberto Lopez Perez  <clopez@igalia.com>
+
+        Generate a compile error if release is built without compiler optimizations
+        https://bugs.webkit.org/show_bug.cgi?id=177665
+
+        Reviewed by Brian Burg.
+
+        For GCC and Clang, generate an error at build time that will alert
+        the developer that she is trying to build Release without any compiler
+        optimization. A build time error is much better than an unexpected
+        "oh, WebKit is really slow ..."  situation later.
+
+        If this was intended, then we tell the developer that she can continue
+        by just setting -DRELEASE_WITHOUT_OPTIMIZATIONS in the list of build
+        flags.
+
+        The intention of this patch is to ensure that nobody builds Release
+        without enabling compiler optimization by mistake.
+
+        * wtf/Compiler.h:
+
+2017-10-05  David Kilzer  <ddkilzer@apple.com>
+
+        Bug 177893: Disable -Wcast-qual for new clang compiler in Apple ports
+        <https://webkit.org/b/177893>
+        <rdar://problem/33667497>
+
+        Reviewed by Tim Horton.
+
+        * wtf/RetainPtr.h:
+        (WTF::RetainPtr::fromStorageType const): Disable warnings for
+        -Wcast-qual until we can provide a safe cast function that lets
+        us re-enable the warning.
+
+2017-10-05  Matt Lewis  <jlewis3@apple.com>
+
+        Unreviewed, rolling out r222893.
+
+        This caused multiple API failures.
+
+        Reverted changeset:
+
+        "bmalloc mutex should be adaptive"
+        https://bugs.webkit.org/show_bug.cgi?id=177839
+        http://trac.webkit.org/changeset/222893
+
+2017-10-04  Filip Pizlo  <fpizlo@apple.com>
+
+        bmalloc mutex should be adaptive
+        https://bugs.webkit.org/show_bug.cgi?id=177839
+
+        Reviewed by Michael Saboff.
+        
+        Add some comments that I thought of while copy-pasting this code.
+
+        * wtf/LockAlgorithmInlines.h:
+        * wtf/WordLock.cpp:
+
+2017-10-04  JF Bastien  <jfbastien@apple.com>
+
+        WTF: Update std::expected to match current proposal
+        https://bugs.webkit.org/show_bug.cgi?id=177881
+
+        Reviewed by Mark Lam.
+
+        The proposal is likely to be in C++20 and I've been asked to help co-champion
+        it. I'm therefore updating our implementation to more closely match the current
+        proposal, and to make sure it'll work for us if standardized.
+
+         - Rename UnexpectedType to Unexpected to match the proposal.
+         - Remove relational operators, only equality / inequality remains.
+         - Fix minor type signatures.
+         - Add UnexpectedType typedef.
+         - Uncomment rebind implementation.
+         - Add in-place construction tag, as well as explicit error construction tag.
+         - Add template unexpected constructor.
+         - Note that make_unexpected isn't in the proposal anymore, but we keep it because we don't have C++17 deduction guides.
+         - Remove hashing, which isn't in the proposal anymore.
+
+        * wtf/Expected.h:
+        (WTF::Unexpected::Unexpected):
+        (WTF::Unexpected::value const):
+        (WTF::operator==):
+        (WTF::operator!=):
+        (WTF::makeUnexpected):
+        (WTF::Expected::Expected):
+        (WTF::Expected::operator=):
+        (WTF::Expected::getUnexpected const):
+
+2017-10-04  Ryan Haddad  <ryanhaddad@apple.com>
+
+        Unreviewed, rolling out r222840.
+
+        This change breaks internal builds.
+
+        Reverted changeset:
+
+        "Generate a compile error if release is built without compiler
+        optimizations"
+        https://bugs.webkit.org/show_bug.cgi?id=177665
+        http://trac.webkit.org/changeset/222840
+
+2017-10-04  Carlos Alberto Lopez Perez  <clopez@igalia.com>
+
+        Generate a compile error if release is built without compiler optimizations
+        https://bugs.webkit.org/show_bug.cgi?id=177665
+
+        Reviewed by Michael Catanzaro.
+
+        For GCC and Clang, generate an error at build time that will alert
+        the developer that she is trying to build Release without any compiler
+        optimization. A build time error is much better than an unexpected
+        "oh, WebKit is really slow ..."  situation later.
+
+        If this was intended, then we tell the developer that she can continue
+        by just setting -DRELEASE_WITHOUT_OPTIMIZATIONS in the list of build
+        flags.
+
+        The intention of this patch is to ensure that nobody builds Release
+        without enabling compiler optimization by mistake.
+
+        * wtf/Compiler.h:
+
+2017-10-04  Tomas Popela  <tpopela@redhat.com>
+
+        Allow building without WOFF enabled
+
+        Reviewed by Michael Catanzaro.
+
+        Don't force the WOFF to be turned on, but follow what is set in cmake.
+
+        * wtf/Platform.h:
+
+2017-10-03  Saam Barati  <sbarati@apple.com>
+
+        Implement polymorphic prototypes
+        https://bugs.webkit.org/show_bug.cgi?id=176391
+
+        Reviewed by Filip Pizlo.
+
+        * wtf/Box.h:
+        (WTF::Box::operator bool const):
+        (WTF::Box::operator bool): Deleted.
+        Make Box movable. Also ensure its operator bool doesn't do an atomic increment.
+        * wtf/RefPtr.h:
+        (WTF::RefPtr::operator bool const):
+        Add `explicit operator bool()` for RefPtr.
+
+2017-10-03  Antti Koivisto  <antti@apple.com>
+
+        Allow assigning WeakPtr<Derived> to WeakPtr<Base>
+        https://bugs.webkit.org/show_bug.cgi?id=177817
+
+        Reviewed by Geoff Garen.
+
+        Add templated copy/move constructors/assignment operators, similar to RefPtr.
+
+        * wtf/WeakPtr.h:
+        (WTF::WeakPtrFactory::createWeakPtr const):
+        (WTF::weak_reference_upcast):
+        (WTF::weak_reference_downcast):
+        (WTF::WeakPtr<T>::WeakPtr):
+        (WTF::=):
+        (WTF::makeWeakPtr):
+
+2017-10-03  JF Bastien  <jfbastien@apple.com>
+
+        WebAssembly: no VM / JS version of everything but Instance
+        https://bugs.webkit.org/show_bug.cgi?id=177473
+
+        Reviewed by Filip Pizlo.
+
+        * wtf/StdLibExtras.h:
+        (WTF::default_construct_at): this makes code in WasmTable much
+        more readable, and is generally useful for generic code
+
+2017-10-02  Myles C. Maxfield  <mmaxfield@apple.com>
+
+        Move LineEnding.{h,cpp} from WebCore/platform/text to wtf/text
+        https://bugs.webkit.org/show_bug.cgi?id=176575
+
+        Reviewed by Alex Christensen.
+
+        As part of the PAL effort, we're trying to move everything out of WebCore/platform, one-by-one.
+        These LineEnding files belong in WTF.
+
+        * WTF.xcodeproj/project.pbxproj:
+        * wtf/text/LineEnding.cpp: Renamed from Source/WebCore/platform/text/LineEnding.cpp.
+        (WTF::normalizeLineEndingsToCRLF):
+        * wtf/text/LineEnding.h: Renamed from Source/WebCore/platform/text/LineEnding.h.
+
+2017-10-02  Geoffrey Garen  <ggaren@apple.com>
+
+        WeakPtr should have a move constructor
+        https://bugs.webkit.org/show_bug.cgi?id=177789
+
+        Reviewed by Chris Dumez.
+
+        * wtf/WeakPtr.h: Now that we just have a RefPtr data member,
+        the default operators are sufficient.
+
+2017-10-02  Geoffrey Garen  <ggaren@apple.com>
+
+        NULL WeakPtr should not malloc!
+        https://bugs.webkit.org/show_bug.cgi?id=177773
+
+        Reviewed by Antti Koivisto.
+
+        Translating NULL into malloc is... inefficient.
+
+        * wtf/WeakPtr.h:
+        (WTF::WeakPtr::WeakPtr):
+        (WTF::WeakPtr::operator=):
+        (WTF::WeakPtr::clear): Make m_ref lazy so that a NULL m_ref can represent
+        a NULL pointer. Normal dereference is no slower because we can rely on
+        the fact that dereference of NULL should crash. operator bool() and get()
+        incur an extra branch. That's probably worth it to avoid malloc
+        for NULL.
+
+2017-10-02  Antti Koivisto  <antti@apple.com>
+
+        Add makeWeakPtr variant that takes pointer
+        https://bugs.webkit.org/show_bug.cgi?id=177767
+
+        Reviewed by Zalan Bujtas.
+
+        * wtf/WeakPtr.h:
+        (WTF::makeWeakPtr):
+
+        This version deals with the nullptr.
+
+2017-09-30  Antti Koivisto  <antti@apple.com>
+
+        Add makeWeakPtr for easier WeakPtr construction
+        https://bugs.webkit.org/show_bug.cgi?id=177706
+
+        Reviewed by Sam Weinig.
+
+        Standalone makeWeakPtr() returns a WeakPtr of the same type as the argument.
+
+        For this to work the argument type needs to expose a (possibly base type) WeakPtrFactory
+        as a public weakPtrFactory() member function.
+
+        * wtf/WeakPtr.h:
+        (WTF::WeakPtr::operator-> const):
+        (WTF::WeakPtr::operator* const): Also add operator*.
+        (WTF::makeWeakPtr):
+
 2017-09-28  Jiewen Tan  <jiewen_tan@apple.com>
 
         WeakPtrFactory should allow downcasting

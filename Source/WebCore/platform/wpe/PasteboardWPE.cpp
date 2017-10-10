@@ -49,21 +49,28 @@ bool Pasteboard::hasData()
     return !types.isEmpty();
 }
 
-Vector<String> Pasteboard::typesForBindings()
+Vector<String> Pasteboard::typesSafeForBindings()
+{
+    notImplemented();
+    return { };
+}
+
+Vector<String> Pasteboard::typesForLegacyUnsafeBindings()
 {
     Vector<String> types;
     platformStrategies()->pasteboardStrategy()->getTypes(types);
     return types;
 }
 
-Vector<String> Pasteboard::typesTreatedAsFiles()
-{
-    return { };
-}
-
-String Pasteboard::readStringForBindings(const String& type)
+String Pasteboard::readString(const String& type)
 {
     return platformStrategies()->pasteboardStrategy()->readStringFromPasteboard(0, type);
+}
+
+String Pasteboard::readStringInCustomData(const String&)
+{
+    notImplemented();
+    return { };
 }
 
 void Pasteboard::writeString(const String& type, const String& text)
@@ -112,9 +119,10 @@ void Pasteboard::write(const PasteboardWebContent& content)
     platformStrategies()->pasteboardStrategy()->writeToPasteboard(content);
 }
 
-Vector<String> Pasteboard::readFilenames()
+bool Pasteboard::containsFiles()
 {
-    return Vector<String>();
+    notImplemented();
+    return false;
 }
 
 bool Pasteboard::canSmartReplace()

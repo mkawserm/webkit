@@ -46,6 +46,7 @@
 #include "HTMLDetailsElement.h"
 #include "HTMLFormControlElement.h"
 #include "HTMLInputElement.h"
+#include "HTMLMediaElement.h"
 #include "HTMLNames.h"
 #include "HTMLParserIdioms.h"
 #include "HitTestResult.h"
@@ -2587,6 +2588,10 @@ AccessibilityObject* AccessibilityObject::focusedUIElement() const
     
 AccessibilitySortDirection AccessibilityObject::sortDirection() const
 {
+    AccessibilityRole role = roleValue();
+    if (role != RowHeaderRole && role != ColumnHeaderRole)
+        return SortDirectionInvalid;
+
     const AtomicString& sortAttribute = getAttribute(aria_sortAttr);
     if (equalLettersIgnoringASCIICase(sortAttribute, "ascending"))
         return SortDirectionAscending;
@@ -3307,6 +3312,13 @@ AccessibilityObject* AccessibilityObject::highestEditableAncestor()
         editableAncestor = editableAncestor->editableAncestor();
     }
     return previousEditableAncestor;
+}
+
+AccessibilityObject* AccessibilityObject::radioGroupAncestor() const
+{
+    return const_cast<AccessibilityObject*>(AccessibilityObject::matchedParent(*this, false, [] (const AccessibilityObject& object) {
+        return object.isRadioGroup();
+    }));
 }
 
 bool AccessibilityObject::isStyleFormatGroup() const

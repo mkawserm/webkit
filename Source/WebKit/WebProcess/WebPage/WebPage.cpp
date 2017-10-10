@@ -2733,12 +2733,12 @@ void WebPage::setSessionID(PAL::SessionID sessionID)
     m_page->setSessionID(sessionID);
 }
 
-void WebPage::didReceivePolicyDecision(uint64_t frameID, uint64_t listenerID, PolicyAction policyAction, uint64_t navigationID, const DownloadID& downloadID)
+void WebPage::didReceivePolicyDecision(uint64_t frameID, uint64_t listenerID, PolicyAction policyAction, uint64_t navigationID, const DownloadID& downloadID, WebsitePolicies&& websitePolicies)
 {
     WebFrame* frame = WebProcess::singleton().webFrame(frameID);
     if (!frame)
         return;
-    frame->didReceivePolicyDecision(listenerID, policyAction, navigationID, downloadID);
+    frame->didReceivePolicyDecision(listenerID, policyAction, navigationID, downloadID, websitePolicies);
 }
 
 void WebPage::continueWillSubmitForm(uint64_t frameID, uint64_t listenerID)
@@ -6039,6 +6039,30 @@ void WebPage::urlSchemeTaskDidComplete(uint64_t handlerIdentifier, uint64_t task
     ASSERT(handler);
 
     handler->taskDidComplete(taskIdentifier, error);
+}
+
+static uint64_t nextRequestStorageAccessContextId()
+{
+    static uint64_t nextContextId = 0;
+    return ++nextContextId;
+}
+
+void WebPage::requestStorageAccess(String&& subFrameHost, String&& topFrameHost, WTF::Function<void (bool)>&& callback)
+{
+    auto contextId = nextRequestStorageAccessContextId();
+    auto addResult = m_storageAccessResponseCallbackMap.add(contextId, WTFMove(callback));
+    ASSERT(addResult.isNewEntry);
+    if (addResult.iterator->value)
+        send(Messages::WebPageProxy::RequestStorageAccess(WTFMove(subFrameHost), WTFMove(topFrameHost), contextId));
+    else
+        callback(false);
+}
+
+void WebPage::storageAccessResponse(bool wasGranted, uint64_t contextId)
+{
+    auto callback = m_storageAccessResponseCallbackMap.take(contextId);
+    ASSERT(callback);
+    callback(wasGranted);
 }
 
 } // namespace WebKit

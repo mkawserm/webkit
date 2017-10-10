@@ -47,6 +47,7 @@ enum class IncludeSecureCookies;
 namespace WebKit {
 
 class NetworkConnectionToWebProcess;
+class NetworkLoadParameters;
 class NetworkResourceLoader;
 class NetworkSocketStream;
 class SyncNetworkResourceLoader;
@@ -64,7 +65,7 @@ public:
     IPC::Connection& connection() { return m_connection.get(); }
 
     void didCleanupResourceLoader(NetworkResourceLoader&);
-    void didFinishPingLoad(uint64_t pingLoadIdentifier, const WebCore::ResourceError&);
+    void didFinishPingLoad(uint64_t pingLoadIdentifier, const WebCore::ResourceError&, const WebCore::ResourceResponse&);
 
     bool captureExtraNetworkLoadMetricsEnabled() const { return m_captureExtraNetworkLoadMetricsEnabled; }
 
@@ -92,7 +93,7 @@ private:
     void performSynchronousLoad(const NetworkResourceLoadParameters&, Ref<Messages::NetworkConnectionToWebProcess::PerformSynchronousLoad::DelayedReply>&&);
     void loadPing(NetworkResourceLoadParameters&&, WebCore::HTTPHeaderMap&& originalRequestHeaders);
     void prefetchDNS(const String&);
-    void preconnectTo(PAL::SessionID, uint64_t preconnectionIdentifier, const WebCore::URL&, WebCore::StoredCredentialsPolicy);
+    void preconnectTo(uint64_t preconnectionIdentifier, NetworkLoadParameters&&);
 
     void removeLoadIdentifier(ResourceLoadIdentifier);
     void setDefersLoading(ResourceLoadIdentifier, bool);
@@ -102,7 +103,7 @@ private:
 
     void cookiesForDOM(PAL::SessionID, const WebCore::URL& firstParty, const WebCore::URL&, WebCore::IncludeSecureCookies, String& cookieString, bool& secureCookiesAccessed);
     void setCookiesFromDOM(PAL::SessionID, const WebCore::URL& firstParty, const WebCore::URL&, const String&);
-    void cookiesEnabled(PAL::SessionID, const WebCore::URL& firstParty, const WebCore::URL&, bool& result);
+    void cookiesEnabled(PAL::SessionID, bool& result);
     void cookieRequestHeaderFieldValue(PAL::SessionID, const WebCore::URL& firstParty, const WebCore::URL&, WebCore::IncludeSecureCookies, String& cookieString, bool& secureCookiesAccessed);
     void getRawCookies(PAL::SessionID, const WebCore::URL& firstParty, const WebCore::URL&, Vector<WebCore::Cookie>&);
     void deleteCookie(PAL::SessionID, const WebCore::URL&, const String& cookieName);

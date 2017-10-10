@@ -11,6 +11,10 @@ editing/pasteboard/data-transfer-get-data-on-drop-custom.html [ Pass ]
 editing/pasteboard/data-transfer-get-data-on-drop-plain-text.html [ Pass ]
 editing/pasteboard/data-transfer-get-data-on-drop-rich-text.html [ Pass ]
 editing/pasteboard/data-transfer-get-data-on-drop-url.html [ Pass ]
+editing/pasteboard/data-transfer-is-unique-for-dragenter-and-dragleave.html [ Pass ]
+editing/pasteboard/drag-end-crash-accessing-item-list.html [ Pass ]
+editing/pasteboard/data-transfer-item-list-add-file-on-drag.html [ Pass ]
+editing/pasteboard/data-transfer-items-drop-file.html [ Pass ]
 
 #//////////////////////////////////////////////////////////////////////////////////////////
 # End platform-specific directories.
@@ -310,8 +314,6 @@ webkit.org/b/105870 [ Debug ] webaudio/audionode-connect-order.html [ Pass Crash
 
 webkit.org/b/160227 [ ElCapitan Debug ] inspector/memory/tracking.html [ Pass Crash ]
 
-webkit.org/b/165934 [ ElCapitan Yosemite ] js/dom/global-constructors-attributes.html [ Failure ]
-
 # rdar://problem/27723718
 [ Sierra+ ] imported/blink/compositing/child-transform-with-anchor-point.html [ ImageOnlyFailure ]
 
@@ -372,6 +374,7 @@ imported/w3c/web-platform-tests/XMLHttpRequest/event-upload-progress-crossorigin
 
 # Beacon is not supported on WK1.
 http/tests/blink/sendbeacon/ [ Skip ]
+http/tests/inspector/network/beacon-type.html [ Skip ]
 http/wpt/beacon/ [ Skip ]
 imported/blink/fast/beacon/ [ Skip ]
 imported/w3c/web-platform-tests/beacon/ [ Skip ]

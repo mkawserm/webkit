@@ -39,7 +39,6 @@
 #import <WebCore/RuntimeApplicationChecks.h>
 #import <WebCore/SecurityOrigin.h>
 #import <WebCore/SecurityOriginData.h>
-#import <WebKitSystemInterface.h>
 #import <pal/spi/cf/CFNetworkSPI.h>
 #import <wtf/BlockPtr.h>
 
@@ -108,6 +107,7 @@ void NetworkProcess::platformInitializeNetworkProcessCocoa(const NetworkProcessC
 
     if (!parameters.cacheStorageDirectory.isNull()) {
         m_cacheStorageDirectory = parameters.cacheStorageDirectory;
+        m_cacheStoragePerOriginQuota = parameters.cacheStoragePerOriginQuota;
         SandboxExtension::consumePermanently(parameters.cacheStorageDirectoryExtensionHandle);
     }
 

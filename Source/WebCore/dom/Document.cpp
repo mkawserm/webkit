@@ -30,6 +30,7 @@
 
 #include "AXObjectCache.h"
 #include "Attr.h"
+#include "BeforeUnloadEvent.h"
 #include "CDATASection.h"
 #include "CSSAnimationController.h"
 #include "CSSFontSelector.h"
@@ -64,6 +65,7 @@
 #include "EventHandler.h"
 #include "ExtensionStyleSheets.h"
 #include "FocusController.h"
+#include "FocusEvent.h"
 #include "FontFaceSet.h"
 #include "FormController.h"
 #include "FrameLoader.h"
@@ -99,6 +101,7 @@
 #include "HashChangeEvent.h"
 #include "History.h"
 #include "HitTestResult.h"
+#include "ImageBitmapRenderingContext.h"
 #include "ImageLoader.h"
 #include "InspectorInstrumentation.h"
 #include "JSCustomElementInterface.h"
@@ -237,7 +240,6 @@
 #include "Navigator.h"
 #include "NavigatorGeolocation.h"
 #include "WKContentObservation.h"
-#include "WebCoreSystemInterface.h"
 #endif
 
 #if ENABLE(IOS_GESTURE_EVENTS)
@@ -1234,7 +1236,7 @@ void Document::setVisualUpdatesAllowed(bool visualUpdatesAllowed)
     if (!visualUpdatesAllowed)
         return;
 
-    FrameView* frameView = view();
+    RefPtr<FrameView> frameView = view();
     bool needsLayout = frameView && renderView() && (frameView->layoutPending() || renderView()->needsLayout());
     if (needsLayout)
         updateLayout();
@@ -1917,7 +1919,7 @@ void Document::updateLayout()
     ASSERT(LayoutDisallowedScope::isLayoutAllowed());
     ASSERT(isMainThread());
 
-    FrameView* frameView = view();
+    RefPtr<FrameView> frameView = view();
     if (frameView && frameView->isInRenderTreeLayout()) {
         // View layout should not be re-entrant.
         ASSERT_NOT_REACHED();
@@ -1992,7 +1994,7 @@ bool Document::updateLayoutIfDimensionsOutOfDate(Element& element, DimensionsChe
     }
     
     // Check for re-entrancy and assert (same code that is in updateLayout()).
-    FrameView* frameView = view();
+    RefPtr<FrameView> frameView = view();
     if (frameView && frameView->isInRenderTreeLayout()) {
         // View layout should not be re-entrant.
         ASSERT_NOT_REACHED();
@@ -2247,11 +2249,6 @@ void Document::destroyRenderTree()
     if (view())
         view()->willDestroyRenderTree();
 
-#if ENABLE(FULLSCREEN_API)
-    if (m_fullScreenRenderer)
-        setFullScreenRenderer(nullptr);
-#endif
-
     if (m_documentElement)
         RenderTreeUpdater::tearDownRenderers(*m_documentElement);
 
@@ -2259,7 +2256,10 @@ void Document::destroyRenderTree()
 
     unscheduleStyleRecalc();
 
-    m_renderView = nullptr;
+    // FIXME: RenderObject::view() uses m_renderView and we can't null it before destruction is completed
+    m_renderView->destroy();
+    m_renderView.release();
+
     Node::setRenderer(nullptr);
 
 #if ENABLE(TEXT_AUTOSIZING)
@@ -2721,7 +2721,7 @@ void Document::implicitClose()
     //  -When any new HTMLLinkElement is inserted into the document
     // But those add a dynamic component to the favicon that has UI 
     // ramifications, and we need to decide what is the Right Thing To Do(tm)
-    Frame* f = frame();
+    RefPtr<Frame> f = frame();
     if (f) {
         if (auto* documentLoader = loader())
             documentLoader->startIconLoading();
@@ -3863,6 +3863,13 @@ bool Document::setFocusedElement(Element* element, FocusDirection direction, Foc
 
         m_focusedElement->setFocus(true);
 
+        // The setFocus call triggers a blur and a focus event. Event handlers could cause the focused element to be cleared.
+        if (m_focusedElement != newFocusedElement) {
+            // handler shifted focus
+            focusChangeBlocked = true;
+            goto SetFocusedNodeDone;
+        }
+
         if (m_focusedElement->isRootEditableElement())
             frame()->editor().didBeginEditing();
 
@@ -4066,7 +4073,7 @@ void Document::nodeChildrenWillBeRemoved(ContainerNode& container)
             it->nodeWillBeRemoved(*n);
     }
 
-    if (Frame* frame = this->frame()) {
+    if (RefPtr<Frame> frame = this->frame()) {
         for (Node* n = container.firstChild(); n; n = n->nextSibling()) {
             frame->eventHandler().nodeWillBeRemoved(*n);
             frame->selection().nodeWillBeRemoved(*n);
@@ -4097,7 +4104,7 @@ void Document::nodeWillBeRemoved(Node& node)
     for (auto* range : m_ranges)
         range->nodeWillBeRemoved(node);
 
-    if (Frame* frame = this->frame()) {
+    if (RefPtr<Frame> frame = this->frame()) {
         frame->eventHandler().nodeWillBeRemoved(node);
         frame->selection().nodeWillBeRemoved(node);
         frame->page()->dragCaretController().nodeWillBeRemoved(node);
@@ -4261,8 +4268,8 @@ void Document::enqueueOverflowEvent(Ref<Event>&& event)
 
 ExceptionOr<Ref<Event>> Document::createEvent(const String& type)
 {
-    // Please do *not* add new event classes to this function unless they are
-    // required for compatibility of some actual legacy web content.
+    // Please do *not* add new event classes to this function unless they are required
+    // for compatibility with the DOM specification or some actual legacy web content.
 
     // This mechanism is superceded by use of event constructors.
     // That is what we should use for any new event classes.
@@ -4270,63 +4277,72 @@ ExceptionOr<Ref<Event>> Document::createEvent(const String& type)
     // The following strings are the ones from the DOM specification
     // <https://dom.spec.whatwg.org/#dom-document-createevent>.
 
+    if (equalLettersIgnoringASCIICase(type, "beforeunloadevent"))
+        return Ref<Event> { BeforeUnloadEvent::createForBindings() };
+    if (equalLettersIgnoringASCIICase(type, "compositionevent"))
+        return Ref<Event> { CompositionEvent::createForBindings() };
     if (equalLettersIgnoringASCIICase(type, "customevent"))
         return Ref<Event> { CustomEvent::create() };
-    if (equalLettersIgnoringASCIICase(type, "event") || equalLettersIgnoringASCIICase(type, "events") || equalLettersIgnoringASCIICase(type, "htmlevents"))
+    if (equalLettersIgnoringASCIICase(type, "event") || equalLettersIgnoringASCIICase(type, "events") || equalLettersIgnoringASCIICase(type, "htmlevents") || equalLettersIgnoringASCIICase(type, "svgevents"))
         return Event::createForBindings();
-    if (equalLettersIgnoringASCIICase(type, "keyboardevent") || equalLettersIgnoringASCIICase(type, "keyboardevents"))
+    if (equalLettersIgnoringASCIICase(type, "focusevent"))
+        return Ref<Event> { FocusEvent::createForBindings() };
+    if (equalLettersIgnoringASCIICase(type, "hashchangeevent"))
+        return Ref<Event> { HashChangeEvent::createForBindings() };
+    if (equalLettersIgnoringASCIICase(type, "keyboardevent"))
         return Ref<Event> { KeyboardEvent::createForBindings() };
     if (equalLettersIgnoringASCIICase(type, "messageevent"))
         return Ref<Event> { MessageEvent::createForBindings() };
-    if (equalLettersIgnoringASCIICase(type, "mouseevent") || equalLettersIgnoringASCIICase(type, "mouseevents"))
-        return Ref<Event> { MouseEvent::createForBindings() };
-    if (equalLettersIgnoringASCIICase(type, "uievent") || equalLettersIgnoringASCIICase(type, "uievents"))
-        return Ref<Event> { UIEvent::createForBindings() };
-    if (equalLettersIgnoringASCIICase(type, "popstateevent"))
-        return Ref<Event> { PopStateEvent::createForBindings() };
-
-#if ENABLE(TOUCH_EVENTS)
-    if (equalLettersIgnoringASCIICase(type, "touchevent"))
-        return Ref<Event> { TouchEvent::createForBindings() };
-#endif
-
-    // The following string comes from the SVG specifications
-    // <http://www.w3.org/TR/SVG/script.html#InterfaceSVGZoomEvent>
-    // <http://www.w3.org/TR/SVG2/interact.html#InterfaceSVGZoomEvent>.
-    // However, since there is no provision for initializing the event once it is created,
-    // there is no practical value in this feature.
-
-    if (equalLettersIgnoringASCIICase(type, "svgzoomevents"))
-        return Ref<Event> { SVGZoomEvent::createForBindings() };
-
-    // The following strings are for event classes where WebKit supplies an init function.
-    // These strings are not part of the DOM specification and we would like to eliminate them.
-    // However, we currently include these because we have concerns about backward compatibility.
-
-    // FIXME: For each of the strings below, prove there is no content depending on it and remove
-    // both the string and the corresponding init function for that class.
-
-    if (equalLettersIgnoringASCIICase(type, "compositionevent"))
-        return Ref<Event> { CompositionEvent::createForBindings() };
-    if (equalLettersIgnoringASCIICase(type, "hashchangeevent"))
-        return Ref<Event> { HashChangeEvent::createForBindings() };
-    if (equalLettersIgnoringASCIICase(type, "mutationevent") || equalLettersIgnoringASCIICase(type, "mutationevents"))
-        return Ref<Event> { MutationEvent::createForBindings() };
-    if (equalLettersIgnoringASCIICase(type, "overflowevent"))
-        return Ref<Event> { OverflowEvent::createForBindings() };
     if (equalLettersIgnoringASCIICase(type, "storageevent"))
         return Ref<Event> { StorageEvent::createForBindings() };
+    if (equalLettersIgnoringASCIICase(type, "mouseevent") || equalLettersIgnoringASCIICase(type, "mouseevents"))
+        return Ref<Event> { MouseEvent::createForBindings() };
     if (equalLettersIgnoringASCIICase(type, "textevent"))
-        return Ref<Event> { TextEvent::createForBindings() };
-    if (equalLettersIgnoringASCIICase(type, "wheelevent"))
-        return Ref<Event> { WheelEvent::createForBindings() };
+        return Ref<Event> { TextEvent::createForBindings() }; // FIXME: HTML specification says this should create a CompositionEvent, not a TextEvent.
+    if (equalLettersIgnoringASCIICase(type, "uievent") || equalLettersIgnoringASCIICase(type, "uievents"))
+        return Ref<Event> { UIEvent::createForBindings() };
 
+    // FIXME: Consider including support for these event classes even when device orientation
+    // support is not enabled.
 #if ENABLE(DEVICE_ORIENTATION)
     if (equalLettersIgnoringASCIICase(type, "devicemotionevent"))
         return Ref<Event> { DeviceMotionEvent::createForBindings() };
     if (equalLettersIgnoringASCIICase(type, "deviceorientationevent"))
         return Ref<Event> { DeviceOrientationEvent::createForBindings() };
 #endif
+
+#if ENABLE(TOUCH_EVENTS)
+    if (equalLettersIgnoringASCIICase(type, "touchevent"))
+        return Ref<Event> { TouchEvent::createForBindings() };
+#endif
+
+    // FIXME: Add support for "dragevent", which the DOM specification calls for.
+
+    // The following string comes from the SVG specification
+    // <http://www.w3.org/TR/SVG/script.html#InterfaceSVGZoomEvent>
+    // However, since there is no provision for initializing the event once it is created,
+    // there is no practical value in this feature.
+    // FIXME: Confirm there is no content depending on this and remove it.
+
+    if (equalLettersIgnoringASCIICase(type, "svgzoomevents"))
+        return Ref<Event> { SVGZoomEvent::createForBindings() };
+
+    // The following strings are not part of the DOM specification and we would like to eliminate them.
+    // However, we currently include them until we resolve any issues with backward compatibility.
+    // FIXME: For each of the strings below, confirm that there is no content depending on it and remove
+    // the string, remove the createForBindings function, and also consider removing the corresponding
+    // init function for that class.
+
+    if (equalLettersIgnoringASCIICase(type, "keyboardevents"))
+        return Ref<Event> { KeyboardEvent::createForBindings() };
+    if (equalLettersIgnoringASCIICase(type, "mutationevent") || equalLettersIgnoringASCIICase(type, "mutationevents"))
+        return Ref<Event> { MutationEvent::createForBindings() };
+    if (equalLettersIgnoringASCIICase(type, "overflowevent"))
+        return Ref<Event> { OverflowEvent::createForBindings() };
+    if (equalLettersIgnoringASCIICase(type, "popstateevent"))
+        return Ref<Event> { PopStateEvent::createForBindings() };
+    if (equalLettersIgnoringASCIICase(type, "wheelevent"))
+        return Ref<Event> { WheelEvent::createForBindings() };
 
     return Exception { NotSupportedError };
 }
@@ -4982,7 +4998,7 @@ bool Document::shouldCreateRenderers()
 
 static Editor::Command command(Document* document, const String& commandName, bool userInterface = false)
 {
-    Frame* frame = document->frame();
+    RefPtr<Frame> frame = document->frame();
     if (!frame || frame->document() != document)
         return Editor::Command();
 
@@ -6025,7 +6041,7 @@ void Document::webkitWillEnterFullScreenForElement(Element* element)
 
     ASSERT(page()->settings().fullScreenEnabled());
 
-    unwrapFullScreenRenderer(m_fullScreenRenderer, m_fullScreenElement.get());
+    unwrapFullScreenRenderer(m_fullScreenRenderer.get(), m_fullScreenElement.get());
 
     if (element)
         element->willBecomeFullscreenElement();
@@ -6048,8 +6064,8 @@ void Document::webkitWillEnterFullScreenForElement(Element* element)
         m_savedPlaceholderRenderStyle = RenderStyle::clonePtr(renderer->style());
     }
 
-    if (m_fullScreenElement != documentElement())
-        RenderFullScreen::wrapRenderer(renderer, renderer ? renderer->parent() : nullptr, *this);
+    if (m_fullScreenElement != documentElement() && renderer)
+        RenderFullScreen::wrapExistingRenderer(*renderer, *this);
 
     m_fullScreenElement->setContainsFullScreenElementOnAncestorsCrossingFrameBoundaries(true);
 
@@ -6092,7 +6108,7 @@ void Document::webkitDidExitFullScreenForElement(Element*)
 
     m_areKeysEnabledInFullScreen = false;
 
-    unwrapFullScreenRenderer(m_fullScreenRenderer, m_fullScreenElement.get());
+    unwrapFullScreenRenderer(m_fullScreenRenderer.get(), m_fullScreenElement.get());
 
     m_fullScreenElement = nullptr;
     scheduleForcedStyleRecalc();
@@ -6111,23 +6127,20 @@ void Document::setFullScreenRenderer(RenderFullScreen* renderer)
     if (renderer == m_fullScreenRenderer)
         return;
 
-    if (renderer && m_savedPlaceholderRenderStyle) 
-        renderer->createPlaceholder(WTFMove(m_savedPlaceholderRenderStyle), m_savedPlaceholderFrameRect);
-    else if (renderer && m_fullScreenRenderer && m_fullScreenRenderer->placeholder()) {
-        RenderBlock* placeholder = m_fullScreenRenderer->placeholder();
-        renderer->createPlaceholder(RenderStyle::clonePtr(placeholder->style()), placeholder->frameRect());
+    if (renderer) {
+        if (m_savedPlaceholderRenderStyle)
+            renderer->createPlaceholder(WTFMove(m_savedPlaceholderRenderStyle), m_savedPlaceholderFrameRect);
+        else if (m_fullScreenRenderer && m_fullScreenRenderer->placeholder()) {
+            auto* placeholder = m_fullScreenRenderer->placeholder();
+            renderer->createPlaceholder(RenderStyle::clonePtr(placeholder->style()), placeholder->frameRect());
+        }
     }
 
     if (m_fullScreenRenderer)
-        m_fullScreenRenderer->destroy();
+        m_fullScreenRenderer->removeFromParentAndDestroy();
     ASSERT(!m_fullScreenRenderer);
 
-    m_fullScreenRenderer = renderer;
-}
-
-void Document::fullScreenRendererDestroyed()
-{
-    m_fullScreenRenderer = nullptr;
+    m_fullScreenRenderer = makeWeakPtr(renderer);
 }
 
 void Document::fullScreenChangeDelayTimerFired()
@@ -7283,31 +7296,31 @@ void Document::requestStorageAccess(Ref<DeferredPromise>&& passedPromise)
     RefPtr<DeferredPromise> promise(WTFMove(passedPromise));
     
     if (m_hasStorageAccess) {
-        promise->resolve<IDLBoolean>(true);
+        promise->resolve();
         return;
     }
     
     if (!m_frame || securityOrigin().isUnique()) {
-        promise->resolve<IDLBoolean>(false);
+        promise->reject();
         return;
     }
     
     if (m_frame->isMainFrame()) {
         m_hasStorageAccess = true;
-        promise->resolve<IDLBoolean>(true);
+        promise->resolve();
         return;
     }
     
     // There has to be a sandbox and it has to allow the storage access API to be called.
     if (sandboxFlags() == SandboxNone || isSandboxed(SandboxStorageAccessByUserActivation)) {
-        promise->resolve<IDLBoolean>(false);
+        promise->reject();
         return;
     }
 
     // The iframe has to be a direct child of the top document.
     auto& topDocument = this->topDocument();
     if (&topDocument != parentDocument()) {
-        promise->resolve<IDLBoolean>(false);
+        promise->reject();
         return;
     }
 
@@ -7315,33 +7328,41 @@ void Document::requestStorageAccess(Ref<DeferredPromise>&& passedPromise)
     auto& topSecurityOrigin = topDocument.securityOrigin();
     if (securityOrigin.equal(&topSecurityOrigin)) {
         m_hasStorageAccess = true;
-        promise->resolve<IDLBoolean>(true);
+        promise->resolve();
         return;
     }
     
     if (!UserGestureIndicator::processingUserGesture()) {
-        promise->resolve<IDLBoolean>(false);
+        promise->reject();
         return;
     }
     
-    auto partitionDomain = securityOrigin.domainForCachePartition();
-    auto topPartitionDomain = topSecurityOrigin.domainForCachePartition();
+    auto iframeHost = securityOrigin.host();
+    auto topHost = topSecurityOrigin.host();
     StringBuilder builder;
     builder.appendLiteral("Do you want to use your ");
-    builder.append(partitionDomain);
+    builder.append(iframeHost);
     builder.appendLiteral(" ID on ");
-    builder.append(topPartitionDomain);
+    builder.append(topHost);
     builder.appendLiteral("?");
     Page* page = this->page();
     // FIXME: Don't use runJavaScriptConfirm because it responds synchronously.
     if ((page && page->chrome().runJavaScriptConfirm(*m_frame, builder.toString())) || m_grantStorageAccessOverride) {
-        m_hasStorageAccess = true;
-        ResourceLoadObserver::shared().registerStorageAccess(partitionDomain, topPartitionDomain);
-        promise->resolve<IDLBoolean>(true);
+        page->chrome().client().requestStorageAccess(WTFMove(iframeHost), WTFMove(topHost), [documentReference = m_weakFactory.createWeakPtr(*this), promise] (bool wasGranted) {
+            Document* document = documentReference.get();
+            if (!document)
+                return;
+
+            if (wasGranted) {
+                document->m_hasStorageAccess = true;
+                promise->resolve();
+            } else
+                promise->reject();
+        });
         return;
     }
     
-    promise->resolve<IDLBoolean>(false);
+    promise->reject();
 }
 
 void Document::setConsoleMessageListener(RefPtr<StringCallback>&& listener)

@@ -28,6 +28,7 @@
 #include "DragImage.h"
 #include "URL.h"
 #include <wtf/HashMap.h>
+#include <wtf/ListHashSet.h>
 #include <wtf/Noncopyable.h>
 #include <wtf/Vector.h>
 #include <wtf/text/WTFString.h>
@@ -57,6 +58,7 @@ class DocumentFragment;
 class DragData;
 class Element;
 class Frame;
+class PasteboardStrategy;
 class Range;
 class SelectionData;
 class SharedBuffer;
@@ -147,31 +149,25 @@ struct PasteboardPlainText {
 };
 
 struct PasteboardFileReader {
-    PasteboardFileReader(const String& type)
-        : type(type)
-    { }
     virtual ~PasteboardFileReader() = default;
-
-    virtual void read(const String&, Ref<SharedBuffer>&&) = 0;
-
-    const String type;
+    virtual void readFilename(const String&) = 0;
+    virtual void readBuffer(const String& filename, const String& type, Ref<SharedBuffer>&&) = 0;
 };
 
 // FIXME: We need to ensure that the contents of sameOriginCustomData are not accessible across different origins.
 struct PasteboardCustomData {
+    String origin;
     Vector<String> orderedTypes;
     HashMap<String, String> platformData;
     HashMap<String, String> sameOriginCustomData;
-};
 
-WEBCORE_EXPORT Ref<SharedBuffer> sharedBufferFromCustomData(const PasteboardCustomData&);
-WEBCORE_EXPORT PasteboardCustomData customDataFromSharedBuffer(const SharedBuffer&);
+    WEBCORE_EXPORT Ref<SharedBuffer> createSharedBuffer() const;
+    WEBCORE_EXPORT static PasteboardCustomData fromSharedBuffer(const SharedBuffer&);
 
 #if PLATFORM(COCOA)
-const char customWebKitPasteboardDataType[] = "com.apple.WebKit.custom-pasteboard-data";
+    static const char* cocoaType();
 #endif
-
-bool isSafeTypeForDOMToReadAndWrite(const String& type);
+};
 
 class Pasteboard {
     WTF_MAKE_NONCOPYABLE(Pasteboard); WTF_MAKE_FAST_ALLOCATED;
@@ -192,12 +188,15 @@ public:
 
     WEBCORE_EXPORT static std::unique_ptr<Pasteboard> createForCopyAndPaste();
 
+    static bool isSafeTypeForDOMToReadAndWrite(const String&);
+
     virtual bool isStatic() const { return false; }
 
     virtual bool hasData();
-    virtual Vector<String> typesForBindings();
-    virtual Vector<String> typesTreatedAsFiles();
-    virtual String readStringForBindings(const String& type);
+    virtual Vector<String> typesSafeForBindings();
+    virtual Vector<String> typesForLegacyUnsafeBindings();
+    virtual String readString(const String& type);
+    virtual String readStringInCustomData(const String& type);
 
     virtual void writeString(const String& type, const String& data);
     virtual void clear();
@@ -212,7 +211,7 @@ public:
     virtual void write(const PasteboardImage&);
     virtual void write(const PasteboardWebContent&);
 
-    virtual Vector<String> readFilenames();
+    virtual bool containsFiles();
     virtual bool canSmartReplace();
 
     virtual void writeMarkup(const String& markup);
@@ -278,7 +277,12 @@ private:
 #endif
 
 #if PLATFORM(COCOA)
+    Vector<String> readFilenames();
+    String readPlatformValueAsString(const String& domType, long changeCount, const String& pasteboardName);
+    static void addHTMLClipboardTypesForCocoaType(ListHashSet<String>& resultTypes, const String& cocoaType);
     String readStringForPlatformType(const String&);
+    Vector<String> readTypesWithSecurityCheck();
+    RefPtr<SharedBuffer> readBufferForTypeWithSecurityCheck(const String&);
 #endif
 
 #if PLATFORM(GTK)

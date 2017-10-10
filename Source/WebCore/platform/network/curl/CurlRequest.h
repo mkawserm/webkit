@@ -28,6 +28,7 @@
 #include "CurlJobManager.h"
 #include "CurlResponse.h"
 #include "CurlSSLVerifier.h"
+#include "FileSystem.h"
 #include "FormDataStreamCurl.h"
 #include "NetworkLoadMetrics.h"
 #include "ResourceRequest.h"
@@ -43,7 +44,11 @@ class CurlRequest : public ThreadSafeRefCounted<CurlRequest>, public CurlJobClie
     WTF_MAKE_NONCOPYABLE(CurlRequest);
 
 public:
-    CurlRequest(const ResourceRequest&, CurlRequestDelegate* = nullptr, bool shouldSuspend = false);
+    static Ref<CurlRequest> create(const ResourceRequest& request, CurlRequestDelegate* delegate, bool shouldSuspend = false)
+    {
+        return adoptRef(*new CurlRequest(request, delegate, shouldSuspend));
+    }
+
     virtual ~CurlRequest() { }
 
     void setDelegate(CurlRequestDelegate* delegate) { m_delegate = delegate;  }
@@ -56,9 +61,25 @@ public:
 
     bool isSyncRequest() { return m_isSyncRequest; }
 
+    // Processing for DidReceiveResponse
+    void completeDidReceiveResponse();
+
+    // Download
+    void enableDownloadToFile();
+    const String& getDownloadedFilePath();
+
     NetworkLoadMetrics getNetworkLoadMetrics() { return m_networkLoadMetrics.isolatedCopy(); }
 
 private:
+    enum class Action {
+        None,
+        ReceiveData,
+        StartTransfer,
+        FinishTransfer
+    };
+
+    CurlRequest(const ResourceRequest&, CurlRequestDelegate*, bool shouldSuspend);
+
     void retain() override { ref(); }
     void release() override { deref(); }
     CURL* handle() override { return m_curlHandle ? m_curlHandle->handle() : nullptr; }
@@ -76,6 +97,7 @@ private:
     size_t didReceiveData(Ref<SharedBuffer>&&);
     void didCompleteTransfer(CURLcode) override;
     void didCancelTransfer() override;
+    void finalizeTransfer();
 
     // For POST and PUT method 
     void resolveBlobReferences(ResourceRequest&);
@@ -83,10 +105,18 @@ private:
     void setupPUT(ResourceRequest&);
     void setupFormData(ResourceRequest&, bool);
 
-    // Processing for DidResourceResponse
+    // Processing for DidReceiveResponse
+    bool needToInvokeDidReceiveResponse() const { return !m_didNotifyResponse || !m_didReturnFromNotify; }
     void invokeDidReceiveResponseForFile(URL&);
-    void invokeDidReceiveResponse();
-    void setPaused(bool);
+    void invokeDidReceiveResponse(Action);
+    void setRequestPaused(bool);
+    void setCallbackPaused(bool);
+    void pausedStatusChanged();
+    bool isPaused() const { return m_isPausedOfRequest || m_isPausedOfCallback; };
+
+    // Download
+    void writeDataToDownloadFileIfEnabled(const SharedBuffer&);
+    void closeDownloadFile();
 
     // Callback functions for curl
     static CURLcode willSetupSslCtxCallback(CURL*, void*, void*);
@@ -111,7 +141,18 @@ private:
     CurlSSLVerifier m_sslVerifier;
     CurlResponse m_response;
 
-    bool m_isPaused { false };
+    bool m_didNotifyResponse { false };
+    bool m_didReturnFromNotify { false };
+    Action m_actionAfterInvoke { Action::None };
+    CURLcode m_finishedResultCode { CURLE_OK };
+
+    bool m_isPausedOfRequest { false };
+    bool m_isPausedOfCallback { false };
+
+    Lock m_downloadMutex;
+    bool m_isEnabledDownloadToFile { false };
+    String m_downloadFilePath;
+    PlatformFileHandle m_downloadFileHandle { invalidPlatformFileHandle };
 
     NetworkLoadMetrics m_networkLoadMetrics;
 };

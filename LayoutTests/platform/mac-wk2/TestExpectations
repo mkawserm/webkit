@@ -25,12 +25,36 @@ fast/media/mq-prefers-reduced-motion-live-update.html [ Pass ]
 fast/visual-viewport/rubberbanding-viewport-rects.html [ Pass ]
 fast/visual-viewport/rubberbanding-viewport-rects-header-footer.html  [ Pass ]
 
-imported/w3c/web-platform-tests/payment-request [ Pass ]
+[ Sierra+ ] http/tests/paymentrequest [ Pass ]
+[ Sierra+ ] imported/w3c/web-platform-tests/payment-request [ Pass ]
+webkit.org/b/178107 [ Sierra+ ] http/tests/paymentrequest/payment-request-abort-method.https.html [ Pass Failure ]
 webkit.org/b/175611 imported/w3c/web-platform-tests/payment-request/allowpaymentrequest/allowpaymentrequest-attribute-cross-origin-bc-containers.https.html [ Skip ]
 webkit.org/b/175611 imported/w3c/web-platform-tests/payment-request/allowpaymentrequest/no-attribute-cross-origin-bc-containers.https.html [ Skip ]
 webkit.org/b/175611 imported/w3c/web-platform-tests/payment-request/allowpaymentrequest/removing-allowpaymentrequest.https.sub.html [ Skip ]
 webkit.org/b/175611 imported/w3c/web-platform-tests/payment-request/allowpaymentrequest/setting-allowpaymentrequest-timing.https.sub.html [ Skip ]
 webkit.org/b/175611 imported/w3c/web-platform-tests/payment-request/allowpaymentrequest/setting-allowpaymentrequest.https.sub.html [ Skip ]
+webkit.org/b/177783 imported/w3c/web-platform-tests/payment-request/rejects_if_not_active.https.html [ Skip ]
+
+# skip in favor of tests in http/tests/paymentrequest
+imported/w3c/web-platform-tests/payment-request/payment-request-show-method.https.html [ WontFix ]
+imported/w3c/web-platform-tests/payment-request/payment-request-abort-method.https.html [ WontFix ]
+
+# skip manual payment-request tests
+imported/w3c/web-platform-tests/payment-request/algorithms-manual.https.html [ Skip ]
+imported/w3c/web-platform-tests/payment-request/change-shipping-option-manual.https.html [ Skip ]
+imported/w3c/web-platform-tests/payment-request/payment-response/complete-method-manual.https.html [ Skip ]
+imported/w3c/web-platform-tests/payment-request/payment-response/methodName-attribute-manual.https.html [ Skip ]
+imported/w3c/web-platform-tests/payment-request/payment-response/payerEmail-attribute-manual.https.html [ Skip ]
+imported/w3c/web-platform-tests/payment-request/payment-response/payerName-attribute-manual.https.html [ Skip ]
+imported/w3c/web-platform-tests/payment-request/payment-response/payerPhone-attribute-manual.https.html [ Skip ]
+imported/w3c/web-platform-tests/payment-request/payment-response/requestId-attribute-manual.https.html [ Skip ]
+imported/w3c/web-platform-tests/payment-request/payment-response/shippingAddress-attribute-manual.https.html [ Skip ]
+imported/w3c/web-platform-tests/payment-request/payment-response/shippingOption-attribute-manual.https.html [ Skip ]
+imported/w3c/web-platform-tests/payment-request/PaymentAddress/attributes-and-toJSON-method-manual.https.html [ Skip ]
+imported/w3c/web-platform-tests/payment-request/shipping-address-changed-manual.https.html [ Skip ]
+imported/w3c/web-platform-tests/payment-request/updateWith-method-pmi-handling-manual.https.html [ Skip ]
+imported/w3c/web-platform-tests/payment-request/user-abort-algorithm-manual.https.html [ Skip ]
+imported/w3c/web-platform-tests/payment-request/user-accepts-payment-request-algo-manual.https.html [ Skip ]
 
 #//////////////////////////////////////////////////////////////////////////////////////////
 # End platform-specific directories.
@@ -183,6 +207,7 @@ webkit.org/b/105616 editing/mac/spelling/move-cursor-to-beginning-of-autocorrect
 webkit.org/b/105616 editing/mac/spelling/removing-underline-after-accepting-autocorrection-using-punctuation.html [ Failure ]
 webkit.org/b/105616 editing/mac/spelling/accept-candidate-allows-autocorrect-on-next-word.html [ Failure ]
 webkit.org/b/105616 editing/mac/spelling/accept-unseen-candidate-records-acceptance.html [ Failure ]
+webkit.org/b/105616 editing/spelling/spelling-marker-includes-hyphen.html [ ImageOnlyFailure ]
 
 # [WK2] [Mac] Support drag in mouse events for WebKit2 EventSender
 # <https://bugs.webkit.org/show_bug.cgi?id=68552>
@@ -305,6 +330,8 @@ webkit.org/b/149087 [ Debug ] http/tests/cache/disk-cache/disk-cache-last-modifi
 webkit.org/b/149087 [ Debug ] http/tests/cache/disk-cache/disk-cache-vary.html [ Pass Failure Timeout ]
 webkit.org/b/147075 [ Debug ] http/tests/cache/disk-cache/disk-cache-disable.html [ Pass Failure Timeout ]
 webkit.org/b/149087 [ Debug ] http/tests/cache/disk-cache/disk-cache-vary-no-body.html [ Pass Failure Timeout ]
+
+
 
 webkit.org/b/150095 http/tests/xmlhttprequest/xmlhttprequest-overridemimetype-invalidstaterror.html [ Pass Timeout ]
 
@@ -670,8 +697,6 @@ webkit.org/b/168380 [ ElCapitan Debug ] imported/w3c/web-platform-tests/IndexedD
 # Skipped because Mac doesn't have a key to show the context menu
 fast/events/context-activated-by-key-event.html [ Skip ]
 
-[ Release ] js/dom/global-constructors-attributes.html [ Skip ]
-
 webkit.org/b/169621 imported/w3c/web-platform-tests/IndexedDB/fire-error-event-exception.html [ Pass Failure ]
 webkit.org/b/169760 imported/w3c/web-platform-tests/IndexedDB/fire-success-event-exception.html [ Pass Failure ]
 
@@ -724,6 +749,7 @@ webkit.org/b/172834 [ ElCapitan ] imported/w3c/web-platform-tests/IndexedDB/idbo
 
 # Beacon is not supported on WK2 for the non NETWORK_SESSION code path.
 [ ElCapitan ] http/tests/blink/sendbeacon/ [ Skip ]
+[ ElCapitan ] http/tests/inspector/network/beacon-type.html [ Skip ]
 [ ElCapitan ] http/wpt/beacon/ [ Skip ]
 [ ElCapitan ] imported/blink/fast/beacon/ [ Skip ]
 [ ElCapitan ] imported/w3c/web-platform-tests/beacon/ [ Skip ]
@@ -740,7 +766,7 @@ http/tests/loading/resourceLoadStatistics/user-interaction-only-reported-once-wi
 http/tests/loading/resourceLoadStatistics/user-interaction-reported-after-website-data-removal.html [ Pass ]
 http/tests/storageAccess/request-and-deny-storage-access-cross-origin-iframe.html [ Pass ]
 http/tests/storageAccess/request-and-deny-storage-access-cross-origin-sandboxed-iframe.html [ Pass ]
-http/tests/storageAccess/request-and-grant-storage-access-cross-origin-iframe.html [ Pass ]
+http/tests/storageAccess/request-and-grant-storage-access-cross-origin-non-sandboxed-iframe.html [ Pass ]
 http/tests/storageAccess/request-and-grant-storage-access-cross-origin-sandboxed-iframe.html [ Pass ]
 http/tests/storageAccess/request-storage-access-cross-origin-sandboxed-iframe-with-unique-origin.html [ Pass ]
 http/tests/storageAccess/request-storage-access-cross-origin-sandboxed-iframe-without-allow-token.html [ Pass ]
@@ -748,6 +774,9 @@ http/tests/storageAccess/request-storage-access-same-origin-iframe.html [ Pass ]
 http/tests/storageAccess/request-storage-access-same-origin-sandboxed-iframe-without-allow-token.html [ Pass ]
 http/tests/storageAccess/request-storage-access-same-origin-sandboxed-iframe.html [ Pass ]
 http/tests/storageAccess/request-and-grant-storage-access-cross-origin-sandboxed-nested-iframe.html [ Pass ]
+http/tests/storageAccess/request-and-grant-storage-access-cross-origin-sandboxed-iframe-from-prevalent-domain-with-user-interaction.html [ Pass ]
+http/tests/storageAccess/request-and-grant-storage-access-cross-origin-sandboxed-iframe-from-prevalent-domain-without-user-interaction.html [ Pass ]
+http/tests/storageAccess/request-storage-access-top-frame.html [ Pass ]
 
 webkit.org/b/173861 [ Release ] http/tests/webrtc/filtering-ice-candidate-same-origin-frame.html [ Pass Timeout ]
 webkit.org/b/173861 [ Release ] http/tests/webrtc/filtering-ice-candidate-cross-origin-frame.html [ Pass Timeout ]
@@ -801,5 +830,3 @@ webkit.org/b/176486 [ ElCapitan Debug ] imported/w3c/web-platform-tests/backgrou
 webkit.org/b/171839 [ Debug ] tiled-drawing/scrolling/scroll-snap/scroll-snap-mandatory-mainframe-vertical-then-horizontal.html [ Pass Failure ]
 
 webkit.org/b/177214 [ ElCapitan Debug ] imported/w3c/web-platform-tests/FileAPI/historical.https.html [ Pass Failure ]
-
-webkit.org/b/177615 [ HighSierra Debug ] imported/w3c/web-platform-tests/WebCryptoAPI/generateKey/successes_RSA-PSS.worker.html [ Pass Failure ]

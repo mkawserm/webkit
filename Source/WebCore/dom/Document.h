@@ -27,12 +27,10 @@
 
 #pragma once
 
-#include "CollectionType.h"
 #include "Color.h"
 #include "ContainerNode.h"
 #include "DocumentEventQueue.h"
 #include "DocumentTiming.h"
-#include "ExceptionOr.h"
 #include "FocusDirection.h"
 #include "FontSelectorClient.h"
 #include "FrameDestructionObserver.h"
@@ -52,13 +50,11 @@
 #include "TreeScope.h"
 #include "UserActionElementSet.h"
 #include "ViewportArguments.h"
-#include <memory>
 #include <pal/SessionID.h>
 #include <wtf/Deque.h>
+#include <wtf/Forward.h>
 #include <wtf/HashCountedSet.h>
 #include <wtf/HashSet.h>
-#include <wtf/Optional.h>
-#include <wtf/Variant.h>
 #include <wtf/WeakPtr.h>
 #include <wtf/text/AtomicStringHash.h>
 
@@ -132,6 +128,7 @@ class HTMLPictureElement;
 class HTMLScriptElement;
 class HitTestRequest;
 class HitTestResult;
+class ImageBitmapRenderingContext;
 class IntPoint;
 class JSNode;
 class LayoutPoint;
@@ -186,6 +183,9 @@ class XPathExpression;
 class XPathNSResolver;
 class XPathResult;
 
+template<typename> class ExceptionOr;
+
+enum CollectionType;
 enum class ShouldOpenExternalURLsPolicy;
 
 using PlatformDisplayID = uint32_t;
@@ -296,7 +296,9 @@ using RenderingContext = Variant<
 #if ENABLE(WEBGPU)
     RefPtr<WebGPURenderingContext>,
 #endif
-    RefPtr<CanvasRenderingContext2D>>;
+    RefPtr<ImageBitmapRenderingContext>,
+    RefPtr<CanvasRenderingContext2D>
+>;
 
 class Document
     : public ContainerNode
@@ -1103,9 +1105,8 @@ public:
     WEBCORE_EXPORT void webkitDidExitFullScreenForElement(Element*);
     
     void setFullScreenRenderer(RenderFullScreen*);
-    RenderFullScreen* fullScreenRenderer() const { return m_fullScreenRenderer; }
-    void fullScreenRendererDestroyed();
-    
+    RenderFullScreen* fullScreenRenderer() const { return m_fullScreenRenderer.get(); }
+
     void fullScreenChangeDelayTimerFired();
     bool fullScreenIsAllowedForElement(Element*) const;
     void fullScreenElementRemoved();
@@ -1619,7 +1620,7 @@ private:
 #if ENABLE(FULLSCREEN_API)
     RefPtr<Element> m_fullScreenElement;
     Vector<RefPtr<Element>> m_fullScreenElementStack;
-    RenderFullScreen* m_fullScreenRenderer { nullptr };
+    WeakPtr<RenderFullScreen> m_fullScreenRenderer { nullptr };
     Timer m_fullScreenChangeDelayTimer;
     Deque<RefPtr<Node>> m_fullScreenChangeEventTargetQueue;
     Deque<RefPtr<Node>> m_fullScreenErrorEventTargetQueue;
