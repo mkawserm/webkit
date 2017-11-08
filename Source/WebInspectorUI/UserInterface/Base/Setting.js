@@ -61,7 +61,7 @@ WI.Setting = class Setting extends WI.Object
         if (!window.InspectorTest && window.localStorage && this._localStorageKey in window.localStorage) {
             try {
                 this._value = JSON.parse(window.localStorage[this._localStorageKey]);
-            } catch (e) {
+            } catch {
                 delete window.localStorage[this._localStorageKey];
             }
         }
@@ -83,7 +83,7 @@ WI.Setting = class Setting extends WI.Object
                     delete window.localStorage[this._localStorageKey];
                 else
                     window.localStorage[this._localStorageKey] = JSON.stringify(this._value);
-            } catch (e) {
+            } catch {
                 console.error("Error saving setting with name: " + this._name);
             }
         }
@@ -117,18 +117,12 @@ WI.settings = {
     clearNetworkOnNavigate: new WI.Setting("clear-network-on-navigate", true),
     zoomFactor: new WI.Setting("zoom-factor", 1),
     layoutDirection: new WI.Setting("layout-direction-override", "system"),
-    stylesShowInlineWarnings: new WI.Setting("styles-show-inline-warning", true),
-    stylesInsertNewline: new WI.Setting("styles-insert-newline", true),
-    stylesSelectOnFirstClick: new WI.Setting("styles-select-on-first-click", true),
     showScopeChainOnPause: new WI.Setting("show-scope-chain-sidebar", true),
     showImageGrid: new WI.Setting("show-image-grid", false),
     showCanvasPath: new WI.Setting("show-canvas-path", false),
     selectedNetworkDetailContentViewIdentifier: new WI.Setting("network-detail-content-view-identifier", "preview"),
 
     // Experimental
-    experimentalShowCanvasContextsInResources: new WI.Setting("experimental-show-canvas-contexts-in-resources", false),
-    experimentalSpreadsheetStyleEditor: new WI.Setting("experimental-spreadsheet-style-editor", false),
-    experimentalEnableCanvasTab: new WI.Setting("experimental-enable-canvas-tab", false),
+    experimentalLegacyStyleEditor: new WI.Setting("experimental-legacy-style-editor", false),
     experimentalEnableLayersTab: new WI.Setting("experimental-enable-layers-tab", false),
-    experimentalEnableNewNetworkTab: new WI.Setting("experimental-enable-new-network-tab", false),
 };

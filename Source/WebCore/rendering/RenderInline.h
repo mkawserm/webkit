@@ -32,6 +32,7 @@ class Position;
 class RenderFragmentContainer;
 
 class RenderInline : public RenderBoxModelObject {
+    WTF_MAKE_ISO_ALLOCATED(RenderInline);
 public:
     RenderInline(Element&, RenderStyle&&);
     RenderInline(Document&, RenderStyle&&);
@@ -86,9 +87,6 @@ public:
 
     void addFocusRingRects(Vector<LayoutRect>&, const LayoutPoint& additionalOffset, const RenderLayerModelObject* paintContainer = 0) final;
     void paintOutline(PaintInfo&, const LayoutPoint&);
-
-    using RenderBoxModelObject::continuation;
-    using RenderBoxModelObject::setContinuation;
 
     bool alwaysCreateLineBoxes() const { return renderInlineAlwaysCreatesLineBoxes(); }
     void setAlwaysCreateLineBoxes() { setRenderInlineAlwaysCreatesLineBoxes(true); }
@@ -167,7 +165,7 @@ private:
     void addAnnotatedRegions(Vector<AnnotatedRegionValue>&) final;
 #endif
     
-    RenderPtr<RenderInline> clone() const;
+    RenderPtr<RenderInline> cloneAsContinuation() const;
 
     void paintOutlineForLine(GraphicsContext&, const LayoutPoint&, const LayoutRect& prevLine, const LayoutRect& thisLine, const LayoutRect& nextLine, const Color&);
     RenderBoxModelObject* continuationBefore(RenderObject* beforeChild);

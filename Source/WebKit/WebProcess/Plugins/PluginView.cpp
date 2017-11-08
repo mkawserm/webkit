@@ -70,6 +70,7 @@
 #include <WebCore/Settings.h>
 #include <WebCore/UserGestureIndicator.h>
 #include <bindings/ScriptValue.h>
+#include <wtf/CompletionHandler.h>
 #include <wtf/text/StringBuilder.h>
 
 #if PLATFORM(X11)
@@ -133,7 +134,7 @@ private:
     }
 
     // NetscapePluginStreamLoaderClient
-    void willSendRequest(NetscapePlugInStreamLoader*, ResourceRequest&&, const ResourceResponse& redirectResponse, WTF::Function<void (ResourceRequest&&)>&&) override;
+    void willSendRequest(NetscapePlugInStreamLoader*, ResourceRequest&&, const ResourceResponse& redirectResponse, CompletionHandler<void(ResourceRequest&&)>&&) override;
     void didReceiveResponse(NetscapePlugInStreamLoader*, const ResourceResponse&) override;
     void didReceiveData(NetscapePlugInStreamLoader*, const char*, int) override;
     void didFail(NetscapePlugInStreamLoader*, const ResourceError&) override;
@@ -142,7 +143,7 @@ private:
     PluginView* m_pluginView;
     uint64_t m_streamID;
     ResourceRequest m_request;
-    WTF::Function<void (ResourceRequest)> m_loadCallback;
+    CompletionHandler<void(ResourceRequest&&)> m_loadCallback;
 
     // True if the stream was explicitly cancelled by calling cancel().
     // (As opposed to being cancelled by the user hitting the stop button for example.
@@ -153,6 +154,8 @@ private:
 
 PluginView::Stream::~Stream()
 {
+    if (m_loadCallback)
+        m_loadCallback({ });
     ASSERT(!m_pluginView);
 }
     
@@ -164,7 +167,9 @@ void PluginView::Stream::start()
     Frame* frame = m_pluginView->m_pluginElement->document().frame();
     ASSERT(frame);
 
-    m_loader = WebProcess::singleton().webLoaderStrategy().schedulePluginStreamLoad(*frame, *this, m_request);
+    WebProcess::singleton().webLoaderStrategy().schedulePluginStreamLoad(*frame, *this, ResourceRequest {m_request}, [this, protectedThis = makeRef(*this)](RefPtr<NetscapePlugInStreamLoader>&& loader) {
+        m_loader = WTFMove(loader);
+    });
 }
 
 void PluginView::Stream::cancel()
@@ -181,7 +186,7 @@ void PluginView::Stream::continueLoad()
     ASSERT(m_pluginView->m_plugin);
     ASSERT(m_loadCallback);
 
-    m_loadCallback(m_request);
+    m_loadCallback(ResourceRequest(m_request));
 }
 
 static String buildHTTPHeaders(const ResourceResponse& response, long long& expectedContentLength)
@@ -221,7 +226,7 @@ static uint32_t lastModifiedDateMS(const ResourceResponse& response)
     return std::chrono::duration_cast<std::chrono::milliseconds>(lastModified.value().time_since_epoch()).count();
 }
 
-void PluginView::Stream::willSendRequest(NetscapePlugInStreamLoader*, ResourceRequest&& request, const ResourceResponse& redirectResponse, WTF::Function<void (ResourceRequest&&)>&& decisionHandler)
+void PluginView::Stream::willSendRequest(NetscapePlugInStreamLoader*, ResourceRequest&& request, const ResourceResponse& redirectResponse, CompletionHandler<void(ResourceRequest&&)>&& decisionHandler)
 {
     const URL& requestURL = request.url();
     const URL& redirectResponseURL = redirectResponse.url();
@@ -897,7 +902,7 @@ std::unique_ptr<WebEvent> PluginView::createWebEvent(MouseEvent& event) const
     if (event.metaKey())
         modifiers |= WebEvent::MetaKey;
 
-    return std::make_unique<WebMouseEvent>(type, button, m_plugin->convertToRootView(IntPoint(event.offsetX(), event.offsetY())), event.screenLocation(), 0, 0, 0, clickCount, static_cast<WebEvent::Modifiers>(modifiers), WallTime { }, 0);
+    return std::make_unique<WebMouseEvent>(type, button, event.buttons(), m_plugin->convertToRootView(IntPoint(event.offsetX(), event.offsetY())), event.screenLocation(), 0, 0, 0, clickCount, static_cast<WebEvent::Modifiers>(modifiers), WallTime { }, 0);
 }
 
 void PluginView::handleEvent(Event& event)
@@ -1284,11 +1289,8 @@ void PluginView::removeStream(Stream* stream)
 
 void PluginView::cancelAllStreams()
 {
-    Vector<RefPtr<Stream>> streams;
-    copyValuesToVector(m_streams, streams);
-    
-    for (size_t i = 0; i < streams.size(); ++i)
-        streams[i]->cancel();
+    for (auto& stream : copyToVector(m_streams.values()))
+        stream->cancel();
 
     // Cancelling a stream removes it from the m_streams map, so if we cancel all streams the map should be empty.
     ASSERT(m_streams.isEmpty());
@@ -1838,7 +1840,7 @@ void PluginView::pluginDidReceiveUserInteraction()
     HTMLPlugInImageElement& plugInImageElement = downcast<HTMLPlugInImageElement>(*m_pluginElement);
     String pageOrigin = plugInImageElement.document().page()->mainFrame().document()->baseURL().host();
     String pluginOrigin = plugInImageElement.loadedUrl().host();
-    String mimeType = plugInImageElement.loadedMimeType();
+    String mimeType = plugInImageElement.serviceType();
 
     WebProcess::singleton().plugInDidReceiveUserInteraction(pageOrigin, pluginOrigin, mimeType, plugInImageElement.document().page()->sessionID());
 }

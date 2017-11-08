@@ -313,17 +313,16 @@ void FrameLoader::init()
     m_progressTracker = std::make_unique<FrameProgressTracker>(m_frame);
 }
 
-#if PLATFORM(IOS)
 void FrameLoader::initForSynthesizedDocument(const URL&)
 {
     // FIXME: We need to initialize the document URL to the specified URL. Currently the URL is empty and hence
     // FrameLoader::checkCompleted() will overwrite the URL of the document to be activeDocumentLoader()->documentURL().
 
-    RefPtr<DocumentLoader> loader = m_client.createDocumentLoader(ResourceRequest(URL(ParsedURLString, emptyString())), SubstituteData());
+    auto loader = m_client.createDocumentLoader(ResourceRequest(URL(ParsedURLString, emptyString())), SubstituteData());
     loader->attachToFrame(m_frame);
     loader->setResponse(ResourceResponse(URL(), ASCIILiteral("text/html"), 0, String()));
     loader->setCommitted(true);
-    setDocumentLoader(loader.get());
+    setDocumentLoader(loader.ptr());
 
     m_stateMachine.advanceTo(FrameLoaderStateMachine::DisplayingInitialEmptyDocument);
     m_stateMachine.advanceTo(FrameLoaderStateMachine::DisplayingInitialEmptyDocumentPostCommit);
@@ -338,7 +337,6 @@ void FrameLoader::initForSynthesizedDocument(const URL&)
     m_networkingContext = m_client.createNetworkingContext();
     m_progressTracker = std::make_unique<FrameProgressTracker>(m_frame);
 }
-#endif
 
 void FrameLoader::setDefersLoading(bool defers)
 {
@@ -1689,7 +1687,7 @@ void FrameLoader::stopForUserCancel(bool deferCheckLoadComplete)
     // but haven't laid out/painted yet.
     // FIXME: Is this behavior specific to iOS? Or should we expose a setting to toggle this behavior?
     if (m_frame.view() && !m_frame.view()->didFirstLayout())
-        m_frame.view()->layout();
+        m_frame.view()->layoutContext().layout();
 #endif
 
     if (deferCheckLoadComplete)
@@ -3553,6 +3551,15 @@ RetainPtr<CFDictionaryRef> FrameLoader::connectionProperties(ResourceLoader* loa
 }
 #endif
 
+ReferrerPolicy FrameLoader::effectiveReferrerPolicy() const
+{
+    if (auto* parentFrame = m_frame.tree().parent())
+        return parentFrame->document()->referrerPolicy();
+    if (m_opener)
+        return m_opener->document()->referrerPolicy();
+    return ReferrerPolicy::NoReferrerWhenDowngrade;
+}
+
 String FrameLoader::referrer() const
 {
     return m_documentLoader ? m_documentLoader->request().httpReferrer() : emptyString();
@@ -3811,9 +3818,9 @@ RefPtr<Frame> createWindow(Frame& openerFrame, Frame& lookupFrame, FrameLoadRequ
     return frame;
 }
 
-bool FrameLoader::shouldSuppressKeyboardInput() const
+bool FrameLoader::shouldSuppressTextInputFromEditing() const
 {
-    return m_frame.settings().shouldSuppressKeyboardInputDuringProvisionalNavigation() && m_state == FrameStateProvisional;
+    return m_frame.settings().shouldSuppressTextInputFromEditingDuringProvisionalNavigation() && m_state == FrameStateProvisional;
 }
 
 } // namespace WebCore

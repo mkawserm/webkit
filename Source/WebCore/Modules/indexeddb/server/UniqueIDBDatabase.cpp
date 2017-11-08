@@ -40,7 +40,6 @@
 #include "IDBTransactionInfo.h"
 #include "IDBValue.h"
 #include "Logging.h"
-#include "ScopeGuard.h"
 #include "SerializedScriptValue.h"
 #include "UniqueIDBDatabaseConnection.h"
 #include <heap/HeapInlines.h>
@@ -49,10 +48,11 @@
 #include <runtime/StructureInlines.h>
 #include <wtf/MainThread.h>
 #include <wtf/NeverDestroyed.h>
+#include <wtf/Scope.h>
 
-using namespace JSC;
 
 namespace WebCore {
+using namespace JSC;
 namespace IDBServer {
 
 UniqueIDBDatabase::UniqueIDBDatabase(IDBServer& server, const IDBDatabaseIdentifier& identifier)
@@ -984,9 +984,12 @@ void UniqueIDBDatabase::performPutOrAdd(uint64_t callbackIdentifier, const IDBRe
     }
 
     bool usedKeyIsGenerated = false;
-    ScopeGuard generatedKeyResetter;
+    uint64_t keyNumber;
+    auto generatedKeyResetter = WTF::makeScopeExit([this, transactionIdentifier, objectStoreIdentifier, &keyNumber, &usedKeyIsGenerated]() {
+        if (usedKeyIsGenerated)
+            m_backingStore->revertGeneratedKeyNumber(transactionIdentifier, objectStoreIdentifier, keyNumber);
+    });
     if (objectStoreInfo->autoIncrement() && !keyData.isValid()) {
-        uint64_t keyNumber;
         error = m_backingStore->generateKeyNumber(transactionIdentifier, objectStoreIdentifier, keyNumber);
         if (!error.isNull()) {
             postDatabaseTaskReply(createCrossThreadTask(*this, &UniqueIDBDatabase::didPerformPutOrAdd, callbackIdentifier, error, usedKey));
@@ -995,9 +998,6 @@ void UniqueIDBDatabase::performPutOrAdd(uint64_t callbackIdentifier, const IDBRe
         
         usedKey.setNumberValue(keyNumber);
         usedKeyIsGenerated = true;
-        generatedKeyResetter.enable([this, transactionIdentifier, objectStoreIdentifier, keyNumber]() {
-            m_backingStore->revertGeneratedKeyNumber(transactionIdentifier, objectStoreIdentifier, keyNumber);
-        });
     } else
         usedKey = keyData;
 
@@ -1065,7 +1065,7 @@ void UniqueIDBDatabase::performPutOrAdd(uint64_t callbackIdentifier, const IDBRe
     if (overwriteMode != IndexedDB::ObjectStoreOverwriteMode::OverwriteForCursor && objectStoreInfo->autoIncrement() && keyData.type() == IndexedDB::KeyType::Number)
         error = m_backingStore->maybeUpdateKeyGeneratorNumber(transactionIdentifier, objectStoreIdentifier, keyData.number());
 
-    generatedKeyResetter.disable();
+    generatedKeyResetter.release();
     postDatabaseTaskReply(createCrossThreadTask(*this, &UniqueIDBDatabase::didPerformPutOrAdd, callbackIdentifier, error, usedKey));
 }
 
@@ -1813,9 +1813,7 @@ void UniqueIDBDatabase::immediateCloseForUserDelete()
     ASSERT(isMainThread());
 
     // Error out all transactions
-    Vector<IDBResourceIdentifier> inProgressIdentifiers;
-    copyKeysToVector(m_inProgressTransactions, inProgressIdentifiers);
-    for (auto& identifier : inProgressIdentifiers)
+    for (auto& identifier : copyToVector(m_inProgressTransactions.keys()))
         m_inProgressTransactions.get(identifier)->abortWithoutCallback();
 
     ASSERT(m_inProgressTransactions.isEmpty());
@@ -1825,28 +1823,20 @@ void UniqueIDBDatabase::immediateCloseForUserDelete()
     m_objectStoreWriteTransactions.clear();
 
     // Error out all pending callbacks
-    Vector<uint64_t> callbackIdentifiers;
     IDBError error = IDBError::userDeleteError();
     IDBKeyData keyData;
     IDBGetResult getResult;
 
-    copyKeysToVector(m_errorCallbacks, callbackIdentifiers);
-    for (auto identifier : callbackIdentifiers)
+    for (auto identifier : copyToVector(m_errorCallbacks.keys()))
         performErrorCallback(identifier, error);
 
-    callbackIdentifiers.clear();
-    copyKeysToVector(m_keyDataCallbacks, callbackIdentifiers);
-    for (auto identifier : callbackIdentifiers)
+    for (auto identifier : copyToVector(m_keyDataCallbacks.keys()))
         performKeyDataCallback(identifier, error, keyData);
 
-    callbackIdentifiers.clear();
-    copyKeysToVector(m_getResultCallbacks, callbackIdentifiers);
-    for (auto identifier : callbackIdentifiers)
+    for (auto identifier : copyToVector(m_getResultCallbacks.keys()))
         performGetResultCallback(identifier, error, getResult);
 
-    callbackIdentifiers.clear();
-    copyKeysToVector(m_countCallbacks, callbackIdentifiers);
-    for (auto identifier : callbackIdentifiers)
+    for (auto identifier : copyToVector(m_countCallbacks.keys()))
         performCountCallback(identifier, error, 0);
 
     // Error out all IDBOpenDBRequests
@@ -1861,7 +1851,7 @@ void UniqueIDBDatabase::immediateCloseForUserDelete()
     m_pendingOpenDBRequests.clear();
 
     // Close all open connections
-    ListHashSet<RefPtr<UniqueIDBDatabaseConnection>> openDatabaseConnections = m_openDatabaseConnections;
+    auto openDatabaseConnections = m_openDatabaseConnections;
     for (auto& connection : openDatabaseConnections)
         connectionClosedFromServer(*connection);
 

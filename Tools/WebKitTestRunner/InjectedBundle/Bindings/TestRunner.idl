@@ -57,6 +57,11 @@ interface TestRunner {
     void dumpDOMAsWebArchive();
     void dumpPolicyDelegateCallbacks();
 
+    void clearDOMCaches();
+    void clearDOMCache(DOMString origin);
+    boolean hasDOMCache(DOMString origin);
+    unsigned long domCacheSize(DOMString origin);
+
     // Special options.
     void keepWebHistory();
     void setAcceptsEditing(boolean value);
@@ -189,7 +194,7 @@ interface TestRunner {
 
     // Geolocation
     void setGeolocationPermission(boolean value);
-    void setMockGeolocationPosition(double latitude, double longitude, double accuracy, optional object altitude, optional object altitudeAccuracy, optional object heading, optional object speed);
+    void setMockGeolocationPosition(double latitude, double longitude, double accuracy, optional object altitude, optional object altitudeAccuracy, optional object heading, optional object speed, optional object floorLevel);
     void setMockGeolocationPositionUnavailableError(DOMString errorMessage);
     boolean isGeolocationProviderActive();
 
@@ -263,6 +268,8 @@ interface TestRunner {
     void setStatisticsLastSeen(DOMString hostName, double seconds);
     void setStatisticsPrevalentResource(DOMString hostName, boolean value);
     boolean isStatisticsPrevalentResource(DOMString hostName);
+    boolean isStatisticsRegisteredAsSubFrameUnder(DOMString subFrameHost, DOMString topFrameHost);
+    boolean isStatisticsRegisteredAsRedirectingTo(DOMString hostRedirectedFrom, DOMString hostRedirectedTo);
     void setStatisticsHasHadUserInteraction(DOMString hostName, boolean value);
     boolean isStatisticsHasHadUserInteraction(DOMString hostName);
     void setStatisticsGrandfathered(DOMString hostName, boolean value);
@@ -272,6 +279,7 @@ interface TestRunner {
     void setStatisticsSubresourceUniqueRedirectTo(DOMString hostName, DOMString hostNameRedirectedTo);
     void setStatisticsTimeToLiveUserInteraction(double seconds);
     void setStatisticsTimeToLiveCookiePartitionFree(double seconds);
+    void statisticsNotifyObserver();
     void statisticsProcessStatisticsAndDataRecords();
     void statisticsUpdateCookiePartitioning();
     void statisticsSetShouldPartitionCookiesForHost(DOMString hostName, boolean value);

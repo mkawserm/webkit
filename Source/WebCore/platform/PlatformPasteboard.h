@@ -70,7 +70,7 @@ public:
     WEBCORE_EXPORT void getTypes(Vector<String>& types);
     WEBCORE_EXPORT RefPtr<SharedBuffer> bufferForType(const String& pasteboardType);
     WEBCORE_EXPORT void getPathnamesForType(Vector<String>& pathnames, const String& pasteboardType) const;
-    WEBCORE_EXPORT String stringForType(const String& pasteboardType);
+    WEBCORE_EXPORT String stringForType(const String& pasteboardType) const;
     WEBCORE_EXPORT long changeCount() const;
     WEBCORE_EXPORT Color color();
     WEBCORE_EXPORT URL url();
@@ -95,7 +95,7 @@ public:
     WEBCORE_EXPORT int numberOfFiles() const;
 
     WEBCORE_EXPORT long write(const PasteboardCustomData&);
-    WEBCORE_EXPORT Vector<String> typesSafeForDOMToReadAndWrite() const;
+    WEBCORE_EXPORT Vector<String> typesSafeForDOMToReadAndWrite(const String& origin) const;
 
 #if PLATFORM(GTK)
     WEBCORE_EXPORT void writeToClipboard(const SelectionData&, WTF::Function<void()>&& primarySelectionCleared);

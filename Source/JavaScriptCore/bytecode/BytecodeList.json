@@ -36,10 +36,13 @@
             { "name" : "op_lesseq", "length" : 4 },
             { "name" : "op_greater", "length" : 4 },
             { "name" : "op_greatereq", "length" : 4 },
+            { "name" : "op_below", "length" : 4 },
+            { "name" : "op_beloweq", "length" : 4 },
             { "name" : "op_inc", "length" : 2 },
             { "name" : "op_dec", "length" : 2 },
             { "name" : "op_to_number", "length" : 4 },
             { "name" : "op_to_string", "length" : 3 },
+            { "name" : "op_to_object", "length" : 5 },
             { "name" : "op_negate", "length" : 4 },
             { "name" : "op_add", "length" : 5 },
             { "name" : "op_mul", "length" : 5 },
@@ -115,6 +118,8 @@
             { "name" : "op_jnlesseq", "length" : 4 },
             { "name" : "op_jngreater", "length" : 4 },
             { "name" : "op_jngreatereq", "length" : 4 },
+            { "name" : "op_jbelow", "length" : 4 },
+            { "name" : "op_jbeloweq", "length" : 4 },
             { "name" : "op_loop_hint", "length" : 1 },
             { "name" : "op_switch_imm", "length" : 4 },
             { "name" : "op_switch_char", "length" : 4 },
@@ -214,6 +219,8 @@
             { "name" : "llint_throw_during_call_trampoline" },
             { "name" : "llint_native_call_trampoline" },
             { "name" : "llint_native_construct_trampoline" },
+            { "name" : "llint_internal_function_call_trampoline" },
+            { "name" : "llint_internal_function_construct_trampoline" },
             { "name" : "handleUncaughtException" }
         ]
     }

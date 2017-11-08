@@ -47,9 +47,7 @@ ThreadableLoaderOptions::ThreadableLoaderOptions()
     mode = FetchOptions::Mode::SameOrigin;
 }
 
-ThreadableLoaderOptions::~ThreadableLoaderOptions()
-{
-}
+ThreadableLoaderOptions::~ThreadableLoaderOptions() = default;
 
 ThreadableLoaderOptions::ThreadableLoaderOptions(const ResourceLoaderOptions& baseOptions, PreflightPolicy preflightPolicy, ContentSecurityPolicyEnforcement contentSecurityPolicyEnforcement, String&& initiator, ResponseFilteringPolicy filteringPolicy)
     : ResourceLoaderOptions(baseOptions)
@@ -65,7 +63,6 @@ ThreadableLoaderOptions ThreadableLoaderOptions::isolatedCopy() const
     ThreadableLoaderOptions copy;
 
     // FetchOptions
-    copy.type = this->type;
     copy.destination = this->destination;
     copy.mode = this->mode;
     copy.credentials = this->credentials;

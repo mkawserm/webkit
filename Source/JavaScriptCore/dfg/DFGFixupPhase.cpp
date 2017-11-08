@@ -142,7 +142,6 @@ private:
                 node->setArithMode(Arith::CheckOverflow);
             else {
                 node->setArithMode(Arith::DoOverflow);
-                node->clearFlags(NodeMustGenerate);
                 node->setResult(enableInt52() ? NodeResultInt52 : NodeResultDouble);
             }
             break;
@@ -760,10 +759,8 @@ private:
                         }
                         
                         if (canDoSaneChain) {
-                            m_graph.watchpoints().addLazily(
-                                globalObject->arrayPrototype()->structure()->transitionWatchpointSet());
-                            m_graph.watchpoints().addLazily(
-                                globalObject->objectPrototype()->structure()->transitionWatchpointSet());
+                            m_graph.registerAndWatchStructureTransition(globalObject->arrayPrototype()->structure());
+                            m_graph.registerAndWatchStructureTransition(globalObject->objectPrototype()->structure());
                             if (globalObject->arrayPrototypeChainIsSane())
                                 node->setArrayMode(arrayMode.withSpeculation(Array::SaneChain));
                         }
@@ -1219,16 +1216,16 @@ private:
             // When we go down the fast path, we don't consult the prototype chain, so we must prove
             // that it doesn't contain any indexed properties, and that any holes will result in
             // jsUndefined().
-            InlineWatchpointSet& objectPrototypeTransition = globalObject->objectPrototype()->structure()->transitionWatchpointSet();
-            InlineWatchpointSet& arrayPrototypeTransition = globalObject->arrayPrototype()->structure()->transitionWatchpointSet();
-            if (node->child1()->shouldSpeculateArray() 
-                && arrayPrototypeTransition.isStillValid() 
-                && objectPrototypeTransition.isStillValid() 
+            Structure* arrayPrototypeStructure = globalObject->arrayPrototype()->structure();
+            Structure* objectPrototypeStructure = globalObject->objectPrototype()->structure();
+            if (node->child1()->shouldSpeculateArray()
+                && arrayPrototypeStructure->transitionWatchpointSetIsStillValid()
+                && objectPrototypeStructure->transitionWatchpointSetIsStillValid()
                 && globalObject->arrayPrototypeChainIsSane()
                 && m_graph.isWatchingArrayIteratorProtocolWatchpoint(node->child1().node())
                 && m_graph.isWatchingHavingABadTimeWatchpoint(node->child1().node())) {
-                m_graph.watchpoints().addLazily(objectPrototypeTransition);
-                m_graph.watchpoints().addLazily(arrayPrototypeTransition);
+                m_graph.registerAndWatchStructureTransition(objectPrototypeStructure);
+                m_graph.registerAndWatchStructureTransition(arrayPrototypeStructure);
                 fixEdge<ArrayUse>(node->child1());
             } else
                 fixEdge<CellUse>(node->child1());
@@ -1296,14 +1293,13 @@ private:
             break;
         }
 
-        case CallObjectConstructor: {
-            if (node->child1()->shouldSpeculateObject()) {
-                fixEdge<ObjectUse>(node->child1());
-                node->convertToIdentity();
-                break;
-            }
+        case ToObject: {
+            fixupToObject(node);
+            break;
+        }
 
-            fixEdge<UntypedUse>(node->child1());
+        case CallObjectConstructor: {
+            fixupCallObjectConstructor(node);
             break;
         }
 
@@ -1594,6 +1590,18 @@ private:
 
         case GetTypedArrayByteOffset: {
             fixEdge<KnownCellUse>(node->child1());
+            break;
+        }
+
+        case CompareBelow:
+        case CompareBelowEq: {
+            fixEdge<Int32Use>(node->child1());
+            fixEdge<Int32Use>(node->child2());
+            break;
+        }
+
+        case GetPrototypeOf: {
+            fixupGetPrototypeOf(node);
             break;
         }
 
@@ -1947,6 +1955,14 @@ private:
             break;
         }
 
+        case StringSlice: {
+            fixEdge<StringUse>(node->child1());
+            fixEdge<Int32Use>(node->child2());
+            if (node->child3())
+                fixEdge<Int32Use>(node->child3());
+            break;
+        }
+
         case ToLowerCase: {
             // We currently only support StringUse since that will ensure that
             // ToLowerCase is a pure operation. If we decide to update this with
@@ -2296,6 +2312,59 @@ private:
         }
     }
 
+    void fixupGetPrototypeOf(Node* node)
+    {
+        // Reflect.getPrototypeOf only accepts Objects. For Reflect.getPrototypeOf, ByteCodeParser attaches ObjectUse edge filter before fixup phase.
+        if (node->child1().useKind() != ObjectUse) {
+            if (node->child1()->shouldSpeculateString()) {
+                insertCheck<StringUse>(node->child1().node());
+                m_graph.convertToConstant(node, m_graph.freeze(m_graph.globalObjectFor(node->origin.semantic)->stringPrototype()));
+                return;
+            }
+            if (node->child1()->shouldSpeculateInt32()) {
+                insertCheck<Int32Use>(node->child1().node());
+                m_graph.convertToConstant(node, m_graph.freeze(m_graph.globalObjectFor(node->origin.semantic)->numberPrototype()));
+                return;
+            }
+            if (enableInt52() && node->child1()->shouldSpeculateAnyInt()) {
+                insertCheck<Int52RepUse>(node->child1().node());
+                m_graph.convertToConstant(node, m_graph.freeze(m_graph.globalObjectFor(node->origin.semantic)->numberPrototype()));
+                return;
+            }
+            if (node->child1()->shouldSpeculateNumber()) {
+                insertCheck<NumberUse>(node->child1().node());
+                m_graph.convertToConstant(node, m_graph.freeze(m_graph.globalObjectFor(node->origin.semantic)->numberPrototype()));
+                return;
+            }
+            if (node->child1()->shouldSpeculateSymbol()) {
+                insertCheck<SymbolUse>(node->child1().node());
+                m_graph.convertToConstant(node, m_graph.freeze(m_graph.globalObjectFor(node->origin.semantic)->symbolPrototype()));
+                return;
+            }
+            if (node->child1()->shouldSpeculateBoolean()) {
+                insertCheck<BooleanUse>(node->child1().node());
+                m_graph.convertToConstant(node, m_graph.freeze(m_graph.globalObjectFor(node->origin.semantic)->booleanPrototype()));
+                return;
+            }
+        }
+
+        if (node->child1()->shouldSpeculateFinalObject()) {
+            fixEdge<FinalObjectUse>(node->child1());
+            node->clearFlags(NodeMustGenerate);
+            return;
+        }
+        if (node->child1()->shouldSpeculateArray()) {
+            fixEdge<ArrayUse>(node->child1());
+            node->clearFlags(NodeMustGenerate);
+            return;
+        }
+        if (node->child1()->shouldSpeculateFunction()) {
+            fixEdge<FunctionUse>(node->child1());
+            node->clearFlags(NodeMustGenerate);
+            return;
+        }
+    }
+
     void fixupToThis(Node* node)
     {
         ECMAMode ecmaMode = m_graph.executableFor(node->origin.semantic)->isStrictMode() ? StrictMode : NotStrictMode;
@@ -2438,6 +2507,72 @@ private:
 
         fixEdge<UntypedUse>(node->child1());
         node->setResult(NodeResultJS);
+    }
+
+    void fixupToObject(Node* node)
+    {
+        if (node->child1()->shouldSpeculateObject()) {
+            fixEdge<ObjectUse>(node->child1());
+            node->convertToIdentity();
+            return;
+        }
+
+        // ToObject(Null/Undefined) can throw an error. We can emit filters to convert ToObject to CallObjectConstructor.
+
+        JSGlobalObject* globalObject = m_graph.globalObjectFor(node->origin.semantic);
+
+        if (node->child1()->shouldSpeculateString()) {
+            insertCheck<StringUse>(node->child1().node());
+            fixEdge<KnownStringUse>(node->child1());
+            node->convertToNewStringObject(m_graph.registerStructure(globalObject->stringObjectStructure()));
+            return;
+        }
+
+        if (node->child1()->shouldSpeculateSymbol()) {
+            insertCheck<SymbolUse>(node->child1().node());
+            node->convertToCallObjectConstructor(m_graph.freeze(globalObject));
+            return;
+        }
+
+        if (node->child1()->shouldSpeculateNumber()) {
+            insertCheck<NumberUse>(node->child1().node());
+            node->convertToCallObjectConstructor(m_graph.freeze(globalObject));
+            return;
+        }
+
+        if (node->child1()->shouldSpeculateBoolean()) {
+            insertCheck<BooleanUse>(node->child1().node());
+            node->convertToCallObjectConstructor(m_graph.freeze(globalObject));
+            return;
+        }
+
+        fixEdge<UntypedUse>(node->child1());
+    }
+
+    void fixupCallObjectConstructor(Node* node)
+    {
+        if (node->child1()->shouldSpeculateObject()) {
+            fixEdge<ObjectUse>(node->child1());
+            node->convertToIdentity();
+            return;
+        }
+
+        if (node->child1()->shouldSpeculateString()) {
+            auto* globalObject = jsCast<JSGlobalObject*>(node->cellOperand()->cell());
+            insertCheck<StringUse>(node->child1().node());
+            fixEdge<KnownStringUse>(node->child1());
+            node->convertToNewStringObject(m_graph.registerStructure(globalObject->stringObjectStructure()));
+            return;
+        }
+
+        // While ToObject(Null/Undefined) throws an error, CallObjectConstructor(Null/Undefined) generates a new empty object.
+        if (node->child1()->shouldSpeculateOther()) {
+            insertCheck<OtherUse>(node->child1().node());
+            node->convertToNewObject(m_graph.registerStructure(jsCast<JSGlobalObject*>(node->cellOperand()->cell())->objectStructureForObjectConstructor()));
+            return;
+        }
+
+        fixEdge<UntypedUse>(node->child1());
     }
     
     void fixupToStringOrCallStringConstructor(Node* node)

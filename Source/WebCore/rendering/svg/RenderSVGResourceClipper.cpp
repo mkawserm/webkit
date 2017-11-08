@@ -37,17 +37,18 @@
 #include "SVGResources.h"
 #include "SVGResourcesCache.h"
 #include "SVGUseElement.h"
+#include <wtf/IsoMallocInlines.h>
 
 namespace WebCore {
+
+WTF_MAKE_ISO_ALLOCATED_IMPL(RenderSVGResourceClipper);
 
 RenderSVGResourceClipper::RenderSVGResourceClipper(SVGClipPathElement& element, RenderStyle&& style)
     : RenderSVGResourceContainer(element, WTFMove(style))
 {
 }
 
-RenderSVGResourceClipper::~RenderSVGResourceClipper()
-{
-}
+RenderSVGResourceClipper::~RenderSVGResourceClipper() = default;
 
 void RenderSVGResourceClipper::removeAllClientsFromCache(bool markForInvalidation)
 {
@@ -104,7 +105,7 @@ bool RenderSVGResourceClipper::pathOnlyClipping(GraphicsContext& context, const 
             return false;
         // Fallback to masking, if there is more than one clipping path.
         if (clipPath.isEmpty()) {
-            styled.toClipPath(clipPath);
+            clipPath = styled.toClipPath();
             clipRule = svgStyle.clipRule();
         } else
             return false;

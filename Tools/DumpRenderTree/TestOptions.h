@@ -31,6 +31,7 @@
 struct TestOptions {
     bool enableAttachmentElement { false };
     bool enableIntersectionObserver { false };
+    bool enableMenuItemElement { false };
     bool enableModernMediaControls { true };
     bool enablePointerLock { false };
     bool enableCredentialManagement { false };
@@ -38,6 +39,7 @@ struct TestOptions {
     bool layerBackedWebView { false };
     bool enableIsSecureContextAttribute { true };
     bool enableInspectorAdditions { false };
+    bool dumpJSConsoleLogInStdErr { false };
 
     TestOptions(NSURL*, const TestCommand&);
     bool webViewIsCompatibleWithOptions(const TestOptions&) const;

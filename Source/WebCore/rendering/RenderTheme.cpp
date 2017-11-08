@@ -283,7 +283,7 @@ bool RenderTheme::paint(const RenderBox& box, ControlStates& controlStates, cons
     if (paintInfo.context().paintingDisabled())
         return false;
 
-    if (UNLIKELY(paintInfo.context().isRecording()))
+    if (UNLIKELY(!paintInfo.context().hasPlatformContext()))
         return false;
 
     ControlPart part = box.style().appearance();
@@ -819,7 +819,7 @@ bool RenderTheme::isFocused(const RenderObject& renderer) const
     if (!is<Element>(node))
         return false;
 
-    Element* focusDelegate = downcast<Element>(*node).focusDelegate();
+    auto focusDelegate = downcast<Element>(*node).focusDelegate();
     Document& document = focusDelegate->document();
     Frame* frame = document.frame();
     return focusDelegate == document.focusedElement() && frame && frame->selection().isFocusedAndActive();

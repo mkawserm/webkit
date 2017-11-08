@@ -27,11 +27,15 @@
 
 #if ENABLE(SERVICE_WORKER)
 
+#include "ContextDestructionObserver.h"
 #include "EventTarget.h"
+#include "ServiceWorkerIdentifier.h"
+#include "ServiceWorkerTypes.h"
+#include "URL.h"
 #include <heap/Strong.h>
+#include <wtf/RefCounted.h>
 
 namespace JSC {
-class ExecState;
 class JSValue;
 }
 
@@ -39,31 +43,47 @@ namespace WebCore {
 
 class Frame;
 
-class ServiceWorker final : public EventTargetWithInlineData {
+class ServiceWorker final : public RefCounted<ServiceWorker>, public EventTargetWithInlineData, public ContextDestructionObserver {
 public:
-    static Ref<ServiceWorker> create(Frame& frame) { return adoptRef(*new ServiceWorker(frame)); }
-    virtual ~ServiceWorker() = default;
+    static Ref<ServiceWorker> create(ScriptExecutionContext& context, ServiceWorkerIdentifier identifier, const URL& scriptURL)
+    {
+        return adoptRef(*new ServiceWorker(context, identifier, scriptURL));
+    }
 
-    enum class State {
-        Installing,
-        Installed,
-        Activating,
-        Activated,
-        Redundant,
+    virtual ~ServiceWorker();
+
+    const URL& scriptURL() const { return m_scriptURL; }
+
+    using State = ServiceWorkerState;
+    State state() const { return m_state; }
+    
+    enum ShouldFireStateChangeEvent {
+        FireStateChangeEvent,
+        DoNotFireStateChangeEvent,
     };
+    void updateWorkerState(State, ShouldFireStateChangeEvent = FireStateChangeEvent);
 
-    const String& scriptURL() const;
-    State state() const;
+    ExceptionOr<void> postMessage(ScriptExecutionContext&, JSC::JSValue message, Vector<JSC::Strong<JSC::JSObject>>&&);
 
-    ExceptionOr<void> postMessage(JSC::ExecState&, JSC::JSValue message, Vector<JSC::Strong<JSC::JSObject>>&&);
+    ServiceWorkerIdentifier identifier() const { return m_identifier; }
+
+    using RefCounted::ref;
+    using RefCounted::deref;
+
+    static const HashMap<ServiceWorkerIdentifier, HashSet<ServiceWorker*>>& allWorkers();
 
 private:
-    explicit ServiceWorker(Frame&);
+    ServiceWorker(ScriptExecutionContext&, ServiceWorkerIdentifier, const URL& scriptURL);
+    static HashMap<ServiceWorkerIdentifier, HashSet<ServiceWorker*>>& mutableAllWorkers();
 
     virtual EventTargetInterface eventTargetInterface() const;
     virtual ScriptExecutionContext* scriptExecutionContext() const;
     void refEventTarget() final { ref(); }
     void derefEventTarget() final { deref(); }
+
+    ServiceWorkerIdentifier m_identifier;
+    URL m_scriptURL;
+    State m_state { State::Installing };
 };
 
 } // namespace WebCore

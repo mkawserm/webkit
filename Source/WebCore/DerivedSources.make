@@ -107,6 +107,8 @@ JS_BINDING_IDLS = \
     $(WebCore)/Modules/applepay/ApplePayShippingMethodSelectedEvent.idl \
 	$(WebCore)/Modules/applepay/ApplePayShippingMethodUpdate.idl \
     $(WebCore)/Modules/applepay/ApplePayValidateMerchantEvent.idl \
+    $(WebCore)/Modules/applepay/paymentrequest/ApplePayMerchantValidationEvent.idl \
+    $(WebCore)/Modules/applepay/paymentrequest/ApplePayPaymentMethodUpdateEvent.idl \
     $(WebCore)/Modules/applepay/paymentrequest/ApplePayRequest.idl \
     $(WebCore)/Modules/beacon/NavigatorBeacon.idl \
     $(WebCore)/Modules/cache/DOMWindowCaches.idl \
@@ -341,10 +343,9 @@ JS_BINDING_IDLS = \
     $(WebCore)/Modules/webvr/VRLayerInit.idl \
     $(WebCore)/Modules/webvr/VRPose.idl \
     $(WebCore)/Modules/webvr/VRStageParameters.idl \
-    $(WebCore)/animation/Animatable.idl \
     $(WebCore)/animation/AnimationEffect.idl \
+    $(WebCore)/animation/AnimationEffectTiming.idl \
     $(WebCore)/animation/AnimationTimeline.idl \
-    $(WebCore)/animation/DocumentAnimation.idl \
     $(WebCore)/animation/DocumentTimeline.idl \
     $(WebCore)/animation/KeyframeEffect.idl \
     $(WebCore)/animation/WebAnimation.idl \
@@ -501,6 +502,7 @@ JS_BINDING_IDLS = \
     $(WebCore)/dom/TreeWalker.idl \
     $(WebCore)/dom/UIEvent.idl \
     $(WebCore)/dom/UIEventInit.idl \
+    $(WebCore)/dom/VisibilityState.idl \
     $(WebCore)/dom/WebKitAnimationEvent.idl \
     $(WebCore)/dom/WebKitTransitionEvent.idl \
     $(WebCore)/dom/WheelEvent.idl \
@@ -561,6 +563,7 @@ JS_BINDING_IDLS = \
     $(WebCore)/html/HTMLMarqueeElement.idl \
     $(WebCore)/html/HTMLMediaElement.idl \
     $(WebCore)/html/HTMLMenuElement.idl \
+    $(WebCore)/html/HTMLMenuItemElement.idl \
     $(WebCore)/html/HTMLMetaElement.idl \
     $(WebCore)/html/HTMLMeterElement.idl \
     $(WebCore)/html/HTMLModElement.idl \
@@ -602,6 +605,7 @@ JS_BINDING_IDLS = \
     $(WebCore)/html/MediaController.idl \
     $(WebCore)/html/MediaEncryptedEvent.idl \
     $(WebCore)/html/MediaError.idl \
+    $(WebCore)/html/OffscreenCanvas.idl \
     $(WebCore)/html/RadioNodeList.idl \
     $(WebCore)/html/TextMetrics.idl \
     $(WebCore)/html/TimeRanges.idl \
@@ -641,6 +645,7 @@ JS_BINDING_IDLS = \
     $(WebCore)/html/canvas/EXTTextureFilterAnisotropic.idl \
     $(WebCore)/html/canvas/EXTsRGB.idl \
     $(WebCore)/html/canvas/ImageBitmapRenderingContext.idl \
+    $(WebCore)/html/canvas/ImageBitmapRenderingContextSettings.idl \
     $(WebCore)/html/canvas/ImageSmoothingQuality.idl \
     $(WebCore)/html/canvas/OESElementIndexUint.idl \
     $(WebCore)/html/canvas/OESStandardDerivatives.idl \
@@ -910,6 +915,8 @@ JS_BINDING_IDLS = \
     $(WebCore)/testing/MockCDMFactory.idl \
     $(WebCore)/testing/MockContentFilterSettings.idl \
     $(WebCore)/testing/MockPageOverlay.idl \
+    $(WebCore)/testing/MockPaymentAddress.idl \
+    $(WebCore)/testing/MockPaymentCoordinator.idl \
     $(WebCore)/testing/TypeConversions.idl \
     $(WebCore)/workers/AbstractWorker.idl \
     $(WebCore)/workers/DedicatedWorkerGlobalScope.idl \
@@ -917,11 +924,19 @@ JS_BINDING_IDLS = \
     $(WebCore)/workers/WorkerGlobalScope.idl \
     $(WebCore)/workers/WorkerLocation.idl \
     $(WebCore)/workers/WorkerType.idl \
+    $(WebCore)/workers/service/ExtendableEvent.idl \
+    $(WebCore)/workers/service/ExtendableEventInit.idl \
+    $(WebCore)/workers/service/ExtendableMessageEvent.idl \
+    $(WebCore)/workers/service/FetchEvent.idl \
     $(WebCore)/workers/service/ServiceWorker.idl \
+    $(WebCore)/workers/service/ServiceWorkerClient.idl \
+    $(WebCore)/workers/service/ServiceWorkerClientType.idl \
+    $(WebCore)/workers/service/ServiceWorkerClients.idl \
     $(WebCore)/workers/service/ServiceWorkerContainer.idl \
     $(WebCore)/workers/service/ServiceWorkerGlobalScope.idl \
     $(WebCore)/workers/service/ServiceWorkerRegistration.idl \
     $(WebCore)/workers/service/ServiceWorkerUpdateViaCache.idl \
+    $(WebCore)/workers/service/ServiceWorkerWindowClient.idl \
     $(WebCore)/xml/DOMParser.idl \
     $(WebCore)/xml/XMLHttpRequest.idl \
     $(WebCore)/xml/XMLHttpRequestEventTarget.idl \
@@ -1296,17 +1311,8 @@ endif
 
 all : JSHTMLElementWrapperFactory.cpp JSHTMLElementWrapperFactory.h HTMLElementFactory.cpp HTMLElementFactory.h HTMLElementTypeHelpers.h HTMLNames.cpp HTMLNames.h
 
-ifdef HTML_FLAGS
-
 JSHTMLElementWrapperFactory%cpp JSHTMLElementWrapperFactory%h HTMLElementFactory%cpp HTMLElementFactory%h HTMLElementTypeHelpers%h HTMLNames%cpp HTMLNames%h : dom/make_names.pl bindings/scripts/Hasher.pm bindings/scripts/StaticString.pm html/HTMLTagNames.in html/HTMLAttributeNames.in
-	$(PERL) $< --tags $(WebCore)/html/HTMLTagNames.in --attrs $(WebCore)/html/HTMLAttributeNames.in --factory --wrapperFactory --extraDefines "$(HTML_FLAGS)"
-
-else
-
-JSHTMLElementWrapperFactory%cpp JSHTMLElementWrapperFactory%h HTMLElementFactory%cpp HTMLElementFactory%h HTMLElementTypeHelpers%h HTMLNames%cpp HTMLNames%h : dom/make_names.pl bindings/scripts/Hasher.pm bindings/scripts/StaticString.pm html/HTMLTagNames.in html/HTMLAttributeNames.in
-	$(PERL) $< --tags $(WebCore)/html/HTMLTagNames.in --attrs $(WebCore)/html/HTMLAttributeNames.in --factory --wrapperFactory
-
-endif
+	$(PERL) $< --tags $(WebCore)/html/HTMLTagNames.in --attrs $(WebCore)/html/HTMLAttributeNames.in --factory --wrapperFactory $(if $(HTML_FLAGS), --extraDefines "$(HTML_FLAGS)")
 
 XMLNSNames.cpp : dom/make_names.pl bindings/scripts/Hasher.pm bindings/scripts/StaticString.pm xml/xmlnsattrs.in
 	$(PERL) $< --attrs $(WebCore)/xml/xmlnsattrs.in
@@ -1326,15 +1332,8 @@ endif
 
 all : JSSVGElementWrapperFactory.cpp JSSVGElementWrapperFactory.h SVGElementFactory.cpp SVGElementFactory.h SVGElementTypeHelpers.h SVGNames.cpp SVGNames.h
 
-ifdef SVG_FLAGS
 JSSVGElementWrapperFactory%cpp JSSVGElementWrapperFactory%h SVGElementFactory%cpp SVGElementFactory%h SVGElementTypeHelpers%h SVGNames%cpp SVGNames%h : dom/make_names.pl bindings/scripts/Hasher.pm bindings/scripts/StaticString.pm svg/svgtags.in svg/svgattrs.in
-	$(PERL) $< --tags $(WebCore)/svg/svgtags.in --attrs $(WebCore)/svg/svgattrs.in --extraDefines "$(SVG_FLAGS)" --factory --wrapperFactory
-else
-
-JSSVGElementWrapperFactory%cpp JSSVGElementWrapperFactory%h SVGElementFactory%cpp SVGElementFactory%h SVGElementTypeHelpers%h SVGNames%cpp SVGNames%h : dom/make_names.pl bindings/scripts/Hasher.pm bindings/scripts/StaticString.pm svg/svgtags.in svg/svgattrs.in
-	$(PERL) $< --tags $(WebCore)/svg/svgtags.in --attrs $(WebCore)/svg/svgattrs.in --factory --wrapperFactory
-
-endif
+	$(PERL) $< --tags $(WebCore)/svg/svgtags.in --attrs $(WebCore)/svg/svgattrs.in --factory --wrapperFactory $(if $(SVG_FLAGS), --extraDefines "$(SVG_FLAGS)")
 
 XLinkNames.cpp : dom/make_names.pl bindings/scripts/Hasher.pm bindings/scripts/StaticString.pm svg/xlinkattrs.in
 	$(PERL) $< --attrs $(WebCore)/svg/xlinkattrs.in
@@ -1368,17 +1367,15 @@ JSMathMLElementWrapperFactory%cpp JSMathMLElementWrapperFactory%h MathMLElementF
 # Internal Settings
 
 GENERATE_SETTINGS_SCRIPTS = \
-    $(WebCore)/Scripts/GenerateSettings/GenerateInternalSettingsHeaderFile.py \
-    $(WebCore)/Scripts/GenerateSettings/GenerateInternalSettingsIDLFile.py \
-    $(WebCore)/Scripts/GenerateSettings/GenerateInternalSettingsImplementationFile.py \
-    $(WebCore)/Scripts/GenerateSettings/GenerateSettings.py \
-    $(WebCore)/Scripts/GenerateSettings/GenerateSettingsMacrosHeader.py \
-    $(WebCore)/Scripts/GenerateSettings/Settings.py \
-    $(WebCore)/Scripts/GenerateSettings/__init__.py
+    $(WebCore)/Scripts/SettingsTemplates/InternalSettingsGenerated.cpp.erb \
+    $(WebCore)/Scripts/SettingsTemplates/InternalSettingsGenerated.idl.erb \
+    $(WebCore)/Scripts/SettingsTemplates/InternalSettingsGenerated.h.erb \
+    $(WebCore)/Scripts/SettingsTemplates/Settings.cpp.erb \
+    $(WebCore)/Scripts/SettingsTemplates/Settings.h.erb
 
-all : InternalSettingsGenerated.idl InternalSettingsGenerated.cpp InternalSettingsGenerated.h SettingsMacros.h
-InternalSettingsGenerated%idl InternalSettingsGenerated%cpp InternalSettingsGenerated%h SettingsMacros%h : $(WebCore)/Scripts/GenerateSettings.py $(GENERATE_SETTINGS_SCRIPTS) page/Settings.in
-	$(PYTHON) $< --input $(WebCore)/page/Settings.in
+all : InternalSettingsGenerated.idl InternalSettingsGenerated.cpp InternalSettingsGenerated.h Settings.cpp Settings.h
+InternalSettingsGenerated%idl InternalSettingsGenerated%cpp InternalSettingsGenerated%h Settings%cpp Settings%h : $(WebCore)/Scripts/GenerateSettings.rb $(GENERATE_SETTINGS_SCRIPTS) page/Settings.yaml
+	$(RUBY) $< --input $(WebCore)/page/Settings.yaml
 
 # --------
 

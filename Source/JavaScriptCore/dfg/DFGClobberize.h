@@ -270,8 +270,13 @@ void clobberize(Graph& graph, Node* node, const ReadFunctor& read, const WriteFu
 
     case HasGenericProperty:
     case HasStructureProperty:
-    case GetEnumerableLength:
     case GetPropertyEnumerator: {
+        read(World);
+        write(Heap);
+        return;
+    }
+
+    case GetEnumerableLength: {
         read(Heap);
         write(SideState);
         return;
@@ -522,7 +527,16 @@ void clobberize(Graph& graph, Node* node, const ReadFunctor& read, const WriteFu
         write(HeapObjectCount);
         return;
 
+    case ToObject:
+        read(World);
+        write(Heap);
+        return;
+
     case CallObjectConstructor:
+        read(HeapObjectCount);
+        write(HeapObjectCount);
+        return;
+
     case ToThis:
     case CreateThis:
         read(MiscFields);
@@ -1114,6 +1128,23 @@ void clobberize(Graph& graph, Node* node, const ReadFunctor& read, const WriteFu
         read(MiscFields);
         def(HeapLocation(TypedArrayByteOffsetLoc, MiscFields, node->child1()), LazyNode(node));
         return;
+
+    case GetPrototypeOf: {
+        switch (node->child1().useKind()) {
+        case ArrayUse:
+        case FunctionUse:
+        case FinalObjectUse:
+            read(JSCell_structureID);
+            read(JSObject_butterfly);
+            read(NamedProperties); // Poly proto could load prototype from its slot.
+            def(HeapLocation(PrototypeLoc, NamedProperties, node->child1()), LazyNode(node));
+            return;
+        default:
+            read(World);
+            write(Heap);
+            return;
+        }
+    }
         
     case GetByOffset:
     case GetGetterSetterByOffset: {
@@ -1486,6 +1517,11 @@ void clobberize(Graph& graph, Node* node, const ReadFunctor& read, const WriteFu
         }
         def(PureValue(node));
         return;
+
+    case CompareBelow:
+    case CompareBelowEq:
+        def(PureValue(node));
+        return;
         
     case CompareEq:
     case CompareLess:
@@ -1598,6 +1634,10 @@ void clobberize(Graph& graph, Node* node, const ReadFunctor& read, const WriteFu
         def(HeapLocation(WeakMapGetLoc, MiscFields, mapEdge, keyEdge), LazyNode(node));
         return;
     }
+
+    case StringSlice:
+        def(PureValue(node));
+        return;
 
     case ToLowerCase:
         def(PureValue(node));

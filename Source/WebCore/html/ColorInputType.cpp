@@ -207,7 +207,7 @@ void ColorInputType::endColorChooser()
 
 void ColorInputType::updateColorSwatch()
 {
-    HTMLElement* colorSwatch = shadowColorSwatch();
+    RefPtr<HTMLElement> colorSwatch = shadowColorSwatch();
     if (!colorSwatch)
         return;
 
@@ -216,7 +216,7 @@ void ColorInputType::updateColorSwatch()
 
 HTMLElement* ColorInputType::shadowColorSwatch() const
 {
-    ShadowRoot* shadow = element().userAgentShadowRoot();
+    RefPtr<ShadowRoot> shadow = element().userAgentShadowRoot();
     if (!shadow)
         return nullptr;
 
@@ -252,7 +252,7 @@ Vector<Color> ColorInputType::suggestions() const
 {
     Vector<Color> suggestions;
 #if ENABLE(DATALIST_ELEMENT)
-    if (auto* dataList = element().dataList()) {
+    if (auto dataList = element().dataList()) {
         Ref<HTMLCollection> options = dataList->options();
         unsigned length = options->length();
         suggestions.reserveInitialCapacity(length);

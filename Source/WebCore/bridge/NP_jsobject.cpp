@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2004, 2006 Apple Inc.  All rights reserved.
+ * Copyright (C) 2004-2017 Apple Inc.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -49,8 +49,8 @@
 #include "npruntime_impl.h"
 #pragma GCC visibility pop
 
-using namespace JSC;
-using namespace JSC::Bindings;
+namespace JSC {
+using namespace Bindings;
 using namespace WebCore;
 
 class ObjectMap {
@@ -139,6 +139,7 @@ static void jsDeallocate(NPObject* npObj)
 static NPClass javascriptClass = { 1, jsAllocate, jsDeallocate, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 static NPClass noScriptClass = { 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 
+extern "C" {
 NPClass* NPScriptObjectClass = &javascriptClass;
 static NPClass* NPNoScriptObjectClass = &noScriptClass;
 
@@ -194,6 +195,7 @@ bool _NPN_InvokeDefault(NPP, NPObject* o, const NPVariant* args, uint32_t argCou
         
         MarkedArgumentBuffer argList;
         getListFromVariantArgs(exec, args, argCount, rootObject, argList);
+        RELEASE_ASSERT(!argList.hasOverflowed());
         JSValue resultV = JSC::call(exec, function, callType, callData, function, argList);
 
         // Convert and return the result of the function call.
@@ -246,6 +248,7 @@ bool _NPN_Invoke(NPP npp, NPObject* o, NPIdentifier methodName, const NPVariant*
         // Call the function object.
         MarkedArgumentBuffer argList;
         getListFromVariantArgs(exec, args, argCount, rootObject, argList);
+        RELEASE_ASSERT(!argList.hasOverflowed());
         JSValue resultV = JSC::call(exec, function, callType, callData, obj->imp, argList);
 
         // Convert and return the result of the function call.
@@ -535,6 +538,7 @@ bool _NPN_Construct(NPP, NPObject* o, const NPVariant* args, uint32_t argCount, 
         
         MarkedArgumentBuffer argList;
         getListFromVariantArgs(exec, args, argCount, rootObject, argList);
+        RELEASE_ASSERT(!argList.hasOverflowed());
         JSValue resultV = JSC::construct(exec, constructor, constructType, constructData, argList);
         
         // Convert and return the result.
@@ -548,5 +552,9 @@ bool _NPN_Construct(NPP, NPObject* o, const NPVariant* args, uint32_t argCount, 
     
     return false;
 }
+
+} // extern "C"
+
+} // namespace JSC
 
 #endif // ENABLE(NETSCAPE_PLUGIN_API)

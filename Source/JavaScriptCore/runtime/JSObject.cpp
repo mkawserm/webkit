@@ -462,7 +462,7 @@ void JSObject::heapSnapshot(JSCell* cell, HeapSnapshotBuilder& builder)
             builder.appendPropertyNameEdge(thisObject, toValue.asCell(), entry.key);
     }
 
-    Butterfly* butterfly = thisObject->m_butterfly.getMayBeNull();
+    Butterfly* butterfly = thisObject->butterfly();
     if (butterfly) {
         WriteBarrier<Unknown>* data = nullptr;
         uint32_t count = 0;
@@ -531,7 +531,7 @@ String JSObject::calculatedClassName(JSObject* object)
     auto scope = DECLARE_CATCH_SCOPE(vm);
 
     ExecState* exec = globalObject->globalExec();
-    PropertySlot slot(object->getPrototypeDirect(), PropertySlot::InternalMethodType::VMInquiry);
+    PropertySlot slot(object->getPrototypeDirect(vm), PropertySlot::InternalMethodType::VMInquiry);
     PropertyName constructor(vm.propertyNames->constructor);
     if (object->getPropertySlot(exec, constructor, slot)) {
         EXCEPTION_ASSERT(!scope.exception());
@@ -740,6 +740,7 @@ bool ordinarySetSlow(ExecState* exec, JSObject* object, PropertyName propertyNam
     JSObject* setterObject = asObject(setter);
     MarkedArgumentBuffer args;
     args.append(value);
+    ASSERT(!args.hasOverflowed());
 
     CallData callData;
     CallType callType = setterObject->methodTable(vm)->getCallData(setterObject, callData);
@@ -775,19 +776,23 @@ bool JSObject::putInlineSlow(ExecState* exec, PropertyName propertyName, JSValue
 
             JSValue gs = obj->getDirect(offset);
             if (gs.isGetterSetter()) {
-                bool result = callSetter(exec, slot.thisValue(), gs, value, slot.isStrictMode() ? StrictMode : NotStrictMode);
-                RETURN_IF_EXCEPTION(scope, false);
+                // We need to make sure that we decide to cache this property before we potentially execute aribitrary JS.
                 if (!structure()->isDictionary())
                     slot.setCacheableSetter(obj, offset);
+
+                bool result = callSetter(exec, slot.thisValue(), gs, value, slot.isStrictMode() ? StrictMode : NotStrictMode);
+                RETURN_IF_EXCEPTION(scope, false);
                 return result;
             }
             if (gs.isCustomGetterSetter()) {
-                bool result = callCustomSetter(exec, gs, attributes & PropertyAttribute::CustomAccessor, obj, slot.thisValue(), value);
-                RETURN_IF_EXCEPTION(scope, false);
+                // We need to make sure that we decide to cache this property before we potentially execute aribitrary JS.
                 if (attributes & PropertyAttribute::CustomAccessor)
                     slot.setCustomAccessor(obj, jsCast<CustomGetterSetter*>(gs.asCell())->setter());
                 else
                     slot.setCustomValue(obj, jsCast<CustomGetterSetter*>(gs.asCell())->setter());
+
+                bool result = callCustomSetter(exec, gs, attributes & PropertyAttribute::CustomAccessor, obj, slot.thisValue(), value);
+                RETURN_IF_EXCEPTION(scope, false);
                 return result;
             }
             ASSERT(!(attributes & PropertyAttribute::Accessor));
@@ -1021,7 +1026,7 @@ Butterfly* JSObject::createInitialIndexedStorage(VM& vm, unsigned length)
     unsigned propertyCapacity = structure->outOfLineCapacity();
     unsigned vectorLength = Butterfly::optimalContiguousVectorLength(propertyCapacity, length);
     Butterfly* newButterfly = Butterfly::createOrGrowArrayRight(
-        m_butterfly.getMayBeNull(), vm, this, structure, propertyCapacity, false, 0,
+        butterfly(), vm, this, structure, propertyCapacity, false, 0,
         sizeof(EncodedJSValue) * vectorLength);
     newButterfly->setPublicLength(length);
     newButterfly->setVectorLength(vectorLength);
@@ -1109,7 +1114,7 @@ ArrayStorage* JSObject::createArrayStorage(VM& vm, unsigned length, unsigned vec
     IndexingType oldType = indexingType();
     ASSERT_UNUSED(oldType, !hasIndexedProperties(oldType));
 
-    Butterfly* newButterfly = createArrayStorageButterfly(vm, this, oldStructure, length, vectorLength, m_butterfly.getMayBeNull());
+    Butterfly* newButterfly = createArrayStorageButterfly(vm, this, oldStructure, length, vectorLength, butterfly());
     ArrayStorage* result = newButterfly->arrayStorage();
     Structure* newStructure = Structure::nonPropertyTransition(vm, oldStructure, suggestedArrayStorageTransition());
     nukeStructureAndSetButterfly(vm, oldStructureID, newButterfly);
@@ -1127,7 +1132,7 @@ ContiguousJSValues JSObject::convertUndecidedToInt32(VM& vm)
 {
     ASSERT(hasUndecided(indexingType()));
 
-    Butterfly* butterfly = m_butterfly.getMayBeNull();
+    Butterfly* butterfly = this->butterfly();
     for (unsigned i = butterfly->vectorLength(); i--;)
         butterfly->contiguousInt32()[i].setWithoutWriteBarrier(JSValue());
 
@@ -1634,10 +1639,11 @@ void JSObject::setPrototypeDirect(VM& vm, JSValue prototype)
         prototype.asCell()->didBecomePrototype();
     
     if (structure(vm)->hasMonoProto()) {
-        Structure* newStructure = Structure::changePrototypeTransition(vm, structure(vm), prototype);
+        DeferredStructureTransitionWatchpointFire deferred;
+        Structure* newStructure = Structure::changePrototypeTransition(vm, structure(vm), prototype, deferred);
         setStructure(vm, newStructure);
     } else
-        putDirect(vm, structure(vm)->polyProtoOffset(), prototype);
+        putDirect(vm, knownPolyProtoOffset, prototype);
 
     if (!anyObjectInChainMayInterceptIndexedAccesses())
         return;
@@ -1670,7 +1676,7 @@ bool JSObject::setPrototypeWithCycleCheck(VM& vm, ExecState* exec, JSValue proto
 
     ASSERT(methodTable(vm)->toThis(this, exec, NotStrictMode) == this);
 
-    if (this->getPrototypeDirect() == prototype)
+    if (this->getPrototypeDirect(vm) == prototype)
         return true;
 
     bool isExtensible = this->isExtensible(exec);
@@ -1689,7 +1695,7 @@ bool JSObject::setPrototypeWithCycleCheck(VM& vm, ExecState* exec, JSValue proto
         // https://bugs.webkit.org/show_bug.cgi?id=161534
         if (UNLIKELY(asObject(nextPrototype)->type() == ProxyObjectType))
             break; // We're done. Set the prototype.
-        nextPrototype = asObject(nextPrototype)->getPrototypeDirect();
+        nextPrototype = asObject(nextPrototype)->getPrototypeDirect(vm);
     }
     setPrototypeDirect(vm, prototype);
     return true;
@@ -1700,9 +1706,9 @@ bool JSObject::setPrototype(JSObject* object, ExecState* exec, JSValue prototype
     return object->setPrototypeWithCycleCheck(exec->vm(), exec, prototype, shouldThrowIfCantSet);
 }
 
-JSValue JSObject::getPrototype(JSObject* object, ExecState*)
+JSValue JSObject::getPrototype(JSObject* object, ExecState* exec)
 {
-    return object->getPrototypeDirect();
+    return object->getPrototypeDirect(exec->vm());
 }
 
 bool JSObject::setPrototype(VM& vm, ExecState* exec, JSValue prototype, bool shouldThrowIfCantSet)
@@ -1937,6 +1943,7 @@ static ALWAYS_INLINE JSValue callToPrimitiveFunction(ExecState* exec, const JSOb
         }
         callArgs.append(hintString);
     }
+    ASSERT(!callArgs.hasOverflowed());
 
     JSValue result = call(exec, function, callType, callData, const_cast<JSObject*>(object), callArgs);
     RETURN_IF_EXCEPTION(scope, scope.exception());
@@ -2051,6 +2058,7 @@ bool JSObject::hasInstance(ExecState* exec, JSValue value, JSValue hasInstanceVa
 
         MarkedArgumentBuffer args;
         args.append(value);
+        ASSERT(!args.hasOverflowed());
         JSValue result = call(exec, hasInstanceValue, callType, callData, this, args);
         RETURN_IF_EXCEPTION(scope, false);
         return result.toBoolean(exec);
@@ -2537,6 +2545,7 @@ void JSObject::deallocateSparseIndexMap()
 
 bool JSObject::attemptToInterceptPutByIndexOnHoleForPrototype(ExecState* exec, JSValue thisValue, unsigned i, JSValue value, bool shouldThrow, bool& putResult)
 {
+    VM& vm = exec->vm();
     for (JSObject* current = this; ;) {
         // This has the same behavior with respect to prototypes as JSObject::put(). It only
         // allows a prototype to intercept a put if (a) the prototype declares the property
@@ -2558,7 +2567,7 @@ bool JSObject::attemptToInterceptPutByIndexOnHoleForPrototype(ExecState* exec, J
             return true;
         }
         
-        JSValue prototypeValue = current->getPrototypeDirect();
+        JSValue prototypeValue = current->getPrototypeDirect(vm);
         if (prototypeValue.isNull())
             return false;
         
@@ -2568,7 +2577,7 @@ bool JSObject::attemptToInterceptPutByIndexOnHoleForPrototype(ExecState* exec, J
 
 bool JSObject::attemptToInterceptPutByIndexOnHole(ExecState* exec, unsigned i, JSValue value, bool shouldThrow, bool& putResult)
 {
-    JSValue prototypeValue = getPrototypeDirect();
+    JSValue prototypeValue = getPrototypeDirect(exec->vm());
     if (prototypeValue.isNull())
         return false;
     
@@ -3164,7 +3173,7 @@ bool JSObject::increaseVectorLength(VM& vm, unsigned newLength)
 
 bool JSObject::ensureLengthSlow(VM& vm, unsigned length)
 {
-    Butterfly* butterfly = m_butterfly.get();
+    Butterfly* butterfly = this->butterfly()->caged();
     
     ASSERT(length <= MAX_STORAGE_VECTOR_LENGTH);
     ASSERT(hasContiguous(indexingType()) || hasInt32(indexingType()) || hasDouble(indexingType()) || hasUndecided(indexingType()));
@@ -3224,7 +3233,7 @@ void JSObject::reallocateAndShrinkButterfly(VM& vm, unsigned length)
     ASSERT(!m_butterfly->indexingHeader()->preCapacity(structure()));
 
     DeferGC deferGC(vm.heap);
-    Butterfly* newButterfly = m_butterfly->resizeArray(vm, this, structure(), 0, ArrayStorage::sizeFor(length));
+    Butterfly* newButterfly = butterfly()->caged()->resizeArray(vm, this, structure(), 0, ArrayStorage::sizeFor(length));
     newButterfly->setVectorLength(length);
     newButterfly->setPublicLength(length);
     WTF::storeStoreFence();
@@ -3238,7 +3247,7 @@ Butterfly* JSObject::allocateMoreOutOfLineStorage(VM& vm, size_t oldSize, size_t
     // It's important that this function not rely on structure(), for the property
     // capacity, since we might have already mutated the structure in-place.
 
-    return Butterfly::createOrGrowPropertyStorage(m_butterfly.getMayBeNull(), vm, this, structure(vm), oldSize, newSize);
+    return Butterfly::createOrGrowPropertyStorage(butterfly(), vm, this, structure(vm), oldSize, newSize);
 }
 
 static JSCustomGetterSetterFunction* getCustomGetterSetterFunctionForGetterSetter(ExecState* exec, PropertyName propertyName, CustomGetterSetter* getterSetter, JSCustomGetterSetterFunction::Type type)
@@ -3679,7 +3688,7 @@ bool JSObject::anyObjectInChainMayInterceptIndexedAccesses() const
         if (current->structure(vm)->mayInterceptIndexedAccesses())
             return true;
         
-        JSValue prototype = current->getPrototypeDirect();
+        JSValue prototype = current->getPrototypeDirect(vm);
         if (prototype.isNull())
             return false;
         
@@ -3693,7 +3702,7 @@ bool JSObject::prototypeChainMayInterceptStoreTo(VM& vm, PropertyName propertyNa
         return anyObjectInChainMayInterceptIndexedAccesses();
     
     for (JSObject* current = this; ;) {
-        JSValue prototype = current->getPrototypeDirect();
+        JSValue prototype = current->getPrototypeDirect(vm);
         if (prototype.isNull())
             return false;
         

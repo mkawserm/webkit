@@ -21,17 +21,18 @@
 #include "config.h"
 #include "RenderSVGResourceLinearGradient.h"
 
+#include <wtf/IsoMallocInlines.h>
 
 namespace WebCore {
+
+WTF_MAKE_ISO_ALLOCATED_IMPL(RenderSVGResourceLinearGradient);
 
 RenderSVGResourceLinearGradient::RenderSVGResourceLinearGradient(SVGLinearGradientElement& element, RenderStyle&& style)
     : RenderSVGResourceGradient(element, WTFMove(style))
 {
 }
 
-RenderSVGResourceLinearGradient::~RenderSVGResourceLinearGradient()
-{
-}
+RenderSVGResourceLinearGradient::~RenderSVGResourceLinearGradient() = default;
 
 bool RenderSVGResourceLinearGradient::collectGradientAttributes()
 {

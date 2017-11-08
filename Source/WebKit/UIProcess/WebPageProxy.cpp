@@ -1073,10 +1073,7 @@ RefPtr<API::Navigation> WebPageProxy::reload(OptionSet<WebCore::ReloadOption> op
 {
     SandboxExtension::Handle sandboxExtensionHandle;
 
-    String url = m_pageLoadState.activeURL();
-    if (url.isEmpty() && m_backForwardList->currentItem())
-        url = m_backForwardList->currentItem()->url();
-
+    String url = currentURL();
     if (!url.isEmpty()) {
         auto transaction = m_pageLoadState.transaction();
         m_pageLoadState.setPendingAPIRequestURL(transaction, url);
@@ -2285,10 +2282,8 @@ void WebPageProxy::receivedPolicyDecision(PolicyAction action, WebFrameProxy& fr
     if (action == PolicyAction::Ignore)
         m_pageLoadState.clearPendingAPIRequestURL(transaction);
 
-#if ENABLE(DOWNLOAD_ATTRIBUTE)
-    if (m_syncNavigationActionHasDownloadAttribute && action == PolicyAction::Use)
+    if (navigation && navigation->shouldForceDownload() && action == PolicyAction::Use)
         action = PolicyAction::Download;
-#endif
 
     DownloadID downloadID = { };
     if (action == PolicyAction::Download) {
@@ -3695,10 +3690,12 @@ void WebPageProxy::decidePolicyForNavigationAction(uint64_t frameID, const Secur
         auto navigation = m_navigationState->createLoadRequestNavigation(ResourceRequest(request));
         newNavigationID = navigation->navigationID();
         navigation->setWasUserInitiated(!!navigationActionData.userGestureTokenIdentifier);
+        navigation->setShouldForceDownload(!navigationActionData.downloadAttribute.isNull());
         listener->setNavigation(WTFMove(navigation));
     } else {
         auto& navigation = m_navigationState->navigation(navigationID);
         navigation.setWasUserInitiated(!!navigationActionData.userGestureTokenIdentifier);
+        navigation.setShouldForceDownload(!navigationActionData.downloadAttribute.isNull());
         listener->setNavigation(navigation);
     }
 
@@ -3714,9 +3711,6 @@ void WebPageProxy::decidePolicyForNavigationAction(uint64_t frameID, const Secur
     
     m_inDecidePolicyForNavigationAction = true;
     m_syncNavigationActionPolicyActionIsValid = false;
-#if ENABLE(DOWNLOAD_ATTRIBUTE)
-    m_syncNavigationActionHasDownloadAttribute = !navigationActionData.downloadAttribute.isNull();
-#endif
 
     WebFrameProxy* originatingFrame = m_process->webFrame(originatingFrameInfoData.frameID);
 
@@ -5091,9 +5085,6 @@ void WebPageProxy::didReceiveEvent(uint32_t opaqueType, bool handled)
         if (!m_keyEventQueue.isEmpty()) {
             LOG(KeyHandling, " UI process: sent keyEvent from didReceiveEvent");
             m_process->send(Messages::WebPage::KeyEvent(m_keyEventQueue.first()), m_pageID);
-        } else {
-            if (auto* automationSession = process().processPool().automationSession())
-                automationSession->keyboardEventsFlushedForPage(*this);
         }
 
         // The call to doneWithKeyEvent may close this WebPage.
@@ -5101,10 +5092,14 @@ void WebPageProxy::didReceiveEvent(uint32_t opaqueType, bool handled)
         Ref<WebPageProxy> protect(*this);
 
         m_pageClient.doneWithKeyEvent(event, handled);
-        if (handled)
-            break;
+        if (!handled)
+            m_uiClient->didNotHandleKeyEvent(this, event);
 
-        m_uiClient->didNotHandleKeyEvent(this, event);
+        // Notify the session after -[NSApp sendEvent:] has a crack at turning the event into an action.
+        if (m_keyEventQueue.isEmpty()) {
+            if (auto* automationSession = process().processPool().automationSession())
+                automationSession->keyboardEventsFlushedForPage(*this);
+        }
         break;
     }
 #if ENABLE(MAC_GESTURE_EVENTS)
@@ -5443,16 +5438,21 @@ void WebPageProxy::didChangeProcessIsResponsive()
     m_pageLoadState.didChangeProcessIsResponsive();
 }
 
+String WebPageProxy::currentURL() const
+{
+    String url = m_pageLoadState.activeURL();
+    if (url.isEmpty() && m_backForwardList->currentItem())
+        url = m_backForwardList->currentItem()->url();
+    return url;
+}
+
 void WebPageProxy::processDidTerminate(ProcessTerminationReason reason)
 {
     ASSERT(m_isValid);
 
 #if PLATFORM(IOS)
     if (m_process->isUnderMemoryPressure()) {
-        String url = m_pageLoadState.activeURL();
-        if (url.isEmpty() && m_backForwardList->currentItem())
-            url = m_backForwardList->currentItem()->url();
-        String domain = WebCore::topPrivatelyControlledDomain(WebCore::URL(WebCore::ParsedURLString, url).host());
+        String domain = WebCore::topPrivatelyControlledDomain(WebCore::URL(WebCore::ParsedURLString, currentURL()).host());
         if (!domain.isEmpty())
             logDiagnosticMessageWithEnhancedPrivacy(WebCore::DiagnosticLoggingKeys::domainCausingJetsamKey(), domain, WebCore::ShouldSample::No);
     }
@@ -5614,11 +5614,11 @@ void WebPageProxy::resetState(ResetStateReason resetStateReason)
     m_callbacks.invalidate(error);
     m_loadDependentStringCallbackIDs.clear();
 
-    Vector<WebEditCommandProxy*> editCommandVector;
-    copyToVector(m_editCommandSet, editCommandVector);
+    auto editCommandVector = copyToVector(m_editCommandSet);
     m_editCommandSet.clear();
-    for (size_t i = 0, size = editCommandVector.size(); i < size; ++i)
-        editCommandVector[i]->invalidate();
+
+    for (auto& editCommand : editCommandVector)
+        editCommand->invalidate();
 
     m_activePopupMenu = nullptr;
     m_mediaState = MediaProducer::IsNotPlaying;
@@ -5825,9 +5825,9 @@ void WebPageProxy::didReceiveAuthenticationChallengeProxy(uint64_t frameID, Ref<
     MESSAGE_CHECK(frame);
 
     if (m_navigationClient)
-        m_navigationClient->didReceiveAuthenticationChallenge(*this, authenticationChallenge.ptr());
+        m_navigationClient->didReceiveAuthenticationChallenge(*this, authenticationChallenge.get());
     else
-        m_loaderClient->didReceiveAuthenticationChallengeInFrame(*this, *frame, authenticationChallenge.ptr());
+        m_loaderClient->didReceiveAuthenticationChallengeInFrame(*this, *frame, authenticationChallenge.get());
 }
 
 void WebPageProxy::exceededDatabaseQuota(uint64_t frameID, const String& originIdentifier, const String& databaseName, const String& displayName, uint64_t currentQuota, uint64_t currentOriginUsage, uint64_t currentDatabaseUsage, uint64_t expectedUsage, Ref<Messages::WebPageProxy::ExceededDatabaseQuota::DelayedReply>&& reply)
@@ -6712,14 +6712,28 @@ bool WebPageProxy::isPlayingVideoInEnhancedFullscreen() const
 #endif
 
 #if PLATFORM(COCOA)
-void WebPageProxy::requestActiveNowPlayingSessionInfo()
+void WebPageProxy::requestActiveNowPlayingSessionInfo(Ref<NowPlayingInfoCallback>&& callback)
 {
-    m_process->send(Messages::WebPage::RequestActiveNowPlayingSessionInfo(), m_pageID);
+    if (!isValid()) {
+        callback->invalidate();
+        return;
+    }
+
+    auto callbackID = callback->callbackID();
+    m_callbacks.put(WTFMove(callback));
+
+    m_process->send(Messages::WebPage::RequestActiveNowPlayingSessionInfo(callbackID), m_pageID);
 }
 
-void WebPageProxy::handleActiveNowPlayingSessionInfoResponse(bool hasActiveSession, const String& title, double duration, double elapsedTime) const
+void WebPageProxy::nowPlayingInfoCallback(bool hasActiveSession, const String& title, double duration, double elapsedTime, uint64_t uniqueIdentifier, CallbackID callbackID)
 {
-    m_pageClient.handleActiveNowPlayingSessionInfoResponse(hasActiveSession, title, duration, elapsedTime);
+    auto callback = m_callbacks.take<NowPlayingInfoCallback>(callbackID);
+    if (!callback) {
+        // FIXME: Log error or assert.
+        return;
+    }
+
+    callback->performCallbackWithReturnValue(hasActiveSession, title, duration, elapsedTime, uniqueIdentifier);
 }
 #endif
 
@@ -7090,5 +7104,15 @@ void WebPageProxy::requestStorageAccess(String&& subFrameHost, String&& topFrame
         m_process->send(Messages::WebPage::StorageAccessResponse(wasGranted, webProcessContextId), m_pageID);
     });
 }
+
+#if ENABLE(ATTACHMENT_ELEMENT)
+
+void WebPageProxy::insertAttachment(const String& identifier, const String& filename, std::optional<String> contentType, SharedBuffer& data, Function<void(CallbackBase::Error)>&& callback)
+{
+    auto callbackID = m_callbacks.put(WTFMove(callback), m_process->throttler().backgroundActivityToken());
+    m_process->send(Messages::WebPage::InsertAttachment(identifier, filename, contentType, IPC::SharedBufferDataReference { &data }, callbackID), m_pageID);
+}
+
+#endif // ENABLE(ATTACHMENT_ELEMENT)
 
 } // namespace WebKit

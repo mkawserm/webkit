@@ -43,6 +43,7 @@
 #include <pal/SessionID.h>
 #include <wtf/Forward.h>
 #include <wtf/HashMap.h>
+#include <wtf/HashSet.h>
 #include <wtf/RefCounted.h>
 #include <wtf/RefPtr.h>
 
@@ -181,15 +182,21 @@ public:
     bool isUnderMemoryPressure() const { return m_isUnderMemoryPressure; }
     void didExceedInactiveMemoryLimitWhileActive();
 
+#if ENABLE(SERVICE_WORKER)
+    void didGetWorkerContextConnection(const IPC::Attachment& connection);
+#endif
+
     void processTerminated();
 
     void didExceedCPULimit();
     void didExceedActiveMemoryLimit();
     void didExceedInactiveMemoryLimit();
 
-private:
+protected:
+    static uint64_t generatePageID();
     explicit WebProcessProxy(WebProcessPool&, WebsiteDataStore&);
 
+private:
     // From ChildProcessProxy
     void getLaunchOptions(ProcessLauncher::LaunchOptions&) override;
     void connectionWillOpen(IPC::Connection&) override;

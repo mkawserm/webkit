@@ -36,6 +36,7 @@
 #import "AuthenticationChallenge.h"
 #import "CDMSessionAVFoundationObjC.h"
 #import "Cookie.h"
+#import "DeprecatedGlobalSettings.h"
 #import "Extensions3D.h"
 #import "FloatConversion.h"
 #import "GraphicsContext.h"
@@ -53,7 +54,6 @@
 #import "PlatformTimeRanges.h"
 #import "SecurityOrigin.h"
 #import "SerializedPlatformRepresentationMac.h"
-#import "Settings.h"
 #import "TextEncoding.h"
 #import "TextTrackRepresentation.h"
 #import "TextureCacheCV.h"
@@ -154,7 +154,7 @@ typedef AVAssetCache AVAssetCacheType;
 #pragma mark - Soft Linking
 
 // Soft-linking headers must be included last since they #define functions, constants, etc.
-#import "CoreMediaSoftLink.h"
+#import <pal/cf/CoreMediaSoftLink.h>
 
 SOFT_LINK_FRAMEWORK_OPTIONAL(AVFoundation)
 
@@ -360,6 +360,7 @@ enum MediaPlayerAVFoundationObservationContext {
 #endif
 
 namespace WebCore {
+using namespace PAL;
 
 static NSArray *assetMetadataKeyNames();
 static NSArray *itemKVOProperties();
@@ -685,6 +686,7 @@ void MediaPlayerPrivateAVFoundationObjC::createContextVideoRenderer()
 
 void MediaPlayerPrivateAVFoundationObjC::createImageGenerator()
 {
+    using namespace PAL;
     INFO_LOG(LOGIDENTIFIER);
 
     if (!m_avAsset || m_imageGenerator)
@@ -871,9 +873,9 @@ void MediaPlayerPrivateAVFoundationObjC::synchronizeTextTrackState()
 #endif
 
 
-static NSURL *canonicalURL(const String& url)
+static NSURL *canonicalURL(const URL& url)
 {
-    NSURL *cocoaURL = URL(ParsedURLString, url);
+    NSURL *cocoaURL = url;
     if (url.isEmpty())
         return cocoaURL;
 
@@ -908,7 +910,7 @@ static NSHTTPCookie* toNSHTTPCookie(const Cookie& cookie)
 }
 #endif
 
-void MediaPlayerPrivateAVFoundationObjC::createAVAssetForURL(const String& url)
+void MediaPlayerPrivateAVFoundationObjC::createAVAssetForURL(const URL& url)
 {
     if (m_avAsset)
         return;
@@ -988,7 +990,7 @@ void MediaPlayerPrivateAVFoundationObjC::createAVAssetForURL(const String& url)
 
 #if PLATFORM(IOS)
     Vector<Cookie> cookies;
-    if (player()->getRawCookies(URL(ParsedURLString, url), cookies)) {
+    if (player()->getRawCookies(url, cookies)) {
         RetainPtr<NSMutableArray> nsCookies = adoptNS([[NSMutableArray alloc] initWithCapacity:cookies.size()]);
         for (auto& cookie : cookies)
             [nsCookies addObject:toNSHTTPCookie(cookie)];
@@ -1011,7 +1013,7 @@ void MediaPlayerPrivateAVFoundationObjC::createAVAssetForURL(const String& url)
     [resourceLoader setDelegate:m_loaderDelegate.get() queue:globalLoaderDelegateQueue()];
 
 #if PLATFORM(IOS) || __MAC_OS_X_VERSION_MIN_REQUIRED > 101100
-    if (Settings::isAVFoundationNSURLSessionEnabled()
+    if (DeprecatedGlobalSettings::isAVFoundationNSURLSessionEnabled()
         && [resourceLoader respondsToSelector:@selector(setURLSession:)]
         && [resourceLoader respondsToSelector:@selector(URLSessionDataDelegate)]
         && [resourceLoader respondsToSelector:@selector(URLSessionDataDelegateQueue)]) {
@@ -1232,12 +1234,17 @@ void MediaPlayerPrivateAVFoundationObjC::setVideoFullscreenLayer(PlatformLayer* 
         return;
     }
 
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+
     m_videoFullscreenLayerManager->setVideoFullscreenLayer(videoFullscreenLayer, WTFMove(completionHandler));
 
     if (m_videoFullscreenLayerManager->videoFullscreenLayer() && m_textTrackRepresentationLayer) {
         syncTextTrackBounds();
         [m_videoFullscreenLayerManager->videoFullscreenLayer() addSublayer:m_textTrackRepresentationLayer.get()];
     }
+
+    [CATransaction commit];
 
     updateDisableExternalPlayback();
 }
@@ -2232,9 +2239,14 @@ void MediaPlayerPrivateAVFoundationObjC::syncTextTrackBounds()
     if (!m_videoFullscreenLayerManager->videoFullscreenLayer() || !m_textTrackRepresentationLayer)
         return;
 
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+
     FloatRect videoFullscreenFrame = m_videoFullscreenLayerManager->videoFullscreenFrame();
     CGRect textFrame = m_videoLayer ? [m_videoLayer videoRect] : CGRectMake(0, 0, videoFullscreenFrame.width(), videoFullscreenFrame.height());
     [m_textTrackRepresentationLayer setFrame:textFrame];
+
+    [CATransaction commit];
 #endif
 }
 
@@ -2247,6 +2259,9 @@ void MediaPlayerPrivateAVFoundationObjC::setTextTrackRepresentation(TextTrackRep
         return;
     }
 
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+
     if (m_textTrackRepresentationLayer)
         [m_textTrackRepresentationLayer removeFromSuperlayer];
 
@@ -2256,6 +2271,8 @@ void MediaPlayerPrivateAVFoundationObjC::setTextTrackRepresentation(TextTrackRep
         syncTextTrackBounds();
         [m_videoFullscreenLayerManager->videoFullscreenLayer() addSublayer:m_textTrackRepresentationLayer.get()];
     }
+
+    [CATransaction commit];
 
 #else
     UNUSED_PARAM(representation);
@@ -2284,22 +2301,17 @@ void MediaPlayerPrivateAVFoundationObjC::sizeChanged()
 
     setNaturalSize(m_cachedPresentationSize);
 }
-    
-bool MediaPlayerPrivateAVFoundationObjC::hasSingleSecurityOrigin() const 
+
+void MediaPlayerPrivateAVFoundationObjC::resolvedURLChanged()
 {
-    if (!m_avAsset || [m_avAsset statusOfValueForKey:@"resolvedURL" error:nullptr] != AVKeyValueStatusLoaded)
-        return false;
-    
-    Ref<SecurityOrigin> resolvedOrigin(SecurityOrigin::create(resolvedURL()));
-    Ref<SecurityOrigin> requestedOrigin(SecurityOrigin::createFromString(assetURL()));
-    return resolvedOrigin->isSameSchemeHostPort(requestedOrigin.get());
+    setResolvedURL(m_avAsset ? URL([m_avAsset resolvedURL]) : URL());
 }
 
 bool MediaPlayerPrivateAVFoundationObjC::didPassCORSAccessCheck() const
 {
 #if PLATFORM(IOS) || __MAC_OS_X_VERSION_MIN_REQUIRED > 101100
     AVAssetResourceLoader *resourceLoader = m_avAsset.get().resourceLoader;
-    if (!Settings::isAVFoundationNSURLSessionEnabled()
+    if (!DeprecatedGlobalSettings::isAVFoundationNSURLSessionEnabled()
         || ![resourceLoader respondsToSelector:@selector(URLSession)])
         return false;
 
@@ -3288,14 +3300,6 @@ void MediaPlayerPrivateAVFoundationObjC::canPlayFastForwardDidChange(bool newVal
 void MediaPlayerPrivateAVFoundationObjC::canPlayFastReverseDidChange(bool newValue)
 {
     m_cachedCanPlayFastReverse = newValue;
-}
-
-URL MediaPlayerPrivateAVFoundationObjC::resolvedURL() const
-{
-    if (!m_avAsset || [m_avAsset statusOfValueForKey:@"resolvedURL" error:nullptr] != AVKeyValueStatusLoaded)
-        return MediaPlayerPrivateAVFoundation::resolvedURL();
-
-    return URL([m_avAsset resolvedURL]);
 }
 
 void MediaPlayerPrivateAVFoundationObjC::setShouldDisableSleep(bool flag)

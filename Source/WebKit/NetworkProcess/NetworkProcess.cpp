@@ -50,9 +50,11 @@
 #include "WebProcessPoolMessages.h"
 #include "WebsiteData.h"
 #include "WebsiteDataFetchOption.h"
+#include "WebsiteDataStore.h"
 #include "WebsiteDataStoreParameters.h"
 #include "WebsiteDataType.h"
 #include <WebCore/DNS.h>
+#include <WebCore/DeprecatedGlobalSettings.h>
 #include <WebCore/DiagnosticLoggingClient.h>
 #include <WebCore/LogInitialization.h>
 #include <WebCore/MIMETypeRegistry.h>
@@ -65,6 +67,7 @@
 #include <WebCore/Settings.h>
 #include <WebCore/URLParser.h>
 #include <pal/SessionID.h>
+#include <wtf/CallbackAggregator.h>
 #include <wtf/OptionSet.h>
 #include <wtf/RunLoop.h>
 #include <wtf/text/AtomicString.h>
@@ -74,10 +77,8 @@
 #include "SecItemShim.h"
 #endif
 
-#if ENABLE(NETWORK_CACHE)
 #include "NetworkCache.h"
 #include "NetworkCacheCoders.h"
-#endif
 
 #if ENABLE(NETWORK_CAPTURE)
 #include "NetworkCaptureManager.h"
@@ -114,9 +115,6 @@ NetworkProcess::NetworkProcess()
     addSupplement<AuthenticationManager>();
     addSupplement<WebCookieManager>();
     addSupplement<LegacyCustomProtocolManager>();
-#if USE(NETWORK_SESSION) && PLATFORM(COCOA)
-    NetworkSessionCocoa::setLegacyCustomProtocolManager(supplement<LegacyCustomProtocolManager>());
-#endif
 }
 
 NetworkProcess::~NetworkProcess()
@@ -240,10 +238,15 @@ void NetworkProcess::initializeNetworkProcess(NetworkProcessCreationParameters&&
 
     // FIXME: instead of handling this here, a message should be sent later (scales to multiple sessions)
     if (parameters.privateBrowsingEnabled)
-        RemoteNetworkingContext::ensurePrivateBrowsingSession({PAL::SessionID::legacyPrivateSessionID(), { }, { }, { }, { }, { }});
+        RemoteNetworkingContext::ensurePrivateBrowsingSession({ { }, { }, { }, { }, WebsiteDataStore::defaultCacheStoragePerOriginQuota, { }, { PAL::SessionID::legacyPrivateSessionID(), { }, { },  AllowsCellularAccess::Yes }});
 
     if (parameters.shouldUseTestingNetworkSession)
         NetworkStorageSession::switchToNewTestingSession();
+
+#if USE(NETWORK_SESSION)
+    parameters.defaultSessionParameters.legacyCustomProtocolManager = supplement<LegacyCustomProtocolManager>();
+    SessionTracker::setSession(PAL::SessionID::defaultSessionID(), NetworkSession::create(WTFMove(parameters.defaultSessionParameters)));
+#endif
 
     for (auto& supplement : m_supplements.values())
         supplement->initialize(parameters);
@@ -287,7 +290,10 @@ void NetworkProcess::clearCachedCredentials()
 {
     NetworkStorageSession::defaultStorageSession().credentialStorage().clearCredentials();
 #if USE(NETWORK_SESSION)
-    NetworkSession::defaultSession().clearCredentials();
+    if (auto* networkSession = SessionTracker::networkSession(PAL::SessionID::defaultSessionID()))
+        networkSession->clearCredentials();
+    else
+        ASSERT_NOT_REACHED();
 #endif
 }
 
@@ -337,7 +343,6 @@ void NetworkProcess::removePrevalentDomains(PAL::SessionID sessionID, const Vect
 
 static void fetchDiskCacheEntries(PAL::SessionID sessionID, OptionSet<WebsiteDataFetchOption> fetchOptions, Function<void (Vector<WebsiteData::Entry>)>&& completionHandler)
 {
-#if ENABLE(NETWORK_CACHE)
     if (auto* cache = NetworkProcess::singleton().cache()) {
         HashMap<SecurityOriginData, uint64_t> originsAndSizes;
         cache->traverse([fetchOptions, completionHandler = WTFMove(completionHandler), originsAndSizes = WTFMove(originsAndSizes)](auto* traversalEntry) mutable {
@@ -363,7 +368,6 @@ static void fetchDiskCacheEntries(PAL::SessionID sessionID, OptionSet<WebsiteDat
 
         return;
     }
-#endif
 
     RunLoop::main().dispatch([completionHandler = WTFMove(completionHandler)] {
         completionHandler({ });
@@ -405,6 +409,12 @@ void NetworkProcess::fetchWebsiteData(PAL::SessionID sessionID, OptionSet<Websit
             callbackAggregator->m_websiteData.originsWithCredentials = NetworkStorageSession::storageSession(sessionID)->credentialStorage().originsWithCredentials();
     }
 
+    if (websiteDataTypes.contains(WebsiteDataType::DOMCache)) {
+        CacheStorage::Engine::fetchEntries(sessionID, fetchOptions.contains(WebsiteDataFetchOption::ComputeSizes), [callbackAggregator = callbackAggregator.copyRef()](auto entries) mutable {
+            callbackAggregator->m_websiteData.entries.appendVector(entries);
+        });
+    }
+
     if (websiteDataTypes.contains(WebsiteDataType::DiskCache)) {
         fetchDiskCacheEntries(sessionID, fetchOptions, [callbackAggregator = WTFMove(callbackAggregator)](auto entries) mutable {
             callbackAggregator->m_websiteData.entries.appendVector(entries);
@@ -430,22 +440,20 @@ void NetworkProcess::deleteWebsiteData(PAL::SessionID sessionID, OptionSet<Websi
         if (NetworkStorageSession::storageSession(sessionID))
             NetworkStorageSession::storageSession(sessionID)->credentialStorage().clearCredentials();
     }
-    
-    auto completionHandler = [this, callbackID] {
+
+    auto clearTasksHandler = WTF::CallbackAggregator::create([this, callbackID] {
         parentProcessConnection()->send(Messages::NetworkProcessProxy::DidDeleteWebsiteData(callbackID), 0);
-    };
+    });
 
-    if (websiteDataTypes.contains(WebsiteDataType::DiskCache) && !sessionID.isEphemeral()) {
-        clearDiskCache(modifiedSince, WTFMove(completionHandler));
-        return;
-    }
+    if (websiteDataTypes.contains(WebsiteDataType::DOMCache))
+        CacheStorage::Engine::clearAllEngines([clearTasksHandler = clearTasksHandler.copyRef()] { });
 
-    completionHandler();
+    if (websiteDataTypes.contains(WebsiteDataType::DiskCache) && !sessionID.isEphemeral())
+        clearDiskCache(modifiedSince, [clearTasksHandler = WTFMove(clearTasksHandler)] { });
 }
 
 static void clearDiskCacheEntries(const Vector<SecurityOriginData>& origins, Function<void ()>&& completionHandler)
 {
-#if ENABLE(NETWORK_CACHE)
     if (auto* cache = NetworkProcess::singleton().cache()) {
         HashSet<RefPtr<SecurityOrigin>> originsToDelete;
         for (auto& origin : origins)
@@ -465,28 +473,30 @@ static void clearDiskCacheEntries(const Vector<SecurityOriginData>& origins, Fun
 
         return;
     }
-#endif
 
     RunLoop::main().dispatch(WTFMove(completionHandler));
 }
 
-void NetworkProcess::deleteWebsiteDataForOrigins(PAL::SessionID sessionID, OptionSet<WebsiteDataType> websiteDataTypes, const Vector<SecurityOriginData>& origins, const Vector<String>& cookieHostNames, uint64_t callbackID)
+void NetworkProcess::deleteWebsiteDataForOrigins(PAL::SessionID sessionID, OptionSet<WebsiteDataType> websiteDataTypes, const Vector<SecurityOriginData>& originDatas, const Vector<String>& cookieHostNames, uint64_t callbackID)
 {
     if (websiteDataTypes.contains(WebsiteDataType::Cookies)) {
         if (auto* networkStorageSession = NetworkStorageSession::storageSession(sessionID))
             deleteCookiesForHostnames(*networkStorageSession, cookieHostNames);
     }
 
-    auto completionHandler = [this, callbackID] {
+    auto clearTasksHandler = WTF::CallbackAggregator::create([this, callbackID] {
         parentProcessConnection()->send(Messages::NetworkProcessProxy::DidDeleteWebsiteDataForOrigins(callbackID), 0);
-    };
+    });
 
-    if (websiteDataTypes.contains(WebsiteDataType::DiskCache) && !sessionID.isEphemeral()) {
-        clearDiskCacheEntries(origins, WTFMove(completionHandler));
-        return;
+    if (websiteDataTypes.contains(WebsiteDataType::DOMCache)) {
+        auto origins = WTF::map(originDatas, [] (auto& originData) {
+            return originData.securityOrigin()->toString();
+        });
+        CacheStorage::Engine::clearEnginesForOrigins(origins, [clearTasksHandler = clearTasksHandler.copyRef()] { });
     }
 
-    completionHandler();
+    if (websiteDataTypes.contains(WebsiteDataType::DiskCache) && !sessionID.isEphemeral())
+        clearDiskCacheEntries(originDatas, [clearTasksHandler = WTFMove(clearTasksHandler)] { });
 }
 
 void NetworkProcess::downloadRequest(PAL::SessionID sessionID, DownloadID downloadID, const ResourceRequest& request, const String& suggestedFilename)
@@ -544,13 +554,6 @@ void NetworkProcess::continueCanAuthenticateAgainstProtectionSpace(uint64_t load
 #endif
 
 #if USE(NETWORK_SESSION)
-#if USE(PROTECTION_SPACE_AUTH_CALLBACK)
-void NetworkProcess::continueCanAuthenticateAgainstProtectionSpaceDownload(DownloadID downloadID, bool canAuthenticate)
-{
-    downloadManager().continueCanAuthenticateAgainstProtectionSpace(downloadID, canAuthenticate);
-}
-#endif
-
 void NetworkProcess::continueWillSendRequest(DownloadID downloadID, WebCore::ResourceRequest&& request)
 {
     downloadManager().continueWillSendRequest(downloadID, WTFMove(request));
@@ -598,7 +601,7 @@ void NetworkProcess::setCacheModel(uint32_t cm)
     unsigned urlCacheMemoryCapacity = 0;
     uint64_t urlCacheDiskCapacity = 0;
     uint64_t diskFreeSize = 0;
-    if (WebCore::getVolumeFreeSpace(m_diskCacheDirectory, diskFreeSize)) {
+    if (WebCore::FileSystem::getVolumeFreeSpace(m_diskCacheDirectory, diskFreeSize)) {
         // As a fudge factor, use 1000 instead of 1024, in case the reported byte
         // count doesn't align exactly to a megabyte boundary.
         diskFreeSize /= KB * 1000;
@@ -608,12 +611,10 @@ void NetworkProcess::setCacheModel(uint32_t cm)
     if (m_diskCacheSizeOverride >= 0)
         urlCacheDiskCapacity = m_diskCacheSizeOverride;
 
-#if ENABLE(NETWORK_CACHE)
     if (m_cache) {
         m_cache->setCapacity(urlCacheDiskCapacity);
         return;
     }
-#endif
 
     platformSetURLCacheSize(urlCacheMemoryCapacity, urlCacheDiskCapacity);
 }
@@ -636,7 +637,7 @@ void NetworkProcess::getNetworkProcessStatistics(uint64_t callbackID)
 
 void NetworkProcess::setAllowsAnySSLCertificateForWebSocket(bool allows)
 {
-    Settings::setAllowsAnySSLCertificate(allows);
+    DeprecatedGlobalSettings::setAllowsAnySSLCertificate(allows);
 }
 
 void NetworkProcess::logDiagnosticMessage(uint64_t webPageID, const String& message, const String& description, ShouldSample shouldSample)

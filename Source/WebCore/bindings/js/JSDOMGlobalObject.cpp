@@ -45,9 +45,9 @@
 #include "WorkerGlobalScope.h"
 #include <builtins/BuiltinNames.h>
 
-using namespace JSC;
 
 namespace WebCore {
+using namespace JSC;
 
 EncodedJSValue JSC_HOST_CALL makeThisTypeErrorForBuiltins(ExecState*);
 EncodedJSValue JSC_HOST_CALL makeGetterTypeErrorForBuiltins(ExecState*);
@@ -65,9 +65,7 @@ JSDOMGlobalObject::JSDOMGlobalObject(VM& vm, Structure* structure, Ref<DOMWrappe
 {
 }
 
-JSDOMGlobalObject::~JSDOMGlobalObject()
-{
-}
+JSDOMGlobalObject::~JSDOMGlobalObject() = default;
 
 void JSDOMGlobalObject::destroy(JSCell* cell)
 {

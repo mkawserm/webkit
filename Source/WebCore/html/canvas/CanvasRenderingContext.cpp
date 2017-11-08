@@ -31,6 +31,7 @@
 #include "HTMLImageElement.h"
 #include "HTMLVideoElement.h"
 #include "Image.h"
+#include "ImageBitmap.h"
 #include "URL.h"
 #include "SecurityOrigin.h"
 
@@ -64,7 +65,7 @@ bool CanvasRenderingContext::wouldTaintOrigin(const HTMLImageElement* element)
     if (!cachedImage)
         return false;
 
-    auto* image = cachedImage->image();
+    auto image = makeRefPtr(cachedImage->image());
     if (!image)
         return false;
 
@@ -101,6 +102,14 @@ bool CanvasRenderingContext::wouldTaintOrigin(const HTMLVideoElement* video)
 #endif
 
     return false;
+}
+
+bool CanvasRenderingContext::wouldTaintOrigin(const ImageBitmap* imageBitmap)
+{
+    if (!imageBitmap || !canvas().originClean())
+        return false;
+
+    return !imageBitmap->originClean();
 }
 
 bool CanvasRenderingContext::wouldTaintOrigin(const URL& url)

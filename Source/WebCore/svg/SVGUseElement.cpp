@@ -31,6 +31,7 @@
 #include "ElementIterator.h"
 #include "Event.h"
 #include "EventNames.h"
+#include "NoEventDispatchAssertion.h"
 #include "RenderSVGResource.h"
 #include "RenderSVGTransformableContainer.h"
 #include "SVGDocumentExtensions.h"
@@ -103,20 +104,20 @@ void SVGUseElement::parseAttribute(const QualifiedName& name, const AtomicString
     SVGURIReference::parseAttribute(name, value);
 }
 
-Node::InsertionNotificationRequest SVGUseElement::insertedInto(ContainerNode& rootParent)
+Node::InsertedIntoAncestorResult SVGUseElement::insertedIntoAncestor(InsertionType insertionType, ContainerNode& parentOfInsertedTree)
 {
-    SVGGraphicsElement::insertedInto(rootParent);
-    if (isConnected()) {
+    SVGGraphicsElement::insertedIntoAncestor(insertionType, parentOfInsertedTree);
+    if (insertionType.connectedToDocument) {
         SVGExternalResourcesRequired::insertedIntoDocument(this);
         invalidateShadowTree();
         updateExternalDocument();
     }
-    return InsertionDone;
+    return InsertedIntoAncestorResult::Done;
 }
 
-void SVGUseElement::removedFrom(ContainerNode& rootParent)
+void SVGUseElement::removedFromAncestor(RemovalType removalType, ContainerNode& oldParentOfRemovedTree)
 {
-    SVGGraphicsElement::removedFrom(rootParent);
+    SVGGraphicsElement::removedFromAncestor(removalType, oldParentOfRemovedTree);
     clearShadowTree();
     updateExternalDocument();
 }
@@ -196,7 +197,7 @@ static HashSet<AtomicString> createAllowedElementSet()
     // Excluded are anything that is used by reference or that only make sense to appear once in a document.
     using namespace SVGNames;
     HashSet<AtomicString> set;
-    for (auto& tag : { aTag, circleTag, descTag, ellipseTag, gTag, imageTag, lineTag, metadataTag, pathTag, polygonTag, polylineTag, rectTag, svgTag, switchTag, symbolTag, textTag, textPathTag, titleTag, trefTag, tspanTag, useTag })
+    for (auto& tag : { aTag.get(), circleTag.get(), descTag.get(), ellipseTag.get(), gTag.get(), imageTag.get(), lineTag.get(), metadataTag.get(), pathTag.get(), polygonTag.get(), polylineTag.get(), rectTag.get(), svgTag.get(), switchTag.get(), symbolTag.get(), textTag.get(), textPathTag.get(), titleTag.get(), trefTag.get(), tspanTag.get(), useTag.get() })
         set.add(tag.localName());
     return set;
 }
@@ -214,8 +215,11 @@ static inline bool isDisallowedElement(const Element& element)
 
 void SVGUseElement::clearShadowTree()
 {
-    if (auto* root = userAgentShadowRoot())
+    if (auto root = userAgentShadowRoot()) {
+        // Safe because SVG use element's shadow tree is never used to fire synchronous events during layout or DOM mutations.
+        NoEventDispatchAssertion::EventAllowedScope scope(*root);
         root->removeChildren();
+    }
 }
 
 void SVGUseElement::buildPendingResource()
@@ -240,12 +244,17 @@ void SVGUseElement::updateShadowTree()
         return;
     }
 
-    cloneTarget(ensureUserAgentShadowRoot(), *target);
-    expandUseElementsInShadowTree();
-    expandSymbolElementsInShadowTree();
-    transferEventListenersToShadowTree();
+    {
+        // Safe because the cloned shadow tree has never been exposed to author scripts.
+        auto& shadowRoot = ensureUserAgentShadowRoot();
+        NoEventDispatchAssertion::EventAllowedScope scope(shadowRoot);
+        cloneTarget(shadowRoot, *target);
+        expandUseElementsInShadowTree();
+        expandSymbolElementsInShadowTree();
+        updateRelativeLengthsInformation();
+    }
 
-    updateRelativeLengthsInformation();
+    transferEventListenersToShadowTree();
 
     // When we invalidate the other shadow trees, it's important that we don't
     // follow any cycles and invalidate ourselves. To avoid that, we temporarily
@@ -259,7 +268,7 @@ void SVGUseElement::updateShadowTree()
 
 SVGElement* SVGUseElement::targetClone() const
 {
-    auto* root = userAgentShadowRoot();
+    auto root = userAgentShadowRoot();
     if (!root)
         return nullptr;
     return childrenOfType<SVGElement>(*root).first();
@@ -282,25 +291,24 @@ static bool isDirectReference(const SVGElement& element)
         || element.hasTagName(textTag);
 }
 
-void SVGUseElement::toClipPath(Path& path)
+Path SVGUseElement::toClipPath()
 {
-    ASSERT(path.isEmpty());
-
     auto* targetClone = this->targetClone();
     if (!is<SVGGraphicsElement>(targetClone))
-        return;
+        return { };
 
     if (!isDirectReference(*targetClone)) {
         // Spec: Indirect references are an error (14.3.5)
         document().accessSVGExtensions().reportError(ASCIILiteral("Not allowed to use indirect reference in <clip-path>"));
-        return;
+        return { };
     }
 
-    downcast<SVGGraphicsElement>(*targetClone).toClipPath(path);
+    Path path = downcast<SVGGraphicsElement>(*targetClone).toClipPath();
     SVGLengthContext lengthContext(this);
     // FIXME: Find a way to do this without manual resolution of x/y here. It's potentially incorrect.
     path.translate(FloatSize(x().value(lengthContext), y().value(lengthContext)));
     path.transform(animatedLocalTransform());
+    return path;
 }
 
 RenderElement* SVGUseElement::rendererClipChild() const
@@ -428,6 +436,8 @@ SVGElement* SVGUseElement::findTarget(String* targetID) const
 void SVGUseElement::cloneTarget(ContainerNode& container, SVGElement& target) const
 {
     Ref<SVGElement> targetClone = static_cast<SVGElement&>(target.cloneElementWithChildren(document()).get());
+    // Safe because the newy cloned nodes in the shadow tree has not been exposed to author scripts yet.
+    NoEventDispatchAssertion::EventAllowedScope scope(targetClone);
     associateClonesWithOriginals(targetClone.get(), target);
     removeDisallowedElementsFromSubtree(targetClone.get());
     removeSymbolElementsFromSubtree(targetClone.get());
@@ -460,6 +470,9 @@ void SVGUseElement::expandUseElementsInShadowTree() const
         // 'use' element except for x, y, width, height and xlink:href are transferred to the generated 'g' element.
 
         auto replacementClone = SVGGElement::create(document());
+        // Safe because the use element's shadow tree is not exposed to author scripts, and we don't fire synchronous events during layout & DOM layout.
+        NoEventDispatchAssertion::EventAllowedScope scope(replacementClone);
+
         cloneDataAndChildren(replacementClone.get(), originalClone);
 
         replacementClone->removeAttribute(SVGNames::xAttr);
@@ -493,6 +506,8 @@ void SVGUseElement::expandSymbolElementsInShadowTree() const
         // 'svg' element will use values of 100% for these attributes.
 
         auto replacementClone = SVGSVGElement::create(document());
+        // Safe because the newly created SVG element and the newly created shadow tree has not been exposed to author scripts yet.
+        NoEventDispatchAssertion::EventAllowedScope scope(replacementClone);
         cloneDataAndChildren(replacementClone.get(), originalClone);
 
         originalClone.parentNode()->replaceChild(replacementClone, originalClone);
@@ -504,6 +519,7 @@ void SVGUseElement::expandSymbolElementsInShadowTree() const
 
 void SVGUseElement::transferEventListenersToShadowTree() const
 {
+    // FIXME: Don't directly add event listeners on each descendant. Copy event listeners on the use element instead.
     for (auto& descendant : descendantsOfType<SVGElement>(*userAgentShadowRoot())) {
         if (EventTargetData* data = descendant.correspondingElement()->eventTargetData())
             data->eventListenerMap.copyEventListenersNotCreatedFromMarkupToTarget(&descendant);

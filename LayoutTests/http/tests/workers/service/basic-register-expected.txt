@@ -1,3 +1,9 @@
-CONSOLE MESSAGE: line 10: Registration failed with error: UnknownError: Script URL http://127.0.0.1:8000/workers/service/resources/empty-worker.js fetched with 41 characters, but we're not using the result yet
-CONSOLE MESSAGE: line 21: Registration failed with error: UnknownError: Script URL http://127.0.0.1:8000/workers/service/resources/empty-worker-doesnt-exist.js fetched with 0 characters, but we're not using the result yet
+PASS: No service worker is initially registered for this origin
+PASS: No service worker is initially registered for this origin in private session
+Registered!
+PASS: registration object's scope is valid
+PASS: registration object's updateViaCache is valid
+PASS: A service worker is now registered for this origin
+PASS: No service worker is registered for this origin in private session
+Registered!
 

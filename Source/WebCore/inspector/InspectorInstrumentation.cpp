@@ -38,7 +38,6 @@
 #include "Database.h"
 #include "DocumentLoader.h"
 #include "Event.h"
-#include "EventDispatcher.h"
 #include "InspectorApplicationCacheAgent.h"
 #include "InspectorCSSAgent.h"
 #include "InspectorCanvasAgent.h"
@@ -73,9 +72,9 @@
 #include <runtime/ConsoleTypes.h>
 #include <wtf/StdLibExtras.h>
 
-using namespace Inspector;
 
 namespace WebCore {
+using namespace Inspector;
 
 static const char* const requestAnimationFrameEventName = "requestAnimationFrame";
 static const char* const cancelAnimationFrameEventName = "cancelAnimationFrame";
@@ -327,7 +326,14 @@ void InspectorInstrumentation::willRemoveEventListenerImpl(InstrumentingAgents& 
     if (PageDebuggerAgent* pageDebuggerAgent = instrumentingAgents.pageDebuggerAgent())
         pageDebuggerAgent->willRemoveEventListener(target, eventType, listener, capture);
     if (InspectorDOMAgent* domAgent = instrumentingAgents.inspectorDOMAgent())
-        domAgent->willRemoveEventListener(target);
+        domAgent->willRemoveEventListener(target, eventType, listener, capture);
+}
+
+bool InspectorInstrumentation::isEventListenerDisabledImpl(InstrumentingAgents& instrumentingAgents, EventTarget& target, const AtomicString& eventType, EventListener& listener, bool capture)
+{
+    if (InspectorDOMAgent* domAgent = instrumentingAgents.inspectorDOMAgent())
+        return domAgent->isEventListenerDisabled(target, eventType, listener, capture);
+    return false;
 }
 
 void InspectorInstrumentation::didPostMessageImpl(InstrumentingAgents& instrumentingAgents, const TimerBase& timer, JSC::ExecState& state)
@@ -625,10 +631,8 @@ void InspectorInstrumentation::didFailLoadingImpl(InstrumentingAgents& instrumen
         consoleAgent->didFailLoading(identifier, error); // This should come AFTER resource notification, front-end relies on this.
 }
 
-void InspectorInstrumentation::didFinishXHRLoadingImpl(InstrumentingAgents& instrumentingAgents, unsigned long identifier, std::optional<String> decodedText, const String& url, const String& sendURL, unsigned sendLineNumber, unsigned sendColumnNumber)
+void InspectorInstrumentation::didFinishXHRLoadingImpl(InstrumentingAgents& instrumentingAgents, unsigned long identifier, std::optional<String> decodedText)
 {
-    if (WebConsoleAgent* consoleAgent = instrumentingAgents.webConsoleAgent())
-        consoleAgent->didFinishXHRLoading(identifier, url, sendURL, sendLineNumber, sendColumnNumber);
     if (InspectorNetworkAgent* networkAgent = instrumentingAgents.inspectorNetworkAgent()) {
         if (decodedText)
             networkAgent->didFinishXHRLoading(identifier, *decodedText);
@@ -1008,6 +1012,12 @@ void InspectorInstrumentation::didFinishRecordingCanvasFrameImpl(InstrumentingAg
 }
 
 #if ENABLE(WEBGL)
+void InspectorInstrumentation::didEnableExtensionImpl(InstrumentingAgents& instrumentingAgents, WebGLRenderingContextBase& context, const String& extension)
+{
+    if (InspectorCanvasAgent* canvasAgent = instrumentingAgents.inspectorCanvasAgent())
+        canvasAgent->didEnableExtension(context, extension);
+}
+
 void InspectorInstrumentation::didCreateProgramImpl(InstrumentingAgents& instrumentingAgents, WebGLRenderingContextBase& context, WebGLProgram& program)
 {
     if (InspectorCanvasAgent* canvasAgent = instrumentingAgents.inspectorCanvasAgent())

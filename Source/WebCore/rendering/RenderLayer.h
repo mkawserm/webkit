@@ -197,20 +197,18 @@ public:
 
     void panScrollFromPoint(const IntPoint&);
 
-    enum ScrollOffsetClamping {
-        ScrollOffsetUnclamped,
-        ScrollOffsetClamped
-    };
-
     // Scrolling methods for layers that can scroll their overflow.
-    void scrollByRecursively(const IntSize& delta, ScrollOffsetClamping = ScrollOffsetUnclamped, ScrollableArea** scrolledArea = nullptr);
+    void scrollByRecursively(const IntSize& delta, ScrollableArea** scrolledArea = nullptr);
 
-    WEBCORE_EXPORT void scrollToOffset(const ScrollOffset&, ScrollOffsetClamping = ScrollOffsetUnclamped);
-    void scrollToXOffset(int x, ScrollOffsetClamping clamp = ScrollOffsetUnclamped) { scrollToOffset(ScrollOffset(x, scrollOffset().y()), clamp); }
-    void scrollToYOffset(int y, ScrollOffsetClamping clamp = ScrollOffsetUnclamped) { scrollToOffset(ScrollOffset(scrollOffset().x(), y), clamp); }
+    WEBCORE_EXPORT void scrollToOffset(const ScrollOffset&, ScrollClamping = ScrollClamping::Clamped);
+    void scrollToXOffset(int x, ScrollClamping clamping = ScrollClamping::Clamped) { scrollToOffset(ScrollOffset(x, scrollOffset().y()), clamping); }
+    void scrollToYOffset(int y, ScrollClamping clamping = ScrollClamping::Clamped) { scrollToOffset(ScrollOffset(scrollOffset().x(), y), clamping); }
 
-    void scrollToXPosition(int x, ScrollOffsetClamping = ScrollOffsetUnclamped);
-    void scrollToYPosition(int y, ScrollOffsetClamping = ScrollOffsetUnclamped);
+    void scrollToXPosition(int x, ScrollClamping = ScrollClamping::Clamped);
+    void scrollToYPosition(int y, ScrollClamping = ScrollClamping::Clamped);
+
+    void setPostLayoutScrollPosition(std::optional<ScrollPosition>);
+    void applyPostLayoutScrollPositionIfNeeded();
 
     ScrollOffset scrollOffset() const { return scrollOffsetFromPosition(m_scrollPosition); }
     IntSize scrollableContentsSize() const;
@@ -246,9 +244,7 @@ public:
 #if PLATFORM(IOS)
 #if ENABLE(TOUCH_EVENTS)
     bool handleTouchEvent(const PlatformTouchEvent&) override;
-    bool isTouchScrollable() const override { return true; }
 #endif
-    bool isOverflowScroll() const override { return true; }
     
     void didStartScroll() override;
     void didEndScroll() override;
@@ -677,6 +673,8 @@ public:
     // The query rect is given in local coordinates.
     bool backgroundIsKnownToBeOpaqueInRect(const LayoutRect&) const;
 
+    bool scrollingMayRevealBackground() const;
+
     bool containsDirtyOverlayScrollbars() const { return m_containsDirtyOverlayScrollbars; }
     void setContainsDirtyOverlayScrollbars(bool dirtyScrollbars) { m_containsDirtyOverlayScrollbars = dirtyScrollbars; }
 
@@ -885,7 +883,6 @@ private:
     bool showsOverflowControls() const;
 
     bool shouldBeNormalFlowOnly() const;
-
     bool shouldBeSelfPaintingLayer() const;
 
     int scrollOffset(ScrollbarOrientation) const override;
@@ -978,7 +975,9 @@ private:
 
     void positionOverflowControls(const IntSize&);
     void updateScrollCornerStyle();
+    void clearScrollCorner();
     void updateResizerStyle();
+    void clearResizer();
 
     void drawPlatformResizerImage(GraphicsContext&, const LayoutRect& resizerCornerRect);
 
@@ -1120,6 +1119,7 @@ private:
     IntSize m_layerSize;
 
     ScrollPosition m_scrollPosition;
+    std::optional<ScrollPosition> m_postLayoutScrollPosition;
 
     // The width/height of our scrolled area.
     IntSize m_scrollSize;

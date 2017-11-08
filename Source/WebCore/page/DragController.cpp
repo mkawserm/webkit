@@ -506,7 +506,10 @@ bool DragController::dispatchTextInputEventFor(Frame* innerFrame, const DragData
     ASSERT(m_page.dragCaretController().hasCaret());
     String text = m_page.dragCaretController().isContentRichlyEditable() ? emptyString() : dragData.asPlainText();
     Element* target = innerFrame->editor().findEventTargetFrom(m_page.dragCaretController().caretPosition());
-    return target->dispatchEvent(TextEvent::createForDrop(innerFrame->document()->domWindow(), text));
+    // FIXME: What guarantees target is not null?
+    auto event = TextEvent::createForDrop(innerFrame->document()->domWindow(), text);
+    target->dispatchEvent(event);
+    return !event->defaultPrevented();
 }
 
 bool DragController::concludeEditDrag(const DragData& dragData)
@@ -535,6 +538,8 @@ bool DragController::concludeEditDrag(const DragData& dragData)
         if (!color.isValid())
             return false;
         RefPtr<Range> innerRange = innerFrame->selection().toNormalizedRange();
+        if (!innerRange)
+            return false;
         RefPtr<MutableStyleProperties> style = MutableStyleProperties::create();
         style->setProperty(CSSPropertyColor, color.serialized(), false);
         if (!innerFrame->editor().shouldApplyStyle(style.get(), innerRange.get()))

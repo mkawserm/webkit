@@ -60,9 +60,9 @@
 #include <wtf/text/StringBuilder.h>
 #include <wtf/text/TextPosition.h>
 
-using namespace Inspector;
 
 namespace WebCore {
+using namespace Inspector;
 
 static String consoleMessageForViolation(const char* effectiveViolatedDirective, const ContentSecurityPolicyDirective& violatedDirective, const URL& blockedURL, const char* prefix, const char* subject = "it")
 {
@@ -103,9 +103,7 @@ ContentSecurityPolicy::ContentSecurityPolicy(const SecurityOrigin& securityOrigi
     updateSourceSelf(securityOrigin);
 }
 
-ContentSecurityPolicy::~ContentSecurityPolicy()
-{
-}
+ContentSecurityPolicy::~ContentSecurityPolicy() = default;
 
 void ContentSecurityPolicy::copyStateFrom(const ContentSecurityPolicy* other) 
 {

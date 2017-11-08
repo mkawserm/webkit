@@ -566,6 +566,39 @@ TEST(WebKit, WebsitePoliciesUpdates)
     runUntilReceivesAutoplayEvent(kWKAutoplayEventDidPreventFromAutoplaying);
 }
 
+TEST(WebKit, WebsitePoliciesArbitraryUserGestureQuirk)
+{
+    auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+
+    auto delegate = adoptNS([[AutoplayPoliciesDelegate alloc] init]);
+    [webView setNavigationDelegate:delegate.get()];
+
+    WKRetainPtr<WKPreferencesRef> preferences(AdoptWK, WKPreferencesCreate());
+    WKPreferencesSetNeedsSiteSpecificQuirks(preferences.get(), true);
+    WKPageGroupSetPreferences(WKPageGetPageGroup([webView _pageForTesting]), preferences.get());
+
+    [delegate setAllowedAutoplayQuirksForURL:^_WKWebsiteAutoplayQuirk(NSURL *url)
+    {
+        return _WKWebsiteAutoplayQuirkArbitraryUserGestures;
+    }];
+    [delegate setAutoplayPolicyForURL:^(NSURL *)
+    {
+        return _WKWebsiteAutoplayPolicyDeny;
+    }];
+
+    NSURLRequest *request = [NSURLRequest requestWithURL:[[NSBundle mainBundle] URLForResource:@"autoplay-check" withExtension:@"html" subdirectory:@"TestWebKitAPI.resources"]];
+    [webView loadRequest:request];
+    [webView waitForMessage:@"did-not-play"];
+
+    const NSPoint clickPoint = NSMakePoint(760, 560);
+    [webView mouseDownAtPoint:clickPoint simulatePressure:NO];
+    [webView mouseUpAtPoint:clickPoint];
+
+    [webView stringByEvaluatingJavaScript:@"playVideo()"];
+    [webView waitForMessage:@"autoplayed"];
+}
+
 TEST(WebKit, WebsitePoliciesAutoplayQuirks)
 {
     auto configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
@@ -638,13 +671,14 @@ TEST(WebKit, InvalidCustomHeaders)
 static bool firstTestDone;
 static bool secondTestDone;
 static bool thirdTestDone;
+static bool fourthTestDone;
 
 static void expectHeaders(id <WKURLSchemeTask> task, bool expected)
 {
     NSURLRequest *request = task.request;
     if (expected) {
-        // FIXME: Check that headers are on the request.
-        // https://bugs.webkit.org/show_bug.cgi?id=177629
+        EXPECT_STREQ([[request valueForHTTPHeaderField:@"X-key1"] UTF8String], "value1");
+        EXPECT_STREQ([[request valueForHTTPHeaderField:@"X-key2"] UTF8String], "value2");
     } else {
         EXPECT_TRUE([request valueForHTTPHeaderField:@"X-key1"] == nil);
         EXPECT_TRUE([request valueForHTTPHeaderField:@"X-key2"] == nil);
@@ -667,7 +701,12 @@ static void respond(id <WKURLSchemeTask>task, NSString *html = nil)
 {
     _WKWebsitePolicies *websitePolicies = [[[_WKWebsitePolicies alloc] init] autorelease];
     [websitePolicies setCustomHeaderFields:@{@"X-key1": @"value1", @"X-key2": @"value2"}];
-    decisionHandler(WKNavigationActionPolicyAllow, websitePolicies);
+    if ([navigationAction.request.URL.path isEqualToString:@"/mainresource"]) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            decisionHandler(WKNavigationActionPolicyAllow, websitePolicies);
+        });
+    } else
+        decisionHandler(WKNavigationActionPolicyAllow, websitePolicies);
 }
 
 - (void)webView:(WKWebView *)webView startURLSchemeTask:(id <WKURLSchemeTask>)urlSchemeTask
@@ -706,6 +745,13 @@ static void respond(id <WKURLSchemeTask>task, NSString *html = nil)
         expectHeaders(urlSchemeTask, true);
         respond(urlSchemeTask);
         thirdTestDone = true;
+    } else if ([path isEqualToString:@"/createaboutblankiframe"]) {
+        expectHeaders(urlSchemeTask, true);
+        respond(urlSchemeTask, @"<script>start=()=>{var s = document.createElement('script');s.text=\"fetch('test:///requestfromaboutblank')\";document.getElementById('iframeid').contentWindow.document.body.appendChild(s);}</script><body><iframe src='about:blank' id=iframeid onload='start()'></iframe></body>");
+    } else if ([path isEqualToString:@"/requestfromaboutblank"]) {
+        expectHeaders(urlSchemeTask, true);
+        respond(urlSchemeTask);
+        fourthTestDone = true;
     } else
         EXPECT_TRUE(false);
 }
@@ -731,6 +777,12 @@ TEST(WebKit, CustomHeaderFields)
 
     [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"test://toporigin/nestedtop"]]];
     TestWebKitAPI::Util::run(&thirdTestDone);
+
+    [webView loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@"test:///createaboutblankiframe"]]];
+    TestWebKitAPI::Util::run(&fourthTestDone);
+    fourthTestDone = false;
+    [webView reload];
+    TestWebKitAPI::Util::run(&fourthTestDone);
 }
 
 

@@ -31,6 +31,7 @@
 #include "ResourceLoaderOptions.h"
 #include "ResourceRequest.h"
 #include "SecurityOrigin.h"
+#include "ServiceWorkerIdentifier.h"
 #include <wtf/RefPtr.h>
 #include <wtf/text/AtomicString.h>
 
@@ -68,6 +69,8 @@ public:
     bool ignoreForRequestCount() const { return m_ignoreForRequestCount; }
     void setIgnoreForRequestCount(bool ignoreForRequestCount) { m_ignoreForRequestCount = ignoreForRequestCount; }
 
+    void setDestinationIfNotSet(FetchOptions::Destination);
+
     void setAsPotentiallyCrossOrigin(const String&, Document&);
     void updateForAccessControl(Document&);
 
@@ -92,6 +95,10 @@ public:
     void clearFragmentIdentifier() { m_fragmentIdentifier = { }; }
 
     static String splitFragmentIdentifierFromRequestURL(ResourceRequest&);
+
+#if ENABLE(SERVICE_WORKER)
+    void setSelectedServiceWorkerIdentifierIfNeeded(ServiceWorkerIdentifier);
+#endif
 
 private:
     ResourceRequest m_resourceRequest;

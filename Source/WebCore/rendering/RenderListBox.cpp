@@ -32,6 +32,7 @@
 
 #include "AXObjectCache.h"
 #include "CSSFontSelector.h"
+#include "DeprecatedGlobalSettings.h"
 #include "Document.h"
 #include "DocumentEventQueue.h"
 #include "EventHandler.h"
@@ -45,6 +46,7 @@
 #include "HTMLOptGroupElement.h"
 #include "HTMLSelectElement.h"
 #include "HitTestResult.h"
+#include "LayoutState.h"
 #include "NodeRenderStyle.h"
 #include "Page.h"
 #include "PaintInfo.h"
@@ -62,11 +64,14 @@
 #include "StyleTreeResolver.h"
 #include "WheelEventTestTrigger.h"
 #include <math.h>
+#include <wtf/IsoMallocInlines.h>
 #include <wtf/StackStats.h>
 
 namespace WebCore {
 
 using namespace HTMLNames;
+
+WTF_MAKE_ISO_ALLOCATED_IMPL(RenderListBox);
  
 const int rowSpacing = 1;
 
@@ -182,7 +187,7 @@ void RenderListBox::layout()
     }
 
     if (m_scrollToRevealSelectionAfterLayout) {
-        LayoutStateDisabler layoutStateDisabler(view());
+        LayoutStateDisabler layoutStateDisabler(view().frameView().layoutContext());
         scrollToRevealSelection();
     }
 }
@@ -733,7 +738,7 @@ int RenderListBox::scrollLeft() const
     return 0;
 }
 
-void RenderListBox::setScrollLeft(int)
+void RenderListBox::setScrollLeft(int, ScrollClamping)
 {
 }
 
@@ -750,7 +755,7 @@ static void setupWheelEventTestTrigger(RenderListBox& renderer)
     renderer.scrollAnimator().setWheelEventTestTrigger(renderer.page().testTrigger());
 }
 
-void RenderListBox::setScrollTop(int newTop)
+void RenderListBox::setScrollTop(int newTop, ScrollClamping)
 {
     // Determine an index and scroll to it.    
     int index = newTop / itemHeight();
@@ -890,7 +895,7 @@ IntRect RenderListBox::scrollableAreaBoundingBox(bool*) const
 
 bool RenderListBox::usesMockScrollAnimator() const
 {
-    return Settings::usesMockScrollAnimator();
+    return DeprecatedGlobalSettings::usesMockScrollAnimator();
 }
 
 void RenderListBox::logMockScrollAnimatorMessage(const String& message) const

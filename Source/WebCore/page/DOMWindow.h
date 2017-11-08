@@ -31,7 +31,9 @@
 #include "EventTarget.h"
 #include "ExceptionOr.h"
 #include "FrameDestructionObserver.h"
+#include "ImageBitmap.h"
 #include "ScrollToOptions.h"
+#include "ScrollTypes.h"
 #include "Supplementable.h"
 #include <heap/HandleTypes.h>
 #include <wtf/Function.h>
@@ -78,6 +80,7 @@ class StyleMedia;
 class WebKitNamespace;
 class WebKitPoint;
 
+struct ImageBitmapOptions;
 struct WindowFeatures;
 
 enum SetLocationLocking { LockHistoryBasedOnGestureState, LockHistoryAndBackForwardList };
@@ -134,6 +137,7 @@ public:
     BarProp* statusbar() const;
     BarProp* toolbar() const;
     Navigator* navigator() const;
+    Navigator* optionalNavigator() const { return m_navigator.get(); }
     Navigator* clientInformation() const { return navigator(); }
 
     Location* location() const;
@@ -230,8 +234,8 @@ public:
 
     void scrollBy(const ScrollToOptions&) const;
     void scrollBy(double x, double y) const;
-    void scrollTo(const ScrollToOptions&) const;
-    void scrollTo(double x, double y) const;
+    void scrollTo(const ScrollToOptions&, ScrollClamping = ScrollClamping::Clamped) const;
+    void scrollTo(double x, double y, ScrollClamping = ScrollClamping::Clamped) const;
 
     void moveBy(float x, float y) const;
     void moveTo(float x, float y) const;
@@ -249,6 +253,10 @@ public:
     int webkitRequestAnimationFrame(Ref<RequestAnimationFrameCallback>&&);
     void cancelAnimationFrame(int id);
 
+    // ImageBitmap
+    void createImageBitmap(ImageBitmap::Source&&, ImageBitmapOptions&&, ImageBitmap::Promise&&);
+    void createImageBitmap(ImageBitmap::Source&&, int sx, int sy, int sw, int sh, ImageBitmapOptions&&, ImageBitmap::Promise&&);
+
     // Secure Contexts
     bool isSecureContext() const;
 
@@ -259,7 +267,7 @@ public:
     void removeAllEventListeners() final;
 
     using EventTarget::dispatchEvent;
-    bool dispatchEvent(Event&, EventTarget*);
+    void dispatchEvent(Event&, EventTarget*);
 
     void dispatchLoadEvent();
 

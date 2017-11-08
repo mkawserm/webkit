@@ -40,13 +40,9 @@
 
 namespace WebCore {
 
-ScrollView::ScrollView()
-{
-}
+ScrollView::ScrollView() = default;
 
-ScrollView::~ScrollView()
-{
-}
+ScrollView::~ScrollView() = default;
 
 void ScrollView::addChild(Widget& child)
 {
@@ -611,7 +607,7 @@ void ScrollView::updateScrollbars(const ScrollPosition& desiredPosition)
 
         bool needAnotherPass = false;
         if (!hasOverlayScrollbars) {
-            // If we ever turn one scrollbar off, always turn the other one off too.  Never ever
+            // If we ever turn one scrollbar off, do not turn the other one on. Never ever
             // try to both gain/lose a scrollbar in the same pass.
             if (!m_updateScrollbarsPass && docSize.width() <= fullVisibleSize.width() && docSize.height() <= fullVisibleSize.height()) {
                 if (hScroll == ScrollbarAuto)
@@ -619,11 +615,11 @@ void ScrollView::updateScrollbars(const ScrollPosition& desiredPosition)
                 if (vScroll == ScrollbarAuto)
                     newHasVerticalScrollbar = false;
             }
-            if (!newHasHorizontalScrollbar && hasHorizontalScrollbar && vScroll != ScrollbarAlwaysOn) {
+            if (!newHasHorizontalScrollbar && hasHorizontalScrollbar && vScroll != ScrollbarAlwaysOn && !hasVerticalScrollbar) {
                 newHasVerticalScrollbar = false;
                 needAnotherPass = true;
             }
-            if (!newHasVerticalScrollbar && hasVerticalScrollbar && hScroll != ScrollbarAlwaysOn) {
+            if (!newHasVerticalScrollbar && hasVerticalScrollbar && hScroll != ScrollbarAlwaysOn && !hasHorizontalScrollbar) {
                 newHasHorizontalScrollbar = false;
                 needAnotherPass = true;
             }

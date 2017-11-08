@@ -379,7 +379,8 @@ WI.Color = class Color
             return this._toKeywordString();
         }
 
-        throw "invalid color format";
+        console.error("Invalid color format: " + format);
+        return "";
     }
 
     isKeyword()
@@ -637,6 +638,13 @@ WI.Color.Format = {
     HSL: "color-format-hsl",
     HSLA: "color-format-hsla"
 };
+
+WI.Color.FunctionNames = new Set([
+    "rgb",
+    "rgba",
+    "hsl",
+    "hsla",
+]);
 
 WI.Color.Keywords = {
     "aliceblue": [240, 248, 255],

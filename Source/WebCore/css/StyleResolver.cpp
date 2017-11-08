@@ -231,6 +231,7 @@ StyleResolver::StyleResolver(Document& document)
         m_mediaQueryEvaluator = MediaQueryEvaluator { view->mediaType(), m_document, m_rootDefaultStyle.get() };
 
     m_ruleSets.resetAuthorStyle();
+    m_ruleSets.resetUserAgentMediaQueryStyle();
 }
 
 void StyleResolver::addCurrentSVGFontFaceRules()
@@ -751,23 +752,23 @@ static bool hasEffectiveDisplayNoneForDisplayContents(const Element& element)
     // https://drafts.csswg.org/css-display-3/#unbox-html
     static NeverDestroyed<HashSet<AtomicString>> tagNames = [] {
         static const HTMLQualifiedName* const tagList[] = {
-            &brTag,
-            &wbrTag,
-            &meterTag,
-            &appletTag,
-            &progressTag,
-            &canvasTag,
-            &embedTag,
-            &objectTag,
-            &audioTag,
-            &iframeTag,
-            &imgTag,
-            &videoTag,
-            &frameTag,
-            &framesetTag,
-            &inputTag,
-            &textareaTag,
-            &selectTag,
+            &brTag.get(),
+            &wbrTag.get(),
+            &meterTag.get(),
+            &appletTag.get(),
+            &progressTag.get(),
+            &canvasTag.get(),
+            &embedTag.get(),
+            &objectTag.get(),
+            &audioTag.get(),
+            &iframeTag.get(),
+            &imgTag.get(),
+            &videoTag.get(),
+            &frameTag.get(),
+            &framesetTag.get(),
+            &inputTag.get(),
+            &textareaTag.get(),
+            &selectTag.get(),
         };
         HashSet<AtomicString> set;
         for (auto& name : tagList)
@@ -789,6 +790,26 @@ static bool hasEffectiveDisplayNoneForDisplayContents(const Element& element)
     return tagNames.get().contains(element.localName());
 }
 
+static void adjustDisplayContentsStyle(RenderStyle& style, const Element* element)
+{
+    bool displayContentsEnabled = is<HTMLSlotElement>(element) || RuntimeEnabledFeatures::sharedFeatures().displayContentsEnabled();
+    if (!displayContentsEnabled) {
+        style.setDisplay(INLINE);
+        return;
+    }
+    if (!element) {
+        if (style.styleType() != BEFORE && style.styleType() != AFTER)
+            style.setDisplay(NONE);
+        return;
+    }
+    if (element->document().documentElement() == element) {
+        style.setDisplay(BLOCK);
+        return;
+    }
+    if (hasEffectiveDisplayNoneForDisplayContents(*element))
+        style.setDisplay(NONE);
+}
+
 void StyleResolver::adjustRenderStyle(RenderStyle& style, const RenderStyle& parentStyle, const RenderStyle* parentBoxStyle, const Element* element)
 {
     // If the composed tree parent has display:contents, the parent box style will be different from the parent style.
@@ -799,13 +820,8 @@ void StyleResolver::adjustRenderStyle(RenderStyle& style, const RenderStyle& par
     // Cache our original display.
     style.setOriginalDisplay(style.display());
 
-    if (style.display() == CONTENTS) {
-        bool elementSupportsDisplayContents = is<HTMLSlotElement>(element) || RuntimeEnabledFeatures::sharedFeatures().displayContentsEnabled();
-        if (!elementSupportsDisplayContents)
-            style.setDisplay(INLINE);
-        else if (!element || hasEffectiveDisplayNoneForDisplayContents(*element))
-            style.setDisplay(NONE);
-    }
+    if (style.display() == CONTENTS)
+        adjustDisplayContentsStyle(style, element);
 
     if (style.display() != NONE && style.display() != CONTENTS) {
         if (element) {
@@ -1906,7 +1922,7 @@ bool StyleResolver::createFilterOperations(const CSSValue& inValue, FilterOperat
     FilterOperations operations;
     for (auto& currentValue : downcast<CSSValueList>(inValue)) {
 
-        if (is<CSSPrimitiveValue>(currentValue.get())) {
+        if (is<CSSPrimitiveValue>(currentValue)) {
             auto& primitiveValue = downcast<CSSPrimitiveValue>(currentValue.get());
             if (!primitiveValue.isURI())
                 continue;
@@ -1919,7 +1935,7 @@ bool StyleResolver::createFilterOperations(const CSSValue& inValue, FilterOperat
             continue;
         }
 
-        if (!is<CSSFunctionValue>(currentValue.get()))
+        if (!is<CSSFunctionValue>(currentValue))
             continue;
 
         auto& filterValue = downcast<CSSFunctionValue>(currentValue.get());
@@ -2018,13 +2034,9 @@ bool StyleResolver::createFilterOperations(const CSSValue& inValue, FilterOperat
     return true;
 }
 
-inline StyleResolver::MatchedProperties::MatchedProperties()
-{
-}
+inline StyleResolver::MatchedProperties::MatchedProperties() = default;
 
-StyleResolver::MatchedProperties::~MatchedProperties()
-{
-}
+StyleResolver::MatchedProperties::~MatchedProperties() = default;
 
 StyleResolver::CascadedProperties::CascadedProperties(TextDirection direction, WritingMode writingMode)
     : m_direction(direction)

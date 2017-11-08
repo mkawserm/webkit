@@ -28,6 +28,7 @@
 
 #import "ArchiveResource.h"
 #import "Blob.h"
+#import "BlobURL.h"
 #import "CachedResourceLoader.h"
 #import "DOMURL.h"
 #import "Document.h"
@@ -37,10 +38,14 @@
 #import "FrameLoader.h"
 #import "FrameLoaderClient.h"
 #import "HTMLBodyElement.h"
+#import "HTMLIframeElement.h"
 #import "HTMLImageElement.h"
 #import "LegacyWebArchive.h"
+#import "MainFrame.h"
 #import "Page.h"
+#import "PublicURLManager.h"
 #import "Settings.h"
+#import "SocketProvider.h"
 #import "WebArchiveResourceFromNSAttributedString.h"
 #import "WebArchiveResourceWebResourceHandler.h"
 #import "WebNSAttributedStringExtras.h"
@@ -179,42 +184,129 @@ RefPtr<DocumentFragment> createFragmentAndAddResources(Frame& frame, NSAttribute
     return WTFMove(fragmentAndResources.fragment);
 }
 
-bool WebContentReader::readWebArchive(SharedBuffer* buffer)
+struct MarkupAndArchive {
+    String markup;
+    Ref<ArchiveResource> mainResource;
+    Ref<Archive> archive;
+};
+
+static std::optional<MarkupAndArchive> extractMarkupAndArchive(SharedBuffer& buffer, const std::function<bool(const String)>& canShowMIMETypeAsHTML)
 {
-    if (frame.settings().preferMIMETypeForImages())
-        return false;
-
-    if (!frame.document())
-        return false;
-
-    if (!buffer)
-        return false;
-
-    auto archive = LegacyWebArchive::create(URL(), *buffer);
+    auto archive = LegacyWebArchive::create(URL(), buffer);
     if (!archive)
-        return false;
+        return std::nullopt;
 
     RefPtr<ArchiveResource> mainResource = archive->mainResource();
     if (!mainResource)
-        return false;
+        return std::nullopt;
 
     auto type = mainResource->mimeType();
-    if (!frame.loader().client().canShowMIMETypeAsHTML(type))
+    if (!canShowMIMETypeAsHTML(type))
+        return std::nullopt;
+
+    return MarkupAndArchive { String::fromUTF8(mainResource->data().data(), mainResource->data().size()), mainResource.releaseNonNull(), archive.releaseNonNull() };
+}
+
+static String sanitizeMarkupWithArchive(Document& destinationDocument, MarkupAndArchive& markupAndArchive, const std::function<bool(const String)>& canShowMIMETypeAsHTML)
+{
+    auto page = createPageForSanitizingWebContent();
+    Document* stagingDocument = page->mainFrame().document();
+    ASSERT(stagingDocument);
+    auto fragment = createFragmentFromMarkup(*stagingDocument, markupAndArchive.markup, markupAndArchive.mainResource->url(), DisallowScriptingAndPluginContent);
+
+    HashMap<AtomicString, AtomicString> blobURLMap;
+    for (const Ref<ArchiveResource>& subresource : markupAndArchive.archive->subresources()) {
+        auto blob = Blob::create(subresource->data(), subresource->mimeType());
+        String blobURL = DOMURL::createObjectURL(destinationDocument, blob);
+        blobURLMap.set(subresource->url().string(), blobURL);
+    }
+
+    auto contentOrigin = SecurityOrigin::create(markupAndArchive.mainResource->url());
+    for (const Ref<Archive>& subframeArchive : markupAndArchive.archive->subframeArchives()) {
+        RefPtr<ArchiveResource> subframeMainResource = subframeArchive->mainResource();
+        if (!subframeMainResource)
+            continue;
+
+        auto type = subframeMainResource->mimeType();
+        if (!canShowMIMETypeAsHTML(type))
+            continue;
+
+        auto subframeURL = subframeMainResource->url();
+        MarkupAndArchive subframeContent = { String::fromUTF8(subframeMainResource->data().data(), subframeMainResource->data().size()),
+            subframeMainResource.releaseNonNull(), subframeArchive.copyRef() };
+        auto subframeMarkup = sanitizeMarkupWithArchive(destinationDocument, subframeContent, canShowMIMETypeAsHTML);
+
+        CString utf8 = subframeMarkup.utf8();
+        Vector<uint8_t> blobBuffer;
+        blobBuffer.reserveCapacity(utf8.length());
+        blobBuffer.append(reinterpret_cast<const uint8_t*>(utf8.data()), utf8.length());
+        auto blob = Blob::create(WTFMove(blobBuffer), type);
+
+        String subframeBlobURL = DOMURL::createObjectURL(destinationDocument, blob);
+        blobURLMap.set(subframeURL.string(), subframeBlobURL);
+    }
+
+    replaceSubresourceURLs(fragment.get(), WTFMove(blobURLMap));
+
+    auto* bodyElement = stagingDocument->body();
+    ASSERT(bodyElement);
+    bodyElement->appendChild(fragment);
+
+    auto range = Range::create(*stagingDocument);
+    range->selectNodeContents(*bodyElement);
+    return createMarkup(range.get(), nullptr, AnnotateForInterchange, false, ResolveNonLocalURLs);
+}
+
+bool WebContentReader::readWebArchive(SharedBuffer& buffer)
+{
+    if (frame.settings().preferMIMETypeForImages() || !frame.document())
         return false;
 
-    // FIXME: The code in createFragmentAndAddResources calls setDefersLoading(true). Don't we need that here?
-    if (DocumentLoader* loader = frame.loader().documentLoader())
-        loader->addAllArchiveResources(*archive);
+    DeferredLoadingScope scope(frame);
+    auto result = extractMarkupAndArchive(buffer, [&] (const String& type) {
+        return frame.loader().client().canShowMIMETypeAsHTML(type);
+    });
+    if (!result)
+        return false;
 
-    auto markupString = String::fromUTF8(mainResource->data().data(), mainResource->data().size());
-    addFragment(createFragmentFromMarkup(*frame.document(), markupString, mainResource->url(), DisallowScriptingAndPluginContent));
+    if (!shouldSanitize()) {
+        fragment = createFragmentFromMarkup(*frame.document(), result->markup, result->mainResource->url(), DisallowScriptingAndPluginContent);
+        return true;
+    }
+
+    String sanitizedMarkup = sanitizeMarkupWithArchive(*frame.document(), *result, [&] (const String& type) {
+        return frame.loader().client().canShowMIMETypeAsHTML(type);
+    });
+    fragment = createFragmentFromMarkup(*frame.document(), sanitizedMarkup, blankURL(), DisallowScriptingAndPluginContent);
+
     return true;
 }
 
-bool WebContentReader::readHTML(const String& string)
+bool WebContentMarkupReader::readWebArchive(SharedBuffer& buffer)
 {
-    String stringOmittingMicrosoftPrefix = string;
-    
+    if (!frame.document())
+        return false;
+
+    auto result = extractMarkupAndArchive(buffer, [&] (const String& type) {
+        return frame.loader().client().canShowMIMETypeAsHTML(type);
+    });
+    if (!result)
+        return false;
+
+    if (!shouldSanitize()) {
+        markup = result->markup;
+        return true;
+    }
+
+    markup = sanitizeMarkupWithArchive(*frame.document(), *result, [&] (const String& type) {
+        return frame.loader().client().canShowMIMETypeAsHTML(type);
+    });
+
+    return true;
+}
+
+static String stripMicrosoftPrefix(const String& string)
+{
 #if PLATFORM(MAC)
     // This code was added to make HTML paste from Microsoft Word on Mac work, back in 2004.
     // It's a simple-minded way to ignore the CF_HTML clipboard format, just skipping over the
@@ -222,24 +314,43 @@ bool WebContentReader::readHTML(const String& string)
     if (string.startsWith("Version:")) {
         size_t location = string.findIgnoringCase("<html");
         if (location != notFound)
-            stringOmittingMicrosoftPrefix = string.substring(location);
+            return string.substring(location);
     }
 #endif
+    return string;
+}
 
-    if (stringOmittingMicrosoftPrefix.isEmpty())
-        return false;
-
-    if (!frame.document())
+bool WebContentReader::readHTML(const String& string)
+{
+    if (frame.settings().preferMIMETypeForImages() || !frame.document())
         return false;
     Document& document = *frame.document();
+
+    String stringOmittingMicrosoftPrefix = stripMicrosoftPrefix(string);
+    if (stringOmittingMicrosoftPrefix.isEmpty())
+        return false;
 
     addFragment(createFragmentFromMarkup(document, stringOmittingMicrosoftPrefix, emptyString(), DisallowScriptingAndPluginContent));
     return true;
 }
 
+bool WebContentMarkupReader::readHTML(const String& string)
+{
+    if (!frame.document())
+        return false;
+
+    String rawHTML = stripMicrosoftPrefix(string);
+    if (shouldSanitize())
+        markup = sanitizeMarkup(rawHTML);
+    else
+        markup = rawHTML;
+
+    return !markup.isEmpty();
+}
+
 bool WebContentReader::readRTFD(SharedBuffer& buffer)
 {
-    if (frame.settings().preferMIMETypeForImages())
+    if (frame.settings().preferMIMETypeForImages() || !frame.document())
         return false;
 
     auto fragment = createFragmentAndAddResources(frame, adoptNS([[NSAttributedString alloc] initWithRTFD:buffer.createNSData().get() documentAttributes:nullptr]).get());
@@ -247,6 +358,15 @@ bool WebContentReader::readRTFD(SharedBuffer& buffer)
         return false;
     addFragment(fragment.releaseNonNull());
 
+    return true;
+}
+
+bool WebContentMarkupReader::readRTFD(SharedBuffer& buffer)
+{
+    if (!frame.document())
+        return false;
+    auto fragment = createFragmentAndAddResources(frame, adoptNS([[NSAttributedString alloc] initWithRTFD:buffer.createNSData().get() documentAttributes:nullptr]).get());
+    markup = createMarkup(*fragment);
     return true;
 }
 
@@ -260,6 +380,17 @@ bool WebContentReader::readRTF(SharedBuffer& buffer)
         return false;
     addFragment(fragment.releaseNonNull());
 
+    return true;
+}
+
+bool WebContentMarkupReader::readRTF(SharedBuffer& buffer)
+{
+    if (!frame.document())
+        return false;
+    auto fragment = createFragmentAndAddResources(frame, adoptNS([[NSAttributedString alloc] initWithRTF:buffer.createNSData().get() documentAttributes:nullptr]).get());
+    if (!fragment)
+        return false;
+    markup = createMarkup(*fragment);
     return true;
 }
 

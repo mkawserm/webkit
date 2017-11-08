@@ -32,18 +32,16 @@
 #include <inspector/ScriptCallStack.h>
 #include <inspector/ScriptCallStackFactory.h>
 
-using namespace Inspector;
 
 namespace WebCore {
+using namespace Inspector;
 
 WorkerConsoleClient::WorkerConsoleClient(WorkerGlobalScope& workerGlobalScope)
     : m_workerGlobalScope(workerGlobalScope)
 {
 }
 
-WorkerConsoleClient::~WorkerConsoleClient()
-{
-}
+WorkerConsoleClient::~WorkerConsoleClient() = default;
 
 void WorkerConsoleClient::messageWithTypeAndLevel(MessageType type, MessageLevel level, JSC::ExecState* exec, Ref<Inspector::ScriptArguments>&& arguments)
 {

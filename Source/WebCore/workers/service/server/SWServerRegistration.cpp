@@ -28,88 +28,29 @@
 
 #if ENABLE(SERVICE_WORKER)
 
-#include "ExceptionData.h"
 #include "SWServer.h"
 #include "SWServerWorker.h"
-#include "SecurityOrigin.h"
-#include "ServiceWorkerFetchResult.h"
-#include "ServiceWorkerRegistrationData.h"
-#include "WorkerType.h"
+#include "ServiceWorkerTypes.h"
+#include "ServiceWorkerUpdateViaCache.h"
 
 namespace WebCore {
 
-SWServerRegistration::SWServerRegistration(SWServer& server, const ServiceWorkerRegistrationKey& key)
-    : m_jobTimer(*this, &SWServerRegistration::startNextJob)
+SWServerRegistration::SWServerRegistration(SWServer& server, const ServiceWorkerRegistrationKey& key, ServiceWorkerUpdateViaCache updateViaCache, const URL& scopeURL, const URL& scriptURL)
+    : m_registrationKey(key)
+    , m_updateViaCache(updateViaCache)
+    , m_scopeURL(scopeURL)
+    , m_scriptURL(scriptURL)
     , m_server(server)
-    , m_registrationKey(key)
 {
+    m_scopeURL.removeFragmentIdentifier();
 }
 
 SWServerRegistration::~SWServerRegistration()
 {
-    ASSERT(m_jobQueue.isEmpty());
-}
-
-void SWServerRegistration::enqueueJob(const ServiceWorkerJobData& jobData)
-{
-    // FIXME: Per the spec, check if this job is equivalent to the last job on the queue.
-    // If it is, stack it along with that job.
-
-    m_jobQueue.append(jobData);
-
-    if (m_currentJob)
-        return;
-
-    if (!m_jobTimer.isActive())
-        m_jobTimer.startOneShot(0_s);
-}
-
-void SWServerRegistration::scriptFetchFinished(const ServiceWorkerFetchResult& result)
-{
-    ASSERT(m_currentJob && m_currentJob->identifier() == result.jobIdentifier);
-
-    // FIXME: We fetched the script contents but don't do anything with them yet.
-    // These errors are for testing the current state of the feature.
-
-    String message;
-    if (result.scriptError.isNull())
-        message = makeString("Script URL ", m_currentJob->scriptURL.string(), " fetched with ", String::number(result.script.length()), " characters, but we're not using the result yet");
-    else
-        message = makeString("Script URL ", m_currentJob->scriptURL.string(), " fetch resulted in error: ", result.scriptError.localizedDescription());
-
-    rejectCurrentJob(ExceptionData { UnknownError, message });
-}
-
-void SWServerRegistration::startNextJob()
-{
-    ASSERT(isMainThread());
-    ASSERT(!m_currentJob);
-    ASSERT(!m_jobQueue.isEmpty());
-
-    m_currentJob = std::make_unique<ServiceWorkerJobData>(m_jobQueue.takeFirst().isolatedCopy());
-
-    switch (m_currentJob->type) {
-    case ServiceWorkerJobType::Register:
-        m_server.postTask(createCrossThreadTask(*this, &SWServerRegistration::runRegisterJob, *m_currentJob));
-        return;
-    }
-
-    RELEASE_ASSERT_NOT_REACHED();
-}
-
-bool SWServerRegistration::isEmpty()
-{
-    ASSERT(!isMainThread());
-
-    // Having or not-having an m_updateViaCache flag is currently
-    // the signal as to whether or not this is an empty (i.e. "new") registration.
-    // There will be a more explicit signal in the near future.
-    return !m_updateViaCache;
 }
 
 SWServerWorker* SWServerRegistration::getNewestWorker()
 {
-    ASSERT(!isMainThread());
     if (m_installingWorker)
         return m_installingWorker.get();
     if (m_waitingWorker)
@@ -118,120 +59,111 @@ SWServerWorker* SWServerRegistration::getNewestWorker()
     return m_activeWorker.get();
 }
 
-void SWServerRegistration::runRegisterJob(const ServiceWorkerJobData& job)
+void SWServerRegistration::updateRegistrationState(ServiceWorkerRegistrationState state, SWServerWorker* worker)
 {
-    ASSERT(!isMainThread());
-    ASSERT(job.type == ServiceWorkerJobType::Register);
+    LOG(ServiceWorker, "(%p) Updating registration state to %i with worker %p", this, (int)state, worker);
+    
+    switch (state) {
+    case ServiceWorkerRegistrationState::Installing:
+        m_installingWorker = worker;
+        break;
+    case ServiceWorkerRegistrationState::Waiting:
+        m_waitingWorker = worker;
+        break;
+    case ServiceWorkerRegistrationState::Active:
+        m_activeWorker = worker;
+        break;
+    };
 
-    if (!shouldTreatAsPotentiallyTrustworthy(job.scriptURL))
-        return rejectWithExceptionOnMainThread(ExceptionData { SecurityError, ASCIILiteral("Script URL is not potentially trustworthy") });
+    std::optional<ServiceWorkerIdentifier> serviceWorkerIdentifier;
+    if (worker)
+        serviceWorkerIdentifier = worker->identifier();
 
-    // If the origin of job’s script url is not job’s referrer's origin, then:
-    if (!protocolHostAndPortAreEqual(job.scriptURL, job.clientCreationURL))
-        return rejectWithExceptionOnMainThread(ExceptionData { SecurityError, ASCIILiteral("Script origin does not match the registering client's origin") });
-
-    // If the origin of job’s scope url is not job’s referrer's origin, then:
-    if (!protocolHostAndPortAreEqual(job.scopeURL, job.clientCreationURL))
-        return rejectWithExceptionOnMainThread(ExceptionData { SecurityError, ASCIILiteral("Scope origin does not match the registering client's origin") });
-
-    // If registration is not null (in our parlance "empty"), then:
-    if (!isEmpty()) {
-        ASSERT(m_updateViaCache);
-
-        m_uninstalling = false;
-        auto* newestWorker = getNewestWorker();
-        if (newestWorker && equalIgnoringFragmentIdentifier(job.scriptURL, newestWorker->scriptURL()) && job.registrationOptions.updateViaCache == *m_updateViaCache) {
-            resolveWithRegistrationOnMainThread();
-            return;
-        }
-    } else {
-        m_scopeURL = job.scopeURL.isolatedCopy();
-        m_scopeURL.removeFragmentIdentifier();
-        m_updateViaCache = job.registrationOptions.updateViaCache;
+    for (auto& connectionIdentifierWithClients : m_clientRegistrationsByConnection.keys()) {
+        if (auto* connection = m_server.getConnection(connectionIdentifierWithClients))
+            connection->updateRegistrationStateInClient(m_registrationKey, state, serviceWorkerIdentifier);
     }
-
-    runUpdateJob(job);
 }
 
-void SWServerRegistration::runUpdateJob(const ServiceWorkerJobData& job)
+void SWServerRegistration::updateWorkerState(SWServerWorker& worker, ServiceWorkerState state)
 {
-    // If registration is null (in our parlance "empty") or registration’s uninstalling flag is set, then:
-    if (isEmpty())
-        return rejectWithExceptionOnMainThread(ExceptionData { TypeError, ASCIILiteral("Cannot update a null/nonexistent service worker registration") });
-    if (m_uninstalling)
-        return rejectWithExceptionOnMainThread(ExceptionData { TypeError, ASCIILiteral("Cannot update a service worker registration that is uninstalling") });
+    LOG(ServiceWorker, "Updating worker %p state to %i (%p)", &worker, (int)state, this);
 
-    // If job’s job type is update, and newestWorker’s script url does not equal job’s script url with the exclude fragments flag set, then:
-    auto* newestWorker = getNewestWorker();
-    if (newestWorker && !equalIgnoringFragmentIdentifier(job.scriptURL, newestWorker->scriptURL()))
-        return rejectWithExceptionOnMainThread(ExceptionData { TypeError, ASCIILiteral("Cannot update a service worker with a requested script URL whose newest worker has a different script URL") });
+    worker.setState(state);
 
-    startScriptFetchFromMainThread();
+    for (auto& connectionIdentifierWithClients : m_clientRegistrationsByConnection.keys()) {
+        if (auto* connection = m_server.getConnection(connectionIdentifierWithClients))
+            connection->updateWorkerStateInClient(worker.identifier(), state);
+    }
 }
 
-void SWServerRegistration::rejectWithExceptionOnMainThread(const ExceptionData& exception)
+void SWServerRegistration::fireUpdateFoundEvent(uint64_t connectionIdentifier)
 {
-    ASSERT(!isMainThread());
-    m_server.postTaskReply(createCrossThreadTask(*this, &SWServerRegistration::rejectCurrentJob, exception));
+    // No matter what, we send the event to the connection that scheduled the job. The client registration
+    // may not have gotten a chance to register itself yet.
+    if (auto* connection = m_server.getConnection(connectionIdentifier))
+        connection->fireUpdateFoundEvent(m_registrationKey);
+
+    for (auto& connectionIdentifierWithClients : m_clientRegistrationsByConnection.keys()) {
+        if (connectionIdentifierWithClients == connectionIdentifier)
+            continue;
+
+        if (auto* connection = m_server.getConnection(connectionIdentifierWithClients))
+            connection->fireUpdateFoundEvent(m_registrationKey);
+    }
 }
 
-void SWServerRegistration::resolveWithRegistrationOnMainThread()
+// FIXME: This will do away once we correctly update the registration state after install.
+void SWServerRegistration::firePostInstallEvents(uint64_t connectionIdentifier)
 {
-    ASSERT(!isMainThread());
-    m_server.postTaskReply(createCrossThreadTask(*this, &SWServerRegistration::resolveCurrentJob, data()));
-}
+    // No matter what, we send the event to the connection that scheduled the job. The client registration
+    // may not have gotten a chance to register itself yet.
+    if (auto* connection = m_server.getConnection(connectionIdentifier))
+        connection->firePostInstallEvents(m_registrationKey);
 
-void SWServerRegistration::startScriptFetchFromMainThread()
-{
-    ASSERT(!isMainThread());
-    m_server.postTaskReply(createCrossThreadTask(*this, &SWServerRegistration::startScriptFetchForCurrentJob));
-}
-
-void SWServerRegistration::rejectCurrentJob(const ExceptionData& exceptionData)
-{
-    ASSERT(isMainThread());
-    ASSERT(m_currentJob);
-
-    m_server.rejectJob(*m_currentJob, exceptionData);
-
-    finishCurrentJob();
-}
-
-void SWServerRegistration::resolveCurrentJob(const ServiceWorkerRegistrationData& data)
-{
-    ASSERT(isMainThread());
-    ASSERT(m_currentJob);
-
-    m_server.resolveJob(*m_currentJob, data);
-
-    finishCurrentJob();
-}
-
-void SWServerRegistration::startScriptFetchForCurrentJob()
-{
-    ASSERT(isMainThread());
-    ASSERT(m_currentJob);
-
-    m_server.startScriptFetch(*m_currentJob);
-}
-
-void SWServerRegistration::finishCurrentJob()
-{
-    ASSERT(m_currentJob);
-    ASSERT(!m_jobTimer.isActive());
-
-    m_currentJob = nullptr;
-    if (m_jobQueue.isEmpty())
-        return;
-
-    startNextJob();
+    for (auto& connectionIdentifierWithClients : m_clientRegistrationsByConnection.keys()) {
+        if (auto* connection = m_server.getConnection(connectionIdentifierWithClients))
+            connection->firePostInstallEvents(m_registrationKey);
+    }
 }
 
 ServiceWorkerRegistrationData SWServerRegistration::data() const
 {
-    return { m_registrationKey, identifier() };
+    std::optional<ServiceWorkerIdentifier> installingID;
+    if (m_installingWorker)
+        installingID = m_installingWorker->identifier();
+
+    std::optional<ServiceWorkerIdentifier> waitingID;
+    if (m_waitingWorker)
+        waitingID = m_waitingWorker->identifier();
+
+    std::optional<ServiceWorkerIdentifier> activeID;
+    if (m_activeWorker)
+        activeID = m_activeWorker->identifier();
+
+    return { m_registrationKey, identifier(), m_scopeURL, m_scriptURL, m_updateViaCache, installingID, waitingID, activeID };
 }
 
+void SWServerRegistration::addClientServiceWorkerRegistration(uint64_t connectionIdentifier, uint64_t clientRegistrationIdentifier)
+{
+    auto result = m_clientRegistrationsByConnection.ensure(connectionIdentifier, [] {
+        return std::make_unique<HashSet<uint64_t>>();
+    });
+    
+    ASSERT(!result.iterator->value->contains(clientRegistrationIdentifier));
+    result.iterator->value->add(clientRegistrationIdentifier);
+}
+
+void SWServerRegistration::removeClientServiceWorkerRegistration(uint64_t connectionIdentifier, uint64_t clientRegistrationIdentifier)
+{
+    auto iterator = m_clientRegistrationsByConnection.find(connectionIdentifier);
+    if (iterator == m_clientRegistrationsByConnection.end() || !iterator->value)
+        return;
+    
+    iterator->value->remove(clientRegistrationIdentifier);
+    if (iterator->value->isEmpty())
+        m_clientRegistrationsByConnection.remove(iterator);
+}
 
 } // namespace WebCore
 

@@ -25,8 +25,12 @@
 
 .spreadsheet-style-declaration-editor {
     position: relative;
-    padding-left: 17px;
     clear: both;
+}
+
+.spreadsheet-style-declaration-editor .property {
+    padding-right: var(--css-declaration-side-padding);
+    padding-left: calc(var(--css-declaration-side-padding) + 17px);
 }
 
 .spreadsheet-style-declaration-editor .name {
@@ -44,6 +48,11 @@
     padding-bottom: 0 !important;
 }
 
+.spreadsheet-style-declaration-editor .value.editing {
+    display: inline-block;
+    margin-right: 3px;
+}
+
 .spreadsheet-style-declaration-editor.no-properties {
     display: none;
 }
@@ -51,7 +60,7 @@
 .spreadsheet-style-declaration-editor .property-toggle {
     visibility: hidden;
     position: absolute;
-    left: 1px;
+    left: calc(var(--css-declaration-side-padding) + 1px);
     width: 10px;
     height: 10px;
     margin: 0;
@@ -67,15 +76,76 @@
     color: var(--syntax-highlight-comment-color) !important;
 }
 
-.spreadsheet-style-declaration-editor .property:matches(.invalid, .other-vendor, .overridden):not(.disabled) {
+.spreadsheet-style-declaration-editor .property:matches(.invalid-name, .other-vendor, .overridden):not(.disabled) {
     text-decoration: line-through;
     -webkit-text-decoration-color: hsla(0, 0%, 0%, 0.6);
 }
 
-.spreadsheet-style-declaration-editor .property.invalid:not(.disabled) {
-    -webkit-text-decoration-color: hsla(0, 100%, 50%, 0.6);
+.spreadsheet-style-declaration-editor .property.invalid-name:not(.disabled) {
+    -webkit-text-decoration-color: hsla(0, 100%, 50%, 0.5);
+}
+
+.spreadsheet-style-declaration-editor .property.invalid-value:not(.disabled) .value {
+    text-decoration: line-through;
+    -webkit-text-decoration-color: hsla(0, 100%, 50%, 0.5);
+}
+
+.spreadsheet-style-declaration-editor .property.has-warning {
+    background-color: hsl(51, 87%, 93%);
+}
+
+.spreadsheet-style-declaration-editor .property .warning {
+    display: none;
+}
+
+.spreadsheet-style-declaration-editor .property.has-warning .warning {
+    position: absolute;
+    right: 0;
+    display: inline-block;
+    width: calc(20px + var(--css-declaration-side-padding));
+    height: 13px;
+
+    background-image: url(../Images/Warning.svg);
+    background-color: hsl(43, 97%, 84%);
+    background-repeat: no-repeat;
+    background-size: 9px;
+    background-position-y: center;
+    background-position-x: 7px;
+
+    -webkit-clip-path: polygon(0% 50%, 6px 0%, 100% 0%, 100% 100%, 6px 100%);
 }
 
 .spreadsheet-style-declaration-editor .property.not-inherited {
     opacity: 0.5;
+}
+
+.spreadsheet-style-declaration-editor .completion-hint {
+    color: hsl(0, 0%, 50%) !important;
+}
+
+.spreadsheet-style-declaration-editor .property.highlighted {
+    animation: style-property-highlight 2s;
+}
+
+@keyframes style-property-highlight {
+    from { background-color: yellow; }
+}
+
+.spreadsheet-style-declaration-editor .property:not(.disabled) .token-link {
+    color: var(--syntax-highlight-link-color);
+}
+
+.spreadsheet-style-declaration-editor .property:not(.disabled) .token-string {
+    color: var(--syntax-highlight-string-color);
+}
+
+.meta-key-pressed .spreadsheet-css-declaration:not(.locked) :matches(.name, .value):not(.editing):hover {
+    color: blue !important;
+    text-decoration: underline !important;
+    cursor: pointer !important;
+    -webkit-text-stroke-width: 0 !important;
+}
+
+.spreadsheet-style-declaration-editor .property:not(.disabled) .token-comment {
+    color: var(--syntax-highlight-comment-color);
 }

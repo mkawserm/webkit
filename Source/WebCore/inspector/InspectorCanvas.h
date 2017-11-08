@@ -65,7 +65,7 @@ public:
     RefPtr<Inspector::Protocol::Array<Inspector::Protocol::Recording::Frame>>&& releaseFrames();
     RefPtr<Inspector::Protocol::Array<Inspector::InspectorValue>>&& releaseData();
 
-    void markNewFrame();
+    void finalizeFrame();
     void markCurrentFrameIncomplete();
 
     void setBufferLimit(long);
@@ -74,7 +74,7 @@ public:
     bool singleFrame() const { return m_singleFrame; }
     void setSingleFrame(bool singleFrame) { m_singleFrame = singleFrame; }
 
-    Ref<Inspector::Protocol::Canvas::Canvas> buildObjectForCanvas(InstrumentingAgents&);
+    Ref<Inspector::Protocol::Canvas::Canvas> buildObjectForCanvas(InstrumentingAgents&, bool captureBacktrace);
 
     ~InspectorCanvas();
 
@@ -115,6 +115,7 @@ private:
     RefPtr<Inspector::Protocol::Array<Inspector::InspectorValue>> m_actionNeedingSnapshot;
     RefPtr<Inspector::Protocol::Array<Inspector::InspectorValue>> m_serializedDuplicateData;
     Vector<DuplicateDataVariant> m_indexedDuplicateData;
+    double m_currentFrameStartTime { NAN };
     size_t m_bufferLimit { 100 * 1024 * 1024 };
     size_t m_bufferUsed { 0 };
     bool m_singleFrame { true };

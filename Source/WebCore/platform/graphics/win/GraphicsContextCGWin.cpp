@@ -29,6 +29,7 @@
 #if USE(CG)
 
 #include "AffineTransform.h"
+#include "GraphicsContextImpl.h"
 #include "GraphicsContextPlatformPrivateCG.h"
 #include "Path.h"
 
@@ -36,9 +37,9 @@
 #include <WebKitSystemInterface/WebKitSystemInterface.h>
 #include <wtf/win/GDIObject.h>
 
-using namespace std;
 
 namespace WebCore {
+using namespace std;
 
 static CGContextRef CGContextWithHDC(HDC hdc, bool hasAlpha)
 {

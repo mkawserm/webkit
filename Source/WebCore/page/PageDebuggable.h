@@ -39,7 +39,7 @@ class PageDebuggable final : public Inspector::RemoteInspectionTarget {
     WTF_MAKE_NONCOPYABLE(PageDebuggable);
 public:
     PageDebuggable(Page&);
-    ~PageDebuggable() { }
+    ~PageDebuggable() = default;
 
     Inspector::RemoteControllableTarget::Type type() const override { return Inspector::RemoteControllableTarget::Type::Web; }
 
@@ -58,7 +58,7 @@ public:
 private:
     Page& m_page;
     String m_nameOverride;
-    bool m_forcedDeveloperExtrasEnabled;
+    bool m_forcedDeveloperExtrasEnabled { false };
 };
 
 } // namespace WebCore

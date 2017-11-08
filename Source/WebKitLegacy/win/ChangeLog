@@ -1,3 +1,184 @@
+2017-11-06  Christopher Reid  <chris.reid@sony.com>
+
+        Use enum classes within FileSystem
+        https://bugs.webkit.org/show_bug.cgi?id=175172
+
+        Reviewed by Myles C. Maxfield.
+
+        * Plugins/PluginDatabase.cpp:
+
+2017-11-02  Maciej Stachowiak  <mjs@apple.com>
+
+        Don't try to guess plugin MIME type from a file extension in a URL (no observable effect)
+        https://bugs.webkit.org/show_bug.cgi?id=178333
+
+        Reviewed by Darin Adler.
+
+        * WebCoreSupport/WebFrameLoaderClient.cpp:
+        (WebFrameLoaderClient::objectContentType): Remove unnecessary call to mimeTypeFromURL
+
+2017-11-02  Alex Christensen  <achristensen@webkit.org>
+
+        Use CompletionHandlers for redirects
+        https://bugs.webkit.org/show_bug.cgi?id=179163
+
+        Reviewed by Tim Horton.
+
+        * Plugins/PluginStream.cpp:
+        (WebCore::PluginStream::willSendRequest):
+        * Plugins/PluginStream.h:
+        (WebCore::PluginStreamClient::~PluginStreamClient):
+        (WebCore::PluginStreamClient::streamDidFinishLoading):
+        (WebCore::PluginStream::create):
+        (WebCore::PluginStream::setLoadManually):
+
+2017-11-02  Christopher Reid  <chris.reid@sony.com>
+
+        Add a FileSystem namespace to FileSystem.cpp
+        https://bugs.webkit.org/show_bug.cgi?id=179063
+
+        Reviewed by Darin Adler.
+
+        * Plugins/PluginDatabase.cpp:
+        * Plugins/PluginPackage.cpp:
+        * Plugins/PluginStream.cpp:
+        * Plugins/PluginStream.h:
+        * WebApplicationCache.cpp:
+        * WebDatabaseManager.cpp:
+        * WebDownloadCurl.cpp:
+        * WebPreferences.cpp:
+        * WebView.cpp:
+
+2017-10-31  Alex Christensen  <achristensen@webkit.org>
+
+        Fix Windows build after r224260
+
+        * WebView.cpp:
+        (WebView::gesture):
+
+2017-10-28  Zalan Bujtas  <zalan@apple.com>
+
+        [FrameView::layout cleanup] Move core layout logic to a separate class.
+        https://bugs.webkit.org/show_bug.cgi?id=178771
+        <rdar://problem/35166542>
+
+        Reviewed by Simon Fraser.
+
+        Move layout code out from FrameView to LayoutContext.
+
+        * WebFrame.cpp:
+        (WebFrame::layout):
+
+2017-10-26  Alex Christensen  <achristensen@webkit.org>
+
+        Fix Windows build
+        https://bugs.webkit.org/show_bug.cgi?id=178892
+
+        * AccessibleBase.cpp:
+        (MSAARole):
+
+2017-10-26  Alex Christensen  <achristensen@webkit.org>
+
+        Fix Windows build
+        https://bugs.webkit.org/show_bug.cgi?id=178892
+
+        * AccessibleBase.cpp:
+        (AccessibleBase::state const):
+        (MSAARole):
+
+2017-10-25  Youenn Fablet  <youenn@apple.com>
+
+        Enable ServiceWorker to fetch resources
+        https://bugs.webkit.org/show_bug.cgi?id=178673
+
+        Reviewed by Brady Eidson.
+
+        Added implementation to the new getters.
+        They are noop in the context of WK1.
+
+        * WebCoreSupport/WebFrameLoaderClient.cpp:
+        (WebFrameLoaderClient::pageID const):
+        (WebFrameLoaderClient::frameID const):
+        (WebFrameLoaderClient::sessionID const):
+        * WebCoreSupport/WebFrameLoaderClient.h:
+
+2017-10-20  Antoine Quint  <graouts@apple.com>
+
+        [Web Animations] Provide basic timeline and animation interfaces
+        https://bugs.webkit.org/show_bug.cgi?id=178526
+
+        Reviewed by Dean Jackson.
+
+        Remove the WEB_ANIMATIONS compile-time flag.
+
+        * WebView.cpp:
+        (WebView::notifyPreferencesChanged):
+
+2017-10-20  Basuke Suzuki  <Basuke.Suzuki@sony.com>
+
+        [Curl] Clean up old style code in old curl files.
+        https://bugs.webkit.org/show_bug.cgi?id=178569
+
+        Reviewed by Ryosuke Niwa.
+
+        * WebCache.cpp:
+        (WebCache::cacheFolder):
+        (WebCache::setCacheFolder):
+        * WebView.cpp:
+        (WebView::setCacheModel):
+
+2017-10-19  Sam Weinig  <sam@webkit.org>
+
+        [Settings] Move global settings into their own file
+        https://bugs.webkit.org/show_bug.cgi?id=178512
+
+        Reviewed by Darin Adler.
+
+        Moves all global settigns out of SettingsBase and into the new DeprecatedGlobalSettings.
+
+        * WebView.cpp:
+        (WebView::initWithFrame):
+
+2017-10-17  Jiewen Tan  <jiewen_tan@apple.com>
+
+        Replace some stack raw pointers with RefPtrs within WebCore/html
+        https://bugs.webkit.org/show_bug.cgi?id=178201
+        <rdar://problem/34841692>
+
+        Reviewed by Ryosuke Niwa.
+
+        * WebView.cpp:
+        (WebView::handleEditingKeyboardEvent):
+        Change the type of node as toNode() is changed to return RefPtr.
+
+2017-10-16  Sam Weinig  <sam@webkit.org>
+
+        [Settings] Remove all custom code from Settings.h/cpp
+        https://bugs.webkit.org/show_bug.cgi?id=178330
+
+        Reviewed by Simon Fraser.
+
+        * WebView.cpp:
+        (WebView::notifyPreferencesChanged):
+            
+            Update for naming changes of FrameFlattening now that it is an enum class.
+
+2017-10-11  Chris Dumez  <cdumez@apple.com>
+
+        Modernize Geolocation code
+        https://bugs.webkit.org/show_bug.cgi?id=178148
+
+        Reviewed by Ryosuke Niwa.
+
+        * WebCoreSupport/WebGeolocationClient.cpp:
+        (WebGeolocationClient::lastPosition):
+        * WebCoreSupport/WebGeolocationClient.h:
+        * WebGeolocationPosition.cpp:
+        (WebGeolocationPosition::initWithTimestamp):
+        (core):
+        * WebGeolocationPosition.h:
+        (WebGeolocationPosition::impl const):
+
 2017-10-05  Chris Dumez  <cdumez@apple.com>
 
         Drop unused parameters for CookiesStrategy::cookiesEnabled()

@@ -51,9 +51,7 @@ ScrollingStateFixedNode::ScrollingStateFixedNode(const ScrollingStateFixedNode& 
 {
 }
 
-ScrollingStateFixedNode::~ScrollingStateFixedNode()
-{
-}
+ScrollingStateFixedNode::~ScrollingStateFixedNode() = default;
 
 Ref<ScrollingStateNode> ScrollingStateFixedNode::clone(ScrollingStateTree& adoptiveTree)
 {
@@ -75,7 +73,7 @@ void ScrollingStateFixedNode::reconcileLayerPositionForViewportRect(const Layout
 {
     FloatPoint position = m_constraints.layerPositionForViewportRect(viewportRect);
     if (layer().representsGraphicsLayer()) {
-        GraphicsLayer* graphicsLayer = static_cast<GraphicsLayer*>(layer());
+        auto* graphicsLayer = static_cast<GraphicsLayer*>(layer());
 
         LOG_WITH_STREAM(Scrolling, stream << "ScrollingStateFixedNode " << scrollingNodeID() <<" reconcileLayerPositionForViewportRect " << action << " position of layer " << graphicsLayer->primaryLayerID() << " to " << position);
         

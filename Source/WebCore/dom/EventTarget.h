@@ -68,7 +68,7 @@ public:
     virtual EventTargetInterface eventTargetInterface() const = 0;
     virtual ScriptExecutionContext* scriptExecutionContext() const = 0;
 
-    virtual Node* toNode();
+    virtual RefPtr<Node> toNode();
     virtual DOMWindow* toDOMWindow();
     virtual bool isMessagePort() const;
 
@@ -77,7 +77,7 @@ public:
             : capture(capture)
         { }
 
-        bool capture;
+        bool capture { false };
     };
 
     struct AddEventListenerOptions : ListenerOptions {
@@ -88,7 +88,7 @@ public:
         { }
 
         std::optional<bool> passive;
-        bool once;
+        bool once { false };
     };
 
     using AddEventListenerOptionsOrBoolean = Variant<AddEventListenerOptions, bool>;
@@ -101,7 +101,7 @@ public:
     virtual bool removeEventListener(const AtomicString& eventType, EventListener&, const ListenerOptions&);
 
     virtual void removeAllEventListeners();
-    virtual bool dispatchEvent(Event&);
+    virtual void dispatchEvent(Event&);
     virtual void uncaughtExceptionInEventHandler();
 
     // Used for legacy "onevent" attributes.
@@ -114,7 +114,7 @@ public:
     bool hasActiveEventListeners(const AtomicString& eventType) const;
     const EventListenerVector& eventListeners(const AtomicString& eventType);
 
-    bool fireEventListeners(Event&);
+    void fireEventListeners(Event&);
     bool isFiringEventListeners() const;
 
     void visitJSEventListeners(JSC::SlotVisitor&);

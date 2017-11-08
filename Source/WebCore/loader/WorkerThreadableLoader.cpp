@@ -41,6 +41,7 @@
 #include "ResourceResponse.h"
 #include "ResourceTiming.h"
 #include "SecurityOrigin.h"
+#include "ServiceWorker.h"
 #include "ThreadableLoader.h"
 #include "WorkerGlobalScope.h"
 #include "WorkerLoaderProxy.h"
@@ -55,7 +56,7 @@ static const char loadResourceSynchronouslyMode[] = "loadResourceSynchronouslyMo
 WorkerThreadableLoader::WorkerThreadableLoader(WorkerGlobalScope& workerGlobalScope, ThreadableLoaderClient& client, const String& taskMode, ResourceRequest&& request, const ThreadableLoaderOptions& options, const String& referrer)
     : m_workerGlobalScope(workerGlobalScope)
     , m_workerClientWrapper(ThreadableLoaderClientWrapper::create(client, options.initiator))
-    , m_bridge(*new MainThreadBridge(m_workerClientWrapper.get(), workerGlobalScope.thread().workerLoaderProxy(), taskMode, WTFMove(request), options, referrer.isEmpty() ? workerGlobalScope.url().strippedForUseAsReferrer() : referrer, workerGlobalScope.securityOrigin(), workerGlobalScope.contentSecurityPolicy()))
+    , m_bridge(*new MainThreadBridge(m_workerClientWrapper.get(), workerGlobalScope.thread().workerLoaderProxy(), taskMode, WTFMove(request), options, referrer.isEmpty() ? workerGlobalScope.url().strippedForUseAsReferrer() : referrer, workerGlobalScope))
 {
 }
 
@@ -101,12 +102,15 @@ LoaderTaskOptions::LoaderTaskOptions(const ThreadableLoaderOptions& options, con
 }
 
 WorkerThreadableLoader::MainThreadBridge::MainThreadBridge(ThreadableLoaderClientWrapper& workerClientWrapper, WorkerLoaderProxy& loaderProxy, const String& taskMode,
-    ResourceRequest&& request, const ThreadableLoaderOptions& options, const String& outgoingReferrer,
-    const SecurityOrigin* securityOrigin, const ContentSecurityPolicy* contentSecurityPolicy)
+    ResourceRequest&& request, const ThreadableLoaderOptions& options, const String& outgoingReferrer, WorkerGlobalScope& globalScope)
     : m_workerClientWrapper(&workerClientWrapper)
     , m_loaderProxy(loaderProxy)
     , m_taskMode(taskMode.isolatedCopy())
 {
+
+    auto* securityOrigin = globalScope.securityOrigin();
+    auto* contentSecurityPolicy = globalScope.contentSecurityPolicy();
+
     ASSERT(securityOrigin);
     ASSERT(contentSecurityPolicy);
 
@@ -120,6 +124,12 @@ WorkerThreadableLoader::MainThreadBridge::MainThreadBridge(ThreadableLoaderClien
     // All loads start out as Document. Inside WorkerThreadableLoader we upgrade this to a Worker load.
     ASSERT(optionsCopy->options.initiatorContext == InitiatorContext::Document);
     optionsCopy->options.initiatorContext = InitiatorContext::Worker;
+
+#if ENABLE(SERVICE_WORKER)
+    optionsCopy->options.serviceWorkersMode = globalScope.isServiceWorkerGlobalScope() ? ServiceWorkersMode::None : ServiceWorkersMode::All;
+    if (auto* activeServiceWorker = globalScope.activeServiceWorker())
+        optionsCopy->options.serviceWorkerIdentifier = activeServiceWorker->identifier();
+#endif
 
     // Can we benefit from request being an r-value to create more efficiently its isolated copy?
     m_loaderProxy.postTaskToLoader([this, request = request.isolatedCopy(), options = WTFMove(optionsCopy), contentSecurityPolicyCopy = WTFMove(contentSecurityPolicyCopy)](ScriptExecutionContext& context) mutable {

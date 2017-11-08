@@ -82,9 +82,9 @@
 #include <memory>
 #include <wtf/text/StringBuilder.h>
 
-using namespace WTF;
 
 namespace WebCore {
+using namespace WTF;
 
     
 bool isCustomPropertyName(const String& propertyName)
@@ -1111,12 +1111,9 @@ static RefPtr<CSSValue> consumeWordSpacing(CSSParserTokenRange& range, CSSParser
     return consumeLengthOrPercent(range, cssParserMode, ValueRangeAll, UnitlessQuirk::Allow);
 }
     
-static RefPtr<CSSValue> consumeTabSize(CSSParserTokenRange& range, CSSParserMode cssParserMode)
+static RefPtr<CSSValue> consumeTabSize(CSSParserTokenRange& range, CSSParserMode)
 {
-    RefPtr<CSSPrimitiveValue> parsedValue = consumeInteger(range, 0);
-    if (parsedValue)
-        return parsedValue;
-    return consumeLength(range, cssParserMode, ValueRangeNonNegative);
+    return consumeInteger(range, 0);
 }
 
 #if ENABLE(TEXT_AUTOSIZING)
@@ -1153,6 +1150,7 @@ static Ref<CSSPrimitiveValue> createPrimitiveValuePair(Args&&... args)
 {
     return CSSValuePool::singleton().createValue(Pair::create(std::forward<Args>(args)...));
 }
+
 
 static RefPtr<CSSValue> consumeCounter(CSSParserTokenRange& range, int defaultValue)
 {

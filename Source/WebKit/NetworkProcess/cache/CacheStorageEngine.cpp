@@ -26,11 +26,14 @@
 #include "config.h"
 #include "CacheStorageEngine.h"
 
+#include "NetworkCacheFileSystem.h"
 #include "NetworkCacheIOChannel.h"
 #include "NetworkProcess.h"
+#include "WebsiteDataType.h"
 #include <WebCore/CacheQueryOptions.h>
+#include <WebCore/SecurityOrigin.h>
 #include <pal/SessionID.h>
-#include <wtf/MainThread.h>
+#include <wtf/CallbackAggregator.h>
 #include <wtf/NeverDestroyed.h>
 #include <wtf/text/StringBuilder.h>
 #include <wtf/text/StringHash.h>
@@ -47,6 +50,15 @@ static HashMap<PAL::SessionID, RefPtr<Engine>>& globalEngineMap()
     static NeverDestroyed<HashMap<PAL::SessionID, RefPtr<Engine>>> map;
 
     return map;
+}
+
+String Engine::cachesRootPath(const String& origin)
+{
+    if (!shouldPersist())
+        return { };
+
+    Key key(origin, { }, { }, { }, salt());
+    return WebCore::FileSystem::pathByAppendingComponent(rootPath(), key.partitionHashAsString());
 }
 
 Engine::~Engine()
@@ -67,6 +79,27 @@ void Engine::destroyEngine(PAL::SessionID sessionID)
 {
     ASSERT(sessionID != PAL::SessionID::defaultSessionID());
     globalEngineMap().remove(sessionID);
+}
+
+void Engine::fetchEntries(PAL::SessionID sessionID, bool shouldComputeSize, WTF::CompletionHandler<void(Vector<WebsiteData::Entry>)>&& completionHandler)
+{
+    from(sessionID).fetchEntries(shouldComputeSize, WTFMove(completionHandler));
+}
+
+void Engine::clearAllEngines(WTF::Function<void()>&& completionHandler)
+{
+    auto clearTaskHandler = CallbackAggregator::create(WTFMove(completionHandler));
+    for (auto& engine : globalEngineMap().values())
+        engine->clearAllCaches(clearTaskHandler.get());
+}
+
+void Engine::clearEnginesForOrigins(const Vector<String>& origins, WTF::Function<void()>&& completionHandler)
+{
+    auto clearTaskHandler = CallbackAggregator::create(WTFMove(completionHandler));
+    for (auto& engine : globalEngineMap().values()) {
+        for (auto& origin : origins)
+            engine->clearCachesForOrigin(origin, clearTaskHandler.get());
+    }
 }
 
 Engine& Engine::defaultEngine()
@@ -172,9 +205,9 @@ void Engine::initialize(Function<void(std::optional<Error>&&)>&& callback)
         return;
     }
 
-    String saltPath = WebCore::pathByAppendingComponent(m_rootPath, ASCIILiteral("salt"));
+    String saltPath = WebCore::FileSystem::pathByAppendingComponent(m_rootPath, ASCIILiteral("salt"));
     m_ioQueue->dispatch([protectedThis = makeRef(*this), this, callback = WTFMove(callback), saltPath = WTFMove(saltPath)] () mutable {
-        WebCore::makeAllDirectories(m_rootPath);
+        WebCore::FileSystem::makeAllDirectories(m_rootPath);
         RunLoop::main().dispatch([protectedThis = WTFMove(protectedThis), this, salt = readOrMakeSalt(saltPath), callback = WTFMove(callback)]() mutable {
             if (!salt) {
                 callback(Error::WriteDisk);
@@ -190,7 +223,7 @@ void Engine::readCachesFromDisk(const String& origin, CachesCallback&& callback)
 {
     initialize([this, origin, callback = WTFMove(callback)](std::optional<Error>&& error) mutable {
         auto& caches = m_caches.ensure(origin, [&origin, this] {
-            return Caches::create(*this, String { origin }, NetworkProcess::singleton().cacheStoragePerOriginQuota());
+            return Caches::create(*this, String { origin }, cachesRootPath(origin), NetworkProcess::singleton().cacheStoragePerOriginQuota());
         }).iterator->value;
 
         if (caches->isInitialized()) {
@@ -301,7 +334,7 @@ void Engine::removeFile(const String& filename)
         return;
 
     m_ioQueue->dispatch([filename = filename.isolatedCopy()]() mutable {
-        WebCore::deleteFile(filename);
+        WebCore::FileSystem::deleteFile(filename);
     });
 }
 
@@ -309,6 +342,99 @@ void Engine::removeCaches(const String& origin)
 {
     ASSERT(m_caches.contains(origin));
     m_caches.remove(origin);
+}
+
+class ReadOriginsTaskCounter : public RefCounted<ReadOriginsTaskCounter> {
+public:
+    static Ref<ReadOriginsTaskCounter> create(WTF::CompletionHandler<void(Vector<WebsiteData::Entry>)>&& callback)
+    {
+        return adoptRef(*new ReadOriginsTaskCounter(WTFMove(callback)));
+    }
+
+    ~ReadOriginsTaskCounter()
+    {
+        m_callback(WTFMove(m_entries));
+    }
+
+    void addOrigin(WebCore::SecurityOriginData&& origin, uint64_t size)
+    {
+        m_entries.append(WebsiteData::Entry { WTFMove(origin), WebsiteDataType::DOMCache, size });
+    }
+
+private:
+    explicit ReadOriginsTaskCounter(WTF::CompletionHandler<void(Vector<WebsiteData::Entry>)>&& callback)
+        : m_callback(WTFMove(callback))
+    {
+    }
+
+    WTF::CompletionHandler<void(Vector<WebsiteData::Entry>)> m_callback;
+    Vector<WebsiteData::Entry> m_entries;
+};
+
+void Engine::fetchEntries(bool shouldComputeSize, WTF::CompletionHandler<void(Vector<WebsiteData::Entry>)>&& completionHandler)
+{
+    if (!shouldPersist()) {
+        auto entries = WTF::map(m_caches, [] (auto& pair) {
+            return WebsiteData::Entry { pair.value->origin(), WebsiteDataType::DOMCache, 0 };
+        });
+        completionHandler(WTFMove(entries));
+        return;
+    }
+
+    auto taskCounter = ReadOriginsTaskCounter::create(WTFMove(completionHandler));
+    for (auto& folderPath : WebCore::FileSystem::listDirectory(m_rootPath, "*")) {
+        if (!WebCore::FileSystem::fileIsDirectory(folderPath, WebCore::FileSystem::ShouldFollowSymbolicLinks::No))
+            continue;
+        Caches::retrieveOriginFromDirectory(folderPath, *m_ioQueue, [protectedThis = makeRef(*this), shouldComputeSize, taskCounter = taskCounter.copyRef()] (std::optional<WebCore::SecurityOriginData>&& origin) mutable {
+            ASSERT(RunLoop::isMain());
+            if (!origin)
+                return;
+
+            if (!shouldComputeSize) {
+                taskCounter->addOrigin(WTFMove(origin.value()), 0);
+                return;
+            }
+
+            auto cacheOrigin = origin->securityOrigin()->toString();
+            protectedThis->readCachesFromDisk(cacheOrigin, [origin = WTFMove(origin.value()), taskCounter = WTFMove(taskCounter)] (CachesOrError&& result) mutable {
+                if (!result.hasValue())
+                    return;
+                taskCounter->addOrigin(WTFMove(origin), result.value().get().storageSize());
+
+            });
+        });
+    }
+}
+
+void Engine::clearAllCaches(CallbackAggregator& taskHandler)
+{
+    for (auto& caches : m_caches.values())
+        caches->clear([taskHandler = makeRef(taskHandler)] { });
+
+    if (!shouldPersist())
+        return;
+
+    m_ioQueue->dispatch([path = m_rootPath.isolatedCopy(), taskHandler = makeRef(taskHandler)] {
+        for (auto& filename : WebCore::FileSystem::listDirectory(path, "*")) {
+            if (WebCore::FileSystem::fileIsDirectory(filename, WebCore::FileSystem::ShouldFollowSymbolicLinks::No))
+                deleteDirectoryRecursively(filename);
+        }
+    });
+}
+
+void Engine::clearCachesForOrigin(const String& origin, CallbackAggregator& taskHandler)
+{
+    if (auto caches = m_caches.get(origin)) {
+        caches->clear([taskHandler = makeRef(taskHandler)] { });
+        return;
+    }
+
+    if (!shouldPersist())
+        return;
+
+    m_ioQueue->dispatch([filename = cachesRootPath(origin), taskHandler = makeRef(taskHandler)] {
+        deleteDirectoryRecursively(filename);
+    });
 }
 
 void Engine::clearMemoryRepresentation(const String& origin, WebCore::DOMCacheEngine::CompletionCallback&& callback)
@@ -335,7 +461,6 @@ void Engine::lock(uint64_t cacheIdentifier)
 void Engine::unlock(uint64_t cacheIdentifier)
 {
     auto lockCount = m_cacheLocks.find(cacheIdentifier);
-    ASSERT(lockCount != m_cacheLocks.end());
     if (lockCount == m_cacheLocks.end())
         return;
 

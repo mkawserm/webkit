@@ -119,10 +119,13 @@ void WebsiteDataStore::resolveDirectoriesIfNecessary()
     if (!m_configuration.javaScriptConfigurationDirectory.isEmpty())
         m_resolvedConfiguration.javaScriptConfigurationDirectory = resolvePathForSandboxExtension(m_configuration.javaScriptConfigurationDirectory);
 
+    if (!m_configuration.cacheStorageDirectory.isEmpty() && m_resolvedConfiguration.cacheStorageDirectory.isEmpty())
+        m_resolvedConfiguration.cacheStorageDirectory = resolvePathForSandboxExtension(m_configuration.cacheStorageDirectory);
+
     // Resolve directories for file paths.
     if (!m_configuration.cookieStorageFile.isEmpty()) {
-        m_resolvedConfiguration.cookieStorageFile = resolveAndCreateReadWriteDirectoryForSandboxExtension(WebCore::directoryName(m_configuration.cookieStorageFile));
-        m_resolvedConfiguration.cookieStorageFile = WebCore::pathByAppendingComponent(m_resolvedConfiguration.cookieStorageFile, WebCore::pathGetFileName(m_configuration.cookieStorageFile));
+        m_resolvedConfiguration.cookieStorageFile = resolveAndCreateReadWriteDirectoryForSandboxExtension(WebCore::FileSystem::directoryName(m_configuration.cookieStorageFile));
+        m_resolvedConfiguration.cookieStorageFile = WebCore::FileSystem::pathByAppendingComponent(m_resolvedConfiguration.cookieStorageFile, WebCore::FileSystem::pathGetFileName(m_configuration.cookieStorageFile));
     }
 }
 
@@ -159,6 +162,9 @@ static ProcessAccessType computeNetworkProcessAccessTypeForDataFetch(OptionSet<W
     }
 
     if (dataTypes.contains(WebsiteDataType::DiskCache) && !isNonPersistentStore)
+        processAccessType = std::max(processAccessType, ProcessAccessType::Launch);
+
+    if (dataTypes.contains(WebsiteDataType::DOMCache))
         processAccessType = std::max(processAccessType, ProcessAccessType::Launch);
 
     return processAccessType;
@@ -426,7 +432,11 @@ void WebsiteDataStore::fetchDataAndApply(OptionSet<WebsiteDataType> dataTypes, O
         });
     }
 
-    if (dataTypes.contains(WebsiteDataType::IndexedDBDatabases) && isPersistent()) {
+    if ((dataTypes.contains(WebsiteDataType::IndexedDBDatabases)
+#if ENABLE(SERVICE_WORKER)
+        || dataTypes.contains(WebsiteDataType::ServiceWorkerRegistrations)
+#endif
+        ) && isPersistent()) {
         for (auto& processPool : processPools()) {
             processPool->ensureStorageProcessAndWebsiteDataStore(this);
 
@@ -563,6 +573,9 @@ static ProcessAccessType computeNetworkProcessAccessTypeForDataRemoval(OptionSet
         processAccessType = std::max(processAccessType, ProcessAccessType::Launch);
 
     if (dataTypes.contains(WebsiteDataType::Credentials))
+        processAccessType = std::max(processAccessType, ProcessAccessType::Launch);
+
+    if (dataTypes.contains(WebsiteDataType::DOMCache))
         processAccessType = std::max(processAccessType, ProcessAccessType::Launch);
 
     return processAccessType;
@@ -720,7 +733,11 @@ void WebsiteDataStore::removeData(OptionSet<WebsiteDataType> dataTypes, std::chr
         });
     }
 
-    if (dataTypes.contains(WebsiteDataType::IndexedDBDatabases) && isPersistent()) {
+    if ((dataTypes.contains(WebsiteDataType::IndexedDBDatabases)
+#if ENABLE(SERVICE_WORKER)
+        || dataTypes.contains(WebsiteDataType::ServiceWorkerRegistrations)
+#endif
+        ) && isPersistent()) {
         for (auto& processPool : processPools()) {
             processPool->ensureStorageProcessAndWebsiteDataStore(this);
 
@@ -999,7 +1016,11 @@ void WebsiteDataStore::removeData(OptionSet<WebsiteDataType> dataTypes, const Ve
         });
     }
 
-    if (dataTypes.contains(WebsiteDataType::IndexedDBDatabases) && isPersistent()) {
+    if ((dataTypes.contains(WebsiteDataType::IndexedDBDatabases)
+#if ENABLE(SERVICE_WORKER)
+        || dataTypes.contains(WebsiteDataType::ServiceWorkerRegistrations)
+#endif
+        ) && isPersistent()) {
         for (auto& processPool : processPools()) {
             processPool->ensureStorageProcessAndWebsiteDataStore(this);
 
@@ -1227,7 +1248,7 @@ Vector<PluginModuleInfo> WebsiteDataStore::plugins() const
 
 static String computeMediaKeyFile(const String& mediaKeyDirectory)
 {
-    return WebCore::pathByAppendingComponent(mediaKeyDirectory, "SecureStop.plist");
+    return WebCore::FileSystem::pathByAppendingComponent(mediaKeyDirectory, "SecureStop.plist");
 }
 
 Vector<WebCore::SecurityOriginData> WebsiteDataStore::mediaKeyOrigins(const String& mediaKeysStorageDirectory)
@@ -1236,12 +1257,12 @@ Vector<WebCore::SecurityOriginData> WebsiteDataStore::mediaKeyOrigins(const Stri
 
     Vector<WebCore::SecurityOriginData> origins;
 
-    for (const auto& originPath : WebCore::listDirectory(mediaKeysStorageDirectory, "*")) {
+    for (const auto& originPath : WebCore::FileSystem::listDirectory(mediaKeysStorageDirectory, "*")) {
         auto mediaKeyFile = computeMediaKeyFile(originPath);
-        if (!WebCore::fileExists(mediaKeyFile))
+        if (!WebCore::FileSystem::fileExists(mediaKeyFile))
             continue;
 
-        auto mediaKeyIdentifier = WebCore::pathGetFileName(originPath);
+        auto mediaKeyIdentifier = WebCore::FileSystem::pathGetFileName(originPath);
 
         if (auto securityOrigin = WebCore::SecurityOriginData::fromDatabaseIdentifier(mediaKeyIdentifier))
             origins.append(*securityOrigin);
@@ -1254,18 +1275,18 @@ void WebsiteDataStore::removeMediaKeys(const String& mediaKeysStorageDirectory, 
 {
     ASSERT(!mediaKeysStorageDirectory.isEmpty());
 
-    for (const auto& mediaKeyDirectory : WebCore::listDirectory(mediaKeysStorageDirectory, "*")) {
+    for (const auto& mediaKeyDirectory : WebCore::FileSystem::listDirectory(mediaKeysStorageDirectory, "*")) {
         auto mediaKeyFile = computeMediaKeyFile(mediaKeyDirectory);
 
         time_t modificationTime;
-        if (!WebCore::getFileModificationTime(mediaKeyFile, modificationTime))
+        if (!WebCore::FileSystem::getFileModificationTime(mediaKeyFile, modificationTime))
             continue;
 
         if (std::chrono::system_clock::from_time_t(modificationTime) < modifiedSince)
             continue;
 
-        WebCore::deleteFile(mediaKeyFile);
-        WebCore::deleteEmptyDirectory(mediaKeyDirectory);
+        WebCore::FileSystem::deleteFile(mediaKeyFile);
+        WebCore::FileSystem::deleteEmptyDirectory(mediaKeyDirectory);
     }
 }
 
@@ -1274,11 +1295,11 @@ void WebsiteDataStore::removeMediaKeys(const String& mediaKeysStorageDirectory, 
     ASSERT(!mediaKeysStorageDirectory.isEmpty());
 
     for (const auto& origin : origins) {
-        auto mediaKeyDirectory = WebCore::pathByAppendingComponent(mediaKeysStorageDirectory, origin.databaseIdentifier());
+        auto mediaKeyDirectory = WebCore::FileSystem::pathByAppendingComponent(mediaKeysStorageDirectory, origin.databaseIdentifier());
         auto mediaKeyFile = computeMediaKeyFile(mediaKeyDirectory);
 
-        WebCore::deleteFile(mediaKeyFile);
-        WebCore::deleteEmptyDirectory(mediaKeyDirectory);
+        WebCore::FileSystem::deleteFile(mediaKeyFile);
+        WebCore::FileSystem::deleteEmptyDirectory(mediaKeyDirectory);
     }
 }
 
@@ -1352,9 +1373,7 @@ StorageProcessCreationParameters WebsiteDataStore::storageProcessParameters()
 
 Vector<WebCore::Cookie> WebsiteDataStore::pendingCookies() const
 {
-    Vector<WebCore::Cookie> cookies;
-    copyToVector(m_pendingCookies, cookies);
-    return cookies;
+    return copyToVector(m_pendingCookies);
 }
 
 void WebsiteDataStore::addPendingCookie(const WebCore::Cookie& cookie)
@@ -1382,7 +1401,7 @@ WebsiteDataStoreParameters WebsiteDataStore::parameters()
 {
     // FIXME: Implement cookies.
     WebsiteDataStoreParameters parameters;
-    parameters.sessionID = m_sessionID;
+    parameters.networkSessionParameters.sessionID = m_sessionID;
     return parameters;
 }
 #endif

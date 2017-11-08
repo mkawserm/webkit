@@ -28,7 +28,6 @@
 #include "URL.h"
 
 #include "DecodeEscapeSequences.h"
-#include "MIMETypeRegistry.h"
 #include "TextEncoding.h"
 #include "URLParser.h"
 #include <stdio.h>
@@ -47,9 +46,9 @@
 // We either have to optimize that operator so it doesn't involve
 // so many allocations, or change this to use StringBuffer instead.
 
-using namespace WTF;
 
 namespace WebCore {
+using namespace WTF;
 
 typedef Vector<char, 512> CharBuffer;
 typedef Vector<UChar, 512> UCharBuffer;
@@ -87,6 +86,7 @@ enum URLCharacterClasses {
     TabNewline = 1 << 7
 };
 
+namespace URLInternal {
 static const unsigned char characterClassTable[256] = {
     /* 0 nul */ PathSegmentEndChar,    /* 1 soh */ BadChar,
     /* 2 stx */ BadChar,    /* 3 etx */ BadChar,
@@ -214,6 +214,7 @@ static const unsigned char characterClassTable[256] = {
     /* 248 */ BadChar, /* 249 */ BadChar, /* 250 */ BadChar, /* 251 */ BadChar,
     /* 252 */ BadChar, /* 253 */ BadChar, /* 254 */ BadChar, /* 255 */ BadChar
 };
+}
 
 enum PercentEncodeCharacterClass {
     // Class names match the URL Standard; each class is a superset of the previous one.
@@ -317,10 +318,10 @@ static const unsigned char percentEncodeClassTable[256] = {
     /* 252 */ PercentEncodeSimple, /* 253 */ PercentEncodeSimple, /* 254 */ PercentEncodeSimple, /* 255 */ PercentEncodeSimple
 };
 
-static inline bool isSchemeFirstChar(UChar c) { return c <= 0xff && (characterClassTable[c] & SchemeFirstChar); }
-static inline bool isSchemeChar(UChar c) { return c <= 0xff && (characterClassTable[c] & SchemeChar); }
-static inline bool isBadChar(unsigned char c) { return characterClassTable[c] & BadChar; }
-static inline bool isTabNewline(UChar c) { return c <= 0xff && (characterClassTable[c] & TabNewline); }
+static inline bool isSchemeFirstChar(UChar c) { return c <= 0xff && (URLInternal::characterClassTable[c] & SchemeFirstChar); }
+static inline bool isSchemeChar(UChar c) { return c <= 0xff && (URLInternal::characterClassTable[c] & SchemeChar); }
+static inline bool isBadChar(unsigned char c) { return URLInternal::characterClassTable[c] & BadChar; }
+static inline bool isTabNewline(UChar c) { return c <= 0xff && (URLInternal::characterClassTable[c] & TabNewline); }
 
 String encodeWithURLEscapeSequences(const String& notEncodedString, PercentEncodeCharacterClass whatToEncode);
 
@@ -1317,15 +1318,6 @@ String mimeTypeFromDataURL(const String& url)
         return ASCIILiteral("text/plain");
     ASSERT(index >= 5);
     return url.substring(5, index - 5).convertToASCIILowercase();
-}
-
-String mimeTypeFromURL(const URL& url)
-{
-    String decodedPath = decodeURLEscapeSequences(url.path());
-    String extension = decodedPath.substring(decodedPath.reverseFind('.') + 1);
-
-    // We don't use MIMETypeRegistry::getMIMETypeForPath() because it returns "application/octet-stream" upon failure
-    return MIMETypeRegistry::getMIMETypeForExtension(extension);
 }
 
 String URL::stringCenterEllipsizedToLength(unsigned length) const

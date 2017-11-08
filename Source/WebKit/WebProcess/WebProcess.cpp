@@ -39,9 +39,11 @@
 #include "NetworkConnectionToWebProcessMessages.h"
 #include "NetworkProcessConnection.h"
 #include "NetworkSession.h"
+#include "NetworkSessionCreationParameters.h"
 #include "PluginProcessConnectionManager.h"
 #include "SessionTracker.h"
 #include "StatisticsData.h"
+#include "StorageProcessMessages.h"
 #include "UserData.h"
 #include "WebAutomationSessionProxy.h"
 #include "WebCacheStorageProvider.h"
@@ -64,10 +66,13 @@
 #include "WebProcessPoolMessages.h"
 #include "WebProcessProxyMessages.h"
 #include "WebResourceLoadStatisticsStoreMessages.h"
+#include "WebSWContextManagerConnection.h"
+#include "WebSWContextManagerConnectionMessages.h"
 #include "WebServiceWorkerProvider.h"
 #include "WebSocketStream.h"
 #include "WebToStorageProcessConnection.h"
 #include "WebsiteData.h"
+#include "WebsiteDataStoreParameters.h"
 #include "WebsiteDataType.h"
 #include <JavaScriptCore/JSLock.h>
 #include <JavaScriptCore/MemoryStatistics.h>
@@ -79,8 +84,10 @@
 #include <WebCore/CommonVM.h>
 #include <WebCore/CrossOriginPreflightResultCache.h>
 #include <WebCore/DNS.h>
+#include <WebCore/DOMWindow.h>
 #include <WebCore/DatabaseManager.h>
 #include <WebCore/DatabaseTracker.h>
+#include <WebCore/DeprecatedGlobalSettings.h>
 #include <WebCore/DiagnosticLoggingClient.h>
 #include <WebCore/DiagnosticLoggingKeys.h>
 #include <WebCore/FontCache.h>
@@ -105,12 +112,12 @@
 #include <WebCore/RuntimeApplicationChecks.h>
 #include <WebCore/SchemeRegistry.h>
 #include <WebCore/SecurityOrigin.h>
+#include <WebCore/ServiceWorkerContextData.h>
 #include <WebCore/Settings.h>
 #include <WebCore/URLParser.h>
 #include <WebCore/UserGestureIndicator.h>
 #include <unistd.h>
 #include <wtf/CurrentTime.h>
-#include <wtf/HashCountedSet.h>
 #include <wtf/Language.h>
 #include <wtf/RunLoop.h>
 #include <wtf/text/StringHash.h>
@@ -259,6 +266,10 @@ void WebProcess::initializeWebProcess(WebProcessCreationParameters&& parameters)
 #endif
 
     platformInitializeWebProcess(WTFMove(parameters));
+
+#if USE(NETWORK_SESSION)
+    SessionTracker::setSession(PAL::SessionID::defaultSessionID(), NetworkSession::create({ }));
+#endif
 
     // Match the QoS of the UIProcess and the scrolling thread but use a slightly lower priority.
     WTF::Thread::setCurrentThreadIsUserInteractive(-1);
@@ -506,7 +517,7 @@ void WebProcess::fullKeyboardAccessModeChanged(bool fullKeyboardAccessEnabled)
 
 void WebProcess::ensurePrivateBrowsingSession(PAL::SessionID sessionID)
 {
-    WebFrameNetworkingContext::ensurePrivateBrowsingSession(sessionID);
+    WebFrameNetworkingContext::ensurePrivateBrowsingSession({ { }, { }, { }, { }, { }, { }, { sessionID, { }, { }, AllowsCellularAccess::Yes }});
 }
 
 void WebProcess::addWebsiteDataStore(WebsiteDataStoreParameters&& parameters)
@@ -560,7 +571,10 @@ void WebProcess::clearCachedCredentials()
 {
     NetworkStorageSession::defaultStorageSession().credentialStorage().clearCredentials();
 #if USE(NETWORK_SESSION)
-    NetworkSession::defaultSession().clearCredentials();
+    if (auto* networkSession = SessionTracker::networkSession(PAL::SessionID::defaultSessionID()))
+        networkSession->clearCredentials();
+    else
+        ASSERT_NOT_REACHED();
 #endif
 }
 
@@ -659,18 +673,23 @@ void WebProcess::didReceiveMessage(IPC::Connection& connection, IPC::Decoder& de
         return;
     }
 
+#if ENABLE(SERVICE_WORKER)
+    if (decoder.messageReceiverName() == Messages::WebSWContextManagerConnection::messageReceiverName()) {
+        ASSERT(SWContextManager::singleton().connection());
+        if (auto* contextManagerConnection = SWContextManager::singleton().connection())
+            static_cast<WebSWContextManagerConnection&>(*contextManagerConnection).didReceiveMessage(connection, decoder);
+        return;
+    }
+#endif
+
     LOG_ERROR("Unhandled web process message '%s:%s'", decoder.messageReceiverName().toString().data(), decoder.messageName().toString().data());
 }
 
 void WebProcess::didClose(IPC::Connection&)
 {
 #ifndef NDEBUG
-    // Close all the live pages.
-    Vector<RefPtr<WebPage>> pages;
-    copyValuesToVector(m_pageMap, pages);
-    for (auto& page : pages)
+    for (auto& page : copyToVector(m_pageMap.values()))
         page->close();
-    pages.clear();
 
     GCController::singleton().garbageCollectSoon();
     FontCache::singleton().invalidate();
@@ -1179,6 +1198,8 @@ void WebProcess::ensureWebToStorageProcessConnection()
     IPC::Connection::Identifier connectionIdentifier = encodedConnectionIdentifier.releaseFileDescriptor();
 #elif OS(DARWIN)
     IPC::Connection::Identifier connectionIdentifier(encodedConnectionIdentifier.port());
+#elif OS(WINDOWS)
+    IPC::Connection::Identifier connectionIdentifier(encodedConnectionIdentifier.handle());
 #else
     ASSERT_NOT_REACHED();
 #endif
@@ -1449,7 +1470,7 @@ void WebProcess::nonVisibleProcessCleanupTimerFired()
 
 void WebProcess::setResourceLoadStatisticsEnabled(bool enabled)
 {
-    WebCore::Settings::setResourceLoadStatisticsEnabled(enabled);
+    WebCore::DeprecatedGlobalSettings::setResourceLoadStatisticsEnabled(enabled);
 }
 
 void WebProcess::clearResourceLoadStatistics()
@@ -1615,6 +1636,34 @@ LibWebRTCNetwork& WebProcess::libWebRTCNetwork()
     if (!m_libWebRTCNetwork)
         m_libWebRTCNetwork = std::make_unique<LibWebRTCNetwork>();
     return *m_libWebRTCNetwork;
+}
+#endif
+
+#if ENABLE(SERVICE_WORKER)
+void WebProcess::getWorkerContextConnection(uint64_t pageID, const WebPreferencesStore& store)
+{
+#if USE(UNIX_DOMAIN_SOCKETS)
+    IPC::Connection::SocketPair socketPair = IPC::Connection::createPlatformConnection();
+    IPC::Connection::Identifier connectionIdentifier(socketPair.server);
+    IPC::Attachment connectionClientPort(socketPair.client);
+#elif OS(DARWIN)
+    mach_port_t listeningPort;
+    if (mach_port_allocate(mach_task_self(), MACH_PORT_RIGHT_RECEIVE, &listeningPort) != KERN_SUCCESS)
+        CRASH();
+
+    if (mach_port_insert_right(mach_task_self(), listeningPort, listeningPort, MACH_MSG_TYPE_MAKE_SEND) != KERN_SUCCESS)
+        CRASH();
+
+    IPC::Connection::Identifier connectionIdentifier(listeningPort);
+    IPC::Attachment connectionClientPort(listeningPort, MACH_MSG_TYPE_MOVE_SEND);
+#else
+    RELEASE_ASSERT_NOT_REACHED();
+#endif
+
+    auto workerContextConnection = IPC::Connection::createServerConnection(connectionIdentifier, *this);
+    workerContextConnection->open();
+    SWContextManager::singleton().setConnection(std::make_unique<WebSWContextManagerConnection>(WTFMove(workerContextConnection), pageID, store));
+    WebProcess::singleton().parentProcessConnection()->send(Messages::WebProcessProxy::DidGetWorkerContextConnection(connectionClientPort), 0);
 }
 #endif
 

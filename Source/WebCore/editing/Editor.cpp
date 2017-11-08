@@ -38,6 +38,7 @@
 #include "CreateLinkCommand.h"
 #include "DataTransfer.h"
 #include "DeleteSelectionCommand.h"
+#include "DeprecatedGlobalSettings.h"
 #include "DictationAlternative.h"
 #include "DictationCommand.h"
 #include "DocumentFragment.h"
@@ -46,12 +47,14 @@
 #include "EditorClient.h"
 #include "EventHandler.h"
 #include "EventNames.h"
+#include "File.h"
 #include "FocusController.h"
 #include "Frame.h"
 #include "FrameLoader.h"
 #include "FrameTree.h"
 #include "FrameView.h"
 #include "GraphicsContext.h"
+#include "HTMLAttachmentElement.h"
 #include "HTMLCollection.h"
 #include "HTMLFormControlElement.h"
 #include "HTMLFrameOwnerElement.h"
@@ -97,6 +100,7 @@
 #include "UserTypingGestureIndicator.h"
 #include "VisibleUnits.h"
 #include "markup.h"
+#include <pal/FileSizeFormatter.h>
 #include <pal/system/Sound.h>
 #include <pal/text/KillRing.h>
 #include <wtf/unicode/CharacterNames.h>
@@ -112,7 +116,9 @@ static bool dispatchBeforeInputEvent(Element& element, const AtomicString& input
     if (!element.document().settings().inputEventsEnabled())
         return true;
 
-    return element.dispatchEvent(InputEvent::create(eventNames().beforeinputEvent, inputType, true, cancelable, element.document().defaultView(), data, WTFMove(dataTransfer), targetRanges, 0));
+    auto event = InputEvent::create(eventNames().beforeinputEvent, inputType, true, cancelable, element.document().defaultView(), data, WTFMove(dataTransfer), targetRanges, 0);
+    element.dispatchEvent(event);
+    return !event->defaultPrevented();
 }
 
 static void dispatchInputEvent(Element& element, const AtomicString& inputType, const String& data = { }, RefPtr<DataTransfer>&& dataTransfer = nullptr, const Vector<RefPtr<StaticRange>>& targetRanges = { })
@@ -233,7 +239,7 @@ VisibleSelection Editor::selectionForCommand(Event* event)
     // If the target is a text control, and the current selection is outside of its shadow tree,
     // then use the saved selection for that text control.
     HTMLTextFormControlElement* textFormControlOfSelectionStart = enclosingTextFormControl(selection.start());
-    HTMLTextFormControlElement* textFromControlOfTarget = is<HTMLTextFormControlElement>(*event->target()->toNode()) ? downcast<HTMLTextFormControlElement>(event->target()->toNode()) : nullptr;
+    HTMLTextFormControlElement* textFromControlOfTarget = is<HTMLTextFormControlElement>(*event->target()->toNode()) ? downcast<HTMLTextFormControlElement>(event->target()->toNode().get()) : nullptr;
     if (textFromControlOfTarget && (selection.start().isNull() || textFromControlOfTarget != textFormControlOfSelectionStart)) {
         if (RefPtr<Range> range = textFromControlOfTarget->selection())
             return VisibleSelection(*range, DOWNSTREAM, selection.isDirectional());
@@ -345,30 +351,30 @@ static AtomicString eventNameForClipboardEvent(ClipboardEventKind kind)
     return { };
 }
 
-static Ref<DataTransfer> createDataTransferForClipboardEvent(ClipboardEventKind kind)
+static Ref<DataTransfer> createDataTransferForClipboardEvent(Document& document, ClipboardEventKind kind)
 {
     switch (kind) {
     case ClipboardEventKind::Copy:
     case ClipboardEventKind::Cut:
-        return DataTransfer::createForCopyAndPaste(DataTransfer::StoreMode::ReadWrite, std::make_unique<StaticPasteboard>());
+        return DataTransfer::createForCopyAndPaste(document, DataTransfer::StoreMode::ReadWrite, std::make_unique<StaticPasteboard>());
     case ClipboardEventKind::PasteAsPlainText:
-        if (Settings::customPasteboardDataEnabled()) {
+        if (DeprecatedGlobalSettings::customPasteboardDataEnabled()) {
             auto plainTextType = ASCIILiteral("text/plain");
             auto plainText = Pasteboard::createForCopyAndPaste()->readString(plainTextType);
             auto pasteboard = std::make_unique<StaticPasteboard>();
             pasteboard->writeString(plainTextType, plainText);
-            return DataTransfer::createForCopyAndPaste(DataTransfer::StoreMode::Readonly, WTFMove(pasteboard));
+            return DataTransfer::createForCopyAndPaste(document, DataTransfer::StoreMode::Readonly, WTFMove(pasteboard));
         }
         FALLTHROUGH;
     case ClipboardEventKind::Paste:
-        return DataTransfer::createForCopyAndPaste(DataTransfer::StoreMode::Readonly, Pasteboard::createForCopyAndPaste());
+        return DataTransfer::createForCopyAndPaste(document, DataTransfer::StoreMode::Readonly, Pasteboard::createForCopyAndPaste());
     case ClipboardEventKind::BeforeCopy:
     case ClipboardEventKind::BeforeCut:
     case ClipboardEventKind::BeforePaste:
-        return DataTransfer::createForCopyAndPaste(DataTransfer::StoreMode::Invalid, std::make_unique<StaticPasteboard>());
+        return DataTransfer::createForCopyAndPaste(document, DataTransfer::StoreMode::Invalid, std::make_unique<StaticPasteboard>());
     }
     ASSERT_NOT_REACHED();
-    return DataTransfer::createForCopyAndPaste(DataTransfer::StoreMode::Invalid, std::make_unique<StaticPasteboard>());
+    return DataTransfer::createForCopyAndPaste(document, DataTransfer::StoreMode::Invalid, std::make_unique<StaticPasteboard>());
 }
 
 // Returns whether caller should continue with "the default processing", which is the same as
@@ -380,7 +386,7 @@ static bool dispatchClipboardEvent(RefPtr<Element>&& target, ClipboardEventKind 
     if (!target)
         return true;
 
-    auto dataTransfer = createDataTransferForClipboardEvent(kind);
+    auto dataTransfer = createDataTransferForClipboardEvent(target->document(), kind);
 
     ClipboardEvent::Init init;
     init.bubbles = true;
@@ -393,7 +399,7 @@ static bool dispatchClipboardEvent(RefPtr<Element>&& target, ClipboardEventKind 
     if (noDefaultProcessing && (kind == ClipboardEventKind::Copy || kind == ClipboardEventKind::Cut)) {
         auto pasteboard = Pasteboard::createForCopyAndPaste();
         pasteboard->clear();
-        downcast<StaticPasteboard>(dataTransfer->pasteboard()).commitToPasteboard(*pasteboard);
+        dataTransfer->commitToPasteboard(*pasteboard);
     }
 
     dataTransfer->makeInvalidForSecurity();
@@ -456,6 +462,9 @@ bool Editor::canCopy() const
 
 bool Editor::canPaste() const
 {
+    if (m_frame.mainFrame().loader().shouldSuppressTextInputFromEditing())
+        return false;
+
     return canEdit();
 }
 
@@ -704,7 +713,7 @@ bool Editor::tryDHTMLCut()
 
 bool Editor::shouldInsertText(const String& text, Range* range, EditorInsertAction action) const
 {
-    if (m_frame.mainFrame().loader().shouldSuppressKeyboardInput() && action == EditorInsertAction::Typed)
+    if (m_frame.mainFrame().loader().shouldSuppressTextInputFromEditing() && action == EditorInsertAction::Typed)
         return false;
 
     return client() && client()->shouldInsertText(text, range, action);
@@ -1151,9 +1160,7 @@ Editor::Editor(Frame& frame)
 {
 }
 
-Editor::~Editor()
-{
-}
+Editor::~Editor() = default;
 
 void Editor::clear()
 {
@@ -1637,7 +1644,7 @@ void Editor::clearUndoRedoOperations()
         client()->clearUndoRedoOperations();
 }
 
-bool Editor::canUndo()
+bool Editor::canUndo() const
 {
     return client() && client()->canUndo();
 }
@@ -1648,7 +1655,7 @@ void Editor::undo()
         client()->undo();
 }
 
-bool Editor::canRedo()
+bool Editor::canRedo() const
 {
     return client() && client()->canRedo();
 }
@@ -2180,6 +2187,8 @@ String Editor::misspelledWordAtCaretOrRange(Node* clickedNode) const
     VisibleSelection wordSelection(selection.base());
     wordSelection.expandUsingGranularity(WordGranularity);
     RefPtr<Range> wordRange = wordSelection.toNormalizedRange();
+    if (!wordRange)
+        return String();
 
     // In compliance with GTK+ applications, additionally allow to provide suggestions when the current
     // selection exactly match the word selection.
@@ -3202,7 +3211,7 @@ void Editor::textDidChangeInTextArea(Element* e)
 
 void Editor::applyEditingStyleToBodyElement() const
 {
-    auto collection = document().getElementsByTagName(HTMLNames::bodyTag.localName());
+    auto collection = document().getElementsByTagName(HTMLNames::bodyTag->localName());
     unsigned length = collection->length();
     for (unsigned i = 0; i < length; ++i)
         applyEditingStyleToElement(collection->item(i));
@@ -3723,6 +3732,39 @@ RefPtr<Range> Editor::rangeForTextCheckingResult(const TextCheckingResult& resul
 
     return TextIterator::subrange(*contextRange, result.location, result.length);
 }
+
+#if ENABLE(ATTACHMENT_ELEMENT)
+
+void Editor::insertAttachment(const String& identifier, const String& filename, const String& filepath, std::optional<String> contentType)
+{
+    if (!contentType)
+        contentType = File::contentTypeForFile(filename);
+    insertAttachmentFromFile(identifier, filename, *contentType, File::create(filepath));
+}
+
+void Editor::insertAttachment(const String& identifier, const String& filename, Ref<SharedBuffer>&& data, std::optional<String> contentType)
+{
+    if (!contentType)
+        contentType = File::contentTypeForFile(filename);
+    insertAttachmentFromFile(identifier, filename, *contentType, File::create(Blob::create(data, *contentType), filename));
+}
+
+void Editor::insertAttachmentFromFile(const String& identifier, const String& filename, const String& contentType, Ref<File>&& file)
+{
+    auto attachment = HTMLAttachmentElement::create(HTMLNames::attachmentTag, document(), identifier);
+    attachment->setAttribute(HTMLNames::titleAttr, filename);
+    attachment->setAttribute(HTMLNames::subtitleAttr, fileSizeDescription(file->size()));
+    attachment->setAttribute(HTMLNames::typeAttr, contentType);
+    attachment->setUniqueIdentifier(identifier);
+    attachment->setFile(file.ptr());
+
+    auto fragmentToInsert = document().createDocumentFragment();
+    fragmentToInsert->appendChild(attachment.get());
+
+    replaceSelectionWithFragment(fragmentToInsert.get(), false, false, true);
+}
+
+#endif // ENABLE(ATTACHMENT_ELEMENT)
 
 void Editor::handleAcceptedCandidate(TextCheckingResult acceptedCandidate)
 {

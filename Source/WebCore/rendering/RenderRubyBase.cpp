@@ -33,8 +33,11 @@
 #include "RenderRubyBase.h"
 #include "RenderRubyRun.h"
 #include "RenderRubyText.h"
+#include <wtf/IsoMallocInlines.h>
 
 namespace WebCore {
+
+WTF_MAKE_ISO_ALLOCATED_IMPL(RenderRubyBase);
 
 RenderRubyBase::RenderRubyBase(Document& document, RenderStyle&& style)
     : RenderBlockFlow(document, WTFMove(style))
@@ -44,9 +47,7 @@ RenderRubyBase::RenderRubyBase(Document& document, RenderStyle&& style)
     setInline(false);
 }
 
-RenderRubyBase::~RenderRubyBase()
-{
-}
+RenderRubyBase::~RenderRubyBase() = default;
 
 bool RenderRubyBase::isChildAllowed(const RenderObject& child, const RenderStyle&) const
 {
@@ -125,7 +126,7 @@ void RenderRubyBase::moveBlockChildren(RenderRubyBase* toBase, RenderObject* bef
         RenderBlock* anonBlockThere = downcast<RenderBlock>(lastChildThere);
         anonBlockHere->moveAllChildrenTo(anonBlockThere, true);
         anonBlockHere->deleteLines();
-        anonBlockHere->destroy();
+        anonBlockHere->removeFromParentAndDestroy();
     }
     // Move all remaining children normally.
     moveChildrenTo(toBase, firstChild(), beforeChild);

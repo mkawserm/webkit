@@ -71,10 +71,10 @@
 #include <wtf/WallTime.h>
 #include <wtf/unicode/CharacterNames.h>
 
-using namespace WTF;
-using namespace Unicode;
 
 namespace WebCore {
+using namespace WTF;
+using namespace Unicode;
 
 ContextMenuController::ContextMenuController(Page& page, ContextMenuClient& client)
     : m_page(page)
@@ -150,7 +150,7 @@ std::unique_ptr<ContextMenu> ContextMenuController::maybeCreateContextMenu(Event
         return nullptr;
 
     auto& mouseEvent = downcast<MouseEvent>(event);
-    auto* node = mouseEvent.target()->toNode();
+    auto node = mouseEvent.target()->toNode();
     if (!node)
         return nullptr;
     auto* frame = node->document().frame();

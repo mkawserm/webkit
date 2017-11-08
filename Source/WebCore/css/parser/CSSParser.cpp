@@ -49,9 +49,9 @@
 #include <wtf/NeverDestroyed.h>
 #include <wtf/text/StringBuilder.h>
 
-using namespace WTF;
 
 namespace WebCore {
+using namespace WTF;
 
 const CSSParserContext& strictCSSParserContext()
 {
@@ -87,6 +87,7 @@ CSSParserContext::CSSParserContext(Document& document, const URL& baseURL, const
 #endif
     springTimingFunctionEnabled = document.settings().springTimingFunctionEnabled();
     constantPropertiesEnabled = document.settings().constantPropertiesEnabled();
+    conicGradientsEnabled = document.settings().conicGradientsEnabled();
     deferredCSSParserEnabled = document.settings().deferredCSSParserEnabled();
 
 #if PLATFORM(IOS)
@@ -109,6 +110,7 @@ bool operator==(const CSSParserContext& a, const CSSParserContext& b)
         && a.useLegacyBackgroundSizeShorthandBehavior == b.useLegacyBackgroundSizeShorthandBehavior
         && a.springTimingFunctionEnabled == b.springTimingFunctionEnabled
         && a.constantPropertiesEnabled == b.constantPropertiesEnabled
+        && a.conicGradientsEnabled == b.conicGradientsEnabled
         && a.deferredCSSParserEnabled == b.deferredCSSParserEnabled;
 }
 
@@ -117,9 +119,7 @@ CSSParser::CSSParser(const CSSParserContext& context)
 {
 }
 
-CSSParser::~CSSParser()
-{
-}
+CSSParser::~CSSParser() = default;
 
 void CSSParser::parseSheet(StyleSheetContents* sheet, const String& string, RuleParsing ruleParsing)
 {

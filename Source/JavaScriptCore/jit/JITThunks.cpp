@@ -71,6 +71,20 @@ MacroAssemblerCodePtr JITThunks::ctiNativeTailCallWithoutSavedTags(VM* vm)
     return ctiStub(vm, nativeTailCallWithoutSavedTagsGenerator).code();
 }
 
+MacroAssemblerCodePtr JITThunks::ctiInternalFunctionCall(VM* vm)
+{
+    if (!vm->canUseJIT())
+        return MacroAssemblerCodePtr::createLLIntCodePtr(llint_internal_function_call_trampoline);
+    return ctiStub(vm, internalFunctionCallGenerator).code();
+}
+
+MacroAssemblerCodePtr JITThunks::ctiInternalFunctionConstruct(VM* vm)
+{
+    if (!vm->canUseJIT())
+        return MacroAssemblerCodePtr::createLLIntCodePtr(llint_internal_function_construct_trampoline);
+    return ctiStub(vm, internalFunctionConstructGenerator).code();
+}
+
 MacroAssemblerCodeRef JITThunks::ctiStub(VM* vm, ThunkGenerator generator)
 {
     LockHolder locker(m_lock);
@@ -116,7 +130,7 @@ NativeExecutable* JITThunks::hostFunctionStub(VM* vm, NativeFunction function, N
         MacroAssemblerCodeRef entry = generator(vm);
         forCall = adoptRef(new DirectJITCode(entry, entry.code(), JITCode::HostCallThunk));
     } else
-        forCall = adoptRef(new NativeJITCode(JIT::compileCTINativeCall(vm, function), JITCode::HostCallThunk));
+        forCall = adoptRef(new NativeJITCode(MacroAssemblerCodeRef::createSelfManagedCodeRef(ctiNativeCall(vm)), JITCode::HostCallThunk));
     
     Ref<JITCode> forConstruct = adoptRef(*new NativeJITCode(MacroAssemblerCodeRef::createSelfManagedCodeRef(ctiNativeConstruct(vm)), JITCode::HostCallThunk));
     

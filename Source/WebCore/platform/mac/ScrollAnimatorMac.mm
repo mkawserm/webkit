@@ -42,7 +42,7 @@
 #include <wtf/BlockObjCExceptions.h>
 #include <wtf/text/TextStream.h>
 
-using namespace WebCore;
+namespace WebCore {
 
 static ScrollbarThemeMac* macScrollbarTheme()
 {
@@ -58,6 +58,17 @@ static NSScrollerImp *scrollerImpForScrollbar(Scrollbar& scrollbar)
     return nil;
 }
 
+}
+
+using WebCore::ScrollableArea;
+using WebCore::ScrollAnimatorMac;
+using WebCore::Scrollbar;
+using WebCore::ScrollbarThemeMac;
+using WebCore::GraphicsLayer;
+using WebCore::VerticalScrollbar;
+using WebCore::macScrollbarTheme;
+using WebCore::IntRect;
+using WebCore::ThumbPart;
 @interface NSObject (ScrollAnimationHelperDetails)
 - (id)initWithDelegate:(id)delegate;
 - (void)_stopRun;
@@ -698,10 +709,10 @@ bool ScrollAnimatorMac::scroll(ScrollbarOrientation orientation, ScrollGranulari
 }
 
 // FIXME: Maybe this should take a position.
-void ScrollAnimatorMac::scrollToOffsetWithoutAnimation(const FloatPoint& offset)
+void ScrollAnimatorMac::scrollToOffsetWithoutAnimation(const FloatPoint& offset, ScrollClamping clamping)
 {
     [m_scrollAnimationHelper _stopRun];
-    immediateScrollToPosition(ScrollableArea::scrollPositionFromOffset(offset, toFloatSize(m_scrollableArea.scrollOrigin())));
+    immediateScrollToPosition(ScrollableArea::scrollPositionFromOffset(offset, toFloatSize(m_scrollableArea.scrollOrigin())), clamping);
 }
 
 FloatPoint ScrollAnimatorMac::adjustScrollPositionIfNecessary(const FloatPoint& position) const
@@ -724,10 +735,10 @@ void ScrollAnimatorMac::adjustScrollPositionToBoundsIfNecessary()
     m_scrollableArea.setConstrainsScrollingToContentEdge(currentlyConstrainsToContentEdge);
 }
 
-void ScrollAnimatorMac::immediateScrollToPosition(const FloatPoint& newPosition)
+void ScrollAnimatorMac::immediateScrollToPosition(const FloatPoint& newPosition, ScrollClamping clamping)
 {
     FloatPoint currentPosition = this->currentPosition();
-    FloatPoint adjustedPosition = adjustScrollPositionIfNecessary(newPosition);
+    FloatPoint adjustedPosition = clamping == ScrollClamping::Clamped ? adjustScrollPositionIfNecessary(newPosition) : newPosition;
  
     bool positionChanged = adjustedPosition != currentPosition;
     if (!positionChanged && !scrollableArea().scrollOriginChanged())

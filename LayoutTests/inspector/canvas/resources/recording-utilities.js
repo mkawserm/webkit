@@ -26,7 +26,13 @@ TestPage.registerInitializer(() => {
         InspectorTest.log("frames:");
         for (let i = 0; i < recording.frames.length; ++i) {
             let frame = recording.frames[i];
-            InspectorTest.log(`  ${i}:` + (frame.incomplete ? " (incomplete)" : ""));
+
+            let frameText = `  ${i}:`;
+            if (!isNaN(frame.duration))
+                frameText += " (duration)";
+            if (frame.incomplete)
+                frameText += " (incomplete)";
+            InspectorTest.log(frameText);
 
             for (let j = 0; j < frame.actions.length; ++j) {
                 let action = frame.actions[j];
@@ -104,7 +110,9 @@ TestPage.registerInitializer(() => {
             InspectorTest.evaluateInPage(`cancelActions()`);
 
             let recording = event.data.recording;
+            InspectorTest.assert(recording.source === canvas, "Recording should be of the given canvas.");
             InspectorTest.assert(recording.source.contextType === type, `Recording should be of a canvas with type "${type}".`);
+            InspectorTest.assert(recording.source.recordingCollection.items.has(recording), "Recording should be in the canvas' list of recordings.");
 
             return recording.actions.then(() => {
                 logRecording(recording, type);

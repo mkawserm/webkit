@@ -43,9 +43,7 @@ AccessibilityARIAGridCell::AccessibilityARIAGridCell(RenderObject* renderer)
 {
 }
 
-AccessibilityARIAGridCell::~AccessibilityARIAGridCell()
-{
-}
+AccessibilityARIAGridCell::~AccessibilityARIAGridCell() = default;
 
 Ref<AccessibilityARIAGridCell> AccessibilityARIAGridCell::create(RenderObject* renderer)
 {
@@ -171,7 +169,7 @@ void AccessibilityARIAGridCell::columnIndexRange(std::pair<unsigned, unsigned>& 
 AccessibilityObject* AccessibilityARIAGridCell::parentRowGroup() const
 {
     for (AccessibilityObject* parent = parentObject(); parent; parent = parent->parentObject()) {
-        if (parent->hasTagName(theadTag) || parent->hasTagName(tbodyTag) || parent->hasTagName(tfootTag) || parent->roleValue() == RowGroupRole)
+        if (parent->hasTagName(theadTag) || parent->hasTagName(tbodyTag) || parent->hasTagName(tfootTag) || parent->roleValue() == AccessibilityRole::RowGroup)
             return parent;
     }
     

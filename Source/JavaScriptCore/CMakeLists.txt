@@ -2,6 +2,10 @@ cmake_minimum_required(VERSION 2.8.12)
 include(WebKitCommon)
 set_property(DIRECTORY . PROPERTY FOLDER "JavaScriptCore")
 
+list(APPEND JavaScriptCore_UNIFIED_SOURCE_LIST_FILES
+    "Sources.txt"
+)
+
 set(JavaScriptCore_INCLUDE_DIRECTORIES
     "${CMAKE_BINARY_DIR}"
     "${JAVASCRIPTCORE_DIR}"
@@ -47,8 +51,6 @@ set(JavaScriptCore_INCLUDE_DIRECTORIES
 set(JavaScriptCore_SYSTEM_INCLUDE_DIRECTORIES
     "${ICU_INCLUDE_DIRS}"
 )
-
-WEBKIT_COMPUTE_SOURCES(JavaScriptCore)
 
 set(JavaScriptCore_OBJECT_LUT_SOURCES
     runtime/ArrayConstructor.cpp
@@ -356,6 +358,8 @@ set(JavaScriptCore_FORWARDING_HEADERS_DIRECTORIES
 # GENERATOR 1-B: particular LUT creator (for 1 file only)
 GENERATE_HASH_LUT(${CMAKE_CURRENT_SOURCE_DIR}/parser/Keywords.table ${DERIVED_SOURCES_JAVASCRIPTCORE_DIR}/Lexer.lut.h)
 
+file(MAKE_DIRECTORY ${DERIVED_SOURCES_JAVASCRIPTCORE_DIR}/yarr)
+
 #GENERATOR: "RegExpJitTables.h": tables used by Yarr
 add_custom_command(
     OUTPUT ${DERIVED_SOURCES_JAVASCRIPTCORE_DIR}/yarr/RegExpJitTables.h
@@ -601,6 +605,7 @@ target_include_directories(LLIntOffsetsExtractor PRIVATE ${JavaScriptCore_INCLUD
 
 add_subdirectory(shell)
 
+WEBKIT_COMPUTE_SOURCES(JavaScriptCore)
 WEBKIT_WRAP_SOURCELIST(${JavaScriptCore_SOURCES})
 WEBKIT_FRAMEWORK(JavaScriptCore)
 

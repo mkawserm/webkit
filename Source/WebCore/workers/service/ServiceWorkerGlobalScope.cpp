@@ -28,15 +28,39 @@
 
 #if ENABLE(SERVICE_WORKER)
 
+#include "ServiceWorkerClients.h"
+#include "ServiceWorkerThread.h"
+
 namespace WebCore {
 
-ServiceWorkerRegistration& ServiceWorkerGlobalScope::registration()
+ServiceWorkerGlobalScope::ServiceWorkerGlobalScope(uint64_t serverConnectionIdentifier, const ServiceWorkerContextData& data, const URL& url, const String& identifier, const String& userAgent, bool isOnline, ServiceWorkerThread& thread, bool shouldBypassMainWorldContentSecurityPolicy, Ref<SecurityOrigin>&& topOrigin, MonotonicTime timeOrigin, IDBClient::IDBConnectionProxy* connectionProxy, SocketProvider* socketProvider, PAL::SessionID sessionID)
+    : WorkerGlobalScope(url, identifier, userAgent, isOnline, thread, shouldBypassMainWorldContentSecurityPolicy, WTFMove(topOrigin), timeOrigin, connectionProxy, socketProvider, sessionID)
+    , m_serverConnectionIdentifier(serverConnectionIdentifier)
+    , m_contextData(crossThreadCopy(data))
+    , m_clients(ServiceWorkerClients::create(*this))
 {
-    return m_registration;
+}
+
+ServiceWorkerGlobalScope::~ServiceWorkerGlobalScope() = default;
+
+ServiceWorkerRegistration* ServiceWorkerGlobalScope::registration()
+{
+    // FIXME: implement this.
+    return nullptr;
 }
 
 void ServiceWorkerGlobalScope::skipWaiting(Ref<DeferredPromise>&&)
 {
+}
+
+EventTargetInterface ServiceWorkerGlobalScope::eventTargetInterface() const
+{
+    return ServiceWorkerGlobalScopeEventTargetInterfaceType;
+}
+
+ServiceWorkerThread& ServiceWorkerGlobalScope::thread()
+{
+    return static_cast<ServiceWorkerThread&>(WorkerGlobalScope::thread());
 }
 
 } // namespace WebCore

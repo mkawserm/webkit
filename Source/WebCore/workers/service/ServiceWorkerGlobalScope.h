@@ -27,24 +27,51 @@
 
 #if ENABLE(SERVICE_WORKER)
 
+#include "ServiceWorkerContextData.h"
 #include "ServiceWorkerRegistration.h"
 #include "WorkerGlobalScope.h"
 
 namespace WebCore {
 
 class DeferredPromise;
-class ServiceWorkerRegistration;
+class ServiceWorkerClients;
+class ServiceWorkerThread;
 
 class ServiceWorkerGlobalScope : public WorkerGlobalScope {
 public:
-    ServiceWorkerRegistration& registration();
+    template<typename... Args> static Ref<ServiceWorkerGlobalScope> create(Args&&... args)
+    {
+        return adoptRef(*new ServiceWorkerGlobalScope(std::forward<Args>(args)...));
+    }
+
+    virtual ~ServiceWorkerGlobalScope();
+
+    bool isServiceWorkerGlobalScope() const final { return true; }
+
+    ServiceWorkerClients& clients() { return m_clients.get(); }
+    ServiceWorkerRegistration* registration();
+    
+    uint64_t serverConnectionIdentifier() const { return m_serverConnectionIdentifier; }
 
     void skipWaiting(Ref<DeferredPromise>&&);
 
+    EventTargetInterface eventTargetInterface() const final;
+
+    ServiceWorkerThread& thread();
+
 private:
-    ServiceWorkerRegistration m_registration;
+    ServiceWorkerGlobalScope(uint64_t serverConnectionIdentifier, const ServiceWorkerContextData&, const URL&, const String& identifier, const String& userAgent, bool isOnline, ServiceWorkerThread&, bool shouldBypassMainWorldContentSecurityPolicy, Ref<SecurityOrigin>&& topOrigin, MonotonicTime timeOrigin, IDBClient::IDBConnectionProxy*, SocketProvider*, PAL::SessionID);
+
+    uint64_t m_serverConnectionIdentifier;
+    ServiceWorkerContextData m_contextData;
+    Ref<ServiceWorkerClients> m_clients;
 };
 
 } // namespace WebCore
+
+SPECIALIZE_TYPE_TRAITS_BEGIN(WebCore::ServiceWorkerGlobalScope)
+    static bool isType(const WebCore::ScriptExecutionContext& context) { return is<WebCore::WorkerGlobalScope>(context) && downcast<WebCore::WorkerGlobalScope>(context).isServiceWorkerGlobalScope(); }
+    static bool isType(const WebCore::WorkerGlobalScope& context) { return context.isServiceWorkerGlobalScope(); }
+SPECIALIZE_TYPE_TRAITS_END()
 
 #endif // ENABLE(SERVICE_WORKER)

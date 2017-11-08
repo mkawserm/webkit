@@ -186,12 +186,6 @@ function absoluteURL(partialURL, baseURL)
     return baseURLPrefix + resolveDotsInPath(basePath + partialURL);
 }
 
-function parseLocationQueryParameters(arrayResult)
-{
-    // The first character is always the "?".
-    return parseQueryString(window.location.search.substring(1), arrayResult);
-}
-
 function parseQueryString(queryString, arrayResult)
 {
     if (!queryString)
@@ -202,7 +196,7 @@ function parseQueryString(queryString, arrayResult)
         try {
             // Replace "+" with " " then decode percent encoded values.
             return decodeURIComponent(string.replace(/\+/g, " "));
-        } catch (e) {
+        } catch {
             return string;
         }
     }
@@ -231,7 +225,7 @@ WI.displayNameForURL = function(url, urlComponents)
     var displayName;
     try {
         displayName = decodeURIComponent(urlComponents.lastPathComponent || "");
-    } catch (e) {
+    } catch {
         displayName = urlComponents.lastPathComponent;
     }
 

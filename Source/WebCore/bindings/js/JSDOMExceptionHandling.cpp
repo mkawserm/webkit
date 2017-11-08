@@ -37,9 +37,9 @@
 #include <runtime/ExceptionHelpers.h>
 #include <wtf/text/StringBuilder.h>
 
-using namespace JSC;
 
 namespace WebCore {
+using namespace JSC;
 
 void reportException(ExecState* exec, JSValue exceptionValue, CachedScript* cachedScript)
 {
@@ -83,7 +83,7 @@ void reportException(ExecState* exec, JSC::Exception* exception, CachedScript* c
 
     ErrorHandlingScope errorScope(exec->vm());
 
-    auto callStack = Inspector::createScriptCallStackFromException(exec, exception, Inspector::ScriptCallStack::maxCallStackSizeToCapture);
+    auto callStack = Inspector::createScriptCallStackFromException(exec, exception);
     scope.clearException();
     vm.clearLastException();
 

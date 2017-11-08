@@ -30,6 +30,7 @@
 #include "Color.h"
 #include "ContainerNode.h"
 #include "DocumentEventQueue.h"
+#include "DocumentTimeline.h"
 #include "DocumentTiming.h"
 #include "FocusDirection.h"
 #include "FontSelectorClient.h"
@@ -37,7 +38,6 @@
 #include "MediaProducer.h"
 #include "MutationObserver.h"
 #include "OrientationNotifier.h"
-#include "PageVisibilityState.h"
 #include "PlatformEvent.h"
 #include "ReferrerPolicy.h"
 #include "Region.h"
@@ -50,6 +50,8 @@
 #include "TreeScope.h"
 #include "UserActionElementSet.h"
 #include "ViewportArguments.h"
+#include "VisibilityState.h"
+#include <pal/Logger.h>
 #include <pal/SessionID.h>
 #include <wtf/Deque.h>
 #include <wtf/Forward.h>
@@ -69,10 +71,6 @@
 namespace JSC {
 class ExecState;
 class InputCursor;
-}
-
-namespace PAL {
-class Logger;
 }
 
 namespace WebCore {
@@ -306,7 +304,8 @@ class Document
     , public ScriptExecutionContext
     , public FontSelectorClient
     , public FrameDestructionObserver
-    , public Supplementable<Document> {
+    , public Supplementable<Document>
+    , public PAL::Logger::Observer {
 public:
     static Ref<Document> create(Frame* frame, const URL& url)
     {
@@ -348,7 +347,11 @@ public:
 
     void removedLastRef();
 
-    WEBCORE_EXPORT static HashSet<Document*>& allDocuments();
+    uint64_t identifier() const { return m_identifier; }
+
+    using DocumentsMap = HashMap<uint64_t, Document*>;
+    WEBCORE_EXPORT static DocumentsMap::ValuesIteratorRange allDocuments();
+    WEBCORE_EXPORT static DocumentsMap& allDocumentsMap();
 
     MediaQueryMatcher& mediaQueryMatcher();
 
@@ -457,7 +460,6 @@ public:
     String documentURI() const { return m_documentURI; }
     WEBCORE_EXPORT void setDocumentURI(const String&);
 
-    using VisibilityState = PageVisibilityState;
     WEBCORE_EXPORT VisibilityState visibilityState() const;
     void visibilityStateChanged();
     WEBCORE_EXPORT bool hidden() const;
@@ -643,7 +645,7 @@ public:
 
     WEBCORE_EXPORT URL completeURL(const String&) const final;
     URL completeURL(const String&, const URL& baseURLOverride) const;
-    PAL::SessionID sessionID() const final;
+    WEBCORE_EXPORT PAL::SessionID sessionID() const final;
 
     String userAgent(const URL&) const final;
 
@@ -753,7 +755,11 @@ public:
 
     void attachNodeIterator(NodeIterator*);
     void detachNodeIterator(NodeIterator*);
-    void moveNodeIteratorsToNewDocument(Node&, Document&);
+    void moveNodeIteratorsToNewDocument(Node& node, Document& newDocument)
+    {
+        if (!m_nodeIterators.isEmpty())
+            moveNodeIteratorsToNewDocumentSlowCase(node, newDocument);
+    }
 
     void attachRange(Range*);
     void detachRange(Range*);
@@ -863,7 +869,7 @@ public:
 
     WEBCORE_EXPORT String referrer() const;
 
-    WEBCORE_EXPORT String origin() const;
+    WEBCORE_EXPORT String origin() const final;
 
     WEBCORE_EXPORT String domain() const;
     ExceptionOr<void> setDomain(const String& newDomain);
@@ -946,7 +952,8 @@ public:
     void popCurrentScript();
 
 #if ENABLE(XSLT)
-    void applyXSLTransform(ProcessingInstruction* pi);
+    void scheduleToApplyXSLTransforms();
+    void applyPendingXSLTransformsNowIfScheduled();
     RefPtr<Document> transformSourceDocument() { return m_transformSourceDocument; }
     void setTransformSourceDocument(Document* doc) { m_transformSourceDocument = doc; }
 
@@ -956,6 +963,8 @@ public:
 
     void incDOMTreeVersion() { m_domTreeVersion = ++s_globalTreeVersion; }
     uint64_t domTreeVersion() const { return m_domTreeVersion; }
+
+    String originIdentifierForPasteboard();
 
     // XPathEvaluator methods
     WEBCORE_EXPORT ExceptionOr<Ref<XPathExpression>> createExpression(const String& expression, RefPtr<XPathNSResolver>&&);
@@ -1145,7 +1154,6 @@ public:
 
     int requestAnimationFrame(Ref<RequestAnimationFrameCallback>&&);
     void cancelAnimationFrame(int id);
-    void serviceScriptedAnimations(double timestamp);
 
     EventTarget* errorEventTarget() final;
     void logExceptionToConsole(const String& errorMessage, const String& sourceURL, int lineNumber, int columnNumber, RefPtr<Inspector::ScriptCallStack>&&) final;
@@ -1355,7 +1363,7 @@ public:
     TextAutoSizing& textAutoSizing();
 #endif
 
-    PAL::Logger& logger() const;
+    PAL::Logger& logger();
 
     bool hasStorageAccess() const { return m_hasStorageAccess; };
     void requestStorageAccess(Ref<DeferredPromise>&& passedPromise);
@@ -1363,6 +1371,8 @@ public:
 
     WEBCORE_EXPORT void setConsoleMessageListener(RefPtr<StringCallback>&&); // For testing.
 
+    DocumentTimeline& timeline();
+        
 protected:
     enum ConstructionFlags { Synthesized = 1, NonRenderedPlaceholder = 1 << 1 };
     Document(Frame*, const URL&, unsigned = DefaultDocumentClass, unsigned constructionFlags = 0);
@@ -1420,6 +1430,8 @@ private:
     void updateBaseURL();
 
     void buildAccessKeyMap(TreeScope* root);
+
+    void moveNodeIteratorsToNewDocumentSlowCase(Node&, Document&);
 
     void loadEventDelayTimerFired();
 
@@ -1517,7 +1529,9 @@ private:
 
     uint64_t m_domTreeVersion;
     static uint64_t s_globalTreeVersion;
-    
+
+    String m_uniqueIdentifier;
+
     HashSet<NodeIterator*> m_nodeIterators;
     HashSet<Range*> m_ranges;
 
@@ -1554,8 +1568,12 @@ private:
     Vector<RefPtr<HTMLScriptElement>> m_currentScriptStack;
 
 #if ENABLE(XSLT)
+    void applyPendingXSLTransformsTimerFired();
+
     std::unique_ptr<TransformSource> m_transformSource;
     RefPtr<Document> m_transformSourceDocument;
+    Timer m_applyPendingXSLTransformsTimer;
+    bool m_hasPendingXSLTransforms { false };
 #endif
 
     String m_xmlEncoding;
@@ -1652,6 +1670,8 @@ private:
     RefPtr<ScriptedAnimationController> m_scriptedAnimationController;
 
     void notifyMediaCaptureOfVisibilityChanged();
+
+    void didLogMessage(const WTFLogChannel&, WTFLogLevel, const String&) final;
 
 #if ENABLE(DEVICE_ORIENTATION) && PLATFORM(IOS)
     std::unique_ptr<DeviceMotionClient> m_deviceMotionClient;
@@ -1818,6 +1838,9 @@ private:
 
     bool m_hasStorageAccess { false };
     bool m_grantStorageAccessOverride { false };
+
+    RefPtr<DocumentTimeline> m_timeline;
+    uint64_t m_identifier;
 };
 
 Element* eventTargetElementForDocument(Document*);

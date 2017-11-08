@@ -126,6 +126,7 @@ void ProcessingInstruction::checkStyleSheet()
                 URL finalURL(ParsedURLString, m_localHref);
                 m_sheet = XSLStyleSheet::createEmbedded(this, finalURL);
                 m_loading = false;
+                document().scheduleToApplyXSLTransforms();
             }
 #endif
         } else {
@@ -179,7 +180,7 @@ void ProcessingInstruction::checkStyleSheet()
                 document().styleScope().removePendingSheet(*this);
 #if ENABLE(XSLT)
                 if (m_isXSL)
-                    document().styleScope().flushPendingUpdate();
+                    document().scheduleToApplyXSLTransforms();
 #endif
             }
         }
@@ -202,7 +203,7 @@ bool ProcessingInstruction::sheetLoaded()
             document().styleScope().removePendingSheet(*this);
 #if ENABLE(XSLT)
         if (m_isXSL)
-            document().styleScope().flushPendingUpdate();
+            document().scheduleToApplyXSLTransforms();
 #endif
         return true;
     }
@@ -274,20 +275,24 @@ void ProcessingInstruction::addSubresourceAttributeURLs(ListHashSet<URL>& urls) 
     addSubresourceURL(urls, sheet()->baseURL());
 }
 
-Node::InsertionNotificationRequest ProcessingInstruction::insertedInto(ContainerNode& insertionPoint)
+Node::InsertedIntoAncestorResult ProcessingInstruction::insertedIntoAncestor(InsertionType insertionType, ContainerNode& parentOfInsertedTree)
 {
-    CharacterData::insertedInto(insertionPoint);
-    if (!insertionPoint.isConnected())
-        return InsertionDone;
+    CharacterData::insertedIntoAncestor(insertionType, parentOfInsertedTree);
+    if (!insertionType.connectedToDocument)
+        return InsertedIntoAncestorResult::Done;
     document().styleScope().addStyleSheetCandidateNode(*this, m_createdByParser);
-    checkStyleSheet();
-    return InsertionDone;
+    return InsertedIntoAncestorResult::NeedsPostInsertionCallback;
 }
 
-void ProcessingInstruction::removedFrom(ContainerNode& insertionPoint)
+void ProcessingInstruction::didFinishInsertingNode()
 {
-    CharacterData::removedFrom(insertionPoint);
-    if (!insertionPoint.isConnected())
+    checkStyleSheet();
+}
+
+void ProcessingInstruction::removedFromAncestor(RemovalType removalType, ContainerNode& oldParentOfRemovedTree)
+{
+    CharacterData::removedFromAncestor(removalType, oldParentOfRemovedTree);
+    if (!removalType.disconnectedFromDocument)
         return;
     
     document().styleScope().removeStyleSheetCandidateNode(*this);

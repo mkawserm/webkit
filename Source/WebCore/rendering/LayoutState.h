@@ -30,13 +30,12 @@
 
 namespace WebCore {
 
-class RenderBlock;
+class LayoutContext;
 class RenderBlockFlow;
 class RenderBox;
 class RenderElement;
 class RenderFragmentedFlow;
 class RenderObject;
-class ShapeInsideInfo;
 
 class LayoutState {
     WTF_MAKE_NONCOPYABLE(LayoutState); WTF_MAKE_FAST_ALLOCATED;
@@ -53,8 +52,8 @@ public:
     {
     }
 
-    LayoutState(std::unique_ptr<LayoutState>, RenderBox*, const LayoutSize& offset, LayoutUnit pageHeight, bool pageHeightChanged);
-    explicit LayoutState(RenderObject&);
+    LayoutState(std::unique_ptr<LayoutState> ancestor, RenderBox&, const LayoutSize& offset, LayoutUnit pageHeight, bool pageHeightChanged);
+    explicit LayoutState(RenderElement&);
 
     void clearPaginationInformation();
     bool isPaginated() const { return m_isPaginated; }
@@ -81,8 +80,11 @@ public:
     void setCurrentRenderFragmentedFlow(RenderFragmentedFlow* fragmentedFlow) { m_currentRenderFragmentedFlow = fragmentedFlow; }
 
 private:
-    void propagateLineGridInfo(RenderBox*);
-    void establishLineGrid(RenderBlockFlow*);
+    void computeOffsets(RenderBox&, LayoutSize offset);
+    void computeClipRect(RenderBox&);
+    void computePaginationInformation(RenderBox&, LayoutUnit pageLogicalHeight, bool pageLogicalHeightChanged);
+    void propagateLineGridInfo(RenderBox&);
+    void establishLineGrid(RenderBlockFlow&);
 
 public:
     // Do not add anything apart from bitfields. See https://bugs.webkit.org/show_bug.cgi?id=100173
@@ -97,15 +99,15 @@ public:
 
     // The current line grid that we're snapping to and the offset of the start of the grid.
     RenderBlockFlow* m_lineGrid { nullptr };
-    std::unique_ptr<LayoutState> m_next;
+    std::unique_ptr<LayoutState> m_ancestor;
 
     // FIXME: Distinguish between the layout clip rect and the paint clip rect which may be larger,
     // e.g., because of composited scrolling.
     LayoutRect m_clipRect;
     
-    // x/y offset from container. Includes relative positioning and scroll offsets.
+    // x/y offset from layout root. Includes in-flow positioning and scroll offsets.
     LayoutSize m_paintOffset;
-    // x/y offset from container. Does not include relative positioning or scroll offsets.
+    // x/y offset from layout root. Does not include in-flow positioning or scroll offsets.
     LayoutSize m_layoutOffset;
     // Transient offset from the final position of the object
     // used to ensure that repaints happen in the correct place.
@@ -120,10 +122,61 @@ public:
     LayoutSize m_lineGridPaginationOrigin;
 
     RenderFragmentedFlow* m_currentRenderFragmentedFlow { nullptr };
-
 #ifndef NDEBUG
-    RenderObject* m_renderer { nullptr };
+    RenderElement* m_renderer { nullptr };
 #endif
+};
+
+// Stack-based class to assist with LayoutState push/pop
+class LayoutStateMaintainer {
+    WTF_MAKE_NONCOPYABLE(LayoutStateMaintainer);
+public:
+    // Constructor to push now.
+    explicit LayoutStateMaintainer(RenderBox&, LayoutSize offset, bool disableState = false, LayoutUnit pageHeight = 0, bool pageHeightChanged = false);
+    // Constructor to maybe push later.
+    explicit LayoutStateMaintainer(LayoutContext&);
+    ~LayoutStateMaintainer();
+
+    void push(RenderBox& root, LayoutSize offset, LayoutUnit pageHeight = 0, bool pageHeightChanged = false);
+    void pop();
+    bool didPush() const { return m_didCallPush; }
+
+private:
+    LayoutContext& m_layoutContext;
+    bool m_paintOffsetCacheIsDisabled { false };
+    bool m_didCallPush { false };
+    bool m_didCallPop { false };
+    bool m_didPushLayoutState { false };
+};
+
+class SubtreeLayoutStateMaintainer {
+public:
+    SubtreeLayoutStateMaintainer(RenderElement* subtreeLayoutRoot);
+    ~SubtreeLayoutStateMaintainer();
+
+private:
+    RenderElement* m_subtreeLayoutRoot { nullptr };
+    bool m_didDisablePaintOffsetCache { false };
+};
+
+class LayoutStateDisabler {
+    WTF_MAKE_NONCOPYABLE(LayoutStateDisabler);
+public:
+    LayoutStateDisabler(LayoutContext&);
+    ~LayoutStateDisabler();
+
+private:
+    LayoutContext& m_layoutContext;
+};
+
+class PaginatedLayoutStateMaintainer {
+public:
+    PaginatedLayoutStateMaintainer(RenderBlockFlow&);
+    ~PaginatedLayoutStateMaintainer();
+
+private:
+    RenderBlockFlow& m_flow;
+    bool m_pushed { false };
 };
 
 } // namespace WebCore

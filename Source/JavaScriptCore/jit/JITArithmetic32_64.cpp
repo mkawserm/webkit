@@ -92,27 +92,40 @@ void JIT::emit_compareAndJump(OpcodeID opcode, int op1, int op2, unsigned target
     end.link(this);
 }
 
+void JIT::emit_compareUnsignedAndJump(int op1, int op2, unsigned target, RelationalCondition condition)
+{
+    if (isOperandConstantInt(op1)) {
+        emitLoad(op2, regT3, regT2);
+        addJump(branch32(commute(condition), regT2, Imm32(getConstantOperand(op1).asInt32())), target);
+    } else if (isOperandConstantInt(op2)) {
+        emitLoad(op1, regT1, regT0);
+        addJump(branch32(condition, regT0, Imm32(getConstantOperand(op2).asInt32())), target);
+    } else {
+        emitLoad2(op1, regT1, regT0, op2, regT3, regT2);
+        addJump(branch32(condition, regT0, regT2), target);
+    }
+}
+
+
+void JIT::emit_compareUnsigned(int dst, int op1, int op2, RelationalCondition condition)
+{
+    if (isOperandConstantInt(op1)) {
+        emitLoad(op2, regT3, regT2);
+        compare32(commute(condition), regT2, Imm32(getConstantOperand(op1).asInt32()), regT0);
+    } else if (isOperandConstantInt(op2)) {
+        emitLoad(op1, regT1, regT0);
+        compare32(condition, regT0, Imm32(getConstantOperand(op2).asInt32()), regT0);
+    } else {
+        emitLoad2(op1, regT1, regT0, op2, regT3, regT2);
+        compare32(condition, regT0, regT2, regT0);
+    }
+    emitStoreBool(dst, regT0);
+}
+
 void JIT::emit_compareAndJumpSlow(int op1, int op2, unsigned target, DoubleCondition, size_t (JIT_OPERATION *operation)(ExecState*, EncodedJSValue, EncodedJSValue), bool invert, Vector<SlowCaseEntry>::iterator& iter)
 {
-    if (isOperandConstantChar(op1) || isOperandConstantChar(op2)) {
-        linkSlowCase(iter);
-        linkSlowCase(iter);
-        linkSlowCase(iter);
-        linkSlowCase(iter);
-    } else {
-        if (!supportsFloatingPoint()) {
-            if (!isOperandConstantInt(op1) && !isOperandConstantInt(op2))
-                linkSlowCase(iter); // int32 check
-            linkSlowCase(iter); // int32 check
-        } else {
-            if (!isOperandConstantInt(op1)) {
-                linkSlowCase(iter); // double check
-                linkSlowCase(iter); // int32 check
-            }
-            if (isOperandConstantInt(op1) || !isOperandConstantInt(op2))
-                linkSlowCase(iter); // double check
-        }
-    }
+    linkAllSlowCases(iter);
+
     emitLoad(op1, regT1, regT0);
     emitLoad(op2, regT3, regT2);
     callOperation(operation, regT1, regT0, regT3, regT2);
@@ -133,8 +146,7 @@ void JIT::emit_op_unsigned(Instruction* currentInstruction)
 
 void JIT::emitSlow_op_unsigned(Instruction* currentInstruction, Vector<SlowCaseEntry>::iterator& iter)
 {
-    linkSlowCase(iter);
-    linkSlowCase(iter);
+    linkAllSlowCases(iter);
     
     JITSlowPathCall slowPathCall(this, currentInstruction, slow_path_unsigned);
     slowPathCall.call();
@@ -153,8 +165,7 @@ void JIT::emit_op_inc(Instruction* currentInstruction)
 
 void JIT::emitSlow_op_inc(Instruction* currentInstruction, Vector<SlowCaseEntry>::iterator& iter)
 {
-    linkSlowCase(iter); // int32 check
-    linkSlowCase(iter); // overflow check
+    linkAllSlowCases(iter);
 
     JITSlowPathCall slowPathCall(this, currentInstruction, slow_path_inc);
     slowPathCall.call();
@@ -173,8 +184,7 @@ void JIT::emit_op_dec(Instruction* currentInstruction)
 
 void JIT::emitSlow_op_dec(Instruction* currentInstruction, Vector<SlowCaseEntry>::iterator& iter)
 {
-    linkSlowCase(iter); // int32 check
-    linkSlowCase(iter); // overflow check
+    linkAllSlowCases(iter);
 
     JITSlowPathCall slowPathCall(this, currentInstruction, slow_path_dec);
     slowPathCall.call();
@@ -349,12 +359,9 @@ void JIT::emit_op_mod(Instruction* currentInstruction)
 
 void JIT::emitSlow_op_mod(Instruction* currentInstruction, Vector<SlowCaseEntry>::iterator& iter)
 {
-#if CPU(X86) || CPU(X86_64)
-    linkSlowCase(iter);
-    linkSlowCase(iter);
-    linkSlowCase(iter);
-    linkSlowCase(iter);
-    linkSlowCase(iter);
+#if CPU(X86)
+    linkAllSlowCases(iter);
+
     JITSlowPathCall slowPathCall(this, currentInstruction, slow_path_mod);
     slowPathCall.call();
 #else

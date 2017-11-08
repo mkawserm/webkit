@@ -129,8 +129,8 @@ macro doVMEntry(makeCall)
     storep vm, VMEntryRecord::m_vm[sp]
     loadp VM::topCallFrame[vm], t4
     storep t4, VMEntryRecord::m_prevTopCallFrame[sp]
-    loadp VM::topVMEntryFrame[vm], t4
-    storep t4, VMEntryRecord::m_prevTopVMEntryFrame[sp]
+    loadp VM::topEntryFrame[vm], t4
+    storep t4, VMEntryRecord::m_prevTopEntryFrame[sp]
 
     loadi ProtoCallFrame::paddedArgCount[protoCallFrame], t4
     addp CallFrameHeaderSlots, t4, t4
@@ -171,8 +171,8 @@ macro doVMEntry(makeCall)
     loadp VMEntryRecord::m_vm[t4], vm
     loadp VMEntryRecord::m_prevTopCallFrame[t4], extraTempReg
     storep extraTempReg, VM::topCallFrame[vm]
-    loadp VMEntryRecord::m_prevTopVMEntryFrame[t4], extraTempReg
-    storep extraTempReg, VM::topVMEntryFrame[vm]
+    loadp VMEntryRecord::m_prevTopEntryFrame[t4], extraTempReg
+    storep extraTempReg, VM::topEntryFrame[vm]
 
     subp cfr, CalleeRegisterSaveSize, sp
 
@@ -220,7 +220,7 @@ macro doVMEntry(makeCall)
     else
         storep sp, VM::topCallFrame[vm]
     end
-    storep cfr, VM::topVMEntryFrame[vm]
+    storep cfr, VM::topEntryFrame[vm]
 
     checkStackPointerAlignment(extraTempReg, 0xbad0dc02)
 
@@ -236,8 +236,8 @@ macro doVMEntry(makeCall)
     loadp VMEntryRecord::m_vm[t4], vm
     loadp VMEntryRecord::m_prevTopCallFrame[t4], t2
     storep t2, VM::topCallFrame[vm]
-    loadp VMEntryRecord::m_prevTopVMEntryFrame[t4], t2
-    storep t2, VM::topVMEntryFrame[vm]
+    loadp VMEntryRecord::m_prevTopEntryFrame[t4], t2
+    storep t2, VM::topEntryFrame[vm]
 
     subp cfr, CalleeRegisterSaveSize, sp
 
@@ -276,7 +276,6 @@ macro makeHostFunctionCall(entry, temp)
     end
 end
 
-
 _handleUncaughtException:
     loadp Callee[cfr], t3
     andp MarkedBlockMask, t3
@@ -291,8 +290,8 @@ _handleUncaughtException:
     loadp VMEntryRecord::m_vm[t2], t3
     loadp VMEntryRecord::m_prevTopCallFrame[t2], extraTempReg
     storep extraTempReg, VM::topCallFrame[t3]
-    loadp VMEntryRecord::m_prevTopVMEntryFrame[t2], extraTempReg
-    storep extraTempReg, VM::topVMEntryFrame[t3]
+    loadp VMEntryRecord::m_prevTopEntryFrame[t2], extraTempReg
+    storep extraTempReg, VM::topEntryFrame[t3]
 
     subp cfr, CalleeRegisterSaveSize, sp
 
@@ -515,7 +514,7 @@ macro functionArityCheck(doneLabel, slowPath)
     jmp _llint_throw_from_slow_path_trampoline
 
 .noError:
-    loadi CommonSlowPaths::ArityCheckData::paddedStackSpace[r1], t1
+    move r1, t1 # r1 contains slotsToAdd.
     btiz t1, .continue
     loadi PayloadOffset + ArgumentCount[cfr], t2
     addi CallFrameHeaderSlots, t2
@@ -846,6 +845,22 @@ _llint_op_to_string:
 .opToStringSlow:
     callOpcodeSlowPath(_slow_path_to_string)
     dispatch(constexpr op_to_string_length)
+
+
+_llint_op_to_object:
+    traceExecution()
+    loadisFromInstruction(2, t0)
+    loadisFromInstruction(1, t1)
+    loadConstantOrVariable(t0, t2)
+    btqnz t2, tagMask, .opToObjectSlow
+    bbb JSCell::m_type[t2], ObjectType, .opToObjectSlow
+    storeq t2, [cfr, t1, 8]
+    valueProfile(t2, 4, t0)
+    dispatch(constexpr op_to_object_length)
+
+.opToObjectSlow:
+    callOpcodeSlowPath(_slow_path_to_object)
+    dispatch(constexpr op_to_object_length)
 
 
 _llint_op_negate:
@@ -1209,7 +1224,7 @@ _llint_op_is_object:
 
 macro loadPropertyAtVariableOffset(propertyOffsetAsInt, objectAndStorage, value)
     bilt propertyOffsetAsInt, firstOutOfLineOffset, .isInline
-    loadCaged(_g_gigacageBasePtrs + Gigacage::BasePtrs::jsValue, constexpr JSVALUE_GIGACAGE_MASK, JSObject::m_butterfly[objectAndStorage], objectAndStorage, value)
+    loadp JSObject::m_butterfly[objectAndStorage], objectAndStorage
     negi propertyOffsetAsInt
     sxi2q propertyOffsetAsInt, propertyOffsetAsInt
     jmp .ready
@@ -1220,9 +1235,9 @@ macro loadPropertyAtVariableOffset(propertyOffsetAsInt, objectAndStorage, value)
 end
 
 
-macro storePropertyAtVariableOffset(propertyOffsetAsInt, objectAndStorage, value, scratch)
+macro storePropertyAtVariableOffset(propertyOffsetAsInt, objectAndStorage, value)
     bilt propertyOffsetAsInt, firstOutOfLineOffset, .isInline
-    loadCaged(_g_gigacageBasePtrs + Gigacage::BasePtrs::jsValue, constexpr JSVALUE_GIGACAGE_MASK, JSObject::m_butterfly[objectAndStorage], objectAndStorage, scratch)
+    loadp JSObject::m_butterfly[objectAndStorage], objectAndStorage
     negi propertyOffsetAsInt
     sxi2q propertyOffsetAsInt, propertyOffsetAsInt
     jmp .ready
@@ -1445,7 +1460,7 @@ _llint_op_put_by_id:
     loadisFromInstruction(3, t1)
     loadConstantOrVariable(t1, t2)
     loadisFromInstruction(5, t1)
-    storePropertyAtVariableOffset(t1, t0, t2, t3)
+    storePropertyAtVariableOffset(t1, t0, t2)
     writeBarrierOnOperands(1, 3)
     dispatch(constexpr op_put_by_id_length)
 
@@ -1813,6 +1828,33 @@ macro compare(integerCompare, doubleCompare, slowPath)
 end
 
 
+macro compareUnsignedJump(integerCompare)
+    loadisFromInstruction(1, t2)
+    loadisFromInstruction(2, t3)
+    loadConstantOrVariable(t2, t0)
+    loadConstantOrVariable(t3, t1)
+    integerCompare(t0, t1, .jumpTarget)
+    dispatch(4)
+
+.jumpTarget:
+    dispatchIntIndirect(3)
+end
+
+
+macro compareUnsigned(integerCompareAndSet)
+    traceExecution()
+    loadisFromInstruction(3, t0)
+    loadisFromInstruction(2, t2)
+    loadisFromInstruction(1, t3)
+    loadConstantOrVariable(t0, t1)
+    loadConstantOrVariable(t2, t0)
+    integerCompareAndSet(t0, t1, t0)
+    orq ValueFalse, t0
+    storeq t0, [cfr, t3, 8]
+    dispatch(4)
+end
+
+
 _llint_op_switch_imm:
     traceExecution()
     loadisFromInstruction(3, t2)
@@ -2052,6 +2094,45 @@ macro nativeCallTrampoline(executableOffsetToFunction)
     jmp _llint_throw_from_slow_path_trampoline
 end
 
+macro internalFunctionCallTrampoline(offsetOfFunction)
+    functionPrologue()
+    storep 0, CodeBlock[cfr]
+    loadp Callee[cfr], t0
+    andp MarkedBlockMask, t0, t1
+    loadp MarkedBlock::m_vm[t1], t1
+    storep cfr, VM::topCallFrame[t1]
+    if ARM64 or C_LOOP
+        storep lr, ReturnPC[cfr]
+    end
+    move cfr, a0
+    loadp Callee[cfr], t1
+    checkStackPointerAlignment(t3, 0xdead0001)
+    if C_LOOP
+        cloopCallNative offsetOfFunction[t1]
+    else
+        if X86_64_WIN
+            subp 32, sp
+        end
+        call offsetOfFunction[t1]
+        if X86_64_WIN
+            addp 32, sp
+        end
+    end
+
+    loadp Callee[cfr], t3
+    andp MarkedBlockMask, t3
+    loadp MarkedBlock::m_vm[t3], t3
+
+    btqnz VM::m_exception[t3], .handleException
+
+    functionEpilogue()
+    ret
+
+.handleException:
+    storep cfr, VM::topCallFrame[t3]
+    jmp _llint_throw_from_slow_path_trampoline
+end
+
 macro getConstantScope(dst)
     loadpFromInstruction(6, t0)
     loadisFromInstruction(dst, t1)
@@ -2240,7 +2321,7 @@ macro putProperty()
     loadisFromInstruction(3, t1)
     loadConstantOrVariable(t1, t2)
     loadisFromInstruction(6, t1)
-    storePropertyAtVariableOffset(t1, t0, t2, t3)
+    storePropertyAtVariableOffset(t1, t0, t2)
 end
 
 macro putGlobalVariable()

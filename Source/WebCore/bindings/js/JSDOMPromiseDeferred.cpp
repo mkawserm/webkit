@@ -33,9 +33,9 @@
 #include <runtime/JSONObject.h>
 #include <runtime/JSPromiseConstructor.h>
 
-using namespace JSC;
 
 namespace WebCore {
+using namespace JSC;
 
 JSC::JSValue DeferredPromise::promise() const
 {
@@ -57,6 +57,7 @@ void DeferredPromise::callFunction(ExecState& exec, JSValue function, JSValue re
 
     MarkedArgumentBuffer arguments;
     arguments.append(resolution);
+    ASSERT(!arguments.hasOverflowed());
 
     call(&exec, function, callType, callData, jsUndefined(), arguments);
 
@@ -206,6 +207,7 @@ JSC::EncodedJSValue createRejectedPromiseWithTypeError(JSC::ExecState& state, co
 
     MarkedArgumentBuffer arguments;
     arguments.append(rejectionValue);
+    ASSERT(!arguments.hasOverflowed());
 
     return JSValue::encode(call(&state, rejectFunction, callType, callData, promiseConstructor, arguments));
 }

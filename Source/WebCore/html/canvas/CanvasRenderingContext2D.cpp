@@ -89,11 +89,12 @@ struct DisplayListDrawingContext {
     WTF_MAKE_FAST_ALLOCATED;
 public:
     GraphicsContext context;
-    DisplayList::Recorder recorder;
     DisplayList::DisplayList displayList;
     
     DisplayListDrawingContext(const FloatRect& clip)
-        : recorder(context, displayList, clip, AffineTransform())
+        : context([&](GraphicsContext& context) {
+            return std::make_unique<DisplayList::Recorder>(context, displayList, clip, AffineTransform());
+        })
     {
     }
 };
@@ -408,7 +409,7 @@ void CanvasRenderingContext2D::setStrokeStyle(CanvasStyle style)
         } else
             style = CanvasStyle(currentColor(&canvas()));
     } else
-        checkOrigin(style.canvasPattern());
+        checkOrigin(style.canvasPattern().get());
 
     realizeSaves();
     State& state = modifiableState();
@@ -435,7 +436,7 @@ void CanvasRenderingContext2D::setFillStyle(CanvasStyle style)
         } else
             style = CanvasStyle(currentColor(&canvas()));
     } else
-        checkOrigin(style.canvasPattern());
+        checkOrigin(style.canvasPattern().get());
 
     realizeSaves();
     State& state = modifiableState();
@@ -1093,7 +1094,7 @@ void CanvasRenderingContext2D::fillInternal(const Path& path, CanvasFillRule win
         return;
 
     // If gradient size is zero, then paint nothing.
-    auto* gradient = c->fillGradient();
+    auto gradient = c->fillGradient();
     if (gradient && gradient->isZeroSize())
         return;
 
@@ -1128,7 +1129,7 @@ void CanvasRenderingContext2D::strokeInternal(const Path& path)
         return;
 
     // If gradient size is zero, then paint nothing.
-    auto* gradient = c->strokeGradient();
+    auto gradient = c->strokeGradient();
     if (gradient && gradient->isZeroSize())
         return;
 
@@ -1280,7 +1281,7 @@ void CanvasRenderingContext2D::fillRect(float x, float y, float width, float hei
     // from the HTML5 Canvas spec:
     // If x0 = x1 and y0 = y1, then the linear gradient must paint nothing
     // If x0 = x1 and y0 = y1 and r0 = r1, then the radial gradient must paint nothing
-    auto* gradient = c->fillGradient();
+    auto gradient = c->fillGradient();
     if (gradient && gradient->isZeroSize())
         return;
 
@@ -1318,7 +1319,7 @@ void CanvasRenderingContext2D::strokeRect(float x, float y, float width, float h
         return;
 
     // If gradient size is zero, then paint nothing.
-    auto* gradient = c->strokeGradient();
+    auto gradient = c->strokeGradient();
     if (gradient && gradient->isZeroSize())
         return;
 
@@ -1431,7 +1432,7 @@ static inline FloatSize size(ImageBitmap& imageBitmap)
 
 static inline FloatSize size(HTMLVideoElement& video)
 {
-    auto* player = video.player();
+    auto player = video.player();
     if (!player)
         return { };
     return player->naturalSize();
@@ -1529,7 +1530,7 @@ ExceptionOr<void> CanvasRenderingContext2D::drawImage(HTMLImageElement& imageEle
     if (!cachedImage)
         return { };
 
-    Image* image = cachedImage->imageForRenderer(imageElement.renderer());
+    RefPtr<Image> image = cachedImage->imageForRenderer(imageElement.renderer());
     if (!image)
         return { };
 
@@ -1595,7 +1596,7 @@ ExceptionOr<void> CanvasRenderingContext2D::drawImage(HTMLCanvasElement& sourceC
 #if ENABLE(ACCELERATED_2D_CANVAS)
     // If we're drawing from one accelerated canvas 2d to another, avoid calling sourceCanvas.makeRenderingResultsAvailable()
     // as that will do a readback to software.
-    CanvasRenderingContext* sourceContext = sourceCanvas.renderingContext();
+    RefPtr<CanvasRenderingContext> sourceContext = sourceCanvas.renderingContext();
     // FIXME: Implement an accelerated path for drawing from a WebGL canvas to a 2d canvas when possible.
     if (!isAccelerated() || !sourceContext || !sourceContext->isAccelerated() || !sourceContext->is2d())
         sourceCanvas.makeRenderingResultsAvailable();
@@ -1669,10 +1670,47 @@ ExceptionOr<void> CanvasRenderingContext2D::drawImage(HTMLVideoElement& video, c
 
 #endif
 
-ExceptionOr<void> CanvasRenderingContext2D::drawImage(ImageBitmap&, const FloatRect&, const FloatRect&)
+ExceptionOr<void> CanvasRenderingContext2D::drawImage(ImageBitmap& imageBitmap, const FloatRect& srcRect, const FloatRect& dstRect)
 {
-    // FIXME: Implement.
-    return Exception { TypeError };
+    if (!imageBitmap.width() || !imageBitmap.height())
+        return Exception { InvalidStateError };
+
+    if (!srcRect.width() || !srcRect.height())
+        return Exception { IndexSizeError };
+
+    FloatRect srcBitmapRect = FloatRect(FloatPoint(), FloatSize(imageBitmap.width(), imageBitmap.height()));
+
+    if (!srcBitmapRect.contains(normalizeRect(srcRect)) || !dstRect.width() || !dstRect.height())
+        return { };
+
+    GraphicsContext* c = drawingContext();
+    if (!c)
+        return { };
+    if (!state().hasInvertibleTransform)
+        return { };
+
+    ImageBuffer* buffer = imageBitmap.buffer();
+    if (!buffer)
+        return { };
+
+    checkOrigin(&imageBitmap);
+
+    if (rectContainsCanvas(dstRect)) {
+        c->drawImageBuffer(*buffer, dstRect, srcRect, ImagePaintingOptions(state().globalComposite, state().globalBlend));
+        didDrawEntireCanvas();
+    } else if (isFullCanvasCompositeMode(state().globalComposite)) {
+        fullCanvasCompositedDrawImage(*buffer, dstRect, srcRect, state().globalComposite);
+        didDrawEntireCanvas();
+    } else if (state().globalComposite == CompositeCopy) {
+        clearCanvas();
+        c->drawImageBuffer(*buffer, dstRect, srcRect, ImagePaintingOptions(state().globalComposite, state().globalBlend));
+        didDrawEntireCanvas();
+    } else {
+        c->drawImageBuffer(*buffer, dstRect, srcRect, ImagePaintingOptions(state().globalComposite, state().globalBlend));
+        didDraw(dstRect);
+    }
+
+    return { };
 }
 
 void CanvasRenderingContext2D::drawImageFromRect(HTMLImageElement& imageElement, float sx, float sy, float sw, float sh, float dx, float dy, float dw, float dh, const String& compositeOperation)
@@ -1810,10 +1848,10 @@ void CanvasRenderingContext2D::prepareGradientForDashboard(CanvasGradient& gradi
 
 static CanvasRenderingContext2D::Style toStyle(const CanvasStyle& style)
 {
-    if (auto* gradient = style.canvasGradient())
-        return RefPtr<CanvasGradient> { gradient };
-    if (auto* pattern = style.canvasPattern())
-        return RefPtr<CanvasPattern> { pattern };
+    if (auto gradient = style.canvasGradient())
+        return gradient;
+    if (auto pattern = style.canvasPattern())
+        return pattern;
     return style.color();
 }
 
@@ -2579,7 +2617,7 @@ void CanvasRenderingContext2D::drawTextInternal(const String& text, float x, flo
         return;
 
     // If gradient size is zero, then paint nothing.
-    auto* gradient = c->strokeGradient();
+    auto gradient = c->strokeGradient();
     if (!fill && gradient && gradient->isZeroSize())
         return;
 

@@ -66,9 +66,7 @@ ScrollAnimatorGtk::ScrollAnimatorGtk(ScrollableArea& scrollableArea)
 #endif
 }
 
-ScrollAnimatorGtk::~ScrollAnimatorGtk()
-{
-}
+ScrollAnimatorGtk::~ScrollAnimatorGtk() = default;
 
 #if ENABLE(SMOOTH_SCROLLING)
 void ScrollAnimatorGtk::ensureSmoothScrollingAnimation()
@@ -93,7 +91,7 @@ bool ScrollAnimatorGtk::scroll(ScrollbarOrientation orientation, ScrollGranulari
 }
 #endif
 
-void ScrollAnimatorGtk::scrollToOffsetWithoutAnimation(const FloatPoint& offset)
+void ScrollAnimatorGtk::scrollToOffsetWithoutAnimation(const FloatPoint& offset, ScrollClamping)
 {
     FloatPoint position = ScrollableArea::scrollPositionFromOffset(offset, toFloatSize(m_scrollableArea.scrollOrigin()));
     m_kineticAnimation->stop();

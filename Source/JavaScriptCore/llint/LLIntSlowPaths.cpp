@@ -481,13 +481,13 @@ LLINT_SLOW_PATH_DECL(stack_check)
     VM& vm = exec->vm();
     auto throwScope = DECLARE_THROW_SCOPE(vm);
 
-    VMEntryFrame* vmEntryFrame = vm.topVMEntryFrame;
-    CallFrame* callerFrame = exec->callerFrame(vmEntryFrame);
+    EntryFrame* topEntryFrame = vm.topEntryFrame;
+    CallFrame* callerFrame = exec->callerFrame(topEntryFrame);
     if (!callerFrame) {
         callerFrame = exec;
-        vmEntryFrame = vm.topVMEntryFrame;
+        topEntryFrame = vm.topEntryFrame;
     }
-    NativeCallFrameTracerWithRestore tracer(&vm, vmEntryFrame, callerFrame);
+    NativeCallFrameTracerWithRestore tracer(&vm, topEntryFrame, callerFrame);
 
     LLINT_SET_PC_FOR_STUBS();
 
@@ -1350,6 +1350,25 @@ inline SlowPathReturnType setUpCall(ExecState* execCallee, Instruction* pc, Code
     
     JSCell* calleeAsFunctionCell = getJSFunction(calleeAsValue);
     if (!calleeAsFunctionCell) {
+        if (calleeAsValue.isCell() && calleeAsValue.asCell()->type() == InternalFunctionType) {
+            auto* internalFunction = jsCast<InternalFunction*>(calleeAsValue.asCell());
+            MacroAssemblerCodePtr codePtr = vm.getCTIInternalFunctionTrampolineFor(kind);
+            ASSERT(!!codePtr);
+
+            if (!LLINT_ALWAYS_ACCESS_SLOW && callLinkInfo) {
+                CodeBlock* callerCodeBlock = exec->codeBlock();
+
+                ConcurrentJSLocker locker(callerCodeBlock->m_lock);
+
+                if (callLinkInfo->isOnList())
+                    callLinkInfo->remove();
+                callLinkInfo->callee.set(vm, callerCodeBlock, internalFunction);
+                callLinkInfo->lastSeenCallee.set(vm, callerCodeBlock, internalFunction);
+                callLinkInfo->machineCodeTarget = codePtr;
+            }
+
+            LLINT_CALL_RETURN(exec, execCallee, codePtr.executableAddress());
+        }
         throwScope.release();
         return handleHostCall(execCallee, pc, calleeAsValue, kind);
     }

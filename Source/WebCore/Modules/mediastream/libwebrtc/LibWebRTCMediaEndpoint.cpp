@@ -52,9 +52,10 @@
 #include <webrtc/pc/peerconnectionfactory.h>
 #include <wtf/MainThread.h>
 
-#include "CoreMediaSoftLink.h"
+#include <pal/cf/CoreMediaSoftLink.h>
 
 namespace WebCore {
+using namespace PAL;
 
 LibWebRTCMediaEndpoint::LibWebRTCMediaEndpoint(LibWebRTCPeerConnectionBackend& peerConnection, LibWebRTCProvider& client)
     : m_peerConnectionBackend(peerConnection)
@@ -92,6 +93,9 @@ static inline const char* sessionDescriptionType(RTCSdpType sdpType)
     case RTCSdpType::Rollback:
         return "rollback";
     }
+
+    ASSERT_NOT_REACHED();
+    return "";
 }
 
 static inline RTCSdpType fromSessionDescriptionType(const webrtc::SessionDescriptionInterface& description)
@@ -599,6 +603,9 @@ static RTCSignalingState signalingState(webrtc::PeerConnectionInterface::Signali
     case webrtc::PeerConnectionInterface::kClosed:
         return RTCSignalingState::Stable;
     }
+
+    ASSERT_NOT_REACHED();
+    return RTCSignalingState::Stable;
 }
 
 void LibWebRTCMediaEndpoint::OnSignalingChange(webrtc::PeerConnectionInterface::SignalingState rtcState)
@@ -829,9 +836,11 @@ static inline RTCIceConnectionState toRTCIceConnectionState(webrtc::PeerConnecti
     case webrtc::PeerConnectionInterface::kIceConnectionClosed:
         return RTCIceConnectionState::Closed;
     case webrtc::PeerConnectionInterface::kIceConnectionMax:
-        ASSERT_NOT_REACHED();
-        return RTCIceConnectionState::New;
+        break;
     }
+
+    ASSERT_NOT_REACHED();
+    return RTCIceConnectionState::New;
 }
 
 void LibWebRTCMediaEndpoint::OnIceConnectionChange(webrtc::PeerConnectionInterface::IceConnectionState state)

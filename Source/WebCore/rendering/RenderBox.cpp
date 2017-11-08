@@ -47,6 +47,7 @@
 #include "HTMLTextAreaElement.h"
 #include "HitTestResult.h"
 #include "InlineElementBox.h"
+#include "LayoutState.h"
 #include "MainFrame.h"
 #include "Page.h"
 #include "PaintInfo.h"
@@ -71,6 +72,7 @@
 #include "TransformState.h"
 #include <algorithm>
 #include <math.h>
+#include <wtf/IsoMallocInlines.h>
 #include <wtf/StackStats.h>
 
 #include "RenderGrid.h"
@@ -81,8 +83,10 @@
 
 namespace WebCore {
 
+WTF_MAKE_ISO_ALLOCATED_IMPL(RenderBox);
+
 struct SameSizeAsRenderBox : public RenderBoxModelObject {
-    virtual ~SameSizeAsRenderBox() { }
+    virtual ~SameSizeAsRenderBox() = default;
     LayoutRect frameRect;
     LayoutBoxExtent marginBox;
     LayoutUnit preferredLogicalWidths[2];
@@ -320,14 +324,10 @@ void RenderBox::styleDidChange(StyleDifference diff, const RenderStyle* oldStyle
     // If our zoom factor changes and we have a defined scrollLeft/Top, we need to adjust that value into the
     // new zoomed coordinate space.
     if (hasOverflowClip() && layer() && oldStyle && oldStyle->effectiveZoom() != newStyle.effectiveZoom()) {
-        if (int left = layer()->scrollOffset().x()) {
-            left = (left / oldStyle->effectiveZoom()) * newStyle.effectiveZoom();
-            layer()->scrollToXOffset(left);
-        }
-        if (int top = layer()->scrollOffset().y()) {
-            top = (top / oldStyle->effectiveZoom()) * newStyle.effectiveZoom();
-            layer()->scrollToYOffset(top);
-        }
+        ScrollPosition scrollPosition = layer()->scrollPosition();
+        float zoomScaleFactor = newStyle.effectiveZoom() / oldStyle->effectiveZoom();
+        scrollPosition.scale(zoomScaleFactor);
+        layer()->setPostLayoutScrollPosition(scrollPosition);
     }
 
     // Our opaqueness might have changed without triggering layout.
@@ -511,14 +511,13 @@ void RenderBox::layout()
         return;
     }
 
-    LayoutStateMaintainer statePusher(view(), *this, locationOffset(), style().isFlippedBlocksWritingMode());
+    LayoutStateMaintainer statePusher(*this, locationOffset(), style().isFlippedBlocksWritingMode());
     while (child) {
         if (child->needsLayout())
             downcast<RenderElement>(*child).layout();
         ASSERT(!child->needsLayout());
         child = child->nextSibling();
     }
-    statePusher.pop();
     invalidateBackgroundObscurationStatus();
     clearNeedsLayout();
 }
@@ -576,20 +575,20 @@ static void setupWheelEventTestTrigger(RenderLayer& layer)
     layer.scrollAnimator().setWheelEventTestTrigger(page.testTrigger());
 }
 
-void RenderBox::setScrollLeft(int newLeft)
+void RenderBox::setScrollLeft(int newLeft, ScrollClamping clamping)
 {
     if (!hasOverflowClip() || !layer())
         return;
     setupWheelEventTestTrigger(*layer());
-    layer()->scrollToXPosition(newLeft, RenderLayer::ScrollOffsetClamped);
+    layer()->scrollToXPosition(newLeft, clamping);
 }
 
-void RenderBox::setScrollTop(int newTop)
+void RenderBox::setScrollTop(int newTop, ScrollClamping clamping)
 {
     if (!hasOverflowClip() || !layer())
         return;
     setupWheelEventTestTrigger(*layer());
-    layer()->scrollToYPosition(newTop, RenderLayer::ScrollOffsetClamped);
+    layer()->scrollToYPosition(newTop, clamping);
 }
 
 void RenderBox::absoluteRects(Vector<IntRect>& rects, const LayoutPoint& accumulatedOffset) const
@@ -700,7 +699,7 @@ LayoutRect RenderBox::outlineBoundsForRepaint(const RenderLayerModelObject* repa
     
     // FIXME: layoutDelta needs to be applied in parts before/after transforms and
     // repaint containers. https://bugs.webkit.org/show_bug.cgi?id=23308
-    box.move(view().layoutDelta());
+    box.move(view().frameView().layoutContext().layoutDelta());
 
     return LayoutRect(snapRectToDevicePixels(box, document().deviceScaleFactor()));
 }
@@ -746,7 +745,7 @@ LayoutRect RenderBox::reflectedRect(const LayoutRect& r) const
 
 bool RenderBox::fixedElementLaysOutRelativeToFrame(const FrameView& frameView) const
 {
-    return style().position() == FixedPosition && container()->isRenderView() && frameView.fixedElementsLayoutRelativeToFrame();
+    return isFixedPositioned() && container()->isRenderView() && frameView.fixedElementsLayoutRelativeToFrame();
 }
 
 bool RenderBox::includeVerticalScrollbarSize() const
@@ -1422,11 +1421,12 @@ bool RenderBox::foregroundIsKnownToBeOpaqueInRect(const LayoutRect& localRect, u
 {
     if (!maxDepthToTest)
         return false;
+
     for (auto& childBox : childrenOfType<RenderBox>(*this)) {
         if (!isCandidateForOpaquenessTest(childBox))
             continue;
         LayoutPoint childLocation = childBox.location();
-        if (childBox.isRelPositioned())
+        if (childBox.isRelativelyPositioned())
             childLocation.move(childBox.relativePositionOffset());
         LayoutRect childLocalRect = localRect;
         childLocalRect.moveBy(-childLocation);
@@ -1459,6 +1459,10 @@ bool RenderBox::computeBackgroundIsKnownToBeObscured(const LayoutPoint& paintOff
     LayoutRect backgroundRect;
     if (!getBackgroundPaintedExtent(paintOffset, backgroundRect))
         return false;
+
+    if (hasLayer() && layer()->scrollingMayRevealBackground())
+        return false;
+
     return foregroundIsKnownToBeOpaqueInRect(backgroundRect, backgroundObscurationTestMaxDepth);
 }
 
@@ -1628,7 +1632,7 @@ void RenderBox::imageChanged(WrappedImagePtr image, const IntRect*)
     }
 
     ShapeValue* shapeOutsideValue = style().shapeOutside();
-    if (!view().frameView().isInRenderTreeLayout() && isFloating() && shapeOutsideValue && shapeOutsideValue->image() && shapeOutsideValue->image()->data() == image) {
+    if (!view().frameView().layoutContext().isInRenderTreeLayout() && isFloating() && shapeOutsideValue && shapeOutsideValue->image() && shapeOutsideValue->image()->data() == image) {
         ShapeOutsideInfo::ensureInfo(*this).markShapeAsDirty();
         markShapeOutsideDependentsForLayout();
     }
@@ -1920,8 +1924,8 @@ void RenderBox::mapLocalToContainer(const RenderLayerModelObject* repaintContain
     if (repaintContainer == this)
         return;
 
-    if (view().layoutStateEnabled() && !repaintContainer) {
-        LayoutState* layoutState = view().layoutState();
+    if (view().frameView().layoutContext().isPaintOffsetCacheEnabled() && !repaintContainer) {
+        auto* layoutState = view().frameView().layoutContext().layoutState();
         LayoutSize offset = layoutState->m_paintOffset + locationOffset();
         if (style().hasInFlowPosition() && layer())
             offset += layer()->offsetForInFlowPosition();
@@ -1934,7 +1938,7 @@ void RenderBox::mapLocalToContainer(const RenderLayerModelObject* repaintContain
     if (!container)
         return;
 
-    bool isFixedPos = style().position() == FixedPosition;
+    bool isFixedPos = isFixedPositioned();
     // If this box has a transform, it acts as a fixed position container for fixed descendants,
     // and may itself also be fixed position. So propagate 'fixed' up only if this box is fixed position.
     if (hasTransform() && !isFixedPos)
@@ -1977,7 +1981,7 @@ const RenderObject* RenderBox::pushMappingToContainer(const RenderLayerModelObje
     if (!container)
         return nullptr;
 
-    bool isFixedPos = style().position() == FixedPosition;
+    bool isFixedPos = isFixedPositioned();
     LayoutSize adjustmentForSkippedAncestor;
     if (ancestorSkipped) {
         // There can't be a transform between repaintContainer and container, because transforms create containers, so it should be safe
@@ -2005,7 +2009,7 @@ const RenderObject* RenderBox::pushMappingToContainer(const RenderLayerModelObje
 
 void RenderBox::mapAbsoluteToLocalPoint(MapCoordinatesFlags mode, TransformState& transformState) const
 {
-    bool isFixedPos = style().position() == FixedPosition;
+    bool isFixedPos = isFixedPositioned();
     if (hasTransform() && !isFixedPos) {
         // If this box has a transform, it acts as a fixed position container for fixed descendants,
         // and may itself also be fixed position. So propagate 'fixed' up only if this box is fixed position.
@@ -2016,10 +2020,10 @@ void RenderBox::mapAbsoluteToLocalPoint(MapCoordinatesFlags mode, TransformState
     RenderBoxModelObject::mapAbsoluteToLocalPoint(mode, transformState);
 }
 
-LayoutSize RenderBox::offsetFromContainer(RenderElement& renderer, const LayoutPoint&, bool* offsetDependsOnPoint) const
+LayoutSize RenderBox::offsetFromContainer(RenderElement& container, const LayoutPoint&, bool* offsetDependsOnPoint) const
 {
     // A fragment "has" boxes inside it without being their container. 
-    ASSERT(&renderer == container() || is<RenderFragmentContainer>(renderer));
+    ASSERT(&container == this->container() || is<RenderFragmentContainer>(container));
 
     LayoutSize offset;    
     if (isInFlowPositioned())
@@ -2028,14 +2032,14 @@ LayoutSize RenderBox::offsetFromContainer(RenderElement& renderer, const LayoutP
     if (!isInline() || isReplaced())
         offset += topLeftLocationOffset();
 
-    if (is<RenderBox>(renderer))
-        offset -= toLayoutSize(downcast<RenderBox>(renderer).scrollPosition());
+    if (is<RenderBox>(container))
+        offset -= toLayoutSize(downcast<RenderBox>(container).scrollPosition());
 
-    if (style().position() == AbsolutePosition && renderer.isInFlowPositioned() && is<RenderInline>(renderer))
-        offset += downcast<RenderInline>(renderer).offsetForInFlowPositionedInline(this);
+    if (isAbsolutelyPositioned() && container.isInFlowPositioned() && is<RenderInline>(container))
+        offset += downcast<RenderInline>(container).offsetForInFlowPositionedInline(this);
 
     if (offsetDependsOnPoint)
-        *offsetDependsOnPoint |= is<RenderFragmentedFlow>(renderer);
+        *offsetDependsOnPoint |= is<RenderFragmentedFlow>(container);
 
     return offset;
 }
@@ -2106,7 +2110,7 @@ LayoutRect RenderBox::clippedOverflowRectForRepaint(const RenderLayerModelObject
     LayoutRect r = visualOverflowRect();
     // FIXME: layoutDelta needs to be applied in parts before/after transforms and
     // repaint containers. https://bugs.webkit.org/show_bug.cgi?id=23308
-    r.move(view().layoutDelta());
+    r.move(view().frameView().layoutContext().layoutDelta());
     return computeRectForRepaint(r, repaintContainer);
 }
 
@@ -2135,9 +2139,9 @@ LayoutRect RenderBox::computeRectForRepaint(const LayoutRect& rect, const Render
     // physical coordinate space of the repaintContainer.
     LayoutRect adjustedRect = rect;
     const RenderStyle& styleToUse = style();
-    // LayoutState is only valid for root-relative, non-fixed position repainting
-    if (view().layoutStateEnabled() && !repaintContainer && styleToUse.position() != FixedPosition) {
-        LayoutState* layoutState = view().layoutState();
+    // Paint offset cache is only valid for root-relative, non-fixed position repainting
+    if (view().frameView().layoutContext().isPaintOffsetCacheEnabled() && !repaintContainer && styleToUse.position() != FixedPosition) {
+        auto* layoutState = view().frameView().layoutContext().layoutState();
 
         if (layer() && layer()->transform())
             adjustedRect = LayoutRect(encloseRectToDevicePixels(layer()->transform()->mapRect(adjustedRect), document().deviceScaleFactor()));
@@ -2300,7 +2304,7 @@ void RenderBox::computeLogicalWidthInFragment(LogicalExtentComputedValues& compu
     }
 
     // If layout is limited to a subtree, the subtree root's logical width does not change.
-    if (element() && !view().frameView().layoutPending() && view().frameView().layoutRoot() == this)
+    if (element() && !view().frameView().layoutContext().isLayoutPending() && view().frameView().layoutContext().subtreeLayoutRoot() == this)
         return;
 
     // The parent box is flexing us, so it has increased or decreased our
@@ -2979,8 +2983,8 @@ LayoutUnit RenderBox::computeReplacedLogicalWidthUsing(SizeType widthType, Lengt
                 return computeIntrinsicLogicalWidthUsing(logicalWidth, cw, borderAndPaddingLogicalWidth()) - borderAndPaddingLogicalWidth();
             if (cw > 0 || (!cw && (containerLogicalWidth.isFixed() || containerLogicalWidth.isPercentOrCalculated())))
                 return adjustContentBoxLogicalWidthForBoxSizing(minimumValueForLength(logicalWidth, cw));
+            return LayoutUnit();
         }
-        FALLTHROUGH;
         case Intrinsic:
         case MinIntrinsic:
         case Auto:
@@ -3208,7 +3212,7 @@ LayoutUnit RenderBox::containingBlockLogicalWidthForPositioned(const RenderBoxMo
     }
 
     if (is<RenderBox>(containingBlock)) {
-        bool isFixedPosition = style().position() == FixedPosition;
+        bool isFixedPosition = isFixedPositioned();
 
         RenderFragmentedFlow* fragmentedFlow = enclosingFragmentedFlow();
         if (!fragmentedFlow) {
@@ -3273,7 +3277,7 @@ LayoutUnit RenderBox::containingBlockLogicalHeightForPositioned(const RenderBoxM
     }
 
     if (containingBlock.isBox()) {
-        bool isFixedPosition = style().position() == FixedPosition;
+        bool isFixedPosition = isFixedPositioned();
 
         if (isFixedPosition && is<RenderView>(containingBlock))
             return downcast<RenderView>(containingBlock).clientLogicalHeightForFixedPosition();
@@ -4953,7 +4957,7 @@ RenderObject* RenderBox::splitAnonymousBoxesAroundChild(RenderObject* beforeChil
 
 LayoutUnit RenderBox::offsetFromLogicalTopOfFirstPage() const
 {
-    LayoutState* layoutState = view().layoutState();
+    auto* layoutState = view().frameView().layoutContext().layoutState();
     if ((layoutState && !layoutState->isPaginated()) || (!layoutState && !enclosingFragmentedFlow()))
         return 0;
 

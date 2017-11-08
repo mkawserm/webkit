@@ -43,6 +43,11 @@ WI.NetworkTableContentView = class NetworkTableContentView extends WI.ContentVie
         this._resourceDetailView = null;
         this._resourceDetailViewMap = new Map;
 
+        this._waterfallStartTime = NaN;
+        this._waterfallEndTime = NaN;
+        this._waterfallTimelineRuler = null;
+        this._waterfallPopover = null;
+
         // FIXME: Network Timeline.
         // FIXME: Throttling.
         // FIXME: HAR Export.
@@ -62,7 +67,7 @@ WI.NetworkTableContentView = class NetworkTableContentView extends WI.ContentVie
         ];
         for (let [key, checker] of uniqueTypes) {
             let type = WI.Resource.Type[key];
-            let scopeBarItem = new WI.ScopeBarItem("network-type-filter-" + key, WI.NetworkTableContentView.shortDisplayNameForResourceType(type))
+            let scopeBarItem = new WI.ScopeBarItem("network-type-filter-" + key, WI.NetworkTableContentView.shortDisplayNameForResourceType(type));
             scopeBarItem.__checker = checker;
             typeFilterScopeBarItems.push(scopeBarItem);
         }
@@ -95,17 +100,35 @@ WI.NetworkTableContentView = class NetworkTableContentView extends WI.ContentVie
             WI.resourceCachingDisabledSetting.addEventListener(WI.Setting.Event.Changed, this._resourceCachingDisabledSettingChanged, this);
         }
 
-        this._clearNetworkItemsNavigationItem = new WI.ButtonNavigationItem("clear-network-items", WI.UIString("Clear Network Items (%s)").format(WI.clearKeyboardShortcut.displayName), "Images/NavigationItemClear.svg", 16, 16);
+        this._clearNetworkItemsNavigationItem = new WI.ButtonNavigationItem("clear-network-items", WI.UIString("Clear Network Items (%s)").format(WI.clearKeyboardShortcut.displayName), "Images/NavigationItemTrash.svg", 15, 15);
         this._clearNetworkItemsNavigationItem.addEventListener(WI.ButtonNavigationItem.Event.Clicked, () => this.reset());
 
         WI.Frame.addEventListener(WI.Frame.Event.MainResourceDidChange, this._mainResourceDidChange, this);
         WI.Resource.addEventListener(WI.Resource.Event.LoadingDidFinish, this._resourceLoadingDidFinish, this);
         WI.Resource.addEventListener(WI.Resource.Event.LoadingDidFail, this._resourceLoadingDidFail, this);
         WI.Resource.addEventListener(WI.Resource.Event.TransferSizeDidChange, this._resourceTransferSizeDidChange, this);
+        WI.frameResourceManager.addEventListener(WI.FrameResourceManager.Event.MainFrameDidChange, this._mainFrameDidChange, this);
         WI.timelineManager.persistentNetworkTimeline.addEventListener(WI.Timeline.Event.RecordAdded, this._networkTimelineRecordAdded, this);
+
+        this._needsInitialPopulate = true;
     }
 
     // Static
+
+    static displayNameForResource(resource)
+    {
+        if (resource.type === WI.Resource.Type.Image || resource.type === WI.Resource.Type.Font) {
+            let fileExtension;
+            if (resource.mimeType)
+                fileExtension = WI.fileExtensionForMIMEType(resource.mimeType);
+            if (!fileExtension)
+                fileExtension = WI.fileExtensionForURL(resource.url);
+            if (fileExtension)
+                return fileExtension;
+        }
+
+        return WI.NetworkTableContentView.shortDisplayNameForResourceType(resource.type).toLowerCase();
+    }
 
     static shortDisplayNameForResourceType(type)
     {
@@ -121,8 +144,9 @@ WI.NetworkTableContentView = class NetworkTableContentView extends WI.ContentVie
         case WI.Resource.Type.Script:
             return "JS";
         case WI.Resource.Type.XHR:
-        case WI.Resource.Type.Fetch:
             return "XHR";
+        case WI.Resource.Type.Fetch:
+            return WI.UIString("Fetch");
         case WI.Resource.Type.Ping:
             return WI.UIString("Ping");
         case WI.Resource.Type.Beacon:
@@ -161,6 +185,16 @@ WI.NetworkTableContentView = class NetworkTableContentView extends WI.ContentVie
         return items;
     }
 
+    get supportsSave()
+    {
+        return this._filteredEntries.some((entry) => entry.resource.finished);
+    }
+
+    get saveData()
+    {
+        return {customSaveHandler: () => { this._exportHAR(); }};
+    }
+
     shown()
     {
         super.shown();
@@ -174,6 +208,8 @@ WI.NetworkTableContentView = class NetworkTableContentView extends WI.ContentVie
 
     hidden()
     {
+        this._hidePopover();
+
         if (this._resourceDetailView)
             this._resourceDetailView.hidden();
 
@@ -182,14 +218,16 @@ WI.NetworkTableContentView = class NetworkTableContentView extends WI.ContentVie
 
     closed()
     {
-        this._hideResourceDetailView();
-
         for (let detailView of this._resourceDetailViewMap.values())
             detailView.dispose();
         this._resourceDetailViewMap.clear();
 
+        this._hidePopover();
+        this._hideResourceDetailView();
+
         WI.Frame.removeEventListener(null, null, this);
         WI.Resource.removeEventListener(null, null, this);
+        WI.frameResourceManager.removeEventListener(WI.FrameResourceManager.Event.MainFrameDidChange, this._mainFrameDidChange, this);
         WI.timelineManager.persistentNetworkTimeline.removeEventListener(WI.Timeline.Event.RecordAdded, this._networkTimelineRecordAdded, this);
 
         super.closed();
@@ -205,21 +243,41 @@ WI.NetworkTableContentView = class NetworkTableContentView extends WI.ContentVie
             detailView.dispose();
         this._resourceDetailViewMap.clear();
 
+        this._waterfallStartTime = NaN;
+        this._waterfallEndTime = NaN;
+        this._updateWaterfallTimelineRuler();
+
         if (this._table) {
-            this._hideResourceDetailView();
             this._selectedResource = null;
             this._table.clearSelectedRow();
             this._table.reloadData();
+            this._hidePopover();
+            this._hideResourceDetailView();
         }
+    }
+
+    showRepresentedObject(representedObject, cookie)
+    {
+        console.assert(representedObject instanceof WI.Resource);
+
+        let rowIndex = this._rowIndexForResource(representedObject);
+        if (rowIndex === -1) {
+            this._selectedResource = null;
+            this._table.clearSelectedRow();
+            this._hideResourceDetailView();
+            return;
+        }
+   
+        this._table.selectRow(rowIndex);
     }
 
     // NetworkResourceDetailView delegate
 
     networkResourceDetailViewClose(resourceDetailView)
     {
-        this._hideResourceDetailView();
         this._selectedResource = null;
         this._table.clearSelectedRow();
+        this._hideResourceDetailView();
     }
 
     // Table dataSource
@@ -263,6 +321,9 @@ WI.NetworkTableContentView = class NetworkTableContentView extends WI.ContentVie
         let entry = this._filteredEntries[rowIndex];
         let contextMenu = WI.ContextMenu.createFromEvent(event);
         WI.appendContextMenuItemsForSourceCode(contextMenu, entry.resource);
+
+        contextMenu.appendSeparator();
+        contextMenu.appendItem(WI.UIString("Export HAR"), this._exportHAR);
     }
 
     tableSelectedRowChanged(table, rowIndex)
@@ -292,7 +353,7 @@ WI.NetworkTableContentView = class NetworkTableContentView extends WI.ContentVie
             this._populateNameCell(cell, entry);
             break;
         case "domain":
-            cell.textContent = entry.domain || emDash;
+            this._populateDomainCell(cell, entry);
             break;
         case "type":
             cell.textContent = entry.displayType || emDash;
@@ -332,8 +393,7 @@ WI.NetworkTableContentView = class NetworkTableContentView extends WI.ContentVie
             cell.textContent = isNaN(entry.time) ? emDash : Number.secondsToString(Math.max(entry.time, 0));
             break;
         case "waterfall":
-            // FIXME: Waterfall graph.
-            cell.textContent = emDash;
+            this._populateWaterfallGraph(cell, entry);
             break;
         }
 
@@ -362,6 +422,24 @@ WI.NetworkTableContentView = class NetworkTableContentView extends WI.ContentVie
         nameElement.textContent = entry.name;
     }
 
+    _populateDomainCell(cell, entry)
+    {
+        console.assert(!cell.firstChild, "We expect the cell to be empty.", cell, cell.firstChild);
+
+        if (!entry.domain) {
+            cell.textContent = emDash;
+            return;
+        }
+
+        let secure = entry.scheme === "https" || entry.scheme === "wss";
+        if (secure) {
+            let lockIconElement = cell.appendChild(document.createElement("img"));
+            lockIconElement.className = "lock";
+        }
+
+        cell.append(entry.domain);
+    }
+
     _populateTransferSizeCell(cell, entry)
     {
         let responseSource = entry.resource.responseSource;
@@ -375,10 +453,92 @@ WI.NetworkTableContentView = class NetworkTableContentView extends WI.ContentVie
             cell.textContent = WI.UIString("(disk)");
             return;
         }
+        if (responseSource === WI.Resource.ResponseSource.ServiceWorker) {
+            cell.classList.add("cache-type");
+            cell.textContent = WI.UIString("(service worker)");
+            return;
+        }
 
         let transferSize = entry.transferSize;
         cell.textContent = isNaN(transferSize) ? emDash : Number.bytesToString(transferSize);
         console.assert(!cell.classList.contains("cache-type"), "Should not have cache-type class on cell.");
+    }
+
+    _populateWaterfallGraph(cell, entry)
+    {
+        cell.removeChildren();
+
+        let resource = entry.resource;
+        if (!resource.hasResponse()) {
+            cell.textContent = zeroWidthSpace;
+            return;
+        }
+
+        let {startTime, domainLookupStart, domainLookupEnd, connectStart, connectEnd, secureConnectionStart, requestStart, responseStart, responseEnd} = resource.timingData;
+        if (isNaN(startTime)) {
+            cell.textContent = zeroWidthSpace;
+            return;
+        }
+
+        let graphStartTime = this._waterfallTimelineRuler.startTime;
+        if (responseEnd < graphStartTime) {
+            cell.textContent = zeroWidthSpace;
+            return;
+        }
+
+        let graphEndTime = this._waterfallTimelineRuler.endTime;
+        if (startTime > graphEndTime) {
+            cell.textContent = zeroWidthSpace;
+            return;
+        }
+
+        let secondsPerPixel = this._waterfallTimelineRuler.secondsPerPixel;
+
+        let container = cell.appendChild(document.createElement("div"));
+        container.className = "waterfall-container";
+
+        function appendBlock(startTime, endTime, className) {
+            let startOffset = (startTime - graphStartTime) / secondsPerPixel;
+            let width = (endTime - startTime) / secondsPerPixel;
+            let block = container.appendChild(document.createElement("div"));
+            block.classList.add("block", className);
+            let styleAttribute = WI.resolvedLayoutDirection() === WI.LayoutDirection.LTR ? "left" : "right";
+            block.style[styleAttribute] = startOffset + "px";
+            block.style.width = width + "px";
+            return block;
+        }
+
+        // Mouse block sits on top and accepts mouse events on this group.
+        let padSeconds = 10 * secondsPerPixel;
+        let mouseBlock = appendBlock(startTime - padSeconds, responseEnd + padSeconds, "mouse-tracking");
+        mouseBlock.addEventListener("mousedown", (event) => {
+            if (event.button !== 0 || event.ctrlKey)
+                return;
+            this._handleMousedownWaterfall(mouseBlock, entry, event);
+        });
+
+        // Super small visualization.
+        let totalWidth = (responseEnd - startTime) / secondsPerPixel;
+        if (totalWidth <= 3) {
+            appendBlock(startTime, requestStart, "queue");
+            appendBlock(startTime, responseEnd, "response");
+            return;
+        }
+
+        // Each component.
+        if (domainLookupStart) {
+            appendBlock(startTime, domainLookupStart, "queue");
+            appendBlock(domainLookupStart, connectStart || requestStart, "dns");
+        } else if (connectStart)
+            appendBlock(startTime, connectStart, "queue");
+        else if (requestStart)
+            appendBlock(startTime, requestStart, "queue");
+        if (connectStart)
+            appendBlock(connectStart, connectEnd, "connect");
+        if (secureConnectionStart)
+            appendBlock(secureConnectionStart, connectEnd, "secure");
+        appendBlock(requestStart, responseStart, "request");
+        appendBlock(responseStart, responseEnd, "response");
     }
 
     _generateSortComparator()
@@ -416,7 +576,7 @@ WI.NetworkTableContentView = class NetworkTableContentView extends WI.ContentVie
                 if (isNaN(bValue))
                     return -1;
                 return aValue - bValue;
-            }
+            };
             break;
 
         case "priority":
@@ -447,12 +607,16 @@ WI.NetworkTableContentView = class NetworkTableContentView extends WI.ContentVie
                     transferSizeA = -20;
                 else if (sourceA === WI.Resource.ResponseSource.DiskCache)
                     transferSizeA = -10;
+                else if (sourceA === WI.Resource.ResponseSource.ServiceWorker)
+                    transferSizeA = -5;
 
                 let sourceB = b.resource.responseSource;
                 if (sourceB === WI.Resource.ResponseSource.MemoryCache)
                     transferSizeB = -20;
                 else if (sourceB === WI.Resource.ResponseSource.DiskCache)
                     transferSizeB = -10;
+                else if (sourceB === WI.Resource.ResponseSource.ServiceWorker)
+                    transferSizeB = -5;
 
                 return transferSizeA - transferSizeB;
             };
@@ -476,41 +640,47 @@ WI.NetworkTableContentView = class NetworkTableContentView extends WI.ContentVie
 
     initialLayout()
     {
+        this._waterfallTimelineRuler = new WI.TimelineRuler;
+        this._waterfallTimelineRuler.allowsClippedLabels = true;
+
         this._nameColumn = new WI.TableColumn("name", WI.UIString("Name"), {
-            initialWidth: this._nameColumnWidthSetting.value,
             minWidth: WI.Sidebar.AbsoluteMinimumWidth,
             maxWidth: 500,
+            initialWidth: this._nameColumnWidthSetting.value,
             resizeType: WI.TableColumn.ResizeType.Locked,
         });
-
-        this._nameColumn.addEventListener(WI.TableColumn.Event.WidthDidChange, this._tableNameColumnDidChangeWidth, this);
 
         this._domainColumn = new WI.TableColumn("domain", WI.UIString("Domain"), {
             minWidth: 120,
             maxWidth: 200,
+            initialWidth: 150,
         });
 
         this._typeColumn = new WI.TableColumn("type", WI.UIString("Type"), {
             minWidth: 70,
             maxWidth: 120,
+            initialWidth: 90,
         });
 
         this._mimeTypeColumn = new WI.TableColumn("mimeType", WI.UIString("MIME Type"), {
             hidden: true,
             minWidth: 100,
             maxWidth: 150,
+            initialWidth: 120,
         });
 
         this._methodColumn = new WI.TableColumn("method", WI.UIString("Method"), {
             hidden: true,
             minWidth: 55,
             maxWidth: 80,
+            initialWidth: 65,
         });
 
         this._schemeColumn = new WI.TableColumn("scheme", WI.UIString("Scheme"), {
             hidden: true,
             minWidth: 55,
             maxWidth: 80,
+            initialWidth: 65,
         });
 
         this._statusColumn = new WI.TableColumn("status", WI.UIString("Status"), {
@@ -524,12 +694,14 @@ WI.NetworkTableContentView = class NetworkTableContentView extends WI.ContentVie
             hidden: true,
             minWidth: 65,
             maxWidth: 80,
+            initialWidth: 75,
         });
 
         this._priorityColumn = new WI.TableColumn("priority", WI.UIString("Priority"), {
             hidden: true,
             minWidth: 65,
             maxWidth: 80,
+            initialWidth: 70,
         });
 
         this._remoteAddressColumn = new WI.TableColumn("remoteAddress", WI.UIString("IP Address"), {
@@ -541,6 +713,7 @@ WI.NetworkTableContentView = class NetworkTableContentView extends WI.ContentVie
             hidden: true,
             minWidth: 50,
             maxWidth: 120,
+            initialWidth: 80,
             align: "right",
         });
 
@@ -548,24 +721,31 @@ WI.NetworkTableContentView = class NetworkTableContentView extends WI.ContentVie
             hidden: true,
             minWidth: 80,
             maxWidth: 100,
+            initialWidth: 80,
             align: "right",
         });
 
         this._transferSizeColumn = new WI.TableColumn("transferSize", WI.UIString("Transfer Size"), {
             minWidth: 100,
             maxWidth: 150,
+            initialWidth: 100,
             align: "right",
         });
 
         this._timeColumn = new WI.TableColumn("time", WI.UIString("Time"), {
             minWidth: 65,
             maxWidth: 90,
+            initialWidth: 65,
             align: "right",
         });
 
         this._waterfallColumn = new WI.TableColumn("waterfall", WI.UIString("Waterfall"), {
             minWidth: 230,
+            headerView: this._waterfallTimelineRuler,
         });
+
+        this._nameColumn.addEventListener(WI.TableColumn.Event.WidthDidChange, this._tableNameColumnDidChangeWidth, this);
+        this._waterfallColumn.addEventListener(WI.TableColumn.Event.WidthDidChange, this._tableWaterfallColumnDidChangeWidth, this);
 
         this._table = new WI.Table("network-table", this, this, 20);
 
@@ -595,6 +775,7 @@ WI.NetworkTableContentView = class NetworkTableContentView extends WI.ContentVie
 
     layout()
     {
+        this._updateWaterfallTimelineRuler();
         this._processPendingEntries();
         this._positionDetailView();
         this._positionEmptyFilterMessage();
@@ -606,6 +787,29 @@ WI.NetworkTableContentView = class NetworkTableContentView extends WI.ContentVie
     }
 
     // Private
+
+    _updateWaterfallTimelineRuler()
+    {
+        if (!this._waterfallTimelineRuler)
+            return;
+
+        if (isNaN(this._waterfallStartTime)) {
+            this._waterfallTimelineRuler.zeroTime = 0;
+            this._waterfallTimelineRuler.startTime = 0;
+            this._waterfallTimelineRuler.endTime = 0.250;
+        } else {
+            this._waterfallTimelineRuler.zeroTime = this._waterfallStartTime;
+            this._waterfallTimelineRuler.startTime = this._waterfallStartTime;
+            this._waterfallTimelineRuler.endTime = this._waterfallEndTime;
+
+            // Add a little bit of padding on the each side.
+            const paddingPixels = 5;
+            let padSeconds = paddingPixels * this._waterfallTimelineRuler.secondsPerPixel;
+            this._waterfallTimelineRuler.zeroTime = this._waterfallStartTime - padSeconds;
+            this._waterfallTimelineRuler.startTime = this._waterfallStartTime - padSeconds;
+            this._waterfallTimelineRuler.endTime = this._waterfallEndTime + padSeconds;
+        }
+    }
 
     _processPendingEntries()
     {
@@ -634,6 +838,33 @@ WI.NetworkTableContentView = class NetworkTableContentView extends WI.ContentVie
 
         this._updateSortAndFilteredEntries();
         this._table.reloadData();
+    }
+
+    _populateWithInitialResourcesIfNeeded()
+    {
+        if (!this._needsInitialPopulate)
+            return;
+
+        this._needsInitialPopulate = false;
+
+        console.assert(WI.frameResourceManager.mainFrame);
+
+        let populateFrameResources = (frame) => {
+            if (frame.provisionalMainResource)
+                this._pendingInsertions.push(frame.provisionalMainResource);
+            else if (frame.mainResource)
+                this._pendingInsertions.push(frame.mainResource);
+
+            for (let resource of frame.resourceCollection.items)
+                this._pendingInsertions.push(resource);
+
+            for (let childFrame of frame.childFrameCollection.items)
+                populateFrameResources(childFrame);
+        };
+
+        populateFrameResources(WI.frameResourceManager.mainFrame);
+
+        this.needsLayout();
     }
 
     _checkTextFilterAgainstFinishedResource(resource)
@@ -692,6 +923,12 @@ WI.NetworkTableContentView = class NetworkTableContentView extends WI.ContentVie
             return;
 
         this._filteredEntries[rowIndex] = entry;
+    }
+
+    _hidePopover()
+    {
+        if (this._waterfallPopover)
+            this._waterfallPopover.dismiss();
     }
 
     _hideResourceDetailView()
@@ -817,10 +1054,20 @@ WI.NetworkTableContentView = class NetworkTableContentView extends WI.ContentVie
         this._insertResourceAndReloadTable(frame.mainResource);
     }
 
+    _mainFrameDidChange()
+    {
+        this._populateWithInitialResourcesIfNeeded();
+    }
+
     _resourceLoadingDidFinish(event)
     {
         let resource = event.target;
         this._pendingUpdates.push(resource);
+
+        if (resource.firstTimestamp < this._waterfallStartTime)
+            this._waterfallStartTime = resource.firstTimestamp;
+        if (resource.timingData.responseEnd > this._waterfallEndTime)
+            this._waterfallEndTime = resource.timingData.responseEnd;
 
         if (this._hasTextFilter())
             this._checkTextFilterAgainstFinishedResource(resource);
@@ -832,6 +1079,11 @@ WI.NetworkTableContentView = class NetworkTableContentView extends WI.ContentVie
     {
         let resource = event.target;
         this._pendingUpdates.push(resource);
+
+        if (resource.firstTimestamp < this._waterfallStartTime)
+            this._waterfallStartTime = resource.firstTimestamp;
+        if (resource.timingData.responseEnd > this._waterfallEndTime)
+            this._waterfallEndTime = resource.timingData.responseEnd;
 
         if (this._hasTextFilter())
             this._checkTextFilterAgainstFailedResource(resource);
@@ -873,6 +1125,9 @@ WI.NetworkTableContentView = class NetworkTableContentView extends WI.ContentVie
         console.assert(resourceTimelineRecord instanceof WI.ResourceTimelineRecord);
 
         let resource = resourceTimelineRecord.resource;
+        if (isNaN(this._waterfallStartTime))
+            this._waterfallStartTime = this._waterfallEndTime = resource.firstTimestamp;
+
         this._insertResourceAndReloadTable(resource);
     }
 
@@ -883,15 +1138,11 @@ WI.NetworkTableContentView = class NetworkTableContentView extends WI.ContentVie
 
     _insertResourceAndReloadTable(resource)
     {
-        if (!(WI.tabBrowser.selectedTabContentView instanceof WI.NetworkTabContentView)) {
+        if (!this._table || !(WI.tabBrowser.selectedTabContentView instanceof WI.NetworkTabContentView)) {
             this._pendingInsertions.push(resource);
             this.needsLayout();
             return;
         }
-
-        console.assert(this._table);
-        if (!this._table)
-            return;
 
         let entry = this._entryForResource(resource);
 
@@ -919,21 +1170,6 @@ WI.NetworkTableContentView = class NetworkTableContentView extends WI.ContentVie
         }
     }
 
-    _displayType(resource)
-    {
-        if (resource.type === WI.Resource.Type.Image || resource.type === WI.Resource.Type.Font) {
-            let fileExtension;
-            if (resource.mimeType)
-                fileExtension = WI.fileExtensionForMIMEType(resource.mimeType);
-            if (!fileExtension)
-                fileExtension = WI.fileExtensionForURL(resource.url);
-            if (fileExtension)
-                return fileExtension;
-        }
-
-        return WI.NetworkTableContentView.shortDisplayNameForResourceType(resource.type).toLowerCase();
-    }
-
     _entryForResource(resource)
     {
         // FIXME: <https://webkit.org/b/143632> Web Inspector: Resources with the same name in different folders aren't distinguished
@@ -946,7 +1182,7 @@ WI.NetworkTableContentView = class NetworkTableContentView extends WI.ContentVie
             scheme: resource.urlComponents.scheme ? resource.urlComponents.scheme.toLowerCase() : "",
             method: resource.requestMethod,
             type: resource.type,
-            displayType: this._displayType(resource),
+            displayType: WI.NetworkTableContentView.displayNameForResource(resource),
             mimeType: resource.mimeType,
             status: resource.statusCode,
             cached: resource.cached,
@@ -1180,11 +1416,103 @@ WI.NetworkTableContentView = class NetworkTableContentView extends WI.ContentVie
         this._table.selectRow(rowIndex);
     }
 
+    _HARResources()
+    {
+        let resources = this._filteredEntries.map((x) => x.resource);
+        const supportedHARSchemes = new Set(["http", "https", "ws", "wss"]);
+        return resources.filter((resource) => resource.finished && supportedHARSchemes.has(resource.urlComponents.scheme));
+    }
+
+    _exportHAR()
+    {
+        let resources = this._HARResources();
+        if (!resources.length) {
+            InspectorFrontendHost.beep();
+            return;
+        }
+
+        WI.HARBuilder.buildArchive(resources).then((har) => {
+            let mainFrame = WI.frameResourceManager.mainFrame;
+            let archiveName = mainFrame.mainResource.urlComponents.host || mainFrame.mainResource.displayName || "Archive";
+            let url = "web-inspector:///" + encodeURI(archiveName) + ".har";
+            WI.saveDataToFile({
+                url,
+                content: JSON.stringify(har, null, 2),
+                forceSaveAs: true,
+            });
+        }).catch(handlePromiseException);
+    }
+
+    _waterfallPopoverContentForResource(resource)
+    {
+        let contentElement = document.createElement("div");
+        contentElement.className = "waterfall-popover";
+
+        if (!resource.hasResponse() || !resource.timingData.startTime || !resource.timingData.responseEnd) {
+            contentElement.textContent = WI.UIString("Resource has no timing data");
+            return contentElement;
+        }
+
+        let breakdownView = new WI.ResourceTimingBreakdownView(resource);
+        contentElement.appendChild(breakdownView.element);
+        breakdownView.updateLayout();
+
+        return contentElement;
+    }
+
+    _handleMousedownWaterfall(mouseBlock, entry, event)
+    {
+        if (!this._waterfallPopover) {
+            this._waterfallPopover = new WI.Popover;
+            this._waterfallPopover.backgroundStyle = WI.Popover.BackgroundStyle.White;
+        }
+
+        if (this._waterfallPopover.visible)
+            return;
+
+        let calculateTargetFrame = () => {
+            let rowIndex = this._rowIndexForResource(entry.resource);
+            let cell = this._table.cellForRowAndColumn(rowIndex, this._waterfallColumn);
+            if (!cell) {
+                this._waterfallPopover.dismiss();
+                return null;
+            }
+
+            let mouseBlock = cell.querySelector(".block.mouse-tracking");
+            if (!mouseBlock) {
+                this._waterfallPopover.dismiss();
+                return null;
+            }
+
+            return WI.Rect.rectFromClientRect(mouseBlock.getBoundingClientRect());
+        };
+
+        let targetFrame = calculateTargetFrame();
+        if (!targetFrame.size.width && !targetFrame.size.height)
+            return;
+
+        let isRTL = WI.resolvedLayoutDirection() === WI.LayoutDirection.RTL;
+        let preferredEdges = isRTL ? [WI.RectEdge.MAX_Y, WI.RectEdge.MIN_Y, WI.RectEdge.MAX_X] : [WI.RectEdge.MAX_Y, WI.RectEdge.MIN_Y, WI.RectEdge.MIN_X];
+        this._waterfallPopover.windowResizeHandler = () => {
+            let bounds = calculateTargetFrame();
+            if (bounds)
+                this._waterfallPopover.present(bounds, preferredEdges);
+        };
+
+        let popoverContentElement = this._waterfallPopoverContentForResource(entry.resource);
+        this._waterfallPopover.presentNewContentWithFrame(popoverContentElement, targetFrame, preferredEdges);
+    }
+
     _tableNameColumnDidChangeWidth(event)
     {
         this._nameColumnWidthSetting.value = event.target.width;
 
         this._positionDetailView();
         this._positionEmptyFilterMessage();
+    }
+
+    _tableWaterfallColumnDidChangeWidth(event)
+    {
+        this._table.reloadVisibleColumnCells(this._waterfallColumn);
     }
 };

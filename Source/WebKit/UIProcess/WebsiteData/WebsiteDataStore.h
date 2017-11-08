@@ -25,6 +25,7 @@
 
 #pragma once
 
+#include "NetworkSessionCreationParameters.h"
 #include "WebProcessLifetimeObserver.h"
 #include <WebCore/Cookie.h>
 #include <WebCore/SecurityOriginData.h>
@@ -67,9 +68,11 @@ enum class ShouldClearFirst { No, Yes };
 
 class WebsiteDataStore : public RefCounted<WebsiteDataStore>, public WebProcessLifetimeObserver, public Identified<WebsiteDataStore>  {
 public:
+    constexpr static uint64_t defaultCacheStoragePerOriginQuota = 20 * 1024 * 1024;
+
     struct Configuration {
         String cacheStorageDirectory;
-        String cacheStorageSubdirectoryName;
+        uint64_t cacheStoragePerOriginQuota { defaultCacheStoragePerOriginQuota };
         String networkCacheDirectory;
         String applicationCacheDirectory;
         String applicationCacheFlatFileSubdirectoryName;
@@ -92,6 +95,12 @@ public:
 
     bool resourceLoadStatisticsEnabled() const;
     void setResourceLoadStatisticsEnabled(bool);
+
+    uint64_t cacheStoragePerOriginQuota() const { return m_resolvedConfiguration.cacheStoragePerOriginQuota; }
+    void setCacheStoragePerOriginQuota(uint64_t quota) { m_resolvedConfiguration.cacheStoragePerOriginQuota = quota; }
+    const String& cacheStorageDirectory() const { return m_resolvedConfiguration.cacheStorageDirectory; }
+    void setCacheStorageDirectory(String&& directory) { m_resolvedConfiguration.cacheStorageDirectory = WTFMove(directory); }
+
     WebResourceLoadStatisticsStore* resourceLoadStatistics() const { return m_resourceLoadStatistics.get(); }
     void clearResourceLoadStatisticsInWebProcesses();
 
@@ -133,6 +142,12 @@ public:
     void enableResourceLoadStatisticsAndSetTestingCallback(Function<void (const String&)>&& callback);
 
     void requestStorageAccess(String&& subFrameHost, String&& topFrameHost, WTF::Function<void (bool)>&& callback);
+    
+    void setBoundInterfaceIdentifier(String&& identifier) { m_boundInterfaceIdentifier = WTFMove(identifier); }
+    const String& boundInterfaceIdentifier() { return m_boundInterfaceIdentifier; }
+    
+    void setAllowsCellularAccess(AllowsCellularAccess allows) { m_allowsCellularAccess = allows; }
+    AllowsCellularAccess allowsCellularAccess() { return m_allowsCellularAccess; }
 
 private:
     explicit WebsiteDataStore(PAL::SessionID);
@@ -178,6 +193,9 @@ private:
     RetainPtr<CFHTTPCookieStorageRef> m_cfCookieStorage;
 #endif
     HashSet<WebCore::Cookie> m_pendingCookies;
+    
+    String m_boundInterfaceIdentifier;
+    AllowsCellularAccess m_allowsCellularAccess { AllowsCellularAccess::Yes };
 };
 
 }

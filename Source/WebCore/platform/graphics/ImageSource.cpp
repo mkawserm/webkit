@@ -59,9 +59,7 @@ ImageSource::ImageSource(Image* image, AlphaOption alphaOption, GammaAndColorPro
 {
 }
 
-ImageSource::~ImageSource()
-{
-}
+ImageSource::~ImageSource() = default;
 
 void ImageSource::clearFrameBufferCache(size_t clearBeforeFrame)
 {
@@ -78,6 +76,9 @@ bool ImageSource::ensureDecoderAvailable(SharedBuffer* data)
     m_decoder = ImageDecoder::create(*data, m_frameCache->mimeType(), m_alphaOption, m_gammaAndColorProfileOption);
     if (!isDecoderAvailable())
         return false;
+
+    if (auto expectedContentLength = m_frameCache->expectedContentLength())
+        m_decoder->setExpectedContentSize(expectedContentLength);
 
     m_frameCache->setDecoder(m_decoder.get());
     return true;

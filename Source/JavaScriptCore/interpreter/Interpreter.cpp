@@ -507,7 +507,7 @@ public:
 
         if (m_remainingCapacityForFrameCapture) {
             if (visitor->isWasmFrame()) {
-                m_results.append(StackFrame::wasm(visitor->wasmFunctionIndexOrName()));
+                m_results.append(StackFrame(visitor->wasmFunctionIndexOrName()));
             } else if (!!visitor->codeBlock() && !visitor->codeBlock()->unlinkedCodeBlock()->isBuiltinFunction()) {
                 m_results.append(
                     StackFrame(m_vm, m_owner, visitor->callee().asCell(), visitor->codeBlock(), visitor->bytecodeOffset()));
@@ -653,9 +653,9 @@ public:
 
         notifyDebuggerOfUnwinding(m_vm, m_callFrame);
 
-        copyCalleeSavesToVMEntryFrameCalleeSavesBuffer(visitor);
+        copyCalleeSavesToEntryFrameCalleeSavesBuffer(visitor);
 
-        bool shouldStopUnwinding = visitor->callerIsVMEntryFrame();
+        bool shouldStopUnwinding = visitor->callerIsEntryFrame();
         if (shouldStopUnwinding)
             return StackVisitor::Done;
 
@@ -663,7 +663,7 @@ public:
     }
 
 private:
-    void copyCalleeSavesToVMEntryFrameCalleeSavesBuffer(StackVisitor& visitor) const
+    void copyCalleeSavesToEntryFrameCalleeSavesBuffer(StackVisitor& visitor) const
     {
 #if ENABLE(JIT) && NUMBER_OF_CALLEE_SAVES_REGISTERS > 0
         RegisterAtOffsetList* currentCalleeSaves = visitor->calleeSaveRegisters();
@@ -671,12 +671,12 @@ private:
         if (!currentCalleeSaves)
             return;
 
-        RegisterAtOffsetList* allCalleeSaves = VM::getAllCalleeSaveRegisterOffsets();
+        RegisterAtOffsetList* allCalleeSaves = RegisterSet::vmCalleeSaveRegisterOffsets();
         RegisterSet dontCopyRegisters = RegisterSet::stackRegisters();
         intptr_t* frame = reinterpret_cast<intptr_t*>(m_callFrame->registers());
 
         unsigned registerCount = currentCalleeSaves->size();
-        VMEntryRecord* record = vmEntryRecord(m_vm.topVMEntryFrame);
+        VMEntryRecord* record = vmEntryRecord(m_vm.topEntryFrame);
         for (unsigned i = 0; i < registerCount; i++) {
             RegisterAtOffset currentEntry = currentCalleeSaves->at(i);
             if (dontCopyRegisters.get(currentEntry.reg()))
@@ -702,7 +702,7 @@ NEVER_INLINE HandlerInfo* Interpreter::unwind(VM& vm, CallFrame*& callFrame, Exc
     auto scope = DECLARE_CATCH_SCOPE(vm);
 
     if (unwindStart == UnwindFromCallerFrame) {
-        if (callFrame->callerFrameOrVMEntryFrame() == vm.topVMEntryFrame)
+        if (callFrame->callerFrameOrEntryFrame() == vm.topEntryFrame)
             return nullptr;
 
         callFrame = callFrame->callerFrame();
@@ -862,6 +862,7 @@ JSValue Interpreter::executeProgram(const SourceCode& source, CallFrame* callFra
                     return throwException(callFrame, throwScope, createNotAFunctionError(callFrame, function));
                 MarkedArgumentBuffer jsonArg;
                 jsonArg.append(JSONPValue);
+                ASSERT(!jsonArg.hasOverflowed());
                 JSValue thisValue = JSONPPath.size() == 1 ? jsUndefined(): baseObject;
                 JSONPValue = JSC::call(callFrame, function, callType, callData, thisValue, jsonArg);
                 RETURN_IF_EXCEPTION(throwScope, JSValue());

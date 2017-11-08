@@ -35,9 +35,9 @@ use File::Spec::Functions;
 use Getopt::Long;
 
 my $srcRoot = realpath(File::Spec->catfile(dirname(abs_path($0)), "../.."));
-my @platformPrefixes = ("ca", "cf", "cocoa", "Cocoa", "CoordinatedGraphics", "curl", "gtk", "ios", "mac", "soup", "win", "wpe");
+my @platformPrefixes = ("ca", "cf", "cocoa", "Cocoa", "curl", "gtk", "ios", "mac", "soup", "win", "wpe");
 my @frameworks = ("JavaScriptCore", "WebCore", "WebKit");
-my @skippedPrefixes;
+my @skippedPrefixes = ("PAL");
 my @frameworkHeaders;
 my $framework;
 my %neededHeaders;

@@ -952,6 +952,7 @@ static void resetWebPreferencesToConsistentValues()
     [preferences setCustomElementsEnabled:YES];
 
     [preferences setDataTransferItemsEnabled:YES];
+    [preferences setCustomPasteboardDataEnabled:YES];
 
     [preferences setWebGL2Enabled:YES];
     [preferences setWebGPUEnabled:YES];
@@ -982,6 +983,7 @@ static void setWebPreferencesForTestOptions(const TestOptions& options)
 
     preferences.attachmentElementEnabled = options.enableAttachmentElement;
     preferences.intersectionObserverEnabled = options.enableIntersectionObserver;
+    preferences.menuItemElementEnabled = options.enableMenuItemElement;
     preferences.modernMediaControlsEnabled = options.enableModernMediaControls;
     preferences.credentialManagementEnabled = options.enableCredentialManagement;
     preferences.isSecureContextAttributeEnabled = options.enableIsSecureContextAttribute;
@@ -1963,7 +1965,7 @@ static void runTest(const string& inputLine)
     gTestRunner = TestRunner::create(testURL, command.expectedPixelHash);
     gTestRunner->setAllowedHosts(allowedHosts);
     gTestRunner->setCustomTimeout(command.timeout);
-    gTestRunner->setDumpJSConsoleLogInStdErr(command.dumpJSConsoleLogInStdErr);
+    gTestRunner->setDumpJSConsoleLogInStdErr(command.dumpJSConsoleLogInStdErr || options.dumpJSConsoleLogInStdErr);
     topLoadingFrame = nil;
 #if !PLATFORM(IOS)
     ASSERT(!draggingInfo); // the previous test should have called eventSender.mouseUp to drop!

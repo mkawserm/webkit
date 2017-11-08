@@ -83,7 +83,6 @@ void NetworkProcess::platformInitializeNetworkProcessCocoa(const NetworkProcessC
     NetworkSessionCocoa::setSourceApplicationAuditTokenData(sourceApplicationAuditData());
     NetworkSessionCocoa::setSourceApplicationBundleIdentifier(parameters.sourceApplicationBundleIdentifier);
     NetworkSessionCocoa::setSourceApplicationSecondaryIdentifier(parameters.sourceApplicationSecondaryIdentifier);
-    NetworkSessionCocoa::setAllowsCellularAccess(parameters.allowsCellularAccess);
     NetworkSessionCocoa::setUsesNetworkCache(parameters.shouldEnableNetworkCache);
 #if PLATFORM(IOS)
     NetworkSessionCocoa::setCTDataConnectionServiceType(parameters.ctDataConnectionServiceType);
@@ -113,7 +112,6 @@ void NetworkProcess::platformInitializeNetworkProcessCocoa(const NetworkProcessC
 
     if (!m_diskCacheDirectory.isNull()) {
         SandboxExtension::consumePermanently(parameters.diskCacheDirectoryExtensionHandle);
-#if ENABLE(NETWORK_CACHE)
         if (parameters.shouldEnableNetworkCache) {
             OptionSet<NetworkCache::Cache::Option> cacheOptions { NetworkCache::Cache::Option::RegisterNotify };
             if (parameters.shouldEnableNetworkCacheEfficacyLogging)
@@ -133,7 +131,6 @@ void NetworkProcess::platformInitializeNetworkProcessCocoa(const NetworkProcessC
                 return;
             }
         }
-#endif
         String nsURLCacheDirectory = m_diskCacheDirectory;
 #if PLATFORM(IOS)
         // NSURLCache path is relative to network process cache directory.
@@ -196,7 +193,6 @@ void NetworkProcess::clearDiskCache(std::chrono::system_clock::time_point modifi
     if (!m_clearCacheDispatchGroup)
         m_clearCacheDispatchGroup = dispatch_group_create();
 
-#if ENABLE(NETWORK_CACHE)
     if (auto* cache = NetworkProcess::singleton().cache()) {
         auto group = m_clearCacheDispatchGroup;
         dispatch_group_async(group, dispatch_get_main_queue(), BlockPtr<void()>::fromCallable([cache, group, modifiedSince, completionHandler = WTFMove(completionHandler)] () mutable {
@@ -207,7 +203,6 @@ void NetworkProcess::clearDiskCache(std::chrono::system_clock::time_point modifi
         }).get());
         return;
     }
-#endif
     clearNSURLCache(m_clearCacheDispatchGroup, modifiedSince, WTFMove(completionHandler));
 }
 

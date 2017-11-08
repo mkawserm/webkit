@@ -109,7 +109,7 @@ void MediaDocumentParser::createDocumentStructure()
     videoElement->setAttributeWithoutSynchronization(controlsAttr, emptyAtom());
     videoElement->setAttributeWithoutSynchronization(autoplayAttr, emptyAtom());
     videoElement->setAttributeWithoutSynchronization(srcAttr, document.url().string());
-    if (auto* loader = document.loader())
+    if (auto loader = makeRefPtr(document.loader()))
         videoElement->setAttributeWithoutSynchronization(typeAttr, loader->responseMIMEType());
 
     if (!RuntimeEnabledFeatures::sharedFeatures().modernMediaControlsEnabled()) {
@@ -123,7 +123,7 @@ void MediaDocumentParser::createDocumentStructure()
 
     body->appendChild(videoElement);
 
-    Frame* frame = document.frame();
+    RefPtr<Frame> frame = document.frame();
     if (!frame)
         return;
 
@@ -185,11 +185,11 @@ void MediaDocument::defaultEventHandler(Event& event)
     
     // Match the default Quicktime plugin behavior to allow
     // clicking and double-clicking to pause and play the media.
-    Node* targetNode = event.target()->toNode();
+    auto targetNode = event.target()->toNode();
     if (!targetNode)
         return;
 
-    if (HTMLVideoElement* video = ancestorVideoElement(targetNode)) {
+    if (RefPtr<HTMLVideoElement> video = ancestorVideoElement(targetNode.get())) {
         if (event.type() == eventNames().clickEvent) {
             if (!video->canPlay()) {
                 video->pause();
@@ -207,7 +207,7 @@ void MediaDocument::defaultEventHandler(Event& event)
         return;
     ContainerNode& targetContainer = downcast<ContainerNode>(*targetNode);
     if (event.type() == eventNames().keydownEvent && is<KeyboardEvent>(event)) {
-        HTMLVideoElement* video = descendantVideoElement(targetContainer);
+        RefPtr<HTMLVideoElement> video = descendantVideoElement(targetContainer);
         if (!video)
             return;
 
@@ -235,7 +235,7 @@ void MediaDocument::mediaElementSawUnsupportedTracks()
 
 void MediaDocument::replaceMediaElementTimerFired()
 {
-    auto* htmlBody = bodyOrFrameset();
+    auto htmlBody = makeRefPtr(bodyOrFrameset());
     if (!htmlBody)
         return;
 
@@ -243,7 +243,7 @@ void MediaDocument::replaceMediaElementTimerFired()
     htmlBody->setAttributeWithoutSynchronization(marginwidthAttr, AtomicString("0", AtomicString::ConstructFromLiteral));
     htmlBody->setAttributeWithoutSynchronization(marginheightAttr, AtomicString("0", AtomicString::ConstructFromLiteral));
 
-    if (auto* videoElement = descendantVideoElement(*htmlBody)) {
+    if (auto videoElement = makeRefPtr(descendantVideoElement(*htmlBody))) {
         auto embedElement = HTMLEmbedElement::create(*this);
 
         embedElement->setAttributeWithoutSynchronization(widthAttr, AtomicString("100%", AtomicString::ConstructFromLiteral));
@@ -252,7 +252,7 @@ void MediaDocument::replaceMediaElementTimerFired()
         embedElement->setAttributeWithoutSynchronization(srcAttr, url().string());
 
         ASSERT(loader());
-        if (auto* loader = this->loader())
+        if (auto loader = makeRefPtr(this->loader()))
             embedElement->setAttributeWithoutSynchronization(typeAttr, loader->writer().mimeType());
 
         videoElement->parentNode()->replaceChild(embedElement, *videoElement);

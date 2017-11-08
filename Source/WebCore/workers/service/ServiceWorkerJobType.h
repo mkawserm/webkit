@@ -31,6 +31,8 @@ namespace WebCore {
 
 enum class ServiceWorkerJobType {
     Register,
+    Unregister,
+    Update,
 };
 
 } // namespace WebCore

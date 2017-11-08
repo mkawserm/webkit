@@ -58,9 +58,7 @@ Performance::Performance(ScriptExecutionContext& context, MonotonicTime timeOrig
     ASSERT(m_timeOrigin);
 }
 
-Performance::~Performance()
-{
-}
+Performance::~Performance() = default;
 
 void Performance::contextDestroyed()
 {
@@ -271,9 +269,7 @@ void Performance::queueEntry(PerformanceEntry& entry)
         return;
 
     m_performanceTimelineTaskQueue.enqueueTask([this] () {
-        Vector<RefPtr<PerformanceObserver>> observers;
-        copyToVector(m_observers, observers);
-        for (auto& observer : observers)
+        for (auto& observer : copyToVector(m_observers))
             observer->deliver();
     });
 }

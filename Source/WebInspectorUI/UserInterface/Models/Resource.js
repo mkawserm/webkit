@@ -26,7 +26,7 @@
 
 WI.Resource = class Resource extends WI.SourceCode
 {
-    constructor(url, mimeType, type, loaderIdentifier, targetId, requestIdentifier, requestMethod, requestHeaders, requestData, requestSentTimestamp, initiatorSourceCodeLocation, originalRequestWillBeSentTimestamp)
+    constructor(url, mimeType, type, loaderIdentifier, targetId, requestIdentifier, requestMethod, requestHeaders, requestData, requestSentTimestamp, requestSentWalltime, initiatorSourceCodeLocation, originalRequestWillBeSentTimestamp)
     {
         super();
 
@@ -42,6 +42,8 @@ WI.Resource = class Resource extends WI.SourceCode
         this._type = type || WI.Resource.typeFromMIMEType(mimeType);
         this._loaderIdentifier = loaderIdentifier || null;
         this._requestIdentifier = requestIdentifier || null;
+        this._queryStringParameters = undefined;
+        this._requestFormParameters = undefined;
         this._requestMethod = requestMethod || null;
         this._requestData = requestData || null;
         this._requestHeaders = requestHeaders || {};
@@ -53,6 +55,7 @@ WI.Resource = class Resource extends WI.SourceCode
         this._initiatedResources = [];
         this._originalRequestWillBeSentTimestamp = originalRequestWillBeSentTimestamp || null;
         this._requestSentTimestamp = requestSentTimestamp || NaN;
+        this._requestSentWalltime = requestSentWalltime || NaN;
         this._responseReceivedTimestamp = NaN;
         this._lastRedirectReceivedTimestamp = NaN;
         this._lastDataReceivedTimestamp = NaN;
@@ -227,6 +230,8 @@ WI.Resource = class Resource extends WI.SourceCode
             return WI.Resource.ResponseSource.MemoryCache;
         case NetworkAgent.ResponseSource.DiskCache:
             return WI.Resource.ResponseSource.DiskCache;
+        case NetworkAgent.ResponseSource.ServiceWorker:
+            return WI.Resource.ResponseSource.ServiceWorker;
         default:
             console.error("Unknown response source type", source);
             return WI.Resource.ResponseSource.Unknown;
@@ -410,6 +415,20 @@ WI.Resource = class Resource extends WI.SourceCode
         return this._failureReasonText;
     }
 
+    get queryStringParameters()
+    {
+        if (this._queryStringParameters === undefined)
+            this._queryStringParameters = parseQueryString(this.urlComponents.queryString, true);
+        return this._queryStringParameters;
+    }
+
+    get requestFormParameters()
+    {
+        if (this._requestFormParameters === undefined)
+            this._requestFormParameters = this.hasRequestFormParameters() ? parseQueryString(this.requestData, true) : null;
+        return this._requestFormParameters;
+    }
+
     get requestDataContentType()
     {
         return this._requestHeaders.valueForCaseInsensitiveKey("Content-Type") || null;
@@ -458,6 +477,16 @@ WI.Resource = class Resource extends WI.SourceCode
     get requestSentTimestamp()
     {
         return this._requestSentTimestamp;
+    }
+
+    get requestSentWalltime()
+    {
+        return this._requestSentWalltime;
+    }
+
+    get requestSentDate()
+    {
+        return isNaN(this._requestSentWalltime) ? null : new Date(this._requestSentWalltime * 1000);
     }
 
     get lastRedirectReceivedTimestamp()
@@ -544,7 +573,7 @@ WI.Resource = class Resource extends WI.SourceCode
 
     get estimatedNetworkEncodedSize()
     {
-        let exact = this.networkEncodedSize; 
+        let exact = this.networkEncodedSize;
         if (!isNaN(exact))
             return exact;
 
@@ -635,7 +664,9 @@ WI.Resource = class Resource extends WI.SourceCode
 
         var oldURL = this._url;
 
-        this._url = url;
+        if (url)
+            this._url = url;
+
         this._requestHeaders = requestHeaders || {};
         this._requestCookies = null;
         this._lastRedirectReceivedTimestamp = elapsedTime || NaN;
@@ -653,7 +684,13 @@ WI.Resource = class Resource extends WI.SourceCode
 
     hasResponse()
     {
-        return !isNaN(this._statusCode);
+        return !isNaN(this._statusCode) || this._finished || this._failed;
+    }
+
+    hasRequestFormParameters()
+    {
+        let requestDataContentType = this.requestDataContentType;
+        return requestDataContentType && requestDataContentType.match(/^application\/x-www-form-urlencoded\s*(;.*)?$/i);
     }
 
     updateForResponse(url, mimeType, type, responseHeaders, statusCode, statusText, elapsedTime, timingData, source)
@@ -669,7 +706,9 @@ WI.Resource = class Resource extends WI.SourceCode
         if (type in WI.Resource.Type)
             type = WI.Resource.Type[type];
 
-        this._url = url;
+        if (url)
+            this._url = url;
+
         this._mimeType = mimeType;
         this._type = type || WI.Resource.typeFromMIMEType(mimeType);
         this._statusCode = statusCode;
@@ -1066,6 +1105,7 @@ WI.Resource.ResponseSource = {
     Network: Symbol("network"),
     MemoryCache: Symbol("memory-cache"),
     DiskCache: Symbol("disk-cache"),
+    ServiceWorker: Symbol("service-worker"),
 };
 
 WI.Resource.NetworkPriority = {

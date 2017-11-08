@@ -954,7 +954,7 @@ sub GeneratePut
         my $overrideBuiltins = $codeGenerator->InheritsExtendedAttribute($interface, "OverrideBuiltins");
         if (!$overrideBuiltins) {
             push(@$outputArray, "        PropertySlot slot { thisObject, PropertySlot::InternalMethodType::VMInquiry };\n");
-            push(@$outputArray, "        JSValue prototype = thisObject->getPrototypeDirect();\n");
+            push(@$outputArray, "        JSValue prototype = thisObject->getPrototypeDirect(state->vm());\n");
             push(@$outputArray, "        if (!(prototype.isObject() && asObject(prototype)->getPropertySlot(state, propertyName, slot))) {\n");
             $additionalIndent .= "    ";
         }
@@ -1023,7 +1023,7 @@ sub GeneratePutByIndex
         my $additionalIndent = "";
         if (!$overrideBuiltins) {
             push(@$outputArray, "    PropertySlot slot { thisObject, PropertySlot::InternalMethodType::VMInquiry };\n");
-            push(@$outputArray, "    JSValue prototype = thisObject->getPrototypeDirect();\n");
+            push(@$outputArray, "    JSValue prototype = thisObject->getPrototypeDirect(state->vm());\n");
             push(@$outputArray, "    if (!(prototype.isObject() && asObject(prototype)->getPropertySlot(state, propertyName, slot))) {\n");
             $additionalIndent .= "    ";
         }
@@ -1544,7 +1544,7 @@ sub PassArgumentExpression
         return "${name}.releaseNonNull()";
     }
 
-    return "${name}.releaseNonNull()" if $codeGenerator->IsCallbackInterface($type) || $codeGenerator->IsCallbackFunction($type);
+    return "${name}.releaseNonNull()" if $codeGenerator->IsCallbackInterface($type) || $codeGenerator->IsCallbackFunction($type) || $codeGenerator->IsPromiseType($type);
     return "*${name}" if $codeGenerator->IsWrapperType($type);
     return "WTFMove(${name})";
 }
@@ -2023,8 +2023,8 @@ sub GenerateEnumerationImplementation
     # - Add default header template
     push(@implContentHeader, GenerateImplementationContentHeader($enumeration));
 
-    push(@implContent, "\nusing namespace JSC;\n\n");
-    push(@implContent, "namespace WebCore {\n\n");
+    push(@implContent, "\n\nnamespace WebCore {\n");
+    push(@implContent, "using namespace JSC;\n\n");
     push(@implContent, GenerateEnumerationImplementationContent($enumeration, $className));
     push(@implContent, "} // namespace WebCore\n");
      
@@ -2222,12 +2222,14 @@ sub GenerateDictionaryHeaderContent
 
     $headerIncludes{"JSDOMConvertDictionary.h"} = 1;
 
+    my $exportMacro = GetExportMacroForJSClass($dictionary);
+
     my $result = "";
     $result .= "#if ${conditionalString}\n\n" if $conditionalString;
-    $result .= "template<> ${className} convertDictionary<${className}>(JSC::ExecState&, JSC::JSValue);\n\n";
+    $result .= "template<> ${exportMacro}${className} convertDictionary<${className}>(JSC::ExecState&, JSC::JSValue);\n\n";
 
     if ($dictionary->extendedAttributes->{JSGenerateToJSObject}) {
-        $result .= "JSC::JSObject* convertDictionaryToJS(JSC::ExecState&, JSDOMGlobalObject&, const ${className}&);\n\n";
+        $result .= "${exportMacro}JSC::JSObject* convertDictionaryToJS(JSC::ExecState&, JSDOMGlobalObject&, const ${className}&);\n\n";
     }
 
     $result .= "#endif\n\n" if $conditionalString;
@@ -3798,8 +3800,8 @@ sub GenerateImplementation
 
     @implContent = ();
 
-    push(@implContent, "\nusing namespace JSC;\n\n");
-    push(@implContent, "namespace WebCore {\n\n");
+    push(@implContent, "\n\nnamespace WebCore {\n");
+    push(@implContent, "using namespace JSC;\n\n");
 
     push(@implContent, GenerateEnumerationsImplementationContent($interface, $enumerations));
     push(@implContent, GenerateDictionariesImplementationContent($interface, $dictionaries));
@@ -5255,8 +5257,16 @@ sub GenerateSerializerDefinition
 
         if ($codeGenerator->IsInterfaceType($attribute->type)) {
             my $attributeInterfaceName = $attribute->type->name;
-            push(@implContent, "    auto* ${name}SerializedValue = JS${attributeInterfaceName}::serialize(state, *jsCast<JS${attributeInterfaceName}*>(${name}Value), globalObject, throwScope);\n");
-            push(@implContent, "    result->putDirect(vm, Identifier::fromString(&vm, \"${name}\"), ${name}SerializedValue);\n");
+            if ($attribute->type->isNullable) {
+                push(@implContent, "    if (!${name}Value.isNull()) {\n");
+                push(@implContent, "        auto* ${name}SerializedValue = JS${attributeInterfaceName}::serialize(state, *jsCast<JS${attributeInterfaceName}*>(${name}Value), globalObject, throwScope);\n");
+                push(@implContent, "        result->putDirect(vm, Identifier::fromString(&vm, \"${name}\"), ${name}SerializedValue);\n");
+                push(@implContent, "    } else\n");
+                push(@implContent, "        result->putDirect(vm, Identifier::fromString(&vm, \"${name}\"), ${name}Value);\n");
+            } else {
+                push(@implContent, "    auto* ${name}SerializedValue = JS${attributeInterfaceName}::serialize(state, *jsCast<JS${attributeInterfaceName}*>(${name}Value), globalObject, throwScope);\n");
+                push(@implContent, "    result->putDirect(vm, Identifier::fromString(&vm, \"${name}\"), ${name}SerializedValue);\n");
+            }
         } else {
             push(@implContent, "    result->putDirect(vm, Identifier::fromString(&vm, \"${name}\"), ${name}Value);\n");
         }
@@ -5709,8 +5719,8 @@ sub GenerateDictionaryImplementation
     # - Add default header template
     push(@implContentHeader, GenerateImplementationContentHeader($dictionary));
 
-    push(@implContent, "\nusing namespace JSC;\n\n");
-    push(@implContent, "namespace WebCore {\n\n");
+    push(@implContent, "\n\nnamespace WebCore {\n");
+    push(@implContent, "using namespace JSC;\n\n");
     push(@implContent, GenerateDictionaryImplementationContent($dictionary, $className));
     push(@implContent, GenerateEnumerationsImplementationContent($dictionary, $enumerations));
     push(@implContent, GenerateDictionariesImplementationContent($dictionary, $otherDictionaries)) if $otherDictionaries;
@@ -5749,8 +5759,8 @@ sub GenerateCallbackFunctionImplementation
 
     push(@implContentHeader, GenerateImplementationContentHeader($callbackFunction));
 
-    push(@implContent, "\nusing namespace JSC;\n\n");
-    push(@implContent, "namespace WebCore {\n\n");
+    push(@implContent, "\n\nnamespace WebCore {\n");
+    push(@implContent, "using namespace JSC;\n\n");
 
     push(@implContent, GenerateEnumerationsImplementationContent($callbackFunction, $enumerations));
     push(@implContent, GenerateDictionariesImplementationContent($callbackFunction, $dictionaries));
@@ -5792,8 +5802,8 @@ sub GenerateCallbackInterfaceImplementation
 
     push(@implContentHeader, GenerateImplementationContentHeader($callbackInterface));
 
-    push(@implContent, "\nusing namespace JSC;\n\n");
-    push(@implContent, "namespace WebCore {\n\n");
+    push(@implContent, "\n\nnamespace WebCore {\n");
+    push(@implContent, "using namespace JSC;\n\n");
 
     push(@implContent, GenerateEnumerationsImplementationContent($callbackInterface, $enumerations));
     push(@implContent, GenerateDictionariesImplementationContent($callbackInterface, $dictionaries));
@@ -5871,6 +5881,10 @@ sub GenerateCallbackHeaderContent
     push(@$contentRef, "\nprivate:\n");
 
     push(@$contentRef, "    ${className}(JSC::JSObject*, JSDOMGlobalObject*);\n\n");
+
+    if ($interfaceOrCallback->extendedAttributes->{IsWeakCallback}) {
+        push(@$contentRef, "    bool hasCallback() const final { return m_data && m_data->callback(); }\n\n");
+    }
 
     push(@$contentRef, "    void visitJSFunction(JSC::SlotVisitor&) override;\n\n") if $interfaceOrCallback->extendedAttributes->{IsWeakCallback};
 
@@ -6030,6 +6044,7 @@ sub GenerateCallbackImplementationContent
             foreach my $argument (@{$operation->arguments}) {
                 push(@$contentRef, "    args.append(" . NativeToJSValueUsingReferences($argument, $interfaceOrCallback, $argument->name, "globalObject") . ");\n");
             }
+            push(@$contentRef, "    ASSERT(!args.hasOverflowed());\n");
 
             push(@$contentRef, "\n    NakedPtr<JSC::Exception> returnedException;\n");
 
@@ -7114,7 +7129,7 @@ sub GenerateConstructorHelperMethods
     # of whether the interface was declared with the [NoInterfaceObject] extended attribute.
     # https://heycam.github.io/webidl/#interface-prototype-object
     if (ShouldUseGlobalObjectPrototype($interface)) {
-        push(@$outputArray, "    putDirect(vm, vm.propertyNames->prototype, globalObject.getPrototypeDirect(), JSC::PropertyAttribute::DontDelete | JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum);\n");
+        push(@$outputArray, "    putDirect(vm, vm.propertyNames->prototype, globalObject.getPrototypeDirect(vm), JSC::PropertyAttribute::DontDelete | JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum);\n");
     } elsif ($interface->isCallback) {
         push(@$outputArray, "    UNUSED_PARAM(globalObject);\n");
     } else {

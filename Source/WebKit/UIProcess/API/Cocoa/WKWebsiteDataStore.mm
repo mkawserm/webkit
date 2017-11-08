@@ -95,7 +95,7 @@ using namespace WebCore;
     static dispatch_once_t onceToken;
     static NSSet *allWebsiteDataTypes;
     dispatch_once(&onceToken, ^{
-        allWebsiteDataTypes = [[NSSet alloc] initWithArray:@[ WKWebsiteDataTypeDiskCache, WKWebsiteDataTypeMemoryCache, WKWebsiteDataTypeOfflineWebApplicationCache, WKWebsiteDataTypeCookies, WKWebsiteDataTypeSessionStorage, WKWebsiteDataTypeLocalStorage, WKWebsiteDataTypeIndexedDBDatabases, WKWebsiteDataTypeWebSQLDatabases ]];
+        allWebsiteDataTypes = [[NSSet alloc] initWithArray:@[ WKWebsiteDataTypeDiskCache, WKWebsiteDataTypeFetchCache, WKWebsiteDataTypeMemoryCache, WKWebsiteDataTypeOfflineWebApplicationCache, WKWebsiteDataTypeCookies, WKWebsiteDataTypeSessionStorage, WKWebsiteDataTypeLocalStorage, WKWebsiteDataTypeIndexedDBDatabases, WKWebsiteDataTypeServiceWorkerRegistrations, WKWebsiteDataTypeWebSQLDatabases ]];
     });
 
     return allWebsiteDataTypes;
@@ -231,6 +231,46 @@ static Vector<WebKit::WebsiteDataRecord> toWebsiteDataRecords(NSArray *dataRecor
     _websiteDataStore->websiteDataStore().setResourceLoadStatisticsEnabled(enabled);
 }
 
+- (NSUInteger)_cacheStoragePerOriginQuota
+{
+    return _websiteDataStore->websiteDataStore().cacheStoragePerOriginQuota();
+}
+
+- (void)_setCacheStoragePerOriginQuota:(NSUInteger)size
+{
+    _websiteDataStore->websiteDataStore().setCacheStoragePerOriginQuota(size);
+}
+
+- (NSString *)_cacheStorageDirectory
+{
+    return _websiteDataStore->websiteDataStore().cacheStorageDirectory();
+}
+
+- (void)_setCacheStorageDirectory:(NSString *)directory
+{
+    _websiteDataStore->websiteDataStore().setCacheStorageDirectory(directory);
+}
+
+- (void)_setBoundInterfaceIdentifier:(NSString *)identifier
+{
+    _websiteDataStore->websiteDataStore().setBoundInterfaceIdentifier(identifier);
+}
+
+- (NSString *)_boundInterfaceIdentifier
+{
+    return _websiteDataStore->websiteDataStore().boundInterfaceIdentifier();
+}
+
+- (void)_setAllowsCellularAccess:(BOOL)allows
+{
+    _websiteDataStore->websiteDataStore().setAllowsCellularAccess(allows ? WebKit::AllowsCellularAccess::Yes : WebKit::AllowsCellularAccess::No);
+}
+
+- (BOOL)_allowsCellularAccess
+{
+    return _websiteDataStore->websiteDataStore().allowsCellularAccess() == WebKit::AllowsCellularAccess::Yes;
+}
+
 - (void)_resourceLoadStatisticsSetLastSeen:(double)seconds forHost:(NSString *)host
 {
     auto* store = _websiteDataStore->websiteDataStore().resourceLoadStatistics();
@@ -263,6 +303,34 @@ static Vector<WebKit::WebsiteDataRecord> toWebsiteDataRecords(NSArray *dataRecor
     auto completionHandlerCopy = makeBlockPtr(completionHandler);
     store->isPrevalentResource(URL(URL(), host), [completionHandlerCopy](bool isPrevalentResource) {
         completionHandlerCopy(isPrevalentResource);
+    });
+}
+
+- (void)_resourceLoadStatisticsIsRegisteredAsSubFrameUnder:(NSString *)subFrameHost topFrameHost:(NSString *)topFrameHost completionHandler:(void (^)(BOOL))completionHandler
+{
+    auto* store = _websiteDataStore->websiteDataStore().resourceLoadStatistics();
+    if (!store) {
+        completionHandler(NO);
+        return;
+    }
+    
+    auto completionHandlerCopy = makeBlockPtr(completionHandler);
+    store->isRegisteredAsSubFrameUnder(URL(URL(), subFrameHost), URL(URL(), topFrameHost), [completionHandlerCopy](bool isRegisteredAsSubFrameUnder) {
+        completionHandlerCopy(isRegisteredAsSubFrameUnder);
+    });
+}
+
+- (void)_resourceLoadStatisticsIsRegisteredAsRedirectingTo:(NSString *)hostRedirectedFrom hostRedirectedTo:(NSString *)hostRedirectedTo completionHandler:(void (^)(BOOL))completionHandler
+{
+    auto* store = _websiteDataStore->websiteDataStore().resourceLoadStatistics();
+    if (!store) {
+        completionHandler(NO);
+        return;
+    }
+    
+    auto completionHandlerCopy = makeBlockPtr(completionHandler);
+    store->isRegisteredAsRedirectingTo(URL(URL(), hostRedirectedFrom), URL(URL(), hostRedirectedTo), [completionHandlerCopy](bool isRegisteredAsRedirectingTo) {
+        completionHandlerCopy(isRegisteredAsRedirectingTo);
     });
 }
 

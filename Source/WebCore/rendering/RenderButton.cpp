@@ -28,6 +28,7 @@
 #include "RenderTextFragment.h"
 #include "RenderTheme.h"
 #include "StyleInheritedData.h"
+#include <wtf/IsoMallocInlines.h>
 
 #if PLATFORM(IOS)
 #include "RenderThemeIOS.h"
@@ -37,14 +38,14 @@ namespace WebCore {
 
 using namespace HTMLNames;
 
+WTF_MAKE_ISO_ALLOCATED_IMPL(RenderButton);
+
 RenderButton::RenderButton(HTMLFormControlElement& element, RenderStyle&& style)
     : RenderFlexibleBox(element, WTFMove(style))
 {
 }
 
-RenderButton::~RenderButton()
-{
-}
+RenderButton::~RenderButton() = default;
 
 HTMLFormControlElement& RenderButton::formControlElement() const
 {

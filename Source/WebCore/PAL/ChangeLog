@@ -1,3 +1,302 @@
+2017-11-06  Said Abou-Hallawa  <sabouhallawa@apple.com>
+
+        [CG] Adopt CGContextDrawPathDirect()
+        https://bugs.webkit.org/show_bug.cgi?id=179339
+        <rdar://problem/26283575>
+
+        Reviewed by Simon Fraser.
+
+        Add CGContextDrawPathDirect() as a new CoreGraphics SPI.
+
+        * pal/spi/cg/CoreGraphicsSPI.h:
+
+2017-11-02  Ryan Haddad  <ryanhaddad@apple.com>
+
+        Unreviewed, rolling out r224353.
+
+        Breaks internal builds.
+
+        Reverted changeset:
+
+        "Ignore HSTS for partitioned, cross-origin subresource
+        requests"
+        https://bugs.webkit.org/show_bug.cgi?id=178993
+        https://trac.webkit.org/changeset/224353
+
+2017-11-02  John Wilander  <wilander@apple.com>
+
+        Ignore HSTS for partitioned, cross-origin subresource requests
+        https://bugs.webkit.org/show_bug.cgi?id=178993
+        <rdar://problem/34962462>
+
+        Reviewed by Brent Fulgham and Alex Christensen.
+
+        * pal/spi/cf/CFNetworkSPI.h:
+            Added
+            - (BOOL)_schemeWasUpgradedDueToDynamicHSTS
+            - (BOOL)_preventHSTSStorage
+            - (BOOL)_ignoreHSTS
+            - (void)_setPreventHSTSStorage:(BOOL)preventHSTSStorage
+            - (void)_setIgnoreHSTS:(BOOL)ignoreHSTS
+
+2017-11-02  Frederic Wang  <fwang@igalia.com>
+
+        Add references to bug 179167 in FIXME comments
+        https://bugs.webkit.org/show_bug.cgi?id=179168
+
+        Reviewed by Daniel Bates.
+
+        * Configurations/FeatureDefines.xcconfig:
+
+2017-11-01  Jeremy Jones  <jeremyj@apple.com>
+
+        Implement WKFullscreenWindowController for iOS.
+        https://bugs.webkit.org/show_bug.cgi?id=178924
+        rdar://problem/34697120
+
+        Reviewed by Simon Fraser.
+
+        Enable ENABLE_FULLSCREEN_API for iOS;
+
+        * Configurations/FeatureDefines.xcconfig:
+
+2017-11-01  Daniel Bates  <dabates@apple.com>
+
+        XMLHttpRequest should not sniff content encoding
+        https://bugs.webkit.org/show_bug.cgi?id=175597
+        <rdar://problem/34912624>
+
+        Reviewed by Alex Christensen.
+
+        Forward declare CFNetwork SPI.
+
+        * pal/spi/cf/CFNetworkSPI.h:
+
+2017-10-31  Tim Horton  <timothy_horton@apple.com>
+
+        Clean up some drag and drop feature flags
+        https://bugs.webkit.org/show_bug.cgi?id=179082
+
+        Reviewed by Simon Fraser.
+
+        * Configurations/FeatureDefines.xcconfig:
+
+2017-10-31  Tim Horton  <timothy_horton@apple.com>
+
+        Fix up some content filtering feature flags
+        https://bugs.webkit.org/show_bug.cgi?id=179079
+
+        Reviewed by Simon Fraser.
+
+        * Configurations/FeatureDefines.xcconfig:
+
+2017-10-31  Wenson Hsieh  <wenson_hsieh@apple.com>
+
+        [Attachment Support] Implement WKWebView SPI for inserting attachment elements
+        https://bugs.webkit.org/show_bug.cgi?id=179013
+        <rdar://problem/35249668>
+
+        Reviewed by Tim Horton.
+
+        Add a PAL library function to convert a file size to a human-readable string. On Cocoa platforms, this is a
+        wrapper around NSLocalizedFileSizeDescription; otherwise, we fall back to a naive platform-agnostic
+        implementation in FileSizeFormatter.cpp.
+
+        * PAL.xcodeproj/project.pbxproj:
+        * pal/CMakeLists.txt:
+        * pal/FileSizeFormatter.cpp: Added.
+        (fileSizeDescription):
+        * pal/FileSizeFormatter.h: Added.
+        * pal/cocoa/FileSizeFormatterCocoa.mm: Added.
+        (fileSizeDescription):
+        * pal/spi/cocoa/NSFileSizeFormatterSPI.h: Added.
+
+2017-10-27  Keith Miller  <keith_miller@apple.com>
+
+        Move iOS specific sources to unified sources
+        https://bugs.webkit.org/show_bug.cgi?id=178915
+
+        Rubber-stamped by Tim Horton.
+
+        * pal/spi/cocoa/QuartzCoreSPI.h: Add missing pragma once.
+
+2017-10-26  Ryan Haddad  <ryanhaddad@apple.com>
+
+        Unreviewed, rolling out r223908.
+
+        Causes LayoutTest crashes with newer SDKs.
+
+        Reverted changeset:
+
+        "Adopt new secure coding APIs"
+        https://bugs.webkit.org/show_bug.cgi?id=178484
+        https://trac.webkit.org/changeset/223908
+
+2017-10-24  Eric Carlson  <eric.carlson@apple.com>
+
+        Web Inspector: Enable WebKit logging configuration and display
+        https://bugs.webkit.org/show_bug.cgi?id=177027
+        <rdar://problem/33964767>
+
+        Reviewed by Joseph Pecoraro.
+
+        * pal/Logger.h:
+        (PAL::Logger::willLog const): Always return true for Always and Error so those messages are
+            always logged to the system.
+        (PAL::Logger::log): Always log Always and Error to the system, but pay strict attention to level
+            and channel state for logging to observers so logging only shows up in the inspector when
+            explicitly enabled by the user. 
+
+2017-10-24  Brent Fulgham  <bfulgham@apple.com>
+
+        Adopt new secure coding APIs
+        https://bugs.webkit.org/show_bug.cgi?id=178484
+        <rdar://problem/34837193>
+
+        Reviewed by Tim Horton.
+
+        Add new convenience methods (and SPI headers) so we can adopt new NSKeyedArchiver
+        API that uses secure coding by default.
+
+        * PAL.xcodeproj/project.pbxproj:
+        * pal/spi/cocoa/NSKeyedArchiverSPI.h: Added.
+        (securelyArchivedDataWithRootObject): New convenience method.
+        (securelyUnarchiveRootObjectOfClassFromData): Ditto.
+        (secureArchiverFromMutableData): Ditto.
+        (secureUnarchiverFromData): Ditto.
+
+2017-10-24  Matt Lewis  <jlewis3@apple.com>
+
+        Unreviewed, rolling out r223889.
+
+        This caused multiple crashes on all platforms
+
+        Reverted changeset:
+
+        "Adopt new secure coding APIs"
+        https://bugs.webkit.org/show_bug.cgi?id=178484
+        https://trac.webkit.org/changeset/223889
+
+2017-10-24  Brent Fulgham  <bfulgham@apple.com>
+
+        Adopt new secure coding APIs
+        https://bugs.webkit.org/show_bug.cgi?id=178484
+        <rdar://problem/34837193>
+
+        Reviewed by Tim Horton.
+
+        Add new convenience methods (and SPI headers) so we can adopt new NSKeyedArchiver
+        API that uses secure coding by default.
+
+        * PAL.xcodeproj/project.pbxproj:
+        * pal/spi/cocoa/NSKeyedArchiverSPI.h: Added.
+        (securelyArchivedDataWithRootObject): New convenience method.
+        (securelyUnarchiveRootObjectOfClassFromData): Ditto.
+        (secureArchiverFromMutableData): Ditto.
+        (secureUnarchiverFromData): Ditto.
+
+2017-10-20  Alex Christensen  <achristensen@webkit.org>
+
+        Expose _boundInterfaceIdentifier and _allowsCellularAccess to WKWebsiteDataStorePrivate
+        https://bugs.webkit.org/show_bug.cgi?id=178418
+        <rdar://problem/29599569>
+
+        Reviewed by Tim Horton.
+
+        * pal/spi/cf/CFNetworkSPI.h:
+
+2017-10-20  Antoine Quint  <graouts@apple.com>
+
+        [Web Animations] Provide basic timeline and animation interfaces
+        https://bugs.webkit.org/show_bug.cgi?id=178526
+
+        Reviewed by Dean Jackson.
+
+        Remove the WEB_ANIMATIONS compile-time flag.
+
+        * Configurations/FeatureDefines.xcconfig:
+
+2017-10-19  Daniel Bates  <dabates@apple.com>
+
+        Use "= default" to denote default constructor or destructor
+        https://bugs.webkit.org/show_bug.cgi?id=178528
+
+        Rubber-stamped by Andy Estes.
+
+        * pal/Logger.h:
+        (PAL::Logger::Observer::~Observer): Deleted.
+        * pal/crypto/gcrypt/CryptoDigestGCrypt.cpp:
+        * pal/system/SleepDisabler.cpp:
+        * pal/system/SystemSleepListener.h:
+
+2017-10-17  Keith Miller  <keith_miller@apple.com>
+
+        Change WebCore sources to work with unified source builds
+        https://bugs.webkit.org/show_bug.cgi?id=178229
+
+        Rubber stamped by Tim Horton.
+
+        Move soft linking code from WebCore to PAL.
+
+        * Configurations/FeatureDefines.xcconfig:
+        * pal/cf/CoreMediaSoftLink.cpp:
+        * pal/cf/CoreMediaSoftLink.h:
+        * pal/spi/cocoa/NSAttributedStringSPI.h:
+
+2017-10-13  Adrian Perez de Castro  <aperez@igalia.com>
+
+        [WPE][GTK] Provide an implementation of PAL::logLevelString()
+        https://bugs.webkit.org/show_bug.cgi?id=178263
+
+        Reviewed by Carlos Alberto Lopez Perez.
+
+        Provide an implementation of PAL::logLevelString() which picks the value from the
+        WEBCORE_DEBUG environment variable. Logging of notImplemented() calls is always enabled,
+        which is the same behavior as in WebCore::logLevelString().
+
+        * pal/PlatformGTK.cmake: Add LoggingUnix.cpp to the list of sources.
+        * pal/PlatformWPE.cmake: Add LoggingUnix.cpp to the list of sources.
+        * pal/unix/LoggingUnix.cpp: Added.
+        (PAL::logLevelString):
+
+2017-10-13  Jer Noble  <jer.noble@apple.com>
+
+        Unreviewed build fix; add definitions for IOSurface methods missing on some platforms.
+
+        * pal/spi/cocoa/IOSurfaceSPI.h:
+
+2017-10-12  Myles C. Maxfield  <mmaxfield@apple.com>
+
+        [Win] Build fix after r223206
+        https://bugs.webkit.org/show_bug.cgi?id=171523
+
+        Unreviewed.
+
+        * pal/PlatformWin.cmake:
+        * pal/win/LoggingWin.cpp: Added.
+        (PAL::logLevelString):
+
+2017-10-11  Myles C. Maxfield  <mmaxfield@apple.com>
+
+        Allow PAL to log messages
+        https://bugs.webkit.org/show_bug.cgi?id=171523
+
+        Reviewed by Alex Christensen.
+
+        * PAL.xcodeproj/project.pbxproj:
+        * pal/CMakeLists.txt:
+        * pal/LogInitialization.h: Copied from Source/WebCore/platform/LogMacros.h.
+        * pal/LogMacros.h: Copied from Source/WebCore/platform/LogMacros.h.
+        * pal/Logging.cpp: Copied from Source/WebCore/platform/Logging.cpp.
+        (PAL::isLogChannelEnabled):
+        (PAL::setLogChannelToAccumulate):
+        (PAL::initializeLogChannelsIfNecessary):
+        (PAL::registerNotifyCallback):
+        * pal/Logging.h: Copied from Source/WebCore/platform/LogMacros.h.
+        * pal/PlatformMac.cmake:
+        * pal/cocoa/LoggingCocoa.mm: Renamed from Source/WebCore/platform/LogMacros.h.
+        (PAL::logLevelString):
+
 2017-10-06  Chris Dumez  <cdumez@apple.com>
 
         [Beacon][Cocoa] Beacon requests with BufferSource payload should not have a Content-Type HTTP header

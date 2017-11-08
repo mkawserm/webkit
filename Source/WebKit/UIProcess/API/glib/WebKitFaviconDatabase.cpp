@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 Igalia S.L.
+ * Copyright (C) 2012, 2017 Igalia S.L.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -120,6 +120,7 @@ static void webkit_favicon_database_class_init(WebKitFaviconDatabaseClass* favic
         G_TYPE_STRING);
 }
 
+#if PLATFORM(GTK)
 struct GetFaviconSurfaceAsyncData {
     ~GetFaviconSurfaceAsyncData()
     {
@@ -183,6 +184,7 @@ static void processPendingIconsForPageURL(WebKitFaviconDatabase* database, const
     }
     deletePendingIconRequests(database, pendingIconRequests, pageURL);
 }
+#endif
 
 static void webkitFaviconDatabaseSetIconURLForPageURL(WebKitFaviconDatabase* database, const String& iconURL, const String& pageURL)
 {
@@ -225,7 +227,9 @@ private:
 
     void didImportIconDataForPageURL(const String& pageURL) override
     {
+#if PLATFORM(GTK)
         processPendingIconsForPageURL(m_database, pageURL);
+#endif
         String iconURL = m_database->priv->iconDatabase->synchronousIconURLForPageURL(pageURL);
         webkitFaviconDatabaseSetIconURLForPageURL(m_database, iconURL, pageURL);
     }
@@ -265,7 +269,7 @@ void webkitFaviconDatabaseOpen(WebKitFaviconDatabase* database, const String& pa
     priv->iconDatabase->setEnabled(true);
     priv->iconDatabase->setPrivateBrowsingEnabled(WebPreferences::anyPagesAreUsingPrivateBrowsing());
 
-    if (!priv->iconDatabase->open(WebCore::directoryName(path), WebCore::pathGetFileName(path))) {
+    if (!priv->iconDatabase->open(WebCore::FileSystem::directoryName(path), WebCore::FileSystem::pathGetFileName(path))) {
         priv->iconDatabase = nullptr;
         IconDatabase::allowDatabaseCleanup();
     }
@@ -282,6 +286,7 @@ void webkitFaviconDatabaseSetPrivateBrowsingEnabled(WebKitFaviconDatabase* datab
         database->priv->iconDatabase->setPrivateBrowsingEnabled(enabled);
 }
 
+#if PLATFORM(GTK)
 void webkitFaviconDatabaseGetLoadDecisionForIcon(WebKitFaviconDatabase* database, const LinkIcon& icon, const String& pageURL, Function<void(bool)>&& completionHandler)
 {
     if (!webkitFaviconDatabaseIsOpen(database)) {
@@ -330,12 +335,14 @@ static PendingIconRequestVector* getOrCreatePendingIconRequests(WebKitFaviconDat
 
     return icons;
 }
+#endif
 
 GQuark webkit_favicon_database_error_quark(void)
 {
     return g_quark_from_static_string("WebKitFaviconDatabaseError");
 }
 
+#if PLATFORM(GTK)
 /**
  * webkit_favicon_database_get_favicon:
  * @database: a #WebKitFaviconDatabase
@@ -442,6 +449,7 @@ cairo_surface_t* webkit_favicon_database_get_favicon_finish(WebKitFaviconDatabas
     GetFaviconSurfaceAsyncData* data = static_cast<GetFaviconSurfaceAsyncData*>(g_task_get_task_data(task));
     return cairo_surface_reference(data->icon.get());
 }
+#endif
 
 /**
  * webkit_favicon_database_get_favicon_uri:

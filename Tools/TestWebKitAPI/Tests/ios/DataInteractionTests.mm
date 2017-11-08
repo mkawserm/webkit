@@ -1521,7 +1521,7 @@ TEST(DataInteractionTests, DataTransferGetDataWhenDroppingCustomData)
             @"foo/plain" : @"eva lu ator",
             @"text/html" : @"<b>bold text</b>",
             @"bar/html" : @"<i>italic text</i>",
-            @"text/uri-list" : @"https://www.apple.com/",
+            @"text/uri-list" : @"https://www.apple.com",
             @"baz/uri-list" : @"https://www.webkit.org"
         }
     });
@@ -1560,8 +1560,30 @@ TEST(DataInteractionTests, DataTransferGetDataWhenDroppingImageWithFileURL)
 
     // File URLs should never be exposed directly to web content, so DataTransfer.getData should return an empty string here.
     checkJSONWithLogging([webView stringByEvaluatingJavaScript:@"output.value"], @{
-        @"dragover": @{ @"Files": @"" },
-        @"drop": @{ @"Files": @"" }
+        @"dragover": @{ @"Files": @"", @"text/uri-list": @"" },
+        @"drop": @{ @"Files": @"", @"text/uri-list": @"" }
+    });
+}
+
+TEST(DataInteractionTests, DataTransferGetDataWhenDroppingImageWithHTTPURL)
+{
+    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    [webView synchronouslyLoadTestPageNamed:@"dump-datatransfer-types"];
+    auto simulator = adoptNS([[DataInteractionSimulator alloc] initWithWebView:webView.get()]);
+
+    auto itemProvider = adoptNS([[UIItemProvider alloc] init]);
+    [itemProvider registerDataRepresentationForTypeIdentifier:(NSString *)kUTTypeJPEG visibility:NSItemProviderRepresentationVisibilityAll loadHandler:^NSProgress *(DataLoadCompletionBlock completionHandler)
+    {
+        completionHandler(UIImageJPEGRepresentation(testIconImage(), 0.5), nil);
+        return nil;
+    }];
+    [itemProvider registerObject:[NSURL URLWithString:@"http://webkit.org"] visibility:UIItemProviderRepresentationOptionsVisibilityAll];
+    [simulator setExternalItemProviders:@[ itemProvider.get() ]];
+
+    [simulator runFrom:CGPointMake(300, 375) to:CGPointMake(50, 375)];
+    checkJSONWithLogging([webView stringByEvaluatingJavaScript:@"output.value"], @{
+        @"dragover": @{ @"Files": @"", @"text/uri-list": @"" },
+        @"drop": @{ @"Files": @"", @"text/uri-list": @"http://webkit.org/" }
     });
 }
 
@@ -1643,6 +1665,143 @@ TEST(DataInteractionTests, DataTransferGetDataCannotReadPrivateArbitraryTypes)
         @"dragover": @{ },
         @"drop": @{ }
     });
+}
+
+TEST(DataInteractionTests, DataTransferSetDataValidURL)
+{
+    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    [webView synchronouslyLoadTestPageNamed:@"dump-datatransfer-types"];
+    auto simulator = adoptNS([[DataInteractionSimulator alloc] initWithWebView:webView.get()]);
+
+    [webView stringByEvaluatingJavaScript:@"select(rich)"];
+    [webView stringByEvaluatingJavaScript:@"customData = { 'url' : 'https://webkit.org/b/123' }"];
+    [webView stringByEvaluatingJavaScript:@"writeCustomData = true"];
+
+    __block bool done = false;
+    [simulator.get() setOverridePerformDropBlock:^NSArray<UIDragItem *> *(id <UIDropSession> session)
+    {
+        EXPECT_EQ(1UL, session.items.count);
+        auto *item = session.items[0].itemProvider;
+        EXPECT_TRUE([item.registeredTypeIdentifiers containsObject:(NSString *)kUTTypeURL]);
+        EXPECT_TRUE([item canLoadObjectOfClass: [NSURL class]]);
+        [item loadObjectOfClass:[NSURL class] completionHandler:^(id<NSItemProviderReading> url, NSError *error) {
+            EXPECT_TRUE([url isKindOfClass: [NSURL class]]);
+            EXPECT_WK_STREQ([(NSURL *)url absoluteString], @"https://webkit.org/b/123");
+            done = true;
+        }];
+        return session.items;
+    }];
+    [simulator runFrom:CGPointMake(50, 225) to:CGPointMake(50, 375)];
+
+    checkJSONWithLogging([webView stringByEvaluatingJavaScript:@"output.value"], @{
+        @"dragover": @{
+            @"text/uri-list": @"",
+        },
+        @"drop": @{
+            @"text/uri-list": @"https://webkit.org/b/123",
+        }
+    });
+    TestWebKitAPI::Util::run(&done);
+}
+
+TEST(DataInteractionTests, DataTransferSetDataUnescapedURL)
+{
+    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    [webView synchronouslyLoadTestPageNamed:@"dump-datatransfer-types"];
+    auto simulator = adoptNS([[DataInteractionSimulator alloc] initWithWebView:webView.get()]);
+
+    [webView stringByEvaluatingJavaScript:@"select(rich)"];
+    [webView stringByEvaluatingJavaScript:@"customData = { 'url' : 'http://webkit.org/b/\u4F60\u597D;?x=8 + 6' }"];
+    [webView stringByEvaluatingJavaScript:@"writeCustomData = true"];
+
+    __block bool done = false;
+    [simulator.get() setOverridePerformDropBlock:^NSArray<UIDragItem *> *(id <UIDropSession> session)
+    {
+        EXPECT_EQ(1UL, session.items.count);
+        auto *item = session.items[0].itemProvider;
+        EXPECT_TRUE([item.registeredTypeIdentifiers containsObject:(NSString *)kUTTypeURL]);
+        EXPECT_TRUE([item canLoadObjectOfClass: [NSURL class]]);
+        [item loadObjectOfClass:[NSURL class] completionHandler:^(id<NSItemProviderReading> url, NSError *error) {
+            EXPECT_TRUE([url isKindOfClass: [NSURL class]]);
+            EXPECT_WK_STREQ([(NSURL *)url absoluteString], @"http://webkit.org/b/%E4%BD%A0%E5%A5%BD;?x=8%20+%206");
+            done = true;
+        }];
+        return session.items;
+    }];
+    [simulator runFrom:CGPointMake(50, 225) to:CGPointMake(50, 375)];
+
+    checkJSONWithLogging([webView stringByEvaluatingJavaScript:@"output.value"], @{
+        @"dragover": @{
+            @"text/uri-list": @"",
+        },
+        @"drop": @{
+            @"text/uri-list": @"http://webkit.org/b/\u4F60\u597D;?x=8 + 6",
+        }
+    });
+    TestWebKitAPI::Util::run(&done);
+}
+
+TEST(DataInteractionTests, DataTransferSetDataInvalidURL)
+{
+    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    [webView synchronouslyLoadTestPageNamed:@"dump-datatransfer-types"];
+    auto simulator = adoptNS([[DataInteractionSimulator alloc] initWithWebView:webView.get()]);
+
+    [webView stringByEvaluatingJavaScript:@"select(rich)"];
+    [webView stringByEvaluatingJavaScript:@"customData = { 'url' : 'some random string' }"];
+    [webView stringByEvaluatingJavaScript:@"writeCustomData = true"];
+
+    [simulator runFrom:CGPointMake(50, 225) to:CGPointMake(50, 375)];
+    NSArray *registeredTypes = [simulator.get().sourceItemProviders.firstObject registeredTypeIdentifiers];
+    EXPECT_FALSE([registeredTypes containsObject:(NSString *)kUTTypeURL]);
+    checkJSONWithLogging([webView stringByEvaluatingJavaScript:@"output.value"], @{
+        @"dragover": @{
+            @"text/uri-list": @"",
+        },
+        @"drop": @{
+            @"text/uri-list": @"some random string",
+        }
+    });
+}
+
+TEST(DataInteractionTests, DataTransferSanitizeHTML)
+{
+    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    [webView synchronouslyLoadTestPageNamed:@"dump-datatransfer-types"];
+    auto simulator = adoptNS([[DataInteractionSimulator alloc] initWithWebView:webView.get()]);
+
+    [webView stringByEvaluatingJavaScript:@"select(rich)"];
+    [webView stringByEvaluatingJavaScript:@"customData = { 'text/html' : '<meta content=\"secret\">"
+        "<b onmouseover=\"dangerousCode()\">hello</b><!-- secret-->, world<script>dangerousCode()</script>' }"];
+    [webView stringByEvaluatingJavaScript:@"writeCustomData = true"];
+
+    __block bool done = false;
+    [simulator.get() setOverridePerformDropBlock:^NSArray<UIDragItem *> *(id <UIDropSession> session)
+    {
+        EXPECT_EQ(1UL, session.items.count);
+        auto *item = session.items[0].itemProvider;
+        EXPECT_TRUE([item.registeredTypeIdentifiers containsObject:(NSString *)kUTTypeHTML]);
+        [item loadDataRepresentationForTypeIdentifier:(NSString *)kUTTypeHTML completionHandler:^(NSData *data, NSError *error) {
+            NSString *markup = [[[NSString alloc] initWithData:(NSData *)data encoding:NSUTF8StringEncoding] autorelease];
+            EXPECT_TRUE([markup containsString:@"hello"]);
+            EXPECT_TRUE([markup containsString:@", world"]);
+            EXPECT_FALSE([markup containsString:@"secret"]);
+            EXPECT_FALSE([markup containsString:@"dangerousCode"]);
+            done = true;
+        }];
+        return session.items;
+    }];
+    [simulator runFrom:CGPointMake(50, 225) to:CGPointMake(50, 375)];
+
+    checkJSONWithLogging([webView stringByEvaluatingJavaScript:@"output.value"], @{
+        @"dragover": @{
+            @"text/html": @"",
+        },
+        @"drop": @{
+            @"text/html": @"<meta content=\"secret\"><b onmouseover=\"dangerousCode()\">hello</b><!-- secret-->, world<script>dangerousCode()</script>",
+        }
+    });
+    TestWebKitAPI::Util::run(&done);
 }
 
 #endif // __IPHONE_OS_VERSION_MIN_REQUIRED >= 110300

@@ -53,9 +53,6 @@ WI.RecordingContentView = class RecordingContentView extends WI.ContentView
             this._showGridButtonNavigationItem.addEventListener(WI.ButtonNavigationItem.Event.Clicked, this._showGridButtonClicked, this);
             this._showGridButtonNavigationItem.activated = !!WI.settings.showImageGrid.value;
         }
-
-        this._previewContainer = this.element.appendChild(document.createElement("div"));
-        this._previewContainer.classList.add("preview-container");
     }
 
     // Static
@@ -104,12 +101,16 @@ WI.RecordingContentView = class RecordingContentView extends WI.ContentView
         if (!this.representedObject)
             return;
 
+        if (this._index === index)
+            return;
+
         this.representedObject.actions.then((actions) => {
             console.assert(index >= 0 && index < actions.length);
-            if (index < 0 || index >= actions.length || index === this._index)
+            if (index < 0 || index >= actions.length)
                 return;
 
             this._index = index;
+            this._updateSliderValue();
 
             if (this.representedObject.type === WI.Recording.Type.Canvas2D)
                 this._generateContentCanvas2D(index, actions, options);
@@ -133,13 +134,6 @@ WI.RecordingContentView = class RecordingContentView extends WI.ContentView
         }
     }
 
-    get supplementalRepresentedObjects()
-    {
-        let supplementalRepresentedObjects = super.supplementalRepresentedObjects;
-        if (this.representedObject)
-            supplementalRepresentedObjects.push(this.representedObject);
-        return supplementalRepresentedObjects;
-    }
 
     get supportsSave()
     {
@@ -148,11 +142,43 @@ WI.RecordingContentView = class RecordingContentView extends WI.ContentView
 
     get saveData()
     {
+        let filename = this.representedObject.displayName;
+        if (!filename.endsWith(".json"))
+            filename += ".json";
+
         return {
-            url: "web-inspector:///Recording.json",
+            url: "web-inspector:///" + encodeURI(filename),
             content: JSON.stringify(this.representedObject.toJSON()),
             forceSaveAs: true,
         };
+    }
+
+    // Protected
+
+    initialLayout()
+    {
+        let previewHeader = this.element.appendChild(document.createElement("header"));
+
+        let sliderContainer = previewHeader.appendChild(document.createElement("div"));
+        sliderContainer.className = "slider-container hidden";
+
+        this._previewContainer = this.element.appendChild(document.createElement("div"));
+        this._previewContainer.className = "preview-container";
+
+        this._sliderValueElement = sliderContainer.appendChild(document.createElement("div"));
+        this._sliderValueElement.className = "slider-value";
+
+        this._sliderElement = sliderContainer.appendChild(document.createElement("input"));
+        this._sliderElement.addEventListener("input", this._sliderChanged.bind(this));
+        this._sliderElement.type = "range";
+        this._sliderElement.min = 0;
+        this._sliderElement.max = 0;
+
+        this.representedObject.actions.then(() => {
+            sliderContainer.classList.remove("hidden");
+            this._sliderElement.max = this.representedObject.visualActionIndexes.length;
+            this._updateSliderValue();
+        });
     }
 
     // Private
@@ -199,7 +225,7 @@ WI.RecordingContentView = class RecordingContentView extends WI.ContentView
                         snapshot.context[name](...snapshot.state[name]);
                     else
                         snapshot.context[name] = snapshot.state[name];
-                } catch (e) {
+                } catch {
                     delete snapshot.state[name];
                 }
             }
@@ -234,7 +260,7 @@ WI.RecordingContentView = class RecordingContentView extends WI.ContentView
                     --saveCount;
                 }
 
-                this._applyAction(snapshot.context, actions[i]);
+                actions[i].apply(snapshot.context);
 
                 if (shouldDrawCanvasPath && i >= indexOfLastBeginPathAction && WI.RecordingContentView._actionModifiesPath(actions[i])) {
                     lastPathPoint = {x: this._pathContext.currentX, y: this._pathContext.currentY};
@@ -255,7 +281,7 @@ WI.RecordingContentView = class RecordingContentView extends WI.ContentView
                         this._pathContext.lineTo(subPathStartPoint.x, subPathStartPoint.y);
                         subPathStartPoint = {};
                     } else {
-                        this._applyAction(this._pathContext, actions[i], {nameOverride: isMoveTo ? "lineTo" : null});
+                        actions[i].apply(this._pathContext, {nameOverride: isMoveTo ? "lineTo" : null});
                         if (isMoveTo)
                             subPathStartPoint = {x: this._pathContext.currentX, y: this._pathContext.currentY};
                     }
@@ -451,28 +477,6 @@ WI.RecordingContentView = class RecordingContentView extends WI.ContentView
             options.actionCompletedCallback(actions[this._index]);
     }
 
-    _applyAction(context, action, options = {})
-    {
-        if (!action.valid)
-            return;
-
-        try {
-            let name = options.nameOverride || action.name;
-            if (action.isFunction)
-                context[name](...action.parameters);
-            else {
-                if (action.isGetter)
-                    context[name];
-                else
-                    context[name] = action.parameters[0];
-            }
-        } catch (e) {
-            WI.Recording.synthesizeError(WI.UIString("“%s” threw an error.").format(action.name));
-
-            action.valid = false;
-        }
-    }
-
     _updateCanvasPath()
     {
         let activated = WI.settings.showCanvasPath.value;
@@ -495,6 +499,22 @@ WI.RecordingContentView = class RecordingContentView extends WI.ContentView
             this._snapshots[snapshotIndex].element.classList.toggle("show-grid", activated);
     }
 
+    _updateSliderValue()
+    {
+        if (!this._sliderElement)
+            return;
+
+        let visualActionIndexes = this.representedObject.visualActionIndexes;
+        let visualActionIndex = 0;
+        if (this._index > 0) {
+            while (visualActionIndex < visualActionIndexes.length && visualActionIndexes[visualActionIndex] <= this._index)
+                visualActionIndex++;
+        }
+
+        this._sliderElement.value = visualActionIndex;
+        this._sliderValueElement.textContent = WI.UIString("%d of %d").format(visualActionIndex, visualActionIndexes.length);
+    }
+
     _showPathButtonClicked(event)
     {
         WI.settings.showCanvasPath.value = !this._showPathButtonNavigationItem.activated;
@@ -508,6 +528,21 @@ WI.RecordingContentView = class RecordingContentView extends WI.ContentView
 
         this._updateImageGrid();
     }
+
+    _sliderChanged()
+    {
+        let index = 0;
+
+        let visualActionIndex = parseInt(this._sliderElement.value) - 1;
+        if (visualActionIndex !== -1)
+            index = this.representedObject.visualActionIndexes[visualActionIndex];
+
+        this.dispatchEventToListeners(WI.RecordingContentView.Event.RecordingActionIndexChanged, {index});
+    }
 };
 
 WI.RecordingContentView.SnapshotInterval = 5000;
+
+WI.RecordingContentView.Event = {
+    RecordingActionIndexChanged: "recording-action-index-changed",
+};

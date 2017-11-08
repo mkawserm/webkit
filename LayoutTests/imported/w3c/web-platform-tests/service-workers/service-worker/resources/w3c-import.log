@@ -70,7 +70,6 @@ List of files:
 /LayoutTests/imported/w3c/web-platform-tests/service-workers/service-worker/resources/fetch-event-async-respond-with-worker.js
 /LayoutTests/imported/w3c/web-platform-tests/service-workers/service-worker/resources/fetch-event-network-error-controllee-iframe.html
 /LayoutTests/imported/w3c/web-platform-tests/service-workers/service-worker/resources/fetch-event-network-error-worker.js
-/LayoutTests/imported/w3c/web-platform-tests/service-workers/service-worker/resources/fetch-event-redirect-iframe.html
 /LayoutTests/imported/w3c/web-platform-tests/service-workers/service-worker/resources/fetch-event-respond-with-argument-iframe.html
 /LayoutTests/imported/w3c/web-platform-tests/service-workers/service-worker/resources/fetch-event-respond-with-argument-worker.js
 /LayoutTests/imported/w3c/web-platform-tests/service-workers/service-worker/resources/fetch-event-respond-with-readable-stream-iframe.html
@@ -126,6 +125,8 @@ List of files:
 /LayoutTests/imported/w3c/web-platform-tests/service-workers/service-worker/resources/immutable-prototype-serviceworker.js
 /LayoutTests/imported/w3c/web-platform-tests/service-workers/service-worker/resources/import-mime-type-worker.py
 /LayoutTests/imported/w3c/web-platform-tests/service-workers/service-worker/resources/import-scripts-echo.py
+/LayoutTests/imported/w3c/web-platform-tests/service-workers/service-worker/resources/import-scripts-redirect-import.js
+/LayoutTests/imported/w3c/web-platform-tests/service-workers/service-worker/resources/import-scripts-redirect-worker.js
 /LayoutTests/imported/w3c/web-platform-tests/service-workers/service-worker/resources/import-scripts-resource-map-worker.js
 /LayoutTests/imported/w3c/web-platform-tests/service-workers/service-worker/resources/import-scripts-updated-flag-worker.js
 /LayoutTests/imported/w3c/web-platform-tests/service-workers/service-worker/resources/import-scripts-version.py
@@ -146,6 +147,7 @@ List of files:
 /LayoutTests/imported/w3c/web-platform-tests/service-workers/service-worker/resources/load_worker.js
 /LayoutTests/imported/w3c/web-platform-tests/service-workers/service-worker/resources/loaded.html
 /LayoutTests/imported/w3c/web-platform-tests/service-workers/service-worker/resources/malformed-worker.py
+/LayoutTests/imported/w3c/web-platform-tests/service-workers/service-worker/resources/mime-sniffing-worker.js
 /LayoutTests/imported/w3c/web-platform-tests/service-workers/service-worker/resources/mime-type-worker.py
 /LayoutTests/imported/w3c/web-platform-tests/service-workers/service-worker/resources/mint-new-worker.py
 /LayoutTests/imported/w3c/web-platform-tests/service-workers/service-worker/resources/navigate-window-worker.js
@@ -157,7 +159,6 @@ List of files:
 /LayoutTests/imported/w3c/web-platform-tests/service-workers/service-worker/resources/navigation-redirect-scope2.py
 /LayoutTests/imported/w3c/web-platform-tests/service-workers/service-worker/resources/navigation-redirect-to-http-iframe.html
 /LayoutTests/imported/w3c/web-platform-tests/service-workers/service-worker/resources/navigation-redirect-to-http-worker.js
-/LayoutTests/imported/w3c/web-platform-tests/service-workers/service-worker/resources/navigation-redirect-worker.js
 /LayoutTests/imported/w3c/web-platform-tests/service-workers/service-worker/resources/notification_icon.py
 /LayoutTests/imported/w3c/web-platform-tests/service-workers/service-worker/resources/onactivate-throw-error-from-nested-event-worker.js
 /LayoutTests/imported/w3c/web-platform-tests/service-workers/service-worker/resources/onactivate-throw-error-then-cancel-worker.js
@@ -181,6 +182,7 @@ List of files:
 /LayoutTests/imported/w3c/web-platform-tests/service-workers/service-worker/resources/postmessage-to-client-worker.js
 /LayoutTests/imported/w3c/web-platform-tests/service-workers/service-worker/resources/postmessage-transferables-worker.js
 /LayoutTests/imported/w3c/web-platform-tests/service-workers/service-worker/resources/postmessage-worker.js
+/LayoutTests/imported/w3c/web-platform-tests/service-workers/service-worker/resources/redirect-worker.js
 /LayoutTests/imported/w3c/web-platform-tests/service-workers/service-worker/resources/redirect.py
 /LayoutTests/imported/w3c/web-platform-tests/service-workers/service-worker/resources/referer-iframe.html
 /LayoutTests/imported/w3c/web-platform-tests/service-workers/service-worker/resources/referrer-policy-iframe.html

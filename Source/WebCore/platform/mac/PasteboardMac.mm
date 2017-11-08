@@ -138,6 +138,7 @@ void Pasteboard::write(const PasteboardWebContent& content)
     if (!content.dataInStringFormat.isNull())
         types.append(String(NSStringPboardType));
     types.appendVector(content.clientTypes);
+    types.append(PasteboardCustomData::cocoaType());
 
     m_changeCount = platformStrategies()->pasteboardStrategy()->setTypes(types, m_pasteboardName);
 
@@ -156,6 +157,11 @@ void Pasteboard::write(const PasteboardWebContent& content)
         m_changeCount = platformStrategies()->pasteboardStrategy()->setStringForType(content.dataInHTMLFormat, NSHTMLPboardType, m_pasteboardName);
     if (!content.dataInStringFormat.isNull())
         m_changeCount = platformStrategies()->pasteboardStrategy()->setStringForType(content.dataInStringFormat, NSStringPboardType, m_pasteboardName);
+
+    PasteboardCustomData data;
+    data.origin = content.contentOrigin;
+    m_changeCount = platformStrategies()->pasteboardStrategy()->setBufferForType(data.createSharedBuffer().ptr(), PasteboardCustomData::cocoaType(), m_pasteboardName);
+
 }
 
 void Pasteboard::writePlainText(const String& text, SmartReplaceOption smartReplaceOption)
@@ -332,9 +338,11 @@ void Pasteboard::read(PasteboardWebContentReader& reader)
     Vector<String> types;
     strategy.getTypes(types, m_pasteboardName);
 
+    reader.contentOrigin = readOrigin();
+
     if (types.contains(WebArchivePboardType)) {
-        if (RefPtr<SharedBuffer> buffer = strategy.bufferForType(WebArchivePboardType, m_pasteboardName)) {
-            if (reader.readWebArchive(buffer.get()))
+        if (auto buffer = strategy.bufferForType(WebArchivePboardType, m_pasteboardName)) {
+            if (m_changeCount != changeCount() || reader.readWebArchive(*buffer))
                 return;
         }
     }
@@ -342,54 +350,54 @@ void Pasteboard::read(PasteboardWebContentReader& reader)
     if (types.contains(String(NSFilenamesPboardType))) {
         Vector<String> paths;
         strategy.getPathnamesForType(paths, NSFilenamesPboardType, m_pasteboardName);
-        if (reader.readFilenames(paths))
+        if (m_changeCount != changeCount() || reader.readFilenames(paths))
             return;
     }
 
     if (types.contains(String(NSHTMLPboardType))) {
         String string = strategy.stringForType(NSHTMLPboardType, m_pasteboardName);
-        if (!string.isNull() && reader.readHTML(string))
+        if (m_changeCount != changeCount() || (!string.isNull() && reader.readHTML(string)))
             return;
     }
 
     if (types.contains(String(NSRTFDPboardType))) {
         if (RefPtr<SharedBuffer> buffer = strategy.bufferForType(NSRTFDPboardType, m_pasteboardName)) {
-            if (reader.readRTFD(*buffer))
+            if (m_changeCount != changeCount() || reader.readRTFD(*buffer))
                 return;
         }
     }
 
     if (types.contains(String(NSRTFPboardType))) {
         if (RefPtr<SharedBuffer> buffer = strategy.bufferForType(NSRTFPboardType, m_pasteboardName)) {
-            if (reader.readRTF(*buffer))
+            if (m_changeCount != changeCount() || reader.readRTF(*buffer))
                 return;
         }
     }
 
     if (types.contains(String(NSTIFFPboardType))) {
         if (RefPtr<SharedBuffer> buffer = strategy.bufferForType(NSTIFFPboardType, m_pasteboardName)) {
-            if (reader.readImage(buffer.releaseNonNull(), ASCIILiteral("image/tiff")))
+            if (m_changeCount != changeCount() || reader.readImage(buffer.releaseNonNull(), ASCIILiteral("image/tiff")))
                 return;
         }
     }
 
     if (types.contains(String(NSPDFPboardType))) {
         if (RefPtr<SharedBuffer> buffer = strategy.bufferForType(NSPDFPboardType, m_pasteboardName)) {
-            if (reader.readImage(buffer.releaseNonNull(), ASCIILiteral("application/pdf")))
+            if (m_changeCount != changeCount() || reader.readImage(buffer.releaseNonNull(), ASCIILiteral("application/pdf")))
                 return;
         }
     }
 
     if (types.contains(String(kUTTypePNG))) {
         if (RefPtr<SharedBuffer> buffer = strategy.bufferForType(kUTTypePNG, m_pasteboardName)) {
-            if (reader.readImage(buffer.releaseNonNull(), ASCIILiteral("image/png")))
+            if (m_changeCount != changeCount() || reader.readImage(buffer.releaseNonNull(), ASCIILiteral("image/png")))
                 return;
         }
     }
 
     if (types.contains(String(kUTTypeJPEG))) {
         if (RefPtr<SharedBuffer> buffer = strategy.bufferForType(kUTTypeJPEG, m_pasteboardName)) {
-            if (reader.readImage(buffer.releaseNonNull(), ASCIILiteral("image/jpeg")))
+            if (m_changeCount != changeCount() || reader.readImage(buffer.releaseNonNull(), ASCIILiteral("image/jpeg")))
                 return;
         }
     }
@@ -397,19 +405,19 @@ void Pasteboard::read(PasteboardWebContentReader& reader)
     if (types.contains(String(NSURLPboardType))) {
         URL url = strategy.url(m_pasteboardName);
         String title = strategy.stringForType(WebURLNamePboardType, m_pasteboardName);
-        if (!url.isNull() && reader.readURL(url, title))
+        if (m_changeCount != changeCount() || (!url.isNull() && reader.readURL(url, title)))
             return;
     }
 
     if (types.contains(String(NSStringPboardType))) {
         String string = strategy.stringForType(NSStringPboardType, m_pasteboardName);
-        if (!string.isNull() && reader.readPlainText(string))
+        if (m_changeCount != changeCount() || (!string.isNull() && reader.readPlainText(string)))
             return;
     }
 
     if (types.contains(String(kUTTypeUTF8PlainText))) {
         String string = strategy.stringForType(kUTTypeUTF8PlainText, m_pasteboardName);
-        if (!string.isNull() && reader.readPlainText(string))
+        if (m_changeCount != changeCount() || (!string.isNull() && reader.readPlainText(string)))
             return;
     }
 }

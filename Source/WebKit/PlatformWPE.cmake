@@ -1,3 +1,5 @@
+include(InspectorGResources.cmake)
+
 set(WebKit_OUTPUT_NAME WPEWebKit)
 set(WebKit_WebProcess_OUTPUT_NAME WPEWebProcess)
 set(WebKit_NetworkProcess_OUTPUT_NAME WPENetworkProcess)
@@ -13,6 +15,9 @@ add_definitions(-DWEBKIT2_COMPILATION)
 
 add_definitions(-DLIBEXECDIR="${LIBEXEC_INSTALL_DIR}")
 add_definitions(-DLOCALEDIR="${CMAKE_INSTALL_FULL_LOCALEDIR}")
+
+# Temporary workaround to allow the build to succeed.
+file(REMOVE "${FORWARDING_HEADERS_DIR}/WebCore/Settings.h")
 
 set(WebKit_USE_PREFIX_HEADER ON)
 
@@ -160,7 +165,6 @@ list(APPEND WebKit_SOURCES
     UIProcess/API/glib/WebKitFormSubmissionRequest.cpp
     UIProcess/API/glib/WebKitGeolocationPermissionRequest.cpp
     UIProcess/API/glib/WebKitGeolocationProvider.cpp
-    UIProcess/API/glib/WebKitIconLoadingClient.cpp
     UIProcess/API/glib/WebKitInjectedBundleClient.cpp
     UIProcess/API/glib/WebKitInstallMissingMediaPluginsPermissionRequest.cpp
     UIProcess/API/glib/WebKitJavascriptResult.cpp
@@ -300,6 +304,7 @@ set(WPE_API_INSTALLED_HEADERS
     ${WEBKIT_DIR}/UIProcess/API/wpe/WebKitEditorState.h
     ${WEBKIT_DIR}/UIProcess/API/wpe/WebKitError.h
     ${WEBKIT_DIR}/UIProcess/API/wpe/WebKitFaviconDatabase.h
+    ${WEBKIT_DIR}/UIProcess/API/wpe/WebKitFileChooserRequest.h
     ${WEBKIT_DIR}/UIProcess/API/wpe/WebKitFindController.h
     ${WEBKIT_DIR}/UIProcess/API/wpe/WebKitFormSubmissionRequest.h
     ${WEBKIT_DIR}/UIProcess/API/wpe/WebKitGeolocationPermissionRequest.h
@@ -316,6 +321,7 @@ set(WPE_API_INSTALLED_HEADERS
     ${WEBKIT_DIR}/UIProcess/API/wpe/WebKitPlugin.h
     ${WEBKIT_DIR}/UIProcess/API/wpe/WebKitPolicyDecision.h
     ${WEBKIT_DIR}/UIProcess/API/wpe/WebKitResponsePolicyDecision.h
+    ${WEBKIT_DIR}/UIProcess/API/wpe/WebKitScriptDialog.h
     ${WEBKIT_DIR}/UIProcess/API/wpe/WebKitSecurityManager.h
     ${WEBKIT_DIR}/UIProcess/API/wpe/WebKitSecurityOrigin.h
     ${WEBKIT_DIR}/UIProcess/API/wpe/WebKitSettings.h
@@ -419,6 +425,9 @@ list(APPEND WebKit_INCLUDE_DIRECTORIES
     "${WTF_DIR}/wtf/gtk/"
     "${WTF_DIR}/wtf/gobject"
     "${WTF_DIR}"
+)
+
+list(APPEND WebKit_SYSTEM_INCLUDE_DIRECTORIES
     ${CAIRO_INCLUDE_DIRS}
     ${FREETYPE2_INCLUDE_DIRS}
     ${GLIB_INCLUDE_DIRS}
@@ -429,7 +438,7 @@ list(APPEND WebKit_INCLUDE_DIRECTORIES
 )
 
 list(APPEND WebKit_LIBRARIES
-    WebCorePlatformWPE
+    WebCore
     ${CAIRO_LIBRARIES}
     ${FREETYPE2_LIBRARIES}
     ${GLIB_LIBRARIES}
@@ -439,59 +448,7 @@ list(APPEND WebKit_LIBRARIES
     ${WPE_LIBRARIES}
 )
 
-set(InspectorFiles
-    ${CMAKE_SOURCE_DIR}/Source/WebInspectorUI/Localizations/en.lproj/localizedStrings.js
-    ${CMAKE_SOURCE_DIR}/Source/WebInspectorUI/UserInterface/*.html
-    ${CMAKE_SOURCE_DIR}/Source/WebInspectorUI/UserInterface/Base/*.js
-    ${CMAKE_SOURCE_DIR}/Source/WebInspectorUI/UserInterface/Controllers/*.css
-    ${CMAKE_SOURCE_DIR}/Source/WebInspectorUI/UserInterface/Controllers/*.js
-    ${CMAKE_SOURCE_DIR}/Source/WebInspectorUI/UserInterface/Debug/*.css
-    ${CMAKE_SOURCE_DIR}/Source/WebInspectorUI/UserInterface/Debug/*.js
-    ${CMAKE_SOURCE_DIR}/Source/WebInspectorUI/UserInterface/External/CodeMirror/*.css
-    ${CMAKE_SOURCE_DIR}/Source/WebInspectorUI/UserInterface/External/CodeMirror/*.js
-    ${CMAKE_SOURCE_DIR}/Source/WebInspectorUI/UserInterface/External/ESLint/*.js
-    ${CMAKE_SOURCE_DIR}/Source/WebInspectorUI/UserInterface/External/Esprima/*.js
-    ${CMAKE_SOURCE_DIR}/Source/WebInspectorUI/UserInterface/External/three.js/*.js
-    ${CMAKE_SOURCE_DIR}/Source/WebInspectorUI/UserInterface/Images/gtk/*.png
-    ${CMAKE_SOURCE_DIR}/Source/WebInspectorUI/UserInterface/Images/gtk/*.svg
-    ${CMAKE_SOURCE_DIR}/Source/WebInspectorUI/UserInterface/Models/*.js
-    ${CMAKE_SOURCE_DIR}/Source/WebInspectorUI/UserInterface/Protocol/*.js
-    ${CMAKE_SOURCE_DIR}/Source/WebInspectorUI/UserInterface/Proxies/*.js
-    ${CMAKE_SOURCE_DIR}/Source/WebInspectorUI/UserInterface/Test/*.js
-    ${CMAKE_SOURCE_DIR}/Source/WebInspectorUI/UserInterface/Views/*.css
-    ${CMAKE_SOURCE_DIR}/Source/WebInspectorUI/UserInterface/Views/*.js
-    ${CMAKE_SOURCE_DIR}/Source/WebInspectorUI/UserInterface/Workers/Formatter/*.js
-    ${CMAKE_SOURCE_DIR}/Source/WebInspectorUI/UserInterface/Workers/HeapSnapshot/*.js
-)
-
-file(GLOB InspectorFilesDependencies
-    ${InspectorFiles}
-)
-
-# DerivedSources/JavaScriptCore/inspector/InspectorBackendCommands.js is
-# expected in DerivedSources/WebInspectorUI/UserInterface/Protocol/.
-add_custom_command(
-    OUTPUT ${DERIVED_SOURCES_WEBINSPECTORUI_DIR}/UserInterface/Protocol/InspectorBackendCommands.js
-    DEPENDS ${DERIVED_SOURCES_JAVASCRIPTCORE_DIR}/inspector/InspectorBackendCommands.js
-    COMMAND cp ${DERIVED_SOURCES_JAVASCRIPTCORE_DIR}/inspector/InspectorBackendCommands.js ${DERIVED_SOURCES_WEBINSPECTORUI_DIR}/UserInterface/Protocol/InspectorBackendCommands.js
-)
-
-add_custom_command(
-    OUTPUT ${DERIVED_SOURCES_WEBINSPECTORUI_DIR}/InspectorGResourceBundle.xml
-    DEPENDS ${InspectorFilesDependencies}
-            ${DERIVED_SOURCES_WEBINSPECTORUI_DIR}/UserInterface/Protocol/InspectorBackendCommands.js
-            ${TOOLS_DIR}/wpe/generate-inspector-gresource-manifest.py
-    COMMAND ${TOOLS_DIR}/wpe/generate-inspector-gresource-manifest.py --output=${DERIVED_SOURCES_WEBINSPECTORUI_DIR}/InspectorGResourceBundle.xml ${InspectorFiles} ${DERIVED_SOURCES_WEBINSPECTORUI_DIR}/UserInterface/Protocol/InspectorBackendCommands.js
-    VERBATIM
-)
-
-add_custom_command(
-    OUTPUT ${DERIVED_SOURCES_WEBINSPECTORUI_DIR}/InspectorGResourceBundle.c
-    DEPENDS ${DERIVED_SOURCES_WEBINSPECTORUI_DIR}/InspectorGResourceBundle.xml
-    COMMAND glib-compile-resources --generate --sourcedir=${CMAKE_SOURCE_DIR}/Source/WebInspectorUI --sourcedir=${DERIVED_SOURCES_WEBINSPECTORUI_DIR} --target=${DERIVED_SOURCES_WEBINSPECTORUI_DIR}/InspectorGResourceBundle.c ${DERIVED_SOURCES_WEBINSPECTORUI_DIR}/InspectorGResourceBundle.xml
-    VERBATIM
-)
-
+WEBKIT_BUILD_INSPECTOR_GRESOURCES(${DERIVED_SOURCES_WEBINSPECTORUI_DIR})
 list(APPEND WPEWebInspectorResources_DERIVED_SOURCES
     ${DERIVED_SOURCES_WEBINSPECTORUI_DIR}/InspectorGResourceBundle.c
 )
@@ -500,138 +457,26 @@ list(APPEND WPEWebInspectorResources_LIBRARIES
     ${GLIB_GIO_LIBRARIES}
 )
 
-list(APPEND WPEWebInspectorResources_INCLUDE_DIRECTORIES
+list(APPEND WPEWebInspectorResources_SYSTEM_INCLUDE_DIRECTORIES
     ${GLIB_INCLUDE_DIRS}
 )
 
 add_library(WPEWebInspectorResources SHARED ${WPEWebInspectorResources_DERIVED_SOURCES})
 add_dependencies(WPEWebInspectorResources WebKit)
 target_link_libraries(WPEWebInspectorResources ${WPEWebInspectorResources_LIBRARIES})
-target_include_directories(WPEWebInspectorResources PUBLIC ${WPEWebInspectorResources_INCLUDE_DIRECTORIES})
+target_include_directories(WPEWebInspectorResources SYSTEM PUBLIC ${WPEWebInspectorResources_SYSTEM_INCLUDE_DIRECTORIES})
 install(TARGETS WPEWebInspectorResources DESTINATION "${LIB_INSTALL_DIR}")
 
 add_library(WPEInjectedBundle MODULE "${WEBKIT_DIR}/WebProcess/InjectedBundle/API/glib/WebKitInjectedBundleMain.cpp")
 ADD_WEBKIT_PREFIX_HEADER(WPEInjectedBundle)
 target_link_libraries(WPEInjectedBundle WebKit)
 
-if (EXPORT_DEPRECATED_WEBKIT2_C_API)
-    set(WPE_INSTALLED_WEBKIT_HEADERS
-        ${WEBKIT_DIR}/Shared/API/c/WKArray.h
-        ${WEBKIT_DIR}/Shared/API/c/WKBase.h
-        ${WEBKIT_DIR}/Shared/API/c/WKData.h
-        ${WEBKIT_DIR}/Shared/API/c/WKDeclarationSpecifiers.h
-        ${WEBKIT_DIR}/Shared/API/c/WKDiagnosticLoggingResultType.h
-        ${WEBKIT_DIR}/Shared/API/c/WKDictionary.h
-        ${WEBKIT_DIR}/Shared/API/c/WKErrorRef.h
-        ${WEBKIT_DIR}/Shared/API/c/WKEvent.h
-        ${WEBKIT_DIR}/Shared/API/c/WKFindOptions.h
-        ${WEBKIT_DIR}/Shared/API/c/WKGeometry.h
-        ${WEBKIT_DIR}/Shared/API/c/WKImage.h
-        ${WEBKIT_DIR}/Shared/API/c/WKMutableArray.h
-        ${WEBKIT_DIR}/Shared/API/c/WKMutableDictionary.h
-        ${WEBKIT_DIR}/Shared/API/c/WKNumber.h
-        ${WEBKIT_DIR}/Shared/API/c/WKPageLoadTypes.h
-        ${WEBKIT_DIR}/Shared/API/c/WKPageVisibilityTypes.h
-        ${WEBKIT_DIR}/Shared/API/c/WKSecurityOriginRef.h
-        ${WEBKIT_DIR}/Shared/API/c/WKSerializedScriptValue.h
-        ${WEBKIT_DIR}/Shared/API/c/WKString.h
-        ${WEBKIT_DIR}/Shared/API/c/WKType.h
-        ${WEBKIT_DIR}/Shared/API/c/WKURL.h
-        ${WEBKIT_DIR}/Shared/API/c/WKURLRequest.h
-        ${WEBKIT_DIR}/Shared/API/c/WKURLResponse.h
-        ${WEBKIT_DIR}/Shared/API/c/WKUserContentInjectedFrames.h
-        ${WEBKIT_DIR}/Shared/API/c/WKUserContentURLPattern.h
-        ${WEBKIT_DIR}/Shared/API/c/WKUserScriptInjectionTime.h
+install(FILES "${CMAKE_BINARY_DIR}/wpe-webkit.pc"
+    DESTINATION "${CMAKE_INSTALL_LIBDIR}/pkgconfig"
+    COMPONENT "Development"
+)
 
-        ${WEBKIT_DIR}/Shared/API/c/wpe/WKBaseWPE.h
-
-        ${WEBKIT_DIR}/WebProcess/InjectedBundle/API/c/WKBundle.h
-        ${WEBKIT_DIR}/WebProcess/InjectedBundle/API/c/WKBundleBackForwardList.h
-        ${WEBKIT_DIR}/WebProcess/InjectedBundle/API/c/WKBundleBackForwardListItem.h
-        ${WEBKIT_DIR}/WebProcess/InjectedBundle/API/c/WKBundleDOMWindowExtension.h
-        ${WEBKIT_DIR}/WebProcess/InjectedBundle/API/c/WKBundleFileHandleRef.h
-        ${WEBKIT_DIR}/WebProcess/InjectedBundle/API/c/WKBundleFrame.h
-        ${WEBKIT_DIR}/WebProcess/InjectedBundle/API/c/WKBundleHitTestResult.h
-        ${WEBKIT_DIR}/WebProcess/InjectedBundle/API/c/WKBundleInitialize.h
-        ${WEBKIT_DIR}/WebProcess/InjectedBundle/API/c/WKBundleInspector.h
-        ${WEBKIT_DIR}/WebProcess/InjectedBundle/API/c/WKBundleNavigationAction.h
-        ${WEBKIT_DIR}/WebProcess/InjectedBundle/API/c/WKBundleNodeHandle.h
-        ${WEBKIT_DIR}/WebProcess/InjectedBundle/API/c/WKBundlePage.h
-        ${WEBKIT_DIR}/WebProcess/InjectedBundle/API/c/WKBundlePageBanner.h
-        ${WEBKIT_DIR}/WebProcess/InjectedBundle/API/c/WKBundlePageContextMenuClient.h
-        ${WEBKIT_DIR}/WebProcess/InjectedBundle/API/c/WKBundlePageEditorClient.h
-        ${WEBKIT_DIR}/WebProcess/InjectedBundle/API/c/WKBundlePageFormClient.h
-        ${WEBKIT_DIR}/WebProcess/InjectedBundle/API/c/WKBundlePageFullScreenClient.h
-        ${WEBKIT_DIR}/WebProcess/InjectedBundle/API/c/WKBundlePageGroup.h
-        ${WEBKIT_DIR}/WebProcess/InjectedBundle/API/c/WKBundlePageLoaderClient.h
-        ${WEBKIT_DIR}/WebProcess/InjectedBundle/API/c/WKBundlePageOverlay.h
-        ${WEBKIT_DIR}/WebProcess/InjectedBundle/API/c/WKBundlePagePolicyClient.h
-        ${WEBKIT_DIR}/WebProcess/InjectedBundle/API/c/WKBundlePageResourceLoadClient.h
-        ${WEBKIT_DIR}/WebProcess/InjectedBundle/API/c/WKBundlePageUIClient.h
-        ${WEBKIT_DIR}/WebProcess/InjectedBundle/API/c/WKBundleRangeHandle.h
-        ${WEBKIT_DIR}/WebProcess/InjectedBundle/API/c/WKBundleScriptWorld.h
-
-        ${WEBKIT_DIR}/UIProcess/API/C/WKBackForwardListItemRef.h
-        ${WEBKIT_DIR}/UIProcess/API/C/WKBackForwardListRef.h
-        ${WEBKIT_DIR}/UIProcess/API/C/WKContextConfigurationRef.h
-        ${WEBKIT_DIR}/UIProcess/API/C/WKContextConnectionClient.h
-        ${WEBKIT_DIR}/UIProcess/API/C/WKContextDownloadClient.h
-        ${WEBKIT_DIR}/UIProcess/API/C/WKContextHistoryClient.h
-        ${WEBKIT_DIR}/UIProcess/API/C/WKContextInjectedBundleClient.h
-        ${WEBKIT_DIR}/UIProcess/API/C/WKContext.h
-        ${WEBKIT_DIR}/UIProcess/API/C/WKCookieManager.h
-        ${WEBKIT_DIR}/UIProcess/API/C/WKCredential.h
-        ${WEBKIT_DIR}/UIProcess/API/C/WKCredentialTypes.h
-        ${WEBKIT_DIR}/UIProcess/API/C/WKFrame.h
-        ${WEBKIT_DIR}/UIProcess/API/C/WKFrameInfoRef.h
-        ${WEBKIT_DIR}/UIProcess/API/C/WKFramePolicyListener.h
-        ${WEBKIT_DIR}/UIProcess/API/C/WKHitTestResult.h
-        ${WEBKIT_DIR}/UIProcess/API/C/WKNativeEvent.h
-        ${WEBKIT_DIR}/UIProcess/API/C/WKNavigationActionRef.h
-        ${WEBKIT_DIR}/UIProcess/API/C/WKNavigationDataRef.h
-        ${WEBKIT_DIR}/UIProcess/API/C/WKNavigationRef.h
-        ${WEBKIT_DIR}/UIProcess/API/C/WKNavigationResponseRef.h
-        ${WEBKIT_DIR}/UIProcess/API/C/WKPage.h
-        ${WEBKIT_DIR}/UIProcess/API/C/WKPageConfigurationRef.h
-        ${WEBKIT_DIR}/UIProcess/API/C/WKPageContextMenuClient.h
-        ${WEBKIT_DIR}/UIProcess/API/C/WKPageDiagnosticLoggingClient.h
-        ${WEBKIT_DIR}/UIProcess/API/C/WKPageFindClient.h
-        ${WEBKIT_DIR}/UIProcess/API/C/WKPageFindMatchesClient.h
-        ${WEBKIT_DIR}/UIProcess/API/C/WKPageFormClient.h
-        ${WEBKIT_DIR}/UIProcess/API/C/WKPageGroup.h
-        ${WEBKIT_DIR}/UIProcess/API/C/WKPageInjectedBundleClient.h
-        ${WEBKIT_DIR}/UIProcess/API/C/WKPageLoaderClient.h
-        ${WEBKIT_DIR}/UIProcess/API/C/WKPageNavigationClient.h
-        ${WEBKIT_DIR}/UIProcess/API/C/WKPagePolicyClient.h
-        ${WEBKIT_DIR}/UIProcess/API/C/WKPageRenderingProgressEvents.h
-        ${WEBKIT_DIR}/UIProcess/API/C/WKPageUIClient.h
-        ${WEBKIT_DIR}/UIProcess/API/C/WKPluginLoadPolicy.h
-        ${WEBKIT_DIR}/UIProcess/API/C/WKPreferencesRef.h
-        ${WEBKIT_DIR}/UIProcess/API/C/WKSessionStateRef.h
-        ${WEBKIT_DIR}/UIProcess/API/C/WKUserContentControllerRef.h
-        ${WEBKIT_DIR}/UIProcess/API/C/WKUserScriptRef.h
-        ${WEBKIT_DIR}/UIProcess/API/C/WKViewportAttributes.h
-        ${WEBKIT_DIR}/UIProcess/API/C/WKWindowFeaturesRef.h
-
-        ${WEBKIT_DIR}/UIProcess/API/C/wpe/WKView.h
-    )
-
-    install(FILES ${WPE_INSTALLED_WEBKIT_HEADERS}
-        DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/wpe-${WPE_API_VERSION}/WPE/WebKit"
-        COMPONENT "Development"
-    )
-
-    set(WPE_INSTALLED_HEADERS
-        ${WEBKIT_DIR}/Shared/API/c/wpe/WebKit.h
-    )
-
-    install(FILES ${WPE_INSTALLED_HEADERS}
-        DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/wpe-${WPE_API_VERSION}/WPE"
-        COMPONENT "Development"
-    )
-
-    install(FILES ${CMAKE_BINARY_DIR}/wpe-webkit.pc
-        DESTINATION "${CMAKE_INSTALL_LIBDIR}/pkgconfig"
-        COMPONENT "Development"
-    )
-endif ()
+install(FILES ${WPE_API_INSTALLED_HEADERS}
+    DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/wpe-${WPE_API_VERSION}/WPE/wpe"
+    COMPONENT "Development"
+)

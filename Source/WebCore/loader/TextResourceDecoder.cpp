@@ -33,9 +33,9 @@
 #include <wtf/ASCIICType.h>
 #include <wtf/StringExtras.h>
 
-using namespace WTF;
 
 namespace WebCore {
+using namespace WTF;
 
 using namespace HTMLNames;
 
@@ -336,9 +336,7 @@ TextResourceDecoder::TextResourceDecoder(const String& mimeType, const TextEncod
 {
 }
 
-TextResourceDecoder::~TextResourceDecoder()
-{
-}
+TextResourceDecoder::~TextResourceDecoder() = default;
 
 void TextResourceDecoder::setEncoding(const TextEncoding& encoding, EncodingSource source)
 {

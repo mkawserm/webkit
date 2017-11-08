@@ -47,8 +47,10 @@ public:
     static String deviceMotionKey();
     static String deviceOrientationKey();
     static String diskCacheKey();
+    static String serviceWorkerKey();
     static String diskCacheAfterValidationKey();
     static String documentLoaderStoppingKey();
+    WEBCORE_EXPORT static String domainCausingCrashKey();
     static String domainCausingEnergyDrainKey();
     WEBCORE_EXPORT static String domainCausingJetsamKey();
     WEBCORE_EXPORT static String simulatedPageCrashKey();

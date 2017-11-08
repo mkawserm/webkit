@@ -37,10 +37,13 @@
 #include "TextRun.h"
 #include "VisiblePosition.h"
 #include <math.h>
+#include <wtf/IsoMallocInlines.h>
 
 namespace WebCore {
 
 using namespace HTMLNames;
+
+WTF_MAKE_ISO_ALLOCATED_IMPL(RenderFileUploadControl);
 
 const int afterButtonSpacing = 4;
 #if !PLATFORM(IOS)
@@ -61,9 +64,7 @@ RenderFileUploadControl::RenderFileUploadControl(HTMLInputElement& input, Render
 {
 }
 
-RenderFileUploadControl::~RenderFileUploadControl()
-{
-}
+RenderFileUploadControl::~RenderFileUploadControl() = default;
 
 HTMLInputElement& RenderFileUploadControl::inputElement() const
 {

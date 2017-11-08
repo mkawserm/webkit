@@ -34,6 +34,7 @@
 #include "RegisterAtOffsetList.h"
 #include "WasmMemoryInformation.h"
 #include "WasmName.h"
+#include "WasmNameSection.h"
 #include "WasmOps.h"
 #include "WasmPageCount.h"
 #include "WasmSignature.h"
@@ -44,13 +45,14 @@
 
 namespace JSC {
 
-class JSFunction;
-
 namespace B3 {
 class Compilation;
 }
 
 namespace Wasm {
+
+struct CompilationContext;
+struct ModuleInformation;
 
 inline bool isValueType(Type type)
 {
@@ -252,15 +254,6 @@ inline bool isValidNameType(Int val)
     }
     return false;
 }
-    
-struct NameSection {
-    Name moduleName;
-    Vector<Name> functionNames;
-    const Name* get(size_t functionIndexSpace)
-    {
-        return functionIndexSpace < functionNames.size() ? &functionNames[functionIndexSpace] : nullptr;
-    }
-};
 
 struct UnlinkedWasmToWasmCall {
     CodeLocationNearCall callLocation;
@@ -275,11 +268,6 @@ struct Entrypoint {
 struct InternalFunction {
     CodeLocationDataLabelPtr calleeMoveLocation;
     Entrypoint entrypoint;
-};
-
-struct WasmExitStubs {
-    MacroAssemblerCodeRef wasmToJs;
-    MacroAssemblerCodeRef wasmToWasm;
 };
 
 using WasmEntrypointLoadLocation = void**;

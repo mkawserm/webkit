@@ -30,6 +30,7 @@
 #include "ContentSecurityPolicy.h"
 #include "ResourceResponse.h"
 #include "ScriptExecutionContext.h"
+#include "ServiceWorker.h"
 #include "TextResourceDecoder.h"
 #include "WorkerGlobalScope.h"
 #include "WorkerScriptLoaderClient.h"
@@ -38,17 +39,14 @@
 
 namespace WebCore {
 
-WorkerScriptLoader::WorkerScriptLoader()
-{
-}
+WorkerScriptLoader::WorkerScriptLoader() = default;
 
-WorkerScriptLoader::~WorkerScriptLoader()
-{
-}
+WorkerScriptLoader::~WorkerScriptLoader() = default;
 
 void WorkerScriptLoader::loadSynchronously(ScriptExecutionContext* scriptExecutionContext, const URL& url, FetchOptions::Mode mode, ContentSecurityPolicyEnforcement contentSecurityPolicyEnforcement, const String& initiatorIdentifier)
 {
     ASSERT(scriptExecutionContext);
+    auto& workerGlobalScope = downcast<WorkerGlobalScope>(*scriptExecutionContext);
 
     m_url = url;
 
@@ -66,8 +64,12 @@ void WorkerScriptLoader::loadSynchronously(ScriptExecutionContext* scriptExecuti
     options.mode = mode;
     options.sendLoadCallbacks = SendCallbacks;
     options.contentSecurityPolicyEnforcement = contentSecurityPolicyEnforcement;
-
-    WorkerThreadableLoader::loadResourceSynchronously(downcast<WorkerGlobalScope>(*scriptExecutionContext), WTFMove(*request), *this, options);
+#if ENABLE(SERVICE_WORKER)
+    options.serviceWorkersMode = workerGlobalScope.isServiceWorkerGlobalScope() ? ServiceWorkersMode::None : ServiceWorkersMode::All;
+    if (auto* activeServiceWorker = workerGlobalScope.activeServiceWorker())
+        options.serviceWorkerIdentifier = activeServiceWorker->identifier();
+#endif
+    WorkerThreadableLoader::loadResourceSynchronously(workerGlobalScope, WTFMove(*request), *this, options);
 }
 
 void WorkerScriptLoader::loadAsynchronously(ScriptExecutionContext* scriptExecutionContext, const URL& url, FetchOptions::Mode mode, ContentSecurityPolicyEnforcement contentSecurityPolicyEnforcement, const String& initiatorIdentifier, WorkerScriptLoaderClient* client)
@@ -91,7 +93,11 @@ void WorkerScriptLoader::loadAsynchronously(ScriptExecutionContext* scriptExecut
     options.mode = mode;
     options.sendLoadCallbacks = SendCallbacks;
     options.contentSecurityPolicyEnforcement = contentSecurityPolicyEnforcement;
-
+#if ENABLE(SERVICE_WORKER)
+    options.serviceWorkersMode = m_client->isServiceWorkerClient() ? ServiceWorkersMode::None : ServiceWorkersMode::All;
+    if (auto* activeServiceWorker = scriptExecutionContext->activeServiceWorker())
+        options.serviceWorkerIdentifier = activeServiceWorker->identifier();
+#endif
     // During create, callbacks may happen which remove the last reference to this object.
     Ref<WorkerScriptLoader> protectedThis(*this);
     m_threadableLoader = ThreadableLoader::create(*scriptExecutionContext, *this, WTFMove(*request), options);

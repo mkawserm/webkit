@@ -343,6 +343,11 @@ String DiagnosticLoggingKeys::documentLoaderStoppingKey()
     return ASCIILiteral("documentLoaderStopping");
 }
 
+String DiagnosticLoggingKeys::domainCausingCrashKey()
+{
+    return ASCIILiteral("DomainCausingCrash");
+}
+
 String DiagnosticLoggingKeys::domainCausingEnergyDrainKey()
 {
     return ASCIILiteral("DomainCausingEnergyDrain");
@@ -461,6 +466,11 @@ String DiagnosticLoggingKeys::diskCacheKey()
 String DiagnosticLoggingKeys::diskCacheAfterValidationKey()
 {
     return ASCIILiteral("diskCacheAfterValidation");
+}
+
+String DiagnosticLoggingKeys::serviceWorkerKey()
+{
+    return ASCIILiteral("serviceWorker");
 }
 
 String DiagnosticLoggingKeys::reloadKey()

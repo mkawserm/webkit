@@ -56,7 +56,7 @@
 #import <runtime/CatchScope.h>
 #import <wtf/text/Base64.h>
 
-#import "CoreMediaSoftLink.h"
+#import <pal/cf/CoreMediaSoftLink.h>
 
 typedef AVMetadataItem AVMetadataItemType;
 SOFT_LINK_FRAMEWORK_OPTIONAL(AVFoundation)
@@ -64,6 +64,7 @@ SOFT_LINK_CLASS(AVFoundation, AVMetadataItem)
 #define AVMetadataItem getAVMetadataItemClass()
 
 namespace WebCore {
+using namespace PAL;
 
 #if PLATFORM(IOS)
 static JSValue *jsValueWithValueInContext(id, JSContext *);
@@ -204,6 +205,7 @@ bool QuickTimePluginReplacement::installReplacement(ShadowRoot& root)
     argList.append(toJS(exec, globalObject, this));
     argList.append(toJS<IDLSequence<IDLNullable<IDLDOMString>>>(*exec, *globalObject, m_names));
     argList.append(toJS<IDLSequence<IDLNullable<IDLDOMString>>>(*exec, *globalObject, m_values));
+    ASSERT(!argList.hasOverflowed());
     JSC::JSValue replacement = call(exec, replacementObject, callType, callData, globalObject, argList);
     if (UNLIKELY(scope.exception())) {
         scope.clearException();
@@ -347,7 +349,7 @@ static JSValue *jsValueWithAVMetadataItemInContext(AVMetadataItemType *item, JSC
         [dictionary setObject:item.locale forKey:@"locale"];
 
     if (CMTIME_IS_VALID(item.time)) {
-        CFDictionaryRef timeDict = CMTimeCopyAsDictionary(item.time, kCFAllocatorDefault);
+        CFDictionaryRef timeDict = PAL::CMTimeCopyAsDictionary(item.time, kCFAllocatorDefault);
 
         if (timeDict) {
             [dictionary setObject:(id)timeDict forKey:@"timestamp"];

@@ -49,6 +49,7 @@
 #include "CSSPropertyNames.h"
 #include "Chrome.h"
 #include "DebugPageOverlays.h"
+#include "DeprecatedGlobalSettings.h"
 #include "Document.h"
 #include "DocumentEventQueue.h"
 #include "DocumentMarkerController.h"
@@ -369,6 +370,9 @@ RenderLayer::~RenderLayer()
     if (m_reflection)
         removeReflection();
 
+    clearScrollCorner();
+    clearResizer();
+
     FilterInfo::remove(*this);
 
     // Child layers will be deleted by their corresponding render objects, so
@@ -481,6 +485,9 @@ void RenderLayer::updateLayerPositions(RenderGeometryMap* geometryMap, UpdateLay
     updateLayerPosition(); // For relpositioned layers or non-positioned layers,
                            // we need to keep in sync, since we may have shifted relative
                            // to our parent layer.
+
+    applyPostLayoutScrollPositionIfNeeded();
+
     if (geometryMap)
         geometryMap->pushMappingsToAncestor(this, parent());
 
@@ -507,10 +514,10 @@ void RenderLayer::updateLayerPositions(RenderGeometryMap* geometryMap, UpdateLay
         m_enclosingPaginationLayer = nullptr;
     
     if (m_hasVisibleContent) {
-        // FIXME: LayoutState does not work with RenderLayers as there is not a 1-to-1
+        // FIXME: Paint offset cache does not work with RenderLayers as there is not a 1-to-1
         // mapping between them and the RenderObjects. It would be neat to enable
         // LayoutState outside the layout() phase and use it here.
-        ASSERT(!renderer().view().layoutStateEnabled());
+        ASSERT(!renderer().view().frameView().layoutContext().isPaintOffsetCacheEnabled());
 
         RenderLayerModelObject* repaintContainer = renderer().containerForRepaint();
         
@@ -2263,11 +2270,11 @@ void RenderLayer::panScrollFromPoint(const IntPoint& sourcePoint)
     if (abs(delta.height()) <= ScrollView::noPanScrollRadius)
         delta.setHeight(0);
 
-    scrollByRecursively(adjustedScrollDelta(delta), ScrollOffsetClamped);
+    scrollByRecursively(adjustedScrollDelta(delta));
 }
 
 // FIXME: unify with the scrollRectToVisible() code below.
-void RenderLayer::scrollByRecursively(const IntSize& delta, ScrollOffsetClamping clamp, ScrollableArea** scrolledArea)
+void RenderLayer::scrollByRecursively(const IntSize& delta, ScrollableArea** scrolledArea)
 {
     if (delta.isZero())
         return;
@@ -2278,7 +2285,7 @@ void RenderLayer::scrollByRecursively(const IntSize& delta, ScrollOffsetClamping
 
     if (renderer().hasOverflowClip() && !restrictedByLineClamp) {
         ScrollOffset newScrollOffset = scrollOffset() + delta;
-        scrollToOffset(newScrollOffset, clamp);
+        scrollToOffset(newScrollOffset);
         if (scrolledArea)
             *scrolledArea = this;
 
@@ -2286,7 +2293,7 @@ void RenderLayer::scrollByRecursively(const IntSize& delta, ScrollOffsetClamping
         IntSize remainingScrollOffset = newScrollOffset - scrollOffset();
         if (!remainingScrollOffset.isZero() && renderer().parent()) {
             if (RenderLayer* scrollableLayer = enclosingScrollableLayer())
-                scrollableLayer->scrollByRecursively(remainingScrollOffset, clamp, scrolledArea);
+                scrollableLayer->scrollByRecursively(remainingScrollOffset, scrolledArea);
 
             renderer().frame().eventHandler().updateAutoscrollRenderer();
         }
@@ -2302,16 +2309,30 @@ void RenderLayer::scrollByRecursively(const IntSize& delta, ScrollOffsetClamping
     }
 }
 
-void RenderLayer::scrollToXPosition(int x, ScrollOffsetClamping clamp)
+void RenderLayer::setPostLayoutScrollPosition(std::optional<ScrollPosition> position)
 {
-    ScrollPosition position(x, m_scrollPosition.y());
-    scrollToOffset(scrollOffsetFromPosition(position), clamp);
+    m_postLayoutScrollPosition = position;
 }
 
-void RenderLayer::scrollToYPosition(int y, ScrollOffsetClamping clamp)
+void RenderLayer::applyPostLayoutScrollPositionIfNeeded()
+{
+    if (!m_postLayoutScrollPosition)
+        return;
+
+    scrollToOffset(scrollOffsetFromPosition(m_postLayoutScrollPosition.value()));
+    m_postLayoutScrollPosition = std::nullopt;
+}
+
+void RenderLayer::scrollToXPosition(int x, ScrollClamping clamping)
+{
+    ScrollPosition position(x, m_scrollPosition.y());
+    scrollToOffset(scrollOffsetFromPosition(position), clamping);
+}
+
+void RenderLayer::scrollToYPosition(int y, ScrollClamping clamping)
 {
     ScrollPosition position(m_scrollPosition.x(), y);
-    scrollToOffset(scrollOffsetFromPosition(position), clamp);
+    scrollToOffset(scrollOffsetFromPosition(position), clamping);
 }
 
 ScrollOffset RenderLayer::clampScrollOffset(const ScrollOffset& scrollOffset) const
@@ -2319,11 +2340,11 @@ ScrollOffset RenderLayer::clampScrollOffset(const ScrollOffset& scrollOffset) co
     return scrollOffset.constrainedBetween(IntPoint(), maximumScrollOffset());
 }
 
-void RenderLayer::scrollToOffset(const ScrollOffset& scrollOffset, ScrollOffsetClamping clamp)
+void RenderLayer::scrollToOffset(const ScrollOffset& scrollOffset, ScrollClamping clamping)
 {
-    ScrollOffset newScrollOffset = clamp == ScrollOffsetClamped ? clampScrollOffset(scrollOffset) : scrollOffset;
+    ScrollOffset newScrollOffset = clamping == ScrollClamping::Clamped ? clampScrollOffset(scrollOffset) : scrollOffset;
     if (newScrollOffset != this->scrollOffset())
-        scrollToOffsetWithoutAnimation(newScrollOffset);
+        scrollToOffsetWithoutAnimation(newScrollOffset, clamping);
 }
 
 void RenderLayer::scrollTo(const ScrollPosition& position)
@@ -2365,14 +2386,14 @@ void RenderLayer::scrollTo(const ScrollPosition& position)
 #endif
         return;
     }
-    
+
     m_scrollPosition = newPosition;
 
     RenderView& view = renderer().view();
 
     // Update the positions of our child layers (if needed as only fixed layers should be impacted by a scroll).
     // We don't update compositing layers, because we need to do a deep update from the compositing ancestor.
-    if (!view.frameView().isInRenderTreeLayout()) {
+    if (!view.frameView().layoutContext().isInRenderTreeLayout()) {
         // If we're in the middle of layout, we'll just update layers once layout has finished.
         updateLayerPositionsAfterOverflowScroll();
         // Update regions, scrolling may change the clip of a particular region.
@@ -2505,7 +2526,7 @@ void RenderLayer::scrollRectToVisible(SelectionRevealMode revealMode, const Layo
 
             if (frameElementAndViewPermitScroll(frameElementBase, frameView)) {
                 // If this assertion fires we need to protect the ownerElement from being destroyed.
-                NoEventDispatchAssertion assertNoEventDispatch;
+                NoEventDispatchAssertion::InMainThread assertNoEventDispatch;
 
                 LayoutRect viewRect = frameView.visibleContentRect(LegacyIOSDocumentVisibleRect);
                 LayoutRect exposeRect = getRectToExpose(viewRect, absoluteRect, insideFixed, alignX, alignY);
@@ -3253,7 +3274,7 @@ bool RenderLayer::isScrollSnapInProgress() const
 
 bool RenderLayer::usesMockScrollAnimator() const
 {
-    return Settings::usesMockScrollAnimator();
+    return DeprecatedGlobalSettings::usesMockScrollAnimator();
 }
 
 void RenderLayer::logMockScrollAnimatorMessage(const String& message) const
@@ -3938,7 +3959,7 @@ void RenderLayer::paintLayer(GraphicsContext& context, const LayerPaintingInfo& 
     } else if (viewportConstrainedNotCompositedReason() == NotCompositedForBoundsOutOfView) {
         // Don't paint out-of-view viewport constrained layers (when doing prepainting) because they will never be visible
         // unless their position or viewport size is changed.
-        ASSERT(renderer().style().position() == FixedPosition);
+        ASSERT(renderer().isFixedPositioned());
         return;
     }
 
@@ -5393,13 +5414,13 @@ void RenderLayer::calculateClipRects(const ClipRectsContext& clipRectsContext, C
 
     // A fixed object is essentially the root of its containing block hierarchy, so when
     // we encounter such an object, we reset our clip rects to the fixedClipRect.
-    if (renderer().style().position() == FixedPosition) {
+    if (renderer().isFixedPositioned()) {
         clipRects.setPosClipRect(clipRects.fixedClipRect());
         clipRects.setOverflowClipRect(clipRects.fixedClipRect());
         clipRects.setFixed(true);
-    } else if (renderer().style().hasInFlowPosition())
+    } else if (renderer().isInFlowPositioned())
         clipRects.setPosClipRect(clipRects.overflowClipRect());
-    else if (renderer().style().position() == AbsolutePosition)
+    else if (renderer().isAbsolutelyPositioned())
         clipRects.setOverflowClipRect(clipRects.posClipRect());
     
     // Update the clip rects that will be passed to child layers.
@@ -5961,6 +5982,11 @@ bool RenderLayer::shouldApplyClipPath(PaintBehavior paintBehavior, PaintLayerFla
     return (paintFlags & PaintLayerPaintingCompositingClipPathPhase);
 }
 
+bool RenderLayer::scrollingMayRevealBackground() const
+{
+    return scrollsOverflow() || usesCompositedScrolling();
+}
+
 bool RenderLayer::backgroundIsKnownToBeOpaqueInRect(const LayoutRect& localRect) const
 {
     if (!isSelfPaintingLayer() && !hasSelfPaintingLayerDescendant())
@@ -6431,17 +6457,23 @@ bool RenderLayer::isVisuallyNonEmpty(PaintedContentRequest* request) const
         return false;
 
     if (renderer().isRenderReplaced() || hasOverflowControls()) {
-        if (request)
-            request->setHasPaintedContent();
-        return true;
+        if (!request)
+            return true;
+
+        request->setHasPaintedContent();
+        if (request->isSatisfied())
+            return true;
     }
 
     if (hasVisibleBoxDecorationsOrBackground()) {
-        if (request)
-            request->setHasPaintedContent();
-        return true;
+        if (!request)
+            return true;
+
+        request->setHasPaintedContent();
+        if (request->isSatisfied())
+            return true;
     }
-    
+
     PaintedContentRequest localRequest;
     if (!request)
         request = &localRequest;
@@ -6663,16 +6695,25 @@ void RenderLayer::updateScrollCornerStyle()
     auto corner = renderer().hasOverflowClip() ? actualRenderer->getUncachedPseudoStyle(PseudoStyleRequest(SCROLLBAR_CORNER), &actualRenderer->style()) : nullptr;
 
     if (!corner) {
-        m_scrollCorner = nullptr;
+        clearScrollCorner();
         return;
     }
 
     if (!m_scrollCorner) {
         m_scrollCorner = createRenderer<RenderScrollbarPart>(renderer().document(), WTFMove(*corner));
+        // FIXME: A renderer should be a child of its parent!
         m_scrollCorner->setParent(&renderer());
         m_scrollCorner->initializeStyle();
     } else
         m_scrollCorner->setStyle(WTFMove(*corner));
+}
+
+void RenderLayer::clearScrollCorner()
+{
+    if (!m_scrollCorner)
+        return;
+    m_scrollCorner->setParent(nullptr);
+    m_scrollCorner = nullptr;
 }
 
 void RenderLayer::updateResizerStyle()
@@ -6681,16 +6722,25 @@ void RenderLayer::updateResizerStyle()
     auto resizer = renderer().hasOverflowClip() ? actualRenderer->getUncachedPseudoStyle(PseudoStyleRequest(RESIZER), &actualRenderer->style()) : nullptr;
 
     if (!resizer) {
-        m_resizer = nullptr;
+        clearResizer();
         return;
     }
 
     if (!m_resizer) {
         m_resizer = createRenderer<RenderScrollbarPart>(renderer().document(), WTFMove(*resizer));
+        // FIXME: A renderer should be a child of its parent!
         m_resizer->setParent(&renderer());
         m_resizer->initializeStyle();
     } else
         m_resizer->setStyle(WTFMove(*resizer));
+}
+
+void RenderLayer::clearResizer()
+{
+    if (!m_resizer)
+        return;
+    m_resizer->setParent(nullptr);
+    m_resizer = nullptr;
 }
 
 RenderLayer* RenderLayer::reflectionLayer() const
@@ -6702,6 +6752,7 @@ void RenderLayer::createReflection()
 {
     ASSERT(!m_reflection);
     m_reflection = createRenderer<RenderReplica>(renderer().document(), createReflectionStyle());
+    // FIXME: A renderer should be a child of its parent!
     m_reflection->setParent(&renderer()); // We create a 1-way connection.
     m_reflection->initializeStyle();
 }

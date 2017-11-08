@@ -30,6 +30,8 @@
 #include "CachedImageClient.h"
 #include "DataTransferItem.h"
 #include "DataTransferItemList.h"
+#include "DeprecatedGlobalSettings.h"
+#include "DocumentFragment.h"
 #include "DragData.h"
 #include "Editor.h"
 #include "FileList.h"
@@ -41,7 +43,10 @@
 #include "Pasteboard.h"
 #include "Settings.h"
 #include "StaticPasteboard.h"
+#include "URLParser.h"
+#include "WebContentReader.h"
 #include "WebCorePasteboardFileReader.h"
+#include "markup.h"
 
 namespace WebCore {
 
@@ -77,9 +82,11 @@ DataTransfer::DataTransfer(StoreMode mode, std::unique_ptr<Pasteboard> pasteboar
 #endif
 }
 
-Ref<DataTransfer> DataTransfer::createForCopyAndPaste(StoreMode storeMode, std::unique_ptr<Pasteboard>&& pasteboard)
+Ref<DataTransfer> DataTransfer::createForCopyAndPaste(Document& document, StoreMode storeMode, std::unique_ptr<Pasteboard>&& pasteboard)
 {
-    return adoptRef(*new DataTransfer(storeMode, WTFMove(pasteboard)));
+    auto dataTransfer = adoptRef(*new DataTransfer(storeMode, WTFMove(pasteboard)));
+    dataTransfer->m_originIdentifier = document.originIdentifierForPasteboard();
+    return dataTransfer;
 }
 
 DataTransfer::~DataTransfer()
@@ -121,11 +128,6 @@ static String normalizeType(const String& type)
     return lowercaseType;
 }
 
-static bool shouldReadOrWriteTypeAsCustomData(const String& type)
-{
-    return Settings::customPasteboardDataEnabled() && !Pasteboard::isSafeTypeForDOMToReadAndWrite(type);
-}
-
 void DataTransfer::clearData(const String& type)
 {
     if (!canWriteData())
@@ -140,23 +142,55 @@ void DataTransfer::clearData(const String& type)
         m_itemList->didClearStringData(normalizedType);
 }
 
-String DataTransfer::getDataForItem(const String& type) const
+String DataTransfer::getDataForItem(Document& document, const String& type) const
 {
     if (!canReadData())
-        return String();
-
-    if ((forFileDrag() || Settings::customPasteboardDataEnabled()) && m_pasteboard->containsFiles())
         return { };
 
     auto lowercaseType = stripLeadingAndTrailingHTMLSpaces(type).convertToASCIILowercase();
-    if (shouldReadOrWriteTypeAsCustomData(lowercaseType))
-        return m_pasteboard->readStringInCustomData(lowercaseType);
-    return m_pasteboard->readString(lowercaseType);
+    if (shouldSuppressGetAndSetDataToAvoidExposingFilePaths()) {
+        if (lowercaseType == "text/uri-list") {
+            auto urlString = m_pasteboard->readString(lowercaseType);
+            if (Pasteboard::canExposeURLToDOMWhenPasteboardContainsFiles(urlString))
+                return urlString;
+        }
+        return { };
+    }
+
+    if (!DeprecatedGlobalSettings::customPasteboardDataEnabled())
+        return m_pasteboard->readString(lowercaseType);
+
+    // StaticPasteboard is only used to stage data written by websites before being committed to the system pasteboard.
+    bool isSameOrigin = is<StaticPasteboard>(*m_pasteboard) || (!m_originIdentifier.isNull() && m_originIdentifier == m_pasteboard->readOrigin());
+    if (isSameOrigin) {
+        String value = m_pasteboard->readStringInCustomData(lowercaseType);
+        if (!value.isNull())
+            return value;
+    }
+    if (!Pasteboard::isSafeTypeForDOMToReadAndWrite(lowercaseType))
+        return { };
+
+    if (!is<StaticPasteboard>(*m_pasteboard) && type == "text/html") {
+        if (!document.frame())
+            return { };
+        WebContentMarkupReader reader { *document.frame() };
+        m_pasteboard->read(reader);
+        return reader.markup;
+    }
+
+    return m_pasteboard->readString(type);
 }
 
-String DataTransfer::getData(const String& type) const
+String DataTransfer::getData(Document& document, const String& type) const
 {
-    return getDataForItem(normalizeType(type));
+    return getDataForItem(document, normalizeType(type));
+}
+
+bool DataTransfer::shouldSuppressGetAndSetDataToAvoidExposingFilePaths() const
+{
+    if (!forFileDrag() && !DeprecatedGlobalSettings::customPasteboardDataEnabled())
+        return false;
+    return m_pasteboard->containsFiles();
 }
 
 void DataTransfer::setData(const String& type, const String& data)
@@ -164,7 +198,7 @@ void DataTransfer::setData(const String& type, const String& data)
     if (!canWriteData())
         return;
 
-    if ((forFileDrag() || Settings::customPasteboardDataEnabled()) && m_pasteboard->containsFiles())
+    if (shouldSuppressGetAndSetDataToAvoidExposingFilePaths())
         return;
 
     auto normalizedType = normalizeType(type);
@@ -178,10 +212,26 @@ void DataTransfer::setDataFromItemList(const String& type, const String& data)
     ASSERT(canWriteData());
     RELEASE_ASSERT(is<StaticPasteboard>(*m_pasteboard));
 
-    if (shouldReadOrWriteTypeAsCustomData(type))
-        downcast<StaticPasteboard>(*m_pasteboard).writeStringInCustomData(type, data);
-    else
+    if (!DeprecatedGlobalSettings::customPasteboardDataEnabled()) {
         m_pasteboard->writeString(type, data);
+        return;
+    }
+
+    String sanitizedData;
+    if (type == "text/html")
+        sanitizedData = sanitizeMarkup(data);
+    else if (type == "text/uri-list") {
+        auto url = URLParser(data).result();
+        if (url.isValid())
+            sanitizedData = url.string();
+    } else if (type == "text/plain")
+        sanitizedData = data; // Nothing to sanitize.
+
+    if (sanitizedData != data)
+        downcast<StaticPasteboard>(*m_pasteboard).writeStringInCustomData(type, data);
+
+    if (Pasteboard::isSafeTypeForDOMToReadAndWrite(type) && !sanitizedData.isNull())
+        m_pasteboard->writeString(type, sanitizedData);
 }
 
 void DataTransfer::updateFileList()
@@ -224,7 +274,7 @@ Vector<String> DataTransfer::types(AddFilesType addFilesType) const
     if (!canReadTypes())
         return { };
     
-    if (!Settings::customPasteboardDataEnabled()) {
+    if (!DeprecatedGlobalSettings::customPasteboardDataEnabled()) {
         auto types = m_pasteboard->typesForLegacyUnsafeBindings();
         ASSERT(!types.contains("Files"));
         if (m_pasteboard->containsFiles() && addFilesType == AddFilesType::Yes)
@@ -232,17 +282,22 @@ Vector<String> DataTransfer::types(AddFilesType addFilesType) const
         return types;
     }
 
-    if (m_itemList && m_itemList->hasItems() && m_itemList->items().findMatching([] (const auto& item) { return item->isFile(); }) != notFound)
-        return addFilesType == AddFilesType::Yes ? Vector<String> { ASCIILiteral("Files") } : Vector<String> { };
+    auto safeTypes = m_pasteboard->typesSafeForBindings(m_originIdentifier);
+    bool hasFileBackedItem = m_itemList && m_itemList->hasItems() && notFound != m_itemList->items().findMatching([] (const auto& item) {
+        return item->isFile();
+    });
 
-    if (m_pasteboard->containsFiles()) {
-        ASSERT(!m_pasteboard->typesSafeForBindings().contains("Files"));
-        return addFilesType == AddFilesType::Yes ? Vector<String> { ASCIILiteral("Files") } : Vector<String> { };
+    if (hasFileBackedItem || m_pasteboard->containsFiles()) {
+        Vector<String> types;
+        if (addFilesType == AddFilesType::Yes)
+            types.append(ASCIILiteral("Files"));
+        if (safeTypes.contains("text/uri-list"))
+            types.append(ASCIILiteral("text/uri-list"));
+        return types;
     }
 
-    auto types = m_pasteboard->typesSafeForBindings();
-    ASSERT(!types.contains("Files"));
-    return types;
+    ASSERT(!safeTypes.contains("Files"));
+    return safeTypes;
 }
 
 Vector<Ref<File>> DataTransfer::filesFromPasteboardAndItemList() const
@@ -265,7 +320,8 @@ Vector<Ref<File>> DataTransfer::filesFromPasteboardAndItemList() const
         itemListContainsItems = true;
     }
 
-    ASSERT(!itemListContainsItems || !addedFilesFromPasteboard);
+    bool containsItemsAndFiles = itemListContainsItems && addedFilesFromPasteboard;
+    ASSERT_UNUSED(containsItemsAndFiles, !containsItemsAndFiles);
     return files;
 }
 
@@ -322,6 +378,22 @@ Ref<DataTransfer> DataTransfer::createForInputEvent(const String& plainText, con
     return adoptRef(*new DataTransfer(StoreMode::Readonly, WTFMove(pasteboard), Type::InputEvent));
 }
 
+void DataTransfer::commitToPasteboard(Pasteboard& nativePasteboard)
+{
+    ASSERT(is<StaticPasteboard>(*m_pasteboard) && !is<StaticPasteboard>(nativePasteboard));
+    PasteboardCustomData customData = downcast<StaticPasteboard>(*m_pasteboard).takeCustomData();
+    if (DeprecatedGlobalSettings::customPasteboardDataEnabled()) {
+        customData.origin = m_originIdentifier;
+        nativePasteboard.writeCustomData(customData);
+        return;
+    }
+
+    for (auto& entry : customData.platformData)
+        nativePasteboard.writeString(entry.key, entry.value);
+    for (auto& entry : customData.sameOriginCustomData)
+        nativePasteboard.writeString(entry.key, entry.value);
+}
+
 #if !ENABLE(DRAG_SUPPORT)
 
 String DataTransfer::dropEffect() const
@@ -353,15 +425,18 @@ Ref<DataTransfer> DataTransfer::createForDrag()
     return adoptRef(*new DataTransfer(StoreMode::ReadWrite, Pasteboard::createForDragAndDrop(), Type::DragAndDropData));
 }
 
-Ref<DataTransfer> DataTransfer::createForDragStartEvent()
+Ref<DataTransfer> DataTransfer::createForDragStartEvent(Document& document)
 {
-    return adoptRef(*new DataTransfer(StoreMode::ReadWrite, std::make_unique<StaticPasteboard>(), Type::DragAndDropData));
+    auto dataTransfer = adoptRef(*new DataTransfer(StoreMode::ReadWrite, std::make_unique<StaticPasteboard>(), Type::DragAndDropData));
+    dataTransfer->m_originIdentifier = document.originIdentifierForPasteboard();
+    return dataTransfer;
 }
 
-Ref<DataTransfer> DataTransfer::createForDrop(std::unique_ptr<Pasteboard>&& pasteboard, DragOperation sourceOperation, bool draggingFiles)
+Ref<DataTransfer> DataTransfer::createForDrop(Document& document, std::unique_ptr<Pasteboard>&& pasteboard, DragOperation sourceOperation, bool draggingFiles)
 {
     auto dataTransfer = adoptRef(*new DataTransfer(DataTransfer::StoreMode::Readonly, WTFMove(pasteboard), draggingFiles ? Type::DragAndDropFiles : Type::DragAndDropData));
     dataTransfer->setSourceOperation(sourceOperation);
+    dataTransfer->m_originIdentifier = document.originIdentifierForPasteboard();
     return dataTransfer;
 }
 
@@ -376,6 +451,7 @@ Ref<DataTransfer> DataTransfer::createForUpdatingDropTarget(Document& document, 
 #endif
     auto dataTransfer = adoptRef(*new DataTransfer(mode, WTFMove(pasteboard), draggingFiles ? Type::DragAndDropFiles : Type::DragAndDropData));
     dataTransfer->setSourceOperation(sourceOperation);
+    dataTransfer->m_originIdentifier = document.originIdentifierForPasteboard();
     return dataTransfer;
 }
 
@@ -589,7 +665,7 @@ void DataTransfer::moveDragState(Ref<DataTransfer>&& other)
     // After pushing the static pasteboard's contents to the platform, the pasteboard should only
     // contain data that was in the static pasteboard.
     m_pasteboard->clear();
-    downcast<StaticPasteboard>(other->pasteboard()).commitToPasteboard(*m_pasteboard);
+    other->commitToPasteboard(*m_pasteboard);
 
     m_dropEffect = other->m_dropEffect;
     m_effectAllowed = other->m_effectAllowed;

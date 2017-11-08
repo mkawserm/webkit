@@ -150,13 +150,18 @@ void ensureGigacage()
             // https://bugs.webkit.org/show_bug.cgi?id=175245
             void* base = tryVMAllocate(maxAlignment, totalSize);
             if (!base) {
-                if (GIGACAGE_ALLOCATION_CAN_FAIL) {
-                    vmDeallocate(base, totalSize);
+                if (GIGACAGE_ALLOCATION_CAN_FAIL)
                     return;
-                }
                 fprintf(stderr, "FATAL: Could not allocate gigacage memory with maxAlignment = %lu, totalSize = %lu.\n", maxAlignment, totalSize);
                 BCRASH();
             }
+
+            if (GIGACAGE_RUNWAY) {
+                char* runway = reinterpret_cast<char*>(base) + totalSize - GIGACAGE_RUNWAY;
+                // Make OOB accesses into the runway crash.
+                vmRevokePermissions(runway, GIGACAGE_RUNWAY);
+            }
+
             vmDeallocatePhysicalPages(base, totalSize);
             
             size_t nextCage = 0;
@@ -242,10 +247,15 @@ bool isDisablingPrimitiveGigacageDisabled()
 bool shouldBeEnabled()
 {
     static std::once_flag onceFlag;
-    static bool cached;
+    static bool cached = false;
     std::call_once(
         onceFlag,
         [] {
+#if BCPU(ARM64)
+            // FIXME: Make WasmBench run with gigacage on iOS and re-enable on ARM64:
+            // https://bugs.webkit.org/show_bug.cgi?id=178557
+            return;
+#endif
             bool result = GIGACAGE_ENABLED && !PerProcess<Environment>::get()->isDebugHeapEnabled();
             if (!result)
                 return;

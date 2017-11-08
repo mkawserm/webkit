@@ -52,6 +52,7 @@
 #include "JSCInlines.h"
 #include "JSFixedArray.h"
 #include "JSGenericTypedArrayViewConstructorInlines.h"
+#include "JSGlobalObjectFunctions.h"
 #include "JSLexicalEnvironment.h"
 #include "JSMap.h"
 #include "JSSet.h"
@@ -248,7 +249,7 @@ JSCell* JIT_OPERATION operationCreateThis(ExecState* exec, JSObject* constructor
         JSObject* result = constructEmptyObject(exec, structure);
         if (structure->hasPolyProto()) {
             JSObject* prototype = jsCast<JSFunction*>(constructor)->prototypeForConstruction(vm, exec);
-            result->putDirect(vm, structure->polyProtoOffset(), prototype);
+            result->putDirect(vm, knownPolyProtoOffset, prototype);
             prototype->didBecomePrototype();
             ASSERT_WITH_MESSAGE(!hasIndexedProperties(result->indexingType()), "We rely on JSFinalObject not starting out with an indexing type otherwise we would potentially need to convert to slow put storage");
         }
@@ -262,7 +263,7 @@ JSCell* JIT_OPERATION operationCreateThis(ExecState* exec, JSObject* constructor
     return constructEmptyObject(exec);
 }
 
-JSCell* JIT_OPERATION operationObjectConstructor(ExecState* exec, JSGlobalObject* globalObject, EncodedJSValue encodedTarget)
+JSCell* JIT_OPERATION operationCallObjectConstructor(ExecState* exec, JSGlobalObject* globalObject, EncodedJSValue encodedTarget)
 {
     VM* vm = &exec->vm();
     NativeCallFrameTracer tracer(vm, exec);
@@ -272,6 +273,26 @@ JSCell* JIT_OPERATION operationObjectConstructor(ExecState* exec, JSGlobalObject
 
     if (value.isUndefinedOrNull())
         return constructEmptyObject(exec, globalObject->objectPrototype());
+    return value.toObject(exec, globalObject);
+}
+
+JSCell* JIT_OPERATION operationToObject(ExecState* exec, JSGlobalObject* globalObject, EncodedJSValue encodedTarget, UniquedStringImpl* errorMessage)
+{
+    VM* vm = &exec->vm();
+    NativeCallFrameTracer tracer(vm, exec);
+    auto scope = DECLARE_THROW_SCOPE(*vm);
+
+    JSValue value = JSValue::decode(encodedTarget);
+    ASSERT(!value.isObject());
+
+    if (UNLIKELY(value.isUndefinedOrNull())) {
+        if (errorMessage->length()) {
+            throwVMTypeError(exec, scope, errorMessage);
+            return nullptr;
+        }
+    }
+
+    scope.release();
     return value.toObject(exec, globalObject);
 }
 
@@ -1795,6 +1816,17 @@ StringImpl* JIT_OPERATION operationResolveRope(ExecState* exec, JSString* string
     return string->value(exec).impl();
 }
 
+JSCell* JIT_OPERATION operationStringSubstr(ExecState* exec, JSCell* cell, int32_t from, int32_t span)
+{
+    VM& vm = exec->vm();
+    NativeCallFrameTracer tracer(&vm, exec);
+    auto scope = DECLARE_THROW_SCOPE(vm);
+
+    auto string = jsCast<JSString*>(cell)->value(exec);
+    RETURN_IF_EXCEPTION(scope, nullptr);
+    return jsSubstring(exec, string, from, span);
+}
+
 JSString* JIT_OPERATION operationToLowerCase(ExecState* exec, JSString* string, uint32_t failingIndex)
 {
     VM& vm = exec->vm();
@@ -2375,6 +2407,7 @@ JSCell* JIT_OPERATION operationSpreadGeneric(ExecState* exec, JSCell* iterable)
 
         MarkedArgumentBuffer arguments;
         arguments.append(iterable);
+        ASSERT(!arguments.hasOverflowed());
         JSValue arrayResult = call(exec, iterationFunction, callType, callData, jsNull(), arguments);
         RETURN_IF_EXCEPTION(throwScope, nullptr);
         array = jsCast<JSArray*>(arrayResult);
@@ -2516,6 +2549,36 @@ JSCell* JIT_OPERATION operationJSSetFindBucket(ExecState* exec, JSCell* map, Enc
     if (!bucket)
         return vm.sentinelSetBucket.get();
     return *bucket;
+}
+
+EncodedJSValue JIT_OPERATION operationGetPrototypeOfObject(ExecState* exec, JSObject* thisObject)
+{
+    VM& vm = exec->vm();
+    NativeCallFrameTracer tracer(&vm, exec);
+    return JSValue::encode(thisObject->getPrototype(vm, exec));
+}
+
+EncodedJSValue JIT_OPERATION operationGetPrototypeOf(ExecState* exec, EncodedJSValue encodedValue)
+{
+    VM& vm = exec->vm();
+    NativeCallFrameTracer tracer(&vm, exec);
+    auto scope = DECLARE_THROW_SCOPE(vm);
+
+    JSValue thisValue = JSValue::decode(encodedValue).toThis(exec, StrictMode);
+    if (thisValue.isUndefinedOrNull())
+        return throwVMError(exec, scope, createNotAnObjectError(exec, thisValue));
+
+    JSObject* thisObject = jsDynamicCast<JSObject*>(vm, thisValue);
+    if (!thisObject) {
+        JSObject* prototype = thisValue.synthesizePrototype(exec);
+        EXCEPTION_ASSERT(!!scope.exception() == !prototype);
+        if (UNLIKELY(!prototype))
+            return JSValue::encode(JSValue());
+        return JSValue::encode(prototype);
+    }
+
+    scope.release();
+    return JSValue::encode(thisObject->getPrototype(vm, exec));
 }
 
 void JIT_OPERATION operationThrowDFG(ExecState* exec, EncodedJSValue valueToThrow)

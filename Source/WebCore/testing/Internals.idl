@@ -96,6 +96,7 @@ enum EventThrottlingBehavior {
     [MayThrowException] DOMString elementRenderTreeAsText(Element element);
     boolean isPreloaded(DOMString url);
     boolean isLoadingFromMemoryCache(DOMString url);
+    DOMString fetchResponseSource(FetchResponse response);
     DOMString xhrResponseSource(XMLHttpRequest xhr);
     boolean isSharingStyleSheetContents(HTMLLinkElement a, HTMLLinkElement b);
     boolean isStyleSheetLoadingSubresources(HTMLLinkElement link);
@@ -165,6 +166,9 @@ enum EventThrottlingBehavior {
     void setFontSmoothingEnabled(boolean enabled);
 
     [MayThrowException] void setScrollViewPosition(long x, long y);
+
+    // Like Element.scrollTo(), but without constaints, for testing rubber-banding.
+    [MayThrowException] void unconstrainedScrollTo(Element element, unrestricted double x, unrestricted double y);
 
     [MayThrowException] DOMRect layoutViewportRect();
     [MayThrowException] DOMRect visualViewportRect();
@@ -553,4 +557,17 @@ enum EventThrottlingBehavior {
     void setConsoleMessageListener(StringCallback callback);
 
     DOMString audioSessionCategory();
+
+    [Conditional=SERVICE_WORKER] Promise<Response> waitForFetchEventToFinish(FetchEvent event);
+    [Conditional=SERVICE_WORKER] Promise<void> waitForExtendableEventToFinish(ExtendableEvent event);
+    [Conditional=SERVICE_WORKER, CallWith=ScriptExecutionContext] FetchEvent createBeingDispatchedFetchEvent();
+    [Conditional=SERVICE_WORKER] ExtendableEvent createTrustedExtendableEvent();
+    [Conditional=SERVICE_WORKER] Promise<boolean> hasServiceWorkerRegistration(DOMString scopeURL);
+
+    boolean hasServiceWorkerRegisteredForOrigin(DOMString origin);
+
+    [EnabledAtRuntime=WebAnimations] DOMString timelineDescription(AnimationTimeline timeline);
+    [EnabledAtRuntime=WebAnimations] void pauseTimeline(AnimationTimeline timeline);
+    [EnabledAtRuntime=WebAnimations] void setTimelineCurrentTime(AnimationTimeline timeline, double currentTime);
+    [Conditional=APPLE_PAY] readonly attribute MockPaymentCoordinator mockPaymentCoordinator;
 };

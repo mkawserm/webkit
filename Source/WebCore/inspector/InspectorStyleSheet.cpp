@@ -132,9 +132,9 @@ WebCore::CSSRuleSourceData* ParsedStyleSheet::ruleSourceDataAt(unsigned index) c
     return m_sourceData->at(index).ptr();
 }
 
-using namespace Inspector;
 
 namespace WebCore {
+using namespace Inspector;
 
 static CSSParserContext parserContextForDocument(Document* document)
 {
@@ -529,9 +529,7 @@ InspectorStyle::InspectorStyle(const InspectorCSSId& styleId, Ref<CSSStyleDeclar
 {
 }
 
-InspectorStyle::~InspectorStyle()
-{
-}
+InspectorStyle::~InspectorStyle() = default;
 
 RefPtr<Inspector::Protocol::CSS::CSSStyle> InspectorStyle::buildObjectForStyle() const
 {

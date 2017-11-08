@@ -29,20 +29,29 @@
 #include "SandboxExtension.h"
 #include <WebCore/IDBBackingStore.h>
 #include <WebCore/IDBServer.h>
+#include <WebCore/ServiceWorkerIdentifier.h>
 #include <WebCore/UniqueIDBDatabase.h>
 #include <pal/SessionID.h>
 #include <wtf/CrossThreadTask.h>
 #include <wtf/Function.h>
 
 namespace WebCore {
+class SWServer;
 struct SecurityOriginData;
+struct ServiceWorkerClientIdentifier;
+class ServiceWorkerRegistrationKey;
 }
 
 namespace WebKit {
 
 class StorageToWebProcessConnection;
+class WebSWServerConnection;
 enum class WebsiteDataType;
 struct StorageProcessCreationParameters;
+
+#if ENABLE(SERVICE_WORKER)
+class WebSWOriginStore;
+#endif
 
 class StorageProcess : public ChildProcess
 #if ENABLE(INDEXED_DATABASE)
@@ -55,15 +64,12 @@ public:
     static StorageProcess& singleton();
     ~StorageProcess();
 
-#if ENABLE(INDEXED_DATABASE)
-    WebCore::IDBServer::IDBServer& idbServer(PAL::SessionID);
-#endif
-
     WorkQueue& queue() { return m_queue.get(); }
-
     void postStorageTask(CrossThreadTask&&);
 
 #if ENABLE(INDEXED_DATABASE)
+    WebCore::IDBServer::IDBServer& idbServer(PAL::SessionID);
+
     // WebCore::IDBServer::IDBBackingStoreFileHandler
     void prepareForAccessToTemporaryFile(const String& path) final;
     void accessToTemporaryFileComplete(const String& path) final;
@@ -71,6 +77,18 @@ public:
 
 #if ENABLE(SANDBOX_EXTENSIONS)
     void getSandboxExtensionsForBlobFiles(const Vector<String>& filenames, WTF::Function<void (SandboxExtension::HandleArray&&)>&& completionHandler);
+#endif
+
+#if ENABLE(SERVICE_WORKER)
+    IPC::Connection* workerContextProcessConnection();
+    void createWorkerContextProcessConnection();
+
+    WebSWOriginStore& ensureSWOriginStoreForSession(PAL::SessionID);
+    WebSWOriginStore* swOriginStoreForSession(PAL::SessionID) const;
+
+    WebCore::SWServer& swServerForSession(PAL::SessionID);
+    void registerSWServerConnection(WebSWServerConnection&);
+    void unregisterSWServerConnection(WebSWServerConnection&);
 #endif
 
 private:
@@ -99,7 +117,20 @@ private:
     void grantSandboxExtensionsForBlobs(const Vector<String>& paths, const SandboxExtension::HandleArray&);
     void didGetSandboxExtensionsForBlobFiles(uint64_t requestID, SandboxExtension::HandleArray&&);
 #endif
+#if ENABLE(SERVICE_WORKER)
+    void didGetWorkerContextProcessConnection(IPC::Attachment&& encodedConnectionIdentifier);
+    void serviceWorkerContextFailedToStart(uint64_t serverConnectionIdentifier, const WebCore::ServiceWorkerRegistrationKey&, WebCore::ServiceWorkerIdentifier, const String& message);
+    void serviceWorkerContextStarted(uint64_t serverConnectionIdentifier, const WebCore::ServiceWorkerRegistrationKey&, WebCore::ServiceWorkerIdentifier);
 
+    void didReceiveFetchResponse(uint64_t serverConnectionIdentifier, uint64_t fetchIdentifier, const WebCore::ResourceResponse&);
+    void didReceiveFetchData(uint64_t serverConnectionIdentifier, uint64_t fetchIdentifier, const IPC::DataReference&, int64_t encodedDataLength);
+    void didFinishFetch(uint64_t serverConnectionIdentifier, uint64_t fetchIdentifier);
+    void didFailFetch(uint64_t serverConnectionIdentifier, uint64_t fetchIdentifier);
+    void didNotHandleFetch(uint64_t serverConnectionIdentifier, uint64_t fetchIdentifier);
+
+    void didFinishServiceWorkerInstall(uint64_t serverConnectionIdentifier, const WebCore::ServiceWorkerRegistrationKey&, WebCore::ServiceWorkerIdentifier, bool wasSuccessful);
+    void postMessageToServiceWorkerClient(const WebCore::ServiceWorkerClientIdentifier& destinationIdentifier, const IPC::DataReference& message, WebCore::ServiceWorkerIdentifier sourceIdentifier, const String& sourceOrigin);
+#endif
 #if ENABLE(INDEXED_DATABASE)
     Vector<WebCore::SecurityOriginData> indexedDatabaseOrigins(const String& path);
 #endif
@@ -108,7 +139,7 @@ private:
     void performNextStorageTask();
     void ensurePathExists(const String&);
 
-    Vector<RefPtr<StorageToWebProcessConnection>> m_databaseToWebProcessConnections;
+    Vector<Ref<StorageToWebProcessConnection>> m_storageToWebProcessConnections;
 
     Ref<WorkQueue> m_queue;
 
@@ -121,6 +152,16 @@ private:
 
     Deque<CrossThreadTask> m_storageTasks;
     Lock m_storageTaskMutex;
+    
+#if ENABLE(SERVICE_WORKER)
+    void didCreateWorkerContextProcessConnection(const IPC::Attachment&);
+
+    RefPtr<IPC::Connection> m_workerContextProcessConnection;
+    bool m_waitingForWorkerContextProcessConnection { false };
+    HashMap<PAL::SessionID, std::unique_ptr<WebCore::SWServer>> m_swServers;
+    HashMap<uint64_t, WebSWServerConnection*> m_swServerConnections;
+    HashMap<PAL::SessionID, std::unique_ptr<WebSWOriginStore>> m_swOriginStores;
+#endif
 };
 
 } // namespace WebKit

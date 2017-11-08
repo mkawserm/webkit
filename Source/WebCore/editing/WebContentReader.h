@@ -33,9 +33,21 @@ namespace WebCore {
 
 class ArchiveResource;
 
-class WebContentReader final : public PasteboardWebContentReader {
+class FrameWebContentReader : public PasteboardWebContentReader {
 public:
     Frame& frame;
+
+    FrameWebContentReader(Frame& frame)
+        : frame(frame)
+    {
+    }
+
+protected:
+    bool shouldSanitize() const;
+};
+
+class WebContentReader final : public FrameWebContentReader {
+public:
     Range& context;
     const bool allowPlainText;
 
@@ -43,7 +55,7 @@ public:
     bool madeFragmentFromPlainText;
 
     WebContentReader(Frame& frame, Range& context, bool allowPlainText)
-        : frame(frame)
+        : FrameWebContentReader(frame)
         , context(context)
         , allowPlainText(allowPlainText)
         , madeFragmentFromPlainText(false)
@@ -54,7 +66,7 @@ public:
 
 private:
 #if PLATFORM(COCOA)
-    bool readWebArchive(SharedBuffer*) override;
+    bool readWebArchive(SharedBuffer&) override;
     bool readFilenames(const Vector<String>&) override;
     bool readHTML(const String&) override;
     bool readRTFD(SharedBuffer&) override;
@@ -63,6 +75,28 @@ private:
     bool readURL(const URL&, const String& title) override;
 #endif
     bool readPlainText(const String&) override;
+};
+
+class WebContentMarkupReader final : public FrameWebContentReader {
+public:
+    String markup;
+
+    explicit WebContentMarkupReader(Frame& frame)
+        : FrameWebContentReader(frame)
+    {
+    }
+
+private:
+#if PLATFORM(COCOA)
+    bool readWebArchive(SharedBuffer&) override;
+    bool readFilenames(const Vector<String>&) override { return false; }
+    bool readHTML(const String&) override;
+    bool readRTFD(SharedBuffer&) override;
+    bool readRTF(SharedBuffer&) override;
+    bool readImage(Ref<SharedBuffer>&&, const String&) override { return false; }
+    bool readURL(const URL&, const String&) override { return false; }
+#endif
+    bool readPlainText(const String&) override { return false; }
 };
 
 #if PLATFORM(COCOA) && defined(__OBJC__)

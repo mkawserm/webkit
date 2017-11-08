@@ -45,18 +45,16 @@
 #include <inspector/ScriptCallStack.h>
 #include <inspector/ScriptCallStackFactory.h>
 
-using namespace Inspector;
 
 namespace WebCore {
+using namespace Inspector;
 
 PageConsoleClient::PageConsoleClient(Page& page)
     : m_page(page)
 {
 }
 
-PageConsoleClient::~PageConsoleClient()
-{
-}
+PageConsoleClient::~PageConsoleClient() = default;
 
 static int muteCount = 0;
 static bool printExceptions = false;

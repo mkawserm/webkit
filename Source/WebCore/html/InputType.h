@@ -177,7 +177,7 @@ public:
     virtual void handleClickEvent(MouseEvent&);
     virtual void handleMouseDownEvent(MouseEvent&);
     virtual void willDispatchClick(InputElementClickState&);
-    virtual void didDispatchClick(Event*, const InputElementClickState&);
+    virtual void didDispatchClick(Event&, const InputElementClickState&);
     virtual void handleDOMActivateEvent(Event&);
     virtual void handleKeydownEvent(KeyboardEvent&);
     virtual void handleKeypressEvent(KeyboardEvent&);
@@ -216,7 +216,7 @@ public:
 
     virtual HTMLElement* containerElement() const { return nullptr; }
     virtual HTMLElement* innerBlockElement() const { return nullptr; }
-    virtual TextControlInnerTextElement* innerTextElement() const { return nullptr; }
+    virtual RefPtr<TextControlInnerTextElement> innerTextElement() const;
     virtual HTMLElement* innerSpinButtonElement() const { return nullptr; }
     virtual HTMLElement* capsLockIndicatorElement() const { return nullptr; }
     virtual HTMLElement* autoFillButtonElement() const { return nullptr; }

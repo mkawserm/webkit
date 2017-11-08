@@ -39,11 +39,12 @@
 #import <wtf/StringPrintStream.h>
 #import <wtf/Vector.h>
 
-#import "CoreMediaSoftLink.h"
+#import <pal/cf/CoreMediaSoftLink.h>
 #import "CoreVideoSoftLink.h"
 #import "VideoToolboxSoftLink.h"
 
 namespace WebCore {
+using namespace PAL;
 
 WebCoreDecompressionSession::WebCoreDecompressionSession(Mode mode)
     : m_mode(mode)
@@ -219,11 +220,7 @@ void WebCoreDecompressionSession::ensureDecompressionSessionForSample(CMSampleBu
 
         NSDictionary *attributes;
         if (m_mode == OpenGL) {
-#if PLATFORM(IOS)
-            attributes = @{(NSString *)kCVPixelBufferIOSurfaceOpenGLESFBOCompatibilityKey: @YES};
-#else
-            attributes = @{(NSString *)kCVPixelBufferIOSurfaceOpenGLFBOCompatibilityKey: @YES};
-#endif
+            attributes = nil;
         } else {
             ASSERT(m_mode == RGB);
             attributes = @{(NSString *)kCVPixelBufferPixelFormatTypeKey: @(kCVPixelFormatType_32BGRA)};
@@ -313,8 +310,7 @@ void WebCoreDecompressionSession::handleDecompressionOutput(bool displaying, OSS
         return;
     }
 
-    dispatch_async(m_enqueingQueue.get(), [protectedThis = makeRefPtr(this), status, imageSampleBuffer = adoptCF(rawImageSampleBuffer), infoFlags, displaying] {
-        UNUSED_PARAM(infoFlags);
+    dispatch_async(m_enqueingQueue.get(), [protectedThis = makeRefPtr(this), imageSampleBuffer = adoptCF(rawImageSampleBuffer), displaying] {
         protectedThis->enqueueDecodedSample(imageSampleBuffer.get(), displaying);
     });
 }

@@ -213,6 +213,7 @@ static ExceptionOr<ApplePaySessionPaymentRequest> convertAndValidate(unsigned ve
         return convertedRequest.releaseException();
 
     auto result = convertedRequest.releaseReturnValue();
+    result.setCurrencyCode(paymentRequest.currencyCode);
 
     auto total = convertAndValidateTotal(WTFMove(paymentRequest.total));
     if (total.hasException())
@@ -397,44 +398,9 @@ static ExceptionOr<ShippingMethodUpdate> convertAndValidate(ApplePayShippingMeth
     return WTFMove(convertedUpdate);
 }
 
-static bool isSecure(DocumentLoader& documentLoader)
-{
-    if (!documentLoader.response().url().protocolIs("https"))
-        return false;
-
-    if (!documentLoader.response().certificateInfo() || documentLoader.response().certificateInfo()->containsNonRootSHA1SignedCertificate())
-        return false;
-
-    return true;
-}
-
-static ExceptionOr<void> canCallApplePaySessionAPIs(Document& document)
-{
-    if (!isSecure(*document.loader()))
-        return Exception { InvalidAccessError, "Trying to call an ApplePaySession API from an insecure document." };
-
-    auto& topDocument = document.topDocument();
-    if (&document != &topDocument) {
-        auto& topOrigin = topDocument.topOrigin();
-
-        if (!document.securityOrigin().isSameSchemeHostPort(topOrigin))
-            return Exception { InvalidAccessError, "Trying to call an ApplePaySession API from a document with an different security origin than its top-level frame." };
-
-        for (auto* ancestorDocument = document.parentDocument(); ancestorDocument != &topDocument; ancestorDocument = ancestorDocument->parentDocument()) {
-            if (!isSecure(*ancestorDocument->loader()))
-                return Exception { InvalidAccessError, "Trying to call an ApplePaySession API from a document with an insecure parent frame." };
-
-            if (!ancestorDocument->securityOrigin().isSameSchemeHostPort(topOrigin))
-                return Exception { InvalidAccessError, "Trying to call an ApplePaySession API from a document with an different security origin than its top-level frame." };
-        }
-    }
-
-    return { };
-}
-
 ExceptionOr<Ref<ApplePaySession>> ApplePaySession::create(Document& document, unsigned version, ApplePayPaymentRequest&& paymentRequest)
 {
-    auto canCall = canCallApplePaySessionAPIs(document);
+    auto canCall = canCreateSession(document);
     if (canCall.hasException())
         return canCall.releaseException();
 
@@ -460,9 +426,7 @@ ApplePaySession::ApplePaySession(Document& document, ApplePaySessionPaymentReque
     suspendIfNeeded();
 }
 
-ApplePaySession::~ApplePaySession()
-{
-}
+ApplePaySession::~ApplePaySession() = default;
 
 ExceptionOr<bool> ApplePaySession::supportsVersion(ScriptExecutionContext& scriptExecutionContext, unsigned version)
 {
@@ -471,7 +435,7 @@ ExceptionOr<bool> ApplePaySession::supportsVersion(ScriptExecutionContext& scrip
 
     auto& document = downcast<Document>(scriptExecutionContext);
 
-    auto canCall = canCallApplePaySessionAPIs(document);
+    auto canCall = canCreateSession(document);
     if (canCall.hasException())
         return canCall.releaseException();
 
@@ -491,7 +455,7 @@ ExceptionOr<bool> ApplePaySession::canMakePayments(ScriptExecutionContext& scrip
 {
     auto& document = downcast<Document>(scriptExecutionContext);
 
-    auto canCall = canCallApplePaySessionAPIs(document);
+    auto canCall = canCreateSession(document);
     if (canCall.hasException())
         return canCall.releaseException();
 
@@ -502,7 +466,7 @@ ExceptionOr<void> ApplePaySession::canMakePaymentsWithActiveCard(ScriptExecution
 {
     auto& document = downcast<Document>(scriptExecutionContext);
 
-    auto canCall = canCallApplePaySessionAPIs(document);
+    auto canCall = canCreateSession(document);
     if (canCall.hasException())
         return canCall.releaseException();
 
@@ -529,7 +493,7 @@ ExceptionOr<void> ApplePaySession::openPaymentSetup(ScriptExecutionContext& scri
 {
     auto& document = downcast<Document>(scriptExecutionContext);
 
-    auto canCall = canCallApplePaySessionAPIs(document);
+    auto canCall = canCreateSession(document);
     if (canCall.hasException())
         return canCall.releaseException();
 

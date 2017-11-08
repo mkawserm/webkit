@@ -41,6 +41,7 @@ NetworkProcessCreationParameters::NetworkProcessCreationParameters()
 
 void NetworkProcessCreationParameters::encode(IPC::Encoder& encoder) const
 {
+    encoder << defaultSessionParameters;
     encoder << privateBrowsingEnabled;
     encoder.encodeEnum(cacheModel);
     encoder << diskCacheSizeOverride;
@@ -50,12 +51,10 @@ void NetworkProcessCreationParameters::encode(IPC::Encoder& encoder) const
     encoder << cacheStorageDirectoryExtensionHandle;
     encoder << diskCacheDirectory;
     encoder << diskCacheDirectoryExtensionHandle;
-#if ENABLE(NETWORK_CACHE)
     encoder << shouldEnableNetworkCache;
     encoder << shouldEnableNetworkCacheEfficacyLogging;
 #if ENABLE(NETWORK_CACHE_SPECULATIVE_REVALIDATION)
     encoder << shouldEnableNetworkCacheSpeculativeRevalidation;
-#endif
 #endif
 #if PLATFORM(MAC)
     encoder << uiProcessCookieStorageIdentifier;
@@ -77,7 +76,6 @@ void NetworkProcessCreationParameters::encode(IPC::Encoder& encoder) const
     encoder << nsURLCacheDiskCapacity;
     encoder << sourceApplicationBundleIdentifier;
     encoder << sourceApplicationSecondaryIdentifier;
-    encoder << allowsCellularAccess;
 #if PLATFORM(IOS)
     encoder << ctDataConnectionServiceType;
 #endif
@@ -107,6 +105,12 @@ void NetworkProcessCreationParameters::encode(IPC::Encoder& encoder) const
 
 bool NetworkProcessCreationParameters::decode(IPC::Decoder& decoder, NetworkProcessCreationParameters& result)
 {
+    std::optional<NetworkSessionCreationParameters> defaultSessionParameters;
+    decoder >> defaultSessionParameters;
+    if (!defaultSessionParameters)
+        return false;
+    result.defaultSessionParameters = WTFMove(*defaultSessionParameters);
+
     if (!decoder.decode(result.privateBrowsingEnabled))
         return false;
     if (!decoder.decodeEnum(result.cacheModel))
@@ -125,7 +129,6 @@ bool NetworkProcessCreationParameters::decode(IPC::Decoder& decoder, NetworkProc
         return false;
     if (!decoder.decode(result.diskCacheDirectoryExtensionHandle))
         return false;
-#if ENABLE(NETWORK_CACHE)
     if (!decoder.decode(result.shouldEnableNetworkCache))
         return false;
     if (!decoder.decode(result.shouldEnableNetworkCacheEfficacyLogging))
@@ -133,7 +136,6 @@ bool NetworkProcessCreationParameters::decode(IPC::Decoder& decoder, NetworkProc
 #if ENABLE(NETWORK_CACHE_SPECULATIVE_REVALIDATION)
     if (!decoder.decode(result.shouldEnableNetworkCacheSpeculativeRevalidation))
         return false;
-#endif
 #endif
 #if PLATFORM(MAC)
     if (!decoder.decode(result.uiProcessCookieStorageIdentifier))
@@ -169,8 +171,6 @@ bool NetworkProcessCreationParameters::decode(IPC::Decoder& decoder, NetworkProc
     if (!decoder.decode(result.sourceApplicationBundleIdentifier))
         return false;
     if (!decoder.decode(result.sourceApplicationSecondaryIdentifier))
-        return false;
-    if (!decoder.decode(result.allowsCellularAccess))
         return false;
 #if PLATFORM(IOS)
     if (!decoder.decode(result.ctDataConnectionServiceType))

@@ -35,7 +35,6 @@ import sys
 import traceback
 
 from webkitpy.common.host import Host
-from webkitpy.common.interupt_debugging import log_stack_trace_on_cntrl_c, log_stack_trace_on_term
 from webkitpy.layout_tests.controllers.manager import Manager
 from webkitpy.layout_tests.models.test_run_results import INTERRUPTED_EXIT_STATUS
 from webkitpy.port import configuration_options, platform_options
@@ -73,10 +72,6 @@ def main(argv, stdout, stderr):
         # FIXME: is this the best way to handle unsupported port names?
         print >> stderr, str(e)
         return EXCEPTIONAL_EXIT_STATUS
-
-    stack_trace_path = host.filesystem.join(port.results_directory(), 'python_stack_trace.txt')
-    log_stack_trace_on_cntrl_c(output_file=stack_trace_path)
-    log_stack_trace_on_term(output_file=stack_trace_path)
 
     if options.print_expectations:
         return _print_expectations(port, options, args, stderr)
@@ -331,9 +326,9 @@ def parse_args(args):
             help=("The name of the buildslave used. e.g. apple-macpro-6.")),
         optparse.make_option("--build-number", default="DUMMY_BUILD_NUMBER",
             help=("The build number of the builder running this script.")),
-        optparse.make_option("--test-results-server", default="",
+        optparse.make_option("--test-results-server", action="append", default=[],
             help=("If specified, upload results json files to this appengine server.")),
-        optparse.make_option("--results-server-host", default="",
+        optparse.make_option("--results-server-host", action="append", default=[],
             help=("If specified, upload results JSON file to this results server.")),
         optparse.make_option("--additional-repository-name",
             help=("The name of an additional subversion or git checkout")),
@@ -343,7 +338,7 @@ def parse_args(args):
             help=("If specified, tests are allowed to make requests to the specified hostname."))
     ]))
 
-    option_parser = optparse.OptionParser()
+    option_parser = optparse.OptionParser(usage="%prog [options] [<path>...]")
 
     for group_name, group_options in option_group_definitions:
         option_group = optparse.OptionGroup(option_parser, group_name)

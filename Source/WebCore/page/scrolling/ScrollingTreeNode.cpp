@@ -42,9 +42,7 @@ ScrollingTreeNode::ScrollingTreeNode(ScrollingTree& scrollingTree, ScrollingNode
 {
 }
 
-ScrollingTreeNode::~ScrollingTreeNode()
-{
-}
+ScrollingTreeNode::~ScrollingTreeNode() = default;
 
 void ScrollingTreeNode::appendChild(Ref<ScrollingTreeNode>&& childNode)
 {
@@ -81,8 +79,8 @@ void ScrollingTreeNode::dumpProperties(TextStream& ts, ScrollingStateTreeAsTextB
 
 ScrollingTreeFrameScrollingNode* ScrollingTreeNode::enclosingFrameNode() const
 {
-    ScrollingTreeNode* node = parent();
-    while (node && node->nodeType() != FrameScrollingNode)
+    auto* node = parent();
+    while (node && !node->isFrameScrollingNode())
         node = node->parent();
 
     return downcast<ScrollingTreeFrameScrollingNode>(node);

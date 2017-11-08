@@ -143,6 +143,8 @@ bool doesGC(Graph& graph, Node* node)
     case CompareLessEq:
     case CompareGreater:
     case CompareGreaterEq:
+    case CompareBelow:
+    case CompareBelowEq:
     case CompareEq:
     case CompareStrictEq:
     case CompareEqPtr:
@@ -236,6 +238,7 @@ bool doesGC(Graph& graph, Node* node)
     case StringCharAt:
     case StringCharCodeAt:
     case GetTypedArrayByteOffset:
+    case GetPrototypeOf:
     case PutByValDirect:
     case PutByVal:
     case PutByValAlias:
@@ -298,6 +301,7 @@ bool doesGC(Graph& graph, Node* node)
     case CreateScopedArguments:
     case CreateClonedArguments:
     case CallObjectConstructor:
+    case ToObject:
     case ToThis:
     case CreateThis:
     case AllocatePropertyStorage:
@@ -329,6 +333,7 @@ bool doesGC(Graph& graph, Node* node)
     case StrCat:
     case StringReplace:
     case StringReplaceRegExp:
+    case StringSlice:
     case CreateRest:
     case ToLowerCase:
     case CallDOMGetter:

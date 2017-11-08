@@ -53,7 +53,7 @@ public:
     bool tooLong() const final;
     bool isValidValue(const String&) const;
     
-    TextControlInnerTextElement* innerTextElement() const final;
+    RefPtr<TextControlInnerTextElement> innerTextElement() const final;
     RenderStyle createInnerTextStyle(const RenderStyle&) const final;
     void copyNonAttributePropertiesFromElement(const Element&) final;
 
@@ -71,7 +71,7 @@ private:
 
     enum WrapMethod { NoWrap, SoftWrap, HardWrap };
 
-    void didAddUserAgentShadowRoot(ShadowRoot*) final;
+    void didAddUserAgentShadowRoot(ShadowRoot&) final;
 
     void maxLengthAttributeChanged(const AtomicString& newValue);
     void minLengthAttributeChanged(const AtomicString& newValue);

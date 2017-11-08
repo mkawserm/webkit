@@ -27,15 +27,11 @@
     content: url("../Images/Source.svg");
 }
 
-.tree-outline:not(:focus, .force-focus) .item.action:not(.initial-state, .parent, .invalid) > .icon {
-    opacity: 0.7;
-}
-
 .item.action:not(.initial-state)::before {
     position: relative;
     top: 3px;
     content: attr(data-index);
-    font-family: -apple-system, sans-serif;
+    font-family: -webkit-system-font, sans-serif;
     font-size: 9px;
     color: var(--text-color-gray-medium);
     font-variant-numeric: tabular-nums;
@@ -61,17 +57,13 @@ body[dir=rtl] .item.action::before {
     opacity: 1;
 }
 
-body:not(.window-inactive, .window-docked-inactive) .item.action > .titles .parameter.swizzled {
+.item.action > .titles .parameter.swizzled {
     color: var(--text-color-gray-medium);
 }
 
-body:not(.window-inactive, .window-docked-inactive) :matches(:focus, .force-focus) .item.action.selected > .titles .parameter.swizzled,
-body:not(.window-inactive, .window-docked-inactive) :matches(:focus, .force-focus) .item.action.selected::before {
-    color: var(--console-secondary-text-color);
-}
-
-.tree-outline:matches(:focus, .force-focus) .item.action > .titles .parameters > .inline-swatch {
-    vertical-align: -1px;
+body:not(.window-inactive, .window-docked-inactive) .tree-outline:matches(:focus, .force-focus) .item.action.selected > .titles .parameter.swizzled,
+body:not(.window-inactive, .window-docked-inactive) .tree-outline:matches(:focus, .force-focus) .item.action.selected::before {
+    color: var(--selected-secondary-text-color);
 }
 
 .tree-outline[data-indent="1"] .item.action::before,
@@ -129,6 +121,10 @@ body[dir=rtl] .tree-outline:not(.hide-disclosure-buttons) .item.action:not(.init
 
 .item.action:not(.selected) > .titles .parameter.swizzled {
     color: var(--text-color-gray-medium);
+}
+
+.item.action > .titles .parameters > .inline-swatch {
+    vertical-align: -1px;
 }
 
 .item.action.composite > .icon {
@@ -216,4 +212,10 @@ body[dir=rtl] .tree-outline:not(.hide-disclosure-buttons) .item.action:not(.init
     width: 16px;
     height: 12px;
     content: url(../Images/Error.svg);
+}
+
+.item.action.visual.no-visible-effect:not(.invalid) > .status > .warning {
+    width: 12px;
+    height: 12px;
+    margin-top: 2px;
 }

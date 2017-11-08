@@ -100,6 +100,11 @@ static void appendPipelineElementMessageCallback(GstBus*, GstMessage* message, A
 }
 #endif
 
+static void appendPipelineStateChangeMessageCallback(GstBus*, GstMessage* message, AppendPipeline* appendPipeline)
+{
+    appendPipeline->handleStateChangeMessage(message);
+}
+
 AppendPipeline::AppendPipeline(Ref<MediaSourceClientGStreamerMSE> mediaSourceClient, Ref<SourceBufferPrivateGStreamer> sourceBufferPrivate, MediaPlayerPrivateGStreamerMSE& playerPrivate)
     : m_mediaSourceClient(mediaSourceClient.get())
     , m_sourceBufferPrivate(sourceBufferPrivate.get())
@@ -129,6 +134,7 @@ AppendPipeline::AppendPipeline(Ref<MediaSourceClientGStreamerMSE> mediaSourceCli
 #if ENABLE(ENCRYPTED_MEDIA)
     g_signal_connect(m_bus.get(), "message::element", G_CALLBACK(appendPipelineElementMessageCallback), this);
 #endif
+    g_signal_connect(m_bus.get(), "message::state-changed", G_CALLBACK(appendPipelineStateChangeMessageCallback), this);
 
     // We assign the created instances here instead of adoptRef() because gst_bin_add_many()
     // below will already take the initial reference and we need an additional one for us.
@@ -341,6 +347,24 @@ void AppendPipeline::handleElementMessage(GstMessage* message)
     }
 }
 #endif
+
+void AppendPipeline::handleStateChangeMessage(GstMessage* message)
+{
+    ASSERT(WTF::isMainThread());
+
+    if (GST_MESSAGE_SRC(message) == reinterpret_cast<GstObject*>(m_pipeline.get())) {
+        GstState currentState, newState;
+        gst_message_parse_state_changed(message, &currentState, &newState, nullptr);
+        CString sourceBufferType = String(m_sourceBufferPrivate->type().raw())
+            .replace("/", "_").replace(" ", "_")
+            .replace("\"", "").replace("\'", "").utf8();
+        CString dotFileName = String::format("webkit-append-%s-%s_%s",
+            sourceBufferType.data(),
+            gst_element_state_get_name(currentState),
+            gst_element_state_get_name(newState)).utf8();
+        GST_DEBUG_BIN_TO_DOT_FILE_WITH_TS(GST_BIN(m_pipeline.get()), GST_DEBUG_GRAPH_SHOW_ALL, dotFileName.data());
+    }
+}
 
 void AppendPipeline::handleAppsrcNeedDataReceived()
 {
@@ -575,7 +599,7 @@ void AppendPipeline::parseDemuxerSrcPadCaps(GstCaps* demuxerSrcPadCaps)
 
         const gchar* originalMediaType = gst_structure_get_string(structure, "original-media-type");
 
-        if (!MediaPlayerPrivateGStreamerMSE::supportsCodecs(originalMediaType)) {
+        if (!MediaPlayerPrivateGStreamerMSE::supportsCodec(originalMediaType)) {
             m_presentationSize = WebCore::FloatSize();
             m_streamType = WebCore::MediaSourceStreamTypeGStreamer::Invalid;
         } else if (g_str_has_prefix(originalMediaType, "video/")) {
@@ -608,7 +632,7 @@ void AppendPipeline::parseDemuxerSrcPadCaps(GstCaps* demuxerSrcPadCaps)
         const char* structureName = gst_structure_get_name(structure);
         GstVideoInfo info;
 
-        if (!MediaPlayerPrivateGStreamerMSE::supportsCodecs(structureName)) {
+        if (!MediaPlayerPrivateGStreamerMSE::supportsCodec(structureName)) {
             m_presentationSize = WebCore::FloatSize();
             m_streamType = WebCore::MediaSourceStreamTypeGStreamer::Invalid;
         } else if (g_str_has_prefix(structureName, "video/") && gst_video_info_from_caps(&info, demuxerSrcPadCaps)) {
@@ -704,7 +728,12 @@ void AppendPipeline::appsinkNewSample(GstSample* sample)
 
         RefPtr<GStreamerMediaSample> mediaSample = WebCore::GStreamerMediaSample::create(sample, m_presentationSize, trackId());
 
-        GST_TRACE("append: trackId=%s PTS=%f presentationSize=%.0fx%.0f", mediaSample->trackID().string().utf8().data(), mediaSample->presentationTime().toFloat(), mediaSample->presentationSize().width(), mediaSample->presentationSize().height());
+        GST_TRACE("append: trackId=%s PTS=%s DTS=%s DUR=%s presentationSize=%.0fx%.0f",
+            mediaSample->trackID().string().utf8().data(),
+            mediaSample->presentationTime().toString().utf8().data(),
+            mediaSample->decodeTime().toString().utf8().data(),
+            mediaSample->duration().toString().utf8().data(),
+            mediaSample->presentationSize().width(), mediaSample->presentationSize().height());
 
         // If we're beyond the duration, ignore this sample and the remaining ones.
         MediaTime duration = m_mediaSourceClient->duration();
@@ -920,6 +949,30 @@ GstFlowReturn AppendPipeline::handleNewAppsinkSample(GstElement* appsink)
     return m_flowReturn;
 }
 
+static GRefPtr<GstElement>
+createOptionalParserForFormat(GstPad* demuxerSrcPad)
+{
+    GRefPtr<GstCaps> padCaps = adoptGRef(gst_pad_get_current_caps(demuxerSrcPad));
+    GstStructure* structure = gst_caps_get_structure(padCaps.get(), 0);
+    const char* mediaType = gst_structure_get_name(structure);
+
+    GUniquePtr<char> demuxerPadName(gst_pad_get_name(demuxerSrcPad));
+    GUniquePtr<char> parserName(g_strdup_printf("%s_parser", demuxerPadName.get()));
+
+    if (!g_strcmp0(mediaType, "audio/x-opus")) {
+        GstElement* opusparse = gst_element_factory_make("opusparse", parserName.get());
+        RELEASE_ASSERT(opusparse);
+        return GRefPtr<GstElement>(opusparse);
+    }
+    if (!g_strcmp0(mediaType, "audio/x-vorbis")) {
+        GstElement* vorbisparse = gst_element_factory_make("vorbisparse", parserName.get());
+        RELEASE_ASSERT(vorbisparse);
+        return GRefPtr<GstElement>(vorbisparse);
+    }
+
+    return nullptr;
+}
+
 void AppendPipeline::connectDemuxerSrcPadToAppsinkFromAnyThread(GstPad* demuxerSrcPad)
 {
     if (!m_appsink)
@@ -960,6 +1013,9 @@ void AppendPipeline::connectDemuxerSrcPadToAppsinkFromAnyThread(GstPad* demuxerS
         GST_TRACE("demuxer-connect-to-appsink message posted to bus");
 
         m_padAddRemoveCondition.wait(m_padAddRemoveLock);
+
+        if (!m_playerPrivate)
+            return;
     }
 
     // Must be done in the thread we were called from (usually streaming thread).
@@ -973,30 +1029,50 @@ void AppendPipeline::connectDemuxerSrcPadToAppsinkFromAnyThread(GstPad* demuxerS
         if (!parent)
             gst_bin_add(GST_BIN(m_pipeline.get()), m_appsink.get());
 
+        // Current head of the pipeline being built.
+        GRefPtr<GstPad> currentSrcPad = demuxerSrcPad;
+
+        // Some audio files unhelpfully omit the duration of frames in the container. We need to parse
+        // the contained audio streams in order to know the duration of the frames.
+        // This is known to be an issue with YouTube WebM files containing Opus audio as of YTTV2018.
+        m_parser = createOptionalParserForFormat(currentSrcPad.get());
+        if (m_parser) {
+            gst_bin_add(GST_BIN(m_pipeline.get()), m_parser.get());
+            gst_element_sync_state_with_parent(m_parser.get());
+
+            GRefPtr<GstPad> parserSinkPad = adoptGRef(gst_element_get_static_pad(m_parser.get(), "sink"));
+            GRefPtr<GstPad> parserSrcPad = adoptGRef(gst_element_get_static_pad(m_parser.get(), "src"));
+
+            gst_pad_link(currentSrcPad.get(), parserSinkPad.get());
+            currentSrcPad = parserSrcPad;
+        }
+
 #if ENABLE(ENCRYPTED_MEDIA)
         if (m_decryptor) {
             gst_object_ref(m_decryptor.get());
             gst_bin_add(GST_BIN(m_pipeline.get()), m_decryptor.get());
-
-            GRefPtr<GstPad> decryptorSinkPad = adoptGRef(gst_element_get_static_pad(m_decryptor.get(), "sink"));
-            gst_pad_link(demuxerSrcPad, decryptorSinkPad.get());
-
-            GRefPtr<GstPad> decryptorSrcPad = adoptGRef(gst_element_get_static_pad(m_decryptor.get(), "src"));
-            gst_pad_link(decryptorSrcPad.get(), appsinkSinkPad.get());
-
-            gst_element_sync_state_with_parent(m_appsink.get());
             gst_element_sync_state_with_parent(m_decryptor.get());
 
-            if (m_pendingDecryptionStructure)
-                dispatchPendingDecryptionStructure();
-        } else {
-#endif
-            gst_pad_link(demuxerSrcPad, appsinkSinkPad.get());
-            gst_element_sync_state_with_parent(m_appsink.get());
-#if ENABLE(ENCRYPTED_MEDIA)
+            GRefPtr<GstPad> decryptorSinkPad = adoptGRef(gst_element_get_static_pad(m_decryptor.get(), "sink"));
+            GRefPtr<GstPad> decryptorSrcPad = adoptGRef(gst_element_get_static_pad(m_decryptor.get(), "src"));
+
+            gst_pad_link(currentSrcPad.get(), decryptorSinkPad.get());
+            currentSrcPad = decryptorSrcPad;
         }
 #endif
+
+        gst_pad_link(currentSrcPad.get(), appsinkSinkPad.get());
+
+        gst_element_sync_state_with_parent(m_appsink.get());
+
+#if ENABLE(ENCRYPTED_MEDIA)
+        if (m_pendingDecryptionStructure)
+            dispatchPendingDecryptionStructure();
+#endif
         gst_element_set_state(m_pipeline.get(), GST_STATE_PAUSED);
+        gst_element_sync_state_with_parent(m_appsink.get());
+
+        GST_DEBUG_BIN_TO_DOT_FILE_WITH_TS(GST_BIN(m_pipeline.get()), GST_DEBUG_GRAPH_SHOW_ALL, "webkit-after-link");
     }
 }
 
@@ -1065,31 +1141,27 @@ void AppendPipeline::connectDemuxerSrcPadToAppsink(GstPad* demuxerSrcPad)
     m_padAddRemoveCondition.notifyOne();
 }
 
-void AppendPipeline::disconnectDemuxerSrcPadFromAppsinkFromAnyThread(GstPad* demuxerSrcPad)
+void AppendPipeline::disconnectDemuxerSrcPadFromAppsinkFromAnyThread(GstPad*)
 {
-    // Must be done in the thread we were called from (usually streaming thread).
-    if (!gst_pad_is_linked(demuxerSrcPad)) {
-        gulong probeId = GPOINTER_TO_ULONG(g_object_get_data(G_OBJECT(demuxerSrcPad), "blackHoleProbeId"));
-        if (probeId) {
-            GST_DEBUG("Disconnecting black hole probe.");
-            g_object_set_data(G_OBJECT(demuxerSrcPad), "blackHoleProbeId", nullptr);
-            gst_pad_remove_probe(demuxerSrcPad, probeId);
-        } else
-            GST_WARNING("Not disconnecting demuxer src pad because it wasn't linked");
-        return;
-    }
+    GST_DEBUG_BIN_TO_DOT_FILE_WITH_TS(GST_BIN(m_pipeline.get()), GST_DEBUG_GRAPH_SHOW_ALL, "pad-removed-before");
 
     GST_DEBUG("Disconnecting appsink");
 
 #if ENABLE(ENCRYPTED_MEDIA)
     if (m_decryptor) {
-        gst_element_unlink(m_decryptor.get(), m_appsink.get());
-        gst_element_unlink(m_demux.get(), m_decryptor.get());
         gst_element_set_state(m_decryptor.get(), GST_STATE_NULL);
         gst_bin_remove(GST_BIN(m_pipeline.get()), m_decryptor.get());
-    } else
+        m_decryptor = nullptr;
+    }
 #endif
-        gst_element_unlink(m_demux.get(), m_appsink.get());
+
+    if (m_parser) {
+        gst_element_set_state(m_parser.get(), GST_STATE_NULL);
+        gst_bin_remove(GST_BIN(m_pipeline.get()), m_parser.get());
+        m_parser = nullptr;
+    }
+
+    GST_DEBUG_BIN_TO_DOT_FILE_WITH_TS(GST_BIN(m_pipeline.get()), GST_DEBUG_GRAPH_SHOW_ALL, "pad-removed-after");
 }
 
 #if ENABLE(ENCRYPTED_MEDIA)

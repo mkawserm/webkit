@@ -266,4 +266,28 @@ bool isRequestCrossOrigin(SecurityOrigin* origin, const URL& requestURL, const R
     return !origin->canRequest(requestURL);
 }
 
+void CachedResourceRequest::setDestinationIfNotSet(FetchOptions::Destination destination)
+{
+    if (m_options.destination != FetchOptions::Destination::EmptyString)
+        return;
+    m_options.destination = destination;
+}
+
+#if ENABLE(SERVICE_WORKER)
+void CachedResourceRequest::setSelectedServiceWorkerIdentifierIfNeeded(ServiceWorkerIdentifier identifier)
+{
+    if (isNonSubresourceRequest(m_options.destination))
+        return;
+    if (isPotentialNavigationOrSubresourceRequest(m_options.destination))
+        return;
+
+    if (m_options.serviceWorkersMode == ServiceWorkersMode::None)
+        return;
+    if (m_options.serviceWorkerIdentifier)
+        return;
+
+    m_options.serviceWorkerIdentifier = identifier;
+}
+#endif
+
 } // namespace WebCore

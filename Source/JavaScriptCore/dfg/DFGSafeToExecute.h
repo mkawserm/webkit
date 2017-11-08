@@ -266,6 +266,8 @@ bool safeToExecute(AbstractStateType& state, Graph& graph, Node* node)
     case CompareLessEq:
     case CompareGreater:
     case CompareGreaterEq:
+    case CompareBelow:
+    case CompareBelowEq:
     case CompareEq:
     case CompareStrictEq:
     case CompareEqPtr:
@@ -312,6 +314,7 @@ bool safeToExecute(AbstractStateType& state, Graph& graph, Node* node)
     case ToPrimitive:
     case ToString:
     case ToNumber:
+    case ToObject:
     case NumberToStringWithRadix:
     case NumberToStringWithValidRadixConstant:
     case SetFunctionName:
@@ -399,6 +402,7 @@ bool safeToExecute(AbstractStateType& state, Graph& graph, Node* node)
     case GetMyArgumentByValOutOfBounds:
     case ForwardVarargs:
     case CreateRest:
+    case GetPrototypeOf:
     case StringReplace:
     case StringReplaceRegExp:
     case GetRegExpObjectLastIndex:
@@ -409,6 +413,7 @@ bool safeToExecute(AbstractStateType& state, Graph& graph, Node* node)
     case ResolveScopeForHoistingFuncDeclInEval:
     case ResolveScope:
     case MapHash:
+    case StringSlice:
     case ToLowerCase:
     case GetMapBucket:
     case GetMapBucketHead:

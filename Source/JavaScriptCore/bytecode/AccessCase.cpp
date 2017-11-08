@@ -432,13 +432,11 @@ void AccessCase::generateWithGuard(
                         // Transitions must do this because they need to verify there isn't a setter in the chain.
                         // Miss/InMiss need to do this to ensure there isn't a new item at the end of the chain that
                         // has the property.
-                        PropertyOffset polyProtoOffset = structure->polyProtoOffset();
-                        RELEASE_ASSERT(isInlineOffset(polyProtoOffset));
 #if USE(JSVALUE64)
-                        jit.load64(MacroAssembler::Address(baseForAccessGPR, offsetRelativeToBase(polyProtoOffset)), baseForAccessGPR);
+                        jit.load64(MacroAssembler::Address(baseForAccessGPR, offsetRelativeToBase(knownPolyProtoOffset)), baseForAccessGPR);
                         fallThrough.append(jit.branch64(CCallHelpers::NotEqual, baseForAccessGPR, CCallHelpers::TrustedImm64(ValueNull)));
 #else
-                        jit.load32(MacroAssembler::Address(baseForAccessGPR, offsetRelativeToBase(polyProtoOffset) + PayloadOffset), baseForAccessGPR);
+                        jit.load32(MacroAssembler::Address(baseForAccessGPR, offsetRelativeToBase(knownPolyProtoOffset) + PayloadOffset), baseForAccessGPR);
                         fallThrough.append(jit.branchTestPtr(CCallHelpers::NonZero, baseForAccessGPR));
 #endif
                     }
@@ -449,13 +447,11 @@ void AccessCase::generateWithGuard(
                         jit.move(CCallHelpers::TrustedImmPtr(asObject(prototype)), baseForAccessGPR);
                     } else {
                         RELEASE_ASSERT(structure->isObject()); // Primitives must have a stored prototype. We use prototypeForLookup for them.
-                        PropertyOffset polyProtoOffset = structure->polyProtoOffset();
-                        RELEASE_ASSERT(isInlineOffset(polyProtoOffset));
 #if USE(JSVALUE64)
-                        jit.load64(MacroAssembler::Address(baseForAccessGPR, offsetRelativeToBase(polyProtoOffset)), baseForAccessGPR);
+                        jit.load64(MacroAssembler::Address(baseForAccessGPR, offsetRelativeToBase(knownPolyProtoOffset)), baseForAccessGPR);
                         fallThrough.append(jit.branch64(CCallHelpers::Equal, baseForAccessGPR, CCallHelpers::TrustedImm64(ValueNull)));
 #else
-                        jit.load32(MacroAssembler::Address(baseForAccessGPR, offsetRelativeToBase(polyProtoOffset) + PayloadOffset), baseForAccessGPR);
+                        jit.load32(MacroAssembler::Address(baseForAccessGPR, offsetRelativeToBase(knownPolyProtoOffset) + PayloadOffset), baseForAccessGPR);
                         fallThrough.append(jit.branchTestPtr(CCallHelpers::Zero, baseForAccessGPR));
 #endif
                     }
@@ -628,7 +624,6 @@ void AccessCase::generateImpl(AccessGenerationState& state)
                 jit.loadPtr(
                     CCallHelpers::Address(baseForAccessGPR, JSObject::butterflyOffset()),
                     loadedValueGPR);
-                jit.cage(Gigacage::JSValue, loadedValueGPR);
                 storageGPR = loadedValueGPR;
             }
 
@@ -979,7 +974,6 @@ void AccessCase::generateImpl(AccessGenerationState& state)
                     // already had out-of-line property storage).
 
                     jit.loadPtr(CCallHelpers::Address(baseGPR, JSObject::butterflyOffset()), scratchGPR3);
-                    jit.cage(Gigacage::JSValue, scratchGPR3);
 
                     // We have scratchGPR = new storage, scratchGPR3 = old storage,
                     // scratchGPR2 = available
@@ -1046,7 +1040,9 @@ void AccessCase::generateImpl(AccessGenerationState& state)
                 state.emitExplicitExceptionHandler();
                 
                 noException.link(&jit);
-                state.restoreLiveRegistersFromStackForCall(spillState);
+                RegisterSet resultRegisterToExclude;
+                resultRegisterToExclude.set(scratchGPR);
+                state.restoreLiveRegistersFromStackForCall(spillState, resultRegisterToExclude);
             }
         }
         
@@ -1058,10 +1054,8 @@ void AccessCase::generateImpl(AccessGenerationState& state)
                     JSObject::offsetOfInlineStorage() +
                     offsetInInlineStorage(m_offset) * sizeof(JSValue)));
         } else {
-            if (!allocating) {
+            if (!allocating)
                 jit.loadPtr(CCallHelpers::Address(baseGPR, JSObject::butterflyOffset()), scratchGPR);
-                jit.cage(Gigacage::JSValue, scratchGPR);
-            }
             jit.storeValue(
                 valueRegs,
                 CCallHelpers::Address(scratchGPR, offsetInButterfly(m_offset) * sizeof(JSValue)));
@@ -1097,7 +1091,6 @@ void AccessCase::generateImpl(AccessGenerationState& state)
         
     case ArrayLength: {
         jit.loadPtr(CCallHelpers::Address(baseGPR, JSObject::butterflyOffset()), scratchGPR);
-        jit.cage(Gigacage::JSValue, scratchGPR);
         jit.load32(CCallHelpers::Address(scratchGPR, ArrayStorage::lengthOffset()), scratchGPR);
         state.failAndIgnore.append(
             jit.branch32(CCallHelpers::LessThan, scratchGPR, CCallHelpers::TrustedImm32(0)));

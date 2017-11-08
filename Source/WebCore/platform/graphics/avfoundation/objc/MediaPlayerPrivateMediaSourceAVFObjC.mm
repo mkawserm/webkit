@@ -58,7 +58,7 @@
 
 #pragma mark - Soft Linking
 
-#import "CoreMediaSoftLink.h"
+#import <pal/cf/CoreMediaSoftLink.h>
 
 SOFT_LINK_FRAMEWORK_OPTIONAL(AVFoundation)
 
@@ -107,6 +107,7 @@ SOFT_LINK_CONSTANT(AVFoundation, AVAudioTimePitchAlgorithmVarispeed, NSString*)
 @end
 
 namespace WebCore {
+using namespace PAL;
 
 #pragma mark -
 #pragma mark MediaPlayerPrivateMediaSourceAVFObjC
@@ -608,14 +609,6 @@ bool MediaPlayerPrivateMediaSourceAVFObjC::copyVideoTextureToPlatformTexture(Gra
     if (updateLastPixelBuffer()) {
         if (!m_lastPixelBuffer)
             return false;
-
-        if (!m_textureCache) {
-            m_textureCache = TextureCacheCV::create(*context);
-            if (!m_textureCache)
-                return false;
-        }
-
-        m_lastTexture = m_textureCache->textureFromImage(m_lastPixelBuffer.get(), outputTarget, level, internalFormat, format, type);
     }
 
     size_t width = CVPixelBufferGetWidth(m_lastPixelBuffer.get());
@@ -624,7 +617,7 @@ bool MediaPlayerPrivateMediaSourceAVFObjC::copyVideoTextureToPlatformTexture(Gra
     if (!m_videoTextureCopier)
         m_videoTextureCopier = std::make_unique<VideoTextureCopierCV>(*context);
 
-    return m_videoTextureCopier->copyVideoTextureToPlatformTexture(m_lastTexture.get(), width, height, outputTexture, outputTarget, level, internalFormat, format, type, premultiplyAlpha, flipY);
+    return m_videoTextureCopier->copyImageToPlatformTexture(m_lastPixelBuffer.get(), width, height, outputTexture, outputTarget, level, internalFormat, format, type, premultiplyAlpha, flipY);
 }
 
 bool MediaPlayerPrivateMediaSourceAVFObjC::hasAvailableVideoFrame() const
@@ -934,12 +927,12 @@ AVStreamSession* MediaPlayerPrivateMediaSourceAVFObjC::streamSession()
         if (storageDirectory.isEmpty())
             return nil;
 
-        if (!fileExists(storageDirectory)) {
-            if (!makeAllDirectories(storageDirectory))
+        if (!FileSystem::fileExists(storageDirectory)) {
+            if (!FileSystem::makeAllDirectories(storageDirectory))
                 return nil;
         }
 
-        String storagePath = pathByAppendingComponent(storageDirectory, "SecureStop.plist");
+        String storagePath = FileSystem::pathByAppendingComponent(storageDirectory, "SecureStop.plist");
         m_streamSession = adoptNS([allocAVStreamSessionInstance() initWithStorageDirectoryAtURL:[NSURL fileURLWithPath:storagePath]]);
     }
     return m_streamSession.get();
@@ -1054,13 +1047,18 @@ void MediaPlayerPrivateMediaSourceAVFObjC::setVideoFullscreenLayer(PlatformLayer
         completionHandler();
         return;
     }
-    
+
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+
     m_videoFullscreenLayerManager->setVideoFullscreenLayer(videoFullscreenLayer, WTFMove(completionHandler));
     
     if (m_videoFullscreenLayerManager->videoFullscreenLayer() && m_textTrackRepresentationLayer) {
         syncTextTrackBounds();
         [m_videoFullscreenLayerManager->videoFullscreenLayer() addSublayer:m_textTrackRepresentationLayer.get()];
     }
+
+    [CATransaction commit];
 }
 
 void MediaPlayerPrivateMediaSourceAVFObjC::setVideoFullscreenFrame(FloatRect frame)
@@ -1084,11 +1082,16 @@ void MediaPlayerPrivateMediaSourceAVFObjC::syncTextTrackBounds()
 #if PLATFORM(IOS) || (PLATFORM(MAC) && ENABLE(VIDEO_PRESENTATION_MODE))
     if (!m_videoFullscreenLayerManager->videoFullscreenLayer() || !m_textTrackRepresentationLayer)
         return;
-    
+
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+
     auto videoFullscreenFrame = m_videoFullscreenLayerManager->videoFullscreenFrame();
     auto videoRect = [m_sampleBufferDisplayLayer bounds];
     auto textFrame = m_sampleBufferDisplayLayer ? videoRect : CGRectMake(0, 0, videoFullscreenFrame.width(), videoFullscreenFrame.height());
     [m_textTrackRepresentationLayer setFrame:textFrame];
+
+    [CATransaction commit];
 #endif
 }
     
@@ -1100,7 +1103,10 @@ void MediaPlayerPrivateMediaSourceAVFObjC::setTextTrackRepresentation(TextTrackR
         syncTextTrackBounds();
         return;
     }
-    
+
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+
     if (m_textTrackRepresentationLayer)
         [m_textTrackRepresentationLayer removeFromSuperlayer];
     
@@ -1110,6 +1116,8 @@ void MediaPlayerPrivateMediaSourceAVFObjC::setTextTrackRepresentation(TextTrackR
         syncTextTrackBounds();
         [m_videoFullscreenLayerManager->videoFullscreenLayer() addSublayer:m_textTrackRepresentationLayer.get()];
     }
+
+    [CATransaction commit];
     
 #else
     UNUSED_PARAM(representation);

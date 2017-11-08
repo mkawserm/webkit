@@ -90,6 +90,7 @@
 #include <WebCore/ContextMenuController.h>
 #include <WebCore/Cursor.h>
 #include <WebCore/DatabaseManager.h>
+#include <WebCore/DeprecatedGlobalSettings.h>
 #include <WebCore/Document.h>
 #include <WebCore/DocumentMarkerController.h>
 #include <WebCore/DragController.h>
@@ -506,13 +507,13 @@ void WebView::setCacheModel(WebCacheModel cacheModel)
         if (preference && (CFStringGetTypeID() == CFGetTypeID(preference.get())))
             cfurlCacheDirectory = adoptCF(static_cast<CFStringRef>(preference.leakRef()));
         else
-            cfurlCacheDirectory = WebCore::localUserSpecificStorageDirectory().createCFString();
+            cfurlCacheDirectory = WebCore::FileSystem::localUserSpecificStorageDirectory().createCFString();
     }
     cacheDirectory = String(cfurlCacheDirectory.get());
     CFIndex cacheMemoryCapacity = 0;
     CFIndex cacheDiskCapacity = 0;
 #elif USE(CURL)
-    cacheDirectory = CurlCacheManager::getInstance().cacheDirectory();
+    cacheDirectory = CurlCacheManager::singleton().cacheDirectory();
     long cacheMemoryCapacity = 0;
     long cacheDiskCapacity = 0;
 #endif
@@ -683,7 +684,7 @@ void WebView::setCacheModel(WebCacheModel cacheModel)
     CFURLCacheSetMemoryCapacity(cfurlCache.get(), cacheMemoryCapacity);
     CFURLCacheSetDiskCapacity(cfurlCache.get(), cacheDiskCapacity);
 #elif USE(CURL)
-    CurlCacheManager::getInstance().setStorageSizeLimit(cacheDiskCapacity);
+    CurlCacheManager::singleton().setStorageSizeLimit(cacheDiskCapacity);
 #endif
 
     s_didSetCacheModel = true;
@@ -2043,7 +2044,7 @@ bool WebView::gesture(WPARAM wParam, LPARAM lParam)
             coreFrame->view()->scrollBy(logicalScrollDelta);
             scrolledArea = coreFrame->view();
         } else
-            scrollableLayer->scrollByRecursively(logicalScrollDelta, WebCore::RenderLayer::ScrollOffsetClamped, &scrolledArea);
+            scrollableLayer->scrollByRecursively(logicalScrollDelta, &scrolledArea);
 
         if (!(UpdatePanningFeedbackPtr() && BeginPanningFeedbackPtr() && EndPanningFeedbackPtr())) {
             CloseGestureInfoHandlePtr()(gestureHandle);
@@ -2341,7 +2342,7 @@ const char* WebView::interpretKeyEvent(const KeyboardEvent* evt)
 
 bool WebView::handleEditingKeyboardEvent(KeyboardEvent* evt)
 {
-    Node* node = evt->target()->toNode();
+    auto node = evt->target()->toNode();
     ASSERT(node);
     Frame* frame = node->document().frame();
     ASSERT(frame);
@@ -3096,7 +3097,7 @@ HRESULT WebView::initWithFrame(RECT frame, _In_ BSTR frameName, _In_ BSTR groupN
 
     BOOL useHighResolutionTimer;
     if (SUCCEEDED(m_preferences->shouldUseHighResolutionTimers(&useHighResolutionTimer)))
-        Settings::setShouldUseHighResolutionTimers(useHighResolutionTimer);
+        DeprecatedGlobalSettings::setShouldUseHighResolutionTimers(useHighResolutionTimer);
 
     m_inspectorClient = new WebInspectorClient(this);
 
@@ -5204,12 +5205,10 @@ HRESULT WebView::notifyPreferencesChanged(IWebNotification* notification)
         return hr;
     RuntimeEnabledFeatures::sharedFeatures().setModernMediaControlsEnabled(!!enabled);
 
-#if ENABLE(WEB_ANIMATIONS)
     hr = prefsPrivate->webAnimationsEnabled(&enabled);
     if (FAILED(hr))
         return hr;
     RuntimeEnabledFeatures::sharedFeatures().setWebAnimationsEnabled(!!enabled);
-#endif
 
     hr = prefsPrivate->userTimingEnabled(&enabled);
     if (FAILED(hr))
@@ -5358,7 +5357,7 @@ HRESULT WebView::notifyPreferencesChanged(IWebNotification* notification)
     hr = preferences->avFoundationEnabled(&enabled);
     if (FAILED(hr))
         return hr;
-    settings.setAVFoundationEnabled(enabled);
+    DeprecatedGlobalSettings::setAVFoundationEnabled(enabled);
 #endif
 
     if (prefsPrivate) {
@@ -5416,12 +5415,12 @@ HRESULT WebView::notifyPreferencesChanged(IWebNotification* notification)
     hr = prefsPrivate->shouldUseHighResolutionTimers(&enabled);
     if (FAILED(hr))
         return hr;
-    settings.setShouldUseHighResolutionTimers(enabled);
+    DeprecatedGlobalSettings::setShouldUseHighResolutionTimers(enabled);
 
     hr = prefsPrivate->isFrameFlatteningEnabled(&enabled);
     if (FAILED(hr))
         return hr;
-    settings.setFrameFlattening(enabled ? FrameFlatteningFullyEnabled : FrameFlatteningDisabled);
+    settings.setFrameFlattening(enabled ? FrameFlattening::FullyEnabled : FrameFlattening::Disabled);
 
     hr = prefsPrivate->acceleratedCompositingEnabled(&enabled);
     if (FAILED(hr))
@@ -5517,7 +5516,7 @@ HRESULT WebView::notifyPreferencesChanged(IWebNotification* notification)
     hr = prefsPrivate->mockScrollbarsEnabled(&enabled);
     if (FAILED(hr))
         return hr;
-    settings.setMockScrollbarsEnabled(enabled);
+    DeprecatedGlobalSettings::setMockScrollbarsEnabled(enabled);
 
     hr = prefsPrivate->isInheritURIQueryComponentEnabled(&enabled);
     if (FAILED(hr))

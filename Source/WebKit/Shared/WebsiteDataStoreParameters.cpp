@@ -36,18 +36,22 @@ WebsiteDataStoreParameters::~WebsiteDataStoreParameters()
 
 void WebsiteDataStoreParameters::encode(IPC::Encoder& encoder) const
 {
-    encoder << sessionID;
+    encoder << networkSessionParameters;
     encoder << uiProcessCookieStorageIdentifier;
     encoder << cookieStoragePathExtensionHandle;
     encoder << pendingCookies;
     encoder << cacheStorageDirectory;
+    encoder << cacheStoragePerOriginQuota;
     encoder << cacheStorageDirectoryExtensionHandle;
 }
 
 bool WebsiteDataStoreParameters::decode(IPC::Decoder& decoder, WebsiteDataStoreParameters& parameters)
 {
-    if (!decoder.decode(parameters.sessionID))
+    std::optional<NetworkSessionCreationParameters> networkSessionParameters;
+    decoder >> networkSessionParameters;
+    if (!networkSessionParameters)
         return false;
+    parameters.networkSessionParameters = WTFMove(*networkSessionParameters);
 
     if (!decoder.decode(parameters.uiProcessCookieStorageIdentifier))
         return false;
@@ -62,6 +66,9 @@ bool WebsiteDataStoreParameters::decode(IPC::Decoder& decoder, WebsiteDataStoreP
     parameters.pendingCookies = WTFMove(*pendingCookies);
 
     if (!decoder.decode(parameters.cacheStorageDirectory))
+        return false;
+
+    if (!decoder.decode(parameters.cacheStoragePerOriginQuota))
         return false;
 
     if (!decoder.decode(parameters.cacheStorageDirectoryExtensionHandle))

@@ -72,6 +72,7 @@ inline CapabilityLevel canCompile(Node* node)
     case GetButterfly:
     case GetButterflyWithoutCaging:
     case NewObject:
+    case NewStringObject:
     case NewArray:
     case NewArrayWithSpread:
     case Spread:
@@ -144,6 +145,7 @@ inline CapabilityLevel canCompile(Node* node)
     case ReallocatePropertyStorage:
     case NukeStructureAndSetButterfly:
     case GetTypedArrayByteOffset:
+    case GetPrototypeOf:
     case NotifyWrite:
     case StoreBarrier:
     case FencedStoreBarrier:
@@ -178,6 +180,7 @@ inline CapabilityLevel canCompile(Node* node)
     case GetArgumentCountIncludingThis:
     case ToNumber:
     case ToString:
+    case ToObject:
     case CallObjectConstructor:
     case CallStringConstructor:
     case MakeRope:
@@ -284,9 +287,12 @@ inline CapabilityLevel canCompile(Node* node)
     case CompareLessEq:
     case CompareGreater:
     case CompareGreaterEq:
+    case CompareBelow:
+    case CompareBelowEq:
     case CompareStrictEq:
     case DefineDataProperty:
     case DefineAccessorProperty:
+    case StringSlice:
     case ToLowerCase:
     case NumberToStringWithRadix:
     case NumberToStringWithValidRadixConstant:

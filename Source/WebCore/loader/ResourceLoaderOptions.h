@@ -31,6 +31,7 @@
 #pragma once
 
 #include "FetchOptions.h"
+#include "ServiceWorkerIdentifier.h"
 #include "StoredCredentialsPolicy.h"
 #include <wtf/Vector.h>
 #include <wtf/text/WTFString.h>
@@ -92,6 +93,17 @@ enum class InitiatorContext {
     Worker,
 };
 
+enum class ServiceWorkersMode {
+    All,
+    None,
+    Only // An error will happen if service worker is not handling the fetch. Used to bypass preflight safely.
+};
+
+enum class ContentEncodingSniffingPolicy {
+    Sniff,
+    DoNotSniff,
+};
+
 struct ResourceLoaderOptions : public FetchOptions {
     ResourceLoaderOptions() { }
 
@@ -115,6 +127,7 @@ struct ResourceLoaderOptions : public FetchOptions {
 
     SendCallbackPolicy sendLoadCallbacks { DoNotSendCallbacks };
     ContentSniffingPolicy sniffContent { DoNotSniffContent };
+    ContentEncodingSniffingPolicy sniffContentEncoding { ContentEncodingSniffingPolicy::Sniff };
     DataBufferingPolicy dataBufferingPolicy { BufferData };
     StoredCredentialsPolicy storedCredentialsPolicy { StoredCredentialsPolicy::DoNotUse };
     SecurityCheckPolicy securityCheck { DoSecurityCheck };
@@ -124,6 +137,10 @@ struct ResourceLoaderOptions : public FetchOptions {
     CachingPolicy cachingPolicy { CachingPolicy::AllowCaching };
     SameOriginDataURLFlag sameOriginDataURLFlag { SameOriginDataURLFlag::Unset };
     InitiatorContext initiatorContext { InitiatorContext::Document };
+    ServiceWorkersMode serviceWorkersMode { ServiceWorkersMode::All };
+#if ENABLE(SERVICE_WORKER)
+    std::optional<ServiceWorkerIdentifier> serviceWorkerIdentifier;
+#endif
 
     ClientCredentialPolicy clientCredentialPolicy { ClientCredentialPolicy::CannotAskClientForCredentials };
     unsigned maxRedirectCount { 20 };

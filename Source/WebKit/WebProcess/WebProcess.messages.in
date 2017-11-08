@@ -113,4 +113,8 @@ messages -> WebProcess LegacyReceiver {
 #if USE(SOUP)
     SetNetworkProxySettings(struct WebCore::SoupNetworkProxySettings settings)
 #endif
+
+#if ENABLE(SERVICE_WORKER)
+    GetWorkerContextConnection(uint64_t pageID, struct WebKit::WebPreferencesStore store)
+#endif
 }

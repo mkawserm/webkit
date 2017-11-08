@@ -47,6 +47,28 @@ window.UIHelper = class UIHelper {
         });
     }
 
+    static activateElement(element)
+    {
+        const x = element.offsetLeft + element.offsetWidth / 2;
+        const y = element.offsetTop + element.offsetHeight / 2;
+        return UIHelper.activateAt(x, y);
+    }
+
+    static keyDown(key)
+    {
+        if (!this.isWebKit2() || !this.isIOS()) {
+            eventSender.keyDown(key);
+            return Promise.resolve();
+        }
+
+        return new Promise((resolve) => {
+            testRunner.runUIScript(`
+                uiController.keyDownUsingHardwareKeyboard("downArrow", function() {
+                    uiController.uiScriptComplete("Done");
+                });`, resolve);
+        });
+    }
+
     static ensurePresentationUpdate()
     {
         if (!this.isWebKit2()) {

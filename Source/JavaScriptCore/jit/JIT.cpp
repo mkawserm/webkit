@@ -71,14 +71,6 @@ void ctiPatchCallByReturnAddress(ReturnAddressPtr returnAddress, FunctionPtr new
         newCalleeFunction);
 }
 
-JIT::CodeRef JIT::compileCTINativeCall(VM* vm, NativeFunction func)
-{
-    if (!vm->canUseJIT())
-        return CodeRef::createLLIntCodeRef(llint_native_call_trampoline);
-    JIT jit(vm, 0);
-    return jit.privateCompileCTINativeCall(vm, func);
-}
-
 JIT::JIT(VM* vm, CodeBlock* codeBlock, unsigned loopOSREntryBytecodeOffset)
     : JSInterfaceJIT(vm, codeBlock)
     , m_interpreter(vm->interpreter)
@@ -111,7 +103,7 @@ void JIT::emitEnterOptimizationCheck()
     skipOptimize.append(branchAdd32(Signed, TrustedImm32(Options::executionCounterIncrementForEntry()), AbsoluteAddress(m_codeBlock->addressOfJITExecuteCounter())));
     ASSERT(!m_bytecodeOffset);
 
-    copyCalleeSavesFromFrameOrRegisterToVMEntryFrameCalleeSavesBuffer(*vm());
+    copyCalleeSavesFromFrameOrRegisterToEntryFrameCalleeSavesBuffer(vm()->topEntryFrame);
 
     callOperation(operationOptimize, m_bytecodeOffset);
     skipOptimize.append(branchTestPtr(Zero, returnValueGPR));
@@ -203,7 +195,7 @@ void JIT::privateCompileMainPass()
             // Instead, we just find the minimum bytecode offset that is reachable, and
             // compile code from that bytecode offset onwards.
 
-            BytecodeGraph<CodeBlock> graph(m_codeBlock, m_instructions);
+            BytecodeGraph graph(m_codeBlock, m_instructions);
             BytecodeBasicBlock* block = graph.findBasicBlockForBytecodeOffset(m_loopOSREntryBytecodeOffset);
             RELEASE_ASSERT(block);
 
@@ -257,6 +249,7 @@ void JIT::privateCompileMainPass()
         unsigned bytecodeOffset = m_bytecodeOffset;
 
         switch (opcodeID) {
+        DEFINE_SLOW_OP(assert)
         DEFINE_SLOW_OP(in)
         DEFINE_SLOW_OP(less)
         DEFINE_SLOW_OP(lesseq)
@@ -265,6 +258,28 @@ void JIT::privateCompileMainPass()
         DEFINE_SLOW_OP(is_function)
         DEFINE_SLOW_OP(is_object_or_null)
         DEFINE_SLOW_OP(typeof)
+        DEFINE_SLOW_OP(strcat)
+        DEFINE_SLOW_OP(push_with_scope)
+        DEFINE_SLOW_OP(create_lexical_environment)
+        DEFINE_SLOW_OP(get_by_val_with_this)
+        DEFINE_SLOW_OP(put_by_id_with_this)
+        DEFINE_SLOW_OP(put_by_val_with_this)
+        DEFINE_SLOW_OP(resolve_scope_for_hoisting_func_decl_in_eval)
+        DEFINE_SLOW_OP(define_data_property)
+        DEFINE_SLOW_OP(define_accessor_property)
+        DEFINE_SLOW_OP(unreachable)
+        DEFINE_SLOW_OP(throw_static_error)
+        DEFINE_SLOW_OP(new_array_with_spread)
+        DEFINE_SLOW_OP(spread)
+        DEFINE_SLOW_OP(get_enumerable_length)
+        DEFINE_SLOW_OP(has_generic_property)
+        DEFINE_SLOW_OP(get_property_enumerator)
+        DEFINE_SLOW_OP(to_index_string)
+        DEFINE_SLOW_OP(create_direct_arguments)
+        DEFINE_SLOW_OP(create_scoped_arguments)
+        DEFINE_SLOW_OP(create_cloned_arguments)
+        DEFINE_SLOW_OP(create_rest)
+        DEFINE_SLOW_OP(pow)
 
         DEFINE_OP(op_add)
         DEFINE_OP(op_bitand)
@@ -281,17 +296,11 @@ void JIT::privateCompileMainPass()
         DEFINE_OP(op_construct)
         DEFINE_OP(op_create_this)
         DEFINE_OP(op_to_this)
-        DEFINE_OP(op_create_direct_arguments)
-        DEFINE_OP(op_create_scoped_arguments)
-        DEFINE_OP(op_create_cloned_arguments)
         DEFINE_OP(op_get_argument)
         DEFINE_OP(op_argument_count)
-        DEFINE_OP(op_create_rest)
         DEFINE_OP(op_get_rest_length)
         DEFINE_OP(op_check_tdz)
-        DEFINE_OP(op_assert)
         DEFINE_OP(op_identity_with_profile)
-        DEFINE_OP(op_unreachable)
         DEFINE_OP(op_debug)
         DEFINE_OP(op_del_by_id)
         DEFINE_OP(op_del_by_val)
@@ -301,6 +310,8 @@ void JIT::privateCompileMainPass()
         DEFINE_OP(op_get_scope)
         DEFINE_OP(op_eq)
         DEFINE_OP(op_eq_null)
+        DEFINE_OP(op_below)
+        DEFINE_OP(op_beloweq)
         DEFINE_OP(op_try_get_by_id)
         case op_get_array_length:
         case op_get_by_id_proto_load:
@@ -308,7 +319,6 @@ void JIT::privateCompileMainPass()
         DEFINE_OP(op_get_by_id)
         DEFINE_OP(op_get_by_id_with_this)
         DEFINE_OP(op_get_by_val)
-        DEFINE_OP(op_get_by_val_with_this)
         DEFINE_OP(op_overrides_has_instance)
         DEFINE_OP(op_instanceof)
         DEFINE_OP(op_instanceof_custom)
@@ -331,6 +341,8 @@ void JIT::privateCompileMainPass()
         DEFINE_OP(op_jnlesseq)
         DEFINE_OP(op_jngreater)
         DEFINE_OP(op_jngreatereq)
+        DEFINE_OP(op_jbelow)
+        DEFINE_OP(op_jbeloweq)
         DEFINE_OP(op_jtrue)
         DEFINE_OP(op_loop_hint)
         DEFINE_OP(op_check_traps)
@@ -345,8 +357,6 @@ void JIT::privateCompileMainPass()
         DEFINE_OP(op_new_array)
         DEFINE_OP(op_new_array_with_size)
         DEFINE_OP(op_new_array_buffer)
-        DEFINE_OP(op_new_array_with_spread)
-        DEFINE_OP(op_spread)
         DEFINE_OP(op_new_func)
         DEFINE_OP(op_new_func_exp)
         DEFINE_OP(op_new_generator_func)
@@ -361,59 +371,46 @@ void JIT::privateCompileMainPass()
         DEFINE_OP(op_nstricteq)
         DEFINE_OP(op_dec)
         DEFINE_OP(op_inc)
-        DEFINE_OP(op_pow)
         DEFINE_OP(op_profile_type)
         DEFINE_OP(op_profile_control_flow)
-        DEFINE_OP(op_push_with_scope)
-        DEFINE_OP(op_create_lexical_environment)
         DEFINE_OP(op_get_parent_scope)
         DEFINE_OP(op_put_by_id)
-        DEFINE_OP(op_put_by_id_with_this)
         DEFINE_OP(op_put_by_index)
         case op_put_by_val_direct:
         DEFINE_OP(op_put_by_val)
-        DEFINE_OP(op_put_by_val_with_this)
         DEFINE_OP(op_put_getter_by_id)
         DEFINE_OP(op_put_setter_by_id)
         DEFINE_OP(op_put_getter_setter_by_id)
         DEFINE_OP(op_put_getter_by_val)
         DEFINE_OP(op_put_setter_by_val)
-        DEFINE_OP(op_define_data_property)
-        DEFINE_OP(op_define_accessor_property)
 
         DEFINE_OP(op_ret)
         DEFINE_OP(op_rshift)
         DEFINE_OP(op_unsigned)
         DEFINE_OP(op_urshift)
         DEFINE_OP(op_set_function_name)
-        DEFINE_OP(op_strcat)
         DEFINE_OP(op_stricteq)
         DEFINE_OP(op_sub)
         DEFINE_OP(op_switch_char)
         DEFINE_OP(op_switch_imm)
         DEFINE_OP(op_switch_string)
         DEFINE_OP(op_throw)
-        DEFINE_OP(op_throw_static_error)
         DEFINE_OP(op_to_number)
         DEFINE_OP(op_to_string)
+        DEFINE_OP(op_to_object)
         DEFINE_OP(op_to_primitive)
 
         DEFINE_OP(op_resolve_scope)
-        DEFINE_OP(op_resolve_scope_for_hoisting_func_decl_in_eval)
         DEFINE_OP(op_get_from_scope)
         DEFINE_OP(op_put_to_scope)
         DEFINE_OP(op_get_from_arguments)
         DEFINE_OP(op_put_to_arguments)
 
-        DEFINE_OP(op_get_enumerable_length)
-        DEFINE_OP(op_has_generic_property)
         DEFINE_OP(op_has_structure_property)
         DEFINE_OP(op_has_indexed_property)
         DEFINE_OP(op_get_direct_pname)
-        DEFINE_OP(op_get_property_enumerator)
         DEFINE_OP(op_enumerator_structure_pname)
         DEFINE_OP(op_enumerator_generic_pname)
-        DEFINE_OP(op_to_index_string)
             
         DEFINE_OP(op_log_shadow_chicken_prologue)
         DEFINE_OP(op_log_shadow_chicken_tail)
@@ -536,6 +533,7 @@ void JIT::privateCompileSlowCases()
         DEFINE_SLOWCASE_OP(op_sub)
         DEFINE_SLOWCASE_OP(op_to_number)
         DEFINE_SLOWCASE_OP(op_to_string)
+        DEFINE_SLOWCASE_OP(op_to_object)
         DEFINE_SLOWCASE_OP(op_to_primitive)
         DEFINE_SLOWCASE_OP(op_has_indexed_property)
         DEFINE_SLOWCASE_OP(op_has_structure_property)
@@ -885,7 +883,7 @@ void JIT::privateCompileExceptionHandlers()
     if (!m_exceptionChecksWithCallFrameRollback.empty()) {
         m_exceptionChecksWithCallFrameRollback.link(this);
 
-        copyCalleeSavesToVMEntryFrameCalleeSavesBuffer(*vm());
+        copyCalleeSavesToEntryFrameCalleeSavesBuffer(vm()->topEntryFrame);
 
         // lookupExceptionHandlerFromCallerFrame is passed two arguments, the VM and the exec (the CallFrame*).
 
@@ -905,7 +903,7 @@ void JIT::privateCompileExceptionHandlers()
         m_exceptionHandler = label();
         m_exceptionChecks.link(this);
 
-        copyCalleeSavesToVMEntryFrameCalleeSavesBuffer(*vm());
+        copyCalleeSavesToEntryFrameCalleeSavesBuffer(vm()->topEntryFrame);
 
         // lookupExceptionHandler is passed two arguments, the VM and the exec (the CallFrame*).
         move(TrustedImmPtr(vm()), GPRInfo::argumentGPR0);

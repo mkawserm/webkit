@@ -32,20 +32,26 @@ namespace WebCore {
 
 #define WEBCORE_COMMON_PRIVATE_IDENTIFIERS_EACH_PROPERTY_NAME(macro) \
     macro(Animation) \
-    macro(AnimationEffectReadOnly) \
+    macro(AnimationEffect) \
+    macro(AnimationEffectTiming) \
     macro(AnimationTimeline) \
     macro(ApplePaySession) \
     macro(AttachmentElement) \
     macro(Audio) \
     macro(Cache) \
     macro(CacheStorage) \
+    macro(Client) \
+    macro(Clients) \
     macro(Credential) \
     macro(CredentialsContainer) \
     macro(CustomElementRegistry) \
     macro(DataTransferItem) \
     macro(DataTransferItemList) \
     macro(DocumentTimeline) \
+    macro(ExtendableEvent) \
+    macro(ExtendableMessageEvent) \
     macro(FederatedCredential) \
+    macro(FetchEvent) \
     macro(FileSystem) \
     macro(FileSystemDirectoryEntry) \
     macro(FileSystemDirectoryReader) \
@@ -56,6 +62,7 @@ namespace WebCore {
     macro(GamepadEvent) \
     macro(HTMLAttachmentElement) \
     macro(HTMLAudioElement) \
+    macro(HTMLMenuItemElement) \
     macro(HTMLSlotElement) \
     macro(Headers) \
     macro(IDBCursor) \
@@ -163,6 +170,7 @@ namespace WebCore {
     macro(WebKitMediaKeySession) \
     macro(WebKitMediaKeys) \
     macro(WebSocket) \
+    macro(WindowClient) \
     macro(WritableStream) \
     macro(XMLHttpRequest) \
     macro(addTrack) \
@@ -266,7 +274,6 @@ namespace WebCore {
     macro(structuredCloneArrayBuffer) \
     macro(structuredCloneArrayBufferView) \
     macro(top) \
-    macro(totalQueuedBytes) \
     macro(underlyingByteSource) \
     macro(underlyingSink) \
     macro(underlyingSource) \

@@ -22,16 +22,18 @@
 #include "config.h"
 #include "RenderSVGResourceRadialGradient.h"
 
+#include <wtf/IsoMallocInlines.h>
+
 namespace WebCore {
+
+WTF_MAKE_ISO_ALLOCATED_IMPL(RenderSVGResourceRadialGradient);
 
 RenderSVGResourceRadialGradient::RenderSVGResourceRadialGradient(SVGRadialGradientElement& element, RenderStyle&& style)
     : RenderSVGResourceGradient(element, WTFMove(style))
 {
 }
 
-RenderSVGResourceRadialGradient::~RenderSVGResourceRadialGradient()
-{
-}
+RenderSVGResourceRadialGradient::~RenderSVGResourceRadialGradient() = default;
 
 bool RenderSVGResourceRadialGradient::collectGradientAttributes()
 {

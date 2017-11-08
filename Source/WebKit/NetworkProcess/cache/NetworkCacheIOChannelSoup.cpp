@@ -26,8 +26,6 @@
 #include "config.h"
 #include "NetworkCacheIOChannel.h"
 
-#if ENABLE(NETWORK_CACHE)
-
 #include "NetworkCacheFileSystem.h"
 #include <wtf/MainThread.h>
 #include <wtf/RunLoop.h>
@@ -43,7 +41,7 @@ IOChannel::IOChannel(const String& filePath, Type type)
     : m_path(filePath)
     , m_type(type)
 {
-    auto path = WebCore::fileSystemRepresentation(filePath);
+    auto path = WebCore::FileSystem::fileSystemRepresentation(filePath);
     GRefPtr<GFile> file = adoptGRef(g_file_new_for_path(path.data()));
     switch (m_type) {
     case Type::Create: {
@@ -282,5 +280,3 @@ void IOChannel::write(size_t offset, const Data& data, WorkQueue* queue, Functio
 
 } // namespace NetworkCache
 } // namespace WebKit
-
-#endif

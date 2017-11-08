@@ -45,12 +45,14 @@ struct TestOptions {
     bool useCharacterSelectionGranularity { false };
     bool enableAttachmentElement { false };
     bool enableIntersectionObserver { false };
+    bool enableMenuItemElement { false };
     bool enableModernMediaControls { true };
     bool enablePointerLock { false };
     bool enableCredentialManagement { false };
     bool enableIsSecureContextAttribute { true };
     bool enableInspectorAdditions { false };
     bool shouldShowTouches { false };
+    bool dumpJSConsoleLogInStdErr { false };
 
     float deviceScaleFactor { 1 };
     Vector<String> overrideLanguages;
@@ -70,11 +72,13 @@ struct TestOptions {
             || useCharacterSelectionGranularity != options.useCharacterSelectionGranularity
             || enableAttachmentElement != options.enableAttachmentElement
             || enableIntersectionObserver != options.enableIntersectionObserver
+            || enableMenuItemElement != options.enableMenuItemElement
             || enableModernMediaControls != options.enableModernMediaControls
             || enablePointerLock != options.enablePointerLock
             || enableCredentialManagement != options.enableCredentialManagement
             || enableIsSecureContextAttribute != options.enableIsSecureContextAttribute
-            || enableInspectorAdditions != options.enableInspectorAdditions)
+            || enableInspectorAdditions != options.enableInspectorAdditions
+            || dumpJSConsoleLogInStdErr != options.dumpJSConsoleLogInStdErr)
             return false;
 
         return true;

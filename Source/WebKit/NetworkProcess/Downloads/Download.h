@@ -23,8 +23,7 @@
  * THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef Download_h
-#define Download_h
+#pragma once
 
 #include "DownloadID.h"
 #include "MessageSender.h"
@@ -38,6 +37,8 @@
 #include <wtf/RetainPtr.h>
 
 #if USE(NETWORK_SESSION)
+#include "NetworkDataTask.h"
+#include <WebCore/AuthenticationChallenge.h>
 #if PLATFORM(COCOA)
 OBJC_CLASS NSURLSessionDownloadTask;
 #endif
@@ -101,6 +102,7 @@ public:
 
 #if USE(NETWORK_SESSION)
     void setSandboxExtension(RefPtr<SandboxExtension>&& sandboxExtension) { m_sandboxExtension = WTFMove(sandboxExtension); }
+    void didReceiveChallenge(const WebCore::AuthenticationChallenge&, ChallengeCompletionHandler&&);
 #else
     const WebCore::ResourceRequest& request() const { return m_request; }
     void didReceiveAuthenticationChallenge(const WebCore::AuthenticationChallenge&);
@@ -164,5 +166,3 @@ private:
 };
 
 } // namespace WebKit
-
-#endif // Download_h

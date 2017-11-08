@@ -22,6 +22,8 @@ List of files:
 /LayoutTests/imported/w3c/web-platform-tests/XMLHttpRequest/abort-after-send.htm
 /LayoutTests/imported/w3c/web-platform-tests/XMLHttpRequest/abort-after-timeout.htm
 /LayoutTests/imported/w3c/web-platform-tests/XMLHttpRequest/abort-during-done.htm
+/LayoutTests/imported/w3c/web-platform-tests/XMLHttpRequest/abort-during-headers-received.htm
+/LayoutTests/imported/w3c/web-platform-tests/XMLHttpRequest/abort-during-loading.htm
 /LayoutTests/imported/w3c/web-platform-tests/XMLHttpRequest/abort-during-open.htm
 /LayoutTests/imported/w3c/web-platform-tests/XMLHttpRequest/abort-during-open.js
 /LayoutTests/imported/w3c/web-platform-tests/XMLHttpRequest/abort-during-open.worker.js
@@ -95,6 +97,8 @@ List of files:
 /LayoutTests/imported/w3c/web-platform-tests/XMLHttpRequest/event-timeout.htm
 /LayoutTests/imported/w3c/web-platform-tests/XMLHttpRequest/event-upload-progress-crossorigin.htm
 /LayoutTests/imported/w3c/web-platform-tests/XMLHttpRequest/event-upload-progress.htm
+/LayoutTests/imported/w3c/web-platform-tests/XMLHttpRequest/firing-events-http-content-length.html
+/LayoutTests/imported/w3c/web-platform-tests/XMLHttpRequest/firing-events-http-no-content-length.html
 /LayoutTests/imported/w3c/web-platform-tests/XMLHttpRequest/folder.txt
 /LayoutTests/imported/w3c/web-platform-tests/XMLHttpRequest/formdata-blob.htm
 /LayoutTests/imported/w3c/web-platform-tests/XMLHttpRequest/formdata-delete.htm
@@ -160,6 +164,8 @@ List of files:
 /LayoutTests/imported/w3c/web-platform-tests/XMLHttpRequest/overridemimetype-open-state-force-xml.htm
 /LayoutTests/imported/w3c/web-platform-tests/XMLHttpRequest/overridemimetype-unsent-state-force-shiftjis.htm
 /LayoutTests/imported/w3c/web-platform-tests/XMLHttpRequest/progress-events-response-data-gzip.htm
+/LayoutTests/imported/w3c/web-platform-tests/XMLHttpRequest/progressevent-constructor.html
+/LayoutTests/imported/w3c/web-platform-tests/XMLHttpRequest/progressevent-interface.html
 /LayoutTests/imported/w3c/web-platform-tests/XMLHttpRequest/response-data-arraybuffer.htm
 /LayoutTests/imported/w3c/web-platform-tests/XMLHttpRequest/response-data-blob.htm
 /LayoutTests/imported/w3c/web-platform-tests/XMLHttpRequest/response-data-deflate.htm
@@ -171,6 +177,7 @@ List of files:
 /LayoutTests/imported/w3c/web-platform-tests/XMLHttpRequest/responseText-status.html
 /LayoutTests/imported/w3c/web-platform-tests/XMLHttpRequest/responseType-document-in-worker.html
 /LayoutTests/imported/w3c/web-platform-tests/XMLHttpRequest/responseXML-unavailable-in-worker.html
+/LayoutTests/imported/w3c/web-platform-tests/XMLHttpRequest/responsedocument-decoding.htm
 /LayoutTests/imported/w3c/web-platform-tests/XMLHttpRequest/responsetext-decoding.htm
 /LayoutTests/imported/w3c/web-platform-tests/XMLHttpRequest/responsetype.html
 /LayoutTests/imported/w3c/web-platform-tests/XMLHttpRequest/responseurl.html
@@ -258,6 +265,7 @@ List of files:
 /LayoutTests/imported/w3c/web-platform-tests/XMLHttpRequest/xmlhttprequest-sync-block-defer-scripts-subframe.html
 /LayoutTests/imported/w3c/web-platform-tests/XMLHttpRequest/xmlhttprequest-sync-block-defer-scripts.html
 /LayoutTests/imported/w3c/web-platform-tests/XMLHttpRequest/xmlhttprequest-sync-block-scripts.html
+/LayoutTests/imported/w3c/web-platform-tests/XMLHttpRequest/xmlhttprequest-sync-default-feature-policy.sub.html
 /LayoutTests/imported/w3c/web-platform-tests/XMLHttpRequest/xmlhttprequest-sync-not-hang-scriptloader-subframe.html
 /LayoutTests/imported/w3c/web-platform-tests/XMLHttpRequest/xmlhttprequest-sync-not-hang-scriptloader.html
 /LayoutTests/imported/w3c/web-platform-tests/XMLHttpRequest/xmlhttprequest-timeout-aborted.html

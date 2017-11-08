@@ -283,7 +283,7 @@ static std::optional<Timeouts> deserializeTimeouts(InspectorObject& timeoutsObje
             continue;
 
         int timeoutMS;
-        if (!it->value->asInteger(timeoutMS) || timeoutMS < 0 || timeoutMS > INT_MAX)
+        if (it->value->type() != InspectorValue::Type::Integer || !it->value->asInteger(timeoutMS) || timeoutMS < 0 || timeoutMS > INT_MAX)
             return std::nullopt;
 
         if (it->key == "script")
@@ -404,7 +404,8 @@ RefPtr<InspectorObject> WebDriverService::validatedCapabilities(const InspectorO
             if (!platformValidateCapability(it->key, it->value))
                 return nullptr;
             result->setValue(it->key, RefPtr<InspectorValue>(it->value));
-        }
+        } else
+            return nullptr;
     }
     return result;
 }
@@ -476,7 +477,7 @@ RefPtr<InspectorObject> WebDriverService::processCapabilities(const InspectorObj
     // 1. Let capabilities request be the result of getting the property "capabilities" from parameters.
     RefPtr<InspectorObject> capabilitiesObject;
     if (!parameters.getObject(ASCIILiteral("capabilities"), capabilitiesObject)) {
-        completionHandler(CommandResult::fail(CommandResult::ErrorCode::SessionNotCreated));
+        completionHandler(CommandResult::fail(CommandResult::ErrorCode::InvalidArgument));
         return nullptr;
     }
 
@@ -487,14 +488,14 @@ RefPtr<InspectorObject> WebDriverService::processCapabilities(const InspectorObj
         // 2.1. If required capabilities is undefined, set the value to an empty JSON Object.
         requiredCapabilities = InspectorObject::create();
     else if (!requiredCapabilitiesValue->asObject(requiredCapabilities)) {
-        completionHandler(CommandResult::fail(CommandResult::ErrorCode::SessionNotCreated, String("alwaysMatch is invalid in capabilities")));
+        completionHandler(CommandResult::fail(CommandResult::ErrorCode::InvalidArgument, String("alwaysMatch is invalid in capabilities")));
         return nullptr;
     }
 
     // 2.2. Let required capabilities be the result of trying to validate capabilities with argument required capabilities.
     requiredCapabilities = validatedCapabilities(*requiredCapabilities);
     if (!requiredCapabilities) {
-        completionHandler(CommandResult::fail(CommandResult::ErrorCode::SessionNotCreated, String("Invalid alwaysMatch capabilities")));
+        completionHandler(CommandResult::fail(CommandResult::ErrorCode::InvalidArgument, String("Invalid alwaysMatch capabilities")));
         return nullptr;
     }
 
@@ -507,7 +508,7 @@ RefPtr<InspectorObject> WebDriverService::processCapabilities(const InspectorObj
         firstMatchCapabilitiesList->pushObject(InspectorObject::create());
     } else if (!firstMatchCapabilitiesValue->asArray(firstMatchCapabilitiesList)) {
         // 3.2. If all first match capabilities is not a JSON List, return error with error code invalid argument.
-        completionHandler(CommandResult::fail(CommandResult::ErrorCode::SessionNotCreated, String("firstMatch is invalid in capabilities")));
+        completionHandler(CommandResult::fail(CommandResult::ErrorCode::InvalidArgument, String("firstMatch is invalid in capabilities")));
         return nullptr;
     }
 
@@ -520,13 +521,13 @@ RefPtr<InspectorObject> WebDriverService::processCapabilities(const InspectorObj
         RefPtr<InspectorValue> firstMatchCapabilitiesValue = firstMatchCapabilitiesList->get(i);
         RefPtr<InspectorObject> firstMatchCapabilities;
         if (!firstMatchCapabilitiesValue->asObject(firstMatchCapabilities)) {
-            completionHandler(CommandResult::fail(CommandResult::ErrorCode::SessionNotCreated, String("Invalid capabilities found in firstMatch")));
+            completionHandler(CommandResult::fail(CommandResult::ErrorCode::InvalidArgument, String("Invalid capabilities found in firstMatch")));
             return nullptr;
         }
         // 5.1. Let validated capabilities be the result of trying to validate capabilities with argument first match capabilities.
         firstMatchCapabilities = validatedCapabilities(*firstMatchCapabilities);
         if (!firstMatchCapabilities) {
-            completionHandler(CommandResult::fail(CommandResult::ErrorCode::SessionNotCreated, String("Invalid firstMatch capabilities")));
+            completionHandler(CommandResult::fail(CommandResult::ErrorCode::InvalidArgument, String("Invalid firstMatch capabilities")));
             return nullptr;
         }
         // 5.2. Append validated capabilities to validated first match capabilities.
@@ -539,7 +540,7 @@ RefPtr<InspectorObject> WebDriverService::processCapabilities(const InspectorObj
         // 6.1. Let merged capabilities be the result of trying to merge capabilities with required capabilities and first match capabilities as arguments.
         auto mergedCapabilities = mergeCapabilities(*requiredCapabilities, *validatedFirstMatchCapabilies);
         if (!mergedCapabilities) {
-            completionHandler(CommandResult::fail(CommandResult::ErrorCode::SessionNotCreated, String("Same capability found in firstMatch and alwaysMatch")));
+            completionHandler(CommandResult::fail(CommandResult::ErrorCode::InvalidArgument, String("Same capability found in firstMatch and alwaysMatch")));
             return nullptr;
         }
         // 6.2. Let matched capabilities be the result of trying to match capabilities with merged capabilities as an argument.
@@ -550,7 +551,7 @@ RefPtr<InspectorObject> WebDriverService::processCapabilities(const InspectorObj
         }
     }
 
-    completionHandler(CommandResult::fail(CommandResult::ErrorCode::SessionNotCreated, errorString ? errorString.value() : String("Invalid capabilities")));
+    completionHandler(CommandResult::fail(CommandResult::ErrorCode::InvalidArgument, errorString ? errorString.value() : String("Invalid capabilities")));
     return nullptr;
 }
 

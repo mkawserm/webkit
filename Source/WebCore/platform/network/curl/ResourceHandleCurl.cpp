@@ -47,9 +47,7 @@ ResourceHandleInternal::~ResourceHandleInternal()
         m_delegate->releaseHandle();
 }
 
-ResourceHandle::~ResourceHandle()
-{
-}
+ResourceHandle::~ResourceHandle() = default;
 
 bool ResourceHandle::start()
 {
@@ -95,7 +93,7 @@ void ResourceHandle::setClientCertificateInfo(const String& host, const String& 
 {
     ASSERT(isMainThread());
 
-    if (fileExists(certificate))
+    if (FileSystem::fileExists(certificate))
         CurlContext::singleton().sslHandle().setClientCertificateInfo(host, certificate, key);
     else
         LOG(Network, "Invalid client certificate file: %s!\n", certificate.latin1().data());
@@ -247,7 +245,10 @@ void ResourceHandle::platformLoadResourceSynchronously(NetworkingContext* contex
     ASSERT(isMainThread());
 
     SynchronousLoaderClient client;
-    RefPtr<ResourceHandle> handle = adoptRef(new ResourceHandle(context, request, &client, false, false));
+    bool defersLoading = false;
+    bool shouldContentSniff = true;
+    bool shouldContentEncodingSniff = true;
+    RefPtr<ResourceHandle> handle = adoptRef(new ResourceHandle(context, request, &client, defersLoading, shouldContentSniff, shouldContentEncodingSniff));
 
     handle->d->m_delegate = adoptRef(new ResourceHandleCurlDelegate(handle.get()));
     handle->d->m_delegate->dispatchSynchronousJob();
@@ -271,15 +272,6 @@ void ResourceHandle::platformContinueSynchronousDidReceiveResponse()
 
     if (d->m_delegate)
         d->m_delegate->platformContinueSynchronousDidReceiveResponse();
-}
-
-void ResourceHandle::continueWillSendRequest(ResourceRequest&& request)
-{
-    ASSERT(isMainThread());
-    ASSERT(!client() || client()->usesAsyncCallbacks());
-
-    if (d->m_delegate)
-        d->m_delegate->continueWillSendRequest(WTFMove(request));
 }
 
 } // namespace WebCore

@@ -544,12 +544,12 @@ static _WKStorageBlockingPolicy toAPI(WebCore::SecurityOrigin::StorageBlockingPo
 
 - (BOOL)_shouldSuppressKeyboardInputDuringProvisionalNavigation
 {
-    return _preferences->shouldSuppressKeyboardInputDuringProvisionalNavigation();
+    return _preferences->shouldSuppressTextInputFromEditingDuringProvisionalNavigation();
 }
 
 - (void)_setShouldSuppressKeyboardInputDuringProvisionalNavigation:(BOOL)shouldSuppress
 {
-    _preferences->setShouldSuppressKeyboardInputDuringProvisionalNavigation(shouldSuppress);
+    _preferences->setShouldSuppressTextInputFromEditingDuringProvisionalNavigation(shouldSuppress);
 }
 
 - (BOOL)_loadsImagesAutomatically
@@ -610,6 +610,16 @@ static _WKStorageBlockingPolicy toAPI(WebCore::SecurityOrigin::StorageBlockingPo
 - (void)_setMediaCaptureRequiresSecureConnection:(BOOL)requiresSecureConnection
 {
     _preferences->setMediaCaptureRequiresSecureConnection(requiresSecureConnection);
+}
+
+- (double)_inactiveMediaCaptureSteamRepromptIntervalInMinutes
+{
+    return _preferences->inactiveMediaCaptureSteamRepromptIntervalInMinutes();
+}
+
+- (void)_setInactiveMediaCaptureSteamRepromptIntervalInMinutes:(double)interval
+{
+    _preferences->setInactiveMediaCaptureSteamRepromptIntervalInMinutes(interval);
 }
 
 - (BOOL)_enumeratingAllNetworkInterfacesEnabled

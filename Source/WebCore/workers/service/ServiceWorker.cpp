@@ -28,21 +28,93 @@
 
 #if ENABLE(SERVICE_WORKER)
 
+#include "EventNames.h"
+#include "MessagePort.h"
+#include "SWClientConnection.h"
+#include "ScriptExecutionContext.h"
+#include "SerializedScriptValue.h"
+#include "ServiceWorkerProvider.h"
+#include <runtime/JSCJSValueInlines.h>
+#include <wtf/NeverDestroyed.h>
+
 namespace WebCore {
 
-ExceptionOr<void> ServiceWorker::postMessage(JSC::ExecState&, JSC::JSValue, Vector<JSC::Strong<JSC::JSObject>>&&)
+const HashMap<ServiceWorkerIdentifier, HashSet<ServiceWorker*>>& ServiceWorker::allWorkers()
 {
+    return mutableAllWorkers();
+}
+
+HashMap<ServiceWorkerIdentifier, HashSet<ServiceWorker*>>& ServiceWorker::mutableAllWorkers()
+{
+    // FIXME: Once we support service workers from workers, this will need to change.
+    RELEASE_ASSERT(isMainThread());
+    
+    static NeverDestroyed<HashMap<ServiceWorkerIdentifier, HashSet<ServiceWorker*>>> allWorkersMap;
+    return allWorkersMap;
+}
+
+ServiceWorker::ServiceWorker(ScriptExecutionContext& context, ServiceWorkerIdentifier identifier, const URL& scriptURL)
+    : ContextDestructionObserver(&context)
+    , m_identifier(identifier)
+    , m_scriptURL(scriptURL)
+{
+    auto result = mutableAllWorkers().ensure(identifier, [] {
+        return HashSet<ServiceWorker*>();
+    });
+    result.iterator->value.add(this);
+}
+
+ServiceWorker::~ServiceWorker()
+{
+    auto iterator = mutableAllWorkers().find(m_identifier);
+
+    ASSERT(iterator->value.contains(this));
+    iterator->value.remove(this);
+
+    if (iterator->value.isEmpty())
+        mutableAllWorkers().remove(iterator);
+}
+
+void ServiceWorker::updateWorkerState(State state, ShouldFireStateChangeEvent shouldFire)
+{
+    // FIXME: Once we support service workers from workers, this might need to change.
+    RELEASE_ASSERT(isMainThread());
+
+    m_state = state;
+    
+    if (shouldFire == FireStateChangeEvent)
+        dispatchEvent(Event::create(eventNames().statechangeEvent, false, false));
+}
+
+ExceptionOr<void> ServiceWorker::postMessage(ScriptExecutionContext& context, JSC::JSValue messageValue, Vector<JSC::Strong<JSC::JSObject>>&& transfer)
+{
+    if (state() == State::Redundant)
+        return Exception { InvalidStateError, ASCIILiteral("Service Worker state is redundant") };
+
+    // FIXME: Invoke Run Service Worker algorithm with serviceWorker as the argument.
+
+    auto* execState = context.execState();
+    ASSERT(execState);
+
+    Vector<RefPtr<MessagePort>> ports;
+    auto message = SerializedScriptValue::create(*execState, messageValue, WTFMove(transfer), ports, SerializationContext::WorkerPostMessage);
+    if (message.hasException())
+        return message.releaseException();
+
+    // Disentangle the port in preparation for sending it to the remote context.
+    auto channelsOrException = MessagePort::disentanglePorts(WTFMove(ports));
+    if (channelsOrException.hasException())
+        return channelsOrException.releaseException();
+
+    // FIXME: Support sending the channels.
+    auto channels = channelsOrException.releaseReturnValue();
+    if (channels && !channels->isEmpty())
+        return Exception { NotSupportedError, ASCIILiteral("Passing MessagePort objects to postMessage is not yet supported") };
+
+    auto& swConnection = ServiceWorkerProvider::singleton().serviceWorkerConnectionForSession(context.sessionID());
+    swConnection.postMessageToServiceWorkerGlobalScope(m_identifier, message.releaseReturnValue(), context);
+
     return { };
-}
-
-const String& ServiceWorker::scriptURL() const
-{
-    return emptyString();
-}
-
-ServiceWorker::State ServiceWorker::state() const
-{
-    return State::Redundant;
 }
 
 EventTargetInterface ServiceWorker::eventTargetInterface() const
@@ -52,7 +124,7 @@ EventTargetInterface ServiceWorker::eventTargetInterface() const
 
 ScriptExecutionContext* ServiceWorker::scriptExecutionContext() const
 {
-    return nullptr;
+    return ContextDestructionObserver::scriptExecutionContext();
 }
 
 } // namespace WebCore

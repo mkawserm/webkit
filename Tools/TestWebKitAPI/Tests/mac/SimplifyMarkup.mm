@@ -58,12 +58,14 @@ TEST(WebKitLegacy, SimplifyMarkupTest)
     
     Util::run(&didFinishLoad);
     didFinishLoad = false;
- 
+
     webView2.get().frameLoadDelegate = testController.get();
     [[webView2.get() mainFrame] loadRequest:[NSURLRequest requestWithURL:[[NSBundle mainBundle] URLForResource:@"verboseMarkup" withExtension:@"html" subdirectory:@"TestWebKitAPI.resources"]]];
     
     Util::run(&didFinishLoad);
     didFinishLoad = false;
+    while (![[[[webView1 mainFrameDocument] body] innerHTML] isEqualToString:[[[webView2 mainFrameDocument] body] innerHTML]])
+        Util::spinRunLoop(1);
 
     DOMDocument *document1 = webView1.get().mainFrameDocument;
     NSString* markupBefore = [[document1 body] innerHTML];

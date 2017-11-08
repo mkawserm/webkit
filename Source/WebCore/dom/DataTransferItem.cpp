@@ -34,6 +34,7 @@
 
 #include "DOMFileSystem.h"
 #include "DataTransferItemList.h"
+#include "Document.h"
 #include "File.h"
 #include "FileSystem.h"
 #include "FileSystemDirectoryEntry.h"
@@ -66,9 +67,7 @@ DataTransferItem::DataTransferItem(WeakPtr<DataTransferItemList>&& list, const S
 {
 }
 
-DataTransferItem::~DataTransferItem()
-{
-}
+DataTransferItem::~DataTransferItem() = default;
 
 void DataTransferItem::clearListAndPutIntoDisabledMode()
 {
@@ -85,7 +84,7 @@ String DataTransferItem::type() const
     return isInDisabledMode() ? String() : m_type;
 }
 
-void DataTransferItem::getAsString(ScriptExecutionContext& context, RefPtr<StringCallback>&& callback) const
+void DataTransferItem::getAsString(Document& document, RefPtr<StringCallback>&& callback) const
 {
     if (!callback || !m_list || m_file)
         return;
@@ -95,7 +94,7 @@ void DataTransferItem::getAsString(ScriptExecutionContext& context, RefPtr<Strin
         return;
 
     // FIXME: Make this async.
-    callback->scheduleCallback(context, dataTransfer.getDataForItem(m_type));
+    callback->scheduleCallback(document, dataTransfer.getDataForItem(document, m_type));
 }
 
 RefPtr<File> DataTransferItem::getAsFile() const

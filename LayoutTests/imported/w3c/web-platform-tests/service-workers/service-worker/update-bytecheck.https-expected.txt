@@ -1,0 +1,10 @@
+
+FAIL Test(cors: false, main: default, imported: default) promise_test: Unhandled rejection with value: object "NotSupportedError: ServiceWorkerRegistration::update not yet implemented"
+FAIL Test(cors: false, main: default, imported: time) promise_test: Unhandled rejection with value: object "NotSupportedError: ServiceWorkerRegistration::update not yet implemented"
+FAIL Test(cors: false, main: time, imported: default) promise_test: Unhandled rejection with value: object "NotSupportedError: ServiceWorkerRegistration::update not yet implemented"
+FAIL Test(cors: false, main: time, imported: time) promise_test: Unhandled rejection with value: object "NotSupportedError: ServiceWorkerRegistration::update not yet implemented"
+FAIL Test(cors: true, main: default, imported: default) promise_test: Unhandled rejection with value: object "NotSupportedError: ServiceWorkerRegistration::update not yet implemented"
+FAIL Test(cors: true, main: default, imported: time) promise_test: Unhandled rejection with value: object "NotSupportedError: ServiceWorkerRegistration::update not yet implemented"
+FAIL Test(cors: true, main: time, imported: default) promise_test: Unhandled rejection with value: object "NotSupportedError: ServiceWorkerRegistration::update not yet implemented"
+FAIL Test(cors: true, main: time, imported: time) promise_test: Unhandled rejection with value: object "NotSupportedError: ServiceWorkerRegistration::update not yet implemented"
+

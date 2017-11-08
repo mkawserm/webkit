@@ -59,10 +59,10 @@
 #include <inspector/InspectorProtocolObjects.h>
 #include <inspector/InspectorValues.h>
 
-using namespace Inspector;
-using namespace std::literals::chrono_literals;
 
 namespace WebCore {
+using namespace Inspector;
+using namespace std::literals::chrono_literals;
 
 static void contentsQuadToCoordinateSystem(const FrameView* mainView, const FrameView* view, FloatQuad& quad, InspectorOverlay::CoordinateSystem coordinateSystem)
 {
@@ -170,9 +170,7 @@ InspectorOverlay::InspectorOverlay(Page& page, InspectorClient* client)
 {
 }
 
-InspectorOverlay::~InspectorOverlay()
-{
-}
+InspectorOverlay::~InspectorOverlay() = default;
 
 void InspectorOverlay::paint(GraphicsContext& context)
 {
@@ -303,7 +301,7 @@ void InspectorOverlay::update()
     // Position DOM elements.
     overlayPage()->mainFrame().document()->resolveStyle(Document::ResolveStyleType::Rebuild);
     if (overlayView->needsLayout())
-        overlayView->layout();
+        overlayView->layoutContext().layout();
 
     forcePaint();
 }

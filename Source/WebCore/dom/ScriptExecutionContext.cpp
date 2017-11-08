@@ -38,13 +38,16 @@
 #include "JSDOMExceptionHandling.h"
 #include "JSDOMWindow.h"
 #include "MessagePort.h"
+#include "Navigator.h"
 #include "NoEventDispatchAssertion.h"
 #include "PublicURLManager.h"
 #include "RejectedPromiseTracker.h"
 #include "ResourceRequest.h"
 #include "ScriptState.h"
+#include "ServiceWorker.h"
 #include "Settings.h"
 #include "WorkerGlobalScope.h"
+#include "WorkerNavigator.h"
 #include "WorkerThread.h"
 #include <heap/StrongInlines.h>
 #include <inspector/ScriptCallStack.h>
@@ -54,9 +57,9 @@
 #include <wtf/MainThread.h>
 #include <wtf/Ref.h>
 
-using namespace Inspector;
 
 namespace WebCore {
+using namespace Inspector;
 
 struct ScriptExecutionContext::PendingException {
     WTF_MAKE_FAST_ALLOCATED;
@@ -143,9 +146,7 @@ void ScriptExecutionContext::dispatchMessagePortEvents()
     m_willProcessMessagePortMessagesSoon = false;
 
     // Make a frozen copy of the ports so we can iterate while new ones might be added or destroyed.
-    Vector<MessagePort*> possibleMessagePorts;
-    copyToVector(m_messagePorts, possibleMessagePorts);
-    for (auto* messagePort : possibleMessagePorts) {
+    for (auto* messagePort : copyToVector(m_messagePorts)) {
         // The port may be destroyed, and another one created at the same address,
         // but this is harmless. The worst that can happen as a result is that
         // dispatchMessages() will be called needlessly.
@@ -189,7 +190,7 @@ bool ScriptExecutionContext::canSuspendActiveDOMObjectsForDocumentSuspension(Vec
     // functions should not add new active DOM objects, nor execute arbitrary JavaScript.
     // An ASSERT_WITH_SECURITY_IMPLICATION or RELEASE_ASSERT will fire if this happens, but it's important to code
     // canSuspend functions so it will not happen!
-    NoEventDispatchAssertion assertNoEventDispatch;
+    NoEventDispatchAssertion::InMainThread assertNoEventDispatch;
     for (auto* activeDOMObject : m_activeDOMObjects) {
         if (!activeDOMObject->canSuspendForDocumentSuspension()) {
             canSuspend = false;
@@ -231,7 +232,7 @@ void ScriptExecutionContext::suspendActiveDOMObjects(ActiveDOMObject::ReasonForS
     // functions should not add new active DOM objects, nor execute arbitrary JavaScript.
     // An ASSERT_WITH_SECURITY_IMPLICATION or RELEASE_ASSERT will fire if this happens, but it's important to code
     // suspend functions so it will not happen!
-    NoEventDispatchAssertion assertNoEventDispatch;
+    NoEventDispatchAssertion::InMainThread assertNoEventDispatch;
     for (auto* activeDOMObject : m_activeDOMObjects)
         activeDOMObject->suspend(why);
 
@@ -260,7 +261,7 @@ void ScriptExecutionContext::resumeActiveDOMObjects(ActiveDOMObject::ReasonForSu
     // functions should not add new active DOM objects, nor execute arbitrary JavaScript.
     // An ASSERT_WITH_SECURITY_IMPLICATION or RELEASE_ASSERT will fire if this happens, but it's important to code
     // resume functions so it will not happen!
-    NoEventDispatchAssertion assertNoEventDispatch;
+    NoEventDispatchAssertion::InMainThread assertNoEventDispatch;
     for (auto* activeDOMObject : m_activeDOMObjects)
         activeDOMObject->resume();
 
@@ -279,8 +280,7 @@ void ScriptExecutionContext::stopActiveDOMObjects()
     m_activeDOMObjectsAreStopped = true;
 
     // Make a frozen copy of the objects so we can iterate while new ones might be destroyed.
-    Vector<ActiveDOMObject*> possibleActiveDOMObjects;
-    copyToVector(m_activeDOMObjects, possibleActiveDOMObjects);
+    auto possibleActiveDOMObjects = copyToVector(m_activeDOMObjects);
 
     m_activeDOMObjectAdditionForbidden = true;
 
@@ -527,5 +527,30 @@ JSC::ExecState* ScriptExecutionContext::execState()
     WorkerGlobalScope* workerGlobalScope = static_cast<WorkerGlobalScope*>(this);
     return execStateFromWorkerGlobalScope(workerGlobalScope);
 }
+
+#if ENABLE(SERVICE_WORKER)
+
+ServiceWorker* ScriptExecutionContext::activeServiceWorker() const
+{
+    return m_activeServiceWorker.get();
+}
+
+void ScriptExecutionContext::setActiveServiceWorker(RefPtr<ServiceWorker>&& serviceWorker)
+{
+    m_activeServiceWorker = WTFMove(serviceWorker);
+}
+
+ServiceWorkerContainer* ScriptExecutionContext::serviceWorkerContainer()
+{
+    NavigatorBase* navigator = nullptr;
+    if (is<Document>(*this)) {
+        if (auto* window = downcast<Document>(*this).domWindow())
+            navigator = window->optionalNavigator();
+    } else
+        navigator = downcast<WorkerGlobalScope>(*this).optionalNavigator();
+
+    return navigator ? navigator->serviceWorker() : nullptr;
+}
+#endif
 
 } // namespace WebCore

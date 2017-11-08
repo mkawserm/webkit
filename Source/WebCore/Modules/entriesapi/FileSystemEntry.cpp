@@ -39,15 +39,13 @@ namespace WebCore {
 FileSystemEntry::FileSystemEntry(ScriptExecutionContext& context, DOMFileSystem& filesystem, const String& virtualPath)
     : ActiveDOMObject(&context)
     , m_filesystem(filesystem)
-    , m_name(pathGetFileName(virtualPath))
+    , m_name(FileSystem::pathGetFileName(virtualPath))
     , m_virtualPath(virtualPath)
 {
     suspendIfNeeded();
 }
 
-FileSystemEntry::~FileSystemEntry()
-{
-}
+FileSystemEntry::~FileSystemEntry() = default;
 
 DOMFileSystem& FileSystemEntry::filesystem() const
 {

@@ -34,9 +34,9 @@
 #include "ScriptExecutionContext.h"
 #include "URL.h"
 
-using namespace WebCore::DOMCacheEngine;
 
 namespace WebCore {
+using namespace WebCore::DOMCacheEngine;
 
 DOMCache::DOMCache(ScriptExecutionContext& context, String&& name, uint64_t identifier, Ref<CacheStorageConnection>&& connection)
     : ActiveDOMObject(&context)
@@ -480,11 +480,7 @@ void DOMCache::batchDeleteOperation(const FetchRequest& request, CacheQueryOptio
 
 Record DOMCache::toConnectionRecord(const FetchRequest& request, FetchResponse& response, DOMCacheEngine::ResponseBody&& responseBody)
 {
-    // FIXME: Add a setHTTPHeaderFields on ResourceResponseBase.
-    ResourceResponse cachedResponse = response.resourceResponse();
-    for (auto& header : response.headers().internalHeaders())
-        cachedResponse.setHTTPHeaderField(header.key, header.value);
-
+    auto cachedResponse = response.resourceResponse();
     ResourceRequest cachedRequest = request.internalRequest();
     cachedRequest.setHTTPHeaderFields(request.headers().internalHeaders());
 

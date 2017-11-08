@@ -32,15 +32,17 @@ WI.Recording = class Recording
         this._initialState = initialState;
         this._frames = frames;
         this._data = data;
+        this._displayName = WI.UIString("Recording");
 
         this._swizzle = [];
+        this._visualActionIndexes = [];
         this._source = null;
 
         let actions = [new WI.RecordingInitialStateAction].concat(...this._frames.map((frame) => frame.actions));
         this._actions = Promise.all(actions.map((action) => action.swizzle(this))).then(() => {
-            for (let action of actions) {
+            actions.forEach((action, index) => {
                 if (!action.valid)
-                    continue;
+                    return;
 
                 let prototype = null;
                 if (this._type === WI.Recording.Type.Canvas2D)
@@ -52,23 +54,24 @@ WI.Recording = class Recording
                     let validName = action.name in prototype;
                     let validFunction = !action.isFunction || typeof prototype[action.name] === "function";
                     if (!validName || !validFunction) {
-                        action.valid = false;
+                        action.markInvalid();
 
-                        WI.Recording.synthesizeError(WI.UIString("“%s” is invalid.").format(action.name));
+                        WI.Recording.synthesizeError(WI.UIString("“%s” is invalid.").format(this._name));
                     }
                 }
-            }
+
+                if (action.isVisual)
+                    this._visualActionIndexes.push(index);
+            });
 
             return actions;
         });
     }
 
-    // Static
-
     static fromPayload(payload)
     {
         if (typeof payload !== "object" || payload === null)
-            payload = {};
+            return null;
 
         if (isNaN(payload.version) || payload.version <= 0)
             return null;
@@ -165,15 +168,44 @@ WI.Recording = class Recording
 
     // Public
 
+    get displayName() { return this._displayName; }
     get type() { return this._type; }
     get initialState() { return this._initialState; }
     get frames() { return this._frames; }
     get data() { return this._data; }
+    get visualActionIndexes() { return this._visualActionIndexes; }
 
     get actions() { return this._actions; }
 
     get source() { return this._source; }
     set source(source) { this._source = source; }
+
+    createDisplayName(suggestedName)
+    {
+        let recordingNameSet;
+        if (this._source) {
+            recordingNameSet = this._source[WI.Recording.CanvasRecordingNamesSymbol];
+            if (!recordingNameSet)
+                this._source[WI.Recording.CanvasRecordingNamesSymbol] = recordingNameSet = new Set;
+        } else
+            recordingNameSet = WI.Recording._importedRecordingNameSet;
+
+        let name;
+        if (suggestedName) {
+            name = suggestedName;
+            let duplicateNumber = 2;
+            while (recordingNameSet.has(name))
+                name = `${suggestedName} (${duplicateNumber++})`;
+        } else {
+            let recordingNumber = 1;
+            do {
+                name = WI.UIString("Recording %d").format(recordingNumber++);
+            } while (recordingNameSet.has(name));
+        }
+
+        recordingNameSet.add(name);
+        this._displayName = name;
+    }
 
     async swizzle(index, type)
     {
@@ -237,8 +269,9 @@ WI.Recording = class Recording
                 case WI.Recording.Swizzle.CanvasGradient:
                     var gradientType = await this.swizzle(data[0], WI.Recording.Swizzle.String);
 
-                    var context = document.createElement("canvas").getContext("2d");
-                    this._swizzle[index][type] = gradientType === "radial-gradient" ? context.createRadialGradient(...data[1]) : context.createLinearGradient(...data[1]);
+                    WI.ImageUtilities.scratchCanvasContext2D((context) => {
+                        this._swizzle[index][type] = gradientType === "radial-gradient" ? context.createRadialGradient(...data[1]) : context.createLinearGradient(...data[1]);
+                    });
 
                     for (let stop of data[2]) {
                         let color = await this.swizzle(stop[1], WI.Recording.Swizzle.String);
@@ -252,8 +285,10 @@ WI.Recording = class Recording
                         this.swizzle(data[1], WI.Recording.Swizzle.String),
                     ]);
 
-                    var context = document.createElement("canvas").getContext("2d");
-                    this._swizzle[index][type] = context.createPattern(image, repeat);
+                    WI.ImageUtilities.scratchCanvasContext2D((context) => {
+                        this._swizzle[index][type] = context.createPattern(image, repeat);
+                        this._swizzle[index][type].__image = image;
+                    });
                     break;
                 }
             } catch { }
@@ -281,6 +316,10 @@ WI.Recording = class Recording
         };
     }
 };
+
+WI.Recording._importedRecordingNameSet = new Set;
+
+WI.Recording.CanvasRecordingNamesSymbol = Symbol("canvas-recording-names");
 
 WI.Recording.Type = {
     Canvas2D: "canvas-2d",

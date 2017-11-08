@@ -34,6 +34,7 @@
 #include "HTMLIFrameElement.h"
 #include "HitTestResult.h"
 #include "ImageQualityController.h"
+#include "LayoutState.h"
 #include "NodeTraversal.h"
 #include "Page.h"
 #include "RenderDescendantIterator.h"
@@ -51,15 +52,18 @@
 #include "Settings.h"
 #include "StyleInheritedData.h"
 #include "TransformState.h"
+#include <wtf/IsoMallocInlines.h>
 #include <wtf/SetForScope.h>
 #include <wtf/StackStats.h>
 
 namespace WebCore {
 
+WTF_MAKE_ISO_ALLOCATED_IMPL(RenderView);
+
 struct FrameFlatteningLayoutDisallower {
     FrameFlatteningLayoutDisallower(FrameView& frameView)
         : m_frameView(frameView)
-        , m_disallowLayout(frameView.frame().settings().frameFlattening() != FrameFlatteningDisabled)
+        , m_disallowLayout(frameView.effectiveFrameFlattening() != FrameFlattening::Disabled)
     {
         if (m_disallowLayout)
             m_frameView.startDisallowingLayout();
@@ -98,9 +102,7 @@ RenderView::RenderView(Document& document, RenderStyle&& style)
     setPositionState(AbsolutePosition); // to 0,0 :)
 }
 
-RenderView::~RenderView()
-{
-}
+RenderView::~RenderView() = default;
 
 void RenderView::scheduleLazyRepaint(RenderBox& renderer)
 {
@@ -195,37 +197,6 @@ bool RenderView::isChildAllowed(const RenderObject& child, const RenderStyle&) c
     return child.isBox();
 }
 
-void RenderView::layoutContent(const LayoutState& state)
-{
-    UNUSED_PARAM(state);
-    ASSERT(needsLayout());
-
-    RenderBlockFlow::layout();
-#ifndef NDEBUG
-    checkLayoutState(state);
-#endif
-}
-
-#ifndef NDEBUG
-void RenderView::checkLayoutState(const LayoutState& state)
-{
-    ASSERT(layoutDeltaMatches(LayoutSize()));
-    ASSERT(!m_layoutStateDisableCount);
-    ASSERT(m_layoutState.get() == &state);
-}
-#endif
-
-void RenderView::initializeLayoutState(LayoutState& state)
-{
-    // FIXME: May be better to push a clip and avoid issuing offscreen repaints.
-    state.m_clipped = false;
-
-    state.m_pageLogicalHeight = m_pageLogicalSize ? m_pageLogicalSize->height() : LayoutUnit(0);
-    state.m_pageLogicalHeightChanged = m_pageLogicalHeightChanged;
-    ASSERT(state.m_pageLogicalHeight >= 0);
-    state.m_isPaginated = state.m_pageLogicalHeight > 0;
-}
-
 void RenderView::layout()
 {
     StackStats::LayoutCheckPoint layoutCheckPoint;
@@ -255,21 +226,19 @@ void RenderView::layout()
         }
     }
 
-    ASSERT(!m_layoutState);
+    ASSERT(!frameView().layoutContext().layoutState());
     if (!needsLayout())
         return;
 
-    m_layoutState = std::make_unique<LayoutState>();
-    initializeLayoutState(*m_layoutState);
+    LayoutStateMaintainer statePusher(*this, { }, false, m_pageLogicalSize.value_or(LayoutSize()).height(), m_pageLogicalHeightChanged);
 
     m_pageLogicalHeightChanged = false;
 
-    layoutContent(*m_layoutState);
+    RenderBlockFlow::layout();
 
 #ifndef NDEBUG
-    checkLayoutState(*m_layoutState);
+    frameView().layoutContext().checkLayoutState();
 #endif
-    m_layoutState = nullptr;
     clearNeedsLayout();
 }
 
@@ -753,25 +722,6 @@ void RenderView::setPageLogicalSize(LayoutSize size)
 float RenderView::zoomFactor() const
 {
     return frameView().frame().pageZoomFactor();
-}
-
-void RenderView::pushLayoutState(RenderObject& root)
-{
-    ASSERT(m_layoutStateDisableCount == 0);
-    ASSERT(m_layoutState == 0);
-
-    m_layoutState = std::make_unique<LayoutState>(root);
-}
-
-bool RenderView::pushLayoutStateForPaginationIfNeeded(RenderBlockFlow& layoutRoot)
-{
-    if (m_layoutState)
-        return false;
-    m_layoutState = std::make_unique<LayoutState>(layoutRoot);
-    m_layoutState->m_isPaginated = true;
-    // This is just a flag for known page height (see RenderBlockFlow::checkForPaginationLogicalHeightChange).
-    m_layoutState->m_pageLogicalHeight = 1;
-    return true;
 }
 
 IntSize RenderView::viewportSizeForCSSViewportUnits() const

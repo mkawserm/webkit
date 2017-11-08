@@ -996,6 +996,10 @@ policies and contribution forms [3].
 
     function assert_array_equals(actual, expected, description)
     {
+        assert(typeof actual === "object" && actual !== null && "length" in actual,
+               "assert_array_equals", description,
+               "value is ${actual}, expected array",
+               {actual:actual});
         assert(actual.length === expected.length,
                "assert_array_equals", description,
                "lengths differ, expected ${expected} got ${actual}",
@@ -2080,17 +2084,13 @@ policies and contribution forms [3].
         var message_port;
 
         if (is_service_worker(worker)) {
-            // Microsoft Edge's implementation of ServiceWorker doesn't support MessagePort yet.
-            // Feature detection isn't a straightforward option here; it's only possible in the
-            // worker's script context.
-            var isMicrosoftEdgeBrowser = navigator.userAgent.includes("Edge");
-            if (window.MessageChannel && !isMicrosoftEdgeBrowser) {
-                // The ServiceWorker's implicit MessagePort is currently not
-                // reliably accessible from the ServiceWorkerGlobalScope due to
-                // Blink setting MessageEvent.source to null for messages sent
-                // via ServiceWorker.postMessage(). Until that's resolved,
-                // create an explicit MessageChannel and pass one end to the
-                // worker.
+            // The ServiceWorker's implicit MessagePort is currently not
+            // reliably accessible from the ServiceWorkerGlobalScope due to
+            // Blink setting MessageEvent.source to null for messages sent
+            // via ServiceWorker.postMessage(). Until that's resolved,
+            // create an explicit MessageChannel and pass one end to the
+            // worker.
+            if (window.MessageChannel && !!window.chrome) {
                 var message_channel = new MessageChannel();
                 message_port = message_channel.port1;
                 message_port.start();

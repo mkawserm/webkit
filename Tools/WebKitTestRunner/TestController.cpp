@@ -67,6 +67,7 @@
 #include <stdlib.h>
 #include <string>
 #include <unistd.h>
+#include <wtf/AutodrainedPool.h>
 #include <wtf/CryptographicallyRandomNumber.h>
 #include <wtf/HexNumber.h>
 #include <wtf/MainThread.h>
@@ -409,7 +410,6 @@ WKRetainPtr<WKContextConfigurationRef> TestController::generateContextConfigurat
 
         WKContextConfigurationSetApplicationCacheDirectory(configuration.get(), toWK(temporaryFolder + separator + "ApplicationCache").get());
         WKContextConfigurationSetDiskCacheDirectory(configuration.get(), toWK(temporaryFolder + separator + "Cache").get());
-        WKContextConfigurationSetCacheStorageDirectory(configuration.get(), toWK(temporaryFolder + separator + "CacheStorage").get());
         WKContextConfigurationSetIndexedDBDatabaseDirectory(configuration.get(), toWK(temporaryFolder + separator + "Databases" + separator + "IndexedDB").get());
         WKContextConfigurationSetLocalStorageDirectory(configuration.get(), toWK(temporaryFolder + separator + "LocalStorage").get());
         WKContextConfigurationSetWebSQLDatabaseDirectory(configuration.get(), toWK(temporaryFolder + separator + "Databases" + separator + "WebSQL").get());
@@ -683,11 +683,13 @@ void TestController::resetPreferencesToConsistentValues(const TestOptions& optio
     WKPreferencesSetInteractiveFormValidationEnabled(preferences, true);
     WKPreferencesSetDisplayContentsEnabled(preferences, true);
     WKPreferencesSetDataTransferItemsEnabled(preferences, true);
+    WKPreferencesSetCustomPasteboardDataEnabled(preferences, true);
 
     WKPreferencesSetMockScrollbarsEnabled(preferences, options.useMockScrollbars);
     WKPreferencesSetNeedsSiteSpecificQuirks(preferences, options.needsSiteSpecificQuirks);
     WKPreferencesSetAttachmentElementEnabled(preferences, options.enableAttachmentElement);
     WKPreferencesSetIntersectionObserverEnabled(preferences, options.enableIntersectionObserver);
+    WKPreferencesSetMenuItemElementEnabled(preferences, options.enableMenuItemElement);
     WKPreferencesSetModernMediaControlsEnabled(preferences, options.enableModernMediaControls);
     WKPreferencesSetCredentialManagementEnabled(preferences, options.enableCredentialManagement);
     WKPreferencesSetIsSecureContextAttributeEnabled(preferences, options.enableIsSecureContextAttribute);
@@ -739,10 +741,6 @@ void TestController::resetPreferencesToConsistentValues(const TestOptions& optio
 
     WKPreferencesSetInspectorAdditionsEnabled(preferences, options.enableInspectorAdditions);
 
-#if ENABLE(PAYMENT_REQUEST)
-    WKPreferencesSetPaymentRequestEnabled(preferences, true);
-#endif
-
     WKPreferencesSetStorageAccessAPIEnabled(preferences, true);
 
     platformResetPreferencesToConsistentValues();
@@ -780,6 +778,12 @@ bool TestController::resetStateToConsistentValues(const TestOptions& options)
     WKContextSetCacheModel(TestController::singleton().context(), kWKCacheModelDocumentBrowser);
 
     WKContextClearCachedCredentials(TestController::singleton().context());
+
+    WKWebsiteDataStoreRemoveAllServiceWorkerRegistrations(WKContextGetWebsiteDataStore(platformContext()));
+
+    clearDOMCaches();
+
+    WKContextSetAllowsAnySSLCertificateForServiceWorkerTesting(platformContext(), true);
 
     // FIXME: This function should also ensure that there is only one page open.
 
@@ -904,7 +908,11 @@ const char* TestController::databaseProcessName()
 {
     // FIXME: Find a way to not hardcode the process name.
 #if PLATFORM(IOS) && !PLATFORM(IOS_SIMULATOR)
+#if !PLATFORM(WATCHOS) && !PLATFORM(APPLETV) && __IPHONE_OS_VERSION_MIN_REQUIRED < 110300
     return "com.apple.WebKit.Databases";
+#else
+    return "com.apple.WebKit.Storage";
+#endif
 #elif PLATFORM(COCOA)
     return "com.apple.WebKit.Storage.Development";
 #else
@@ -1033,6 +1041,8 @@ static void updateTestOptionsFromTestHeader(TestOptions& testOptions, const std:
             testOptions.enableAttachmentElement = parseBooleanTestHeaderValue(value);
         if (key == "enableIntersectionObserver")
             testOptions.enableIntersectionObserver = parseBooleanTestHeaderValue(value);
+        if (key == "enableMenuItemElement")
+            testOptions.enableMenuItemElement = parseBooleanTestHeaderValue(value);
         if (key == "enableModernMediaControls")
             testOptions.enableModernMediaControls = parseBooleanTestHeaderValue(value);
         if (key == "enablePointerLock")
@@ -1043,6 +1053,8 @@ static void updateTestOptionsFromTestHeader(TestOptions& testOptions, const std:
             testOptions.enableIsSecureContextAttribute = parseBooleanTestHeaderValue(value);
         if (key == "enableInspectorAdditions")
             testOptions.enableInspectorAdditions = parseBooleanTestHeaderValue(value);
+        if (key == "dumpJSConsoleLogInStdErr")
+            testOptions.dumpJSConsoleLogInStdErr = parseBooleanTestHeaderValue(value);
         pairStart = pairEnd + 1;
     }
 }
@@ -1168,6 +1180,8 @@ TestCommand parseInputLine(const std::string& inputLine)
 
 bool TestController::runTest(const char* inputLine)
 {
+    AutodrainedPool pool;
+    
     WKTextCheckerSetTestingMode(true);
     TestCommand command = parseInputLine(std::string(inputLine));
 
@@ -1182,7 +1196,7 @@ bool TestController::runTest(const char* inputLine)
         m_currentInvocation->setIsPixelTest(command.expectedPixelHash);
     if (command.timeout > 0)
         m_currentInvocation->setCustomTimeout(command.timeout);
-    m_currentInvocation->setDumpJSConsoleLogInStdErr(command.dumpJSConsoleLogInStdErr);
+    m_currentInvocation->setDumpJSConsoleLogInStdErr(command.dumpJSConsoleLogInStdErr || options.dumpJSConsoleLogInStdErr);
 
     platformWillRunTest(*m_currentInvocation);
 
@@ -1870,9 +1884,9 @@ void TestController::setGeolocationPermission(bool enabled)
     decidePolicyForGeolocationPermissionRequestIfPossible();
 }
 
-void TestController::setMockGeolocationPosition(double latitude, double longitude, double accuracy, bool providesAltitude, double altitude, bool providesAltitudeAccuracy, double altitudeAccuracy, bool providesHeading, double heading, bool providesSpeed, double speed)
+void TestController::setMockGeolocationPosition(double latitude, double longitude, double accuracy, bool providesAltitude, double altitude, bool providesAltitudeAccuracy, double altitudeAccuracy, bool providesHeading, double heading, bool providesSpeed, double speed, bool providesFloorLevel, double floorLevel)
 {
-    m_geolocationProvider->setPosition(latitude, longitude, accuracy, providesAltitude, altitude, providesAltitudeAccuracy, altitudeAccuracy, providesHeading, heading, providesSpeed, speed);
+    m_geolocationProvider->setPosition(latitude, longitude, accuracy, providesAltitude, altitude, providesAltitudeAccuracy, altitudeAccuracy, providesHeading, heading, providesSpeed, speed, providesFloorLevel, floorLevel);
 }
 
 void TestController::setMockGeolocationPositionUnavailableError(WKStringRef errorMessage)
@@ -2295,6 +2309,119 @@ void TestController::removeAllSessionCredentials()
 
 #endif
 
+#if PLATFORM(COCOA) && WK_API_ENABLED
+struct ClearDOMCacheCallbackContext {
+    explicit ClearDOMCacheCallbackContext(TestController& controller)
+        : testController(controller)
+    {
+    }
+
+    TestController& testController;
+    bool done { false };
+};
+
+static void clearDOMCacheCallback(void* userData)
+{
+    auto* context = static_cast<ClearDOMCacheCallbackContext*>(userData);
+    context->done = true;
+    context->testController.notifyDone();
+}
+#endif
+
+void TestController::clearDOMCache(WKStringRef origin)
+{
+#if PLATFORM(COCOA) && WK_API_ENABLED
+    auto websiteDataStore = WKContextGetWebsiteDataStore(platformContext());
+    ClearDOMCacheCallbackContext context(*this);
+
+    auto cacheOrigin = adoptWK(WKSecurityOriginCreateFromString(origin));
+    WKWebsiteDataStoreRemoveFetchCacheForOrigin(websiteDataStore, cacheOrigin.get(), &context, clearDOMCacheCallback);
+
+    if (!context.done)
+        runUntil(context.done, m_currentInvocation->shortTimeout());
+#endif
+}
+
+void TestController::clearDOMCaches()
+{
+#if PLATFORM(COCOA) && WK_API_ENABLED
+    auto websiteDataStore = WKContextGetWebsiteDataStore(platformContext());
+    ClearDOMCacheCallbackContext context(*this);
+
+    WKWebsiteDataStoreRemoveAllFetchCaches(websiteDataStore, &context, clearDOMCacheCallback);
+    if (!context.done)
+        runUntil(context.done, m_currentInvocation->shortTimeout());
+#endif
+}
+
+struct FetchCacheOriginsCallbackContext {
+    FetchCacheOriginsCallbackContext(TestController& controller, WKStringRef origin)
+        : testController(controller)
+        , origin(origin)
+    {
+    }
+
+    TestController& testController;
+    WKStringRef origin;
+
+    bool done { false };
+    bool result { false };
+};
+
+static void fetchCacheOriginsCallback(WKArrayRef origins, void* userData)
+{
+    auto* context = static_cast<FetchCacheOriginsCallbackContext*>(userData);
+    context->done = true;
+
+    auto size = WKArrayGetSize(origins);
+    for (size_t index = 0; index < size && !context->result; ++index) {
+        WKSecurityOriginRef securityOrigin = reinterpret_cast<WKSecurityOriginRef>(WKArrayGetItemAtIndex(origins, index));
+        if (WKStringIsEqual(context->origin, adoptWK(WKSecurityOriginCopyToString(securityOrigin)).get()))
+            context->result = true;
+    }
+    context->testController.notifyDone();
+}
+
+bool TestController::hasDOMCache(WKStringRef origin)
+{
+    auto* dataStore = WKContextGetWebsiteDataStore(platformContext());
+    FetchCacheOriginsCallbackContext context(*this, origin);
+    WKWebsiteDataStoreGetFetchCacheOrigins(dataStore, &context, fetchCacheOriginsCallback);
+    if (!context.done)
+        runUntil(context.done, m_currentInvocation->shortTimeout());
+    return context.result;
+}
+
+struct FetchCacheSizeForOriginCallbackContext {
+    explicit FetchCacheSizeForOriginCallbackContext(TestController& controller)
+        : testController(controller)
+    {
+    }
+
+    TestController& testController;
+
+    bool done { false };
+    uint64_t result { 0 };
+};
+
+static void fetchCacheSizeForOriginCallback(uint64_t size, void* userData)
+{
+    auto* context = static_cast<FetchCacheSizeForOriginCallbackContext*>(userData);
+    context->done = true;
+    context->result = size;
+    context->testController.notifyDone();
+}
+
+uint64_t TestController::domCacheSize(WKStringRef origin)
+{
+    auto* dataStore = WKContextGetWebsiteDataStore(platformContext());
+    FetchCacheSizeForOriginCallbackContext context(*this);
+    WKWebsiteDataStoreGetFetchCacheSizeForOrigin(dataStore, origin, &context, fetchCacheSizeForOriginCallback);
+    if (!context.done)
+        runUntil(context.done, m_currentInvocation->shortTimeout());
+    return context.result;
+}
+
 #if !PLATFORM(COCOA) || !WK_API_ENABLED
 
 void TestController::setStatisticsLastSeen(WKStringRef host, double seconds)
@@ -2336,6 +2463,16 @@ bool TestController::isStatisticsPrevalentResource(WKStringRef host)
     if (!context.done)
         runUntil(context.done, m_currentInvocation->shortTimeout());
     return context.result;
+}
+
+bool TestController::isStatisticsRegisteredAsSubFrameUnder(WKStringRef, WKStringRef)
+{
+    return false;
+}
+
+bool TestController::isStatisticsRegisteredAsRedirectingTo(WKStringRef, WKStringRef)
+{
+    return false;
 }
 
 void TestController::setStatisticsHasHadUserInteraction(WKStringRef host, bool value)

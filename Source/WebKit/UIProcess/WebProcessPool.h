@@ -38,6 +38,7 @@
 #include "PlugInAutoStartProvider.h"
 #include "PluginInfoStore.h"
 #include "ProcessThrottler.h"
+#include "ServiceWorkerProcessProxy.h"
 #include "StatisticsRequest.h"
 #include "StorageProcessProxy.h"
 #include "VisitedLinkStore.h"
@@ -85,6 +86,7 @@ class DownloadProxy;
 class HighPerformanceGraphicsUsageSampler;
 class UIGamepad;
 class PerActivityStateCPUUsageSampler;
+class ServiceWorkerProcessProxy;
 class WebAutomationSession;
 class WebContextSupplement;
 class WebPageGroup;
@@ -319,6 +321,13 @@ public:
     StorageProcessProxy* storageProcess() { return m_storageProcess.get(); }
     void getStorageProcessConnection(Ref<Messages::WebProcessProxy::GetStorageProcessConnection::DelayedReply>&&);
     void storageProcessCrashed(StorageProcessProxy*);
+#if ENABLE(SERVICE_WORKER)
+    void getWorkerContextProcessConnection(StorageProcessProxy&);
+    bool isServiceWorker(uint64_t pageID) const { return m_serviceWorkerProcess && m_serviceWorkerProcess->pageID() == pageID; }
+    ServiceWorkerProcessProxy* serviceWorkerProxy() const { return m_serviceWorkerProcess; }
+    void setAllowsAnySSLCertificateForServiceWorker(bool allows) { m_allowsAnySSLCertificateForServiceWorker = allows; }
+    bool allowsAnySSLCertificateForServiceWorker() const { return m_allowsAnySSLCertificateForServiceWorker; }
+#endif
 
 #if PLATFORM(COCOA)
     bool processSuppressionEnabled() const;
@@ -385,7 +394,6 @@ public:
     static String legacyPlatformDefaultMediaKeysStorageDirectory();
     static String legacyPlatformDefaultMediaCacheDirectory();
     static String legacyPlatformDefaultApplicationCacheDirectory();
-    static String legacyPlatformDefaultCacheStorageDirectory();
     static String legacyPlatformDefaultNetworkCacheDirectory();
     static String legacyPlatformDefaultJavaScriptConfigurationDirectory();
     static bool isNetworkCacheEnabled();
@@ -412,6 +420,10 @@ public:
     static uint64_t registerProcessPoolCreationListener(Function<void(WebProcessPool&)>&&);
     static void unregisterProcessPoolCreationListener(uint64_t identifier);
 
+#if ENABLE(SERVICE_WORKER)
+    void didGetWorkerContextProcessConnection(const IPC::Attachment& connection);
+#endif
+
 private:
     void platformInitialize();
 
@@ -419,6 +431,7 @@ private:
     void platformInvalidateContext();
 
     WebProcessProxy& createNewWebProcess(WebsiteDataStore&);
+    void initializeNewWebProcess(WebProcessProxy&, WebsiteDataStore&);
 
     void requestWebContentStatistics(StatisticsRequest*);
     void requestNetworkingStatistics(StatisticsRequest*);
@@ -477,6 +490,11 @@ private:
     bool m_haveInitialEmptyProcess;
 
     WebProcessProxy* m_processWithPageCache;
+#if ENABLE(SERVICE_WORKER)
+    ServiceWorkerProcessProxy* m_serviceWorkerProcess { nullptr };
+    bool m_waitingForWorkerContextProcessConnection { false };
+    bool m_allowsAnySSLCertificateForServiceWorker { false };
+#endif
 
     Ref<WebPageGroup> m_defaultPageGroup;
 

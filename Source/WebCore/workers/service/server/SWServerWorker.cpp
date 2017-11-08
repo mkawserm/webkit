@@ -28,20 +28,18 @@
 
 #if ENABLE(SERVICE_WORKER)
 
-#include <wtf/MainThread.h>
-
 namespace WebCore {
 
-SWServerWorker::SWServerWorker(const URL& url)
-    : m_scriptURL(url)
+SWServerWorker::SWServerWorker(const ServiceWorkerRegistrationKey& registrationKey, const URL& url, const String& script, WorkerType type, ServiceWorkerIdentifier identifier)
+    : m_registrationKey(registrationKey)
+    , m_scriptURL(url)
+    , m_script(script)
+    , m_identifier(identifier)
+    , m_type(type)
 {
-    ASSERT(!isMainThread());
 }
 
-SWServerWorker::~SWServerWorker()
-{
-    ASSERT(!isMainThread());
-}
+SWServerWorker::~SWServerWorker() = default;
 
 } // namespace WebCore
 

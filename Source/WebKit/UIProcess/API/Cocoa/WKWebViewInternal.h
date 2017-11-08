@@ -29,6 +29,7 @@
 
 #import "SameDocumentNavigationType.h"
 #import "WKWebViewConfiguration.h"
+#import "_WKAttachmentInternal.h"
 #import <wtf/RefPtr.h>
 #import <wtf/RetainPtr.h>
 
@@ -36,6 +37,7 @@
 #import "UIKitSPI.h"
 #import "WKContentView.h"
 #import "WKContentViewInteraction.h"
+#import "WKFullScreenWindowControllerIOS.h"
 #import <WebCore/FloatRect.h>
 #import <WebCore/LengthBox.h>
 #endif
@@ -147,10 +149,20 @@ struct PrintInfo;
 #endif
 
 - (WKPageRef)_pageForTesting;
+- (WebKit::WebPageProxy*)_page;
 
 @end
 
 WKWebView* fromWebPageProxy(WebKit::WebPageProxy&);
+
+#if ENABLE(FULLSCREEN_API) && PLATFORM(IOS)
+@interface WKWebView (FullScreenAPI)
+-(BOOL)hasFullScreenWindowController;
+-(WKFullScreenWindowController *)fullScreenWindowController;
+-(void)closeFullScreenWindowController;
+-(WebCoreFullScreenPlaceholderView *)fullScreenPlaceholderView;
+@end
+#endif // ENABLE(FULLSCREEN_API) && PLATFORM(IOS)
 
 #if PLATFORM(IOS)
 @interface WKWebView (_WKWebViewPrintFormatter)

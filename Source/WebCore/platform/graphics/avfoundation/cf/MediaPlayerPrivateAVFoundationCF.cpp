@@ -74,7 +74,7 @@
 
 // Soft-linking headers must be included last since they #define functions, constants, etc.
 #include "AVFoundationCFSoftLinking.h"
-#include "CoreMediaSoftLink.h"
+#include <pal/cf/CoreMediaSoftLink.h>
 
 // We don't bother softlinking against libdispatch since it's already been loaded by AAS.
 #ifdef DEBUG_ALL
@@ -88,9 +88,10 @@ enum {
     AVAssetReferenceRestrictionForbidLocalReferenceToRemote = (1UL << 1)
 };
 
-using namespace std;
 
 namespace WebCore {
+using namespace std;
+using namespace PAL;
 
 class LayerClient;
 
@@ -114,7 +115,7 @@ public:
     void destroyImageGenerator();
     RetainPtr<CGImageRef> createImageForTimeInRect(const MediaTime&, const FloatRect&);
 
-    void createAssetForURL(const String& url, bool inheritURI);
+    void createAssetForURL(const URL&, bool inheritURI);
     void setAsset(AVCFURLAssetRef);
     
     void createPlayer(IDirect3DDevice9*);
@@ -458,7 +459,7 @@ InbandTextTrackPrivateAVF* MediaPlayerPrivateAVFoundationCF::currentTextTrack() 
     return 0;
 }
 
-void MediaPlayerPrivateAVFoundationCF::createAVAssetForURL(const String& url)
+void MediaPlayerPrivateAVFoundationCF::createAVAssetForURL(const URL& url)
 {
     ASSERT(!m_avfWrapper);
 
@@ -1109,6 +1110,14 @@ void MediaPlayerPrivateAVFoundationCF::sizeChanged()
     setNaturalSize(IntSize(naturalSize));
 }
 
+void MediaPlayerPrivateAVFoundationCF::resolvedURLChanged()
+{
+    if (m_avfWrapper && m_avfWrapper->avAsset())
+        setResolvedURL(URL(adoptCF(AVCFAssetCopyResolvedURL(m_avfWrapper->avAsset())).get()));
+    else
+        setResolvedURL({ });
+}
+
 bool MediaPlayerPrivateAVFoundationCF::requiresImmediateCompositing() const
 {
     // The AVFoundationCF player needs to have the root compositor available at construction time
@@ -1341,26 +1350,6 @@ void MediaPlayerPrivateAVFoundationCF::contentsNeedsDisplay()
         m_avfWrapper->setVideoLayerNeedsCommit();
 }
 
-URL MediaPlayerPrivateAVFoundationCF::resolvedURL() const
-{
-    if (!m_avfWrapper || !m_avfWrapper->avAsset())
-        return URL();
-
-    auto resolvedURL = adoptCF(AVCFAssetCopyResolvedURL(m_avfWrapper->avAsset()));
-
-    return URL(resolvedURL.get());
-}
-
-bool MediaPlayerPrivateAVFoundationCF::hasSingleSecurityOrigin() const
-{
-    if (!m_avfWrapper || !m_avfWrapper->avAsset())
-        return false;
-
-    Ref<SecurityOrigin> resolvedOrigin(SecurityOrigin::create(resolvedURL()));
-    Ref<SecurityOrigin> requestedOrigin(SecurityOrigin::createFromString(assetURL()));
-    return resolvedOrigin->isSameSchemeHostPort(requestedOrigin.get());
-}
-
 AVFWrapper::AVFWrapper(MediaPlayerPrivateAVFoundationCF* owner)
     : m_owner(owner)
     , m_objectID(s_nextAVFWrapperObjectID++)
@@ -1509,11 +1498,11 @@ void AVFWrapper::disconnectAndDeleteAVFWrapper(void* context)
     dispatch_async_f(dispatch_get_main_queue(), context, destroyAVFWrapper);
 }
 
-void AVFWrapper::createAssetForURL(const String& url, bool inheritURI)
+void AVFWrapper::createAssetForURL(const URL& url, bool inheritURI)
 {
     ASSERT(!avAsset());
 
-    RetainPtr<CFURLRef> urlRef = URL(ParsedURLString, url).createCFURL();
+    RetainPtr<CFURLRef> urlRef = url.createCFURL();
 
     RetainPtr<CFMutableDictionaryRef> optionsRef = adoptCF(CFDictionaryCreateMutable(kCFAllocatorDefault, 0, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks));
 

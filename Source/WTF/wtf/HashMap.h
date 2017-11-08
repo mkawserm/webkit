@@ -22,6 +22,7 @@
 #define WTF_HashMap_h
 
 #include <initializer_list>
+#include <wtf/Forward.h>
 #include <wtf/HashTable.h>
 #include <wtf/IteratorRange.h>
 
@@ -31,8 +32,7 @@ template<typename T> struct KeyValuePairKeyExtractor {
     static const typename T::KeyType& extract(const T& p) { return p.key; }
 };
 
-template<typename KeyArg, typename MappedArg, typename HashArg = typename DefaultHash<KeyArg>::Hash,
-    typename KeyTraitsArg = HashTraits<KeyArg>, typename MappedTraitsArg = HashTraits<MappedArg>>
+template<typename KeyArg, typename MappedArg, typename HashArg, typename KeyTraitsArg, typename MappedTraitsArg>
 class HashMap final {
     WTF_MAKE_FAST_ALLOCATED;
 private:
@@ -575,45 +575,6 @@ inline bool operator!=(const HashMap<T, U, V, W, X>& a, const HashMap<T, U, V, W
 {
     return !(a == b);
 }
-
-template<typename T, typename U, typename V, typename W, typename X, typename Y>
-inline void copyToVector(const HashMap<T, U, V, W, X>& collection, Y& vector)
-{
-    typedef typename HashMap<T, U, V, W, X>::const_iterator iterator;
-
-    vector.resize(collection.size());
-
-    iterator it = collection.begin();
-    iterator end = collection.end();
-    for (unsigned i = 0; it != end; ++it, ++i)
-        vector[i] = { (*it).key, (*it).value };
-}
-
-template<typename T, typename U, typename V, typename W, typename X, typename Y>
-inline void copyKeysToVector(const HashMap<T, U, V, W, X>& collection, Y& vector)
-{
-    typedef typename HashMap<T, U, V, W, X>::const_iterator::Keys iterator;
-    
-    vector.resize(collection.size());
-    
-    iterator it = collection.begin().keys();
-    iterator end = collection.end().keys();
-    for (unsigned i = 0; it != end; ++it, ++i)
-        vector[i] = *it;
-}  
-
-template<typename T, typename U, typename V, typename W, typename X, typename Y>
-inline void copyValuesToVector(const HashMap<T, U, V, W, X>& collection, Y& vector)
-{
-    typedef typename HashMap<T, U, V, W, X>::const_iterator::Values iterator;
-    
-    vector.resize(collection.size());
-    
-    iterator it = collection.begin().values();
-    iterator end = collection.end().values();
-    for (unsigned i = 0; it != end; ++it, ++i)
-        vector[i] = *it;
-}   
 
 } // namespace WTF
 

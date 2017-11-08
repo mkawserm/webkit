@@ -618,6 +618,14 @@ bool AbstractInterpreter<AbstractStateType>::executeEffects(unsigned clobberLimi
             setConstant(node, jsNumber(clz32(value)));
             break;
         }
+        switch (node->child1().useKind()) {
+        case Int32Use:
+        case KnownInt32Use:
+            break;
+        default:
+            clobberWorld(node->origin.semantic, clobberLimit);
+            break;
+        }
         forNode(node).setType(SpecInt32Only);
         break;
     }
@@ -1099,6 +1107,11 @@ bool AbstractInterpreter<AbstractStateType>::executeEffects(unsigned clobberLimi
         break;
     }
 
+    case StringSlice: {
+        forNode(node).setType(m_graph, SpecString);
+        break;
+    }
+
     case ToLowerCase: {
         forNode(node).setType(m_graph, SpecString);
         break;
@@ -1407,7 +1420,48 @@ bool AbstractInterpreter<AbstractStateType>::executeEffects(unsigned clobberLimi
         forNode(node).setType(m_graph, SpecStringIdent);
         break;
     }
-            
+
+    case CompareBelow:
+    case CompareBelowEq: {
+        JSValue leftConst = forNode(node->child1()).value();
+        JSValue rightConst = forNode(node->child2()).value();
+        if (leftConst && rightConst) {
+            if (leftConst.isInt32() && rightConst.isInt32()) {
+                uint32_t a = static_cast<uint32_t>(leftConst.asInt32());
+                uint32_t b = static_cast<uint32_t>(rightConst.asInt32());
+                switch (node->op()) {
+                case CompareBelow:
+                    setConstant(node, jsBoolean(a < b));
+                    break;
+                case CompareBelowEq:
+                    setConstant(node, jsBoolean(a <= b));
+                    break;
+                default:
+                    RELEASE_ASSERT_NOT_REACHED();
+                    break;
+                }
+                break;
+            }
+        }
+
+        if (node->child1() == node->child2()) {
+            switch (node->op()) {
+            case CompareBelow:
+                setConstant(node, jsBoolean(false));
+                break;
+            case CompareBelowEq:
+                setConstant(node, jsBoolean(true));
+                break;
+            default:
+                DFG_CRASH(m_graph, node, "Unexpected node type");
+                break;
+            }
+            break;
+        }
+        forNode(node).setType(SpecBoolean);
+        break;
+    }
+
     case CompareLess:
     case CompareLessEq:
     case CompareGreater:
@@ -2141,6 +2195,7 @@ bool AbstractInterpreter<AbstractStateType>::executeEffects(unsigned clobberLimi
         forNode(node).set(m_graph, node->structure());
         break;
 
+    case ToObject:
     case CallObjectConstructor: {
         AbstractValue& source = forNode(node->child1());
         AbstractValue& destination = forNode(node);
@@ -2151,6 +2206,8 @@ bool AbstractInterpreter<AbstractStateType>::executeEffects(unsigned clobberLimi
             break;
         }
 
+        if (node->op() == ToObject)
+            clobberWorld(node->origin.semantic, clobberLimit);
         forNode(node).setType(m_graph, SpecObject);
         break;
     }
@@ -2699,6 +2756,48 @@ bool AbstractInterpreter<AbstractStateType>::executeEffects(unsigned clobberLimi
         forNode(node).setType(SpecInt32Only);
         break;
     }
+
+    case GetPrototypeOf: {
+        AbstractValue& value = forNode(node->child1());
+        if ((value.m_type && !(value.m_type & ~SpecObject)) && value.m_structure.isFinite()) {
+            bool canFold = !value.m_structure.isClear();
+            JSValue prototype;
+            value.m_structure.forEach([&] (RegisteredStructure structure) {
+                auto getPrototypeMethod = structure->classInfo()->methodTable.getPrototype;
+                MethodTable::GetPrototypeFunctionPtr defaultGetPrototype = JSObject::getPrototype;
+                if (getPrototypeMethod != defaultGetPrototype) {
+                    canFold = false;
+                    return;
+                }
+
+                if (structure->hasPolyProto()) {
+                    canFold = false;
+                    return;
+                }
+                if (!prototype)
+                    prototype = structure->storedPrototype();
+                else if (prototype != structure->storedPrototype())
+                    canFold = false;
+            });
+
+            if (prototype && canFold) {
+                setConstant(node, *m_graph.freeze(prototype));
+                break;
+            }
+        }
+
+        switch (node->child1().useKind()) {
+        case ArrayUse:
+        case FunctionUse:
+        case FinalObjectUse:
+            break;
+        default:
+            clobberWorld(node->origin.semantic, clobberLimit);
+            break;
+        }
+        forNode(node).setType(m_graph, SpecObject | SpecOther);
+        break;
+    }
         
     case GetByOffset: {
         StorageAccessData& data = node->storageAccessData();
@@ -2992,10 +3091,12 @@ bool AbstractInterpreter<AbstractStateType>::executeEffects(unsigned clobberLimi
     }
     case HasGenericProperty: {
         forNode(node).setType(SpecBoolean);
+        clobberWorld(node->origin.semantic, clobberLimit);
         break;
     }
     case HasStructureProperty: {
         forNode(node).setType(SpecBoolean);
+        clobberWorld(node->origin.semantic, clobberLimit);
         break;
     }
     case HasIndexedProperty: {
@@ -3022,6 +3123,7 @@ bool AbstractInterpreter<AbstractStateType>::executeEffects(unsigned clobberLimi
     }
     case GetPropertyEnumerator: {
         forNode(node).setType(m_graph, SpecCell);
+        clobberWorld(node->origin.semantic, clobberLimit);
         break;
     }
     case GetEnumeratorStructurePname: {

@@ -29,9 +29,9 @@
 
 #include "PaymentRequest.h"
 #include "PaymentSessionBase.h"
+#include <wtf/Function.h>
 
 namespace JSC {
-class ExecState;
 class JSValue;
 }
 
@@ -41,12 +41,16 @@ class Document;
 
 class PaymentHandler : public virtual PaymentSessionBase {
 public:
-    static RefPtr<PaymentHandler> create(PaymentRequest&, const PaymentRequest::MethodIdentifier&);
+    static RefPtr<PaymentHandler> create(Document&, PaymentRequest&, const PaymentRequest::MethodIdentifier&);
+    static ExceptionOr<void> canCreateSession(Document&);
     static bool hasActiveSession(Document&);
 
-    virtual ExceptionOr<void> convertData(JSC::ExecState&, JSC::JSValue&&) = 0;
-    virtual void show(Document&) = 0;
-    virtual void hide(Document&) = 0;
+    virtual ExceptionOr<void> convertData(JSC::JSValue&&) = 0;
+    virtual ExceptionOr<void> show() = 0;
+    virtual void hide() = 0;
+    virtual void canMakePayment(WTF::Function<void(bool)>&& completionHandler) = 0;
+    virtual ExceptionOr<void> detailsUpdated(const AtomicString& eventType, const String& error) = 0;
+    virtual void complete(std::optional<PaymentComplete>&&) = 0;
 };
 
 } // namespace WebCore

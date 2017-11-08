@@ -103,14 +103,14 @@ void JIT_OPERATION operationThrowStackOverflowError(ExecState* exec, CodeBlock* 
     VM* vm = codeBlock->vm();
     auto scope = DECLARE_THROW_SCOPE(*vm);
 
-    VMEntryFrame* vmEntryFrame = vm->topVMEntryFrame;
-    CallFrame* callerFrame = exec->callerFrame(vmEntryFrame);
+    EntryFrame* entryFrame = vm->topEntryFrame;
+    CallFrame* callerFrame = exec->callerFrame(entryFrame);
     if (!callerFrame) {
         callerFrame = exec;
-        vmEntryFrame = vm->topVMEntryFrame;
+        entryFrame = vm->topEntryFrame;
     }
 
-    NativeCallFrameTracerWithRestore tracer(vm, vmEntryFrame, callerFrame);
+    NativeCallFrameTracerWithRestore tracer(vm, entryFrame, callerFrame);
     throwStackOverflowError(callerFrame, scope);
 }
 
@@ -120,10 +120,10 @@ void JIT_OPERATION operationThrowDivideError(ExecState* exec)
     VM* vm = &exec->vm();
     auto scope = DECLARE_THROW_SCOPE(*vm);
 
-    VMEntryFrame* vmEntryFrame = vm->topVMEntryFrame;
-    CallFrame* callerFrame = exec->callerFrame(vmEntryFrame);
+    EntryFrame* entryFrame = vm->topEntryFrame;
+    CallFrame* callerFrame = exec->callerFrame(entryFrame);
 
-    NativeCallFrameTracerWithRestore tracer(vm, vmEntryFrame, callerFrame);
+    NativeCallFrameTracerWithRestore tracer(vm, entryFrame, callerFrame);
     ErrorHandlingScope errorScope(*vm);
     throwException(callerFrame, scope, createError(callerFrame, ASCIILiteral("Division by zero or division overflow.")));
 }
@@ -133,10 +133,10 @@ void JIT_OPERATION operationThrowOutOfBoundsAccessError(ExecState* exec)
     VM* vm = &exec->vm();
     auto scope = DECLARE_THROW_SCOPE(*vm);
 
-    VMEntryFrame* vmEntryFrame = vm->topVMEntryFrame;
-    CallFrame* callerFrame = exec->callerFrame(vmEntryFrame);
+    EntryFrame* entryFrame = vm->topEntryFrame;
+    CallFrame* callerFrame = exec->callerFrame(entryFrame);
 
-    NativeCallFrameTracerWithRestore tracer(vm, vmEntryFrame, callerFrame);
+    NativeCallFrameTracerWithRestore tracer(vm, entryFrame, callerFrame);
     ErrorHandlingScope errorScope(*vm);
     throwException(callerFrame, scope, createError(callerFrame, ASCIILiteral("Out-of-bounds access.")));
 }
@@ -149,9 +149,9 @@ int32_t JIT_OPERATION operationCallArityCheck(ExecState* exec)
 
     int32_t missingArgCount = CommonSlowPaths::arityCheckFor(exec, *vm, CodeForCall);
     if (missingArgCount < 0) {
-        VMEntryFrame* vmEntryFrame = vm->topVMEntryFrame;
-        CallFrame* callerFrame = exec->callerFrame(vmEntryFrame);
-        NativeCallFrameTracerWithRestore tracer(vm, vmEntryFrame, callerFrame);
+        EntryFrame* entryFrame = vm->topEntryFrame;
+        CallFrame* callerFrame = exec->callerFrame(entryFrame);
+        NativeCallFrameTracerWithRestore tracer(vm, entryFrame, callerFrame);
         throwStackOverflowError(callerFrame, scope);
     }
 
@@ -165,9 +165,9 @@ int32_t JIT_OPERATION operationConstructArityCheck(ExecState* exec)
 
     int32_t missingArgCount = CommonSlowPaths::arityCheckFor(exec, *vm, CodeForConstruct);
     if (missingArgCount < 0) {
-        VMEntryFrame* vmEntryFrame = vm->topVMEntryFrame;
-        CallFrame* callerFrame = exec->callerFrame(vmEntryFrame);
-        NativeCallFrameTracerWithRestore tracer(vm, vmEntryFrame, callerFrame);
+        EntryFrame* entryFrame = vm->topEntryFrame;
+        CallFrame* callerFrame = exec->callerFrame(entryFrame);
+        NativeCallFrameTracerWithRestore tracer(vm, entryFrame, callerFrame);
         throwStackOverflowError(callerFrame, scope);
     }
 
@@ -939,9 +939,17 @@ SlowPathReturnType JIT_OPERATION operationLinkCall(ExecState* execCallee, CallLi
     JSValue calleeAsValue = execCallee->guaranteedJSValueCallee();
     JSCell* calleeAsFunctionCell = getJSFunction(calleeAsValue);
     if (!calleeAsFunctionCell) {
-        // FIXME: We should cache these kinds of calls. They can be common and currently they are
-        // expensive.
-        // https://bugs.webkit.org/show_bug.cgi?id=144458
+        if (calleeAsValue.isCell() && calleeAsValue.asCell()->type() == InternalFunctionType) {
+            MacroAssemblerCodePtr codePtr = vm->getCTIInternalFunctionTrampolineFor(kind);
+            RELEASE_ASSERT(!!codePtr);
+
+            if (!callLinkInfo->seenOnce())
+                callLinkInfo->setSeen();
+            else
+                linkFor(execCallee, *callLinkInfo, nullptr, asObject(calleeAsValue), codePtr);
+
+            return encodeResult(codePtr.executableAddress(), reinterpret_cast<void*>(callLinkInfo->callMode() == CallMode::Tail ? ReuseTheFrame : KeepTheFrame));
+        }
         throwScope.release();
         return handleHostCall(execCallee, calleeAsValue, callLinkInfo);
     }
@@ -951,7 +959,7 @@ SlowPathReturnType JIT_OPERATION operationLinkCall(ExecState* execCallee, CallLi
     ExecutableBase* executable = callee->executable();
 
     MacroAssemblerCodePtr codePtr;
-    CodeBlock* codeBlock = 0;
+    CodeBlock* codeBlock = nullptr;
     if (executable->isHostFunction()) {
         codePtr = executable->entrypointFor(kind, MustCheckArity);
     } else {
@@ -1053,6 +1061,11 @@ inline SlowPathReturnType virtualForWithFunction(
     JSValue calleeAsValue = execCallee->guaranteedJSValueCallee();
     calleeAsFunctionCell = getJSFunction(calleeAsValue);
     if (UNLIKELY(!calleeAsFunctionCell)) {
+        if (calleeAsValue.isCell() && calleeAsValue.asCell()->type() == InternalFunctionType) {
+            MacroAssemblerCodePtr codePtr = vm->getCTIInternalFunctionTrampolineFor(kind);
+            ASSERT(!!codePtr);
+            return encodeResult(codePtr.executableAddress(), reinterpret_cast<void*>(callLinkInfo->callMode() == CallMode::Tail ? ReuseTheFrame : KeepTheFrame));
+        }
         throwScope.release();
         return handleHostCall(execCallee, calleeAsValue, callLinkInfo);
     }
@@ -2133,16 +2146,6 @@ CallFrame* JIT_OPERATION operationSetupVarargsFrame(ExecState* exec, CallFrame* 
     JSValue arguments = JSValue::decode(encodedArguments);
     setupVarargsFrame(exec, newCallFrame, arguments, firstVarArgOffset, length);
     return newCallFrame;
-}
-
-EncodedJSValue JIT_OPERATION operationToObject(ExecState* exec, EncodedJSValue value)
-{
-    VM& vm = exec->vm();
-    NativeCallFrameTracer tracer(&vm, exec);
-    JSObject* obj = JSValue::decode(value).toObject(exec);
-    if (!obj)
-        return JSValue::encode(JSValue());
-    return JSValue::encode(obj);
 }
 
 char* JIT_OPERATION operationSwitchCharWithUnknownKeyType(ExecState* exec, EncodedJSValue encodedKey, size_t tableIndex)

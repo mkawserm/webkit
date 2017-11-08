@@ -99,9 +99,7 @@ HitTestResult::HitTestResult(const HitTestResult& other)
     m_listBasedTestResult = other.m_listBasedTestResult ? std::make_unique<NodeSet>(*other.m_listBasedTestResult) : nullptr;
 }
 
-HitTestResult::~HitTestResult()
-{
-}
+HitTestResult::~HitTestResult() = default;
 
 HitTestResult& HitTestResult::operator=(const HitTestResult& other)
 {
@@ -594,21 +592,6 @@ bool HitTestResult::isOverTextInsideFormControlElement() const
         return false;
 
     return !wordRange->text().isEmpty();
-}
-
-bool HitTestResult::allowsCopy() const
-{
-    Node* node = innerNode();
-    if (!node)
-        return false;
-
-    RenderObject* renderer = node->renderer();
-    if (!renderer)
-        return false;
-
-    bool isUserSelectNone = renderer->style().userSelect() == SELECT_NONE;
-    bool isPasswordField = is<HTMLInputElement>(node) && downcast<HTMLInputElement>(*node).isPasswordField();
-    return !isPasswordField && !isUserSelectNone;
 }
 
 URL HitTestResult::absoluteLinkURL() const

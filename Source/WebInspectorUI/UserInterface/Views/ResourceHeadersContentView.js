@@ -30,13 +30,14 @@ WI.ResourceHeadersContentView = class ResourceHeadersContentView extends WI.Cont
         super(null);
 
         console.assert(resource instanceof WI.Resource);
+        console.assert(delegate);
 
         this._resource = resource;
         this._resource.addEventListener(WI.Resource.Event.MetricsDidChange, this._resourceMetricsDidChange, this);
         this._resource.addEventListener(WI.Resource.Event.RequestHeadersDidChange, this._resourceRequestHeadersDidChange, this);
         this._resource.addEventListener(WI.Resource.Event.ResponseReceived, this._resourceResponseReceived, this);
 
-        this._delegate = delegate || null;
+        this._delegate = delegate;
 
         this._searchQuery = null;
         this._searchResults = null;
@@ -227,7 +228,7 @@ WI.ResourceHeadersContentView = class ResourceHeadersContentView extends WI.Cont
 
         // Don't include a colon if no value.
         console.assert(typeof key === "string");
-        let displayKey = key + (!!value ? ": " : "");
+        let displayKey = key + (value ? ": " : "");
 
         let keyElement = p.appendChild(document.createElement("span"));
         keyElement.className = "key";
@@ -250,6 +251,8 @@ WI.ResourceHeadersContentView = class ResourceHeadersContentView extends WI.Cont
             return WI.UIString("Memory Cache");
         case WI.Resource.ResponseSource.DiskCache:
             return WI.UIString("Disk Cache");
+        case WI.Resource.ResponseSource.ServiceWorker:
+            return WI.UIString("Service Worker");
         case WI.Resource.ResponseSource.Unknown:
         default:
             return null;
@@ -266,9 +269,11 @@ WI.ResourceHeadersContentView = class ResourceHeadersContentView extends WI.Cont
         this._appendKeyValuePair(detailsElement, WI.UIString("URL"), this._resource.url.insertWordBreakCharacters());
 
         let status = emDash;
-        if (this._resource.hasResponse())
+        if (!isNaN(this._resource.statusCode))
             status = this._resource.statusCode + (this._resource.statusText ? " " + this._resource.statusText : "");
         this._appendKeyValuePair(detailsElement, WI.UIString("Status"), status);
+
+        // FIXME: <https://webkit.org/b/178827> Web Inspector: Should be able to link directly to the ServiceWorker that handled a particular load
 
         let source = this._responseSourceDisplayString(this._resource.responseSource) || emDash;
         this._appendKeyValuePair(detailsElement, WI.UIString("Source"), source);
@@ -388,7 +393,7 @@ WI.ResourceHeadersContentView = class ResourceHeadersContentView extends WI.Cont
         if (requestDataContentType && requestDataContentType.match(/^application\/x-www-form-urlencoded\s*(;.*)?$/i)) {
             // Simple form data that should be parsable like a query string.
             this._appendKeyValuePair(detailsElement, WI.UIString("MIME Type"), requestDataContentType);
-            let queryStringPairs = parseQueryString(requestData, true)
+            let queryStringPairs = parseQueryString(requestData, true);
             for (let {name, value} of queryStringPairs)
                 this._appendKeyValuePair(detailsElement, name, value);
             return;
@@ -406,7 +411,7 @@ WI.ResourceHeadersContentView = class ResourceHeadersContentView extends WI.Cont
             this._appendKeyValuePair(detailsElement, WI.UIString("Encoding"), encoding);
 
         let goToButton = detailsElement.appendChild(WI.createGoToArrowButton());
-        goToButton.addEventListener("click", this._goToRequestDataClicked.bind(this));
+        goToButton.addEventListener("click", () => { this._delegate.headersContentViewGoToRequestData(this); });
         this._appendKeyValuePair(detailsElement, WI.UIString("Request Data"), goToButton);
     }
 
@@ -480,11 +485,5 @@ WI.ResourceHeadersContentView = class ResourceHeadersContentView extends WI.Cont
         this._needsSummaryRefresh = true;
         this._needsResponseHeadersRefresh = true;
         this.needsLayout();
-    }
-
-    _goToRequestDataClicked(event)
-    {
-        if (this._delegate)
-            this._delegate.headersContentViewGoToRequestData(this);
     }
 };

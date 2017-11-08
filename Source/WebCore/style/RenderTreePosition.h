@@ -34,12 +34,6 @@ namespace WebCore {
 
 class RenderTreePosition {
 public:
-    explicit RenderTreePosition(RenderView& root)
-        : m_parent(root)
-        , m_hasValidNextSibling(true)
-    {
-    }
-    
     explicit RenderTreePosition(RenderElement& parent)
         : m_parent(parent)
     {
@@ -51,10 +45,10 @@ public:
     bool canInsert(RenderText&) const;
 
     void computeNextSibling(const Node&);
+    void moveToLastChild();
     void invalidateNextSibling() { m_hasValidNextSibling = false; }
     void invalidateNextSibling(const RenderObject&);
 
-    RenderObject* previousSiblingRenderer(const Text&) const;
     RenderObject* nextSiblingRenderer(const Node&) const;
 
 private:
@@ -66,6 +60,12 @@ private:
 #endif
 };
 
+inline void RenderTreePosition::moveToLastChild()
+{
+    m_nextSibling = nullptr;
+    m_hasValidNextSibling = true;
+}
+
 inline bool RenderTreePosition::canInsert(RenderElement& renderer) const
 {
     ASSERT(!renderer.parent());
@@ -76,12 +76,6 @@ inline bool RenderTreePosition::canInsert(RenderText& renderer) const
 {
     ASSERT(!renderer.parent());
     return m_parent.isChildAllowed(renderer, m_parent.style());
-}
-
-inline void RenderTreePosition::insert(RenderPtr<RenderObject> renderer)
-{
-    ASSERT(m_hasValidNextSibling);
-    m_parent.addChild(WTFMove(renderer), m_nextSibling);
 }
 
 } // namespace WebCore

@@ -93,7 +93,11 @@ WI.DOMTreeContentView = class DOMTreeContentView extends WI.ContentView
 
     get navigationItems()
     {
-        return [this._showPrintStylesButtonNavigationItem, this._showsShadowDOMButtonNavigationItem, this._compositingBordersButtonNavigationItem, this._paintFlashingButtonNavigationItem];
+        let items = [this._showPrintStylesButtonNavigationItem, this._showsShadowDOMButtonNavigationItem];
+        if (!WI.settings.experimentalEnableLayersTab.value)
+            items.push(this._compositingBordersButtonNavigationItem, this._paintFlashingButtonNavigationItem);
+
+        return items;
     }
 
     get domTreeOutline()
@@ -214,12 +218,7 @@ WI.DOMTreeContentView = class DOMTreeContentView extends WI.ContentView
 
     get saveData()
     {
-        function saveHandler(forceSaveAs)
-        {
-            WI.archiveMainFrame();
-        }
-
-        return {customSaveHandler: saveHandler};
+        return {customSaveHandler: () => { WI.archiveMainFrame(); }};
     }
 
     get supportsSearch()
@@ -521,6 +520,9 @@ WI.DOMTreeContentView = class DOMTreeContentView extends WI.ContentView
 
     _updateCompositingBordersButtonToMatchPageSettings()
     {
+        if (WI.settings.experimentalEnableLayersTab.value)
+            return;
+
         var button = this._compositingBordersButtonNavigationItem;
 
         // We need to sync with the page settings since these can be controlled

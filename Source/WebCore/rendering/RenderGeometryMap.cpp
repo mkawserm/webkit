@@ -43,9 +43,7 @@ RenderGeometryMap::RenderGeometryMap(MapCoordinatesFlags flags)
 {
 }
 
-RenderGeometryMap::~RenderGeometryMap()
-{
-}
+RenderGeometryMap::~RenderGeometryMap() = default;
 
 void RenderGeometryMap::mapToContainer(TransformState& transformState, const RenderLayerModelObject* container) const
 {
@@ -153,7 +151,7 @@ static bool canMapBetweenRenderersViaLayers(const RenderLayerModelObject& render
 {
     for (const RenderElement* current = &renderer; ; current = current->parent()) {
         const RenderStyle& style = current->style();
-        if (style.position() == FixedPosition || style.isFlippedBlocksWritingMode())
+        if (current->isFixedPositioned() || style.isFlippedBlocksWritingMode())
             return false;
 
         if (current->hasTransformRelatedProperty() && (current->style().hasTransform() || current->style().hasPerspective()))

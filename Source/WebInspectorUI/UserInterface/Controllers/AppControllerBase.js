@@ -24,13 +24,14 @@
  */
 
 WI.DebuggableType = {
+    JavaScript: "javascript",
+    ServiceWorker: "service-worker",
     Web: "web",
-    JavaScript: "javascript"
 };
 
 WI.NotImplementedError = class NotImplementedError extends Error
 {
-    constructor(message="This method is not implemented.")
+    constructor(message = "This method is not implemented.")
     {
         super(message);
     }

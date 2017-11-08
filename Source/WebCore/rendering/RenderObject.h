@@ -36,6 +36,7 @@
 #include "ScrollAlignment.h"
 #include "StyleImage.h"
 #include "TextAffinity.h"
+#include <wtf/IsoMalloc.h>
 #include <wtf/WeakPtr.h>
 
 namespace WebCore {
@@ -98,7 +99,7 @@ struct AnnotatedRegionValue {
 
 // Base class for all rendering tree objects.
 class RenderObject : public CachedImageClient {
-    WTF_MAKE_FAST_ALLOCATED;
+    WTF_MAKE_ISO_ALLOCATED(RenderObject);
     friend class RenderBlock;
     friend class RenderBlockFlow;
     friend class RenderElement;
@@ -411,17 +412,16 @@ public:
 #endif
             ;
     }
-    bool isElementContinuation() const { return node() && node()->renderer() != this; }
-    bool isInlineElementContinuation() const { return isElementContinuation() && isInline(); }
-    bool isBlockElementContinuation() const { return isElementContinuation() && !isInline(); }
 
     bool isFloating() const { return m_bitfields.floating(); }
 
-    bool isOutOfFlowPositioned() const { return m_bitfields.isOutOfFlowPositioned(); } // absolute or fixed positioning
-    bool isInFlowPositioned() const { return m_bitfields.isRelPositioned() || m_bitfields.isStickyPositioned(); } // relative or sticky positioning
-    bool isRelPositioned() const { return m_bitfields.isRelPositioned(); } // relative positioning
-    bool isStickyPositioned() const { return m_bitfields.isStickyPositioned(); }
     bool isPositioned() const { return m_bitfields.isPositioned(); }
+    bool isInFlowPositioned() const { return m_bitfields.isRelativelyPositioned() || m_bitfields.isStickilyPositioned(); }
+    bool isOutOfFlowPositioned() const { return m_bitfields.isOutOfFlowPositioned(); } // absolute or fixed positioning
+    bool isFixedPositioned() const { return isOutOfFlowPositioned() && style().position() == FixedPosition; }
+    bool isAbsolutelyPositioned() const { return isOutOfFlowPositioned() && style().position() == AbsolutePosition; }
+    bool isRelativelyPositioned() const { return m_bitfields.isRelativelyPositioned(); }
+    bool isStickilyPositioned() const { return m_bitfields.isStickilyPositioned(); }
 
     bool isText() const  { return !m_bitfields.isBox() && m_bitfields.isTextOrRenderView(); }
     bool isLineBreak() const { return m_bitfields.isLineBreak(); }
@@ -724,7 +724,6 @@ public:
     // When performing a global document tear-down, or when going into the page cache, the renderer of the document is cleared.
     bool renderTreeBeingDestroyed() const;
 
-    void destroyAndCleanupAnonymousWrappers();
     void destroy();
 
     // Virtual function helpers for the deprecated Flexible Box Layout (display: -webkit-box).
@@ -751,6 +750,7 @@ public:
     virtual void imageChanged(WrappedImagePtr, const IntRect* = nullptr) { }
 
     void removeFromParentAndDestroy();
+    void removeFromParentAndDestroyCleaningUpAnonymousWrappers();
 
     CSSAnimationController& animation() const;
 
@@ -859,7 +859,7 @@ private:
             IsStaticallyPositioned = 0,
             IsRelativelyPositioned = 1,
             IsOutOfFlowPositioned = 2,
-            IsStickyPositioned = 3
+            IsStickilyPositioned = 3
         };
 
     public:
@@ -932,8 +932,8 @@ private:
 
     public:
         bool isOutOfFlowPositioned() const { return m_positionedState == IsOutOfFlowPositioned; }
-        bool isRelPositioned() const { return m_positionedState == IsRelativelyPositioned; }
-        bool isStickyPositioned() const { return m_positionedState == IsStickyPositioned; }
+        bool isRelativelyPositioned() const { return m_positionedState == IsRelativelyPositioned; }
+        bool isStickilyPositioned() const { return m_positionedState == IsStickilyPositioned; }
         bool isPositioned() const { return m_positionedState != IsStaticallyPositioned; }
 
         void setPositionedState(int positionState)

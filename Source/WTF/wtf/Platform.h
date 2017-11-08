@@ -520,7 +520,6 @@
 #endif
 
 #if PLATFORM(GTK) || PLATFORM(WPE)
-#define USE_CAIRO 1
 #define USE_GLIB 1
 #define USE_FREETYPE 1
 #define USE_HARFBUZZ 1
@@ -551,7 +550,6 @@
 #define USE_CF 1
 #define USE_FOUNDATION 1
 #define USE_NETWORK_CFDATA_ARRAY_CALLBACK 1
-#define ENABLE_USER_MESSAGE_HANDLERS 1
 #define HAVE_OUT_OF_PROCESS_LAYER_HOSTING 1
 #define HAVE_DTRACE 0
 #define USE_FILE_LOCK 1
@@ -662,7 +660,7 @@
 #define HAVE_READLINE 1
 #define HAVE_SYS_TIMEB_H 1
 
-#if __has_include(<mach/mach_exc.defs>) && !(PLATFORM(WATCHOS) || PLATFORM(APPLETV))
+#if __has_include(<mach/mach_exc.defs>)
 #define HAVE_MACH_EXCEPTIONS 1
 #endif
 
@@ -712,7 +710,7 @@
 #if (CPU(X86_64) && !defined(__ILP32__) && (OS(UNIX) || OS(WINDOWS))) \
     || (CPU(IA64) && !CPU(IA64_32)) \
     || CPU(ALPHA) \
-    || CPU(ARM64) \
+    || (CPU(ARM64) && !defined(__ILP32__)) \
     || CPU(S390X) \
     || CPU(MIPS64) \
     || CPU(PPC64) \
@@ -725,7 +723,7 @@
 
 /* The JIT is enabled by default on all x86, x86-64, ARM & MIPS platforms except ARMv7k. */
 #if !defined(ENABLE_JIT) \
-    && (CPU(X86) || CPU(X86_64) || CPU(ARM) || CPU(ARM64) || CPU(MIPS)) \
+    && (CPU(X86) || CPU(X86_64) || CPU(ARM) || (CPU(ARM64) && !defined(__ILP32__)) || CPU(MIPS)) \
     && !CPU(APPLE_ARMV7K) \
     && !CPU(ARM64E)
 #define ENABLE_JIT 1

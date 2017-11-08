@@ -78,16 +78,22 @@ void PlatformPasteboard::getPathnamesForType(Vector<String>& pathnames, const St
         pathnames.append([paths objectAtIndex:i]);
 }
 
-String PlatformPasteboard::stringForType(const String& pasteboardType)
+static bool pasteboardMayContainFilePaths(NSPasteboard *pasteboard)
 {
-    if (pasteboardType == String(NSURLPboardType)) {
-        if (NSURL *urlFromPasteboard = [NSURL URLFromPasteboard:m_pasteboard.get()])
-            return urlFromPasteboard.absoluteString;
+    for (NSString *type in pasteboard.types) {
+        if ([type isEqualToString:(NSString *)NSFilenamesPboardType] || [type isEqualToString:(NSString *)NSFilesPromisePboardType] || Pasteboard::shouldTreatCocoaTypeAsFile(type))
+            return true;
+    }
+    return false;
+}
 
-        URL url([NSURL URLWithString:[m_pasteboard stringForType:NSURLPboardType]]);
-        if (!url.isValid())
+String PlatformPasteboard::stringForType(const String& pasteboardType) const
+{
+    if (pasteboardType == String { NSURLPboardType }) {
+        String urlString = ([NSURL URLFromPasteboard:m_pasteboard.get()] ?: [NSURL URLWithString:[m_pasteboard stringForType:NSURLPboardType]]).absoluteString;
+        if (pasteboardMayContainFilePaths(m_pasteboard.get()) && !Pasteboard::canExposeURLToDOMWhenPasteboardContainsFiles(urlString))
             return { };
-        return url.string();
+        return urlString;
     }
 
     return [m_pasteboard stringForType:pasteboardType];
@@ -101,19 +107,22 @@ static const char* safeTypeForDOMToReadAndWriteForPlatformType(const String& pla
     if (platformType == String(NSURLPboardType))
         return ASCIILiteral("text/uri-list");
 
-    if (platformType == String(NSHTMLPboardType))
+    if (platformType == String(NSHTMLPboardType) || platformType == String(WebArchivePboardType)
+        || platformType == String(NSRTFDPboardType) || platformType == String(NSRTFPboardType))
         return ASCIILiteral("text/html");
 
     return nullptr;
 }
 
-Vector<String> PlatformPasteboard::typesSafeForDOMToReadAndWrite() const
+Vector<String> PlatformPasteboard::typesSafeForDOMToReadAndWrite(const String& origin) const
 {
     ListHashSet<String> domPasteboardTypes;
     if (NSData *serializedCustomData = [m_pasteboard dataForType:@(PasteboardCustomData::cocoaType())]) {
-        auto buffer = SharedBuffer::create(serializedCustomData);
-        for (auto& type : PasteboardCustomData::fromSharedBuffer(buffer.get()).orderedTypes)
-            domPasteboardTypes.add(type);
+        auto data = PasteboardCustomData::fromSharedBuffer(SharedBuffer::create(serializedCustomData).get());
+        if (data.origin == origin) {
+            for (auto& type : data.orderedTypes)
+                domPasteboardTypes.add(type);
+        }
     }
 
     NSArray<NSString *> *allTypes = [m_pasteboard types];
@@ -123,13 +132,15 @@ Vector<String> PlatformPasteboard::typesSafeForDOMToReadAndWrite() const
 
         if (Pasteboard::isSafeTypeForDOMToReadAndWrite(type))
             domPasteboardTypes.add(type);
-        else if (auto* domType = safeTypeForDOMToReadAndWriteForPlatformType(type))
-            domPasteboardTypes.add(String::fromUTF8(domType));
+        else if (auto* domType = safeTypeForDOMToReadAndWriteForPlatformType(type)) {
+            auto domTypeAsString = String::fromUTF8(domType);
+            if (domTypeAsString == "text/uri-list" && stringForType(NSURLPboardType).isEmpty())
+                continue;
+            domPasteboardTypes.add(WTFMove(domTypeAsString));
+        }
     }
 
-    Vector<String> result;
-    copyToVector(domPasteboardTypes, result);
-    return result;
+    return copyToVector(domPasteboardTypes);
 }
 
 long PlatformPasteboard::write(const PasteboardCustomData& data)

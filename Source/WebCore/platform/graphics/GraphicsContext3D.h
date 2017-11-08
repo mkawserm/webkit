@@ -32,6 +32,7 @@
 #include "IntRect.h"
 #include "PlatformLayer.h"
 #include <memory>
+#include <wtf/HashCountedSet.h>
 #include <wtf/HashMap.h>
 #include <wtf/ListHashSet.h>
 #include <wtf/RefCounted.h>
@@ -59,6 +60,7 @@
 #include <wtf/RetainPtr.h>
 OBJC_CLASS CALayer;
 OBJC_CLASS WebGLLayer;
+typedef struct __IOSurface* IOSurfaceRef;
 #elif PLATFORM(GTK) || PLATFORM(WIN_CAIRO) || PLATFORM(WPE)
 typedef unsigned int GLuint;
 #endif
@@ -729,13 +731,13 @@ public:
     class ContextLostCallback {
     public:
         virtual void onContextLost() = 0;
-        virtual ~ContextLostCallback() {}
+        virtual ~ContextLostCallback() = default;
     };
 
     class ErrorMessageCallback {
     public:
         virtual void onErrorMessage(const String& message, GC3Dint id) = 0;
-        virtual ~ErrorMessageCallback() { }
+        virtual ~ErrorMessageCallback() = default;
     };
 
     void setContextLostCallback(std::unique_ptr<ContextLostCallback>);
@@ -1148,7 +1150,11 @@ public:
     bool paintCompositedResultsToCanvas(ImageBuffer*);
 
 #if PLATFORM(COCOA)
-    void endPaint();
+    bool texImageIOSurface2D(GC3Denum target, GC3Denum internalFormat, GC3Dsizei width, GC3Dsizei height, GC3Denum format, GC3Denum type, IOSurfaceRef, GC3Duint plane);
+#endif
+
+#if PLATFORM(IOS)
+    void presentRenderbuffer();
 #endif
 
 #if PLATFORM(MAC)
@@ -1278,6 +1284,11 @@ public:
     };
 
     void setFailNextGPUStatusCheck() { m_failNextStatusCheck = true; }
+
+    GC3Denum activeTextureUnit() const { return m_state.activeTextureUnit; }
+    GC3Denum currentBoundTexture() const { return m_state.currentBoundTexture(); }
+    GC3Denum currentBoundTarget() const { return m_state.currentBoundTarget(); }
+    unsigned textureSeed(GC3Duint texture) { return m_state.textureSeedCount.count(texture); }
 
 private:
     GraphicsContext3D(GraphicsContext3DAttributes, HostWindow*, RenderStyle = RenderOffscreen);
@@ -1423,8 +1434,40 @@ private:
 
     struct GraphicsContext3DState {
         GC3Duint boundFBO { 0 };
-        GC3Denum activeTexture { GraphicsContext3D::TEXTURE0 };
-        GC3Duint boundTexture0 { 0 };
+        GC3Denum activeTextureUnit { GraphicsContext3D::TEXTURE0 };
+
+        using BoundTextureMap = HashMap<GC3Denum,
+            std::pair<GC3Duint, GC3Denum>,
+            WTF::IntHash<GC3Denum>, 
+            WTF::UnsignedWithZeroKeyHashTraits<GC3Duint>,
+            WTF::PairHashTraits<WTF::UnsignedWithZeroKeyHashTraits<GC3Duint>, WTF::UnsignedWithZeroKeyHashTraits<GC3Duint>>
+        >;
+        BoundTextureMap boundTextureMap;
+        GC3Duint currentBoundTexture() const { return boundTexture(activeTextureUnit); }
+        GC3Duint boundTexture(GC3Denum textureUnit) const
+        {
+            auto iterator = boundTextureMap.find(textureUnit);
+            if (iterator != boundTextureMap.end())
+                return iterator->value.first;
+            return 0;
+        }
+
+        GC3Duint currentBoundTarget() const { return boundTarget(activeTextureUnit); }
+        GC3Denum boundTarget(GC3Denum textureUnit) const
+        {
+            auto iterator = boundTextureMap.find(textureUnit);
+            if (iterator != boundTextureMap.end())
+                return iterator->value.second;
+            return 0;
+        }
+
+        void setBoundTexture(GC3Denum textureUnit, GC3Duint texture, GC3Denum target)
+        {
+            boundTextureMap.set(textureUnit, std::make_pair(texture, target));
+        }
+
+        using TextureSeedCount = HashCountedSet<GC3Duint, WTF::IntHash<GC3Duint>, WTF::UnsignedWithZeroKeyHashTraits<GC3Duint>>;
+        TextureSeedCount textureSeedCount;
     };
 
     GraphicsContext3DState m_state;

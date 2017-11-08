@@ -45,7 +45,7 @@ public:
     // https://html.spec.whatwg.org/multipage/dnd.html#drag-data-store-mode
     enum class StoreMode { Invalid, ReadWrite, Readonly, Protected };
 
-    static Ref<DataTransfer> createForCopyAndPaste(StoreMode, std::unique_ptr<Pasteboard>&&);
+    static Ref<DataTransfer> createForCopyAndPaste(Document&, StoreMode, std::unique_ptr<Pasteboard>&&);
     static Ref<DataTransfer> createForInputEvent(const String& plainText, const String& htmlText);
 
     WEBCORE_EXPORT ~DataTransfer();
@@ -64,8 +64,8 @@ public:
 
     void clearData(const String& type = String());
 
-    String getData(const String& type) const;
-    String getDataForItem(const String& type) const;
+    String getData(Document&, const String& type) const;
+    String getDataForItem(Document&, const String& type) const;
 
     void setData(const String& type, const String& data);
     void setDataFromItemList(const String& type, const String& data);
@@ -82,11 +82,12 @@ public:
     bool hasStringOfType(const String&);
 
     Pasteboard& pasteboard() { return *m_pasteboard; }
+    void commitToPasteboard(Pasteboard&);
 
 #if ENABLE(DRAG_SUPPORT)
     static Ref<DataTransfer> createForDrag();
-    static Ref<DataTransfer> createForDragStartEvent();
-    static Ref<DataTransfer> createForDrop(std::unique_ptr<Pasteboard>&&, DragOperation, bool draggingFiles);
+    static Ref<DataTransfer> createForDragStartEvent(Document&);
+    static Ref<DataTransfer> createForDrop(Document&, std::unique_ptr<Pasteboard>&&, DragOperation, bool draggingFiles);
     static Ref<DataTransfer> createForUpdatingDropTarget(Document&, std::unique_ptr<Pasteboard>&&, DragOperation, bool draggingFiles);
 
     bool dropEffectIsUninitialized() const { return m_dropEffect == "uninitialized"; }
@@ -120,10 +121,13 @@ private:
     bool forFileDrag() const { return false; }
 #endif
 
+    bool shouldSuppressGetAndSetDataToAvoidExposingFilePaths() const;
+
     enum class AddFilesType { No, Yes };
     Vector<String> types(AddFilesType) const;
     Vector<Ref<File>> filesFromPasteboardAndItemList() const;
 
+    String m_originIdentifier;
     StoreMode m_storeMode;
     std::unique_ptr<Pasteboard> m_pasteboard;
     std::unique_ptr<DataTransferItemList> m_itemList;

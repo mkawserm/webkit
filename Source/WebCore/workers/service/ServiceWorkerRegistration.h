@@ -30,50 +30,65 @@
 #include "ActiveDOMObject.h"
 #include "EventTarget.h"
 #include "JSDOMPromiseDeferred.h"
+#include "SWClientConnection.h"
 #include "ServiceWorkerRegistrationData.h"
+#include <wtf/Identified.h>
 
 namespace WebCore {
 
 class ScriptExecutionContext;
 class ServiceWorker;
+class ServiceWorkerContainer;
 
-class ServiceWorkerRegistration final : public EventTargetWithInlineData, public ActiveDOMObject {
+class ServiceWorkerRegistration final : public RefCounted<ServiceWorkerRegistration>, public EventTargetWithInlineData, public ActiveDOMObject, public ThreadSafeIdentified<ServiceWorkerRegistration> {
 public:
-    enum class UpdateViaCache {
-        Imports,
-        All,
-        None,
-    };
-
-    static Ref<ServiceWorkerRegistration> create(ScriptExecutionContext& context, const ServiceWorkerRegistrationData& data)
+    template <typename... Args> static Ref<ServiceWorkerRegistration> create(Args&&... args)
     {
-        return adoptRef(*new ServiceWorkerRegistration(context, data));
+        return adoptRef(*new ServiceWorkerRegistration(std::forward<Args>(args)...));
     }
 
-    virtual ~ServiceWorkerRegistration() = default;
+    ~ServiceWorkerRegistration();
 
     ServiceWorker* installing();
     ServiceWorker* waiting();
     ServiceWorker* active();
 
+    void setInstallingWorker(RefPtr<ServiceWorker>&&);
+    void setWaitingWorker(RefPtr<ServiceWorker>&&);
+    void setActiveWorker(RefPtr<ServiceWorker>&&);
+
+    ServiceWorker* getNewestWorker();
+
     const String& scope() const;
-    UpdateViaCache updateViaCache() const;
+    ServiceWorkerUpdateViaCache updateViaCache() const;
 
     void update(Ref<DeferredPromise>&&);
     void unregister(Ref<DeferredPromise>&&);
 
-private:
-    ServiceWorkerRegistration(ScriptExecutionContext&, const ServiceWorkerRegistrationData&);
+    using RefCounted::ref;
+    using RefCounted::deref;
+    
+    const ServiceWorkerRegistrationData& data() const { return m_registrationData; }
 
-    virtual EventTargetInterface eventTargetInterface() const;
-    virtual ScriptExecutionContext* scriptExecutionContext() const;
+    void updateStateFromServer(ServiceWorkerRegistrationState, std::optional<ServiceWorkerIdentifier>);
+
+private:
+    ServiceWorkerRegistration(ScriptExecutionContext&, Ref<ServiceWorkerContainer>&&, ServiceWorkerRegistrationData&&);
+
+    EventTargetInterface eventTargetInterface() const final;
+    ScriptExecutionContext* scriptExecutionContext() const final;
     void refEventTarget() final { ref(); }
     void derefEventTarget() final { deref(); }
 
-    const char* activeDOMObjectName() const { return "ServiceWorkerRegistration"; }
-    bool canSuspendForDocumentSuspension() const { return false; }
+    const char* activeDOMObjectName() const final;
+    bool canSuspendForDocumentSuspension() const final;
 
     ServiceWorkerRegistrationData m_registrationData;
+    Ref<ServiceWorkerContainer> m_container;
+
+    RefPtr<ServiceWorker> m_installingWorker;
+    RefPtr<ServiceWorker> m_waitingWorker;
+    RefPtr<ServiceWorker> m_activeWorker;
 };
 
 } // namespace WebCore

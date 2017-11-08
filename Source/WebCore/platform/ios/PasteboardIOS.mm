@@ -162,54 +162,71 @@ static NSArray* supportedImageTypes()
     return @[(id)kUTTypePNG, (id)kUTTypeTIFF, (id)kUTTypeJPEG, (id)kUTTypeGIF];
 }
 
-static bool readPasteboardWebContentDataForType(PasteboardWebContentReader& reader, PasteboardStrategy& strategy, NSString *type, int itemIndex, const String& pasteboardName)
+Pasteboard::ReaderResult Pasteboard::readPasteboardWebContentDataForType(PasteboardWebContentReader& reader, PasteboardStrategy& strategy, NSString *type, int itemIndex)
 {
     if ([type isEqualToString:WebArchivePboardType]) {
-        RefPtr<SharedBuffer> buffer = strategy.readBufferFromPasteboard(itemIndex, WebArchivePboardType, pasteboardName);
-        return reader.readWebArchive(buffer.get());
+        auto buffer = strategy.readBufferFromPasteboard(itemIndex, WebArchivePboardType, m_pasteboardName);
+        if (m_changeCount != changeCount())
+            return ReaderResult::PasteboardWasChangedExternally;
+        return buffer && reader.readWebArchive(*buffer) ? ReaderResult::ReadType : ReaderResult::DidNotReadType;
     }
 
     if ([type isEqualToString:(NSString *)kUTTypeHTML]) {
-        String htmlString = strategy.readStringFromPasteboard(itemIndex, kUTTypeHTML, pasteboardName);
-        return !htmlString.isNull() && reader.readHTML(htmlString);
+        String htmlString = strategy.readStringFromPasteboard(itemIndex, kUTTypeHTML, m_pasteboardName);
+        if (m_changeCount != changeCount())
+            return ReaderResult::PasteboardWasChangedExternally;
+        return !htmlString.isNull() && reader.readHTML(htmlString) ? ReaderResult::ReadType : ReaderResult::DidNotReadType;
     }
 
     if ([type isEqualToString:(NSString *)kUTTypeFlatRTFD]) {
-        RefPtr<SharedBuffer> buffer = strategy.readBufferFromPasteboard(itemIndex, kUTTypeFlatRTFD, pasteboardName);
-        return buffer && reader.readRTFD(*buffer);
+        RefPtr<SharedBuffer> buffer = strategy.readBufferFromPasteboard(itemIndex, kUTTypeFlatRTFD, m_pasteboardName);
+        if (m_changeCount != changeCount())
+            return ReaderResult::PasteboardWasChangedExternally;
+        return buffer && reader.readRTFD(*buffer) ? ReaderResult::ReadType : ReaderResult::DidNotReadType;
     }
 
     if ([type isEqualToString:(NSString *)kUTTypeRTF]) {
-        RefPtr<SharedBuffer> buffer = strategy.readBufferFromPasteboard(itemIndex, kUTTypeRTF, pasteboardName);
-        return buffer && reader.readRTF(*buffer);
+        RefPtr<SharedBuffer> buffer = strategy.readBufferFromPasteboard(itemIndex, kUTTypeRTF, m_pasteboardName);
+        if (m_changeCount != changeCount())
+            return ReaderResult::PasteboardWasChangedExternally;
+        return buffer && reader.readRTF(*buffer) ? ReaderResult::ReadType : ReaderResult::DidNotReadType;
     }
 
     if ([supportedImageTypes() containsObject:type]) {
-        RefPtr<SharedBuffer> buffer = strategy.readBufferFromPasteboard(itemIndex, type, pasteboardName);
-        return buffer && reader.readImage(buffer.releaseNonNull(), type);
+        RefPtr<SharedBuffer> buffer = strategy.readBufferFromPasteboard(itemIndex, type, m_pasteboardName);
+        if (m_changeCount != changeCount())
+            return ReaderResult::PasteboardWasChangedExternally;
+        return buffer && reader.readImage(buffer.releaseNonNull(), type) ? ReaderResult::ReadType : ReaderResult::DidNotReadType;
     }
 
     if ([type isEqualToString:(NSString *)kUTTypeURL]) {
         String title;
-        URL url = strategy.readURLFromPasteboard(itemIndex, kUTTypeURL, pasteboardName, title);
-        return !url.isNull() && reader.readURL(url, title);
+        URL url = strategy.readURLFromPasteboard(itemIndex, kUTTypeURL, m_pasteboardName, title);
+        if (m_changeCount != changeCount())
+            return ReaderResult::PasteboardWasChangedExternally;
+        return !url.isNull() && reader.readURL(url, title) ? ReaderResult::ReadType : ReaderResult::DidNotReadType;
     }
 
     if (UTTypeConformsTo((CFStringRef)type, kUTTypePlainText)) {
-        String string = strategy.readStringFromPasteboard(itemIndex, kUTTypePlainText, pasteboardName);
-        return !string.isNull() && reader.readPlainText(string);
+        String string = strategy.readStringFromPasteboard(itemIndex, kUTTypePlainText, m_pasteboardName);
+        if (m_changeCount != changeCount())
+            return ReaderResult::PasteboardWasChangedExternally;
+        return !string.isNull() && reader.readPlainText(string) ? ReaderResult::ReadType : ReaderResult::DidNotReadType;
     }
 
     if (UTTypeConformsTo((CFStringRef)type, kUTTypeText)) {
-        String string = strategy.readStringFromPasteboard(itemIndex, kUTTypeText, pasteboardName);
-        return !string.isNull() && reader.readPlainText(string);
+        String string = strategy.readStringFromPasteboard(itemIndex, kUTTypeText, m_pasteboardName);
+        if (m_changeCount != changeCount())
+            return ReaderResult::PasteboardWasChangedExternally;
+        return !string.isNull() && reader.readPlainText(string) ? ReaderResult::ReadType : ReaderResult::DidNotReadType;
     }
 
-    return false;
+    return ReaderResult::DidNotReadType;
 }
 
 void Pasteboard::read(PasteboardWebContentReader& reader)
 {
+    reader.contentOrigin = readOrigin();
     if (respectsUTIFidelities()) {
         readRespectingUTIFidelities(reader);
         return;
@@ -227,7 +244,10 @@ void Pasteboard::read(PasteboardWebContentReader& reader)
 
     for (int i = 0; i < numberOfItems; i++) {
         for (int typeIndex = 0; typeIndex < numberOfTypes; typeIndex++) {
-            if (readPasteboardWebContentDataForType(reader, strategy, [types objectAtIndex:typeIndex], i, m_pasteboardName))
+            auto result = readPasteboardWebContentDataForType(reader, strategy, [types objectAtIndex:typeIndex], i);
+            if (result == ReaderResult::PasteboardWasChangedExternally)
+                return;
+            if (result == ReaderResult::ReadType)
                 break;
         }
     }
@@ -251,7 +271,10 @@ void Pasteboard::readRespectingUTIFidelities(PasteboardWebContentReader& reader)
         Vector<String> typesForItemInOrderOfFidelity;
         strategy.getTypesByFidelityForItemAtIndex(typesForItemInOrderOfFidelity, index, m_pasteboardName);
         for (auto& type : typesForItemInOrderOfFidelity) {
-            if (readPasteboardWebContentDataForType(reader, strategy, type, index, m_pasteboardName))
+            auto result = readPasteboardWebContentDataForType(reader, strategy, type, index);
+            if (result == ReaderResult::PasteboardWasChangedExternally)
+                return;
+            if (result == ReaderResult::ReadType)
                 break;
         }
     }

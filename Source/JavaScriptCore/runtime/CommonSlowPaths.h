@@ -45,11 +45,6 @@ namespace JSC {
 
 namespace CommonSlowPaths {
 
-struct ArityCheckData {
-    unsigned paddedStackSpace;
-    void* thunkToCall;
-};
-
 ALWAYS_INLINE int numberOfExtraSlots(int argumentCountIncludingThis)
 {
     int frameSize = argumentCountIncludingThis + CallFrame::headerSizeInRegisters;
@@ -239,6 +234,7 @@ SLOW_PATH_HIDDEN_DECL(slow_path_inc);
 SLOW_PATH_HIDDEN_DECL(slow_path_dec);
 SLOW_PATH_HIDDEN_DECL(slow_path_to_number);
 SLOW_PATH_HIDDEN_DECL(slow_path_to_string);
+SLOW_PATH_HIDDEN_DECL(slow_path_to_object);
 SLOW_PATH_HIDDEN_DECL(slow_path_negate);
 SLOW_PATH_HIDDEN_DECL(slow_path_add);
 SLOW_PATH_HIDDEN_DECL(slow_path_mul);

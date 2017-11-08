@@ -720,10 +720,13 @@ private:
         case LoadKeyFromMapBucket:
         case LoadValueFromMapBucket:
         case ToNumber:
+        case ToObject:
+        case CallObjectConstructor:
         case GetArgument:
         case CallDOMGetter:
         case GetDynamicVar:
-        case WeakMapGet: {
+        case WeakMapGet:
+        case GetPrototypeOf: {
             setPrediction(m_currentNode->getHeapPrediction());
             break;
         }
@@ -783,6 +786,7 @@ private:
             break;
         }
 
+        case StringSlice:
         case ToLowerCase:
             setPrediction(SpecString);
             break;
@@ -818,6 +822,8 @@ private:
         case CompareLessEq:
         case CompareGreater:
         case CompareGreaterEq:
+        case CompareBelow:
+        case CompareBelowEq:
         case CompareEq:
         case CompareStrictEq:
         case CompareEqPtr:
@@ -853,10 +859,6 @@ private:
         case CheckSubClass:
             break;
 
-        case CallObjectConstructor: {
-            setPrediction(SpecObject);
-            break;
-        }
         case SkipScope:
         case GetGlobalObject: {
             setPrediction(SpecObjectOther);

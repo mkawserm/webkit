@@ -48,17 +48,17 @@ struct ListedChild {
 static ExceptionOr<Vector<ListedChild>> listDirectoryWithMetadata(const String& fullPath)
 {
     ASSERT(!isMainThread());
-    if (!fileIsDirectory(fullPath, ShouldFollowSymbolicLinks::No))
+    if (!FileSystem::fileIsDirectory(fullPath, FileSystem::ShouldFollowSymbolicLinks::No))
         return Exception { NotFoundError, "Path no longer exists or is no longer a directory" };
 
-    auto childPaths = listDirectory(fullPath, "*");
+    auto childPaths = FileSystem::listDirectory(fullPath, "*");
     Vector<ListedChild> listedChildren;
     listedChildren.reserveInitialCapacity(childPaths.size());
     for (auto& childPath : childPaths) {
-        auto metadata = fileMetadata(childPath);
+        auto metadata = FileSystem::fileMetadata(childPath);
         if (!metadata || metadata.value().isHidden)
             continue;
-        listedChildren.uncheckedAppend(ListedChild { pathGetFileName(childPath), metadata.value().type });
+        listedChildren.uncheckedAppend(ListedChild { FileSystem::pathGetFileName(childPath), metadata.value().type });
     }
     return WTFMove(listedChildren);
 }
@@ -96,12 +96,21 @@ static bool isValidPathNameCharacter(UChar c)
 // https://wicg.github.io/entries-api/#path-segment
 static bool isValidPathSegment(StringView segment)
 {
-    ASSERT(!segment.isEmpty());
-    if (segment == "." || segment == "..")
+    if (segment.isEmpty() || segment == "." || segment == "..")
         return true;
 
     for (unsigned i = 0; i < segment.length(); ++i) {
         if (!isValidPathNameCharacter(segment[i]))
+            return false;
+    }
+    return true;
+}
+
+static bool isZeroOrMorePathSegmentsSeparatedBySlashes(StringView string)
+{
+    auto segments = string.split('/');
+    for (auto segment : segments) {
+        if (!isValidPathSegment(segment))
             return false;
     }
     return true;
@@ -116,12 +125,7 @@ static bool isValidRelativeVirtualPath(StringView virtualPath)
     if (virtualPath[0] == '/')
         return false;
 
-    auto segments = virtualPath.split('/');
-    for (auto segment : segments) {
-        if (!isValidPathSegment(segment))
-            return false;
-    }
-    return true;
+    return isZeroOrMorePathSegmentsSeparatedBySlashes(virtualPath);
 }
 
 // https://wicg.github.io/entries-api/#valid-path
@@ -129,23 +133,23 @@ static bool isValidVirtualPath(StringView virtualPath)
 {
     if (virtualPath.isEmpty())
         return true;
-    if (virtualPath[0] == '/')
-        return virtualPath.length() == 1 || isValidRelativeVirtualPath(virtualPath.substring(1));
+    if (virtualPath[0] == '/') {
+        // An absolute path is a string consisting of '/' (U+002F SOLIDUS) followed by one or more path segments joined by '/' (U+002F SOLIDUS).
+        return isZeroOrMorePathSegmentsSeparatedBySlashes(virtualPath.substring(1));
+    }
     return isValidRelativeVirtualPath(virtualPath);
 }
 
 DOMFileSystem::DOMFileSystem(Ref<File>&& file)
     : m_name(createCanonicalUUIDString())
     , m_file(WTFMove(file))
-    , m_rootPath(directoryName(m_file->path()))
+    , m_rootPath(FileSystem::directoryName(m_file->path()))
     , m_workQueue(WorkQueue::create("DOMFileSystem work queue"))
 {
     ASSERT(!m_rootPath.endsWith('/'));
 }
 
-DOMFileSystem::~DOMFileSystem()
-{
-}
+DOMFileSystem::~DOMFileSystem() = default;
 
 Ref<FileSystemDirectoryEntry> DOMFileSystem::root(ScriptExecutionContext& context)
 {
@@ -163,7 +167,7 @@ static ExceptionOr<String> validatePathIsExpectedType(const String& fullPath, St
 {
     ASSERT(!isMainThread());
 
-    auto metadata = fileMetadata(fullPath);
+    auto metadata = FileSystem::fileMetadata(fullPath);
     if (!metadata || metadata.value().isHidden)
         return Exception { NotFoundError, ASCIILiteral("Path does not exist") };
 
@@ -175,7 +179,7 @@ static ExceptionOr<String> validatePathIsExpectedType(const String& fullPath, St
 
 static std::optional<FileMetadata::Type> fileType(const String& fullPath)
 {
-    auto metadata = fileMetadata(fullPath);
+    auto metadata = FileSystem::fileMetadata(fullPath);
     if (!metadata || metadata.value().isHidden)
         return std::nullopt;
     return metadata.value().type;
@@ -232,7 +236,7 @@ String DOMFileSystem::evaluatePath(StringView virtualPath)
         resolvedComponents.append(component);
     }
 
-    return pathByAppendingComponents(m_rootPath, resolvedComponents);
+    return FileSystem::pathByAppendingComponents(m_rootPath, resolvedComponents);
 }
 
 void DOMFileSystem::listDirectory(ScriptExecutionContext& context, FileSystemDirectoryEntry& directory, DirectoryListingCallback&& completionHandler)
@@ -330,9 +334,9 @@ void DOMFileSystem::getFile(ScriptExecutionContext& context, FileSystemFileEntry
 {
     auto virtualPath = fileEntry.virtualPath();
     auto fullPath = evaluatePath(virtualPath);
-    m_workQueue->dispatch([this, context = makeRef(context), fullPath = crossThreadCopy(fullPath), virtualPath = crossThreadCopy(virtualPath), completionCallback = WTFMove(completionCallback)]() mutable {
+    m_workQueue->dispatch([context = makeRef(context), fullPath = crossThreadCopy(fullPath), virtualPath = crossThreadCopy(virtualPath), completionCallback = WTFMove(completionCallback)]() mutable {
         auto validatedVirtualPath = validatePathIsExpectedType(fullPath, WTFMove(virtualPath), FileMetadata::Type::File);
-        callOnMainThread([this, context = WTFMove(context), fullPath = crossThreadCopy(fullPath), validatedVirtualPath = crossThreadCopy(validatedVirtualPath), completionCallback = WTFMove(completionCallback)]() mutable {
+        callOnMainThread([context = WTFMove(context), fullPath = crossThreadCopy(fullPath), validatedVirtualPath = crossThreadCopy(validatedVirtualPath), completionCallback = WTFMove(completionCallback)]() mutable {
             if (validatedVirtualPath.hasException())
                 completionCallback(validatedVirtualPath.releaseException());
             else

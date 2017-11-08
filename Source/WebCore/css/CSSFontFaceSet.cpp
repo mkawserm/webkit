@@ -131,19 +131,19 @@ String CSSFontFaceSet::familyNameFromPrimitive(const CSSPrimitiveValue& value)
     // defining what font to use for those types.
     switch (value.valueID()) {
     case CSSValueSerif:
-        return serifFamily;
+        return serifFamily.get();
     case CSSValueSansSerif:
-        return sansSerifFamily;
+        return sansSerifFamily.get();
     case CSSValueCursive:
-        return cursiveFamily;
+        return cursiveFamily.get();
     case CSSValueFantasy:
-        return fantasyFamily;
+        return fantasyFamily.get();
     case CSSValueMonospace:
-        return monospaceFamily;
+        return monospaceFamily.get();
     case CSSValueWebkitPictograph:
-        return pictographFamily;
+        return pictographFamily.get();
     case CSSValueSystemUi:
-        return systemUiFamily;
+        return systemUiFamily.get();
     default:
         return { };
     }
@@ -338,7 +338,7 @@ ExceptionOr<Vector<std::reference_wrapper<CSSFontFace>>> CSSFontFaceSet::matchin
     FontSelectionRequest request = computeFontSelectionRequest(style.get());
 
     auto family = style->getPropertyCSSValue(CSSPropertyFontFamily);
-    if (!is<CSSValueList>(family.get()))
+    if (!is<CSSValueList>(family))
         return Exception { SyntaxError };
     CSSValueList& familyList = downcast<CSSValueList>(*family);
 

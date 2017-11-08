@@ -36,9 +36,13 @@
 #include "RenderRubyRun.h"
 #include "RenderStyle.h"
 #include "StyleInheritedData.h"
+#include <wtf/IsoMallocInlines.h>
 #include <wtf/RefPtr.h>
 
 namespace WebCore {
+
+WTF_MAKE_ISO_ALLOCATED_IMPL(RenderRubyAsInline);
+WTF_MAKE_ISO_ALLOCATED_IMPL(RenderRubyAsBlock);
 
 //=== generic helper functions to avoid excessive code duplication ===
 
@@ -127,9 +131,7 @@ RenderRubyAsInline::RenderRubyAsInline(Element& element, RenderStyle&& style)
 {
 }
 
-RenderRubyAsInline::~RenderRubyAsInline()
-{
-}
+RenderRubyAsInline::~RenderRubyAsInline() = default;
 
 void RenderRubyAsInline::styleDidChange(StyleDifference diff, const RenderStyle* oldStyle)
 {
@@ -236,9 +238,7 @@ RenderRubyAsBlock::RenderRubyAsBlock(Element& element, RenderStyle&& style)
 {
 }
 
-RenderRubyAsBlock::~RenderRubyAsBlock()
-{
-}
+RenderRubyAsBlock::~RenderRubyAsBlock() = default;
 
 void RenderRubyAsBlock::styleDidChange(StyleDifference diff, const RenderStyle* oldStyle)
 {

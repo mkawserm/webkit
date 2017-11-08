@@ -73,6 +73,7 @@
 #include "JSMapIterator.h"
 #include "JSPromiseDeferred.h"
 #include "JSPropertyNameEnumerator.h"
+#include "JSScriptFetchParameters.h"
 #include "JSScriptFetcher.h"
 #include "JSSet.h"
 #include "JSSetIterator.h"
@@ -184,7 +185,7 @@ VM::VM(VMType vmType, HeapType heapType)
 #endif
     , vmType(vmType)
     , clientData(0)
-    , topVMEntryFrame(nullptr)
+    , topEntryFrame(nullptr)
     , topCallFrame(CallFrame::noCaller())
     , promiseDeferredTimer(std::make_unique<PromiseDeferredTimer>(*this))
     , m_atomicStringTable(vmType == Default ? Thread::current().atomicStringTable() : new AtomicStringTable)
@@ -253,6 +254,7 @@ VM::VM(VMType vmType, HeapType heapType)
     fixedArrayStructure.set(*this, JSFixedArray::createStructure(*this, 0, jsNull()));
     sourceCodeStructure.set(*this, JSSourceCode::createStructure(*this, 0, jsNull()));
     scriptFetcherStructure.set(*this, JSScriptFetcher::createStructure(*this, 0, jsNull()));
+    scriptFetchParametersStructure.set(*this, JSScriptFetchParameters::createStructure(*this, 0, jsNull()));
     structureChainStructure.set(*this, StructureChain::createStructure(*this, 0, jsNull()));
     sparseArrayValueMapStructure.set(*this, SparseArrayValueMap::createStructure(*this, 0, jsNull()));
     templateRegistryKeyStructure.set(*this, JSTemplateRegistryKey::createStructure(*this, 0, jsNull()));
@@ -290,7 +292,6 @@ VM::VM(VMType vmType, HeapType heapType)
 #if ENABLE(JIT)
     jitStubs = std::make_unique<JITThunks>();
 #endif
-    arityCheckData = std::make_unique<CommonSlowPaths::ArityCheckData>();
 
 #if ENABLE(FTL_JIT)
     ftlThunks = std::make_unique<FTL::Thunks>();
@@ -350,6 +351,10 @@ VM::VM(VMType vmType, HeapType heapType)
         watchdog.setTimeLimit(timeoutMillis);
     }
 
+    // Make sure that any stubs that the JIT is going to use are initialized in non-compilation threads.
+    getCTIInternalFunctionTrampolineFor(CodeForCall);
+    getCTIInternalFunctionTrampolineFor(CodeForConstruct);
+
     VMInspector::instance().add(this);
 }
 
@@ -368,7 +373,7 @@ VM::~VM()
     promiseDeferredTimer->stopRunningTasks();
 #if ENABLE(WEBASSEMBLY)
     if (Wasm::existingWorklistOrNull())
-        Wasm::ensureWorklist().stopAllPlansForVM(*this);
+        Wasm::ensureWorklist().stopAllPlansForContext(wasmContext);
 #endif
     if (UNLIKELY(m_watchdog))
         m_watchdog->willDestroyVM(this);
@@ -577,6 +582,19 @@ NativeExecutable* VM::getHostFunction(NativeFunction function, Intrinsic intrins
         NoIntrinsic, signature, name);
 }
 
+MacroAssemblerCodePtr VM::getCTIInternalFunctionTrampolineFor(CodeSpecializationKind kind)
+{
+#if ENABLE(JIT)
+    if (kind == CodeForCall)
+        return jitStubs->ctiInternalFunctionCall(this);
+    return jitStubs->ctiInternalFunctionConstruct(this);
+#else
+    if (kind == CodeForCall)
+        return MacroAssemblerCodePtr::createLLIntCodePtr(llint_internal_function_call_trampoline);
+    return MacroAssemblerCodePtr::createLLIntCodePtr(llint_internal_function_construct_trampoline);
+#endif
+}
+
 VM::ClientData::~ClientData()
 {
 }
@@ -765,11 +783,12 @@ void logSanitizeStack(VM* vm)
 {
     if (Options::verboseSanitizeStack() && vm->topCallFrame) {
         int dummy;
+        auto& stackBounds = Thread::current().stack();
         dataLog(
-            "Sanitizing stack with top call frame at ", RawPointer(vm->topCallFrame),
+            "Sanitizing stack for VM = ", RawPointer(vm), " with top call frame at ", RawPointer(vm->topCallFrame),
             ", current stack pointer at ", RawPointer(&dummy), ", in ",
-            pointerDump(vm->topCallFrame->codeBlock()), " and last code origin = ",
-            vm->topCallFrame->codeOrigin(), "\n");
+            pointerDump(vm->topCallFrame->codeBlock()), ", last code origin = ",
+            vm->topCallFrame->codeOrigin(), ", last stack top = ", RawPointer(vm->lastStackTop()), ", in stack range [", RawPointer(stackBounds.origin()), ", ", RawPointer(stackBounds.end()), "]\n");
     }
 }
 
@@ -919,6 +938,11 @@ void QueuedTask::run()
 void sanitizeStackForVM(VM* vm)
 {
     logSanitizeStack(vm);
+    if (vm->topCallFrame) {
+        auto& stackBounds = Thread::current().stack();
+        ASSERT(vm->currentThreadIsHoldingAPILock());
+        ASSERT_UNUSED(stackBounds, stackBounds.contains(vm->lastStackTop()));
+    }
 #if !ENABLE(JIT)
     vm->interpreter->cloopStack().sanitizeStack();
 #else
@@ -987,20 +1011,6 @@ void VM::verifyExceptionCheckNeedIsSatisfied(unsigned recursionDepth, ExceptionE
     }
 }
 #endif
-
-#if ENABLE(JIT)
-RegisterAtOffsetList* VM::getAllCalleeSaveRegisterOffsets()
-{
-    static RegisterAtOffsetList* result;
-
-    static std::once_flag calleeSavesFlag;
-    std::call_once(calleeSavesFlag, [] () {
-        result = new RegisterAtOffsetList(RegisterSet::vmCalleeSaveRegisters(), RegisterAtOffsetList::ZeroBased);
-    });
-
-    return result;
-}
-#endif // ENABLE(JIT)
 
 #if USE(CF)
 void VM::registerRunLoopTimer(JSRunLoopTimer* timer)

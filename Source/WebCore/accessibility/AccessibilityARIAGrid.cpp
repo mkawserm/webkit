@@ -45,9 +45,7 @@ AccessibilityARIAGrid::AccessibilityARIAGrid(RenderObject* renderer)
 {
 }
 
-AccessibilityARIAGrid::~AccessibilityARIAGrid()
-{
-}
+AccessibilityARIAGrid::~AccessibilityARIAGrid() = default;
 
 Ref<AccessibilityARIAGrid> AccessibilityARIAGrid::create(RenderObject* renderer)
 {
@@ -141,7 +139,7 @@ void AccessibilityARIAGrid::addChildren()
     
     // make the columns based on the number of columns in the first body
     for (unsigned i = 0; i < columnCount; ++i) {
-        auto& column = downcast<AccessibilityTableColumn>(*axCache->getOrCreate(ColumnRole));
+        auto& column = downcast<AccessibilityTableColumn>(*axCache->getOrCreate(AccessibilityRole::Column));
         column.setColumnIndex(static_cast<int>(i));
         column.setParent(this);
         m_columns.append(&column);

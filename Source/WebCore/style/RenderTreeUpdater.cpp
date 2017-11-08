@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 Apple Inc. All rights reserved.
+ * Copyright (C) 2016-2017 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -38,6 +38,7 @@
 #include "PseudoElement.h"
 #include "RenderDescendantIterator.h"
 #include "RenderFullScreen.h"
+#include "RenderInline.h"
 #include "RenderListItem.h"
 #include "RenderTreeUpdaterFirstLetter.h"
 #include "RenderTreeUpdaterGeneratedContent.h"
@@ -74,9 +75,9 @@ RenderTreeUpdater::Parent::Parent(ContainerNode& root)
 {
 }
 
-RenderTreeUpdater::Parent::Parent(Element& element, Style::Change styleChange)
+RenderTreeUpdater::Parent::Parent(Element& element, const Style::ElementUpdates* updates)
     : element(&element)
-    , styleChange(styleChange)
+    , updates(updates)
     , renderTreePosition(element.renderer() ? std::make_optional(RenderTreePosition(*element.renderer())) : std::nullopt)
 {
 }
@@ -87,9 +88,7 @@ RenderTreeUpdater::RenderTreeUpdater(Document& document)
 {
 }
 
-RenderTreeUpdater::~RenderTreeUpdater()
-{
-}
+RenderTreeUpdater::~RenderTreeUpdater() = default;
 
 static ContainerNode* findRenderingRoot(ContainerNode& node)
 {
@@ -175,26 +174,32 @@ void RenderTreeUpdater::updateRenderTree(ContainerNode& root)
         if (is<Text>(node)) {
             auto& text = downcast<Text>(node);
             auto* textUpdate = m_styleUpdate->textUpdate(text);
-            if (parent().styleChange == Style::Detach || textUpdate || m_invalidatedWhitespaceOnlyTextSiblings.contains(&text))
+            bool didCreateParent = parent().updates && parent().updates->update.change == Style::Detach;
+            bool mayNeedUpdateWhitespaceOnlyRenderer = renderingParent().didCreateOrDestroyChildRenderer && text.containsOnlyWhitespace();
+            if (didCreateParent || textUpdate || mayNeedUpdateWhitespaceOnlyRenderer)
                 updateTextRenderer(text, textUpdate);
 
+            storePreviousRenderer(text);
             it.traverseNextSkippingChildren();
             continue;
         }
 
         auto& element = downcast<Element>(node);
 
-        auto* elementUpdate = m_styleUpdate->elementUpdate(element);
+        auto* elementUpdates = m_styleUpdate->elementUpdates(element);
 
         // We hop through display: contents elements in findRenderingRoot, so
         // there may be other updates down the tree.
-        if (!elementUpdate && !element.hasDisplayContents()) {
+        if (!elementUpdates && !element.hasDisplayContents()) {
+            storePreviousRenderer(element);
             it.traverseNextSkippingChildren();
             continue;
         }
 
-        if (elementUpdate)
-            updateElementRenderer(element, *elementUpdate);
+        if (elementUpdates)
+            updateElementRenderer(element, elementUpdates->update);
+
+        storePreviousRenderer(element);
 
         bool mayHaveRenderedDescendants = element.renderer() || (element.hasDisplayContents() && shouldCreateRenderer(element, renderTreePosition().parent()));
         if (!mayHaveRenderedDescendants) {
@@ -202,38 +207,41 @@ void RenderTreeUpdater::updateRenderTree(ContainerNode& root)
             continue;
         }
 
-        pushParent(element, elementUpdate ? elementUpdate->change : Style::NoChange);
+        pushParent(element, elementUpdates);
 
         it.traverseNext();
     }
 
     popParentsToDepth(0);
+}
 
-    m_invalidatedWhitespaceOnlyTextSiblings.clear();
+auto RenderTreeUpdater::renderingParent() -> Parent&
+{
+    for (unsigned i = m_parentStack.size(); i--;) {
+        if (m_parentStack[i].renderTreePosition)
+            return m_parentStack[i];
+    }
+    ASSERT_NOT_REACHED();
+    return m_parentStack.last();
 }
 
 RenderTreePosition& RenderTreeUpdater::renderTreePosition()
 {
-    for (unsigned i = m_parentStack.size(); i; --i) {
-        if (auto& position = m_parentStack[i - 1].renderTreePosition)
-            return *position;
-    }
-    ASSERT_NOT_REACHED();
-    return *m_parentStack.last().renderTreePosition;
+    return *renderingParent().renderTreePosition;
 }
 
-void RenderTreeUpdater::pushParent(Element& element, Style::Change changeType)
+void RenderTreeUpdater::pushParent(Element& element, const Style::ElementUpdates* updates)
 {
-    m_parentStack.append(Parent(element, changeType));
+    m_parentStack.append(Parent(element, updates));
 
-    updateBeforeDescendants(element);
+    updateBeforeDescendants(element, updates);
 }
 
 void RenderTreeUpdater::popParent()
 {
     auto& parent = m_parentStack.last();
     if (parent.element)
-        updateAfterDescendants(*parent.element, parent.styleChange);
+        updateAfterDescendants(*parent.element, parent.updates);
 
     m_parentStack.removeLast();
 }
@@ -246,14 +254,16 @@ void RenderTreeUpdater::popParentsToDepth(unsigned depth)
         popParent();
 }
 
-void RenderTreeUpdater::updateBeforeDescendants(Element& element)
+void RenderTreeUpdater::updateBeforeDescendants(Element& element, const Style::ElementUpdates* updates)
 {
-    generatedContent().updateBeforePseudoElement(element);
+    if (updates)
+        generatedContent().updatePseudoElement(element, updates->beforePseudoElementUpdate, BEFORE);
 }
 
-void RenderTreeUpdater::updateAfterDescendants(Element& element, Style::Change styleChange)
+void RenderTreeUpdater::updateAfterDescendants(Element& element, const Style::ElementUpdates* updates)
 {
-    generatedContent().updateAfterPseudoElement(element);
+    if (updates)
+        generatedContent().updatePseudoElement(element, updates->afterPseudoElementUpdate, AFTER);
 
     auto* renderer = element.renderer();
     if (!renderer)
@@ -267,7 +277,7 @@ void RenderTreeUpdater::updateAfterDescendants(Element& element, Style::Change s
     if (is<RenderBlockFlow>(*renderer))
         MultiColumn::update(downcast<RenderBlockFlow>(*renderer));
 
-    if (element.hasCustomStyleResolveCallbacks() && styleChange == Style::Detach)
+    if (element.hasCustomStyleResolveCallbacks() && updates && updates->update.change == Style::Detach)
         element.didAttachRenderers();
 }
 
@@ -308,6 +318,8 @@ void RenderTreeUpdater::updateElementRenderer(Element& element, const Style::Ele
         // display:none cancels animations.
         auto teardownType = update.style->display() == NONE ? TeardownType::RendererUpdateCancelingAnimations : TeardownType::RendererUpdate;
         tearDownRenderers(element, teardownType);
+
+        renderingParent().didCreateOrDestroyChildRenderer = true;
     }
 
     bool hasDisplayContents = update.style->display() == CONTENTS;
@@ -321,7 +333,8 @@ void RenderTreeUpdater::updateElementRenderer(Element& element, const Style::Ele
         if (element.hasCustomStyleResolveCallbacks())
             element.willAttachRenderers();
         createRenderer(element, RenderStyle::clone(*update.style));
-        invalidateWhitespaceOnlyTextSiblingsAfterAttachIfNeeded(element);
+
+        renderingParent().didCreateOrDestroyChildRenderer = true;
         return;
     }
 
@@ -383,9 +396,9 @@ void RenderTreeUpdater::createRenderer(Element& element, RenderStyle&& style)
         cache->updateCacheAfterNodeIsAttached(&element);
 }
 
-static bool textRendererIsNeeded(const Text& textNode, const RenderTreePosition& renderTreePosition)
+bool RenderTreeUpdater::textRendererIsNeeded(const Text& textNode)
 {
-    const RenderElement& parentRenderer = renderTreePosition.parent();
+    const RenderElement& parentRenderer = renderTreePosition().parent();
     if (!parentRenderer.canHaveChildren())
         return false;
     if (parentRenderer.element() && !parentRenderer.element()->childShouldCreateRenderer(textNode))
@@ -402,7 +415,7 @@ static bool textRendererIsNeeded(const Text& textNode, const RenderTreePosition&
     if (parentRenderer.style().preserveNewline()) // pre/pre-wrap/pre-line always make renderers.
         return true;
 
-    RenderObject* previousRenderer = renderTreePosition.previousSiblingRenderer(textNode);
+    auto* previousRenderer = renderingParent().previousChildRenderer;
     if (previousRenderer && previousRenderer->isBR()) // <span><br/> <br/></span>
         return false;
 
@@ -417,7 +430,7 @@ static bool textRendererIsNeeded(const Text& textNode, const RenderTreePosition&
         RenderObject* first = parentRenderer.firstChild();
         while (first && first->isFloatingOrOutOfFlowPositioned())
             first = first->nextSibling();
-        RenderObject* nextRenderer = renderTreePosition.nextSiblingRenderer(textNode);
+        RenderObject* nextRenderer = textNode.renderer() ? textNode.renderer() :  renderTreePosition().nextSiblingRenderer(textNode);
         if (!first || nextRenderer == first) {
             // Whitespace at the start of a block just goes away. Don't even make a render object for this text.
             return false;
@@ -426,26 +439,48 @@ static bool textRendererIsNeeded(const Text& textNode, const RenderTreePosition&
     return true;
 }
 
-static void createTextRenderer(Text& textNode, RenderTreePosition& renderTreePosition)
+static void createTextRenderer(Text& textNode, RenderTreePosition& renderTreePosition, const Style::TextUpdate* textUpdate)
 {
     ASSERT(!textNode.renderer());
 
-    auto newRenderer = textNode.createTextRenderer(renderTreePosition.parent().style());
-    ASSERT(newRenderer);
+    auto textRenderer = textNode.createTextRenderer(renderTreePosition.parent().style());
 
     renderTreePosition.computeNextSibling(textNode);
 
-    if (!renderTreePosition.canInsert(*newRenderer))
+    if (!renderTreePosition.canInsert(*textRenderer))
         return;
 
-    textNode.setRenderer(newRenderer.get());
-    renderTreePosition.insert(WTFMove(newRenderer));
+    textNode.setRenderer(textRenderer.get());
+
+    if (textUpdate && textUpdate->inheritedDisplayContentsStyle && *textUpdate->inheritedDisplayContentsStyle) {
+        // Wrap text renderer into anonymous inline so we can give it a style.
+        // This is to support "<div style='display:contents;color:green'>text</div>" type cases
+        auto newDisplayContentsAnonymousWrapper = createRenderer<RenderInline>(textNode.document(), RenderStyle::clone(**textUpdate->inheritedDisplayContentsStyle));
+        newDisplayContentsAnonymousWrapper->initializeStyle();
+        auto& displayContentsAnonymousWrapper = *newDisplayContentsAnonymousWrapper;
+        renderTreePosition.insert(WTFMove(newDisplayContentsAnonymousWrapper));
+
+        textRenderer->setInlineWrapperForDisplayContents(&displayContentsAnonymousWrapper);
+        displayContentsAnonymousWrapper.addChild(WTFMove(textRenderer));
+        return;
+    }
+
+    renderTreePosition.insert(WTFMove(textRenderer));
 }
 
 void RenderTreeUpdater::updateTextRenderer(Text& text, const Style::TextUpdate* textUpdate)
 {
     auto* existingRenderer = text.renderer();
-    bool needsRenderer = textRendererIsNeeded(text, renderTreePosition());
+    bool needsRenderer = textRendererIsNeeded(text);
+
+    if (existingRenderer && textUpdate && textUpdate->inheritedDisplayContentsStyle) {
+        if (existingRenderer->inlineWrapperForDisplayContents() || *textUpdate->inheritedDisplayContentsStyle) {
+            // FIXME: We could update without teardown.
+            tearDownRenderer(text);
+            existingRenderer = nullptr;
+        }
+    }
+
     if (existingRenderer) {
         if (needsRenderer) {
             if (textUpdate)
@@ -453,39 +488,22 @@ void RenderTreeUpdater::updateTextRenderer(Text& text, const Style::TextUpdate* 
             return;
         }
         tearDownRenderer(text);
-        invalidateWhitespaceOnlyTextSiblingsAfterAttachIfNeeded(text);
+        renderingParent().didCreateOrDestroyChildRenderer = true;
         return;
     }
     if (!needsRenderer)
         return;
-    createTextRenderer(text, renderTreePosition());
-    invalidateWhitespaceOnlyTextSiblingsAfterAttachIfNeeded(text);
+    createTextRenderer(text, renderTreePosition(), textUpdate);
+    renderingParent().didCreateOrDestroyChildRenderer = true;
 }
 
-void RenderTreeUpdater::invalidateWhitespaceOnlyTextSiblingsAfterAttachIfNeeded(Node& current)
+void RenderTreeUpdater::storePreviousRenderer(Node& node)
 {
-    // FIXME: This needs to traverse in composed tree order.
-
-    // This function finds sibling text renderers where the results of textRendererIsNeeded may have changed as a result of
-    // the current node gaining or losing the renderer. This can only affect white space text nodes.
-    for (Node* sibling = current.nextSibling(); sibling; sibling = sibling->nextSibling()) {
-        if (is<Element>(*sibling)) {
-            if (m_styleUpdate->elementUpdate(downcast<Element>(*sibling)))
-                return;
-            // Text renderers beyond rendered elements can't be affected.
-            if (sibling->renderer())
-                return;
-            continue;
-        }
-        if (!is<Text>(*sibling))
-            continue;
-        Text& textSibling = downcast<Text>(*sibling);
-        if (m_styleUpdate->textUpdate(textSibling))
-            return;
-        if (!textSibling.containsOnlyWhitespace())
-            continue;
-        m_invalidatedWhitespaceOnlyTextSiblings.add(&textSibling);
-    }
+    auto* renderer = node.renderer();
+    if (!renderer)
+        return;
+    ASSERT(renderingParent().previousChildRenderer != renderer);
+    renderingParent().previousChildRenderer = renderer;
 }
 
 void RenderTreeUpdater::tearDownRenderers(Element& root)
@@ -520,7 +538,7 @@ void RenderTreeUpdater::tearDownRenderers(Element& root, TeardownType teardownTy
             element.clearStyleDerivedDataBeforeDetachingRenderer();
 
             if (auto* renderer = element.renderer()) {
-                renderer->destroyAndCleanupAnonymousWrappers();
+                renderer->removeFromParentAndDestroyCleaningUpAnonymousWrappers();
                 element.setRenderer(nullptr);
             }
             if (element.hasCustomStyleResolveCallbacks())
@@ -550,7 +568,7 @@ void RenderTreeUpdater::tearDownRenderer(Text& text)
     auto* renderer = text.renderer();
     if (!renderer)
         return;
-    renderer->destroyAndCleanupAnonymousWrappers();
+    renderer->removeFromParentAndDestroyCleaningUpAnonymousWrappers();
     text.setRenderer(nullptr);
 }
 

@@ -198,7 +198,7 @@ public:
 
 private:
     struct PendingCallback {
-        virtual ~PendingCallback() { }
+        virtual ~PendingCallback() = default;
         virtual void call(XMLDocumentParser* parser) = 0;
     };
 
@@ -1333,7 +1333,7 @@ void XMLDocumentParser::doEnd()
         document()->setTransformSource(std::make_unique<TransformSource>(doc));
 
         document()->setParsing(false); // Make the document think it's done, so it will apply XSL stylesheets.
-        document()->styleScope().didChangeActiveStyleSheetCandidates();
+        document()->applyPendingXSLTransformsNowIfScheduled();
 
         // styleResolverChanged() call can detach the parser and null out its document.
         // In that case, we just bail out.

@@ -27,49 +27,147 @@
 #include "ServiceWorkerRegistration.h"
 
 #if ENABLE(SERVICE_WORKER)
+#include "DOMWindow.h"
+#include "Document.h"
+#include "Logging.h"
+#include "ServiceWorker.h"
+#include "ServiceWorkerContainer.h"
+#include "ServiceWorkerTypes.h"
+#include "WorkerGlobalScope.h"
 
 namespace WebCore {
 
-ServiceWorkerRegistration::ServiceWorkerRegistration(ScriptExecutionContext& context, const ServiceWorkerRegistrationData& registrationData)
+ServiceWorkerRegistration::ServiceWorkerRegistration(ScriptExecutionContext& context, Ref<ServiceWorkerContainer>&& container, ServiceWorkerRegistrationData&& registrationData)
     : ActiveDOMObject(&context)
-    , m_registrationData(registrationData)
+    , m_registrationData(WTFMove(registrationData))
+    , m_container(WTFMove(container))
 {
+    LOG(ServiceWorker, "Creating registration %p for registration key %s", this, m_registrationData.key.loggingString().utf8().data());
     suspendIfNeeded();
+    m_container->addRegistration(*this);
+}
+
+ServiceWorkerRegistration::~ServiceWorkerRegistration()
+{
+    LOG(ServiceWorker, "Deleting registration %p for registration key %s", this, m_registrationData.key.loggingString().utf8().data());
+
+    m_container->removeRegistration(*this);
 }
 
 ServiceWorker* ServiceWorkerRegistration::installing()
 {
-    return nullptr;
+    return m_installingWorker.get();
 }
 
 ServiceWorker* ServiceWorkerRegistration::waiting()
 {
-    return nullptr;
+    return m_waitingWorker.get();
 }
 
 ServiceWorker* ServiceWorkerRegistration::active()
 {
-    return nullptr;
+    return m_activeWorker.get();
+}
+
+void ServiceWorkerRegistration::setInstallingWorker(RefPtr<ServiceWorker>&& serviceWorker)
+{
+    m_installingWorker = WTFMove(serviceWorker);
+}
+
+void ServiceWorkerRegistration::setWaitingWorker(RefPtr<ServiceWorker>&& serviceWorker)
+{
+    m_waitingWorker = WTFMove(serviceWorker);
+}
+
+void ServiceWorkerRegistration::setActiveWorker(RefPtr<ServiceWorker>&& serviceWorker)
+{
+    m_activeWorker = WTFMove(serviceWorker);
+}
+
+ServiceWorker* ServiceWorkerRegistration::getNewestWorker()
+{
+    if (m_installingWorker)
+        return m_installingWorker.get();
+    if (m_waitingWorker)
+        return m_waitingWorker.get();
+
+    return m_activeWorker.get();
 }
 
 const String& ServiceWorkerRegistration::scope() const
 {
-    return emptyString();
+    return m_registrationData.scopeURL;
 }
 
-ServiceWorkerRegistration::UpdateViaCache ServiceWorkerRegistration::updateViaCache() const
+ServiceWorkerUpdateViaCache ServiceWorkerRegistration::updateViaCache() const
 {
-    return UpdateViaCache::Imports;
+    return m_registrationData.updateViaCache;
 }
 
 void ServiceWorkerRegistration::update(Ref<DeferredPromise>&& promise)
 {
-    promise->reject(Exception(UnknownError, ASCIILiteral("ServiceWorkerRegistration::update not yet implemented")));
+    auto* context = scriptExecutionContext();
+    if (!context) {
+        ASSERT_NOT_REACHED();
+        promise->reject(Exception(InvalidStateError));
+        return;
+    }
+
+    auto* container = context->serviceWorkerContainer();
+    if (!container) {
+        promise->reject(Exception(InvalidStateError));
+        return;
+    }
+
+    auto* newestWorker = getNewestWorker();
+    if (!newestWorker) {
+        promise->reject(Exception(InvalidStateError, ASCIILiteral("newestWorker is null")));
+        return;
+    }
+
+    // FIXME: Support worker types.
+    container->updateRegistration(m_registrationData.scopeURL, newestWorker->scriptURL(), WorkerType::Classic, WTFMove(promise));
 }
 
 void ServiceWorkerRegistration::unregister(Ref<DeferredPromise>&& promise)
 {
-    promise->reject(Exception(UnknownError, ASCIILiteral("ServiceWorkerRegistration::unregister not yet implemented")));
+    auto* context = scriptExecutionContext();
+    if (!context) {
+        ASSERT_NOT_REACHED();
+        promise->reject(Exception(InvalidStateError));
+        return;
+    }
+
+    auto* container = context->serviceWorkerContainer();
+    if (!container) {
+        promise->reject(Exception(InvalidStateError));
+        return;
+    }
+
+    container->removeRegistration(m_registrationData.scopeURL, WTFMove(promise));
+}
+
+void ServiceWorkerRegistration::updateStateFromServer(ServiceWorkerRegistrationState state, std::optional<ServiceWorkerIdentifier> serviceWorkerIdentifier)
+{
+    auto* context = scriptExecutionContext();
+    if (!context)
+        return;
+
+    RefPtr<ServiceWorker> worker;
+    if (serviceWorkerIdentifier)
+        worker = ServiceWorker::create(*context, *serviceWorkerIdentifier, m_registrationData.scriptURL);
+
+    switch (state) {
+    case ServiceWorkerRegistrationState::Installing:
+        m_installingWorker = WTFMove(worker);
+        break;
+    case ServiceWorkerRegistrationState::Waiting:
+        m_waitingWorker = WTFMove(worker);
+        break;
+    case ServiceWorkerRegistrationState::Active:
+        m_activeWorker = WTFMove(worker);
+        break;
+    }
 }
 
 EventTargetInterface ServiceWorkerRegistration::eventTargetInterface() const
@@ -79,7 +177,17 @@ EventTargetInterface ServiceWorkerRegistration::eventTargetInterface() const
 
 ScriptExecutionContext* ServiceWorkerRegistration::scriptExecutionContext() const
 {
-    return nullptr;
+    return ActiveDOMObject::scriptExecutionContext();
+}
+
+const char* ServiceWorkerRegistration::activeDOMObjectName() const
+{
+    return "ServiceWorkerRegistration";
+}
+
+bool ServiceWorkerRegistration::canSuspendForDocumentSuspension() const
+{
+    return !hasPendingActivity();
 }
 
 } // namespace WebCore

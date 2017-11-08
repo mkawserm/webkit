@@ -48,6 +48,7 @@
 #include "SecurityOrigin.h"
 #include "SubresourceLoader.h"
 #include "URL.h"
+#include <wtf/CompletionHandler.h>
 #include <wtf/CurrentTime.h>
 #include <wtf/MathExtras.h>
 #include <wtf/RefCountedLeakCounter.h>
@@ -59,11 +60,11 @@
 #include "QuickLook.h"
 #endif
 
-using namespace WTF;
 
 #define RELEASE_LOG_IF_ALLOWED(fmt, ...) RELEASE_LOG_IF(cachedResourceLoader.isAlwaysOnLoggingAllowed(), Network, "%p - CachedResource::" fmt, this, ##__VA_ARGS__)
 
 namespace WebCore {
+using namespace WTF;
 
 ResourceLoadPriority CachedResource::defaultPriorityForResourceType(Type type)
 {
@@ -269,14 +270,14 @@ void CachedResource::load(CachedResourceLoader& cachedResourceLoader)
         }
         // FIXME: We should not special-case Beacon here.
         if (shouldUsePingLoad(type())) {
-            ASSERT(m_originalRequestHeaders);
+            ASSERT(m_originalRequest);
             CachedResourceHandle<CachedResource> protectedThis(this);
 
             // FIXME: Move beacon loads to normal subresource loading to get normal inspector request instrumentation hooks.
             unsigned long identifier = frame.page()->progress().createUniqueIdentifier();
             InspectorInstrumentation::willSendRequestOfType(&frame, identifier, frameLoader.activeDocumentLoader(), request, InspectorInstrumentation::LoadType::Beacon);
 
-            platformStrategies()->loaderStrategy()->startPingLoad(frame, request, *m_originalRequestHeaders, m_options, [this, protectedThis = WTFMove(protectedThis), protectedFrame = makeRef(frame), identifier] (const ResourceError& error, const ResourceResponse& response) {
+            platformStrategies()->loaderStrategy()->startPingLoad(frame, request, m_originalRequest->httpHeaderFields(), m_options, [this, protectedThis = WTFMove(protectedThis), protectedFrame = makeRef(frame), identifier] (const ResourceError& error, const ResourceResponse& response) {
                 if (!response.isNull())
                     InspectorInstrumentation::didReceiveResourceResponse(protectedFrame, identifier, protectedFrame->loader().activeDocumentLoader(), response, nullptr);
                 if (error.isNull()) {
@@ -293,14 +294,15 @@ void CachedResource::load(CachedResourceLoader& cachedResourceLoader)
         }
     }
 
-    m_loader = platformStrategies()->loaderStrategy()->loadResource(frame, *this, request, m_options);
-    if (!m_loader) {
-        RELEASE_LOG_IF_ALLOWED("load: Unable to create SubresourceLoader (frame = %p)", &frame);
-        failBeforeStarting();
-        return;
-    }
-
-    m_status = Pending;
+    platformStrategies()->loaderStrategy()->loadResource(frame, *this, WTFMove(request), m_options, [this, protectedThis = CachedResourceHandle<CachedResource>(this), frame = makeRef(frame), loggingAllowed = cachedResourceLoader.isAlwaysOnLoggingAllowed()] (RefPtr<SubresourceLoader>&& loader) {
+        m_loader = WTFMove(loader);
+        if (!m_loader) {
+            RELEASE_LOG_IF(loggingAllowed, Network, "%p - CachedResource::load: Unable to create SubresourceLoader (frame = %p)", this, frame.ptr());
+            failBeforeStarting();
+            return;
+        }
+        m_status = Pending;
+    });
 }
 
 void CachedResource::loadFrom(const CachedResource& resource)

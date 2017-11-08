@@ -50,6 +50,7 @@
 #if PLATFORM(IOS)
 #import <OpenGLES/EAGL.h>
 #import <OpenGLES/EAGLDrawable.h>
+#import <OpenGLES/EAGLIOSurface.h>
 #import <OpenGLES/ES2/glext.h>
 #import <QuartzCore/QuartzCore.h>
 #import <pal/spi/ios/OpenGLESSPI.h>
@@ -656,19 +657,36 @@ void GraphicsContext3D::checkGPUStatus()
 #endif
 }
 
-void GraphicsContext3D::endPaint()
+#if PLATFORM(IOS)
+void GraphicsContext3D::presentRenderbuffer()
 {
     makeContextCurrent();
     if (m_attrs.antialias)
         resolveMultisamplingIfNecessary();
-#if PLATFORM(IOS)
-    // This is the place where we actually push our current rendering
-    // results to the compositor on iOS. On macOS it comes from the
-    // calling function, which is inside WebGLLayer.
+
     ::glFlush();
     ::glBindRenderbuffer(GL_RENDERBUFFER, m_texture);
     [static_cast<EAGLContext*>(m_contextObj) presentRenderbuffer:GL_RENDERBUFFER];
     [EAGLContext setCurrentContext:nil];
+}
+#endif
+
+bool GraphicsContext3D::texImageIOSurface2D(GC3Denum target, GC3Denum internalFormat, GC3Dsizei width, GC3Dsizei height, GC3Denum format, GC3Denum type, IOSurfaceRef surface, GC3Duint plane)
+{
+#if PLATFORM(MAC)
+    return kCGLNoError == CGLTexImageIOSurface2D(platformGraphicsContext3D(), target, internalFormat, width, height, format, type, surface, plane);
+#elif PLATFORM(IOS) && !PLATFORM(IOS_SIMULATOR)
+    return [platformGraphicsContext3D() texImageIOSurface:surface target:target internalFormat:internalFormat width:width height:height format:format type:type plane:plane];
+#else
+    UNUSED_PARAM(target);
+    UNUSED_PARAM(internalFormat);
+    UNUSED_PARAM(width);
+    UNUSED_PARAM(height);
+    UNUSED_PARAM(format);
+    UNUSED_PARAM(type);
+    UNUSED_PARAM(surface);
+    UNUSED_PARAM(plane);
+    return false;
 #endif
 }
 

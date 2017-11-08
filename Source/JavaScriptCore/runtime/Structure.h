@@ -139,8 +139,7 @@ protected:
     void finishCreation(VM& vm)
     {
         Base::finishCreation(vm);
-        ASSERT(m_prototype);
-        ASSERT(m_prototype.isObject() || m_prototype.isNull() || m_prototype.isInt32());
+        ASSERT(m_prototype.get().isEmpty() || m_prototype.isObject() || m_prototype.isNull());
     }
 
     void finishCreation(VM& vm, const Structure* previous)
@@ -181,7 +180,7 @@ public:
     static Structure* addPropertyTransitionToExistingStructureConcurrently(Structure*, UniquedStringImpl* uid, unsigned attributes, PropertyOffset&);
     JS_EXPORT_PRIVATE static Structure* addPropertyTransitionToExistingStructure(Structure*, PropertyName, unsigned attributes, PropertyOffset&);
     static Structure* removePropertyTransition(VM&, Structure*, PropertyName, PropertyOffset&);
-    static Structure* changePrototypeTransition(VM&, Structure*, JSValue prototype);
+    static Structure* changePrototypeTransition(VM&, Structure*, JSValue prototype, DeferredStructureTransitionWatchpointFire&);
     JS_EXPORT_PRIVATE static Structure* attributeChangeTransition(VM&, Structure*, PropertyName, unsigned attributes);
     JS_EXPORT_PRIVATE static Structure* toCacheableDictionaryTransition(VM&, Structure*, DeferredStructureTransitionWatchpointFire* = nullptr);
     static Structure* toUncacheableDictionaryTransition(VM&, Structure*);
@@ -262,23 +261,18 @@ public:
     // object of a structure is presumed to be immutable in a bunch of places.
     void setGlobalObject(VM& vm, JSGlobalObject* globalObject) { m_globalObject.set(vm, this, globalObject); }
 
-    bool hasMonoProto() const
+    ALWAYS_INLINE bool hasMonoProto() const
     {
-        return !m_prototype.get().isInt32();
+        return !m_prototype.get().isEmpty();
     }
-    bool hasPolyProto() const
+    ALWAYS_INLINE bool hasPolyProto() const
     {
         return !hasMonoProto();
     }
-    JSValue storedPrototype() const
+    ALWAYS_INLINE JSValue storedPrototype() const
     {
-        RELEASE_ASSERT(hasMonoProto());
+        ASSERT(hasMonoProto());
         return m_prototype.get();
-    }
-    PropertyOffset polyProtoOffset() const
-    {
-        RELEASE_ASSERT(hasPolyProto());
-        return m_prototype.get().asInt32();
     }
     JSValue storedPrototype(const JSObject*) const;
     JSObject* storedPrototypeObject(const JSObject*) const;

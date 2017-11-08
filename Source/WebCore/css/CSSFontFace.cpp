@@ -98,9 +98,7 @@ CSSFontFace::CSSFontFace(CSSFontSelector* fontSelector, StyleRuleFontFace* cssCo
 {
 }
 
-CSSFontFace::~CSSFontFace()
-{
-}
+CSSFontFace::~CSSFontFace() = default;
 
 bool CSSFontFace::setFamilies(CSSValue& family)
 {
@@ -714,10 +712,6 @@ size_t CSSFontFace::pump(ExternalResourceDownloadPolicy policy)
                 if (m_status == Status::Pending)
                     setStatus(Status::Loading);
                 source->load(m_fontSelector.get());
-            } else if (fontLoadTimingOverride(m_fontSelector.get()) != Settings::FontLoadTimingOverride::None && m_status == Status::Pending) {
-                // Similar to above, if a test that has set fontLoadTimingOverride() needs to fail, this needs to happen
-                // eagerly so the FontRanges sees a consistent view of the CSSFontFace.
-                setStatus(Status::Loading);
             }
         }
 
@@ -755,6 +749,21 @@ void CSSFontFace::load()
     pump(ExternalResourceDownloadPolicy::Allow);
 }
 
+static Font::Visibility visibility(CSSFontFace::Status status, CSSFontFace::FontLoadTiming timing)
+{
+    switch (status) {
+    case CSSFontFace::Status::Pending:
+        return timing.blockPeriod == 0_s ? Font::Visibility::Visible : Font::Visibility::Invisible;
+    case CSSFontFace::Status::Loading:
+        return Font::Visibility::Invisible;
+    case CSSFontFace::Status::TimedOut:
+    case CSSFontFace::Status::Failure:
+    case CSSFontFace::Status::Success:
+    default:
+        return Font::Visibility::Visible;
+    }
+}
+
 RefPtr<Font> CSSFontFace::font(const FontDescription& fontDescription, bool syntheticBold, bool syntheticItalic, ExternalResourceDownloadPolicy policy)
 {
     if (computeFailureState())
@@ -777,7 +786,7 @@ RefPtr<Font> CSSFontFace::font(const FontDescription& fontDescription, bool synt
         switch (source->status()) {
         case CSSFontFaceSource::Status::Pending:
         case CSSFontFaceSource::Status::Loading: {
-            Font::Visibility visibility = status() == Status::TimedOut || status() == Status::Failure ? Font::Visibility::Visible : Font::Visibility::Invisible;
+            Font::Visibility visibility = WebCore::visibility(status(), fontLoadTiming());
             return Font::create(FontCache::singleton().lastResortFallbackFont(fontDescription)->platformData(), Font::Origin::Local, Font::Interstitial::Yes, visibility);
         }
         case CSSFontFaceSource::Status::Success:

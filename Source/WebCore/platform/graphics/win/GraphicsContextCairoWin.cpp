@@ -28,14 +28,15 @@
 
 #include "AffineTransform.h"
 #include "DIBPixelData.h"
+#include "GraphicsContextImpl.h"
 #include "Path.h"
 
 #include <cairo-win32.h>
 #include "GraphicsContextPlatformPrivateCairo.h"
 
-using namespace std;
 
 namespace WebCore {
+using namespace std;
 
 #if PLATFORM(WIN)
 static cairo_t* createCairoContextWithHDC(HDC hdc, bool hasAlpha)

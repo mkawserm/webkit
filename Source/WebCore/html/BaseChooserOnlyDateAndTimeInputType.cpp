@@ -69,7 +69,7 @@ void BaseChooserOnlyDateAndTimeInputType::createShadowSubtree()
 
 void BaseChooserOnlyDateAndTimeInputType::updateAppearance()
 {
-    Node* node = element().userAgentShadowRoot()->firstChild();
+    RefPtr<Node> node = element().userAgentShadowRoot()->firstChild();
     if (!is<HTMLElement>(node))
         return;
     String displayValue = visibleValue();

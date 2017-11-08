@@ -43,9 +43,7 @@ HTMLProgressElement::HTMLProgressElement(const QualifiedName& tagName, Document&
     setHasCustomStyleResolveCallbacks();
 }
 
-HTMLProgressElement::~HTMLProgressElement()
-{
-}
+HTMLProgressElement::~HTMLProgressElement() = default;
 
 Ref<HTMLProgressElement> HTMLProgressElement::create(const QualifiedName& tagName, Document& document)
 {
@@ -136,12 +134,12 @@ void HTMLProgressElement::didElementStateChange()
     }
 }
 
-void HTMLProgressElement::didAddUserAgentShadowRoot(ShadowRoot* root)
+void HTMLProgressElement::didAddUserAgentShadowRoot(ShadowRoot& root)
 {
     ASSERT(!m_value);
 
     auto inner = ProgressInnerElement::create(document());
-    root->appendChild(inner);
+    root.appendChild(inner);
 
     auto bar = ProgressBarElement::create(document());
     auto value = ProgressValueElement::create(document());

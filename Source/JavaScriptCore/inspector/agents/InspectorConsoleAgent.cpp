@@ -182,7 +182,7 @@ void InspectorConsoleAgent::takeHeapSnapshot(const String& title)
 
 void InspectorConsoleAgent::count(JSC::ExecState* state, Ref<ScriptArguments>&& arguments)
 {
-    Ref<ScriptCallStack> callStack = createScriptCallStackForConsole(state, ScriptCallStack::maxCallStackSizeToCapture);
+    Ref<ScriptCallStack> callStack = createScriptCallStackForConsole(state);
 
     String title;
     String identifier;
@@ -233,6 +233,17 @@ void InspectorConsoleAgent::addConsoleMessage(std::unique_ptr<ConsoleMessage> co
         m_expiredConsoleMessageCount += expireConsoleMessagesStep;
         m_consoleMessages.remove(0, expireConsoleMessagesStep);
     }
+}
+
+void InspectorConsoleAgent::getLoggingChannels(ErrorString&, RefPtr<Inspector::Protocol::Array<Inspector::Protocol::Console::Channel>>& channels)
+{
+    // Default implementation has no logging channels.
+    channels = Inspector::Protocol::Array<Inspector::Protocol::Console::Channel>::create();
+}
+
+void InspectorConsoleAgent::setLoggingChannelLevel(ErrorString& errorString, const String&, const String&)
+{
+    errorString = ASCIILiteral("No such channel to enable");
 }
 
 } // namespace Inspector

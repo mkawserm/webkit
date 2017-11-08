@@ -56,6 +56,10 @@ typedef struct _GFileIOStream GFileIOStream;
 
 namespace WebCore {
 
+struct FileMetadata;
+
+namespace FileSystem {
+
 // PlatformFileHandle
 #if USE(GLIB) && !PLATFORM(WIN)
 typedef GFileIOStream* PlatformFileHandle;
@@ -70,7 +74,7 @@ typedef int PlatformFileHandle;
 const PlatformFileHandle invalidPlatformFileHandle = -1;
 #endif
 
-enum FileOpenMode {
+enum class FileOpenMode {
     OpenForRead = 0,
     OpenForWrite,
 #if OS(DARWIN)
@@ -78,21 +82,19 @@ enum FileOpenMode {
 #endif
 };
 
-enum FileSeekOrigin {
+enum class FileSeekOrigin {
     SeekFromBeginning = 0,
     SeekFromCurrent,
     SeekFromEnd
 };
 
-enum FileLockMode {
+enum class FileLockMode {
     LockShared = 1,
     LockExclusive = 2,
     LockNonBlocking = 4
 };
 
 enum class ShouldFollowSymbolicLinks { No, Yes };
-
-struct FileMetadata;
 
 WEBCORE_EXPORT bool fileExists(const String&);
 WEBCORE_EXPORT bool deleteFile(const String&);
@@ -104,7 +106,7 @@ WEBCORE_EXPORT bool getFileModificationTime(const String&, time_t& result);
 WEBCORE_EXPORT bool getFileCreationTime(const String&, time_t& result); // Not all platforms store file creation time.
 WEBCORE_EXPORT std::optional<FileMetadata> fileMetadata(const String& path);
 WEBCORE_EXPORT std::optional<FileMetadata> fileMetadataFollowingSymlinks(const String& path);
-bool fileIsDirectory(const String&, ShouldFollowSymbolicLinks);
+WEBCORE_EXPORT bool fileIsDirectory(const String&, ShouldFollowSymbolicLinks);
 WEBCORE_EXPORT String pathByAppendingComponent(const String& path, const String& component);
 String pathByAppendingComponents(StringView path, const Vector<StringView>& components);
 String lastComponentOfPathIgnoringTrailingSlash(const String& path);
@@ -143,7 +145,7 @@ WEBCORE_EXPORT int writeToFile(PlatformFileHandle, const char* data, int length)
 // Returns number of bytes actually written if successful, -1 otherwise.
 WEBCORE_EXPORT int readFromFile(PlatformFileHandle, char* data, int length);
 
-WEBCORE_EXPORT PlatformFileHandle openAndLockFile(const String&, FileOpenMode, FileLockMode = LockExclusive);
+WEBCORE_EXPORT PlatformFileHandle openAndLockFile(const String&, FileOpenMode, FileLockMode = FileLockMode::LockExclusive);
 WEBCORE_EXPORT void unlockAndCloseFile(PlatformFileHandle);
 
 // Appends the contents of the file found at 'path' to the open PlatformFileHandle.
@@ -213,5 +215,6 @@ inline MappedFileData& MappedFileData::operator=(MappedFileData&& other)
     return *this;
 }
 
+} // namespace FileSystem
 } // namespace WebCore
 

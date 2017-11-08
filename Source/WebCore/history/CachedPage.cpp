@@ -48,9 +48,9 @@
 #include "FrameSelection.h"
 #endif
 
-using namespace JSC;
 
 namespace WebCore {
+using namespace JSC;
 
 DEFINE_DEBUG_ONLY_GLOBAL(WTF::RefCountedLeakCounter, cachedPageCounter, ("CachedPage"));
 
@@ -108,7 +108,7 @@ void CachedPage::restore(Page& page)
     {
         // Do not dispatch DOM events as their JavaScript listeners could cause the page to be put
         // into the page cache before we have finished restoring it from the page cache.
-        NoEventDispatchAssertion noEventDispatchAssertion;
+        NoEventDispatchAssertion::InMainThread noEventDispatchAssertion;
 
         m_cachedMainFrame->open();
     }

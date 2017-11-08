@@ -67,7 +67,7 @@ void initializeWebViewConfiguration(const char* libraryPath, WKStringRef injecte
     [globalWebViewConfiguration release];
     globalWebViewConfiguration = [[WKWebViewConfiguration alloc] init];
 
-    globalWebViewConfiguration.processPool = WTF::adoptNS([[WKProcessPool alloc] _initWithConfiguration:(_WKProcessPoolConfiguration *)contextConfiguration]).get();
+    globalWebViewConfiguration.processPool = (WKProcessPool *)context;
     globalWebViewConfiguration.websiteDataStore = (WKWebsiteDataStore *)WKContextGetWebsiteDataStore(context);
     globalWebViewConfiguration._allowUniversalAccessFromFileURLs = YES;
 
@@ -78,6 +78,13 @@ void initializeWebViewConfiguration(const char* libraryPath, WKStringRef injecte
 #if (PLATFORM(MAC) && __MAC_OS_X_VERSION_MIN_REQUIRED >= 101300) || PLATFORM(IOS)
     WKCookieManagerSetCookieStoragePartitioningEnabled(WKContextGetCookieManager(context), true);
 #endif
+
+    WKWebsiteDataStore* poolWebsiteDataStore = (WKWebsiteDataStore *)WKContextGetWebsiteDataStore((WKContextRef)globalWebViewConfiguration.processPool);
+    [poolWebsiteDataStore _setCacheStoragePerOriginQuota: 400 * 1024];
+    if (libraryPath) {
+        String cacheStorageDirectory = String(libraryPath) + '/' + "CacheStorage";
+        [poolWebsiteDataStore _setCacheStorageDirectory: cacheStorageDirectory];
+    }
 
     [globalWebViewConfiguration.websiteDataStore _setResourceLoadStatisticsEnabled:YES];
     [globalWebViewConfiguration.websiteDataStore _resourceLoadStatisticsSetShouldSubmitTelemetry:NO];
@@ -263,6 +270,32 @@ bool TestController::isStatisticsPrevalentResource(WKStringRef hostName)
     platformRunUntil(isDataReady, 0);
 
     return isPrevalentResource;
+}
+
+bool TestController::isStatisticsRegisteredAsSubFrameUnder(WKStringRef subFrameHost, WKStringRef topFrameHost)
+{
+    __block bool isDataReady = false;
+    __block bool isRegisteredAsSubFrameUnder = false;
+    [globalWebViewConfiguration.websiteDataStore _resourceLoadStatisticsIsRegisteredAsSubFrameUnder:toNSString(subFrameHost) topFrameHost:toNSString(topFrameHost) completionHandler:^(BOOL _isRegisteredAsSubFrameUnder) {
+        isRegisteredAsSubFrameUnder = _isRegisteredAsSubFrameUnder;
+        isDataReady = true;
+    }];
+    platformRunUntil(isDataReady, 0);
+    
+    return isRegisteredAsSubFrameUnder;
+}
+
+bool TestController::isStatisticsRegisteredAsRedirectingTo(WKStringRef hostRedirectedFrom, WKStringRef hostRedirectedTo)
+{
+    __block bool isDataReady = false;
+    __block bool isRegisteredAsRedirectingTo = false;
+    [globalWebViewConfiguration.websiteDataStore _resourceLoadStatisticsIsRegisteredAsRedirectingTo:toNSString(hostRedirectedFrom) hostRedirectedTo:toNSString(hostRedirectedTo) completionHandler:^(BOOL _isRegisteredAsRedirectingTo) {
+        isRegisteredAsRedirectingTo = _isRegisteredAsRedirectingTo;
+        isDataReady = true;
+    }];
+    platformRunUntil(isDataReady, 0);
+    
+    return isRegisteredAsRedirectingTo;
 }
 
 void TestController::setStatisticsHasHadUserInteraction(WKStringRef hostName, bool value)

@@ -55,7 +55,7 @@ WebsiteDataStoreParameters WebsiteDataStore::parameters()
     resolveDirectoriesIfNecessary();
 
     WebsiteDataStoreParameters parameters;
-    parameters.sessionID = m_sessionID;
+    parameters.networkSessionParameters = { m_sessionID, nullptr, m_boundInterfaceIdentifier, m_allowsCellularAccess };
 
     auto cookieFile = resolvedCookieStorageFile();
 
@@ -70,10 +70,10 @@ WebsiteDataStoreParameters WebsiteDataStore::parameters()
     parameters.uiProcessCookieStorageIdentifier = m_uiProcessCookieStorageIdentifier;
 #endif
 
-    copyToVector(m_pendingCookies, parameters.pendingCookies);
+    parameters.pendingCookies = copyToVector(m_pendingCookies);
 
     if (!cookieFile.isEmpty())
-        SandboxExtension::createHandleForReadWriteDirectory(WebCore::directoryName(cookieFile), parameters.cookieStoragePathExtensionHandle);
+        SandboxExtension::createHandleForReadWriteDirectory(WebCore::FileSystem::directoryName(cookieFile), parameters.cookieStoragePathExtensionHandle);
 
     if (!m_configuration.cacheStorageDirectory.isNull()) {
         parameters.cacheStorageDirectory = m_configuration.cacheStorageDirectory;

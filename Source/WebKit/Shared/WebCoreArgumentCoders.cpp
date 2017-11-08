@@ -65,6 +65,7 @@
 #include <WebCore/ScrollingConstraints.h>
 #include <WebCore/ScrollingCoordinator.h>
 #include <WebCore/SearchPopupMenu.h>
+#include <WebCore/ServiceWorkerClientIdentifier.h>
 #include <WebCore/TextCheckerClient.h>
 #include <WebCore/TextIndicator.h>
 #include <WebCore/TimingFunction.h>
@@ -1689,6 +1690,7 @@ static bool decodeClientTypesAndData(Decoder& decoder, Vector<String>& types, Ve
 
 void ArgumentCoder<PasteboardWebContent>::encode(Encoder& encoder, const PasteboardWebContent& content)
 {
+    encoder << content.contentOrigin;
     encoder << content.canSmartCopyOrDelete;
     encoder << content.dataInStringFormat;
     encoder << content.dataInHTMLFormat;
@@ -1703,6 +1705,8 @@ void ArgumentCoder<PasteboardWebContent>::encode(Encoder& encoder, const Pastebo
 
 bool ArgumentCoder<PasteboardWebContent>::decode(Decoder& decoder, PasteboardWebContent& content)
 {
+    if (!decoder.decode(content.contentOrigin))
+        return false;
     if (!decoder.decode(content.canSmartCopyOrDelete))
         return false;
     if (!decoder.decode(content.dataInStringFormat))
@@ -1897,6 +1901,27 @@ bool ArgumentCoder<TextCheckingRequestData>::decode(Decoder& decoder, TextChecki
     request = TextCheckingRequestData(sequence, text, mask, processType);
     return true;
 }
+
+#if ENABLE(SERVICE_WORKER)
+void ArgumentCoder<ServiceWorkerClientIdentifier>::encode(Encoder& encoder, const ServiceWorkerClientIdentifier& identifier)
+{
+    encoder << identifier.serverConnectionIdentifier << identifier.scriptExecutionContextIdentifier;
+}
+
+bool ArgumentCoder<ServiceWorkerClientIdentifier>::decode(Decoder& decoder, ServiceWorkerClientIdentifier& identifier)
+{
+    uint64_t serverConnectionIdentifier;
+    if (!decoder.decode(serverConnectionIdentifier))
+        return false;
+
+    uint64_t scriptExecutionContextIdentifier;
+    if (!decoder.decode(scriptExecutionContextIdentifier))
+        return false;
+
+    identifier = { serverConnectionIdentifier, scriptExecutionContextIdentifier };
+    return true;
+}
+#endif
 
 void ArgumentCoder<TextCheckingResult>::encode(Encoder& encoder, const TextCheckingResult& result)
 {
