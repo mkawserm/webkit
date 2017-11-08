@@ -173,7 +173,7 @@ GraphicsContext::GraphicsContext(cairo_t* cr)
     if (!cr)
         return;
 
-    m_data = new GraphicsContextPlatformPrivateToplevel(new PlatformContextCairo(cr));
+    m_data = new GraphicsContextPlatformPrivate(std::make_unique<PlatformContextCairo>(cr));
 }
 
 void GraphicsContext::platformInit(PlatformContextCairo* platformContext)
@@ -181,7 +181,7 @@ void GraphicsContext::platformInit(PlatformContextCairo* platformContext)
     if (!platformContext)
         return;
 
-    m_data = new GraphicsContextPlatformPrivate(platformContext);
+    m_data = new GraphicsContextPlatformPrivate(*platformContext);
     m_data->syncContext(platformContext->cr());
 }
 
@@ -208,7 +208,7 @@ AffineTransform GraphicsContext::getCTM(IncludeDeviceScale) const
 
 PlatformContextCairo* GraphicsContext::platformContext() const
 {
-    return m_data->platformContext;
+    return &m_data->platformContext;
 }
 
 void GraphicsContext::savePlatformState()
@@ -878,7 +878,7 @@ void GraphicsContext::beginPlatformTransparencyLayer(float opacity)
 
     cairo_t* cr = platformContext()->cr();
     cairo_push_group(cr);
-    m_data->layers.append(opacity);
+    platformContext()->layers().append(opacity);
 }
 
 void GraphicsContext::endPlatformTransparencyLayer()
@@ -891,8 +891,10 @@ void GraphicsContext::endPlatformTransparencyLayer()
     cairo_t* cr = platformContext()->cr();
 
     cairo_pop_group_to_source(cr);
-    cairo_paint_with_alpha(cr, m_data->layers.last());
-    m_data->layers.removeLast();
+
+    auto& layers = platformContext()->layers();
+    cairo_paint_with_alpha(cr, layers.last());
+    layers.removeLast();
 }
 
 bool GraphicsContext::supportsTransparencyLayers()
