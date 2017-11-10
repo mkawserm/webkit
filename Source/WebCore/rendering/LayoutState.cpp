@@ -26,18 +26,18 @@
 #include "config.h"
 #include "LayoutState.h"
 
-#include "LayoutContext.h"
 #include "RenderFragmentedFlow.h"
 #include "RenderInline.h"
 #include "RenderLayer.h"
 #include "RenderMultiColumnFlow.h"
 #include "RenderView.h"
+#include <wtf/WeakPtr.h>
 
 namespace WebCore {
 
-LayoutState::LayoutState(RenderElement& renderer)
+LayoutState::LayoutState(RenderElement& renderer, IsPaginated isPaginated)
     : m_clipped(false)
-    , m_isPaginated(false)
+    , m_isPaginated(isPaginated == IsPaginated::Yes)
     , m_pageLogicalHeightChanged(false)
 #if !ASSERT_DISABLED
     , m_layoutDeltaXSaturated(false)
@@ -58,9 +58,13 @@ LayoutState::LayoutState(RenderElement& renderer)
             m_paintOffset -= toLayoutSize(containerBox.scrollPosition());
         }
     }
+    if (m_isPaginated) {
+        // This is just a flag for known page height (see RenderBlockFlow::checkForPaginationLogicalHeightChange).
+        m_pageLogicalHeight = 1;
+    }
 }
 
-LayoutState::LayoutState(std::unique_ptr<LayoutState> ancestor, RenderBox& renderer, const LayoutSize& offset, LayoutUnit pageLogicalHeight, bool pageLogicalHeightChanged)
+LayoutState::LayoutState(const LayoutContext::LayoutStateStack& layoutStateStack, RenderBox& renderer, const LayoutSize& offset, LayoutUnit pageLogicalHeight, bool pageLogicalHeightChanged)
     : m_clipped(false)
     , m_isPaginated(false)
     , m_pageLogicalHeightChanged(false)
@@ -68,28 +72,26 @@ LayoutState::LayoutState(std::unique_ptr<LayoutState> ancestor, RenderBox& rende
     , m_layoutDeltaXSaturated(false)
     , m_layoutDeltaYSaturated(false)
 #endif
-    , m_ancestor(WTFMove(ancestor))
 #ifndef NDEBUG
     , m_renderer(&renderer)
 #endif
 {
-    if (m_ancestor) {
-        computeOffsets(renderer, offset);
-        computeClipRect(renderer);
+    if (!layoutStateStack.isEmpty()) {
+        auto& ancestor = *layoutStateStack.last().get();
+        computeOffsets(ancestor, renderer, offset);
+        computeClipRect(ancestor, renderer);
     }
-    computePaginationInformation(renderer, pageLogicalHeight, pageLogicalHeightChanged);
+    computePaginationInformation(layoutStateStack, renderer, pageLogicalHeight, pageLogicalHeightChanged);
 }
 
-void LayoutState::computeOffsets(RenderBox& renderer, LayoutSize offset)
+void LayoutState::computeOffsets(const LayoutState& ancestor, RenderBox& renderer, LayoutSize offset)
 {
-    ASSERT(m_ancestor);
-
     bool fixed = renderer.isFixedPositioned();
     if (fixed) {
         FloatPoint fixedOffset = renderer.view().localToAbsolute(FloatPoint(), IsFixed);
         m_paintOffset = LayoutSize(fixedOffset.x(), fixedOffset.y()) + offset;
     } else
-        m_paintOffset = m_ancestor->m_paintOffset + offset;
+        m_paintOffset = ancestor.paintOffset() + offset;
 
     if (renderer.isOutOfFlowPositioned() && !fixed) {
         if (auto* container = renderer.container()) {
@@ -106,20 +108,18 @@ void LayoutState::computeOffsets(RenderBox& renderer, LayoutSize offset)
     if (renderer.hasOverflowClip())
         m_paintOffset -= toLayoutSize(renderer.scrollPosition());
 
-    m_layoutDelta = m_ancestor->m_layoutDelta;
+    m_layoutDelta = ancestor.layoutDelta();
 #if !ASSERT_DISABLED
-    m_layoutDeltaXSaturated = m_ancestor->m_layoutDeltaXSaturated;
-    m_layoutDeltaYSaturated = m_ancestor->m_layoutDeltaYSaturated;
+    m_layoutDeltaXSaturated = ancestor.m_layoutDeltaXSaturated;
+    m_layoutDeltaYSaturated = ancestor.m_layoutDeltaYSaturated;
 #endif
 }
 
-void LayoutState::computeClipRect(RenderBox& renderer)
+void LayoutState::computeClipRect(const LayoutState& ancestor, RenderBox& renderer)
 {
-    ASSERT(m_ancestor);
-
-    m_clipped = !renderer.isFixedPositioned() && m_ancestor->m_clipped;
+    m_clipped = !renderer.isFixedPositioned() && ancestor.isClipped();
     if (m_clipped)
-        m_clipRect = m_ancestor->m_clipRect;
+        m_clipRect = ancestor.clipRect();
     if (!renderer.hasOverflowClip())
         return;
 
@@ -132,21 +132,22 @@ void LayoutState::computeClipRect(RenderBox& renderer)
     // FIXME: <http://bugs.webkit.org/show_bug.cgi?id=13443> Apply control clip if present.
 }
 
-void LayoutState::computePaginationInformation(RenderBox& renderer, LayoutUnit pageLogicalHeight, bool pageLogicalHeightChanged)
+void LayoutState::computePaginationInformation(const LayoutContext::LayoutStateStack& layoutStateStack, RenderBox& renderer, LayoutUnit pageLogicalHeight, bool pageLogicalHeightChanged)
 {
+    auto* ancestor = layoutStateStack.isEmpty() ? nullptr : layoutStateStack.last().get();
     // If we establish a new page height, then cache the offset to the top of the first page.
-    // We can compare this later on to figure out what part of the page we're actually on,
+    // We can compare this later on to figure out what part of the page we're actually on.
     if (pageLogicalHeight || renderer.isRenderFragmentedFlow()) {
         m_pageLogicalHeight = pageLogicalHeight;
         bool isFlipped = renderer.style().isFlippedBlocksWritingMode();
         m_pageOffset = LayoutSize(m_layoutOffset.width() + (!isFlipped ? renderer.borderLeft() + renderer.paddingLeft() : renderer.borderRight() + renderer.paddingRight()), m_layoutOffset.height() + (!isFlipped ? renderer.borderTop() + renderer.paddingTop() : renderer.borderBottom() + renderer.paddingBottom()));
         m_pageLogicalHeightChanged = pageLogicalHeightChanged;
         m_isPaginated = true;
-    } else if (m_ancestor) {
+    } else if (ancestor) {
         // If we don't establish a new page height, then propagate the old page height and offset down.
-        m_pageLogicalHeight = m_ancestor->m_pageLogicalHeight;
-        m_pageLogicalHeightChanged = m_ancestor->m_pageLogicalHeightChanged;
-        m_pageOffset = m_ancestor->m_pageOffset;
+        m_pageLogicalHeight = ancestor->pageLogicalHeight();
+        m_pageLogicalHeightChanged = ancestor->pageLogicalHeightChanged();
+        m_pageOffset = ancestor->pageOffset();
 
         // Disable pagination for objects we don't support. For now this includes overflow:scroll/auto, inline blocks and writing mode roots.
         if (renderer.isUnsplittableForPagination()) {
@@ -157,20 +158,15 @@ void LayoutState::computePaginationInformation(RenderBox& renderer, LayoutUnit p
     }
 
     // Propagate line grid information.
-    propagateLineGridInfo(renderer);
+    if (ancestor)
+        propagateLineGridInfo(*ancestor, renderer);
 
     if (lineGrid() && (lineGrid()->style().writingMode() == renderer.style().writingMode()) && is<RenderMultiColumnFlow>(renderer))
-        downcast<RenderMultiColumnFlow>(renderer).computeLineGridPaginationOrigin(*this);
+        computeLineGridPaginationOrigin(downcast<RenderMultiColumnFlow>(renderer));
 
     // If we have a new grid to track, then add it to our set.
     if (renderer.style().lineGrid() != RenderStyle::initialLineGrid() && is<RenderBlockFlow>(renderer))
-        establishLineGrid(downcast<RenderBlockFlow>(renderer));
-}
-
-void LayoutState::clearPaginationInformation()
-{
-    m_pageLogicalHeight = m_ancestor->m_pageLogicalHeight;
-    m_pageOffset = m_ancestor->m_pageOffset;
+        establishLineGrid(layoutStateStack, downcast<RenderBlockFlow>(renderer));
 }
 
 LayoutUnit LayoutState::pageLogicalOffset(RenderBox* child, LayoutUnit childLogicalOffset) const
@@ -180,98 +176,129 @@ LayoutUnit LayoutState::pageLogicalOffset(RenderBox* child, LayoutUnit childLogi
     return m_layoutOffset.width() + childLogicalOffset - m_pageOffset.width();
 }
 
-void LayoutState::propagateLineGridInfo(RenderBox& renderer)
+void LayoutState::computeLineGridPaginationOrigin(const RenderMultiColumnFlow& multicol)
+{
+    if (!isPaginated() || !pageLogicalHeight())
+        return;
+
+    if (!multicol.progressionIsInline())
+        return;
+    // We need to cache a line grid pagination origin so that we understand how to reset the line grid
+    // at the top of each column.
+    // Get the current line grid and offset.
+    ASSERT(m_lineGrid);
+    // Get the hypothetical line box used to establish the grid.
+    auto* lineGridBox = m_lineGrid->lineGridBox();
+    if (!lineGridBox)
+        return;
+
+    // Now determine our position on the grid. Our baseline needs to be adjusted to the nearest baseline multiple
+    // as established by the line box.
+    // FIXME: Need to handle crazy line-box-contain values that cause the root line box to not be considered. I assume
+    // the grid should honor line-box-contain.
+    LayoutUnit gridLineHeight = lineGridBox->lineBottomWithLeading() - lineGridBox->lineTopWithLeading();
+    if (!gridLineHeight)
+        return;
+
+    bool isHorizontalWritingMode = m_lineGrid->isHorizontalWritingMode();
+    LayoutUnit lineGridBlockOffset = isHorizontalWritingMode ? m_lineGridOffset.height() : m_lineGridOffset.width();
+    LayoutUnit firstLineTopWithLeading = lineGridBlockOffset + lineGridBox->lineTopWithLeading();
+    LayoutUnit pageLogicalTop = isHorizontalWritingMode ? m_pageOffset.height() : m_pageOffset.width();
+    if (pageLogicalTop <= firstLineTopWithLeading)
+        return;
+
+    // Shift to the next highest line grid multiple past the page logical top. Cache the delta
+    // between this new value and the page logical top as the pagination origin.
+    LayoutUnit remainder = roundToInt(pageLogicalTop - firstLineTopWithLeading) % roundToInt(gridLineHeight);
+    LayoutUnit paginationDelta = gridLineHeight - remainder;
+    if (isHorizontalWritingMode)
+        m_lineGridPaginationOrigin.setHeight(paginationDelta);
+    else
+        m_lineGridPaginationOrigin.setWidth(paginationDelta);
+}
+
+void LayoutState::propagateLineGridInfo(const LayoutState& ancestor, RenderBox& renderer)
 {
     // Disable line grids for objects we don't support. For now this includes overflow:scroll/auto, inline blocks and
     // writing mode roots.
-    if (!m_ancestor || renderer.isUnsplittableForPagination())
+    if (renderer.isUnsplittableForPagination())
         return;
 
-    m_lineGrid = m_ancestor->m_lineGrid;
-    m_lineGridOffset = m_ancestor->m_lineGridOffset;
-    m_lineGridPaginationOrigin = m_ancestor->m_lineGridPaginationOrigin;
+    m_lineGrid = makeWeakPtr(ancestor.lineGrid());
+    m_lineGridOffset = ancestor.lineGridOffset();
+    m_lineGridPaginationOrigin = ancestor.lineGridPaginationOrigin();
 }
 
-void LayoutState::establishLineGrid(RenderBlockFlow& renderer)
+void LayoutState::establishLineGrid(const LayoutContext::LayoutStateStack& layoutStateStack, RenderBlockFlow& renderer)
 {
     // First check to see if this grid has been established already.
     if (m_lineGrid) {
         if (m_lineGrid->style().lineGrid() == renderer.style().lineGrid())
             return;
-        RenderBlockFlow* currentGrid = m_lineGrid;
-        for (LayoutState* currentState = m_ancestor.get(); currentState; currentState = currentState->m_ancestor.get()) {
-            if (currentState->m_lineGrid == currentGrid)
+        auto* currentGrid = m_lineGrid.get();
+        for (int i = layoutStateStack.size() - 1; i <= 0; --i) {
+            auto& currentState = *layoutStateStack[i].get();
+            if (currentState.m_lineGrid == currentGrid)
                 continue;
-            currentGrid = currentState->m_lineGrid;
+            currentGrid = currentState.lineGrid();
             if (!currentGrid)
                 break;
             if (currentGrid->style().lineGrid() == renderer.style().lineGrid()) {
-                m_lineGrid = currentGrid;
-                m_lineGridOffset = currentState->m_lineGridOffset;
+                m_lineGrid = makeWeakPtr(currentGrid);
+                m_lineGridOffset = currentState.m_lineGridOffset;
                 return;
             }
         }
     }
     
     // We didn't find an already-established grid with this identifier. Our render object establishes the grid.
-    m_lineGrid = &renderer;
+    m_lineGrid = makeWeakPtr(renderer);
     m_lineGridOffset = m_layoutOffset;
 }
 
-LayoutStateMaintainer::LayoutStateMaintainer(RenderBox& root, LayoutSize offset, bool disablePaintOffsetCache, LayoutUnit pageHeight, bool pageHeightChanged)
-    : m_layoutContext(root.view().frameView().layoutContext())
-    , m_paintOffsetCacheIsDisabled(disablePaintOffsetCache)
+void LayoutState::addLayoutDelta(LayoutSize delta)
 {
-    push(root, offset, pageHeight, pageHeightChanged);
+    m_layoutDelta += delta;
+#if !ASSERT_DISABLED
+    m_layoutDeltaXSaturated |= m_layoutDelta.width() == LayoutUnit::max() || m_layoutDelta.width() == LayoutUnit::min();
+    m_layoutDeltaYSaturated |= m_layoutDelta.height() == LayoutUnit::max() || m_layoutDelta.height() == LayoutUnit::min();
+#endif
 }
 
-LayoutStateMaintainer::LayoutStateMaintainer(LayoutContext& layoutContext)
-    : m_layoutContext(layoutContext)
+#if !ASSERT_DISABLED
+bool LayoutState::layoutDeltaMatches(LayoutSize delta) const
 {
+    return (delta.width() == m_layoutDelta.width() || m_layoutDeltaXSaturated) && (delta.height() == m_layoutDelta.height() || m_layoutDeltaYSaturated);
+}
+#endif
+
+LayoutStateMaintainer::LayoutStateMaintainer(RenderBox& root, LayoutSize offset, bool disablePaintOffsetCache, LayoutUnit pageHeight, bool pageHeightChanged)
+    : m_context(root.view().frameView().layoutContext())
+    , m_paintOffsetCacheIsDisabled(disablePaintOffsetCache)
+{
+    m_didPushLayoutState = m_context.pushLayoutState(root, offset, pageHeight, pageHeightChanged);
+    if (m_didPushLayoutState && m_paintOffsetCacheIsDisabled)
+        m_context.disablePaintOffsetCache();
 }
 
 LayoutStateMaintainer::~LayoutStateMaintainer()
 {
-    // FIXME: Remove conditional push/pop.
-    if (m_didCallPush && !m_didCallPop)
-        pop();
-    ASSERT(!m_didCallPush || m_didCallPush == m_didCallPop);
-}
-
-void LayoutStateMaintainer::push(RenderBox& root, LayoutSize offset, LayoutUnit pageHeight, bool pageHeightChanged)
-{
-    ASSERT(!m_didCallPush);
-    m_didCallPush = true;
-    // We push state even if disabled, because we still need to store layoutDelta
-    m_didPushLayoutState = m_layoutContext.pushLayoutState(root, offset, pageHeight, pageHeightChanged);
     if (!m_didPushLayoutState)
         return;
+    m_context.popLayoutState();
     if (m_paintOffsetCacheIsDisabled)
-        m_layoutContext.disablePaintOffsetCache();
+        m_context.enablePaintOffsetCache();
 }
 
-void LayoutStateMaintainer::pop()
+LayoutStateDisabler::LayoutStateDisabler(LayoutContext& context)
+    : m_context(context)
 {
-    ASSERT(!m_didCallPop);
-    m_didCallPop = true;
-    if (!m_didCallPush)
-        return;
-    if (!m_didPushLayoutState)
-        return;
-    m_layoutContext.popLayoutState();
-    if (m_paintOffsetCacheIsDisabled)
-        m_layoutContext.enablePaintOffsetCache();
-}
-
-LayoutStateDisabler::LayoutStateDisabler(LayoutContext& layoutContext)
-    : m_layoutContext(layoutContext)
-{
-    m_layoutContext.disablePaintOffsetCache();
+    m_context.disablePaintOffsetCache();
 }
 
 LayoutStateDisabler::~LayoutStateDisabler()
 {
-    m_layoutContext.enablePaintOffsetCache();
+    m_context.enablePaintOffsetCache();
 }
 
 static bool shouldDisablePaintOffsetCacheForSubtree(RenderElement& subtreeLayoutRoot)
@@ -284,13 +311,12 @@ static bool shouldDisablePaintOffsetCacheForSubtree(RenderElement& subtreeLayout
 }
 
 SubtreeLayoutStateMaintainer::SubtreeLayoutStateMaintainer(RenderElement* subtreeLayoutRoot)
-    : m_subtreeLayoutRoot(subtreeLayoutRoot)
 {
-    if (m_subtreeLayoutRoot) {
-        auto& layoutContext = m_subtreeLayoutRoot->view().frameView().layoutContext();
-        layoutContext.pushLayoutState(*m_subtreeLayoutRoot);
-        if (shouldDisablePaintOffsetCacheForSubtree(*m_subtreeLayoutRoot)) {
-            layoutContext.disablePaintOffsetCache();
+    if (subtreeLayoutRoot) {
+        m_context = &subtreeLayoutRoot->view().frameView().layoutContext();
+        m_context->pushLayoutState(*subtreeLayoutRoot);
+        if (shouldDisablePaintOffsetCacheForSubtree(*subtreeLayoutRoot)) {
+            m_context->disablePaintOffsetCache();
             m_didDisablePaintOffsetCache = true;
         }
     }
@@ -298,24 +324,23 @@ SubtreeLayoutStateMaintainer::SubtreeLayoutStateMaintainer(RenderElement* subtre
 
 SubtreeLayoutStateMaintainer::~SubtreeLayoutStateMaintainer()
 {
-    if (m_subtreeLayoutRoot) {
-        auto& layoutContext = m_subtreeLayoutRoot->view().frameView().layoutContext();
-        layoutContext.popLayoutState(*m_subtreeLayoutRoot);
+    if (m_context) {
+        m_context->popLayoutState();
         if (m_didDisablePaintOffsetCache)
-            layoutContext.enablePaintOffsetCache();
+            m_context->enablePaintOffsetCache();
     }
 }
 
 PaginatedLayoutStateMaintainer::PaginatedLayoutStateMaintainer(RenderBlockFlow& flow)
-    : m_flow(flow)
-    , m_pushed(flow.view().frameView().layoutContext().pushLayoutStateForPaginationIfNeeded(flow))
+    : m_context(flow.view().frameView().layoutContext())
+    , m_pushed(m_context.pushLayoutStateForPaginationIfNeeded(flow))
 {
 }
 
 PaginatedLayoutStateMaintainer::~PaginatedLayoutStateMaintainer()
 {
     if (m_pushed)
-        m_flow.view().frameView().layoutContext().popLayoutState(m_flow);
+        m_context.popLayoutState();
 }
 
 } // namespace WebCore

@@ -530,62 +530,56 @@ void LayoutContext::startLayoutAtMainFrameViewIfNeeded()
 
 LayoutSize LayoutContext::layoutDelta() const
 {
-    if (!m_layoutState)
-        return { };
-    return m_layoutState->m_layoutDelta;
+    if (auto* layoutState = this->layoutState())
+        return layoutState->layoutDelta();
+    return { };
 }
     
 void LayoutContext::addLayoutDelta(const LayoutSize& delta)
 {
-    if (!m_layoutState)
-        return;
-    
-    m_layoutState->m_layoutDelta += delta;
-#if !ASSERT_DISABLED
-    m_layoutState->m_layoutDeltaXSaturated |= m_layoutState->m_layoutDelta.width() == LayoutUnit::max() || m_layoutState->m_layoutDelta.width() == LayoutUnit::min();
-    m_layoutState->m_layoutDeltaYSaturated |= m_layoutState->m_layoutDelta.height() == LayoutUnit::max() || m_layoutState->m_layoutDelta.height() == LayoutUnit::min();
-#endif
+    if (auto* layoutState = this->layoutState())
+        layoutState->addLayoutDelta(delta);
 }
     
 #if !ASSERT_DISABLED
 bool LayoutContext::layoutDeltaMatches(const LayoutSize& delta)
 {
-    if (!m_layoutState)
-        return false;
-    return (delta.width() == m_layoutState->m_layoutDelta.width() || m_layoutState->m_layoutDeltaXSaturated) && (delta.height() == m_layoutState->m_layoutDelta.height() || m_layoutState->m_layoutDeltaYSaturated);
+    if (auto* layoutState = this->layoutState())
+        return layoutState->layoutDeltaMatches(delta);
+    return false;
 }
 #endif
-    
+
+LayoutState* LayoutContext::layoutState() const
+{
+    if (m_layoutStateStack.isEmpty())
+        return nullptr;
+    return m_layoutStateStack.last().get();
+}
+
 void LayoutContext::pushLayoutState(RenderElement& root)
 {
     ASSERT(!m_paintOffsetCacheDisableCount);
-    ASSERT(!m_layoutState);
+    ASSERT(!layoutState());
 
-    m_layoutState = std::make_unique<LayoutState>(root);
+    m_layoutStateStack.append(std::make_unique<LayoutState>(root));
 }
 
 bool LayoutContext::pushLayoutStateForPaginationIfNeeded(RenderBlockFlow& layoutRoot)
 {
-    if (m_layoutState)
+    if (layoutState())
         return false;
-    m_layoutState = std::make_unique<LayoutState>(layoutRoot);
-    m_layoutState->m_isPaginated = true;
-    // This is just a flag for known page height (see RenderBlockFlow::checkForPaginationLogicalHeightChange).
-    m_layoutState->m_pageLogicalHeight = 1;
+    m_layoutStateStack.append(std::make_unique<LayoutState>(layoutRoot, LayoutState::IsPaginated::Yes));
     return true;
-}
-    
-void LayoutContext::popLayoutState(RenderObject&)
-{
-    return popLayoutState();
 }
     
 bool LayoutContext::pushLayoutState(RenderBox& renderer, const LayoutSize& offset, LayoutUnit pageHeight, bool pageHeightChanged)
 {
     // We push LayoutState even if layoutState is disabled because it stores layoutDelta too.
-    if (!m_layoutState || !needsFullRepaint() || m_layoutState->isPaginated() || renderer.enclosingFragmentedFlow()
-        || m_layoutState->lineGrid() || (renderer.style().lineGrid() != RenderStyle::initialLineGrid() && renderer.isRenderBlockFlow())) {
-        m_layoutState = std::make_unique<LayoutState>(WTFMove(m_layoutState), renderer, offset, pageHeight, pageHeightChanged);
+    auto* layoutState = this->layoutState();
+    if (!layoutState || !needsFullRepaint() || layoutState->isPaginated() || renderer.enclosingFragmentedFlow()
+        || layoutState->lineGrid() || (renderer.style().lineGrid() != RenderStyle::initialLineGrid() && renderer.isRenderBlockFlow())) {
+        m_layoutStateStack.append(std::make_unique<LayoutState>(m_layoutStateStack, renderer, offset, pageHeight, pageHeightChanged));
         return true;
     }
     return false;
@@ -593,7 +587,7 @@ bool LayoutContext::pushLayoutState(RenderBox& renderer, const LayoutSize& offse
     
 void LayoutContext::popLayoutState()
 {
-    m_layoutState = WTFMove(m_layoutState->m_ancestor);
+    m_layoutStateStack.removeLast();
 }
     
 #ifndef NDEBUG

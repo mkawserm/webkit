@@ -1,3 +1,122 @@
+2017-11-09  Nikita Vasilyev  <nvasilyev@apple.com>
+
+        Web Inspector: Styles Redesign: clicking on inline swatches and property checkboxes should not add a new property
+        https://bugs.webkit.org/show_bug.cgi?id=179507
+        <rdar://problem/35452204>
+
+        Reviewed by Brian Burg.
+
+        * UserInterface/Views/SpreadsheetCSSStyleDeclarationSection.js:
+        (WI.SpreadsheetCSSStyleDeclarationSection.prototype.initialLayout):
+        (WI.SpreadsheetCSSStyleDeclarationSection.prototype._handleClick):
+        Don't add new properties when clicking on selector fields, source links, and property checkboxes.
+
+        * UserInterface/Views/SpreadsheetStyleProperty.js:
+        (WI.SpreadsheetStyleProperty.prototype._update):
+        It is safe to replace "change" event with "click" since it fires even when pressing Space key when the checkbox is focused.
+
+2017-11-09  Devin Rousso  <webkit@devinrousso.com>
+
+        Web Inspector: support undo/redo of insertAdjacentHTML
+        https://bugs.webkit.org/show_bug.cgi?id=179283
+
+        Reviewed by Joseph Pecoraro.
+
+        * UserInterface/Models/DOMNode.js:
+        (WI.DOMNode.prototype.insertAdjacentHTML):
+
+        * UserInterface/Views/DOMTreeElement.js:
+        (WI.DOMTreeElement.prototype._startEditingAsHTML):
+        Drive-by: only attempt to update the cursor if an initialValue is supplied.
+
+2017-11-09  Joseph Pecoraro  <pecoraro@apple.com>
+
+        Web Inspector: Make domain availability a list of types instead of a single type
+        https://bugs.webkit.org/show_bug.cgi?id=179457
+
+        Reviewed by Brian Burg.
+
+        * UserInterface/Protocol/InspectorBackend.js:
+        (InspectorBackendClass.prototype.activateDomain):
+        The second value changed to be an optional list. Check if the active
+        debuggable type is in the list or not.
+
+        * UserInterface/Protocol/Legacy/10.0/InspectorBackendCommands.js:
+        * UserInterface/Protocol/Legacy/10.3/InspectorBackendCommands.js:
+        * UserInterface/Protocol/Legacy/11.0/InspectorBackendCommands.js:
+        * UserInterface/Protocol/Legacy/8.0/InspectorBackendCommands.js:
+        * UserInterface/Protocol/Legacy/9.0/InspectorBackendCommands.js:
+        * UserInterface/Protocol/Legacy/9.3/InspectorBackendCommands.js:
+        * Versions/Inspector-iOS-10.0.json:
+        * Versions/Inspector-iOS-10.3.json:
+        * Versions/Inspector-iOS-11.0.json:
+        * Versions/Inspector-iOS-8.0.json:
+        * Versions/Inspector-iOS-9.0.json:
+        * Versions/Inspector-iOS-9.3.json:
+        Since this is a change to how we generate the frontend resource,
+        update the legacy versioned backends and regenerate their resource.
+
+2017-11-09  Carlos Garcia Campos  <cgarcia@igalia.com>
+
+        REGRESSION(r224566): [GTK][WPE] Many inspector tests are failing after r224566
+        https://bugs.webkit.org/show_bug.cgi?id=179419
+
+        Reviewed by Carlos Alberto Lopez Perez.
+
+        All of them fail with the following error:
+
+        Uncaught exception in Inspector page: ReferenceError: Can't find variable: CodeMirror [TestCombined.js:36658:15]
+
+        This is because Test.html, even when combined, is trying to load CodeMirror from External/CodeMirror, but
+        CodeMirror was already combined for Main.html. We need to also combine CodeMirror for Test.html.
+
+        * Scripts/copy-user-interface-resources.pl:
+
+2017-11-08  Joseph Pecoraro  <pecoraro@apple.com>
+
+        Web Inspector: Show Internal properties of PaymentRequest in Web Inspector Console
+        https://bugs.webkit.org/show_bug.cgi?id=179276
+
+        Reviewed by Andy Estes.
+
+        * UserInterface/Test.html:
+        * UserInterface/Test/FrontendTestHarness.js:
+        (FrontendTestHarness.prototype.evaluateInPage):
+        * UserInterface/Test/TestUtilities.js: Added.
+        (promisify):
+        Make async tests a little easier to work with by providing promises
+        in some cases that would normally take a callback.
+
+2017-11-08  Brian Burg  <bburg@apple.com>
+
+        Web Inspector: fix incorrect curly quote orientation in a UIString
+        https://bugs.webkit.org/show_bug.cgi?id=179353
+        <rdar://problem/35368697>
+
+        Reviewed by Joseph Pecoraro.
+
+        I didn't see any other instances of this mistake in our localized strings.
+
+        * Localizations/en.lproj/localizedStrings.js:
+        * UserInterface/Views/ResourceTimelineDataGridNode.js:
+        Fix it.
+
+2017-11-08  Joseph Pecoraro  <pecoraro@apple.com>
+
+        Web Inspector: Remove unused Page.ScriptIdentifier protocol type
+        https://bugs.webkit.org/show_bug.cgi?id=179407
+
+        Reviewed by Matt Baker.
+
+        * Versions/Inspector-iOS-10.0.json:
+        * Versions/Inspector-iOS-10.3.json:
+        * Versions/Inspector-iOS-11.0.json:
+        * Versions/Inspector-iOS-7.0.json:
+        * Versions/Inspector-iOS-8.0.json:
+        * Versions/Inspector-iOS-9.0.json:
+        * Versions/Inspector-iOS-9.3.json:
+        Remove unused protocol type.
+
 2017-11-06  Nikita Vasilyev  <nvasilyev@apple.com>
 
         Web Inspector: Styles Redesign: Display warnings

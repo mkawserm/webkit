@@ -148,6 +148,7 @@
 #include "UserGestureIndicator.h"
 #include "UserMediaController.h"
 #include "ViewportArguments.h"
+#include "VoidCallback.h"
 #include "WebCoreJSClientData.h"
 #if ENABLE(WEBGL)
 #include "WebGLRenderingContext.h"
@@ -984,6 +985,17 @@ ExceptionOr<String> Internals::elementRenderTreeAsText(Element& element)
 bool Internals::hasPausedImageAnimations(Element& element)
 {
     return element.renderer() && element.renderer()->hasPausedImageAnimations();
+}
+    
+bool Internals::isPaintingFrequently(Element& element)
+{
+    return element.renderer() && element.renderer()->enclosingLayer() && element.renderer()->enclosingLayer()->paintingFrequently();
+}
+
+void Internals::incrementFrequentPaintCounter(Element& element)
+{
+    if (element.renderer() && element.renderer()->enclosingLayer())
+        element.renderer()->enclosingLayer()->simulateFrequentPaint();
 }
 
 Ref<CSSComputedStyleDeclaration> Internals::computedStyleIncludingVisitedInfo(Element& element) const
@@ -3886,6 +3898,12 @@ bool Internals::isProcessingUserGesture()
     return UserGestureIndicator::processingUserGesture();
 }
 
+void Internals::withUserGesture(RefPtr<VoidCallback>&& callback)
+{
+    UserGestureIndicator gestureIndicator(ProcessingUserGesture, contextDocument());
+    callback->handleEvent();
+}
+
 double Internals::lastHandledUserGestureTimestamp()
 {
     Document* document = contextDocument();
@@ -4245,18 +4263,6 @@ void Internals::waitForFetchEventToFinish(FetchEvent& event, DOMPromiseDeferred<
         else
             promise.reject(TypeError, ASCIILiteral("fetch event responded with error"));
     });
-}
-
-void Internals::waitForExtendableEventToFinish(ExtendableEvent& event, DOMPromiseDeferred<void>&& promise)
-{
-    event.onFinishedWaitingForTesting([promise = WTFMove(promise)] () mutable {
-        promise.resolve();
-    });
-}
-
-Ref<ExtendableEvent> Internals::createTrustedExtendableEvent()
-{
-    return ExtendableEvent::create("ExtendableEvent", { }, Event::IsTrusted::Yes);
 }
 
 Ref<FetchEvent> Internals::createBeingDispatchedFetchEvent(ScriptExecutionContext& context)

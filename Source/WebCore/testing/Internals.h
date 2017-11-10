@@ -76,9 +76,9 @@ class MockPageOverlay;
 class MockPaymentCoordinator;
 class NodeList;
 class Page;
+class RTCPeerConnection;
 class Range;
 class RenderedDocumentMarker;
-class RTCPeerConnection;
 class SVGSVGElement;
 class SerializedScriptValue;
 class SourceBuffer;
@@ -86,6 +86,7 @@ class StringCallback;
 class StyleSheet;
 class TimeRanges;
 class TypeConversions;
+class VoidCallback;
 class WebGLRenderingContext;
 class XMLHttpRequest;
 
@@ -102,6 +103,9 @@ public:
 
     ExceptionOr<String> elementRenderTreeAsText(Element&);
     bool hasPausedImageAnimations(Element&);
+
+    bool isPaintingFrequently(Element&);
+    void incrementFrequentPaintCounter(Element&);
 
     String address(Node&);
     bool nodeNeedsStyleRecalc(Node&);
@@ -555,6 +559,8 @@ public:
     bool isProcessingUserGesture();
     double lastHandledUserGestureTimestamp();
 
+    void withUserGesture(RefPtr<VoidCallback>&&);
+
     RefPtr<GCObservation> observeGC(JSC::JSValue);
 
     enum class UserInterfaceLayoutDirection { LTR, RTL };
@@ -614,9 +620,7 @@ public:
 
 #if ENABLE(SERVICE_WORKER)
     void waitForFetchEventToFinish(FetchEvent&, DOMPromiseDeferred<IDLInterface<FetchResponse>>&&);
-    void waitForExtendableEventToFinish(ExtendableEvent&, DOMPromiseDeferred<void>&&);
     Ref<FetchEvent> createBeingDispatchedFetchEvent(ScriptExecutionContext&);
-    Ref<ExtendableEvent> createTrustedExtendableEvent();
     using HasRegistrationPromise = DOMPromiseDeferred<IDLBoolean>;
     void hasServiceWorkerRegistration(const String& clientURL, HasRegistrationPromise&&);
 #endif

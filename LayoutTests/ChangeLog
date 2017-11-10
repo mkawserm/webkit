@@ -1,3 +1,302 @@
+2017-11-09  Ryan Haddad  <ryanhaddad@apple.com>
+
+        Mark multiple service worker tests as flaky.
+
+        Unreviewed test gardening.
+
+        * TestExpectations: Add flaky tests and alphabetize existing entries.
+
+2017-11-09  Ryan Haddad  <ryanhaddad@apple.com>
+
+        [iOS] Rebaseline and re-enable editing/deleting tests
+        https://bugs.webkit.org/show_bug.cgi?id=179119
+
+        Unreviewed test gardening.
+
+        * platform/ios-wk2/TestExpectations:
+        * platform/ios/TestExpectations:
+        * platform/ios/editing/deleting/collapse-whitespace-3587601-fix-expected.txt: Added.
+        * platform/ios/editing/deleting/delete-3608445-fix-expected.txt: Added.
+        * platform/ios/editing/deleting/delete-3800834-fix-expected.txt: Added.
+        * platform/ios/editing/deleting/delete-after-span-ws-001-expected.txt: Added.
+        * platform/ios/editing/deleting/delete-after-span-ws-002-expected.txt: Added.
+        * platform/ios/editing/deleting/delete-after-span-ws-003-expected.txt: Added.
+        * platform/ios/editing/deleting/delete-at-paragraph-boundaries-004-expected.txt:
+        * platform/ios/editing/deleting/delete-at-paragraph-boundaries-010-expected.txt:
+        * platform/ios/editing/deleting/delete-at-paragraph-boundaries-011-expected.txt:
+        * platform/ios/editing/deleting/delete-at-start-or-end-expected.txt: Added.
+        * platform/ios/editing/deleting/delete-block-contents-001-expected.txt: Added.
+        * platform/ios/editing/deleting/delete-block-contents-002-expected.txt: Copied from LayoutTests/platform/ios/editing/deleting/delete-br-010-expected.txt.
+        * platform/ios/editing/deleting/delete-block-merge-contents-005-expected.txt:
+        * platform/ios/editing/deleting/delete-block-merge-contents-006-expected.txt:
+        * platform/ios/editing/deleting/delete-block-merge-contents-007-expected.txt:
+        * platform/ios/editing/deleting/delete-block-merge-contents-008-expected.txt:
+        * platform/ios/editing/deleting/delete-block-merge-contents-023-expected.txt:
+        * platform/ios/editing/deleting/delete-block-merge-contents-024-expected.txt:
+        * platform/ios/editing/deleting/delete-br-002-expected.txt: Copied from LayoutTests/platform/ios/editing/deleting/delete-to-select-table-expected.txt.
+        * platform/ios/editing/deleting/delete-br-004-expected.txt: Copied from LayoutTests/platform/ios/editing/deleting/delete-to-select-table-expected.txt.
+        * platform/ios/editing/deleting/delete-br-005-expected.txt: Copied from LayoutTests/platform/ios/editing/deleting/delete-to-select-table-expected.txt.
+        * platform/ios/editing/deleting/delete-br-006-expected.txt: Copied from LayoutTests/platform/ios/editing/deleting/delete-to-select-table-expected.txt.
+        * platform/ios/editing/deleting/delete-br-008-expected.txt:
+        * platform/ios/editing/deleting/delete-br-009-expected.txt: Copied from LayoutTests/platform/ios/editing/deleting/delete-br-008-expected.txt.
+        * platform/ios/editing/deleting/delete-br-010-expected.txt:
+        * platform/ios/editing/deleting/delete-image-004-expected.txt: Added.
+        * platform/ios/editing/deleting/delete-leading-ws-001-expected.txt: Copied from LayoutTests/platform/ios/editing/deleting/delete-br-010-expected.txt.
+        * platform/ios/editing/deleting/delete-line-011-expected.txt: Copied from LayoutTests/platform/ios/editing/deleting/delete-to-select-table-expected.txt.
+        * platform/ios/editing/deleting/delete-line-015-expected.txt:
+        * platform/ios/editing/deleting/delete-line-016-expected.txt:
+        * platform/ios/editing/deleting/delete-line-017-expected.txt:
+        * platform/ios/editing/deleting/delete-line-end-ws-001-expected.txt: Added.
+        * platform/ios/editing/deleting/delete-line-end-ws-002-expected.txt: Added.
+        * platform/ios/editing/deleting/delete-tab-001-expected.txt: Added.
+        * platform/ios/editing/deleting/delete-tab-004-expected.txt: Added.
+        * platform/ios/editing/deleting/delete-to-select-table-expected.txt:
+        * platform/ios/editing/deleting/merge-no-br-expected.txt:
+        * platform/ios/editing/deleting/table-cells-expected.txt:
+
+2017-11-09  Ryan Haddad  <ryanhaddad@apple.com>
+
+        Mark media/modern-media-controls/media-controller/media-controller-auto-hide-mouse-enter-and-mouse-leave.html as a flaky timeout.
+        https://bugs.webkit.org/show_bug.cgi?id=169876
+
+        Unreviewed test gardening.
+
+        * platform/mac/TestExpectations:
+
+2017-11-09  Ryan Haddad  <ryanhaddad@apple.com>
+
+        Skip slow encoding WPT LayoutTests.
+
+        Unreviewed test gardening.
+
+        * TestExpectations:
+
+2017-11-09  Doug Russell  <d_russell@apple.com>
+
+        Bug 179068 - AX: search predicate returns containing group for plain text instead of text element
+        https://bugs.webkit.org/show_bug.cgi?id=179068
+
+        Reviewed by Darin Adler
+
+        Implement a check in AccessibilityRenderObject::hasPlainText(), AccessibilityObject::canHavePlainText(), to confirm the element is capable of providing text.
+
+        * accessibility/mac/search-predicate-expected.txt:
+        * accessibility/mac/search-predicate-plaintext-expected.txt: Added.
+        * accessibility/mac/search-predicate-plaintext.html: Added.
+        * accessibility/mac/search-predicate-visible-button-expected.txt: Added.
+        * accessibility/mac/search-predicate-visible-button.html: Added.
+        * accessibility/mac/search-predicate-visited-links-expected.txt: Added.
+        * accessibility/mac/search-predicate-visited-links.html: Added.
+        * accessibility/mac/search-predicate.html:
+        * platform/mac-wk2/TestExpectations:
+
+2017-11-09  Wenson Hsieh  <wenson_hsieh@apple.com>
+
+        Inserting an image, selecting, underlining, and then deleting leaves the typing style with both "-webkit-text-decorations-in-effect" and "text-decoration"
+        https://bugs.webkit.org/show_bug.cgi?id=179431
+
+        Reviewed by Ryosuke Niwa.
+
+        Adds a new layout test to fix a debug assertion. See WebCore/ChangeLog for more details. Additionally
+        rebaselines a few existing tests that serialize markup strings to include `text-decoration: none;`.
+
+        * editing/execCommand/underline-selection-containing-image-expected.txt: Added.
+        * editing/execCommand/underline-selection-containing-image.html: Added.
+        * editing/pasteboard/data-transfer-get-data-on-drop-rich-text-expected.txt:
+        * fast/events/before-input-events-prevent-drag-and-drop-expected.txt:
+        * fast/events/input-events-paste-rich-datatransfer-expected.txt:
+        * fast/events/ondrop-text-html-expected.txt:
+
+2017-11-09  Devin Rousso  <webkit@devinrousso.com>
+
+        Web Inspector: support undo/redo of insertAdjacentHTML
+        https://bugs.webkit.org/show_bug.cgi?id=179283
+
+        Reviewed by Joseph Pecoraro.
+
+        * inspector/dom/insertAdjacentHTML-expected.txt: Added.
+        * inspector/dom/insertAdjacentHTML.html: Added.
+
+2017-11-09  Maciej Stachowiak  <mjs@apple.com>
+
+        Remove support for iOS-only softbank-sjis encoding if possible
+        https://bugs.webkit.org/show_bug.cgi?id=179416
+
+        Reviewed by Darin Adler.
+
+        * fast/encoding/charset-softbank-sjis.html: Added. Test that <meta charset>
+        declaration for softbank-sjis is ignored.
+        * fast/encoding/charset-softbank-sjis-expected.txt: Added.
+        * fast/encoding/resources/softbank-sjis-iframe.html: Added. Helper for above test.
+        * fast/encoding/legacy-ios-encodings.html: Add a case for softbank-sjis.
+        * fast/encoding/legacy-ios-encodings-expected.txt: Result for above.
+
+2017-11-09  Carlos Alberto Lopez Perez  <clopez@igalia.com>
+
+        [GTK] Gardening 09 nov
+        https://bugs.webkit.org/show_bug.cgi?id=179472
+
+        Unreviewed GTK gardening
+
+        * platform/gtk/TestExpectations:
+
+2017-11-09  Alicia Boya García  <aboya@igalia.com>
+
+        [GTK] Test gardening
+        https://bugs.webkit.org/show_bug.cgi?id=179447
+
+        Reviewed by Michael Catanzaro.
+
+        * platform/gtk/TestExpectations:
+
+2017-11-08  Simon Fraser  <simon.fraser@apple.com>
+
+        Content not painted when scrolling an overflow node inside an iframe
+        https://bugs.webkit.org/show_bug.cgi?id=179315
+        rdar://problem/35364166
+
+        Reviewed by Tim Horton.
+
+        * compositing/ios/overflow-scroll-update-overlap-expected.html: Added.
+        * compositing/ios/overflow-scroll-update-overlap.html: Added.
+
+2017-11-08  Ryan Haddad  <ryanhaddad@apple.com>
+
+        Mark imported/w3c/web-platform-tests/service-workers/service-worker/register-same-scope-different-script-url.https.html as flaky.
+        https://bugs.webkit.org/show_bug.cgi?id=179452
+
+        Unreviewed test gardening.
+
+        * TestExpectations:
+
+2017-11-08  Ryan Haddad  <ryanhaddad@apple.com>
+
+        Mark http/tests/workers/service/registration-task-queue-scheduling-1.html as flaky.
+        https://bugs.webkit.org/show_bug.cgi?id=179342
+
+        Unreviewed test gardening.
+
+        * platform/mac/TestExpectations:
+
+2017-11-08  Brent Fulgham  <bfulgham@apple.com>
+
+        XMLHttpRequest should not treat file URLs as same origin
+        https://bugs.webkit.org/show_bug.cgi?id=178565
+        <rdar://problem/11115901>
+
+        Reviewed by Daniel Bates.
+
+        * security/cannot-read-self-from-file-expected.txt: Added.
+        * security/cannot-read-self-from-file.html: Added.
+        * security/resources/cannot-read-self-from-file.html: Added.
+
+2017-11-08  Joseph Pecoraro  <pecoraro@apple.com>
+
+        Web Inspector: Show Internal properties of PaymentRequest in Web Inspector Console
+        https://bugs.webkit.org/show_bug.cgi?id=179276
+
+        Reviewed by Andy Estes.
+
+        * TestExpectations:
+        * platform/mac-wk2/TestExpectations:
+        Pass test on platforms that support Payment Requests.
+
+        * http/tests/inspector/paymentrequest/payment-request-internal-properties.https-expected.txt: Added.
+        * http/tests/inspector/paymentrequest/payment-request-internal-properties.https.html: Added.
+        Test for internal properties on PaymentRequest instances.
+
+        * resources/ui-helper.js:
+        (window.UIHelper.withUserGesture):
+        Provide an easier way to simulate work inside of a user gesture.
+
+2017-11-08  Ryan Haddad  <ryanhaddad@apple.com>
+
+        Mark many service worker tests as flaky on iOS.
+        https://bugs.webkit.org/show_bug.cgi?id=179454
+
+        Unreviewed test gardening.
+
+        * platform/ios/TestExpectations:
+
+2017-11-08  Colin Bendell  <colin@bendell.ca>
+
+        Add tests to ensure that <source> tags are only preloaded when the `type`
+        attribute matches.
+        https://bugs.webkit.org/show_bug.cgi?id=179231
+
+        Reviewed by Alex Christensen.
+
+        The actual execution of the test is a bit racy because of the need to refresh
+        the browser to change the DPR. Should also move the other testHad to move the tests to /preload (instead of tests/loading with the other
+        picture tests) to avoid the logging from
+
+        * http/tests/preload/picture-type-expected.txt: Added.
+        * http/tests/preload/picture-type.html: Added.
+
+2017-11-08  Maciej Stachowiak  <mjs@apple.com>
+
+        iOS supports some text encodings supposedly due to lack of TEC that aren't supported by the TEC decoder on macOS
+        https://bugs.webkit.org/show_bug.cgi?id=179309
+
+        Reviewed by Darin Adler.
+
+        * fast/encoding/legacy-ios-encodings-expected.txt: Added.
+        * fast/encoding/legacy-ios-encodings.html: Added. Check that we don't support some old iOS-only encoding names
+        and check for some nonstandard encoding names that we do support (for now).
+
+2017-11-08  Maciej Stachowiak  <mjs@apple.com>
+
+        Switch encoding WPT test suite to updating via import-w3c-tests
+        https://bugs.webkit.org/show_bug.cgi?id=179412
+
+        Reviewed by Youenn Fablet.
+
+        * TestExpectations: Remove mention of slow encoding tests here...
+        * tests-options.json: ...because they are now recorded here.
+
+2017-11-08  Chris Dumez  <cdumez@apple.com>
+
+        [Service Workers] Support waitUntil() on the 'install' event
+        https://bugs.webkit.org/show_bug.cgi?id=179396
+
+        Reviewed by Brady Eidson.
+
+        Add layout test coverage.
+
+        * http/tests/workers/service/basic-install-event-waitUntil-multiple-promises-expected.txt: Added.
+        * http/tests/workers/service/basic-install-event-waitUntil-multiple-promises.html: Added.
+        * http/tests/workers/service/basic-install-event-waitUntil-reject-expected.txt: Added.
+        * http/tests/workers/service/basic-install-event-waitUntil-reject.html: Added.
+        * http/tests/workers/service/basic-install-event-waitUntil-resolve-expected.txt: Added.
+        * http/tests/workers/service/basic-install-event-waitUntil-resolve.html: Added.
+        * http/tests/workers/service/resources/basic-install-event-waitUntil-multiple-promises-worker.js: Added.
+        (event.i.event.waitUntil.new.Promise):
+        * http/tests/workers/service/resources/basic-install-event-waitUntil-reject-worker.js: Added.
+        (event.event.waitUntil.new.Promise):
+        * http/tests/workers/service/resources/basic-install-event-waitUntil-resolve-worker.js: Added.
+        (event.event.waitUntil.new.Promise):
+        * http/wpt/service-workers/extendableEvent.https-expected.txt:
+        * http/wpt/service-workers/extendableEvent.https.html:
+
+2017-11-08  David Hyatt  <hyatt@apple.com>
+
+        [Experiment] Implement code to detect high frequency painting
+        https://bugs.webkit.org/show_bug.cgi?id=179118
+
+        Reviewed by Simon Fraser.
+
+        * fast/block/block-move-frequent-paint-expected.txt: Added.
+        * fast/block/block-move-frequent-paint.html: Added.
+
+2017-11-08  Ms2ger  <Ms2ger@igalia.com>
+
+        Update XMLHttpRequest tests.
+        https://bugs.webkit.org/show_bug.cgi?id=179421
+
+        Reviewed by Sam Weinig.
+
+        * TestExpectations: removed flaky expectation: the test was fixed upstream.
+
 2017-11-07  Ryan Haddad  <ryanhaddad@apple.com>
 
         Update TestExpectations for slow  WPT encoding LayoutTests.

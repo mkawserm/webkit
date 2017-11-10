@@ -26,6 +26,7 @@ fast/visual-viewport/rubberbanding-viewport-rects.html [ Pass ]
 fast/visual-viewport/rubberbanding-viewport-rects-header-footer.html  [ Pass ]
 
 [ Sierra+ ] http/tests/paymentrequest [ Pass ]
+[ Sierra+ ] http/tests/inspector/paymentrequest [ Pass ]
 [ Sierra+ ] imported/w3c/web-platform-tests/payment-request [ Pass ]
 webkit.org/b/178107 [ Sierra+ ] http/tests/paymentrequest/payment-request-abort-method.https.html [ Pass Failure ]
 webkit.org/b/175611 imported/w3c/web-platform-tests/payment-request/allowpaymentrequest/allowpaymentrequest-attribute-cross-origin-bc-containers.https.html [ Skip ]
@@ -298,6 +299,7 @@ webkit.org/b/124476 platform/mac-wk2/plugins/slow/asynchronous-plugin-initializa
 
 # uiElementForSearchPredicate() is not returning an undefined object when the search returns no results
 webkit.org/b/125996 accessibility/mac/search-when-element-starts-in-table.html [ Failure ]
+webkit.org/b/125996 accessibility/mac/search-predicate-visible-button.html [ Failure ]
 
 webkit.org/b/162999 accessibility/mac/wk1-set-selected-text-marker-range-input-element.html [ Skip ]
 
@@ -463,7 +465,7 @@ editing/mac/selection/25228.html
 
 # WebKitTestRunner needs testRunner.setCallCloseOnWebViews
 # http://webkit.org/b/46714
-accessibility/mac/search-predicate.html
+accessibility/mac/search-predicate-visited-links.html
 
 # AX tests that require hit testing do not work in WK2.
 webkit.org/b/71298 accessibility/mac/html-slider-indicator.html

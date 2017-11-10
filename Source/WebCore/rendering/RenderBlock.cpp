@@ -1697,7 +1697,7 @@ void RenderBlock::paintObject(PaintInfo& paintInfo, const LayoutPoint& paintOffs
 
     // 6. paint continuation outlines.
     if ((paintPhase == PaintPhaseOutline || paintPhase == PaintPhaseChildOutlines)) {
-        RenderInline* inlineCont = inlineElementContinuation();
+        RenderInline* inlineCont = inlineContinuation();
         if (inlineCont && inlineCont->hasOutline() && inlineCont->style().visibility() == VISIBLE) {
             RenderInline* inlineRenderer = downcast<RenderInline>(inlineCont->element()->renderer());
             RenderBlock* containingBlock = this->containingBlock();
@@ -1730,12 +1730,6 @@ void RenderBlock::paintObject(PaintInfo& paintInfo, const LayoutPoint& paintOffs
     }
 }
 
-RenderInline* RenderBlock::inlineElementContinuation() const
-{ 
-    RenderBoxModelObject* continuation = this->continuation();
-    return is<RenderInline>(continuation) ? downcast<RenderInline>(continuation) : nullptr;
-}
-
 static ContinuationOutlineTableMap* continuationOutlineTable()
 {
     static NeverDestroyed<ContinuationOutlineTableMap> table;
@@ -1746,7 +1740,7 @@ void RenderBlock::addContinuationWithOutline(RenderInline* flow)
 {
     // We can't make this work if the inline is in a layer.  We'll just rely on the broken
     // way of painting.
-    ASSERT(!flow->layer() && !flow->isInlineElementContinuation());
+    ASSERT(!flow->layer() && !flow->isContinuation());
     
     ContinuationOutlineTableMap* table = continuationOutlineTable();
     ListHashSet<RenderInline*>* continuations = table->get(this);
@@ -3163,10 +3157,8 @@ void RenderBlock::absoluteRects(Vector<IntRect>& rects, const LayoutPoint& accum
     if (auto* continuation = this->continuation()) {
         // FIXME: This is wrong for block-flows that are horizontal.
         // https://bugs.webkit.org/show_bug.cgi?id=46781
-        rects.append(snappedIntRect(accumulatedOffset.x(), accumulatedOffset.y() - collapsedMarginBefore(),
-                                width(), height() + collapsedMarginBefore() + collapsedMarginAfter()));
-        continuation->absoluteRects(rects, accumulatedOffset - toLayoutSize(location() +
-                inlineElementContinuation()->containingBlock()->location()));
+        rects.append(snappedIntRect(accumulatedOffset.x(), accumulatedOffset.y() - collapsedMarginBefore(), width(), height() + collapsedMarginBefore() + collapsedMarginAfter()));
+        continuation->absoluteRects(rects, accumulatedOffset - toLayoutSize(location() + inlineContinuation()->containingBlock()->location()));
     } else
         rects.append(snappedIntRect(accumulatedOffset, size()));
 }
@@ -3264,13 +3256,14 @@ void RenderBlock::addFocusRingRects(Vector<LayoutRect>& rects, const LayoutPoint
 {
     // For blocks inside inlines, we include margins so that we run right up to the inline boxes
     // above and below us (thus getting merged with them to form a single irregular shape).
-    if (inlineElementContinuation()) {
+    auto* inlineContinuation = this->inlineContinuation();
+    if (inlineContinuation) {
         // FIXME: This check really isn't accurate. 
-        bool nextInlineHasLineBox = inlineElementContinuation()->firstLineBox();
+        bool nextInlineHasLineBox = inlineContinuation->firstLineBox();
         // FIXME: This is wrong. The principal renderer may not be the continuation preceding this block.
         // FIXME: This is wrong for block-flows that are horizontal.
         // https://bugs.webkit.org/show_bug.cgi?id=46781
-        bool prevInlineHasLineBox = downcast<RenderInline>(*inlineElementContinuation()->element()->renderer()).firstLineBox();
+        bool prevInlineHasLineBox = downcast<RenderInline>(*inlineContinuation->element()->renderer()).firstLineBox();
         float topMargin = prevInlineHasLineBox ? collapsedMarginBefore() : LayoutUnit();
         float bottomMargin = nextInlineHasLineBox ? collapsedMarginAfter() : LayoutUnit();
         LayoutRect rect(additionalOffset.x(), additionalOffset.y() - topMargin, width(), height() + topMargin + bottomMargin);
@@ -3297,8 +3290,8 @@ void RenderBlock::addFocusRingRects(Vector<LayoutRect>& rects, const LayoutPoint
         }
     }
 
-    if (inlineElementContinuation())
-        inlineElementContinuation()->addFocusRingRects(rects, flooredLayoutPoint(LayoutPoint(additionalOffset + inlineElementContinuation()->containingBlock()->location() - location())), paintContainer);
+    if (inlineContinuation)
+        inlineContinuation->addFocusRingRects(rects, flooredLayoutPoint(LayoutPoint(additionalOffset + inlineContinuation->containingBlock()->location() - location())), paintContainer);
 }
 
 RenderPtr<RenderBlock> RenderBlock::createAnonymousBlockWithStyleAndDisplay(Document& document, const RenderStyle& style, EDisplay display)
@@ -3325,9 +3318,9 @@ LayoutUnit RenderBlock::offsetFromLogicalTopOfFirstPage() const
         return fragmentedFlow->offsetFromLogicalTopOfFirstFragment(this);
 
     if (layoutState) {
-        ASSERT(layoutState->m_renderer == this);
+        ASSERT(layoutState->renderer() == this);
 
-        LayoutSize offsetDelta = layoutState->m_layoutOffset - layoutState->m_pageOffset;
+        LayoutSize offsetDelta = layoutState->layoutOffset() - layoutState->pageOffset();
         return isHorizontalWritingMode() ? offsetDelta.height() : offsetDelta.width();
     }
     
@@ -3362,7 +3355,7 @@ bool RenderBlock::childBoxIsUnsplittableForFragmentation(const RenderBox& child)
 {
     RenderFragmentedFlow* fragmentedFlow = enclosingFragmentedFlow();
     bool checkColumnBreaks = fragmentedFlow && fragmentedFlow->shouldCheckColumnBreaks();
-    bool checkPageBreaks = !checkColumnBreaks && view().frameView().layoutContext().layoutState()->m_pageLogicalHeight;
+    bool checkPageBreaks = !checkColumnBreaks && view().frameView().layoutContext().layoutState()->pageLogicalHeight();
     return child.isUnsplittableForPagination() || child.style().breakInside() == AvoidBreakInside
         || (checkColumnBreaks && child.style().breakInside() == AvoidColumnBreakInside)
         || (checkPageBreaks && child.style().breakInside() == AvoidPageBreakInside);

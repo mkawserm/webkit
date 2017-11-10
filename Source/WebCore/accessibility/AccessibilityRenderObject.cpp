@@ -183,7 +183,7 @@ static inline RenderObject* firstChildConsideringContinuation(RenderObject& rend
     // We don't want to include the end of a continuation as the firstChild of the
     // anonymous parent, because everything has already been linked up via continuation.
     // CSS first-letter selector is an example of this case.
-    if (renderer.isAnonymous() && is<RenderElement>(firstChild) && downcast<RenderElement>(*firstChild).isInlineElementContinuation())
+    if (renderer.isAnonymous() && is<RenderInline>(firstChild) && downcast<RenderInline>(*firstChild).isContinuation())
         firstChild = nullptr;
     
     if (!firstChild && isInlineWithContinuation(renderer))
@@ -199,18 +199,11 @@ static inline RenderObject* lastChildConsideringContinuation(RenderObject& rende
         return &renderer;
 
     RenderObject* lastChild = downcast<RenderBoxModelObject>(renderer).lastChild();
-    RenderBoxModelObject* previous;
     for (auto* current = &downcast<RenderBoxModelObject>(renderer); current; ) {
-        previous = current;
-
         if (RenderObject* newLastChild = current->lastChild())
             lastChild = newLastChild;
 
-        if (is<RenderInline>(*current)) {
-            current = downcast<RenderInline>(*current).inlineElementContinuation();
-            ASSERT_UNUSED(previous, current || !downcast<RenderInline>(*previous).continuation());
-        } else
-            current = downcast<RenderBlock>(*current).inlineElementContinuation();
+        current = current->inlineContinuation();
     }
 
     return lastChild;
@@ -251,12 +244,12 @@ static inline RenderInline* startOfContinuations(RenderObject& renderer)
     if (!is<RenderElement>(renderer))
         return nullptr;
     auto& renderElement = downcast<RenderElement>(renderer);
-    if (renderElement.isInlineElementContinuation() && is<RenderInline>(renderElement.element()->renderer()))
+    if (is<RenderInline>(renderElement) && renderElement.isContinuation() && is<RenderInline>(renderElement.element()->renderer()))
         return downcast<RenderInline>(renderer.node()->renderer());
 
     // Blocks with a previous continuation always have a next continuation
-    if (is<RenderBlock>(renderElement) && downcast<RenderBlock>(renderElement).inlineElementContinuation())
-        return downcast<RenderInline>(downcast<RenderBlock>(renderElement).inlineElementContinuation()->element()->renderer());
+    if (is<RenderBlock>(renderElement) && downcast<RenderBlock>(renderElement).inlineContinuation())
+        return downcast<RenderInline>(downcast<RenderBlock>(renderElement).inlineContinuation()->element()->renderer());
 
     return nullptr;
 }
@@ -269,11 +262,7 @@ static inline RenderObject* endOfContinuations(RenderObject& renderer)
     auto* previous = &downcast<RenderBoxModelObject>(renderer);
     for (auto* current = previous; current; ) {
         previous = current;
-        if (is<RenderInline>(*current)) {
-            current = downcast<RenderInline>(*current).inlineElementContinuation();
-            ASSERT(current || !downcast<RenderInline>(*previous).continuation());
-        } else 
-            current = downcast<RenderBlock>(*current).inlineElementContinuation();
+        current = current->inlineContinuation();
     }
 
     return previous;
@@ -293,13 +282,13 @@ static inline RenderObject* childBeforeConsideringContinuations(RenderInline* re
                 current = current->nextSibling();
             }
 
-            currentContainer = downcast<RenderInline>(*currentContainer).continuation();
+            currentContainer = currentContainer->continuation();
         } else if (is<RenderBlock>(*currentContainer)) {
             if (currentContainer == child)
                 return previous;
 
             previous = currentContainer;
-            currentContainer = downcast<RenderBlock>(*currentContainer).inlineElementContinuation();
+            currentContainer = currentContainer->inlineContinuation();
         }
     }
 
@@ -310,7 +299,7 @@ static inline RenderObject* childBeforeConsideringContinuations(RenderInline* re
 static inline bool firstChildIsInlineContinuation(RenderElement& renderer)
 {
     RenderObject* child = renderer.firstChild();
-    return is<RenderElement>(child) && downcast<RenderElement>(*child).isInlineElementContinuation();
+    return is<RenderInline>(child) && downcast<RenderInline>(*child).isContinuation();
 }
 
 AccessibilityObject* AccessibilityRenderObject::previousSibling() const
@@ -368,7 +357,7 @@ AccessibilityObject* AccessibilityRenderObject::nextSibling() const
     // Case 1: node is a block and has an inline continuation. Next sibling is the inline continuation's
     // first child.
     RenderInline* inlineContinuation;
-    if (is<RenderBlock>(*m_renderer) && (inlineContinuation = downcast<RenderBlock>(*m_renderer).inlineElementContinuation()))
+    if (is<RenderBlock>(*m_renderer) && (inlineContinuation = downcast<RenderBlock>(*m_renderer).inlineContinuation()))
         nextSibling = firstChildConsideringContinuation(*inlineContinuation);
 
     // Case 2: Anonymous block parent of the start of a continuation - skip all the way to
@@ -426,7 +415,7 @@ static RenderBoxModelObject* nextContinuation(RenderObject& renderer)
     if (is<RenderInline>(renderer) && !renderer.isReplaced())
         return downcast<RenderInline>(renderer).continuation();
     if (is<RenderBlock>(renderer))
-        return downcast<RenderBlock>(renderer).inlineElementContinuation();
+        return downcast<RenderBlock>(renderer).inlineContinuation();
     return nullptr;
 }
     
@@ -743,7 +732,7 @@ String AccessibilityRenderObject::stringValue() const
 
     RenderBoxModelObject* cssBox = renderBoxModelObject();
 
-    if (ariaRoleAttribute() == AccessibilityRole::StaticText) {
+    if (isARIAStaticText()) {
         String staticText = text();
         if (!staticText.length())
             staticText = textUnderElement();
@@ -789,6 +778,11 @@ String AccessibilityRenderObject::stringValue() const
     // this would require subclassing or making accessibilityAttributeNames do something other than return a
     // single static array.
     return String();
+}
+
+bool AccessibilityRenderObject::canHavePlainText() const
+{
+    return isARIAStaticText() || is<RenderText>(*m_renderer) || isTextControl();
 }
 
 HTMLLabelElement* AccessibilityRenderObject::labelElementContainer() const
@@ -3072,7 +3066,7 @@ AccessibilitySVGRoot* AccessibilityRenderObject::remoteSVGRootElement(CreationCh
     if (!is<SVGDocument>(document))
         return nullptr;
     
-    SVGSVGElement* rootElement = SVGDocument::rootElement(*document);
+    auto rootElement = SVGDocument::rootElement(*document);
     if (!rootElement)
         return nullptr;
     RenderObject* rendererRoot = rootElement->renderer();
@@ -3546,9 +3540,11 @@ bool AccessibilityRenderObject::hasPlainText() const
 {
     if (!m_renderer)
         return false;
-    
+
+    if (!canHavePlainText())
+        return false;
+
     const RenderStyle& style = m_renderer->style();
-    
     return style.fontDescription().weight() == normalWeightValue()
         && style.fontDescription().italic() == normalItalicValue()
         && style.textDecorationsInEffect() == TextDecorationNone;

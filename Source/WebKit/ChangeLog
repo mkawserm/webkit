@@ -1,3 +1,168 @@
+2017-11-09  Chris Dumez  <cdumez@apple.com>
+
+        Implement real post 'install' event steps of the Install algorithm (steps 14+)
+        https://bugs.webkit.org/show_bug.cgi?id=179401
+
+        Reviewed by Brady Eidson.
+
+        Implement step 14+ of Install algorithm, as per:
+        - https://w3c.github.io/ServiceWorker/#installation-algorithm
+
+        * Scripts/webkit/messages.py:
+        (headers_for_type):
+        * Shared/WebCoreArgumentCoders.h:
+        * StorageProcess/ServiceWorker/WebSWServerConnection.cpp:
+        (WebKit::WebSWServerConnection::resolveRegistrationJobInClient):
+        * StorageProcess/ServiceWorker/WebSWServerConnection.h:
+        * StorageProcess/ServiceWorker/WebSWServerConnection.messages.in:
+        * WebProcess/Storage/WebSWClientConnection.cpp:
+        (WebKit::WebSWClientConnection::didResolveRegistrationPromise):
+        * WebProcess/Storage/WebSWClientConnection.h:
+        * WebProcess/Storage/WebSWClientConnection.messages.in:
+
+2017-11-09  Megan Gardner  <megan_gardner@apple.com>
+
+        Clean out unused selection items from UIKitSPI
+        https://bugs.webkit.org/show_bug.cgi?id=179459
+
+        Reviewed by Tim Horton.
+
+        Many of these should have been removed from previous commits, but they were missed.
+        None of these enums or methods are being used by WebKit anymore, and removing them will keep things
+        clean and allow UIKit to remove things that are not used at all by anyone anymore.
+
+        * Platform/spi/ios/UIKitSPI.h:
+
+2017-11-09  Christopher Reid  <chris.reid@sony.com>
+
+        Use enum classes within FileSystem
+        https://bugs.webkit.org/show_bug.cgi?id=175172
+
+        Reviewed by Darin Adler.
+
+        * NetworkProcess/Downloads/BlobDownloadClient.cpp:
+        * NetworkProcess/NetworkDataTaskBlob.cpp:
+        * NetworkProcess/cache/NetworkCache.cpp:
+        * NetworkProcess/capture/NetworkCaptureManager.cpp:
+        * NetworkProcess/capture/NetworkCaptureRecorder.cpp:
+        * Shared/WebMemorySampler.cpp:
+        * UIProcess/API/APIContentRuleListStore.cpp:
+        * UIProcess/ResourceLoadStatisticsPersistentStorage.cpp:
+
+2017-11-09  Youenn Fablet  <youenn@apple.com>
+
+        ServiceWorkerClientFetch should create not null ResourceError
+        https://bugs.webkit.org/show_bug.cgi?id=179485
+
+        Reviewed by Darin Adler.
+
+        * WebProcess/Storage/ServiceWorkerClientFetch.cpp:
+        (WebKit::ServiceWorkerClientFetch::didReceiveResponse):
+
+2017-11-09  Andy Estes  <aestes@apple.com>
+
+        [iOS] Adopt UIPreviewDataAttachmentListIsContentManaged
+        https://bugs.webkit.org/show_bug.cgi?id=179458
+        <rdar://problem/35034691>
+
+        Reviewed by Dan Bernstein.
+
+        * Platform/spi/ios/UIKitSPI.h:
+        * UIProcess/ios/WKContentViewInteraction.mm:
+        (-[WKContentView _dataForPreviewItemController:atPosition:type:]):
+
+2017-11-08  Joseph Pecoraro  <pecoraro@apple.com>
+
+        Include a more complete block signature in public headers to avoid potential -Wstrict-prototypes warnings
+        https://bugs.webkit.org/show_bug.cgi?id=179466
+
+        Reviewed by Dan Bernstein.
+
+        * UIProcess/API/Cocoa/WKHTTPCookieStore.h:
+        * UIProcess/API/Cocoa/WKHTTPCookieStore.mm:
+        (-[WKHTTPCookieStore setCookie:completionHandler:]):
+        (-[WKHTTPCookieStore deleteCookie:completionHandler:]):
+
+2017-11-08  Jeremy Jones  <jeremyj@apple.com>
+
+        Make WKFullScreenWidnowController more robust against modification by the embedding app.
+        https://bugs.webkit.org/show_bug.cgi?id=179413
+        rdar://problem/35408061
+
+        Reviewed by Darin Adler.
+
+        Present fullscreen UViewController in a separate UIWindow to prevent interaction with the embedding app's
+        UIViewController hierarchy.
+
+        Immediately tear down the fullscreen interface if the embedding app removes the WKWebView from the fullscreen window.
+        This prevents the fullscreen interface from getting into an invalid state.
+
+        Preserve scrollView.zoomScale because it is not effectively preserved by the more indirect _viewScale.
+
+        Use a custom root view controller to allow hiding of the status bar.
+
+        Remove the no-longer-necessary dispatch_after calls during enter and exit fullscreen.
+
+        * UIProcess/API/Cocoa/WKWebView.mm:
+        (-[WKWebView removeFromSuperview]):
+        * UIProcess/ios/WKFullScreenWindowControllerIOS.h:
+        * UIProcess/ios/WKFullScreenWindowControllerIOS.mm:
+        (WebKit::WKWebViewState::applyTo):
+        (WebKit::WKWebViewState::store):
+        (-[_WKFullScreenViewController loadView]):
+        (-[_WKFullscreenRootViewController prefersStatusBarHidden]):
+        (-[WKFullScreenWindowController enterFullScreen]):
+        (-[WKFullScreenWindowController beganEnterFullScreenWithInitialFrame:finalFrame:]):
+        (-[WKFullScreenWindowController completedExitFullScreen]):
+        (-[WKFullScreenWindowController exitFullscreenImmediately]):
+        (-[WKFullScreenWindowController close]):
+        (-[WKFullScreenWindowController webViewDidRemoveFromSuperviewWhileInFullscreen]):
+        (-[_WKFullScreenViewController viewDidDisappear:]): Deleted.
+
+2017-11-08  Jeremy Jones  <jeremyj@apple.com>
+
+        HTMLMediaElement should not use element fullscreen on iOS
+        https://bugs.webkit.org/show_bug.cgi?id=179418
+        rdar://problem/35409277
+
+        Reviewed by Eric Carlson.
+
+        Add ENABLE_VIDEO_USES_ELEMENT_FULLSCREEN to determine if HTMLMediaElement should use element full screen or not.
+
+        * Configurations/FeatureDefines.xcconfig:
+
+2017-11-08  Wenson Hsieh  <wenson_hsieh@apple.com>
+
+        [Attachment Support] Implement delegate hooks for attachment element insertion and removal
+        https://bugs.webkit.org/show_bug.cgi?id=179016
+        <rdar://problem/35250890>
+
+        Reviewed by Tim Horton.
+
+        See WebCore/ChangeLog for more details.
+
+        * UIProcess/API/Cocoa/WKUIDelegatePrivate.h:
+        * UIProcess/API/Cocoa/WKWebView.mm:
+        (-[WKWebView _didInsertAttachment:]):
+        (-[WKWebView _didRemoveAttachment:]):
+        * UIProcess/API/Cocoa/WKWebViewInternal.h:
+        * UIProcess/Cocoa/PageClientImplCocoa.h:
+        * UIProcess/Cocoa/PageClientImplCocoa.mm:
+        (WebKit::PageClientImplCocoa::didInsertAttachment):
+        (WebKit::PageClientImplCocoa::didRemoveAttachment):
+        * UIProcess/PageClient.h:
+        (WebKit::PageClient::didInsertAttachment):
+        (WebKit::PageClient::didRemoveAttachment):
+        * UIProcess/WebPageProxy.cpp:
+        (WebKit::WebPageProxy::didInsertAttachment):
+        (WebKit::WebPageProxy::didRemoveAttachment):
+        * UIProcess/WebPageProxy.h:
+        * UIProcess/WebPageProxy.messages.in:
+        * WebProcess/WebCoreSupport/WebEditorClient.cpp:
+        (WebKit::WebEditorClient::didInsertAttachment):
+        (WebKit::WebEditorClient::didRemoveAttachment):
+        * WebProcess/WebCoreSupport/WebEditorClient.h:
+
 2017-11-08  Carlos Garcia Campos  <cgarcia@igalia.com>
 
         REGRESSION(r223773): [GTK] WebKitWebInspector bring-to-front signal is emitted right after open-window

@@ -109,36 +109,54 @@ void SWServerJobQueue::scriptContextStarted(SWServer::Connection& connection, Se
 }
 
 // https://w3c.github.io/ServiceWorker/#install
-void SWServerJobQueue::install(SWServerRegistration& registration, SWServer::Connection& connection, ServiceWorkerIdentifier installingWorker)
+void SWServerJobQueue::install(SWServerRegistration& registration, SWServer::Connection&, ServiceWorkerIdentifier installingWorker)
 {
     // The Install algorithm should never be invoked with a null worker.
     auto* worker = m_server.workerByID(installingWorker);
     RELEASE_ASSERT(worker);
 
-    registration.updateRegistrationState(ServiceWorkerRegistrationState::Installing, worker);
-    registration.updateWorkerState(*worker, ServiceWorkerState::Installing);
+    auto& job = firstJob();
+
+    registration.updateRegistrationState(job, ServiceWorkerRegistrationState::Installing, worker);
+    registration.updateWorkerState(job, *worker, ServiceWorkerState::Installing);
 
     // Invoke Resolve Job Promise with job and registration.
-    m_server.resolveRegistrationJob(firstJob(), registration.data());
-
-    // Queue a task to fire an event named updatefound at all the ServiceWorkerRegistration objects
-    // for all the service worker clients whose creation URL matches registration's scope url and
-    // all the service workers whose containing service worker registration is registration.
-    registration.fireUpdateFoundEvent(firstJob().connectionIdentifier());
-
-    // Queue a task to fire the InstallEvent.
-    m_server.fireInstallEvent(connection, installingWorker);
+    m_server.resolveRegistrationJob(job, registration.data(), ShouldNotifyWhenResolved::Yes);
 }
 
-// https://w3c.github.io/ServiceWorker/#install
-void SWServerJobQueue::didFinishInstall(SWServer::Connection&, ServiceWorkerIdentifier, bool wasSuccessful)
+// https://w3c.github.io/ServiceWorker/#install (after resolving promise).
+void SWServerJobQueue::didResolveRegistrationPromise(SWServer::Connection& connection)
 {
     auto* registration = m_server.getRegistration(m_registrationKey);
     ASSERT(registration);
 
+    auto& job = firstJob();
+
+    // Queue a task to fire an event named updatefound at all the ServiceWorkerRegistration objects
+    // for all the service worker clients whose creation URL matches registration's scope url and
+    // all the service workers whose containing service worker registration is registration.
+    registration->fireUpdateFoundEvent(job);
+
+    // Queue a task to fire the InstallEvent.
+    m_server.fireInstallEvent(connection, registration->installingWorker()->identifier());
+}
+
+// https://w3c.github.io/ServiceWorker/#install
+void SWServerJobQueue::didFinishInstall(SWServer::Connection&, ServiceWorkerIdentifier identifier, bool wasSuccessful)
+{
+    auto* registration = m_server.getRegistration(m_registrationKey);
+    ASSERT(registration);
+
+    auto job = firstJob();
+
     if (!wasSuccessful) {
-        // FIXME: Run the Update Worker State algorithm passing registration's installing worker and redundant as the arguments.
-        // FIXME: Run the Update Registration State algorithm passing registration, "installing" and null as the arguments.
+        auto* worker = m_server.workerByID(identifier);
+        RELEASE_ASSERT(worker);
+
+        // Run the Update Worker State algorithm passing registration's installing worker and redundant as the arguments.
+        registration->updateWorkerState(job, *worker, ServiceWorkerState::Redundant);
+        // Run the Update Registration State algorithm passing registration, "installing" and null as the arguments.
+        registration->updateRegistrationState(job, ServiceWorkerRegistrationState::Installing, nullptr);
 
         // If newestWorker is null, invoke Clear Registration algorithm passing registration as its argument.
         if (!registration->getNewestWorker())
@@ -148,10 +166,29 @@ void SWServerJobQueue::didFinishInstall(SWServer::Connection&, ServiceWorkerIden
         return;
     }
 
-    // FIXME: Implement real post 'install' event steps of the Install algorithm (steps 14+).
-    registration->firePostInstallEvents(firstJob().connectionIdentifier());
+    if (auto* waitingWorker = registration->waitingWorker()) {
+        waitingWorker->terminate();
+        registration->updateWorkerState(job, *waitingWorker, ServiceWorkerState::Redundant);
+    }
+
+    auto* installing = registration->installingWorker();
+    ASSERT(installing);
+
+    registration->updateRegistrationState(job, ServiceWorkerRegistrationState::Waiting, installing);
+    registration->updateRegistrationState(job, ServiceWorkerRegistrationState::Installing, nullptr);
+    registration->updateWorkerState(job, *installing, ServiceWorkerState::Installed);
 
     finishCurrentJob();
+
+    // FIXME: Invoke Try Activate with registration
+    // FIXME: Do we need "Wait for all the tasks queued by Update Worker State invoked in this algorithm have executed" first?
+    auto* waiting = registration->waitingWorker();
+    ASSERT(waiting);
+
+    registration->updateRegistrationState(job, ServiceWorkerRegistrationState::Active, waiting);
+    registration->updateRegistrationState(job, ServiceWorkerRegistrationState::Waiting, nullptr);
+    registration->updateWorkerState(job, *waiting, ServiceWorkerState::Activating);
+    registration->updateWorkerState(job, *waiting, ServiceWorkerState::Activated);
 }
 
 // https://w3c.github.io/ServiceWorker/#run-job
@@ -201,7 +238,7 @@ void SWServerJobQueue::runRegisterJob(const ServiceWorkerJobData& job)
         registration->setIsUninstalling(false);
         auto* newestWorker = registration->getNewestWorker();
         if (newestWorker && equalIgnoringFragmentIdentifier(job.scriptURL, newestWorker->scriptURL()) && job.registrationOptions.updateViaCache == registration->updateViaCache()) {
-            m_server.resolveRegistrationJob(firstJob(), registration->data());
+            m_server.resolveRegistrationJob(firstJob(), registration->data(), ShouldNotifyWhenResolved::No);
             finishCurrentJob();
             return;
         }

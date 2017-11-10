@@ -25,6 +25,7 @@
 
 #pragma once
 
+#include "LayoutContext.h"
 #include "LayoutRect.h"
 #include <wtf/Noncopyable.h>
 
@@ -35,6 +36,7 @@ class RenderBlockFlow;
 class RenderBox;
 class RenderElement;
 class RenderFragmentedFlow;
+class RenderMultiColumnFlow;
 class RenderObject;
 
 class LayoutState {
@@ -51,13 +53,12 @@ public:
 #endif
     {
     }
+    LayoutState(const LayoutContext::LayoutStateStack&, RenderBox&, const LayoutSize& offset, LayoutUnit pageHeight, bool pageHeightChanged);
+    enum class IsPaginated { No, Yes };
+    explicit LayoutState(RenderElement&, IsPaginated = IsPaginated::No);
 
-    LayoutState(std::unique_ptr<LayoutState> ancestor, RenderBox&, const LayoutSize& offset, LayoutUnit pageHeight, bool pageHeightChanged);
-    explicit LayoutState(RenderElement&);
-
-    void clearPaginationInformation();
     bool isPaginated() const { return m_isPaginated; }
-    
+
     // The page logical offset is the object's offset from the top of the page in the page progression
     // direction (so an x-offset in vertical text and a y-offset for horizontal text).
     LayoutUnit pageLogicalOffset(RenderBox*, LayoutUnit childLogicalOffset) const;
@@ -65,28 +66,38 @@ public:
     LayoutUnit pageLogicalHeight() const { return m_pageLogicalHeight; }
     bool pageLogicalHeightChanged() const { return m_pageLogicalHeightChanged; }
 
-    RenderBlockFlow* lineGrid() const { return m_lineGrid; }
+    RenderBlockFlow* lineGrid() const { return m_lineGrid.get(); }
     LayoutSize lineGridOffset() const { return m_lineGridOffset; }
     LayoutSize lineGridPaginationOrigin() const { return m_lineGridPaginationOrigin; }
 
+    LayoutSize paintOffset() const { return m_paintOffset; }
     LayoutSize layoutOffset() const { return m_layoutOffset; }
 
     LayoutSize pageOffset() const { return m_pageOffset; }
-    void setLineGridPaginationOrigin(const LayoutSize& origin) { m_lineGridPaginationOrigin = origin; }
-    
+
     bool needsBlockDirectionLocationSetBeforeLayout() const { return m_lineGrid || (m_isPaginated && m_pageLogicalHeight); }
 
-    RenderFragmentedFlow* currentRenderFragmentedFlow() const { return m_currentRenderFragmentedFlow; }
-    void setCurrentRenderFragmentedFlow(RenderFragmentedFlow* fragmentedFlow) { m_currentRenderFragmentedFlow = fragmentedFlow; }
+#ifndef NDEBUG
+    RenderElement* renderer() const { return m_renderer; }
+#endif
+    LayoutRect clipRect() const { return m_clipRect; }
+    bool isClipped() const { return m_clipped; }
+
+    void addLayoutDelta(LayoutSize);
+    LayoutSize layoutDelta() const { return m_layoutDelta; }
+#if !ASSERT_DISABLED
+    bool layoutDeltaMatches(LayoutSize) const;
+#endif
 
 private:
-    void computeOffsets(RenderBox&, LayoutSize offset);
-    void computeClipRect(RenderBox&);
-    void computePaginationInformation(RenderBox&, LayoutUnit pageLogicalHeight, bool pageLogicalHeightChanged);
-    void propagateLineGridInfo(RenderBox&);
-    void establishLineGrid(RenderBlockFlow&);
+    void computeOffsets(const LayoutState& ancestor, RenderBox&, LayoutSize offset);
+    void computeClipRect(const LayoutState& ancestor, RenderBox&);
+    // FIXME: webkit.org/b/179440 these functions should be part of the pagination code/LayoutContext.
+    void computePaginationInformation(const LayoutContext::LayoutStateStack&, RenderBox&, LayoutUnit pageLogicalHeight, bool pageLogicalHeightChanged);
+    void propagateLineGridInfo(const LayoutState& ancestor, RenderBox&);
+    void establishLineGrid(const LayoutContext::LayoutStateStack&, RenderBlockFlow&);
+    void computeLineGridPaginationOrigin(const RenderMultiColumnFlow&);
 
-public:
     // Do not add anything apart from bitfields. See https://bugs.webkit.org/show_bug.cgi?id=100173
     bool m_clipped : 1;
     bool m_isPaginated : 1;
@@ -96,10 +107,8 @@ public:
     bool m_layoutDeltaXSaturated : 1;
     bool m_layoutDeltaYSaturated : 1;
 #endif
-
     // The current line grid that we're snapping to and the offset of the start of the grid.
-    RenderBlockFlow* m_lineGrid { nullptr };
-    std::unique_ptr<LayoutState> m_ancestor;
+    WeakPtr<RenderBlockFlow> m_lineGrid;
 
     // FIXME: Distinguish between the layout clip rect and the paint clip rect which may be larger,
     // e.g., because of composited scrolling.
@@ -120,8 +129,6 @@ public:
     LayoutSize m_pageOffset;
     LayoutSize m_lineGridOffset;
     LayoutSize m_lineGridPaginationOrigin;
-
-    RenderFragmentedFlow* m_currentRenderFragmentedFlow { nullptr };
 #ifndef NDEBUG
     RenderElement* m_renderer { nullptr };
 #endif
@@ -131,21 +138,12 @@ public:
 class LayoutStateMaintainer {
     WTF_MAKE_NONCOPYABLE(LayoutStateMaintainer);
 public:
-    // Constructor to push now.
     explicit LayoutStateMaintainer(RenderBox&, LayoutSize offset, bool disableState = false, LayoutUnit pageHeight = 0, bool pageHeightChanged = false);
-    // Constructor to maybe push later.
-    explicit LayoutStateMaintainer(LayoutContext&);
     ~LayoutStateMaintainer();
 
-    void push(RenderBox& root, LayoutSize offset, LayoutUnit pageHeight = 0, bool pageHeightChanged = false);
-    void pop();
-    bool didPush() const { return m_didCallPush; }
-
 private:
-    LayoutContext& m_layoutContext;
+    LayoutContext& m_context;
     bool m_paintOffsetCacheIsDisabled { false };
-    bool m_didCallPush { false };
-    bool m_didCallPop { false };
     bool m_didPushLayoutState { false };
 };
 
@@ -155,7 +153,7 @@ public:
     ~SubtreeLayoutStateMaintainer();
 
 private:
-    RenderElement* m_subtreeLayoutRoot { nullptr };
+    LayoutContext* m_context { nullptr };
     bool m_didDisablePaintOffsetCache { false };
 };
 
@@ -166,7 +164,7 @@ public:
     ~LayoutStateDisabler();
 
 private:
-    LayoutContext& m_layoutContext;
+    LayoutContext& m_context;
 };
 
 class PaginatedLayoutStateMaintainer {
@@ -175,7 +173,7 @@ public:
     ~PaginatedLayoutStateMaintainer();
 
 private:
-    RenderBlockFlow& m_flow;
+    LayoutContext& m_context;
     bool m_pushed { false };
 };
 

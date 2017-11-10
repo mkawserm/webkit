@@ -1501,7 +1501,7 @@ media/modern-media-controls/media-documents/media-document-video-ios-sizing.html
 media/modern-media-controls/scrubber-support/ipad [ Skip ]
 
 # These tests are timing-related and can fail due to performance issues on bots
-media/modern-media-controls/media-controller/media-controller-auto-hide-mouse-enter-and-mouse-leave.html [ Pass Failure ]
+webkit.org/b/169876 media/modern-media-controls/media-controller/media-controller-auto-hide-mouse-enter-and-mouse-leave.html [ Pass Timeout ]
 media/modern-media-controls/media-controller/media-controller-auto-hide-mouse-leave-after-play.html [ Pass Failure ]
 media/modern-media-controls/media-controller/media-controller-auto-hide-pause.html [ Pass Failure ]
 media/modern-media-controls/media-controller/media-controller-auto-hide-rewind-with-mouse-enter.html [ Pass Failure ]
@@ -1738,3 +1738,5 @@ webkit.org/b/177826 inspector/dom/csp-big5-hash.html [ Pass Timeout ]
 webkit.org/b/178465 [ Debug ] fast/html/marquee-reparent-check.html [ Skip ]
 
 webkit.org/b/175998 http/tests/security/mixedContent/insecure-css-with-secure-cookies.html [ Pass Failure ]
+
+webkit.org/b/179342 http/tests/workers/service/registration-task-queue-scheduling-1.html [ Pass Failure ]

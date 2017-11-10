@@ -1,3 +1,321 @@
+2017-11-09  Devin Rousso  <webkit@devinrousso.com>
+
+        Web Inspector: support undo/redo of insertAdjacentHTML
+        https://bugs.webkit.org/show_bug.cgi?id=179283
+
+        Reviewed by Joseph Pecoraro.
+
+        * inspector/protocol/DOM.json:
+        Add `insertAdjacentHTML` command that executes an undoable version of `insertAdjacentHTML`
+        on the given node.
+
+2017-11-09  Joseph Pecoraro  <pecoraro@apple.com>
+
+        Web Inspector: Make domain availability a list of types instead of a single type
+        https://bugs.webkit.org/show_bug.cgi?id=179457
+
+        Reviewed by Brian Burg.
+
+        * inspector/scripts/codegen/generate_js_backend_commands.py:
+        (JSBackendCommandsGenerator.generate_domain):
+        Update output of `InspectorBackend.activateDomain` to include the list.
+
+        * inspector/scripts/codegen/models.py:
+        (Protocol.parse_domain):
+        Parse `availability` as a list and include a new supported value of "service-worker".
+
+        * inspector/protocol/ApplicationCache.json:
+        * inspector/protocol/CSS.json:
+        * inspector/protocol/Canvas.json:
+        * inspector/protocol/DOM.json:
+        * inspector/protocol/DOMDebugger.json:
+        * inspector/protocol/DOMStorage.json:
+        * inspector/protocol/Database.json:
+        * inspector/protocol/IndexedDB.json:
+        * inspector/protocol/LayerTree.json:
+        * inspector/protocol/Memory.json:
+        * inspector/protocol/Network.json:
+        * inspector/protocol/Page.json:
+        * inspector/protocol/Timeline.json:
+        * inspector/protocol/Worker.json:
+        Update `availability` to be a list.
+
+        * inspector/scripts/tests/generic/domain-availability.json:
+        * inspector/scripts/tests/generic/expected/domain-availability.json-result:
+        * inspector/scripts/tests/generic/expected/fail-on-domain-availability-type.json-error: Added.
+        * inspector/scripts/tests/generic/expected/fail-on-domain-availability-value.json-error: Added.
+        * inspector/scripts/tests/generic/expected/fail-on-domain-availability.json-error:
+        * inspector/scripts/tests/generic/fail-on-domain-availability-type.json: Copied from Source/JavaScriptCore/inspector/scripts/tests/generic/fail-on-domain-availability.json.
+        * inspector/scripts/tests/generic/fail-on-domain-availability-value.json: Renamed from Source/JavaScriptCore/inspector/scripts/tests/generic/fail-on-domain-availability.json.
+        Update tests to include a test for the type and an invalid value.
+
+2017-11-03  Yusuke Suzuki  <utatane.tea@gmail.com>
+
+        [JSC][JIT] Clean up SlowPathCall stubs
+        https://bugs.webkit.org/show_bug.cgi?id=179247
+
+        Reviewed by Saam Barati.
+
+        We have bunch of duplicate functions that just call a slow path function.
+        This patch cleans up the above duplication.
+
+        * jit/JIT.cpp:
+        (JSC::JIT::emitSlowCaseCall):
+        (JSC::JIT::privateCompileSlowCases):
+        * jit/JIT.h:
+        * jit/JITArithmetic.cpp:
+        (JSC::JIT::emitSlow_op_unsigned): Deleted.
+        (JSC::JIT::emitSlow_op_inc): Deleted.
+        (JSC::JIT::emitSlow_op_dec): Deleted.
+        (JSC::JIT::emitSlow_op_bitand): Deleted.
+        (JSC::JIT::emitSlow_op_bitor): Deleted.
+        (JSC::JIT::emitSlow_op_bitxor): Deleted.
+        (JSC::JIT::emitSlow_op_lshift): Deleted.
+        (JSC::JIT::emitSlow_op_rshift): Deleted.
+        (JSC::JIT::emitSlow_op_urshift): Deleted.
+        (JSC::JIT::emitSlow_op_div): Deleted.
+        * jit/JITArithmetic32_64.cpp:
+        (JSC::JIT::emitSlow_op_unsigned): Deleted.
+        (JSC::JIT::emitSlow_op_inc): Deleted.
+        (JSC::JIT::emitSlow_op_dec): Deleted.
+        * jit/JITOpcodes.cpp:
+        (JSC::JIT::emitSlow_op_create_this): Deleted.
+        (JSC::JIT::emitSlow_op_check_tdz): Deleted.
+        (JSC::JIT::emitSlow_op_to_this): Deleted.
+        (JSC::JIT::emitSlow_op_to_primitive): Deleted.
+        (JSC::JIT::emitSlow_op_not): Deleted.
+        (JSC::JIT::emitSlow_op_stricteq): Deleted.
+        (JSC::JIT::emitSlow_op_nstricteq): Deleted.
+        (JSC::JIT::emitSlow_op_to_number): Deleted.
+        (JSC::JIT::emitSlow_op_to_string): Deleted.
+        (JSC::JIT::emitSlow_op_to_object): Deleted.
+        (JSC::JIT::emitSlow_op_get_direct_pname): Deleted.
+        (JSC::JIT::emitSlow_op_has_structure_property): Deleted.
+        * jit/JITOpcodes32_64.cpp:
+        (JSC::JIT::emitSlow_op_to_primitive): Deleted.
+        (JSC::JIT::emitSlow_op_not): Deleted.
+        (JSC::JIT::emitSlow_op_stricteq): Deleted.
+        (JSC::JIT::emitSlow_op_nstricteq): Deleted.
+        (JSC::JIT::emitSlow_op_to_number): Deleted.
+        (JSC::JIT::emitSlow_op_to_string): Deleted.
+        (JSC::JIT::emitSlow_op_to_object): Deleted.
+        (JSC::JIT::emitSlow_op_create_this): Deleted.
+        (JSC::JIT::emitSlow_op_to_this): Deleted.
+        (JSC::JIT::emitSlow_op_check_tdz): Deleted.
+        (JSC::JIT::emitSlow_op_get_direct_pname): Deleted.
+        * jit/JITPropertyAccess.cpp:
+        (JSC::JIT::emitSlow_op_resolve_scope): Deleted.
+        * jit/JITPropertyAccess32_64.cpp:
+        (JSC::JIT::emit_op_resolve_scope):
+        (JSC::JIT::emitSlow_op_resolve_scope): Deleted.
+        * jit/SlowPathCall.h:
+        (JSC::JITSlowPathCall::JITSlowPathCall):
+        * runtime/CommonSlowPaths.cpp:
+        (JSC::SLOW_PATH_DECL):
+        * runtime/CommonSlowPaths.h:
+
+2017-11-09  Guillaume Emont  <guijemont@igalia.com>
+
+        [JSC][MIPS] Use fcsr to check the validity of the result of trunc.w.d
+        https://bugs.webkit.org/show_bug.cgi?id=179446
+
+        Reviewed by Žan Doberšek.
+
+        The trunc.w.d mips instruction should give a 0x7fffffff result when
+        the source value is Infinity, NaN, or rounds to an integer outside the
+        range -2^31 to 2^31 -1. This is what branchTruncateDoubleToInt32() and
+        branchTruncateDoubleToUInt32() have been relying on. It turns out that
+        this assumption is not true on some CPUs, including on the ci20 on
+        which we run the testbot (we get 0x80000000 instead). We should the
+        invalid operation cause bit instead to check whether the source value
+        could be properly truncated. This requires the addition of the cfc1
+        instruction, as well as the special registers that can be used with it
+        (control registers of CP1).
+
+        * assembler/MIPSAssembler.h:
+        (JSC::MIPSAssembler::firstSPRegister):
+        (JSC::MIPSAssembler::lastSPRegister):
+        (JSC::MIPSAssembler::numberOfSPRegisters):
+        (JSC::MIPSAssembler::sprName):
+        Added control registers of CP1.
+        (JSC::MIPSAssembler::cfc1):
+        Added.
+        * assembler/MacroAssemblerMIPS.h:
+        (JSC::MacroAssemblerMIPS::branchOnTruncateResult):
+        (JSC::MacroAssemblerMIPS::branchTruncateDoubleToInt32):
+        (JSC::MacroAssemblerMIPS::branchTruncateDoubleToUint32):
+        Use fcsr to check if the value could be properly truncated.
+
+2017-11-08  Jeremy Jones  <jeremyj@apple.com>
+
+        HTMLMediaElement should not use element fullscreen on iOS
+        https://bugs.webkit.org/show_bug.cgi?id=179418
+        rdar://problem/35409277
+
+        Reviewed by Eric Carlson.
+
+        Add ENABLE_VIDEO_USES_ELEMENT_FULLSCREEN to determine if HTMLMediaElement should use element full screen or not.
+
+        * Configurations/FeatureDefines.xcconfig:
+
+2017-11-08  Joseph Pecoraro  <pecoraro@apple.com>
+
+        Web Inspector: Show Internal properties of PaymentRequest in Web Inspector Console
+        https://bugs.webkit.org/show_bug.cgi?id=179276
+
+        Reviewed by Andy Estes.
+
+        * inspector/InjectedScriptHost.h:
+        * inspector/JSInjectedScriptHost.cpp:
+        (Inspector::JSInjectedScriptHost::getInternalProperties):
+        Call through to virtual implementation so that WebCore can provide custom
+        internal properties for Web / DOM objects.
+
+2017-11-08  Saam Barati  <sbarati@apple.com>
+
+        A JSFunction's ObjectAllocationProfile should watch the poly prototype watchpoint so it can clear its object allocation profile
+        https://bugs.webkit.org/show_bug.cgi?id=177792
+
+        Reviewed by Yusuke Suzuki.
+
+        Before this patch, if a JSFunction's rare data initialized its allocation profile
+        before its backing Executable's poly proto watchpoint was invalidated, that
+        JSFunction would continue to allocate non-poly proto objects until its allocation
+        profile was cleared (which essentially never happens in practice). This patch
+        improves on this pathology. A JSFunction's rare data will now watch the poly
+        proto watchpoint if it's still valid and clear its allocation profile when we
+        detect that we should go poly proto.
+
+        * bytecode/ObjectAllocationProfile.h:
+        * bytecode/ObjectAllocationProfileInlines.h:
+        (JSC::ObjectAllocationProfile::initializeProfile):
+        * runtime/FunctionRareData.cpp:
+        (JSC::FunctionRareData::initializeObjectAllocationProfile):
+        (JSC::FunctionRareData::AllocationProfileClearingWatchpoint::fireInternal):
+        * runtime/FunctionRareData.h:
+        (JSC::FunctionRareData::hasAllocationProfileClearingWatchpoint const):
+        (JSC::FunctionRareData::createAllocationProfileClearingWatchpoint):
+        (JSC::FunctionRareData::AllocationProfileClearingWatchpoint::AllocationProfileClearingWatchpoint):
+
+2017-11-08  Keith Miller  <keith_miller@apple.com>
+
+        Add super sampler begin and end bytecodes.
+        https://bugs.webkit.org/show_bug.cgi?id=179376
+
+        Reviewed by Filip Pizlo.
+
+        This patch adds a way to measure a narrow range of bytecodes for
+        performance. This is done using the same infrastructure as the
+        super sampler. I also added a class that helps do the bytecode
+        checking with RAII. One problem with the current way this is done
+        is that we don't handle decrementing early exits, either from
+        branches or exceptions. So, when using this API users need to
+        ensure that there are no early exits or that those exits don't
+        occur on the measure code.
+
+        * JavaScriptCore.xcodeproj/project.pbxproj:
+        * bytecode/BytecodeDumper.cpp:
+        (JSC::BytecodeDumper<Block>::dumpBytecode):
+        * bytecode/BytecodeList.json:
+        * bytecode/BytecodeUseDef.h:
+        (JSC::computeUsesForBytecodeOffset):
+        (JSC::computeDefsForBytecodeOffset):
+        * bytecompiler/BytecodeGenerator.cpp:
+        (JSC::BytecodeGenerator::emitSuperSamplerBegin):
+        (JSC::BytecodeGenerator::emitSuperSamplerEnd):
+        * bytecompiler/BytecodeGenerator.h:
+        * bytecompiler/SuperSamplerBytecodeScope.h: Added.
+        (JSC::SuperSamplerBytecodeScope::SuperSamplerBytecodeScope):
+        (JSC::SuperSamplerBytecodeScope::~SuperSamplerBytecodeScope):
+        * dfg/DFGAbstractInterpreterInlines.h:
+        (JSC::DFG::AbstractInterpreter<AbstractStateType>::executeEffects):
+        * dfg/DFGByteCodeParser.cpp:
+        (JSC::DFG::ByteCodeParser::parseBlock):
+        * dfg/DFGClobberize.h:
+        (JSC::DFG::clobberize):
+        * dfg/DFGClobbersExitState.cpp:
+        (JSC::DFG::clobbersExitState):
+        * dfg/DFGDoesGC.cpp:
+        (JSC::DFG::doesGC):
+        * dfg/DFGFixupPhase.cpp:
+        (JSC::DFG::FixupPhase::fixupNode):
+        * dfg/DFGMayExit.cpp:
+        * dfg/DFGNodeType.h:
+        * dfg/DFGPredictionPropagationPhase.cpp:
+        * dfg/DFGSafeToExecute.h:
+        (JSC::DFG::safeToExecute):
+        * dfg/DFGSpeculativeJIT.cpp:
+        * dfg/DFGSpeculativeJIT32_64.cpp:
+        (JSC::DFG::SpeculativeJIT::compile):
+        * dfg/DFGSpeculativeJIT64.cpp:
+        (JSC::DFG::SpeculativeJIT::compile):
+        * ftl/FTLCapabilities.cpp:
+        (JSC::FTL::canCompile):
+        * ftl/FTLLowerDFGToB3.cpp:
+        (JSC::FTL::DFG::LowerDFGToB3::compileNode):
+        (JSC::FTL::DFG::LowerDFGToB3::compileSuperSamplerBegin):
+        (JSC::FTL::DFG::LowerDFGToB3::compileSuperSamplerEnd):
+        * jit/JIT.cpp:
+        (JSC::JIT::privateCompileMainPass):
+        * jit/JIT.h:
+        * jit/JITOpcodes.cpp:
+        (JSC::JIT::emit_op_super_sampler_begin):
+        (JSC::JIT::emit_op_super_sampler_end):
+        * llint/LLIntSlowPaths.cpp:
+        (JSC::LLInt::LLINT_SLOW_PATH_DECL):
+        * llint/LLIntSlowPaths.h:
+        * llint/LowLevelInterpreter.asm:
+
+2017-11-08  Robin Morisset  <rmorisset@apple.com>
+
+        Turn recursive tail calls into loops
+        https://bugs.webkit.org/show_bug.cgi?id=176601
+
+        Reviewed by Saam Barati.
+
+        Relanding after https://bugs.webkit.org/show_bug.cgi?id=178834.
+
+        We want to turn recursive tail calls into loops early in the pipeline, so that the loops can then be optimized.
+        One difficulty is that we need to split the entry block of the function we are jumping to in order to have somewhere to jump to.
+        Worse: it is not necessarily the first block of the codeBlock, because of inlining! So we must do the splitting in the DFGByteCodeParser, at the same time as inlining.
+        We do this part through modifying the computation of the jump targets.
+        Importantly, we only do this splitting for functions that have tail calls.
+        It is the only case where the optimisation is sound, and doing the splitting unconditionnaly destroys performance on Octane/raytrace.
+
+        We must then do the actual transformation also in DFGByteCodeParser, to avoid code motion moving code out of the body of what will become a loop.
+        The transformation is entirely contained in handleRecursiveTailCall, which is hooked to the inlining machinery.
+
+        * bytecode/CodeBlock.h:
+        (JSC::CodeBlock::hasTailCalls const):
+        * bytecode/PreciseJumpTargets.cpp:
+        (JSC::getJumpTargetsForBytecodeOffset):
+        (JSC::computePreciseJumpTargetsInternal):
+        * bytecode/UnlinkedCodeBlock.cpp:
+        (JSC::UnlinkedCodeBlock::UnlinkedCodeBlock):
+        * bytecode/UnlinkedCodeBlock.h:
+        (JSC::UnlinkedCodeBlock::hasTailCalls const):
+        (JSC::UnlinkedCodeBlock::setHasTailCalls):
+        * bytecompiler/BytecodeGenerator.cpp:
+        (JSC::BytecodeGenerator::emitEnter):
+        (JSC::BytecodeGenerator::emitCallInTailPosition):
+        * dfg/DFGByteCodeParser.cpp:
+        (JSC::DFG::ByteCodeParser::allocateTargetableBlock):
+        (JSC::DFG::ByteCodeParser::makeBlockTargetable):
+        (JSC::DFG::ByteCodeParser::handleCall):
+        (JSC::DFG::ByteCodeParser::handleRecursiveTailCall):
+        (JSC::DFG::ByteCodeParser::parseBlock):
+        (JSC::DFG::ByteCodeParser::parse):
+
+2017-11-08  Joseph Pecoraro  <pecoraro@apple.com>
+
+        Web Inspector: Remove unused Page.ScriptIdentifier protocol type
+        https://bugs.webkit.org/show_bug.cgi?id=179407
+
+        Reviewed by Matt Baker.
+
+        * inspector/protocol/Page.json:
+        Remove unused protocol type.
+
 2017-11-08  Carlos Garcia Campos  <cgarcia@igalia.com>
 
         Web Inspector: use JSON::{Array,Object,Value} instead of Inspector{Array,Object,Value}

@@ -25,6 +25,7 @@
 
 #pragma once
 
+#include "LayoutUnit.h"
 #include "Timer.h"
 
 #include <wtf/WeakPtr.h>
@@ -35,8 +36,11 @@ class Document;
 class Frame;
 class FrameView;
 class LayoutScope;
+class LayoutSize;
 class LayoutState;
 class RenderBlockFlow;
+class RenderBox;
+class RenderObject;
 class RenderElement;
 class RenderView;
     
@@ -88,13 +92,9 @@ public:
 
     void flushAsynchronousTasks();
 
-    // Subtree push/pop
-    void pushLayoutState(RenderElement&);
-    bool pushLayoutStateForPaginationIfNeeded(RenderBlockFlow&);
-    void popLayoutState(RenderObject&);
-    LayoutState* layoutState() const { return m_layoutState.get(); }
+    LayoutState* layoutState() const;
     // Returns true if layoutState should be used for its cached offset and clip.
-    bool isPaintOffsetCacheEnabled() const { return !m_paintOffsetCacheDisableCount && m_layoutState; }
+    bool isPaintOffsetCacheEnabled() const { return !m_paintOffsetCacheDisableCount && layoutState(); }
 #ifndef NDEBUG
     void checkLayoutState();
 #endif
@@ -106,12 +106,14 @@ public:
 #if !ASSERT_DISABLED
     bool layoutDeltaMatches(const LayoutSize& delta);
 #endif
+    using LayoutStateStack = Vector<std::unique_ptr<LayoutState>>;
 
 private:
     friend class LayoutScope;
     friend class LayoutStateMaintainer;
     friend class LayoutStateDisabler;
     friend class SubtreeLayoutStateMaintainer;
+    friend class PaginatedLayoutStateMaintainer;
 
     bool canPerformLayout() const;
     bool layoutDisallowed() const { return m_layoutDisallowedCount; }
@@ -133,6 +135,9 @@ private:
     void startLayoutAtMainFrameViewIfNeeded();
 
     // These functions may only be accessed by LayoutStateMaintainer.
+    // Subtree push/pop
+    void pushLayoutState(RenderElement&);
+    bool pushLayoutStateForPaginationIfNeeded(RenderBlockFlow&);
     bool pushLayoutState(RenderBox& renderer, const LayoutSize& offset, LayoutUnit pageHeight = 0, bool pageHeightChanged = false);
     void popLayoutState();
 
@@ -166,7 +171,7 @@ private:
     unsigned m_disableSetNeedsLayoutCount { 0 };
     int m_layoutDisallowedCount { 0 };
     WeakPtr<RenderElement> m_subtreeLayoutRoot;
-    std::unique_ptr<LayoutState> m_layoutState;
+    LayoutStateStack m_layoutStateStack;
     unsigned m_paintOffsetCacheDisableCount { 0 };
 };
 

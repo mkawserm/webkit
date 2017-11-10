@@ -1,3 +1,202 @@
+2017-11-09  Jonathan Bedard  <jbedard@apple.com>
+
+        webkitpy: Unify version parsing code
+        https://bugs.webkit.org/show_bug.cgi?id=179426
+        <rdar://problem/35415191>
+
+        Unreviewed fix to r224657.
+
+        * Scripts/webkitpy/common/version.py:
+        (Version.__init__): Check if an object is iterable.
+
+2017-11-09  Jonathan Bedard  <jbedard@apple.com>
+
+        webkitpy: Unify version parsing code
+        https://bugs.webkit.org/show_bug.cgi?id=179426
+        <rdar://problem/35415191>
+
+        Reviewed by David Kilzer.
+
+        webkitpy needs to parse version strings or version lists frequently. Rather than
+        duplicate this code each time it's needed, unify it in a Version class.
+
+        * Scripts/webkitpy/common/system/platforminfo.py:
+        (PlatformInfo.__init__): Convert mac version string to version object and
+        use _win_version instead of _win_version_tuple.
+        (PlatformInfo.xcode_sdk_version): Convert SDK version string to Version object
+        before returning it.
+        (PlatformInfo.xcode_version): Return Version object instead of version string.
+        (PlatformInfo._determine_mac_version): Accept Version object instead of string,
+        eliminate parsing.
+        (PlatformInfo._determine_win_version): Accept Version object instead of tuple.
+        (PlatformInfo._win_version): Return Version object instead of tuple, have Version
+        object own version string parsing.
+        (PlatformInfo._win_version_tuple): Renamed to _win_version().
+        (PlatformInfo._win_version_tuple_from_cmd): Deleted.
+        * Scripts/webkitpy/common/system/platforminfo_mock.py:
+        (MockPlatformInfo.xcode_sdk_version): Return Version object instead of string.
+        (MockPlatformInfo.xcode_version): Dittio.
+        * Scripts/webkitpy/common/version.py: Added.
+        (Version): Version object.
+        (Version.__init__): Initialize the Version object with a string, integer,
+        tuple of integers, list of integers or another Version object.
+        (Version.__len__): Return 5 so that the Version object can be treated as
+        a list or tuple.
+        (Version.__getitem__): Get item in Version object by index or string.
+        (Version.__setitem__): Set item in Version object by index or string.
+        (Version.__str__): Convert version to printable string, omitting trailing 0's.
+        (Version.__cmp__): Compare two version strings, major taking precedence over
+        minor, minor taking precedence over build.
+        * Scripts/webkitpy/common/version_unittest.py: Added.
+        (VersionTestCase): Test behavior of Version object.
+        * Scripts/webkitpy/port/ios.py:
+        (IOSPort.default_baseline_search_path): ios_version now returns a Version object.
+        (IOSPort._is_valid_ios_version): Deleted.
+        (IOSPort.get_option): Deleted.
+        * Scripts/webkitpy/port/ios_device.py:
+        (IOSDevicePort.determine_full_port_name): Use Version object instead of owning parsing.
+        (IOSDevicePort.ios_version): Return Version object instead of string.
+        * Scripts/webkitpy/port/ios_simulator.py:
+        (IOSSimulatorPort.simulator_runtime): Use from_version instead of from_version_string.
+        (IOSSimulatorPort.ios_version): Return Version object instead of string.
+        (IOSSimulatorPort.use_multiple_simulator_apps): Use Version object instead of string.
+        * Scripts/webkitpy/xcode/simulator.py:
+        (Runtime.from_version): Accept Version object instead of string.
+        (Runtime.from_version_string): Replaced by from_version.
+        (Runtime.__repr__): When printing, a runtime's version will be a Version object instead
+        of a tuple.
+        (Simulator._parse_runtimes): Use Version object instead of tuple.
+        (Simulator._parse_devices): Ditto.
+        * Scripts/webkitpy/xcode/simulator_unittest.py: Use Version object instead of tuples.
+
+2017-11-09  Basuke Suzuki  <Basuke.Suzuki@sony.com>
+
+        [WinCairo] Cannot find ImageDiff executable
+        https://bugs.webkit.org/show_bug.cgi?id=179508
+
+        Reviewed by Per Arne Vollan.
+
+        * Scripts/webkitpy/port/win.py:
+        (WinPort.is_cygwin):
+        (WinPort._path_to_image_diff):
+        (WinPort.find_system_pid):
+
+2017-11-09  Fujii Hironori  <Hironori.Fujii@sony.com>
+
+        [WinCairo EWS] svn-apply: 'cp' is not recognized as an internal or external command
+        https://bugs.webkit.org/show_bug.cgi?id=179469
+
+        Reviewed by Per Arne Vollan.
+
+        WinCairo EWS bots haven't installed Cygwin.
+
+        * Scripts/svn-apply:
+        (scmCopy): Use 'copy' function instead of 'cp' command.
+
+2017-11-09  Carlos Alberto Lopez Perez  <clopez@igalia.com>
+
+        [WPE] Update dyz (WPE MiniBrowser)
+        https://bugs.webkit.org/show_bug.cgi?id=179492
+
+        Reviewed by Michael Catanzaro.
+
+        Update it to the last version as of today.
+        This version not longer uses the C API.
+
+        * wpe/jhbuild.modules:
+
+2017-11-09  Christopher Reid  <chris.reid@sony.com>
+
+        Use enum classes within FileSystem
+        https://bugs.webkit.org/show_bug.cgi?id=175172
+
+        Reviewed by Darin Adler.
+
+        * TestWebKitAPI/Tests/WebCore/FileMonitor.cpp:
+        * TestWebKitAPI/Tests/WebCore/cocoa/DatabaseTrackerTest.mm:
+
+2017-11-09  Brent Fulgham  <bfulgham@apple.com>
+
+        Test fix after r224609
+        https://bugs.webkit.org/show_bug.cgi?id=178565
+        <rdar://problem/11115901>
+
+        Unreviewed test fix after r224609.
+
+        Correct two test cases that attempt to push local file URLs in violation of our
+        same origin policies. The fix is to grant universal file access, as we do for similar
+        LayoutTests.
+
+        * TestWebKitAPI/Tests/WebKit/EphemeralSessionPushStateNoHistoryCallback.cpp:
+        (TestWebKitAPI::TEST):
+        * TestWebKitAPI/Tests/WebKit/PrivateBrowsingPushStateNoHistoryCallback.cpp:
+        (TestWebKitAPI::TEST):
+
+2017-11-09  Michael Catanzaro  <mcatanzaro@igalia.com>
+
+        Unreviewed, remove Dan from the soup network watchlist
+
+        Per his request. It's not Hotel California; we should probably let him leave.
+
+        * Scripts/webkitpy/common/config/watchlist:
+
+2017-11-08  Don Olmstead  <don.olmstead@sony.com>
+
+        Add Windows powershell EWS script
+        https://bugs.webkit.org/show_bug.cgi?id=179453
+
+        Reviewed by Brent Fulgham.
+
+        * EWSTools/Start-Queue.ps1: Added.
+
+2017-11-08  Jeremy Jones  <jeremyj@apple.com>
+
+        HTMLMediaElement should not use element fullscreen on iOS
+        https://bugs.webkit.org/show_bug.cgi?id=179418
+        rdar://problem/35409277
+
+        Reviewed by Eric Carlson.
+
+        Add ENABLE_VIDEO_USES_ELEMENT_FULLSCREEN to determine if HTMLMediaElement should use element full screen or not.
+
+        * TestWebKitAPI/Configurations/FeatureDefines.xcconfig:
+
+2017-11-08  Tim Horton  <timothy_horton@apple.com>
+
+        [ios-simulator] API test WebKit.BundleParameters is a flaky failure
+        https://bugs.webkit.org/show_bug.cgi?id=178363
+        <rdar://problem/35043144>
+
+        Reviewed by Brent Fulgham.
+
+        * TestWebKitAPI/Tests/WTF/RefCounter.cpp:
+        (TestWebKitAPI::TEST):
+        Add a test.
+
+2017-11-08  Wenson Hsieh  <wenson_hsieh@apple.com>
+
+        [Attachment Support] Implement delegate hooks for attachment element insertion and removal
+        https://bugs.webkit.org/show_bug.cgi?id=179016
+        <rdar://problem/35250890>
+
+        Reviewed by Tim Horton.
+
+        See WebCore/ChangeLog for more details.
+
+        * TestWebKitAPI/Tests/WebKitCocoa/WKAttachmentTests.mm:
+        (-[AttachmentUpdateObserver init]):
+        (-[AttachmentUpdateObserver inserted]):
+        (-[AttachmentUpdateObserver removed]):
+        (-[AttachmentUpdateObserver _webView:didInsertAttachment:]):
+        (-[AttachmentUpdateObserver _webView:didRemoveAttachment:]):
+        (TestWebKitAPI::ObserveAttachmentUpdatesForScope::ObserveAttachmentUpdatesForScope):
+        (TestWebKitAPI::ObserveAttachmentUpdatesForScope::~ObserveAttachmentUpdatesForScope):
+        (TestWebKitAPI::ObserveAttachmentUpdatesForScope::observer const):
+        (TestWebKitAPI::ObserveAttachmentUpdatesForScope::expectAttachmentUpdates):
+        (-[TestWKWebView _synchronouslyExecuteEditCommand:argument:]):
+        (-[TestWKWebView expectUpdatesAfterCommand:withArgument:expectedRemovals:expectedInsertions:]):
+        (TestWebKitAPI::TEST):
+
 2017-11-08  Carlos Garcia Campos  <cgarcia@igalia.com>
 
         Web Inspector: use JSON::{Array,Object,Value} instead of Inspector{Array,Object,Value}
