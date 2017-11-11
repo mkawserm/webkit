@@ -1,3 +1,102 @@
+2017-11-10  Chris Dumez  <cdumez@apple.com>
+
+        Unreviewed, unskip & rebaseline several service worker tests
+
+        * web-platform-tests/service-workers/service-worker/ServiceWorkerGlobalScope/unregister.https-expected.txt:
+        * web-platform-tests/service-workers/service-worker/ServiceWorkerGlobalScope/update.https-expected.txt:
+        * web-platform-tests/service-workers/service-worker/import-scripts-updated-flag.https-expected.txt:
+        * web-platform-tests/service-workers/service-worker/navigation-redirect.https-expected.txt:
+        * web-platform-tests/service-workers/service-worker/registration-script.https-expected.txt:
+        * web-platform-tests/service-workers/service-worker/registration-service-worker-attributes.https-expected.txt:
+        * web-platform-tests/service-workers/service-worker/registration-updateviacache.https-expected.txt:
+        * web-platform-tests/service-workers/service-worker/unregister-controller.https-expected.txt:
+        * web-platform-tests/service-workers/service-worker/unregister-then-register-new-script.https-expected.txt:
+        * web-platform-tests/service-workers/service-worker/update-bytecheck.https-expected.txt:
+
+2017-11-10  Chris Dumez  <cdumez@apple.com>
+
+        [Service Workers] Registration promise should be rejected when the service worker fails to start
+        https://bugs.webkit.org/show_bug.cgi?id=179566
+
+        Reviewed by Brady Eidson.
+
+        Rebaseline WPT tests now that we properly reject registration promises when the worker script
+        fails to evaluate.
+
+        * web-platform-tests/service-workers/service-worker/ServiceWorkerGlobalScope/registration-attribute.https-expected.txt:
+        * web-platform-tests/service-workers/service-worker/navigation-redirect.https-expected.txt:
+        * web-platform-tests/service-workers/service-worker/redirected-response.https-expected.txt:
+        * web-platform-tests/service-workers/service-worker/update.https-expected.txt:
+
+2017-11-10  Chris Dumez  <cdumez@apple.com>
+
+        [Service Workers] Implement better support for "Clear Registration" algorithm
+        https://bugs.webkit.org/show_bug.cgi?id=179441
+
+        Reviewed by Brady Eidson.
+
+        Rebaseline WPT test due to behavior change. Unfortunately, the check goes from PASS to FAIL.
+        The reason is that we do not implement "Try Clear Registration" algorithm, only the "Clear
+        Registration" one. The test expects that a registration object does not get cleared after
+        unregistration because it is "in use". However, because we do not yet support checking if
+        a registration is "in use" in try clear, we proceed to clearing the registration and marking
+        its service workers as redundant.
+
+        Previously, the test was passing because even though we were clearing the registration, we
+        did not mark its service workers as redundant yet. As a result, we would still report that
+        the registration as having an active worker with "activated" state and the test would think
+        we did not clear the registration, even though we did.
+
+        * web-platform-tests/service-workers/service-worker/getregistrations.https-expected.txt:
+
+2017-11-10  Ms2ger  <Ms2ger@igalia.com>
+
+        Allow XHR to override the User-Agent header.
+        https://bugs.webkit.org/show_bug.cgi?id=179527
+
+        Reviewed by Chris Dumez.
+
+        * web-platform-tests/XMLHttpRequest/setrequestheader-header-allowed-expected.txt: update expectation.
+
+2017-11-09  Chris Dumez  <cdumez@apple.com>
+
+        ServiceWorkerRegistration objects may get recycled for different SWServerRegistration objects
+        https://bugs.webkit.org/show_bug.cgi?id=179517
+
+        Reviewed by Brady Eidson.
+
+        * web-platform-tests/service-workers/service-worker/ready.https-expected.txt:
+        The test fails differently. The failure is expected here since we do not implement the
+        "Try Clear Registration" algorithm. As a result, we do not support resurrecting a
+        registration with the 'uninstalling' flag set. We always clear uninstalling registrations
+        on server side for now.
+
+        * web-platform-tests/service-workers/service-worker/unregister-then-register.https-expected.txt:
+        Same reason as above. The second checks calls unregister() for a registration that is "in use"
+        as expects it to get resurrected when calling register() again. We currently always clear
+        registrations that are unregistered on server side.
+
+
+2017-11-09  Chris Dumez  <cdumez@apple.com>
+
+        Unreviewed, ebaseline flaky / skipped service worker tests
+        https://bugs.webkit.org/show_bug.cgi?id=179521
+
+        Rebaseline skipped / flaky service worker tests to get better estimates of our pass rate.
+
+        * web-platform-tests/service-workers/service-worker/extendable-event-waituntil.https-expected.txt:
+        * web-platform-tests/service-workers/service-worker/fetch-canvas-tainting-cache.https-expected.txt:
+        * web-platform-tests/service-workers/service-worker/fetch-canvas-tainting.https-expected.txt:
+        * web-platform-tests/service-workers/service-worker/fetch-cors-xhr.https-expected.txt:
+        * web-platform-tests/service-workers/service-worker/fetch-request-redirect.https-expected.txt:
+        * web-platform-tests/service-workers/service-worker/foreign-fetch-basics.https-expected.txt:
+        * web-platform-tests/service-workers/service-worker/performance-timeline.https-expected.txt:
+        * web-platform-tests/service-workers/service-worker/register-foreign-fetch-errors.https-expected.txt:
+        * web-platform-tests/service-workers/service-worker/registration-updateviacache.https-expected.txt:
+        * web-platform-tests/service-workers/service-worker/unregister-controller.https-expected.txt:
+        * web-platform-tests/service-workers/service-worker/unregister-then-register-new-script.https-expected.txt:
+        * web-platform-tests/service-workers/service-worker/update-bytecheck.https-expected.txt:
+
 2017-11-09  Chris Dumez  <cdumez@apple.com>
 
         Implement real post 'install' event steps of the Install algorithm (steps 14+)

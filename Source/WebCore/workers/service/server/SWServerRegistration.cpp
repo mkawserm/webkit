@@ -35,8 +35,15 @@
 
 namespace WebCore {
 
+static ServiceWorkerRegistrationIdentifier generateServiceWorkerRegistrationIdentifier()
+{
+    static uint64_t identifier = 0;
+    return makeObjectIdentifier<ServiceWorkerRegistrationIdentifierType>(++identifier);
+}
+
 SWServerRegistration::SWServerRegistration(SWServer& server, const ServiceWorkerRegistrationKey& key, ServiceWorkerUpdateViaCache updateViaCache, const URL& scopeURL, const URL& scriptURL)
-    : m_registrationKey(key)
+    : m_identifier(generateServiceWorkerRegistrationIdentifier())
+    , m_registrationKey(key)
     , m_updateViaCache(updateViaCache)
     , m_scopeURL(scopeURL)
     , m_scriptURL(scriptURL)
@@ -59,7 +66,7 @@ SWServerWorker* SWServerRegistration::getNewestWorker()
     return m_activeWorker.get();
 }
 
-void SWServerRegistration::updateRegistrationState(const ServiceWorkerJobData& job, ServiceWorkerRegistrationState state, SWServerWorker* worker)
+void SWServerRegistration::updateRegistrationState(ServiceWorkerRegistrationState state, SWServerWorker* worker)
 {
     LOG(ServiceWorker, "(%p) Updating registration state to %i with worker %p", this, (int)state, worker);
     
@@ -79,39 +86,32 @@ void SWServerRegistration::updateRegistrationState(const ServiceWorkerJobData& j
     if (worker)
         serviceWorkerIdentifier = worker->identifier();
 
-    forEachConnection(job, [&](auto& connection) {
-        connection.updateRegistrationStateInClient(m_registrationKey, state, serviceWorkerIdentifier);
+    forEachConnection([&](auto& connection) {
+        connection.updateRegistrationStateInClient(identifier(), state, serviceWorkerIdentifier);
     });
 }
 
-void SWServerRegistration::updateWorkerState(const ServiceWorkerJobData& job, SWServerWorker& worker, ServiceWorkerState state)
+void SWServerRegistration::updateWorkerState(SWServerWorker& worker, ServiceWorkerState state)
 {
     LOG(ServiceWorker, "Updating worker %p state to %i (%p)", &worker, (int)state, this);
 
     worker.setState(state);
 
-    forEachConnection(job, [&](auto& connection) {
+    forEachConnection([&](auto& connection) {
         connection.updateWorkerStateInClient(worker.identifier(), state);
     });
 }
 
-void SWServerRegistration::fireUpdateFoundEvent(const ServiceWorkerJobData& job)
+void SWServerRegistration::fireUpdateFoundEvent()
 {
-    forEachConnection(job, [&](auto& connection) {
-        connection.fireUpdateFoundEvent(m_registrationKey);
+    forEachConnection([&](auto& connection) {
+        connection.fireUpdateFoundEvent(identifier());
     });
 }
 
-void SWServerRegistration::forEachConnection(const ServiceWorkerJobData& job, const WTF::Function<void(SWServer::Connection&)>& apply)
+void SWServerRegistration::forEachConnection(const WTF::Function<void(SWServer::Connection&)>& apply)
 {
-    // No matter what, we send the event to the connection that scheduled the job. The client registration
-    // may not have gotten a chance to register itself yet.
-    if (!m_clientRegistrationsByConnection.contains(job.connectionIdentifier())) {
-        if (auto* connection = m_server.getConnection(job.connectionIdentifier()))
-            apply(*connection);
-    }
-
-    for (auto& connectionIdentifierWithClients : m_clientRegistrationsByConnection.keys()) {
+    for (uint64_t connectionIdentifierWithClients : m_connectionsWithClientRegistrations.values()) {
         if (auto* connection = m_server.getConnection(connectionIdentifierWithClients))
             apply(*connection);
     }
@@ -134,25 +134,14 @@ ServiceWorkerRegistrationData SWServerRegistration::data() const
     return { m_registrationKey, identifier(), m_scopeURL, m_scriptURL, m_updateViaCache, installingID, waitingID, activeID };
 }
 
-void SWServerRegistration::addClientServiceWorkerRegistration(uint64_t connectionIdentifier, uint64_t clientRegistrationIdentifier)
+void SWServerRegistration::addClientServiceWorkerRegistration(uint64_t connectionIdentifier)
 {
-    auto result = m_clientRegistrationsByConnection.ensure(connectionIdentifier, [] {
-        return std::make_unique<HashSet<uint64_t>>();
-    });
-    
-    ASSERT(!result.iterator->value->contains(clientRegistrationIdentifier));
-    result.iterator->value->add(clientRegistrationIdentifier);
+    m_connectionsWithClientRegistrations.add(connectionIdentifier);
 }
 
-void SWServerRegistration::removeClientServiceWorkerRegistration(uint64_t connectionIdentifier, uint64_t clientRegistrationIdentifier)
+void SWServerRegistration::removeClientServiceWorkerRegistration(uint64_t connectionIdentifier)
 {
-    auto iterator = m_clientRegistrationsByConnection.find(connectionIdentifier);
-    if (iterator == m_clientRegistrationsByConnection.end() || !iterator->value)
-        return;
-    
-    iterator->value->remove(clientRegistrationIdentifier);
-    if (iterator->value->isEmpty())
-        m_clientRegistrationsByConnection.remove(iterator);
+    m_connectionsWithClientRegistrations.remove(connectionIdentifier);
 }
 
 } // namespace WebCore

@@ -23,38 +23,13 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. 
  */
 
-#ifndef ISOVTTCue_h
-#define ISOVTTCue_h
+#pragma once
 
+#include "ISOBox.h"
 #include <wtf/MediaTime.h>
 #include <wtf/text/WTFString.h>
 
-namespace JSC {
-class ArrayBuffer;
-}
-
 namespace WebCore {
-
-// An ISOBox represents a ISO-BMFF box. Data in the structure is big-endian. The layout of the data structure as follows:
-// 4 bytes : 4CC : identifier
-// 4 bytes : unsigned : length
-class ISOBox {
-public:
-    static String peekType(JSC::ArrayBuffer*);
-    static size_t peekLength(JSC::ArrayBuffer*);
-    static String peekString(JSC::ArrayBuffer*, unsigned offset, unsigned length);
-    static unsigned boxHeaderSize() { return 2 * sizeof(uint32_t); }
-
-    size_t length() const { return m_length; }
-    const AtomicString& type() const { return m_type; }
-
-protected:
-    ISOBox(JSC::ArrayBuffer*);
-    
-private:
-    size_t m_length;
-    AtomicString m_type;
-};
 
 // 4 bytes : 4CC : identifier = 'vttc'
 // 4 bytes : unsigned : length
@@ -65,9 +40,9 @@ private:
 // N bytes : CuePayloadBox : box : required
 class ISOWebVTTCue : public ISOBox {
 public:
-    ISOWebVTTCue(const MediaTime& presentationTime, const MediaTime& duration, JSC::ArrayBuffer*);
+    ISOWebVTTCue(const MediaTime& presentationTime, const MediaTime& duration);
 
-    static const AtomicString& boxType();
+    static FourCC boxTypeName() { return 'vtcc'; }
 
     const MediaTime& presentationTime() const { return m_presentationTime; }
     const MediaTime& duration() const { return m_duration; }
@@ -78,7 +53,9 @@ public:
     const String& settings() const { return m_settings; }
     const String& cueText() const { return m_cueText; }
 
-private:
+protected:
+    bool parse(JSC::DataView&, unsigned& offset) override;
+
     MediaTime m_presentationTime;
     MediaTime m_duration;
 
@@ -90,5 +67,3 @@ private:
 };
 
 }
-
-#endif // ISOVTTCue_h

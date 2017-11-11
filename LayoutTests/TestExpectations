@@ -142,7 +142,6 @@ imported/w3c/web-platform-tests/secure-contexts/shared-worker-secure-first.https
 # Skip service worker tests that are timing out.
 imported/w3c/web-platform-tests/service-workers/service-worker/ServiceWorkerGlobalScope/extendable-message-event.https.html [ Skip ]
 imported/w3c/web-platform-tests/service-workers/service-worker/ServiceWorkerGlobalScope/unregister.https.html [ Skip ]
-imported/w3c/web-platform-tests/service-workers/service-worker/ServiceWorkerGlobalScope/update.https.html [ Skip ]
 imported/w3c/web-platform-tests/service-workers/service-worker/clients-matchall-on-evaluation.https.html [ Skip ]
 imported/w3c/web-platform-tests/service-workers/service-worker/extendable-event-waituntil.https.html [ Skip ]
 imported/w3c/web-platform-tests/service-workers/service-worker/foreign-fetch-basics.https.html [ Skip ]
@@ -150,7 +149,6 @@ imported/w3c/web-platform-tests/service-workers/service-worker/foreign-fetch-eve
 imported/w3c/web-platform-tests/service-workers/service-worker/foreign-fetch-workers.https.html [ Skip ]
 imported/w3c/web-platform-tests/service-workers/service-worker/http-to-https-redirect-and-register.https.html [ Skip ]
 imported/w3c/web-platform-tests/service-workers/service-worker/iframe-sandbox-register-link-element.https.html [ Skip ]
-imported/w3c/web-platform-tests/service-workers/service-worker/import-scripts-updated-flag.https.html [ Skip ]
 imported/w3c/web-platform-tests/service-workers/service-worker/interfaces-sw.https.html [ Skip ]
 imported/w3c/web-platform-tests/service-workers/service-worker/link-element-register-basic.https.html [ Skip ]
 imported/w3c/web-platform-tests/service-workers/service-worker/link-element-register-mime-types.https.html [ Skip ]
@@ -164,9 +162,7 @@ imported/w3c/web-platform-tests/service-workers/service-worker/navigation-preloa
 imported/w3c/web-platform-tests/service-workers/service-worker/navigation-redirect-to-http.https.html [ Skip ]
 imported/w3c/web-platform-tests/service-workers/service-worker/postmessage.https.html [ Skip ]
 imported/w3c/web-platform-tests/service-workers/service-worker/register-foreign-fetch-errors.https.html [ Skip ]
-imported/w3c/web-platform-tests/service-workers/service-worker/registration-service-worker-attributes.https.html [ Skip ]
 imported/w3c/web-platform-tests/service-workers/service-worker/skip-waiting-without-client.https.html [ Skip ]
-imported/w3c/web-platform-tests/service-workers/service-worker/unregister-then-register-new-script.https.html [ Skip ]
 imported/w3c/web-platform-tests/service-workers/service-worker/update-after-navigation-fetch-event.https.html [ Skip ]
 imported/w3c/web-platform-tests/service-workers/service-worker/update-after-oneday.https.html [ Skip ]
 imported/w3c/web-platform-tests/fetch/api/abort/general-serviceworker.https.html [ Skip ]
@@ -185,6 +181,7 @@ imported/w3c/web-platform-tests/service-workers/service-worker/fetch-header-visi
 imported/w3c/web-platform-tests/service-workers/service-worker/fetch-request-redirect.https.html [ Pass Failure ]
 imported/w3c/web-platform-tests/service-workers/service-worker/foreign-fetch-cors.https.html [ Pass Failure ]
 imported/w3c/web-platform-tests/service-workers/service-worker/performance-timeline.https.html [ Pass Failure ]
+imported/w3c/web-platform-tests/service-workers/service-worker/navigation-redirect.https.html [ Pass Failure ]
 webkit.org/b/179452 imported/w3c/web-platform-tests/service-workers/service-worker/register-same-scope-different-script-url.https.html [ Pass Failure ]
 webkit.org/b/179194 imported/w3c/web-platform-tests/service-workers/service-worker/registration-mime-types.https.html [ Pass Failure ]
 imported/w3c/web-platform-tests/service-workers/service-worker/registration-script.https.html [ Pass Failure ]
@@ -194,6 +191,7 @@ imported/w3c/web-platform-tests/service-workers/service-worker/service-worker-cs
 imported/w3c/web-platform-tests/service-workers/service-worker/service-worker-csp-script.https.html [ Pass Failure ]
 imported/w3c/web-platform-tests/service-workers/service-worker/update-bytecheck.https.html [ Pass Failure ]
 imported/w3c/web-platform-tests/service-workers/service-worker/unregister-controller.https.html [ Pass Failure ]
+imported/w3c/web-platform-tests/service-workers/service-worker/unregister-then-register-new-script.https.html [ Pass Failure ]
 imported/w3c/web-platform-tests/service-workers/service-worker/websocket.https.html [ Pass Failure ]
 imported/w3c/web-platform-tests/service-workers/service-worker/windowclient-navigate.https.html [ Pass Failure ]
 imported/w3c/web-platform-tests/service-workers/service-worker/worker-interception.https.html [ Pass Failure ]
@@ -1618,3 +1616,5 @@ webkit.org/b/179069 imported/w3c/web-platform-tests/html/semantics/embedded-cont
 
 webkit.org/b/179287 http/wpt/web-animations/interfaces/AnimationTimeline/document-timeline.html [ Pass Failure ]
 webkit.org/b/179287 http/wpt/web-animations/timing-model/animations/set-the-animation-start-time.html [ Pass Failure ]
+
+webkit.org/b/177440 imported/w3c/web-platform-tests/html/browsers/origin/relaxing-the-same-origin-restriction/document_domain_setter_null.tentative.html [ Pass Failure ]

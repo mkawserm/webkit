@@ -96,14 +96,14 @@ void WebSWServerConnection::startScriptFetchInClient(uint64_t jobIdentifier)
     send(Messages::WebSWClientConnection::StartScriptFetchForServer(jobIdentifier));
 }
 
-void WebSWServerConnection::updateRegistrationStateInClient(const ServiceWorkerRegistrationKey& key, ServiceWorkerRegistrationState state, std::optional<ServiceWorkerIdentifier> serviceWorkerIdentifier)
+void WebSWServerConnection::updateRegistrationStateInClient(ServiceWorkerRegistrationIdentifier identifier, ServiceWorkerRegistrationState state, std::optional<ServiceWorkerIdentifier> serviceWorkerIdentifier)
 {
-    send(Messages::WebSWClientConnection::UpdateRegistrationState(key, state, serviceWorkerIdentifier));
+    send(Messages::WebSWClientConnection::UpdateRegistrationState(identifier, state, serviceWorkerIdentifier));
 }
 
-void WebSWServerConnection::fireUpdateFoundEvent(const ServiceWorkerRegistrationKey& key)
+void WebSWServerConnection::fireUpdateFoundEvent(ServiceWorkerRegistrationIdentifier identifier)
 {
-    send(Messages::WebSWClientConnection::FireUpdateFoundEvent(key));
+    send(Messages::WebSWClientConnection::FireUpdateFoundEvent(identifier));
 }
 
 void WebSWServerConnection::updateWorkerStateInClient(ServiceWorkerIdentifier worker, ServiceWorkerState state)
@@ -122,6 +122,11 @@ void WebSWServerConnection::installServiceWorkerContext(const ServiceWorkerConte
 void WebSWServerConnection::fireInstallEvent(ServiceWorkerIdentifier serviceWorkerIdentifier)
 {
     sendToContextProcess(Messages::WebSWContextManagerConnection::FireInstallEvent(identifier(), serviceWorkerIdentifier));
+}
+
+void WebSWServerConnection::fireActivateEvent(ServiceWorkerIdentifier serviceWorkerIdentifier)
+{
+    sendToContextProcess(Messages::WebSWContextManagerConnection::FireActivateEvent(identifier(), serviceWorkerIdentifier));
 }
 
 void WebSWServerConnection::startFetch(uint64_t fetchIdentifier, std::optional<ServiceWorkerIdentifier> serviceWorkerIdentifier, const ResourceRequest& request, const FetchOptions& options)

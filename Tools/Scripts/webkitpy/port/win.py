@@ -431,38 +431,6 @@ class WinPort(ApplePort):
                 crash_logs[test_name] = crash_log
         return crash_logs
 
-    def find_system_pid(self, name, pid):
-        system_pid = int(pid)
-
-        if self.is_cygwin():
-            # Windows and Cygwin PIDs are not the same.  We need to find the Windows
-            # PID for our Cygwin process so we can match it later to any crash
-            # files we end up creating (which will be tagged with the Windows PID)
-            ps_process = self._executive.run_command(['ps', '-e'], error_handler=Executive.ignore_error)
-            for line in ps_process.splitlines():
-                tokens = line.strip().split()
-                try:
-                    cpid, ppid, pgid, winpid, tty, uid, stime, process_name = tokens
-                    if process_name.endswith(name):
-                        self._executive.pid_to_system_pid[int(cpid)] = int(winpid)
-                        if int(pid) == int(cpid):
-                            system_pid = int(winpid)
-                        break
-                except ValueError, e:
-                    pass
-        else:
-            wmi = win32com.client.GetObject('winmgmts:')
-            _log.debug('Querying WMI with "%{0}%"'.format(name))
-            procs = wmi.ExecQuery('Select * from win32_process where name like "%{0}%"'.format(name))
-            for proc in procs:
-                self._executive.pid_to_system_pid[int(proc.ProcessId)] = int(proc.ProcessId)
-                _log.debug("I see {0}: {1}".format(proc.Name, proc.ProcessId))
-                if int(pid) == int(proc.ProcessId):
-                    system_pid = int(proc.ProcessId)
-                break
-
-        return system_pid
-
 
 class WinCairoPort(WinPort):
     port_name = "wincairo"
@@ -471,7 +439,13 @@ class WinCairoPort(WinPort):
 
     def default_baseline_search_path(self):
         name = self._name.replace('-wk2', '')
-        fallback_names = self.VERSION_FALLBACK_ORDER[self.VERSION_FALLBACK_ORDER.index(name):-1] + [self.port_name]
+        if name.endswith(self.FUTURE_VERSION):
+            fallback_names = [self.port_name]
+        else:
+            fallback_names = self.VERSION_FALLBACK_ORDER[self.VERSION_FALLBACK_ORDER.index(name):-1] + [self.port_name]
         fallback_names.append('win')
         fallback_names.append('mac')
         return map(self._webkit_baseline_path, fallback_names)
+
+    def _future_port_name(self):
+        return self.port_name + "-" + self.FUTURE_VERSION

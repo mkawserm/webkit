@@ -179,6 +179,8 @@ class PlatformInfo(object):
         return 'lucid'
 
     def _determine_win_version(self, win_version):
+        if self._platform_module.release() == '10':
+            return 'win10'
         if win_version.major == 0 and win_version.minor == 0:
             if win_version[2] > 10000:
                 return 'win10'
@@ -193,5 +195,12 @@ class PlatformInfo(object):
 
     def _win_version(self, sys_module):
         if hasattr(sys_module, 'getwindowsversion'):
-            return Version(sys_module.getwindowsversion())
-        return Version(self._executive.run_command(['cmd', '/c', 'ver'], decode_output=False))
+            return Version(sys_module.getwindowsversion()[0:3])
+        return Version(self._win_version_from_cmd())
+
+    def _win_version_from_cmd(self):
+        # Note that this should only ever be called on windows, so this should always work.
+        ver_output = self._executive.run_command(['cmd', '/c', 'ver'], decode_output=False)
+        match_object = re.search(r'(?P<major>\d)\.(?P<minor>\d)\.(?P<build>\d+)', ver_output)
+        assert match_object, 'cmd returned an unexpected version string: ' + ver_output
+        return match_object.groups()

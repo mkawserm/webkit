@@ -1,3 +1,164 @@
+2017-11-10  Fujii Hironori  <Hironori.Fujii@sony.com>
+
+        check-webkit-style: AttributeError: 'NoneType' object has no attribute 'major'
+        https://bugs.webkit.org/show_bug.cgi?id=179522
+
+        Reviewed by Aakash Jain.
+
+        IOSSimulatorPort.ios_version should return a Version object.
+
+        * Scripts/webkitpy/port/ios_simulator.py:
+        (IOSSimulatorPort.ios_version): Return a Version object.
+
+2017-11-10  Basuke Suzuki  <Basuke.Suzuki@sony.com>
+
+        [Win] The way to detect Windows 10 is wrong
+        https://bugs.webkit.org/show_bug.cgi?id=179344
+
+        Reviewed by Alex Christensen.
+
+        * Scripts/webkitpy/common/system/platforminfo.py:
+        (PlatformInfo._determine_win_version):
+
+2017-11-10  Basuke Suzuki  <Basuke.Suzuki@sony.com>
+
+        [WinCairo] LayoutTests doesn't read TextExpectations files correctly
+        https://bugs.webkit.org/show_bug.cgi?id=179219
+
+        Reviewed by Alex Christensen.
+
+        * Scripts/webkitpy/layout_tests/models/test_expectations.py:
+        (TestExpectationParser._parse_line):
+        * Scripts/webkitpy/port/apple.py:
+        (ApplePort.__init__):
+        (ApplePort._allowed_port_names):
+        (ApplePort):
+        (ApplePort._future_port_name):
+        (ApplePort._generate_all_test_configurations):
+        * Scripts/webkitpy/port/win.py:
+        (WinCairoPort.default_baseline_search_path):
+        (WinCairoPort):
+        (WinCairoPort._future_port_name):
+
+2017-11-10  Basuke Suzuki  <Basuke.Suzuki@sony.com>
+
+        [WinCairo] Treat 'future' version correctly
+        https://bugs.webkit.org/show_bug.cgi?id=179345
+
+        Reviewed by Alex Christensen.
+
+        * Scripts/webkitpy/port/win.py:
+        (WinCairoPort.default_baseline_search_path):
+
+2017-11-10  Wenson Hsieh  <wenson_hsieh@apple.com>
+
+        Finish rolling out r224544
+
+        Rubber-stamped by Tim Horton.
+
+        Now that https://bugs.webkit.org/show_bug.cgi?id=179431 has been fixed, we can once again allow one of the API
+        tests added in r224512 (WKAttachmentTests.AttachmentUpdatesWhenChangingFontStyles) to test toggling underline
+        style with a selected attachment element.
+
+        * TestWebKitAPI/Tests/WebKitCocoa/WKAttachmentTests.mm:
+        (TestWebKitAPI::TEST):
+
+2017-11-10  Alex Christensen  <achristensen@webkit.org>
+
+        _WKThumbnailView initialization with WKWebView needs to call correct initWithFrame
+        https://bugs.webkit.org/show_bug.cgi?id=179537
+        <rdar://problem/35275219>
+
+        Reviewed by Darin Adler.
+
+        * TestWebKitAPI/Tests/WebKit/WKThumbnailView.mm:
+        (-[WKThumbnailViewDelegate webView:didFinishNavigation:]):
+        (TestWebKitAPI::TEST):
+
+2017-11-10  Jonathan Bedard  <jbedard@apple.com>
+
+        webkitpy: Remove find_system_pid from port classes
+        https://bugs.webkit.org/show_bug.cgi?id=179514
+        <rdar://problem/35456900>
+
+        Reviewed by David Kilzer.
+
+        Removing dead code.
+
+        * Scripts/webkitpy/port/base.py:
+        (Port.find_system_pid): Deleted.
+        * Scripts/webkitpy/port/server_process.py:
+        (ServerProcess._start):
+        * Scripts/webkitpy/port/win.py:
+        (WinPort.find_system_pid): Deleted.
+
+2017-11-10  Aakash Jain  <aakash_jain@apple.com>
+
+        fix style failures in webkitpy: multiple statements on one line (semicolon)
+        https://bugs.webkit.org/show_bug.cgi?id=179530
+
+        Reviewed by Alex Christensen.
+
+        * Scripts/webkitpy/common/net/buildbot/buildbot.py: Removed semicolon.
+        * Scripts/webkitpy/layout_tests/controllers/test_result_writer.py: Ditto.
+        * Scripts/webkitpy/tool/steps/runtests.py: Ditto.
+
+2017-11-10  Aakash Jain  <aakash_jain@apple.com>
+
+        fix style failures in webkitpy: expected 2 blank lines found 1
+        https://bugs.webkit.org/show_bug.cgi?id=179529
+
+        Reviewed by Alex Christensen.
+
+        * Scripts/webkitpy/benchmark_runner/run_benchmark.py: Added a blank line to follow style guidelines.
+        * Scripts/webkitpy/benchmark_runner/browser_driver/osx_chrome_driver.py: Ditto.
+        * Scripts/webkitpy/common/system/platforminfo_mock.py: Ditto.
+        * Scripts/webkitpy/common/version.py: Ditto.
+        * Scripts/webkitpy/layout_tests/models/test_failures.py: Ditto.
+        * Scripts/webkitpy/port/mac_unittest.py: Ditto.
+        * Scripts/webkitpy/port/simulator_process.py: Ditto.
+
+2017-11-10  Alex Christensen  <achristensen@webkit.org>
+
+        REGRESSION(r224267): WebViews scheduled with custom run loop modes don't load
+        https://bugs.webkit.org/show_bug.cgi?id=179515
+
+        Reviewed by Andy Estes.
+
+        * TestWebKitAPI/TestWebKitAPI.xcodeproj/project.pbxproj:
+        * TestWebKitAPI/Tests/mac/WebViewScheduleInRunLoop.mm: Added.
+        (-[ScheduleInRunLoopDelegate webView:didFinishLoadForFrame:]):
+        (TestWebKitAPI::TEST):
+
+2017-11-10  Fujii Hironori  <Hironori.Fujii@sony.com>
+
+        [webkitpy] Fix PlatformInfo._win_version since r224657
+        https://bugs.webkit.org/show_bug.cgi?id=179520
+
+        Reviewed by Aakash Jain.
+
+        There are two problems.
+
+        The return value of sys.getwindowsversion() doesn't match with
+        Version.__init__ expects. Truncate the 4th and 5th of it.
+
+        _win_version_tuple_from_cmd was deleted in r224657. But, it is
+        still needed for Cygwin Python.
+
+        * Scripts/webkitpy/common/system/platforminfo.py:
+        (PlatformInfo._win_version): Return [0:3] of getwindowsversion().
+        Call _win_version_from_cmd for Cygwin Python.
+        (PlatformInfo._win_version_from_cmd): Restored.
+
+2017-11-10  Guillaume Emont  <guijemont@igalia.com>
+
+        build-jsc: build testmasm for all platforms using cmake
+        https://bugs.webkit.org/show_bug.cgi?id=179512
+
+        Reviewed by Michael Catanzaro.
+
+        * Scripts/build-jsc:
+
 2017-11-09  Jonathan Bedard  <jbedard@apple.com>
 
         webkitpy: Unify version parsing code
