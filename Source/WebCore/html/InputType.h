@@ -226,6 +226,10 @@ public:
     virtual HTMLElement* sliderTrackElement() const { return nullptr; }
     virtual HTMLElement* placeholderElement() const;
 
+#if ENABLE(ALTERNATIVE_PRESENTATION_BUTTON_ELEMENT)
+    virtual HTMLElement* alternativePresentationButtonElement() const { return nullptr; }
+#endif
+
     // Miscellaneous functions.
 
     virtual bool rendererIsNeeded();
@@ -268,7 +272,7 @@ public:
     virtual bool shouldAppearIndeterminate() const;
     virtual bool supportsSelectionAPI() const;
     virtual Color valueAsColor() const;
-    virtual void selectColor(const Color&);
+    virtual void selectColor(StringView);
 
     // Parses the specified string for the type, and return
     // the Decimal value for the parsing result if the parsing

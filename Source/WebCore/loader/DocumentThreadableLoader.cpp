@@ -327,10 +327,10 @@ void DocumentThreadableLoader::didReceiveResponse(unsigned long identifier, cons
             if (m_client)
                 m_client->didFinishLoading(identifier);
         }
-    } else {
-        ASSERT(response.type() == ResourceResponse::Type::Opaqueredirect);
-        m_client->didReceiveResponse(identifier, response);
+        return;
     }
+    ASSERT(response.type() == ResourceResponse::Type::Opaqueredirect || response.source() == ResourceResponse::Source::ServiceWorker);
+    m_client->didReceiveResponse(identifier, response);
 }
 
 void DocumentThreadableLoader::dataReceived(CachedResource& resource, const char* data, int dataLength)
@@ -405,9 +405,13 @@ void DocumentThreadableLoader::didFail(unsigned long, const ResourceError& error
 {
     ASSERT(m_client);
 #if ENABLE(SERVICE_WORKER)
-    if (m_bypassingPreflightForServiceWorkerRequest) {
+    if (m_bypassingPreflightForServiceWorkerRequest && error.isCancellation()) {
+        clearResource();
+
         m_options.serviceWorkersMode = ServiceWorkersMode::None;
-        makeCrossOriginAccessRequest(WTFMove(m_bypassingPreflightForServiceWorkerRequest.value()));
+        makeCrossOriginAccessRequestWithPreflight(WTFMove(m_bypassingPreflightForServiceWorkerRequest.value()));
+        ASSERT(m_bypassingPreflightForServiceWorkerRequest->isNull());
+        m_bypassingPreflightForServiceWorkerRequest = std::nullopt;
         return;
     }
 #endif
@@ -469,7 +473,7 @@ void DocumentThreadableLoader::loadRequest(ResourceRequest&& request, SecurityCh
         }
 
         auto cachedResource = m_document.cachedResourceLoader().requestRawResource(WTFMove(newRequest));
-        m_resource = cachedResource.valueOr(nullptr);
+        m_resource = cachedResource.value_or(nullptr);
         if (m_resource)
             m_resource->addClient(*this);
         else

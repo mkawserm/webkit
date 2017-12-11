@@ -1,3 +1,627 @@
+2017-12-11  Carlos Garcia Campos  <cgarcia@igalia.com>
+
+        WebDriver: get active element should return no such element error when there isn't an active element
+        https://bugs.webkit.org/show_bug.cgi?id=180421
+
+        Reviewed by Brian Burg.
+
+        We currently return unknown error.
+
+        Fixes: imported/w3c/webdriver/tests/element_retrieval/get_active_element.py::test_missing_document_element
+
+        * Session.cpp:
+        (WebDriver::Session::getActiveElement):
+
+2017-12-04  Brian Burg  <bburg@apple.com>
+
+        Web Automation: add flag to preserve legacy page screenshot behavior
+        https://bugs.webkit.org/show_bug.cgi?id=180313
+        <rdar://problem/34379930>
+
+        Reviewed by Joseph Pecoraro.
+
+        Set the clipToViewport flag to true when sending Automation.takeScreenshot.
+        This preserves the current behavior for this driver implementation.
+
+        * Session.cpp:
+        (WebDriver::Session::takeScreenshot):
+
+2017-12-04  Carlos Garcia Campos  <cgarcia@igalia.com>
+
+        WebDriver: implement element property command
+        https://bugs.webkit.org/show_bug.cgi?id=180244
+
+        Reviewed by Brian Burg.
+
+        13.3 Get Element Property
+        https://w3c.github.io/webdriver/webdriver-spec.html#get-element-property
+
+        Fixes: imported/w3c/webdriver/tests/state/get_element_property.py::test_no_browsing_context
+               imported/w3c/webdriver/tests/state/get_element_property.py::test_handle_prompt_dismiss
+               imported/w3c/webdriver/tests/state/get_element_property.py::test_handle_prompt_accept
+               imported/w3c/webdriver/tests/state/get_element_property.py::test_handle_prompt_missing_value
+               imported/w3c/webdriver/tests/state/get_element_property.py::test_element_stale
+
+        * Session.cpp:
+        (WebDriver::Session::getElementAttribute):
+        (WebDriver::Session::getElementProperty):
+        * Session.h:
+        * WebDriverService.cpp:
+        (WebDriver::WebDriverService::getElementProperty):
+        * WebDriverService.h:
+
+2017-12-02  Carlos Garcia Campos  <cgarcia@igalia.com>
+
+        WebDriver: handle user prompts shown while executing scripts
+        https://bugs.webkit.org/show_bug.cgi?id=179979
+
+        Reviewed by Brian Burg.
+
+        15.2 Executing Script
+        https://w3c.github.io/webdriver/webdriver-spec.html#executing-script
+
+        The rules to execute a function body are as follows. The algorithm will return success with the JSON
+        representation of the function’s return value, or an error if the evaluation of the function results in a
+        JavaScript exception being thrown or at any point during its execution an unhandled user prompt appears.
+
+        If at any point during the algorithm a user prompt appears, the user prompt handler must be invoked. If its
+        return value is an error, it must immediately return with that error and abort all subsequent substeps of this
+        algorithm.
+
+        This will be covered by new WPT tests that will be available after the next upgrade.
+
+        * CommandResult.cpp:
+        (WebDriver::CommandResult::CommandResult): Handle UnexpectedAlertOpen internal error.
+        * Session.cpp:
+        (WebDriver::Session::handleUserPrompts): Move code to handleUnexpectedAlertOpen() and call it instead.
+        (WebDriver::Session::handleUnexpectedAlertOpen): Code moved here to be used also by executeScript().
+        (WebDriver::Session::executeScript): In case of UnexpectedAlertOpen error, call handleUnexpectedAlertOpen().
+        * Session.h:
+
+2017-12-01  Carlos Garcia Campos  <cgarcia@igalia.com>
+
+        WebDriver: implement status command
+        https://bugs.webkit.org/show_bug.cgi?id=180133
+
+        Reviewed by Brian Burg.
+
+        8.3 Status
+        https://w3c.github.io/webdriver/webdriver-spec.html#status
+
+        Fixes: imported/w3c/webdriver/tests/sessions/status.py::test_get_status_no_session
+               imported/w3c/webdriver/tests/sessions/status.py::test_status_with_session_running_on_endpoint_node
+
+        * WebDriverService.cpp:
+        (WebDriver::WebDriverService::status):
+        * WebDriverService.h:
+
+2017-12-01  Carlos Garcia Campos  <cgarcia@igalia.com>
+
+        WebDriver: end point nodes are only allowed to have one session
+        https://bugs.webkit.org/show_bug.cgi?id=180131
+
+        Reviewed by Brian Burg.
+
+        We are currently keeping a map of sessions, but our service is always and end point node, so only one session
+        can exist at a time. Make findSessionOrCompleteWithError() return a boolean instead, failing in case the sessionID
+        parameter is not found or it doesn't match the current session. Replace the session map and active session
+        pointer with a single session member and return SessionNotCreated error when new session command is received and
+        there's an active session.
+
+        8. Sessions
+        A remote end has an associated maximum active sessions (an integer) that defines the number of active sessions
+        that are supported. This may be “unlimited” for intermediary nodes, but must be exactly one for a remote end
+        that is an endpoint node.
+        https://w3c.github.io/webdriver/webdriver-spec.html#dfn-maximum-active-sessions
+
+        Fixes: imported/w3c/webdriver/tests/sessions/new_session/default_values.py::test_repeat_new_session
+
+        * WebDriverService.cpp:
+        (WebDriver::WebDriverService::findSessionOrCompleteWithError):
+        (WebDriver::WebDriverService::newSession):
+        (WebDriver::WebDriverService::deleteSession):
+        (WebDriver::WebDriverService::status):
+        (WebDriver::WebDriverService::setTimeouts):
+        (WebDriver::WebDriverService::go):
+        (WebDriver::WebDriverService::getCurrentURL):
+        (WebDriver::WebDriverService::back):
+        (WebDriver::WebDriverService::forward):
+        (WebDriver::WebDriverService::refresh):
+        (WebDriver::WebDriverService::getTitle):
+        (WebDriver::WebDriverService::getWindowHandle):
+        (WebDriver::WebDriverService::setWindowRect):
+        (WebDriver::WebDriverService::closeWindow):
+        (WebDriver::WebDriverService::switchToWindow):
+        (WebDriver::WebDriverService::getWindowHandles):
+        (WebDriver::WebDriverService::switchToFrame):
+        (WebDriver::WebDriverService::switchToParentFrame):
+        (WebDriver::findStrategyAndSelectorOrCompleteWithError):
+        (WebDriver::WebDriverService::findElement):
+        (WebDriver::WebDriverService::findElements):
+        (WebDriver::WebDriverService::findElementFromElement):
+        (WebDriver::WebDriverService::findElementsFromElement):
+        (WebDriver::WebDriverService::getActiveElement):
+        (WebDriver::WebDriverService::isElementSelected):
+        (WebDriver::WebDriverService::getElementAttribute):
+        (WebDriver::WebDriverService::getElementText):
+        (WebDriver::WebDriverService::getElementTagName):
+        (WebDriver::WebDriverService::getElementRect):
+        (WebDriver::WebDriverService::isElementEnabled):
+        (WebDriver::WebDriverService::isElementDisplayed):
+        (WebDriver::WebDriverService::elementClick):
+        (WebDriver::WebDriverService::elementClear):
+        (WebDriver::WebDriverService::elementSendKeys):
+        (WebDriver::findScriptAndArgumentsOrCompleteWithError):
+        (WebDriver::WebDriverService::executeScript):
+        (WebDriver::WebDriverService::executeAsyncScript):
+        (WebDriver::WebDriverService::getAllCookies):
+        (WebDriver::WebDriverService::getNamedCookie):
+        (WebDriver::deserializeCookie):
+        (WebDriver::WebDriverService::addCookie):
+        (WebDriver::WebDriverService::deleteCookie):
+        (WebDriver::WebDriverService::deleteAllCookies):
+        (WebDriver::WebDriverService::dismissAlert):
+        (WebDriver::WebDriverService::acceptAlert):
+        (WebDriver::WebDriverService::getAlertText):
+        (WebDriver::WebDriverService::sendAlertText):
+        (WebDriver::WebDriverService::takeScreenshot):
+        (WebDriver::WebDriverService::takeElementScreenshot):
+        * WebDriverService.h:
+
+2017-11-30  Carlos Garcia Campos  <cgarcia@igalia.com>
+
+        WebDriver: locator strategy should be validated before trying to find elements
+        https://bugs.webkit.org/show_bug.cgi?id=180187
+
+        Reviewed by Carlos Alberto Lopez Perez.
+
+        We currently rely on the js atom to raise an exception in case the locator strategy is not valid, but in case of
+        find element from element, if the element doesn't exist we fail with stale element error instead of invalid
+        argument as expected. So, let's validate the strategies when parsing them, which would also avoid going to the
+        browser in cae of invalid strategy.
+
+        Fixes: imported/w3c/webdriver/tests/retrieval/find_element_from_element.py::test_invalid_using_argument[a]
+
+        * WebDriverService.cpp:
+        (WebDriver::isValidStrategy):
+        (WebDriver::findStrategyAndSelectorOrCompleteWithError):
+
+2017-11-30  Carlos Garcia Campos  <cgarcia@igalia.com>
+
+        WebDriver: remove elementSubmit command
+        https://bugs.webkit.org/show_bug.cgi?id=180186
+
+        Reviewed by Carlos Alberto Lopez Perez.
+
+        It's not in the spec, we had it only because selenium used it, but now it uses execute_script with custom code
+        to implement submit, so we can just remove it.
+
+        * Session.cpp:
+        (WebDriver::Session::elementSubmit): Deleted.
+        * Session.h:
+        * WebDriverService.cpp:
+        (WebDriver::WebDriverService::elementSubmit): Deleted.
+        * WebDriverService.h:
+
+2017-11-14  Carlos Garcia Campos  <cgarcia@igalia.com>
+
+        Move JSONValues to WTF and convert uses of InspectorValues.h to JSONValues.h
+        https://bugs.webkit.org/show_bug.cgi?id=173793
+
+        Reviewed by Joseph Pecoraro.
+
+        * CMakeLists.txt:
+        * CommandResult.cpp:
+        (WebDriver::CommandResult::CommandResult):
+        * CommandResult.h:
+        (WebDriver::CommandResult::success):
+        (WebDriver::CommandResult::fail):
+        (WebDriver::CommandResult::result const):
+        (WebDriver::CommandResult::setAdditionalErrorData):
+        (WebDriver::CommandResult::additionalErrorData const):
+        * Session.cpp:
+        (WebDriver::firstWindowHandleInResult):
+        (WebDriver::Session::handleUserPrompts):
+        (WebDriver::Session::reportUnexpectedAlertOpen):
+        (WebDriver::Session::go):
+        (WebDriver::Session::getCurrentURL):
+        (WebDriver::Session::back):
+        (WebDriver::Session::forward):
+        (WebDriver::Session::refresh):
+        (WebDriver::Session::getTitle):
+        (WebDriver::Session::getWindowHandle):
+        (WebDriver::Session::closeTopLevelBrowsingContext):
+        (WebDriver::Session::switchToWindow):
+        (WebDriver::Session::getWindowHandles):
+        (WebDriver::Session::switchToFrame):
+        (WebDriver::Session::switchToParentFrame):
+        (WebDriver::Session::getToplevelBrowsingContextRect):
+        (WebDriver::Session::moveToplevelBrowsingContextWindow):
+        (WebDriver::Session::resizeToplevelBrowsingContextWindow):
+        (WebDriver::Session::createElement):
+        (WebDriver::Session::extractElement):
+        (WebDriver::Session::extractElementID):
+        (WebDriver::Session::computeElementLayout):
+        (WebDriver::Session::findElements):
+        (WebDriver::Session::isElementSelected):
+        (WebDriver::Session::getElementText):
+        (WebDriver::Session::getElementTagName):
+        (WebDriver::Session::getElementRect):
+        (WebDriver::Session::isElementEnabled):
+        (WebDriver::Session::isElementDisplayed):
+        (WebDriver::Session::getElementAttribute):
+        (WebDriver::Session::waitForNavigationToComplete):
+        (WebDriver::Session::selectOptionElement):
+        (WebDriver::Session::elementClick):
+        (WebDriver::Session::elementClear):
+        (WebDriver::Session::elementSendKeys):
+        (WebDriver::Session::elementSubmit):
+        (WebDriver::Session::handleScriptResult):
+        (WebDriver::Session::executeScript):
+        (WebDriver::Session::performMouseInteraction):
+        (WebDriver::Session::performKeyboardInteractions):
+        (WebDriver::parseAutomationCookie):
+        (WebDriver::builtAutomationCookie):
+        (WebDriver::serializeCookie):
+        (WebDriver::Session::getAllCookies):
+        (WebDriver::Session::getNamedCookie):
+        (WebDriver::Session::addCookie):
+        (WebDriver::Session::deleteCookie):
+        (WebDriver::Session::deleteAllCookies):
+        (WebDriver::Session::dismissAlert):
+        (WebDriver::Session::acceptAlert):
+        (WebDriver::Session::getAlertText):
+        (WebDriver::Session::sendAlertText):
+        (WebDriver::Session::takeScreenshot):
+        * Session.h:
+        * SessionHost.cpp:
+        (WebDriver::SessionHost::sendCommandToBackend):
+        (WebDriver::SessionHost::dispatchMessage):
+        * SessionHost.h:
+        * WebDriverService.cpp:
+        (WebDriver::WebDriverService::handleRequest):
+        (WebDriver::WebDriverService::sendResponse const):
+        (WebDriver::deserializeTimeouts):
+        (WebDriver::WebDriverService::parseCapabilities const):
+        (WebDriver::WebDriverService::findSessionOrCompleteWithError):
+        (WebDriver::WebDriverService::validatedCapabilities const):
+        (WebDriver::WebDriverService::mergeCapabilities const):
+        (WebDriver::WebDriverService::matchCapabilities const):
+        (WebDriver::WebDriverService::processCapabilities const):
+        (WebDriver::WebDriverService::newSession):
+        (WebDriver::WebDriverService::deleteSession):
+        (WebDriver::WebDriverService::setTimeouts):
+        (WebDriver::WebDriverService::go):
+        (WebDriver::WebDriverService::getCurrentURL):
+        (WebDriver::WebDriverService::back):
+        (WebDriver::WebDriverService::forward):
+        (WebDriver::WebDriverService::refresh):
+        (WebDriver::WebDriverService::getTitle):
+        (WebDriver::WebDriverService::getWindowHandle):
+        (WebDriver::WebDriverService::getWindowRect):
+        (WebDriver::valueAsNumberInRange):
+        (WebDriver::WebDriverService::setWindowRect):
+        (WebDriver::WebDriverService::closeWindow):
+        (WebDriver::WebDriverService::switchToWindow):
+        (WebDriver::WebDriverService::getWindowHandles):
+        (WebDriver::WebDriverService::switchToFrame):
+        (WebDriver::WebDriverService::switchToParentFrame):
+        (WebDriver::findElementOrCompleteWithError):
+        (WebDriver::findStrategyAndSelectorOrCompleteWithError):
+        (WebDriver::WebDriverService::findElement):
+        (WebDriver::WebDriverService::findElements):
+        (WebDriver::WebDriverService::findElementFromElement):
+        (WebDriver::WebDriverService::findElementsFromElement):
+        (WebDriver::WebDriverService::isElementSelected):
+        (WebDriver::WebDriverService::getElementAttribute):
+        (WebDriver::WebDriverService::getElementText):
+        (WebDriver::WebDriverService::getElementTagName):
+        (WebDriver::WebDriverService::getElementRect):
+        (WebDriver::WebDriverService::isElementEnabled):
+        (WebDriver::WebDriverService::isElementDisplayed):
+        (WebDriver::WebDriverService::elementClick):
+        (WebDriver::WebDriverService::elementClear):
+        (WebDriver::WebDriverService::elementSendKeys):
+        (WebDriver::WebDriverService::elementSubmit):
+        (WebDriver::findScriptAndArgumentsOrCompleteWithError):
+        (WebDriver::WebDriverService::executeScript):
+        (WebDriver::WebDriverService::executeAsyncScript):
+        (WebDriver::WebDriverService::getAllCookies):
+        (WebDriver::WebDriverService::getNamedCookie):
+        (WebDriver::deserializeCookie):
+        (WebDriver::WebDriverService::addCookie):
+        (WebDriver::WebDriverService::deleteCookie):
+        (WebDriver::WebDriverService::deleteAllCookies):
+        (WebDriver::WebDriverService::dismissAlert):
+        (WebDriver::WebDriverService::acceptAlert):
+        (WebDriver::WebDriverService::getAlertText):
+        (WebDriver::WebDriverService::sendAlertText):
+        (WebDriver::WebDriverService::takeScreenshot):
+        (WebDriver::WebDriverService::takeElementScreenshot):
+        * WebDriverService.h:
+        * gtk/WebDriverServiceGtk.cpp:
+        (WebDriver::WebDriverService::platformValidateCapability const):
+        (WebDriver::WebDriverService::platformMatchCapability const):
+        (WebDriver::WebDriverService::platformParseCapabilities const):
+        * wpe/WebDriverServiceWPE.cpp:
+        (WebDriver::WebDriverService::platformValidateCapability const):
+        (WebDriver::WebDriverService::platformMatchCapability const):
+        (WebDriver::WebDriverService::platformParseCapabilities const):
+
+2017-11-28  Carlos Garcia Campos  <cgarcia@igalia.com>
+
+        [GTK] WebDriver: stop making mandatory to provide a browser path if webkitgtk:browserOptions is present in capabilities
+        https://bugs.webkit.org/show_bug.cgi?id=180012
+
+        Reviewed by Carlos Alberto Lopez Perez.
+
+        Everything should be optional. We might want to disable overlay scrollbars, but still using the default browser,
+        for example, as I'm doing when running the selenium tests. We might also want to provide additional browser
+        arguments, but using the default browser.
+
+        * gtk/WebDriverServiceGtk.cpp:
+        (WebDriver::WebDriverService::platformValidateCapability const): Do not consider invalid to not provide a
+        browser binary when webkitgtk:browserOptions is present.
+        (WebDriver::WebDriverService::platformParseCapabilities const): Override default capabilities with the ones
+        provided.
+
+2017-11-27  Carlos Garcia Campos  <cgarcia@igalia.com>
+
+        WebDriver: Implement get active element command
+        https://bugs.webkit.org/show_bug.cgi?id=180001
+
+        Reviewed by Brian Burg.
+
+        12.6 Get Active Element
+        https://w3c.github.io/webdriver/webdriver-spec.html#get-active-element
+
+        Fixes imported/w3c/webdriver/tests/element_retrieval/get_active_element.py.
+
+        * Session.cpp:
+        (WebDriver::Session::getActiveElement):
+        * Session.h:
+        * WebDriverService.cpp:
+        (WebDriver::WebDriverService::getActiveElement):
+        * WebDriverService.h:
+
+2017-11-21  Carlos Garcia Campos  <cgarcia@igalia.com>
+
+        WebDriver: do not try to parse http body if method is not POST
+        https://bugs.webkit.org/show_bug.cgi?id=179918
+
+        Reviewed by Darin Adler.
+
+        As said in the spec:
+
+          5. If request’s method is POST:
+
+            1. Let parse result be the result of parsing as JSON with request’s body as the argument. If this process
+               throws an exception, return an error with error code invalid argument and jump back to step 1 in this
+               overall algorithm.
+
+            2. If parse result is not an Object, send an error with error code invalid argument and jump back to step 1
+               in this overall algorithm.
+
+            Otherwise, let parameters be parse result.
+
+          Otherwise, let parameters be null.
+
+        6.3 Processing Model
+        https://w3c.github.io/webdriver/webdriver-spec.html#processing-model
+
+        Now, w3c tests are sending null as body of delete session command (it used to be just empty), making it fail
+        with invalid argument error.
+
+        * WebDriverService.cpp:
+        (WebDriver::WebDriverService::findCommand):
+        (WebDriver::WebDriverService::handleRequest):
+        * WebDriverService.h:
+
+2017-11-21  Carlos Garcia Campos  <cgarcia@igalia.com>
+
+        WebDriver: crash in Session::computeElementLayout when called without a current browsing context
+        https://bugs.webkit.org/show_bug.cgi?id=179917
+
+        Reviewed by Darin Adler.
+
+        In the case of computeElementLayout message, the frameHandle parameter is not optional, but we still need to
+        provide a valid value (empty string means the default frame) when m_currentBrowsingContext is std::nullopt. The
+        same applies to selectOptionElement.
+
+        * Session.cpp:
+        (WebDriver::Session::computeElementLayout):
+        (WebDriver::Session::selectOptionElement):
+
+2017-11-15  Carlos Garcia Campos  <cgarcia@igalia.com>
+
+        [WPE] Add initial support for WebDriver
+        https://bugs.webkit.org/show_bug.cgi?id=179727
+
+        Reviewed by Michael Catanzaro.
+
+        Add WPE implementation for platform-specific methods. Move the version handling to a common file
+        WebDriverServiceGLib.cpp.
+
+        * Capabilities.h:
+        * PlatformGTK.cmake:
+        * PlatformWPE.cmake:
+        * glib/WebDriverServiceGLib.cpp: Added.
+        (WebDriver::parseVersion):
+        (WebDriver::WebDriverService::platformCompareBrowserVersions):
+        * gtk/WebDriverServiceGtk.cpp:
+        * wpe/WebDriverServiceWPE.cpp: Copied from Source/WebDriver/gtk/WebDriverServiceGtk.cpp.
+        (WebDriver::WebDriverService::platformCapabilities):
+        (WebDriver::WebDriverService::platformValidateCapability const):
+        (WebDriver::WebDriverService::platformMatchCapability const):
+        (WebDriver::WebDriverService::platformParseCapabilities const):
+
+2017-11-15  Ryan Haddad  <ryanhaddad@apple.com>
+
+        Unreviewed, rolling out r224863.
+
+        Introduced LayoutTest crashes on iOS Simulator.
+
+        Reverted changeset:
+
+        "Move JSONValues to WTF and convert uses of InspectorValues.h
+        to JSONValues.h"
+        https://bugs.webkit.org/show_bug.cgi?id=173793
+        https://trac.webkit.org/changeset/224863
+
+2017-11-14  Carlos Garcia Campos  <cgarcia@igalia.com>
+
+        Move JSONValues to WTF and convert uses of InspectorValues.h to JSONValues.h
+        https://bugs.webkit.org/show_bug.cgi?id=173793
+
+        Reviewed by Brian Burg.
+
+        * CMakeLists.txt:
+        * CommandResult.cpp:
+        (WebDriver::CommandResult::CommandResult):
+        * CommandResult.h:
+        (WebDriver::CommandResult::success):
+        (WebDriver::CommandResult::fail):
+        (WebDriver::CommandResult::result const):
+        (WebDriver::CommandResult::setAdditionalErrorData):
+        (WebDriver::CommandResult::additionalErrorData const):
+        * Session.cpp:
+        (WebDriver::firstWindowHandleInResult):
+        (WebDriver::Session::handleUserPrompts):
+        (WebDriver::Session::reportUnexpectedAlertOpen):
+        (WebDriver::Session::go):
+        (WebDriver::Session::getCurrentURL):
+        (WebDriver::Session::back):
+        (WebDriver::Session::forward):
+        (WebDriver::Session::refresh):
+        (WebDriver::Session::getTitle):
+        (WebDriver::Session::getWindowHandle):
+        (WebDriver::Session::closeTopLevelBrowsingContext):
+        (WebDriver::Session::switchToWindow):
+        (WebDriver::Session::getWindowHandles):
+        (WebDriver::Session::switchToFrame):
+        (WebDriver::Session::switchToParentFrame):
+        (WebDriver::Session::getToplevelBrowsingContextRect):
+        (WebDriver::Session::moveToplevelBrowsingContextWindow):
+        (WebDriver::Session::resizeToplevelBrowsingContextWindow):
+        (WebDriver::Session::createElement):
+        (WebDriver::Session::extractElement):
+        (WebDriver::Session::extractElementID):
+        (WebDriver::Session::computeElementLayout):
+        (WebDriver::Session::findElements):
+        (WebDriver::Session::isElementSelected):
+        (WebDriver::Session::getElementText):
+        (WebDriver::Session::getElementTagName):
+        (WebDriver::Session::getElementRect):
+        (WebDriver::Session::isElementEnabled):
+        (WebDriver::Session::isElementDisplayed):
+        (WebDriver::Session::getElementAttribute):
+        (WebDriver::Session::waitForNavigationToComplete):
+        (WebDriver::Session::selectOptionElement):
+        (WebDriver::Session::elementClick):
+        (WebDriver::Session::elementClear):
+        (WebDriver::Session::elementSendKeys):
+        (WebDriver::Session::elementSubmit):
+        (WebDriver::Session::handleScriptResult):
+        (WebDriver::Session::executeScript):
+        (WebDriver::Session::performMouseInteraction):
+        (WebDriver::Session::performKeyboardInteractions):
+        (WebDriver::parseAutomationCookie):
+        (WebDriver::builtAutomationCookie):
+        (WebDriver::serializeCookie):
+        (WebDriver::Session::getAllCookies):
+        (WebDriver::Session::getNamedCookie):
+        (WebDriver::Session::addCookie):
+        (WebDriver::Session::deleteCookie):
+        (WebDriver::Session::deleteAllCookies):
+        (WebDriver::Session::dismissAlert):
+        (WebDriver::Session::acceptAlert):
+        (WebDriver::Session::getAlertText):
+        (WebDriver::Session::sendAlertText):
+        (WebDriver::Session::takeScreenshot):
+        * Session.h:
+        * SessionHost.cpp:
+        (WebDriver::SessionHost::sendCommandToBackend):
+        (WebDriver::SessionHost::dispatchMessage):
+        * SessionHost.h:
+        * WebDriverService.cpp:
+        (WebDriver::WebDriverService::handleRequest):
+        (WebDriver::WebDriverService::sendResponse const):
+        (WebDriver::deserializeTimeouts):
+        (WebDriver::WebDriverService::parseCapabilities const):
+        (WebDriver::WebDriverService::findSessionOrCompleteWithError):
+        (WebDriver::WebDriverService::validatedCapabilities const):
+        (WebDriver::WebDriverService::mergeCapabilities const):
+        (WebDriver::WebDriverService::matchCapabilities const):
+        (WebDriver::WebDriverService::processCapabilities const):
+        (WebDriver::WebDriverService::newSession):
+        (WebDriver::WebDriverService::deleteSession):
+        (WebDriver::WebDriverService::setTimeouts):
+        (WebDriver::WebDriverService::go):
+        (WebDriver::WebDriverService::getCurrentURL):
+        (WebDriver::WebDriverService::back):
+        (WebDriver::WebDriverService::forward):
+        (WebDriver::WebDriverService::refresh):
+        (WebDriver::WebDriverService::getTitle):
+        (WebDriver::WebDriverService::getWindowHandle):
+        (WebDriver::WebDriverService::getWindowRect):
+        (WebDriver::valueAsNumberInRange):
+        (WebDriver::WebDriverService::setWindowRect):
+        (WebDriver::WebDriverService::closeWindow):
+        (WebDriver::WebDriverService::switchToWindow):
+        (WebDriver::WebDriverService::getWindowHandles):
+        (WebDriver::WebDriverService::switchToFrame):
+        (WebDriver::WebDriverService::switchToParentFrame):
+        (WebDriver::findElementOrCompleteWithError):
+        (WebDriver::findStrategyAndSelectorOrCompleteWithError):
+        (WebDriver::WebDriverService::findElement):
+        (WebDriver::WebDriverService::findElements):
+        (WebDriver::WebDriverService::findElementFromElement):
+        (WebDriver::WebDriverService::findElementsFromElement):
+        (WebDriver::WebDriverService::isElementSelected):
+        (WebDriver::WebDriverService::getElementAttribute):
+        (WebDriver::WebDriverService::getElementText):
+        (WebDriver::WebDriverService::getElementTagName):
+        (WebDriver::WebDriverService::getElementRect):
+        (WebDriver::WebDriverService::isElementEnabled):
+        (WebDriver::WebDriverService::isElementDisplayed):
+        (WebDriver::WebDriverService::elementClick):
+        (WebDriver::WebDriverService::elementClear):
+        (WebDriver::WebDriverService::elementSendKeys):
+        (WebDriver::WebDriverService::elementSubmit):
+        (WebDriver::findScriptAndArgumentsOrCompleteWithError):
+        (WebDriver::WebDriverService::executeScript):
+        (WebDriver::WebDriverService::executeAsyncScript):
+        (WebDriver::WebDriverService::getAllCookies):
+        (WebDriver::WebDriverService::getNamedCookie):
+        (WebDriver::deserializeCookie):
+        (WebDriver::WebDriverService::addCookie):
+        (WebDriver::WebDriverService::deleteCookie):
+        (WebDriver::WebDriverService::deleteAllCookies):
+        (WebDriver::WebDriverService::dismissAlert):
+        (WebDriver::WebDriverService::acceptAlert):
+        (WebDriver::WebDriverService::getAlertText):
+        (WebDriver::WebDriverService::sendAlertText):
+        (WebDriver::WebDriverService::takeScreenshot):
+        (WebDriver::WebDriverService::takeElementScreenshot):
+        * WebDriverService.h:
+        * gtk/WebDriverServiceGtk.cpp:
+        (WebDriver::WebDriverService::platformValidateCapability const):
+        (WebDriver::WebDriverService::platformMatchCapability const):
+        (WebDriver::WebDriverService::platformParseCapabilities const):
+
+2017-11-07  Brian Burg  <bburg@apple.com>
+
+        Web Automation: inViewCenterPoint should not include topContentInset when computed in viewport coordinates
+        https://bugs.webkit.org/show_bug.cgi?id=179129
+        <rdar://problem/35297038>
+
+        Reviewed by Simon Fraser.
+
+        Adjust code to use the proper coordinate system when requesting element layout.
+
+        * Session.cpp:
+        (WebDriver::Session::computeElementLayout):
+
 2017-11-09  Carlos Garcia Campos  <cgarcia@igalia.com>
 
         WebDriver: WebDriverService::matchCapabilities should follow the spec

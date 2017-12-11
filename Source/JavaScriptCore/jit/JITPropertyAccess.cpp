@@ -173,7 +173,6 @@ JIT::JumpList JIT::emitDoubleLoad(Instruction*, PatchableJump& badType)
     
     badType = patchableBranch32(NotEqual, regT2, TrustedImm32(DoubleShape));
     loadPtr(Address(regT0, JSObject::butterflyOffset()), regT2);
-    cage(Gigacage::JSValue, regT2);
     slowCases.append(branch32(AboveOrEqual, regT1, Address(regT2, Butterfly::offsetOfPublicLength())));
     loadDouble(BaseIndex(regT2, regT1, TimesEight), fpRegT0);
     slowCases.append(branchDouble(DoubleNotEqualOrUnordered, fpRegT0, fpRegT0));
@@ -343,8 +342,6 @@ JIT::JumpList JIT::emitGenericContiguousPutByVal(Instruction* currentInstruction
     badType = patchableBranch32(NotEqual, regT2, TrustedImm32(indexingShape));
     
     loadPtr(Address(regT0, JSObject::butterflyOffset()), regT2);
-    if (indexingShape == DoubleShape)
-        cage(Gigacage::JSValue, regT2);
     Jump outOfBounds = branch32(AboveOrEqual, regT1, Address(regT2, Butterfly::offsetOfPublicLength()));
 
     Label storeResult = label();
@@ -1403,7 +1400,6 @@ JIT::JumpList JIT::emitDirectArgumentsGetByVal(Instruction*, PatchableJump& badT
     slowCases.append(branchTestPtr(NonZero, Address(base, DirectArguments::offsetOfMappedArguments())));
     
     zeroExtend32ToPtr(property, scratch);
-    cage(Gigacage::JSValue, base);
     loadValue(BaseIndex(base, scratch, TimesEight, DirectArguments::storageOffset()), result);
     
     return slowCases;
@@ -1436,7 +1432,6 @@ JIT::JumpList JIT::emitScopedArgumentsGetByVal(Instruction*, PatchableJump& badT
     Jump overflowCase = branch32(AboveOrEqual, property, scratch2);
     loadPtr(Address(base, ScopedArguments::offsetOfScope()), scratch2);
     loadPtr(Address(scratch, ScopedArgumentsTable::offsetOfArguments()), scratch);
-    cage(ScopedArgumentsTable::ArgumentsPtr::kind, scratch);
     load32(BaseIndex(scratch, property, TimesFour), scratch);
     slowCases.append(branch32(Equal, scratch, TrustedImm32(ScopeOffset::invalidOffset)));
     loadValue(BaseIndex(scratch2, scratch, TimesEight, JSLexicalEnvironment::offsetOfVariables()), result);
@@ -1444,7 +1439,6 @@ JIT::JumpList JIT::emitScopedArgumentsGetByVal(Instruction*, PatchableJump& badT
     overflowCase.link(this);
     sub32(property, scratch2);
     neg32(scratch2);
-    cage(Gigacage::JSValue, base);
     loadValue(BaseIndex(base, scratch2, TimesEight, ScopedArguments::overflowStorageOffset()), result);
     slowCases.append(branchIfEmpty(result));
     done.link(this);

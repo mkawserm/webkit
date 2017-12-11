@@ -195,6 +195,7 @@
 #import <WebCore/ThreadCheck.h>
 #import <WebCore/UserAgent.h>
 #import <WebCore/UserContentController.h>
+#import <WebCore/UserGestureIndicator.h>
 #import <WebCore/UserScript.h>
 #import <WebCore/UserStyleSheet.h>
 #import <WebCore/ValidationBubble.h>
@@ -565,12 +566,20 @@ static const char webViewIsOpen[] = "At least one WebView is still open.";
 
 FindOptions coreOptions(WebFindOptions options)
 {
-    return (options & WebFindOptionsCaseInsensitive ? CaseInsensitive : 0)
-        | (options & WebFindOptionsAtWordStarts ? AtWordStarts : 0)
-        | (options & WebFindOptionsTreatMedialCapitalAsWordStart ? TreatMedialCapitalAsWordStart : 0)
-        | (options & WebFindOptionsBackwards ? Backwards : 0)
-        | (options & WebFindOptionsWrapAround ? WrapAround : 0)
-        | (options & WebFindOptionsStartInSelection ? StartInSelection : 0);
+    FindOptions findOptions;
+    if (options & WebFindOptionsCaseInsensitive)
+        findOptions |= CaseInsensitive;
+    if (options & WebFindOptionsAtWordStarts)
+        findOptions |= AtWordStarts;
+    if (options & WebFindOptionsTreatMedialCapitalAsWordStart)
+        findOptions |= TreatMedialCapitalAsWordStart;
+    if (options & WebFindOptionsBackwards)
+        findOptions |= Backwards;
+    if (options & WebFindOptionsWrapAround)
+        findOptions |= WrapAround;
+    if (options & WebFindOptionsStartInSelection)
+        findOptions |= StartInSelection;
+    return findOptions;
 }
 
 LayoutMilestones coreLayoutMilestones(WebLayoutMilestones milestones)
@@ -1123,14 +1132,9 @@ static CFMutableSetRef allWebViewsSet;
 
 @implementation WebView (WebPrivate)
 
-static String webKitBundleVersionString()
-{
-    return [[NSBundle bundleForClass:[WebView class]] objectForInfoDictionaryKey:(NSString *)kCFBundleVersionKey];
-}
-
 + (NSString *)_standardUserAgentWithApplicationName:(NSString *)applicationName
 {
-    return standardUserAgentWithApplicationName(applicationName, webKitBundleVersionString());
+    return standardUserAgentWithApplicationName(applicationName);
 }
 
 #if PLATFORM(IOS)
@@ -2342,7 +2346,7 @@ static bool fastDocumentTeardownEnabled()
 // Indicates if the WebView is in the midst of a user gesture.
 - (BOOL)_isProcessingUserGesture
 {
-    return ScriptController::processingUserGesture();
+    return UserGestureIndicator::processingUserGesture();
 }
 
 + (NSString *)_MIMETypeForFile:(NSString *)path
@@ -2860,6 +2864,7 @@ static bool needsSelfRetainWhileLoadingQuirk()
     settings.setJavaScriptCanOpenWindowsAutomatically([preferences javaScriptCanOpenWindowsAutomatically] || shouldAllowWindowOpenWithoutUserGesture());
 
     settings.setVisualViewportEnabled([preferences visualViewportEnabled]);
+    settings.setVisualViewportAPIEnabled([preferences visualViewportAPIEnabled]);
     settings.setMediaContentTypesRequiringHardwareSupport([preferences mediaContentTypesRequiringHardwareSupport]);
 
     switch ([preferences storageBlockingPolicy]) {
@@ -3039,9 +3044,14 @@ static bool needsSelfRetainWhileLoadingQuirk()
     RuntimeEnabledFeatures::sharedFeatures().setIsSecureContextAttributeEnabled(preferences.isSecureContextAttributeEnabled);
     RuntimeEnabledFeatures::sharedFeatures().setDirectoryUploadEnabled([preferences directoryUploadEnabled]);
     RuntimeEnabledFeatures::sharedFeatures().setMenuItemElementEnabled([preferences menuItemElementEnabled]);
+    RuntimeEnabledFeatures::sharedFeatures().setAccessibilityObjectModelEnabled([preferences accessibilityObjectModelEnabled]);
     
 #if ENABLE(LEGACY_ENCRYPTED_MEDIA)
     RuntimeEnabledFeatures::sharedFeatures().setLegacyEncryptedMediaAPIEnabled(preferences.legacyEncryptedMediaAPIEnabled);
+#endif
+
+#if ENABLE(ENCRYPTED_MEDIA)
+    RuntimeEnabledFeatures::sharedFeatures().setEncryptedMediaAPIEnabled(preferences.encryptedMediaAPIEnabled);
 #endif
 
     RuntimeEnabledFeatures::sharedFeatures().setInspectorAdditionsEnabled(preferences.inspectorAdditionsEnabled);
@@ -5764,15 +5774,21 @@ static bool needsWebViewInitThreadWorkaround()
 
 - (void)encodeWithCoder:(NSCoder *)encoder
 {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
     // Set asside the subviews before we archive. We don't want to archive any subviews.
     // The subviews will always be created in _commonInitializationFrameName:groupName:.
     id originalSubviews = _subviews;
     _subviews = nil;
+#pragma clang diagnostic pop
 
     [super encodeWithCoder:encoder];
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
     // Restore the subviews we set aside.
     _subviews = originalSubviews;
+#pragma clang diagnostic pop
 
     BOOL useBackForwardList = _private->page && static_cast<BackForwardList*>(_private->page->backForward().client())->enabled();
     if ([encoder allowsKeyedCoding]) {
@@ -6714,7 +6730,8 @@ static NSString * const backingPropertyOldScaleFactorKey = @"NSBackingPropertyOl
             NSFilePromiseReceiver *item = draggingItem.item;
             NSDictionary *options = @{ };
 
-            [item receivePromisedFilesAtDestination:dropLocation options:options operationQueue:[NSOperationQueue new] reader:^(NSURL * _Nonnull fileURL, NSError * _Nullable errorOrNil) {
+            RetainPtr<NSOperationQueue> queue = adoptNS([NSOperationQueue new]);
+            [item receivePromisedFilesAtDestination:dropLocation options:options operationQueue:queue.get() reader:^(NSURL * _Nonnull fileURL, NSError * _Nullable errorOrNil) {
                 if (errorOrNil)
                     return;
 
@@ -7453,24 +7470,14 @@ static TextCheckingResult textCheckingResultFromNSTextCheckingResult(NSTextCheck
 
 - (void)scheduleInRunLoop:(NSRunLoop *)runLoop forMode:(NSString *)mode
 {
-#if USE(CFURLCONNECTION)
-    CFRunLoopRef schedulePairRunLoop = [runLoop getCFRunLoop];
-#else
-    NSRunLoop *schedulePairRunLoop = runLoop;
-#endif
     if (runLoop && mode)
-        core(self)->addSchedulePair(SchedulePair::create(schedulePairRunLoop, (CFStringRef)mode));
+        core(self)->addSchedulePair(SchedulePair::create(runLoop, (CFStringRef)mode));
 }
 
 - (void)unscheduleFromRunLoop:(NSRunLoop *)runLoop forMode:(NSString *)mode
 {
-#if USE(CFURLCONNECTION)
-    CFRunLoopRef schedulePairRunLoop = [runLoop getCFRunLoop];
-#else
-    NSRunLoop *schedulePairRunLoop = runLoop;
-#endif
     if (runLoop && mode)
-        core(self)->removeSchedulePair(SchedulePair::create(schedulePairRunLoop, (CFStringRef)mode));
+        core(self)->removeSchedulePair(SchedulePair::create(runLoop, (CFStringRef)mode));
 }
 
 static BOOL findString(NSView <WebDocumentSearching> *searchView, NSString *string, WebFindOptions options)

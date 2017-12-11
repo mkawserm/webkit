@@ -99,11 +99,6 @@ namespace JSC { namespace DFG {
     macro(CheckTierUpAndOSREnter, NodeMustGenerate) \
     macro(CheckTierUpAtReturn, NodeMustGenerate) \
     \
-    /* Get the value of a local variable, without linking into the VariableAccessData */\
-    /* network. This is only valid for variable accesses whose predictions originated */\
-    /* as something other than a local access, and thus had their own profiling. */\
-    macro(GetLocalUnlinked, NodeResultJS) \
-    \
     /* Marker for an argument being set at the prologue of a function. */\
     macro(SetArgument, 0) \
     \
@@ -209,7 +204,6 @@ namespace JSC { namespace DFG {
     macro(AllocatePropertyStorage, NodeMustGenerate | NodeResultStorage) \
     macro(ReallocatePropertyStorage, NodeMustGenerate | NodeResultStorage) \
     macro(GetButterfly, NodeResultStorage) \
-    macro(GetButterflyWithoutCaging, NodeResultStorage) \
     macro(NukeStructureAndSetButterfly, NodeMustGenerate) \
     macro(CheckArray, NodeMustGenerate) \
     macro(Arrayify, NodeMustGenerate) \
@@ -440,11 +434,14 @@ namespace JSC { namespace DFG {
     macro(ToIndexString, NodeResultJS) \
     /* Nodes for JSMap and JSSet */ \
     macro(MapHash, NodeResultInt32) \
+    macro(NormalizeMapKey, NodeResultJS) \
     macro(GetMapBucket, NodeResultJS) \
     macro(GetMapBucketHead, NodeResultJS) \
     macro(GetMapBucketNext, NodeResultJS) \
     macro(LoadKeyFromMapBucket, NodeResultJS) \
     macro(LoadValueFromMapBucket, NodeResultJS) \
+    macro(SetAdd, NodeMustGenerate) \
+    macro(MapSet, NodeMustGenerate | NodeHasVarArgs) \
     /* Nodes for JSWeakMap and JSWeakSet */ \
     macro(WeakMapGet, NodeResultJS) \
     \
@@ -456,7 +453,11 @@ namespace JSC { namespace DFG {
     /* Metadata node that initializes the state for flushed argument types at an entrypoint in the program. */ \
     /* Currently, we only use this for the blocks an EntrySwitch branches to at the root of the program. */ \
     /* This is only used in SSA. */ \
-    macro(InitializeEntrypointArguments, NodeMustGenerate)
+    macro(InitializeEntrypointArguments, NodeMustGenerate) \
+    \
+    /* Used for $vm performance debugging */ \
+    macro(CPUIntrinsic, NodeResultJS | NodeMustGenerate) \
+
 
 // This enum generates a monotonically increasing id for all Node types,
 // and is used by the subsequent enum to fill out the id (as accessed via the NodeIdMask).

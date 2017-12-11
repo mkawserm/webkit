@@ -34,14 +34,6 @@
 #include <wtf/CheckedArithmetic.h>
 #include <wtf/Compiler.h>
 
-// This was used to declare and define a static local variable (static T;) so that
-//  it was leaked so that its destructors were not called at exit.
-// Newly written code should use static NeverDestroyed<T> instead.
-#ifndef DEPRECATED_DEFINE_STATIC_LOCAL
-#define DEPRECATED_DEFINE_STATIC_LOCAL(type, name, arguments) \
-    static type& name = *new type arguments
-#endif
-
 // Use this macro to declare and define a debug-only global variable that may have a
 // non-trivial constructor and destructor. When building with clang, this will suppress
 // warnings about global constructors and exit-time destructors.
@@ -524,6 +516,29 @@ template<class B0, class B1> struct wtf_conjunction_impl<B0, B1> : conditional<B
 template<class B0, class B1, class B2, class... Bn> struct wtf_conjunction_impl<B0, B1, B2, Bn...> : conditional<B0::value, wtf_conjunction_impl<B1, B2, Bn...>, B0>::type { };
 template<class... _Args> struct conjunction : wtf_conjunction_impl<_Args...> { };
 #endif
+
+#if __cplusplus < 201703L
+
+// These are inline variable for C++17 and later.
+#define __IN_PLACE_INLINE_VARIABLE static const
+
+struct in_place_t {
+    explicit in_place_t() = default;
+};
+__IN_PLACE_INLINE_VARIABLE constexpr in_place_t in_place { };
+
+template <class T> struct in_place_type_t {
+    explicit in_place_type_t() = default;
+};
+template <class T>
+__IN_PLACE_INLINE_VARIABLE constexpr in_place_type_t<T> in_place_type { };
+
+template <size_t I> struct in_place_index_t {
+    explicit in_place_index_t() = default;
+};
+template <size_t I>
+__IN_PLACE_INLINE_VARIABLE constexpr in_place_index_t<I> in_place_index { };
+#endif // __cplusplus < 201703L
 
 } // namespace std
 

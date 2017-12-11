@@ -25,11 +25,13 @@
 
 #pragma once
 
+#include "AllocationFailureMode.h"
 #include "AllocatorAttributes.h"
 #include "FreeList.h"
 #include "MarkedBlock.h"
 #include <wtf/DataLog.h>
 #include <wtf/FastBitVector.h>
+#include <wtf/SharedTask.h>
 #include <wtf/Vector.h>
 
 namespace JSC {
@@ -67,13 +69,17 @@ class LLIntOffsetsExtractor;
 // https://bugs.webkit.org/show_bug.cgi?id=162121
 
 class MarkedAllocator {
+    WTF_MAKE_NONCOPYABLE(MarkedAllocator);
+    WTF_MAKE_FAST_ALLOCATED;
+    
     friend class LLIntOffsetsExtractor;
 
 public:
     static ptrdiff_t offsetOfFreeList();
     static ptrdiff_t offsetOfCellSize();
 
-    MarkedAllocator(Heap*, Subspace*, size_t cellSize);
+    MarkedAllocator(Heap*, size_t cellSize);
+    void setSubspace(Subspace*);
     void lastChanceToFinalize();
     void prepareForAllocation();
     void stopAllocating();
@@ -90,14 +96,15 @@ public:
     bool needsDestruction() const { return m_attributes.destruction == NeedsDestruction; }
     DestructionMode destruction() const { return m_attributes.destruction; }
     HeapCell::Kind cellKind() const { return m_attributes.cellKind; }
-    void* allocate(GCDeferralContext* = nullptr);
-    void* tryAllocate(GCDeferralContext* = nullptr);
+    void* allocate(GCDeferralContext*, AllocationFailureMode);
     Heap* heap() { return m_heap; }
 
     bool isFreeListedCell(const void* target) const;
 
     template<typename Functor> void forEachBlock(const Functor&);
     template<typename Functor> void forEachNotEmptyBlock(const Functor&);
+    
+    RefPtr<SharedTask<MarkedBlock::Handle*()>> parallelNotEmptyBlockSource();
     
     void addBlock(MarkedBlock::Handle*);
     void removeBlock(MarkedBlock::Handle*);
@@ -136,9 +143,11 @@ public:
     
     MarkedAllocator* nextAllocator() const { return m_nextAllocator; }
     MarkedAllocator* nextAllocatorInSubspace() const { return m_nextAllocatorInSubspace; }
+    MarkedAllocator* nextAllocatorInAlignedMemoryAllocator() const { return m_nextAllocatorInAlignedMemoryAllocator; }
     
     void setNextAllocator(MarkedAllocator* allocator) { m_nextAllocator = allocator; }
     void setNextAllocatorInSubspace(MarkedAllocator* allocator) { m_nextAllocatorInSubspace = allocator; }
+    void setNextAllocatorInAlignedMemoryAllocator(MarkedAllocator* allocator) { m_nextAllocatorInAlignedMemoryAllocator = allocator; }
     
     MarkedBlock::Handle* findEmptyBlockToSteal();
     
@@ -155,9 +164,7 @@ public:
 private:
     friend class MarkedBlock;
     
-    JS_EXPORT_PRIVATE void* allocateSlowCase(GCDeferralContext*);
-    JS_EXPORT_PRIVATE void* tryAllocateSlowCase(GCDeferralContext*);
-    void* allocateSlowCaseImpl(GCDeferralContext*, bool crashOnFailure);
+    JS_EXPORT_PRIVATE void* allocateSlowCase(GCDeferralContext*, AllocationFailureMode failureMode);
     void didConsumeFreeList();
     void* tryAllocateWithoutCollecting();
     MarkedBlock::Handle* tryAllocateBlock();
@@ -192,10 +199,11 @@ private:
     AllocatorAttributes m_attributes;
     // FIXME: All of these should probably be references.
     // https://bugs.webkit.org/show_bug.cgi?id=166988
-    Heap* m_heap;
-    Subspace* m_subspace;
+    Heap* m_heap { nullptr };
+    Subspace* m_subspace { nullptr };
     MarkedAllocator* m_nextAllocator { nullptr };
     MarkedAllocator* m_nextAllocatorInSubspace { nullptr };
+    MarkedAllocator* m_nextAllocatorInAlignedMemoryAllocator { nullptr };
 };
 
 inline ptrdiff_t MarkedAllocator::offsetOfFreeList()

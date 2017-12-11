@@ -28,6 +28,7 @@
 #import "WebProcessCocoa.h"
 
 #import "LegacyCustomProtocolManager.h"
+#import "LogInitialization.h"
 #import "Logging.h"
 #import "ObjCObjectGraph.h"
 #import "SandboxExtension.h"
@@ -70,7 +71,16 @@
 #import <stdio.h>
 
 #if PLATFORM(IOS)
+#import <UIKit/UIAccessibility.h>
 #import <pal/spi/ios/GraphicsServicesSPI.h>
+
+#if USE(APPLE_INTERNAL_SDK)
+#import <AXRuntime/AXDefines.h>
+#import <AXRuntime/AXNotificationConstants.h>
+#else
+#define kAXPidStatusChangedNotification 0
+#endif
+
 #endif
 
 #if USE(OS_STATE)
@@ -104,6 +114,7 @@ void WebProcess::platformInitializeWebProcess(WebProcessCreationParameters&& par
 {
 #if !LOG_DISABLED || !RELEASE_LOG_DISABLED
     WebCore::initializeLogChannelsIfNecessary(parameters.webCoreLoggingChannels);
+    WebKit::initializeLogChannelsIfNecessary(parameters.webKitLoggingChannels);
 #endif
 
     WebCore::setApplicationBundleIdentifier(parameters.uiProcessBundleIdentifier);
@@ -171,6 +182,10 @@ void WebProcess::initializeProcessName(const ChildProcessInitializationParameter
     NSString *applicationName;
     if (parameters.extraInitializationData.get(ASCIILiteral("inspector-process")) == "1")
         applicationName = [NSString stringWithFormat:WEB_UI_STRING("%@ Web Inspector", "Visible name of Web Inspector's web process. The argument is the application name."), (NSString *)parameters.uiProcessName];
+#if ENABLE(SERVICE_WORKER)
+    else if (parameters.extraInitializationData.get(ASCIILiteral("service-worker-process")) == "1")
+        applicationName = [NSString stringWithFormat:WEB_UI_STRING("%@ Service Worker", "Visible name of Service Worker process. The argument is the application name."), (NSString *)parameters.uiProcessName];
+#endif
     else
         applicationName = [NSString stringWithFormat:WEB_UI_STRING("%@ Web Content", "Visible name of the web process. The argument is the application name."), (NSString *)parameters.uiProcessName];
     _LSSetApplicationInformationItem(kLSDefaultSessionID, _LSGetCurrentApplicationASN(), _kLSDisplayNameKey, (CFStringRef)applicationName, nullptr);
@@ -518,5 +533,12 @@ void _WKSetCrashReportApplicationSpecificInformation(NSString *infoString)
 {
     return setCrashReportApplicationSpecificInformation((__bridge CFStringRef)infoString);
 }
+
+#if PLATFORM(IOS)
+void WebProcess::accessibilityProcessSuspendedNotification(bool suspended)
+{
+    UIAccessibilityPostNotification(kAXPidStatusChangedNotification, @{ @"pid" : @(getpid()), @"suspended" : @(suspended) });
+}
+#endif
 
 } // namespace WebKit

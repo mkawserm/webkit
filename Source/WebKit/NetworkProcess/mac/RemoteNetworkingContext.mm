@@ -81,32 +81,6 @@ ResourceError RemoteNetworkingContext::blockedError(const ResourceRequest& reque
     return WebKit::blockedError(request);
 }
 
-void RemoteNetworkingContext::ensurePrivateBrowsingSession(WebsiteDataStoreParameters&& parameters)
-{
-    auto sessionID = parameters.networkSessionParameters.sessionID;
-    ASSERT(sessionID.isEphemeral());
-
-    if (NetworkStorageSession::storageSession(sessionID))
-        return;
-
-    String base;
-    if (SessionTracker::getIdentifierBase().isNull())
-        base = [[NSBundle mainBundle] bundleIdentifier];
-    else
-        base = SessionTracker::getIdentifierBase();
-
-    NetworkStorageSession::ensurePrivateBrowsingSession(sessionID, base + '.' + String::number(sessionID.sessionID()));
-
-    auto* session = NetworkStorageSession::storageSession(sessionID);
-    for (const auto& cookie : parameters.pendingCookies)
-        session->setCookie(cookie);
-
-#if USE(NETWORK_SESSION)
-    parameters.networkSessionParameters.legacyCustomProtocolManager = NetworkProcess::singleton().supplement<LegacyCustomProtocolManager>();
-    SessionTracker::setSession(sessionID, NetworkSession::create(WTFMove(parameters.networkSessionParameters)));
-#endif
-}
-
 void RemoteNetworkingContext::ensureWebsiteDataStoreSession(WebsiteDataStoreParameters&& parameters)
 {
     auto sessionID = parameters.networkSessionParameters.sessionID;
@@ -119,10 +93,11 @@ void RemoteNetworkingContext::ensureWebsiteDataStoreSession(WebsiteDataStorePara
     else
         base = SessionTracker::getIdentifierBase();
 
-    SandboxExtension::consumePermanently(parameters.cookieStoragePathExtensionHandle);
+    if (!sessionID.isEphemeral())
+        SandboxExtension::consumePermanently(parameters.cookieStoragePathExtensionHandle);
 
     RetainPtr<CFHTTPCookieStorageRef> uiProcessCookieStorage;
-    if (!parameters.uiProcessCookieStorageIdentifier.isEmpty())
+    if (!sessionID.isEphemeral() && !parameters.uiProcessCookieStorageIdentifier.isEmpty())
         uiProcessCookieStorage = cookieStorageFromIdentifyingData(parameters.uiProcessCookieStorageIdentifier);
 
     NetworkStorageSession::ensureSession(sessionID, base + '.' + String::number(sessionID.sessionID()), WTFMove(uiProcessCookieStorage));
@@ -131,7 +106,7 @@ void RemoteNetworkingContext::ensureWebsiteDataStoreSession(WebsiteDataStorePara
     for (const auto& cookie : parameters.pendingCookies)
         session->setCookie(cookie);
 
-    if (!parameters.cacheStorageDirectory.isNull()) {
+    if (!sessionID.isEphemeral() && !parameters.cacheStorageDirectory.isNull()) {
         SandboxExtension::consumePermanently(parameters.cacheStorageDirectoryExtensionHandle);
         session->setCacheStorageDirectory(WTFMove(parameters.cacheStorageDirectory));
         session->setCacheStoragePerOriginQuota(parameters.cacheStoragePerOriginQuota);

@@ -36,6 +36,7 @@
 
 namespace WebCore {
 
+class AccessibleNode;
 class CustomElementReactionQueue;
 class DatasetDOMStringMap;
 class DOMRect;
@@ -171,7 +172,7 @@ public:
 
     WEBCORE_EXPORT IntRect boundsInRootViewSpace();
 
-    FloatRect boundingClientRect();
+    WEBCORE_EXPORT FloatRect boundingClientRect();
 
     WEBCORE_EXPORT Ref<DOMRectList> getClientRects();
     Ref<DOMRect> getBoundingClientRect();
@@ -279,6 +280,7 @@ public:
 
     RefPtr<ShadowRoot> userAgentShadowRoot() const;
     WEBCORE_EXPORT ShadowRoot& ensureUserAgentShadowRoot();
+    void removeShadowRoot();
 
     void setIsDefinedCustomElement(JSCustomElementInterface&);
     void setIsFailedCustomElement(JSCustomElementInterface&);
@@ -552,6 +554,11 @@ public:
 
     Element* findAnchorElementForLink(String& outAnchorName);
 
+    AccessibleNode* existingAccessibleNode() const;
+    AccessibleNode* accessibleNode();
+
+    Vector<RefPtr<WebAnimation>> getAnimations();
+
 protected:
     Element(const QualifiedName&, Document&, ConstructionType);
 
@@ -629,8 +636,6 @@ private:
     // The cloneNode function is private so that non-virtual cloneElementWith/WithoutChildren are used instead.
     Ref<Node> cloneNodeInternal(Document&, CloningOperation) override;
     virtual Ref<Element> cloneElementWithoutAttributesAndChildren(Document&);
-
-    void removeShadowRoot();
 
     const RenderStyle& resolveComputedStyle();
     const RenderStyle& resolvePseudoElementStyle(PseudoId);
@@ -801,4 +806,5 @@ inline void Element::setHasFocusWithin(bool flag)
 
 SPECIALIZE_TYPE_TRAITS_BEGIN(WebCore::Element)
     static bool isType(const WebCore::Node& node) { return node.isElementNode(); }
+    static bool isType(const WebCore::EventTarget& target) { return is<WebCore::Node>(target) && isType(downcast<WebCore::Node>(target)); }
 SPECIALIZE_TYPE_TRAITS_END()

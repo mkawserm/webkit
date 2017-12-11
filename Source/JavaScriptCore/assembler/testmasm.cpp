@@ -32,6 +32,7 @@
 #include "InitializeThreading.h"
 #include "LinkBuffer.h"
 #include "ProbeContext.h"
+#include <limits>
 #include <wtf/Compiler.h>
 #include <wtf/DataLog.h>
 #include <wtf/Function.h>
@@ -134,6 +135,9 @@ bool isSpecialGPR(MacroAssembler::RegisterID id)
 #if CPU(ARM64)
     if (id == ARM64Registers::x18)
         return true;
+#elif CPU(MIPS)
+    if (id == MIPSRegisters::zero || id == MIPSRegisters::k0 || id == MIPSRegisters::k1)
+        return true;
 #endif
     return false;
 }
@@ -169,6 +173,57 @@ void testSimple()
         jit.ret();
     }), 42);
 }
+
+void testGetEffectiveAddress(size_t pointer, ptrdiff_t length, int32_t offset, CCallHelpers::Scale scale)
+{
+    CHECK_EQ(compileAndRun<size_t>([=] (CCallHelpers& jit) {
+        jit.emitFunctionPrologue();
+        jit.move(CCallHelpers::TrustedImmPtr(bitwise_cast<void*>(pointer)), GPRInfo::regT0);
+        jit.move(CCallHelpers::TrustedImmPtr(bitwise_cast<void*>(length)), GPRInfo::regT1);
+        jit.getEffectiveAddress(CCallHelpers::BaseIndex(GPRInfo::regT0, GPRInfo::regT1, scale, offset), GPRInfo::returnValueGPR);
+        jit.emitFunctionEpilogue();
+        jit.ret();
+    }), pointer + offset + (static_cast<size_t>(1) << static_cast<int>(scale)) * length);
+}
+
+// branchTruncateDoubleToInt32(), when encountering Infinity, -Infinity or a
+// Nan, should either yield 0 in dest or fail.
+void testBranchTruncateDoubleToInt32(double val, int32_t expected)
+{
+    const uint64_t valAsUInt = *reinterpret_cast<uint64_t*>(&val);
+#if CPU(BIG_ENDIAN)
+    const bool isBigEndian = true;
+#else
+    const bool isBigEndian = false;
+#endif
+    CHECK_EQ(compileAndRun<int>([&] (CCallHelpers& jit) {
+        jit.emitFunctionPrologue();
+        jit.subPtr(CCallHelpers::TrustedImm32(8), MacroAssembler::stackPointerRegister);
+        if (isBigEndian) {
+            jit.store32(CCallHelpers::TrustedImm32(valAsUInt >> 32),
+                MacroAssembler::stackPointerRegister);
+            jit.store32(CCallHelpers::TrustedImm32(valAsUInt & 0xffffffff),
+                MacroAssembler::Address(MacroAssembler::stackPointerRegister, 4));
+        } else {
+            jit.store32(CCallHelpers::TrustedImm32(valAsUInt & 0xffffffff),
+                MacroAssembler::stackPointerRegister);
+            jit.store32(CCallHelpers::TrustedImm32(valAsUInt >> 32),
+                MacroAssembler::Address(MacroAssembler::stackPointerRegister, 4));
+        }
+        jit.loadDouble(MacroAssembler::stackPointerRegister, FPRInfo::fpRegT0);
+
+        MacroAssembler::Jump done;
+        done = jit.branchTruncateDoubleToInt32(FPRInfo::fpRegT0, GPRInfo::returnValueGPR, MacroAssembler::BranchIfTruncateSuccessful);
+
+        jit.move(CCallHelpers::TrustedImm32(0), GPRInfo::returnValueGPR);
+
+        done.link(&jit);
+        jit.addPtr(CCallHelpers::TrustedImm32(8), MacroAssembler::stackPointerRegister);
+        jit.emitFunctionEpilogue();
+        jit.ret();
+    }), expected);
+}
+
 
 #if ENABLE(MASM_PROBE)
 void testProbeReadsArgumentRegisters()
@@ -348,6 +403,9 @@ void testProbePreservesGPRS()
                 CHECK_EQ(cpu.gpr(id), testWord(id));
             }
             for (auto id = CCallHelpers::firstFPRegister(); id <= CCallHelpers::lastFPRegister(); id = nextID(id))
+#if CPU(MIPS)
+                if (!(id & 1))
+#endif
                 CHECK_EQ(cpu.fpr<uint64_t>(id), testWord64(id));
         });
 
@@ -374,6 +432,9 @@ void testProbePreservesGPRS()
                 CHECK_EQ(cpu.gpr(id), originalState.gpr(id));
             }
             for (auto id = CCallHelpers::firstFPRegister(); id <= CCallHelpers::lastFPRegister(); id = nextID(id))
+#if CPU(MIPS)
+                if (!(id & 1))
+#endif
                 CHECK_EQ(cpu.fpr<uint64_t>(id), originalState.fpr<uint64_t>(id));
         });
 
@@ -389,7 +450,9 @@ void testProbeModifiesStackPointer(WTF::Function<void*(Probe::Context&)> compute
     CPUState originalState;
     void* originalSP { nullptr };
     void* modifiedSP { nullptr };
+#if !(CPU(MIPS))
     uintptr_t modifiedFlags { 0 };
+#endif
     
 #if CPU(X86) || CPU(X86_64)
     auto flagsSPR = X86Registers::eflags;
@@ -421,9 +484,11 @@ void testProbeModifiesStackPointer(WTF::Function<void*(Probe::Context&)> compute
                 cpu.fpr(id) = bitwise_cast<double>(testWord64(id));
             }
 
+#if !(CPU(MIPS))
             originalState.spr(flagsSPR) = cpu.spr(flagsSPR);
             modifiedFlags = originalState.spr(flagsSPR) ^ flagsMask;
             cpu.spr(flagsSPR) = modifiedFlags;
+#endif
 
             originalSP = cpu.sp();
             modifiedSP = computeModifiedStackPointer(context);
@@ -444,8 +509,13 @@ void testProbeModifiesStackPointer(WTF::Function<void*(Probe::Context&)> compute
                 CHECK_EQ(cpu.gpr(id), testWord(id));
             }
             for (auto id = CCallHelpers::firstFPRegister(); id <= CCallHelpers::lastFPRegister(); id = nextID(id))
+#if CPU(MIPS)
+                if (!(id & 1))
+#endif
                 CHECK_EQ(cpu.fpr<uint64_t>(id), testWord64(id));
+#if !(CPU(MIPS))
             CHECK_EQ(cpu.spr(flagsSPR) & flagsMask, modifiedFlags & flagsMask);
+#endif
             CHECK_EQ(cpu.sp(), modifiedSP);
         });
 
@@ -460,7 +530,9 @@ void testProbeModifiesStackPointer(WTF::Function<void*(Probe::Context&)> compute
             }
             for (auto id = CCallHelpers::firstFPRegister(); id <= CCallHelpers::lastFPRegister(); id = nextID(id))
                 cpu.fpr(id) = originalState.fpr(id);
+#if !(CPU(MIPS))
             cpu.spr(flagsSPR) = originalState.spr(flagsSPR);
+#endif
             cpu.sp() = originalSP;
         });
 
@@ -474,8 +546,13 @@ void testProbeModifiesStackPointer(WTF::Function<void*(Probe::Context&)> compute
                 CHECK_EQ(cpu.gpr(id), originalState.gpr(id));
             }
             for (auto id = CCallHelpers::firstFPRegister(); id <= CCallHelpers::lastFPRegister(); id = nextID(id))
+#if CPU(MIPS)
+                if (!(id & 1))
+#endif
                 CHECK_EQ(cpu.fpr<uint64_t>(id), originalState.fpr<uint64_t>(id));
+#if !(CPU(MIPS))
             CHECK_EQ(cpu.spr(flagsSPR) & flagsMask, originalState.spr(flagsSPR) & flagsMask);
+#endif
             CHECK_EQ(cpu.sp(), originalSP);
         });
 
@@ -588,9 +665,11 @@ void testProbeModifiesStackValues()
                 originalState.fpr(id) = cpu.fpr(id);
                 cpu.fpr(id) = bitwise_cast<double>(testWord64(id));
             }
+#if !(CPU(MIPS))
             originalState.spr(flagsSPR) = cpu.spr(flagsSPR);
             modifiedFlags = originalState.spr(flagsSPR) ^ flagsMask;
             cpu.spr(flagsSPR) = modifiedFlags;
+#endif
 
             // Ensure that we'll be writing over the regions of the stack where the Probe::State is.
             originalSP = cpu.sp();
@@ -624,8 +703,13 @@ void testProbeModifiesStackValues()
                 CHECK_EQ(cpu.gpr(id), testWord(id));
             }
             for (auto id = CCallHelpers::firstFPRegister(); id <= CCallHelpers::lastFPRegister(); id = nextID(id))
+#if CPU(MIPS)
+                if (!(id & 1))
+#endif
                 CHECK_EQ(cpu.fpr<uint64_t>(id), testWord64(id));
+#if !(CPU(MIPS))
             CHECK_EQ(cpu.spr(flagsSPR) & flagsMask, modifiedFlags & flagsMask);
+#endif
             CHECK_EQ(cpu.sp(), newSP);
 
             // Validate the stack values.
@@ -649,7 +733,9 @@ void testProbeModifiesStackValues()
             }
             for (auto id = CCallHelpers::firstFPRegister(); id <= CCallHelpers::lastFPRegister(); id = nextID(id))
                 cpu.fpr(id) = originalState.fpr(id);
+#if !(CPU(MIPS))
             cpu.spr(flagsSPR) = originalState.spr(flagsSPR);
+#endif
             cpu.sp() = originalSP;
         });
 
@@ -690,6 +776,22 @@ void run(const char* filter)
     };
 
     RUN(testSimple());
+    RUN(testGetEffectiveAddress(0xff00, 42, 8, CCallHelpers::TimesEight));
+    RUN(testGetEffectiveAddress(0xff00, -200, -300, CCallHelpers::TimesEight));
+    RUN(testBranchTruncateDoubleToInt32(0, 0));
+    RUN(testBranchTruncateDoubleToInt32(42, 42));
+    RUN(testBranchTruncateDoubleToInt32(42.7, 42));
+    RUN(testBranchTruncateDoubleToInt32(-1234, -1234));
+    RUN(testBranchTruncateDoubleToInt32(-1234.56, -1234));
+    RUN(testBranchTruncateDoubleToInt32(std::numeric_limits<double>::infinity(), 0));
+    RUN(testBranchTruncateDoubleToInt32(-std::numeric_limits<double>::infinity(), 0));
+    RUN(testBranchTruncateDoubleToInt32(std::numeric_limits<double>::quiet_NaN(), 0));
+    RUN(testBranchTruncateDoubleToInt32(std::numeric_limits<double>::signaling_NaN(), 0));
+    RUN(testBranchTruncateDoubleToInt32(std::numeric_limits<double>::max(), 0));
+    RUN(testBranchTruncateDoubleToInt32(-std::numeric_limits<double>::max(), 0));
+    // We run this last one to make sure that we don't use flags that were not
+    // reset to check a conversion result
+    RUN(testBranchTruncateDoubleToInt32(123, 123));
 
 #if ENABLE(MASM_PROBE)
     RUN(testProbeReadsArgumentRegisters());

@@ -121,11 +121,6 @@ void Cache::dispose()
 
 void Cache::clearMemoryRepresentation()
 {
-    for (auto& records : m_records.values()) {
-        for (auto& record : records)
-            removeRecordFromDisk(record);
-    }
-
     m_records = { };
     m_nextRecordIdentifier = 0;
     m_state = State::Uninitialized;
@@ -256,7 +251,7 @@ public:
     void appendRecord(Expected<Record, Error>&& result, uint64_t recordIdentifier, uint64_t updateCounter)
     {
         ASSERT(RunLoop::isMain());
-        if (!result.hasValue()) {
+        if (!result.has_value()) {
             m_failedRecords.append(recordIdentifier);
             return;
         }
@@ -492,7 +487,7 @@ void Cache::updateRecordToDisk(RecordInformation& existingRecord, Record&& recor
 {
     ++existingRecord.updateResponseCounter;
     readRecordFromDisk(existingRecord, [caches = makeRef(m_caches), identifier = m_identifier, recordIdentifier = existingRecord.identifier, record = WTFMove(record), taskCounter = WTFMove(taskCounter)](Expected<Record, Error>&& result) mutable {
-        if (!result.hasValue())
+        if (!result.has_value())
             return;
 
         auto* cache = caches->find(identifier);
@@ -539,7 +534,7 @@ Storage::Record Cache::encode(const RecordInformation& recordInformation, const 
     encoder << recordInformation.size;
     encoder << record.requestHeadersGuard;
     record.request.encodeWithoutPlatformData(encoder);
-    encoder << record.options;
+    record.options.encodePersistent(encoder);
     encoder << record.referrer;
 
     encoder << record.responseHeadersGuard;
@@ -580,7 +575,7 @@ std::optional<Cache::DecodedRecord> Cache::decodeRecordHeader(const Storage::Rec
     if (!record.request.decodeWithoutPlatformData(decoder))
         return std::nullopt;
 
-    if (!decoder.decode(record.options))
+    if (!FetchOptions::decodePersistent(decoder, record.options))
         return std::nullopt;
 
     if (!decoder.decode(record.referrer))

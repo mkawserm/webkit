@@ -36,9 +36,11 @@ namespace WebCore {
 
 class CacheStorageProvider;
 class ContentSecurityPolicyResponseHeaders;
+class ExtendableEvent;
 class MessagePortChannel;
 class SerializedScriptValue;
 class WorkerObjectProxy;
+struct ServiceWorkerClientData;
 struct ServiceWorkerClientIdentifier;
 struct ServiceWorkerContextData;
 
@@ -55,11 +57,13 @@ public:
     WorkerObjectProxy& workerObjectProxy() const { return m_workerObjectProxy; }
 
     WEBCORE_EXPORT void postFetchTask(Ref<ServiceWorkerFetch::Client>&&, ResourceRequest&&, FetchOptions&&);
-    WEBCORE_EXPORT void postMessageToServiceWorkerGlobalScope(Ref<SerializedScriptValue>&&, std::unique_ptr<MessagePortChannelArray>&&, const ServiceWorkerClientIdentifier& sourceIdentifier, const String& sourceOrigin);
+    WEBCORE_EXPORT void postFetchTask(Ref<ServiceWorkerFetch::Client>&&, std::optional<ServiceWorkerClientIdentifier>&&, ResourceRequest&&, FetchOptions&&);
+    WEBCORE_EXPORT void postMessageToServiceWorker(Ref<SerializedScriptValue>&&, std::unique_ptr<MessagePortChannelArray>&&, ServiceWorkerClientIdentifier sourceIdentifier, ServiceWorkerClientData&& sourceData);
+    WEBCORE_EXPORT void postMessageToServiceWorker(Ref<SerializedScriptValue>&&, std::unique_ptr<MessagePortChannelArray>&&, ServiceWorkerData&& sourceData);
+
     void fireInstallEvent();
     void fireActivateEvent();
 
-    uint64_t serverConnectionIdentifier() const { return m_serverConnectionIdentifier; }
     const ServiceWorkerContextData& contextData() const { return m_data; }
 
     ServiceWorkerIdentifier identifier() const { return m_data.serviceWorkerIdentifier; }
@@ -69,9 +73,8 @@ protected:
     void runEventLoop() override;
 
 private:
-    WEBCORE_EXPORT ServiceWorkerThread(uint64_t serverConnectionIdentifier, const ServiceWorkerContextData&, PAL::SessionID, WorkerLoaderProxy&, WorkerDebuggerProxy&);
+    WEBCORE_EXPORT ServiceWorkerThread(const ServiceWorkerContextData&, PAL::SessionID, String&& userAgent, WorkerLoaderProxy&, WorkerDebuggerProxy&, IDBClient::IDBConnectionProxy*, SocketProvider*);
 
-    uint64_t m_serverConnectionIdentifier;
     ServiceWorkerContextData m_data;
     WorkerObjectProxy& m_workerObjectProxy;
 };

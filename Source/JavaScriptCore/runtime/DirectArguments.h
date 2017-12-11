@@ -47,7 +47,7 @@ private:
     
 public:
     template<typename CellType>
-    static Subspace* subspaceFor(VM& vm)
+    static CompleteSubspace* subspaceFor(VM& vm)
     {
         RELEASE_ASSERT(!CellType::needsDestruction);
         return &vm.jsValueGigacageCellSpace;
@@ -170,7 +170,7 @@ public:
 private:
     WriteBarrier<Unknown>* storage()
     {
-        return bitwise_cast<WriteBarrier<Unknown>*>(bitwise_cast<char*>(Gigacage::caged(Gigacage::JSValue, this)) + storageOffset());
+        return bitwise_cast<WriteBarrier<Unknown>*>(bitwise_cast<char*>(this) + storageOffset());
     }
     
     unsigned mappedArgumentsSize();

@@ -26,6 +26,9 @@
 #include "config.h"
 #include "OffscreenCanvas.h"
 
+#include "ImageBitmap.h"
+#include "WebGLRenderingContext.h"
+
 namespace WebCore {
 
 Ref<OffscreenCanvas> OffscreenCanvas::create(ScriptExecutionContext& context, unsigned width, unsigned height)
@@ -34,8 +37,8 @@ Ref<OffscreenCanvas> OffscreenCanvas::create(ScriptExecutionContext& context, un
 }
 
 OffscreenCanvas::OffscreenCanvas(ScriptExecutionContext& context, unsigned width, unsigned height)
-    : m_size(width, height)
-    , m_scriptExecutionContext(context)
+    : CanvasBase(&context)
+    , m_size(width, height)
 {
 }
 
@@ -59,6 +62,76 @@ unsigned OffscreenCanvas::height() const
 void OffscreenCanvas::setHeight(unsigned newHeight)
 {
     return m_size.setHeight(newHeight);
+}
+
+const IntSize& OffscreenCanvas::size() const
+{
+    return m_size;
+}
+
+void OffscreenCanvas::setSize(const IntSize& newSize)
+{
+    m_size = newSize;
+}
+
+#if ENABLE(WEBGL)
+ExceptionOr<OffscreenRenderingContext> OffscreenCanvas::getContext(JSC::ExecState& state, RenderingContextType contextType, Vector<JSC::Strong<JSC::Unknown>>&& arguments)
+{
+    if (m_context && contextType == RenderingContextType::Webgl)
+        return { RefPtr<WebGLRenderingContext> { &downcast<WebGLRenderingContext>(*m_context) } };
+
+    if (contextType == RenderingContextType::Webgl) {
+        auto scope = DECLARE_THROW_SCOPE(state.vm());
+        auto attributes = convert<IDLDictionary<WebGLContextAttributes>>(state, !arguments.isEmpty() ? arguments[0].get() : JSC::jsUndefined());
+        RETURN_IF_EXCEPTION(scope, Exception { ExistingExceptionError });
+
+        m_context = WebGLRenderingContextBase::create(*this, attributes, "webgl");
+        if (!m_context)
+            return { nullptr };
+
+        return { RefPtr<WebGLRenderingContext> { &downcast<WebGLRenderingContext>(*m_context) } };
+    }
+
+    return { nullptr };
+}
+#endif
+
+RefPtr<ImageBitmap> OffscreenCanvas::transferToImageBitmap()
+{
+    if (!m_context)
+        return nullptr;
+
+#if ENABLE(WEBGL)
+    if (!is<WebGLRenderingContext>(*m_context))
+        return nullptr;
+
+    auto webGLContext = &downcast<WebGLRenderingContext>(*m_context);
+
+    // FIXME: We're supposed to create an ImageBitmap using the backing
+    // store from this canvas (or its context), but for now we'll just
+    // create a new bitmap and paint into it.
+
+    auto imageBitmap = ImageBitmap::create(m_size);
+    if (!imageBitmap->buffer())
+        return nullptr;
+
+    auto* gc3d = webGLContext->graphicsContext3D();
+    gc3d->paintRenderingResultsToCanvas(imageBitmap->buffer());
+
+    // FIXME: The transfer algorithm requires that the canvas effectively
+    // creates a new backing store. Since we're not doing that yet, we
+    // need to erase what's there.
+
+    GC3Dfloat clearColor[4];
+    gc3d->getFloatv(GraphicsContext3D::COLOR_CLEAR_VALUE, clearColor);
+    gc3d->clearColor(0, 0, 0, 0);
+    gc3d->clear(GraphicsContext3D::COLOR_BUFFER_BIT | GraphicsContext3D::DEPTH_BUFFER_BIT | GraphicsContext3D::STENCIL_BUFFER_BIT);
+    gc3d->clearColor(clearColor[0], clearColor[1], clearColor[2], clearColor[3]);
+
+    return WTFMove(imageBitmap);
+#else
+    return nullptr;
+#endif
 }
 
 }

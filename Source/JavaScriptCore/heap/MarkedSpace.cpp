@@ -132,9 +132,10 @@ const Vector<size_t>& sizeClasses()
             }
 
             // Manually inject size classes for objects we know will be allocated in high volume.
+            // FIXME: All of these things should have IsoSubspaces.
+            // https://bugs.webkit.org/show_bug.cgi?id=179876
             add(sizeof(UnlinkedFunctionExecutable));
             add(sizeof(UnlinkedFunctionCodeBlock));
-            add(sizeof(FunctionExecutable));
             add(sizeof(FunctionCodeBlock));
             add(sizeof(JSString));
             add(sizeof(JSFunction));
@@ -420,7 +421,7 @@ void MarkedSpace::endMarking()
                 handle->resetAllocated();
             });
     }
-        
+    
     m_newlyAllocatedVersion = nextVersion(m_newlyAllocatedVersion);
     
     for (unsigned i = m_largeAllocationsOffsetForThisCollection; i < m_largeAllocations.size(); ++i)
@@ -551,25 +552,13 @@ void MarkedSpace::dumpBits(PrintStream& out)
         });
 }
 
-MarkedAllocator* MarkedSpace::addMarkedAllocator(
-    const AbstractLocker&, Subspace* subspace, size_t sizeClass)
+void MarkedSpace::addMarkedAllocator(const AbstractLocker&, MarkedAllocator* allocator)
 {
-    MarkedAllocator* allocator = m_bagOfAllocators.add(heap(), subspace, sizeClass);
     allocator->setNextAllocator(nullptr);
     
     WTF::storeStoreFence();
 
-    if (!m_firstAllocator) {
-        m_firstAllocator = allocator;
-        m_lastAllocator = allocator;
-        for (Subspace* subspace : m_subspaces)
-            subspace->didCreateFirstAllocator(allocator);
-    } else {
-        m_lastAllocator->setNextAllocator(allocator);
-        m_lastAllocator = allocator;
-    }
-    
-    return allocator;
+    m_allocators.append(std::mem_fn(&MarkedAllocator::setNextAllocator), allocator);
 }
 
 } // namespace JSC

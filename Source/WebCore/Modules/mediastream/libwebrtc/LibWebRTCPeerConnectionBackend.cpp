@@ -54,9 +54,7 @@ CreatePeerConnectionBackend PeerConnectionBackend::create = createLibWebRTCPeerC
 
 static inline LibWebRTCProvider& libWebRTCProvider(RTCPeerConnection& peerConnection)
 {
-    ASSERT(peerConnection.scriptExecutionContext()->isDocument());
-    auto* page = static_cast<Document*>(peerConnection.scriptExecutionContext())->page();
-    return page->libWebRTCProvider();
+    return downcast<Document>(*peerConnection.scriptExecutionContext()).page()->libWebRTCProvider();
 }
 
 LibWebRTCPeerConnectionBackend::LibWebRTCPeerConnectionBackend(RTCPeerConnection& peerConnection)
@@ -194,6 +192,7 @@ void LibWebRTCPeerConnectionBackend::doStop()
 
     m_endpoint->stop();
 
+    m_statsPromises.clear();
     m_remoteStreams.clear();
     m_pendingReceivers.clear();
 }

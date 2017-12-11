@@ -48,6 +48,7 @@ namespace WebCore {
     M(Editing) \
     M(Events) \
     M(FileAPI) \
+    M(Filters) \
     M(Frames) \
     M(FTP) \
     M(Fullscreen) \
@@ -91,6 +92,7 @@ namespace WebCore {
     M(Tiling) \
     M(Threading) \
     M(URLParser) \
+    M(Viewports) \
     M(WebAudio) \
     M(WebGL) \
     M(WebGPU) \

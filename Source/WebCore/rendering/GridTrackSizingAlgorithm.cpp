@@ -28,6 +28,7 @@
 
 #include "Grid.h"
 #include "GridArea.h"
+#include "GridLayoutFunctions.h"
 #include "RenderGrid.h"
 
 namespace WebCore {
@@ -110,30 +111,9 @@ static void setOverrideContainingBlockContentSizeForChild(RenderBox& child, Grid
         child.setOverrideContainingBlockContentLogicalHeight(size);
 }
 
-static GridTrackSizingDirection flowAwareDirectionForChild(const RenderGrid* grid, const RenderBox& child, GridTrackSizingDirection direction)
-{
-    ASSERT(grid);
-    return !grid->isOrthogonalChild(child) ? direction : (direction == ForColumns ? ForRows : ForColumns);
-}
-
 static std::optional<LayoutUnit> overrideContainingBlockContentSizeForChild(const RenderBox& child, GridTrackSizingDirection direction)
 {
     return direction == ForColumns ? child.overrideContainingBlockContentLogicalWidth() : child.overrideContainingBlockContentLogicalHeight();
-}
-
-static LayoutUnit computeMarginLogicalSizeForChild(GridTrackSizingDirection direction, const RenderGrid& renderGrid, const RenderBox& child)
-{
-    if (!child.style().hasMargin())
-        return 0;
-
-    LayoutUnit marginStart;
-    LayoutUnit marginEnd;
-    if (direction == ForColumns)
-        child.computeInlineDirectionMargins(renderGrid, child.containingBlockLogicalWidthForContentInFragment(nullptr), child.logicalWidth(), marginStart, marginEnd);
-    else
-        child.computeBlockDirectionMargins(renderGrid, marginStart, marginEnd);
-
-    return marginStart + marginEnd;
 }
 
 // FIXME: we borrowed this from RenderBlock. We cannot call it from here because it's protected for RenderObjects.
@@ -564,7 +544,7 @@ void GridTrackSizingAlgorithm::distributeSpaceToTracks(Vector<GridTrack*>& track
 
 LayoutUnit GridTrackSizingAlgorithm::assumedRowsSizeForOrthogonalChild(const RenderBox& child) const
 {
-    ASSERT(m_renderGrid->isOrthogonalChild(child));
+    ASSERT(GridLayoutFunctions::isOrthogonalChild(*m_renderGrid, child));
     const GridSpan& span = m_grid.gridItemSpan(child, ForRows);
     LayoutUnit gridAreaSize;
     bool gridAreaIsIndefinite = false;
@@ -722,7 +702,7 @@ void GridTrackSizingAlgorithm::computeGridContainerIntrinsicSizes()
 // GridTrackSizingAlgorithmStrategy.
 LayoutUnit GridTrackSizingAlgorithmStrategy::logicalHeightForChild(RenderBox& child) const
 {
-    GridTrackSizingDirection childBlockDirection = flowAwareDirectionForChild(renderGrid(), child, ForRows);
+    GridTrackSizingDirection childBlockDirection = GridLayoutFunctions::flowAwareDirectionForChild(*renderGrid(), child, ForRows);
     // If |child| has a relative logical height, we shouldn't let it override its intrinsic height, which is
     // what we are interested in here. Thus we need to set the block-axis override size to -1 (no possible resolution).
     if (shouldClearOverrideContainingBlockContentSizeForChild(child, ForRows)) {
@@ -735,17 +715,16 @@ LayoutUnit GridTrackSizingAlgorithmStrategy::logicalHeightForChild(RenderBox& ch
         child.clearOverrideLogicalContentHeight();
 
     child.layoutIfNeeded();
-    return child.logicalHeight() + child.marginLogicalHeight();
+    return child.logicalHeight() + GridLayoutFunctions::marginLogicalSizeForChild(*renderGrid(), childBlockDirection, child);
 }
 
 LayoutUnit GridTrackSizingAlgorithmStrategy::minContentForChild(RenderBox& child) const
 {
-    GridTrackSizingDirection childInlineDirection = flowAwareDirectionForChild(renderGrid(), child, ForColumns);
+    GridTrackSizingDirection childInlineDirection = GridLayoutFunctions::flowAwareDirectionForChild(*renderGrid(), child, ForColumns);
     if (direction() == childInlineDirection) {
         // FIXME: It's unclear if we should return the intrinsic width or the preferred width.
         // See http://lists.w3.org/Archives/Public/www-style/2013Jan/0245.html
-        LayoutUnit marginLogicalWidth = child.needsLayout() ? computeMarginLogicalSizeForChild(childInlineDirection, *renderGrid(), child) : child.marginLogicalWidth();
-        return child.minPreferredLogicalWidth() + marginLogicalWidth;
+        return child.minPreferredLogicalWidth() + GridLayoutFunctions::marginLogicalSizeForChild(*renderGrid(), childInlineDirection, child);
     }
 
     if (updateOverrideContainingBlockContentSizeForChild(child, childInlineDirection))
@@ -755,12 +734,11 @@ LayoutUnit GridTrackSizingAlgorithmStrategy::minContentForChild(RenderBox& child
 
 LayoutUnit GridTrackSizingAlgorithmStrategy::maxContentForChild(RenderBox& child) const
 {
-    GridTrackSizingDirection childInlineDirection = flowAwareDirectionForChild(renderGrid(), child, ForColumns);
+    GridTrackSizingDirection childInlineDirection = GridLayoutFunctions::flowAwareDirectionForChild(*renderGrid(), child, ForColumns);
     if (direction() == childInlineDirection) {
         // FIXME: It's unclear if we should return the intrinsic width or the preferred width.
         // See http://lists.w3.org/Archives/Public/www-style/2013Jan/0245.html
-        LayoutUnit marginLogicalWidth = child.needsLayout() ? computeMarginLogicalSizeForChild(childInlineDirection, *renderGrid(), child) : child.marginLogicalWidth();
-        return child.maxPreferredLogicalWidth() + marginLogicalWidth;
+        return child.maxPreferredLogicalWidth() + GridLayoutFunctions::marginLogicalSizeForChild(*renderGrid(), childInlineDirection, child);
     }
 
     if (updateOverrideContainingBlockContentSizeForChild(child, childInlineDirection))
@@ -770,7 +748,7 @@ LayoutUnit GridTrackSizingAlgorithmStrategy::maxContentForChild(RenderBox& child
 
 LayoutUnit GridTrackSizingAlgorithmStrategy::minSizeForChild(RenderBox& child) const
 {
-    GridTrackSizingDirection childInlineDirection = flowAwareDirectionForChild(renderGrid(), child, ForColumns);
+    GridTrackSizingDirection childInlineDirection = GridLayoutFunctions::flowAwareDirectionForChild(*renderGrid(), child, ForColumns);
     bool isRowAxis = direction() == childInlineDirection;
     const Length& childMinSize = isRowAxis ? child.style().logicalMinWidth() : child.style().logicalMinHeight();
     const Length& childSize = isRowAxis ? child.style().logicalWidth() : child.style().logicalHeight();
@@ -811,6 +789,7 @@ private:
     void maximizeTracks(Vector<GridTrack>&, std::optional<LayoutUnit>& freeSpace) override;
     double findUsedFlexFraction(Vector<unsigned>& flexibleSizedTracksIndex, GridTrackSizingDirection, std::optional<LayoutUnit> freeSpace) const override;
     bool recomputeUsedFlexFractionIfNeeded(double& flexFraction, LayoutUnit& totalGrowth) const override;
+    LayoutUnit freeSpaceForStretchAutoTracksStep() const override;
 };
 
 LayoutUnit IndefiniteSizeStrategy::minLogicalWidthForChild(RenderBox& child, Length childMinSize, LayoutUnit availableSize) const
@@ -908,12 +887,23 @@ private:
     void maximizeTracks(Vector<GridTrack>&, std::optional<LayoutUnit>& freeSpace) override;
     double findUsedFlexFraction(Vector<unsigned>& flexibleSizedTracksIndex, GridTrackSizingDirection, std::optional<LayoutUnit> freeSpace) const override;
     bool recomputeUsedFlexFractionIfNeeded(double& flexFraction, LayoutUnit& totalGrowth) const override;
+    LayoutUnit freeSpaceForStretchAutoTracksStep() const override;
 };
+
+LayoutUnit IndefiniteSizeStrategy::freeSpaceForStretchAutoTracksStep() const
+{
+    ASSERT(!m_algorithm.freeSpace(direction()));
+    if (direction() == ForColumns)
+        return LayoutUnit();
+
+    auto minSize = renderGrid()->computeContentLogicalHeight(MinSize, renderGrid()->style().logicalMinHeight(), std::nullopt);
+    return minSize.value() - computeTrackBasedSize();
+}
 
 LayoutUnit DefiniteSizeStrategy::minLogicalWidthForChild(RenderBox& child, Length childMinSize, LayoutUnit availableSize) const
 {
     LayoutUnit marginLogicalWidth =
-        computeMarginLogicalSizeForChild(flowAwareDirectionForChild(renderGrid(), child, ForColumns), *renderGrid(), child);
+        GridLayoutFunctions::computeMarginLogicalSizeForChild(*renderGrid(), ForColumns, child);
     return child.computeLogicalWidthInFragmentUsing(MinSize, childMinSize, availableSize, *renderGrid(), nullptr) + marginLogicalWidth;
 }
 
@@ -946,6 +936,11 @@ double DefiniteSizeStrategy::findUsedFlexFraction(Vector<unsigned>&, GridTrackSi
     GridSpan allTracksSpan = GridSpan::translatedDefiniteGridSpan(0, m_algorithm.tracks(direction).size());
     ASSERT(freeSpace);
     return findFrUnitSize(allTracksSpan, freeSpace.value());
+}
+
+LayoutUnit DefiniteSizeStrategy::freeSpaceForStretchAutoTracksStep() const
+{
+    return m_algorithm.freeSpace(direction()).value();
 }
 
 bool DefiniteSizeStrategy::recomputeUsedFlexFractionIfNeeded(double& flexFraction, LayoutUnit& totalGrowth) const
@@ -1062,16 +1057,14 @@ void GridTrackSizingAlgorithm::stretchFlexibleTracks(std::optional<LayoutUnit> f
 
 void GridTrackSizingAlgorithm::stretchAutoTracks()
 {
-    auto currentFreeSpace = freeSpace(m_direction);
-    if (m_autoSizedTracksForStretchIndex.isEmpty()
-        || !currentFreeSpace
-        || currentFreeSpace.value() <= 0
+    auto currentFreeSpace = m_strategy->freeSpaceForStretchAutoTracksStep();
+    if (m_autoSizedTracksForStretchIndex.isEmpty() || currentFreeSpace <= 0
         || (m_renderGrid->contentAlignment(m_direction).distribution() != ContentDistributionStretch))
         return;
 
     Vector<GridTrack>& allTracks = tracks(m_direction);
     unsigned numberOfAutoSizedTracks = m_autoSizedTracksForStretchIndex.size();
-    LayoutUnit sizeToIncrease = currentFreeSpace.value() / numberOfAutoSizedTracks;
+    LayoutUnit sizeToIncrease = currentFreeSpace / numberOfAutoSizedTracks;
     for (const auto& trackIndex : m_autoSizedTracksForStretchIndex) {
         auto& track = allTracks[trackIndex];
         track.setBaseSize(track.baseSize() + sizeToIncrease);

@@ -35,7 +35,7 @@ namespace WebKit {
 
 class PluginView;
 class WebFrame;
-struct WebsitePolicies;
+class WebsitePolicies;
     
 class WebFrameLoaderClient final : public WebCore::FrameLoaderClient {
 public:
@@ -261,6 +261,10 @@ private:
 
     void getLoadDecisionForIcons(const Vector<std::pair<WebCore::LinkIcon&, uint64_t>>&) final;
     void finishedLoadingIcon(uint64_t callbackIdentifier, WebCore::SharedBuffer*) final;
+
+#if ENABLE(APPLICATION_MANIFEST)
+    void finishedLoadingApplicationManifest(uint64_t, const std::optional<WebCore::ApplicationManifest>&) final;
+#endif
 
     WebFrame* m_frame;
     RefPtr<PluginView> m_pluginView;

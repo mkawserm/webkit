@@ -1178,13 +1178,6 @@ EncodedJSValue JIT_OPERATION operationNewArrayWithProfile(ExecState* exec, Array
     return JSValue::encode(constructArrayNegativeIndexed(exec, profile, values, size));
 }
 
-EncodedJSValue JIT_OPERATION operationNewArrayBufferWithProfile(ExecState* exec, ArrayAllocationProfile* profile, const JSValue* values, int size)
-{
-    VM* vm = &exec->vm();
-    NativeCallFrameTracer tracer(vm, exec);
-    return JSValue::encode(constructArray(exec, profile, values, size));
-}
-
 EncodedJSValue JIT_OPERATION operationNewArrayWithSizeAndProfile(ExecState* exec, ArrayAllocationProfile* profile, EncodedJSValue size)
 {
     VM* vm = &exec->vm();
@@ -2398,14 +2391,6 @@ EncodedJSValue JIT_OPERATION operationHasGenericProperty(ExecState* exec, Encode
     return JSValue::encode(jsBoolean(base->hasPropertyGeneric(exec, asString(propertyName)->toIdentifier(exec), PropertySlot::InternalMethodType::GetOwnProperty)));
 }
 
-EncodedJSValue JIT_OPERATION operationHasIndexedProperty(ExecState* exec, JSCell* baseCell, int32_t subscript, int32_t internalMethodType)
-{
-    VM& vm = exec->vm();
-    NativeCallFrameTracer tracer(&vm, exec);
-    JSObject* object = baseCell->toObject(exec, exec->lexicalGlobalObject());
-    return JSValue::encode(jsBoolean(object->hasPropertyGeneric(exec, subscript, static_cast<PropertySlot::InternalMethodType>(internalMethodType))));
-}
-    
 JSCell* JIT_OPERATION operationGetPropertyEnumerator(ExecState* exec, JSCell* cell)
 {
     VM& vm = exec->vm();

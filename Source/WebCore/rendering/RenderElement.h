@@ -99,9 +99,8 @@ public:
     void moveLayers(RenderLayer* oldParent, RenderLayer* newParent);
     RenderLayer* findNextLayer(RenderLayer* parentLayer, RenderObject* startPoint, bool checkParent = true);
 
-    enum NotifyChildrenType { NotifyChildren, DontNotifyChildren };
-    void insertChildInternal(RenderPtr<RenderObject>, RenderObject* beforeChild, NotifyChildrenType);
-    RenderPtr<RenderObject> takeChildInternal(RenderObject&, NotifyChildrenType) WARN_UNUSED_RETURN;
+    void insertChildInternal(RenderPtr<RenderObject>, RenderObject* beforeChild);
+    RenderPtr<RenderObject> takeChildInternal(RenderObject&) WARN_UNUSED_RETURN;
 
     virtual RenderElement* hoverAncestor() const;
 
@@ -230,6 +229,8 @@ public:
     bool isFirstLetter() const { return m_isFirstLetter; }
     void setIsFirstLetter() { m_isFirstLetter = true; }
 
+    void destroyLeftoverChildren();
+
 protected:
     enum BaseTypeFlag {
         RenderLayerModelObjectFlag  = 1 << 0,
@@ -255,7 +256,6 @@ protected:
 
     void setFirstChild(RenderObject* child) { m_firstChild = child; }
     void setLastChild(RenderObject* child) { m_lastChild = child; }
-    void destroyLeftoverChildren();
 
     virtual void styleWillChange(StyleDifference, const RenderStyle& newStyle);
     virtual void styleDidChange(StyleDifference, const RenderStyle* oldStyle);

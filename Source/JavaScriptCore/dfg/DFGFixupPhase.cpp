@@ -200,6 +200,14 @@ private:
                 node,
                 [&] (Edge& edge) {
                     fixEdge<KnownPrimitiveUse>(edge);
+                    // StrCat automatically coerces the values into strings before concatenating them.
+                    // The ECMA spec says that we're not allowed to automatically coerce a Symbol into
+                    // a string. If a Symbol is encountered, a TypeError will be thrown. As a result,
+                    // our runtime functions for this slow path expect that they will never be passed
+                    // Symbols.
+                    m_insertionSet.insertNode(
+                        m_indexInBlock, SpecNone, Check, node->origin,
+                        Edge(edge.node(), NotSymbolUse));
                 });
             break;
         }
@@ -1467,8 +1475,7 @@ private:
         case CheckStructure:
         case CheckCell:
         case CreateThis:
-        case GetButterfly:
-        case GetButterflyWithoutCaging: {
+        case GetButterfly: {
             fixEdge<CellUse>(node->child1());
             break;
         }
@@ -1932,10 +1939,27 @@ private:
             break;
         }
 
+        case NormalizeMapKey: {
+            fixupNormalizeMapKey(node);
+            break;
+        }
+
         case WeakMapGet: {
             fixEdge<WeakMapObjectUse>(node->child1());
             fixEdge<ObjectUse>(node->child2());
             fixEdge<Int32Use>(node->child3());
+            break;
+        }
+
+        case SetAdd: {
+            fixEdge<SetObjectUse>(node->child1());
+            fixEdge<Int32Use>(node->child3());
+            break;
+        }
+
+        case MapSet: {
+            fixEdge<MapObjectUse>(m_graph.varArgChild(node, 0));
+            fixEdge<Int32Use>(m_graph.varArgChild(node, 3));
             break;
         }
 
@@ -2063,7 +2087,6 @@ private:
         case GetArgument:
         case Flush:
         case PhantomLocal:
-        case GetLocalUnlinked:
         case GetGlobalVar:
         case GetGlobalLexicalVariable:
         case NotifyWrite:
@@ -2125,6 +2148,7 @@ private:
         case CompareEqPtr:
         case NumberToStringWithValidRadixConstant:
         case GetGlobalThis:
+        case CPUIntrinsic:
             break;
 #else
         default:
@@ -3181,6 +3205,47 @@ private:
 
         fixEdge<CellUse>(node->child1());
         fixEdge<Int32Use>(node->child2());
+    }
+
+    void fixupNormalizeMapKey(Node* node)
+    {
+        if (node->child1()->shouldSpeculateBoolean()) {
+            fixEdge<BooleanUse>(node->child1());
+            node->convertToIdentity();
+            return;
+        }
+
+        if (node->child1()->shouldSpeculateInt32()) {
+            fixEdge<Int32Use>(node->child1());
+            node->convertToIdentity();
+            return;
+        }
+
+        if (node->child1()->shouldSpeculateSymbol()) {
+            fixEdge<SymbolUse>(node->child1());
+            node->convertToIdentity();
+            return;
+        }
+
+        if (node->child1()->shouldSpeculateObject()) {
+            fixEdge<ObjectUse>(node->child1());
+            node->convertToIdentity();
+            return;
+        }
+
+        if (node->child1()->shouldSpeculateString()) {
+            fixEdge<StringUse>(node->child1());
+            node->convertToIdentity();
+            return;
+        }
+
+        if (node->child1()->shouldSpeculateCell()) {
+            fixEdge<CellUse>(node->child1());
+            node->convertToIdentity();
+            return;
+        }
+
+        fixEdge<UntypedUse>(node->child1());
     }
 
     bool attemptToMakeCallDOM(Node* node)

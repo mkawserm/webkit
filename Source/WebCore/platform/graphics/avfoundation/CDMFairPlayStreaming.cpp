@@ -37,10 +37,10 @@
 #include "ISOTrackEncryptionBox.h"
 #include "InitDataRegistry.h"
 #include "NotImplemented.h"
-#include "inspector/InspectorValues.h"
 #include <runtime/ArrayBuffer.h>
 #include <runtime/DataView.h>
 #include <wtf/Algorithms.h>
+#include <wtf/JSONValues.h>
 #include <wtf/NeverDestroyed.h>
 #include <wtf/text/Base64.h>
 
@@ -48,9 +48,24 @@
 #include "CDMInstanceFairPlayStreamingAVFObjC.h"
 #endif
 
-using namespace Inspector;
-
 namespace WebCore {
+
+static const Vector<FourCC>& validFairPlayStreamingSchemes()
+{
+    static NeverDestroyed<Vector<FourCC>> validSchemes = Vector<FourCC>({ 
+        "cbcs",
+        "cbc2",
+        "cbc1",
+    });
+
+    return validSchemes;
+}
+
+static const String& sinfName()
+{
+    static NeverDestroyed<String> sinf { MAKE_STATIC_STRING_IMPL("sinf") };
+    return sinf;
+}
 
 static Vector<Ref<SharedBuffer>> extractSinfData(const SharedBuffer& buffer)
 {
@@ -59,16 +74,16 @@ static Vector<Ref<SharedBuffer>> extractSinfData(const SharedBuffer& buffer)
         return { };
     String json { buffer.data(), static_cast<unsigned>(buffer.size()) };
 
-    RefPtr<InspectorValue> value;
-    if (!InspectorValue::parseJSON(json, value))
+    RefPtr<JSON::Value> value;
+    if (!JSON::Value::parseJSON(json, value))
         return { };
 
-    RefPtr<InspectorObject> object;
+    RefPtr<JSON::Object> object;
     if (!value->asObject(object))
         return { };
 
-    RefPtr<InspectorArray> sinfArray;
-    if (!object->getArray("sinf", sinfArray))
+    RefPtr<JSON::Array> sinfArray;
+    if (!object->getArray(sinfName(), sinfArray))
         return { };
 
     Vector<Ref<SharedBuffer>> sinfs;
@@ -136,28 +151,21 @@ static SchemeAndKeyResult extractSchemeAndKeyIdFromSinf(const SharedBuffer& buff
     return result;
 }
 
-static Vector<Ref<SharedBuffer>> extractKeyIDsSinf(const SharedBuffer& buffer)
+Vector<Ref<SharedBuffer>> CDMPrivateFairPlayStreaming::extractKeyIDsSinf(const SharedBuffer& buffer)
 {
-    auto sinfs = extractSinfData(buffer);
-    if (sinfs.isEmpty())
-        return { };
 
     Vector<Ref<SharedBuffer>> keyIDs;
-    for (auto& sinf : sinfs) {
-        auto results = extractSchemeAndKeyIdFromSinf(sinf);
-        if (!results.size())
-            continue;
+    auto results = extractSchemeAndKeyIdFromSinf(buffer);
 
-        for (auto& result : results) {
-            if (result.first == 'cbcs')
-                keyIDs.append(SharedBuffer::create(result.second.data(), result.second.size()));
-        }
+    for (auto& result : results) {
+        if (validFairPlayStreamingSchemes().contains(result.first))
+            keyIDs.append(SharedBuffer::create(result.second.data(), result.second.size()));
     }
 
     return keyIDs;
 }
 
-static RefPtr<SharedBuffer> sanitizeSinf(const SharedBuffer& buffer)
+RefPtr<SharedBuffer> CDMPrivateFairPlayStreaming::sanitizeSinf(const SharedBuffer& buffer)
 {
     // Common SINF Box Format
     UNUSED_PARAM(buffer);
@@ -170,7 +178,7 @@ void CDMFactory::platformRegisterFactories(Vector<CDMFactory*>& factories)
     factories.append(&CDMFactoryClearKey::singleton());
     factories.append(&CDMFactoryFairPlayStreaming::singleton());
 
-    InitDataRegistry::shared().registerInitDataType("sinf", { sanitizeSinf, extractKeyIDsSinf });
+    InitDataRegistry::shared().registerInitDataType(sinfName(), { CDMPrivateFairPlayStreaming::sanitizeSinf, CDMPrivateFairPlayStreaming::extractKeyIDsSinf });
 }
 
 CDMFactoryFairPlayStreaming& CDMFactoryFairPlayStreaming::singleton()
@@ -202,12 +210,12 @@ CDMPrivateFairPlayStreaming::~CDMPrivateFairPlayStreaming() = default;
 
 bool CDMPrivateFairPlayStreaming::supportsInitDataType(const AtomicString& initDataType) const
 {
-    return initDataType == "sinf";
+    return initDataType == sinfName();
 }
 
 bool CDMPrivateFairPlayStreaming::supportsConfiguration(const CDMKeySystemConfiguration& configuration) const
 {
-    if (!configuration.initDataTypes.contains("sinf"))
+    if (!configuration.initDataTypes.contains(sinfName()))
         return false;
 
 #if HAVE(AVCONTENTKEYSESSION)
@@ -323,7 +331,7 @@ bool CDMPrivateFairPlayStreaming::supportsInitData(const AtomicString& initDataT
         return false;
 
     return WTF::anyOf(extractSchemeAndKeyIdFromSinf(initData), [](auto& result) {
-        return result.first == 'cbcs' || result.first == 'cbc2' || result.first == 'cbc1';
+        return validFairPlayStreamingSchemes().contains(result.first);
     });
 }
 

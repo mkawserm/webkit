@@ -35,6 +35,7 @@
 namespace WebCore {
 
 class SWServerJobQueue {
+    WTF_MAKE_FAST_ALLOCATED;
 public:
     explicit SWServerJobQueue(SWServer&, const ServiceWorkerRegistrationKey&);
     SWServerJobQueue(const SWServerRegistration&) = delete;
@@ -48,11 +49,10 @@ public:
     void runNextJob();
 
     void scriptFetchFinished(SWServer::Connection&, const ServiceWorkerFetchResult&);
-    void scriptContextFailedToStart(SWServer::Connection&, ServiceWorkerIdentifier, const String& message);
-    void scriptContextStarted(SWServer::Connection&, ServiceWorkerIdentifier);
-    void didFinishInstall(SWServer::Connection&, ServiceWorkerIdentifier, bool wasSuccessful);
-    static void didFinishActivation(SWServerRegistration&, ServiceWorkerIdentifier);
-    void didResolveRegistrationPromise(SWServer::Connection&);
+    void scriptContextFailedToStart(const ServiceWorkerJobDataIdentifier&, ServiceWorkerIdentifier, const String& message);
+    void scriptContextStarted(const ServiceWorkerJobDataIdentifier&, ServiceWorkerIdentifier);
+    void didFinishInstall(const ServiceWorkerJobDataIdentifier&, ServiceWorkerIdentifier, bool wasSuccessful);
+    void didResolveRegistrationPromise();
 
 private:
     void jobTimerFired();
@@ -64,11 +64,9 @@ private:
     void runUnregisterJob(const ServiceWorkerJobData&);
     void runUpdateJob(const ServiceWorkerJobData&);
 
-    void tryClearRegistration(SWServerRegistration&);
-    void clearRegistration(SWServerRegistration&);
-    void install(SWServerRegistration&, SWServer::Connection&, ServiceWorkerIdentifier);
-    static void tryActivate(SWServer&, SWServer::Connection&, SWServerRegistration&);
-    static void activate(SWServer&, SWServer::Connection&, SWServerRegistration&);
+    void install(SWServerRegistration&, ServiceWorkerIdentifier);
+
+    bool isCurrentlyProcessingJob(const ServiceWorkerJobDataIdentifier&) const;
 
     Deque<ServiceWorkerJobData> m_jobQueue;
 

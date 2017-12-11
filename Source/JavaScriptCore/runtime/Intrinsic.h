@@ -84,11 +84,13 @@ enum Intrinsic {
     BoundThisNoArgsFunctionCallIntrinsic,
     JSMapGetIntrinsic,
     JSMapHasIntrinsic,
+    JSMapSetIntrinsic,
     JSMapBucketHeadIntrinsic,
     JSMapBucketNextIntrinsic,
     JSMapBucketKeyIntrinsic,
     JSMapBucketValueIntrinsic,
     JSSetHasIntrinsic,
+    JSSetAddIntrinsic,
     JSSetBucketHeadIntrinsic,
     JSSetBucketNextIntrinsic,
     JSSetBucketKeyIntrinsic,
@@ -122,6 +124,12 @@ enum Intrinsic {
     SetInt32HeapPredictionIntrinsic,
     CheckInt32Intrinsic,
     FiatInt52Intrinsic,
+
+    // These are used for $vm performance debugging features.
+    CPUMfenceIntrinsic,
+    CPURdtscIntrinsic,
+    CPUCpuidIntrinsic,
+    CPUPauseIntrinsic,
 };
 
 const char* intrinsicName(Intrinsic);

@@ -96,8 +96,6 @@ set(WebKit_SYSTEM_INCLUDE_DIRECTORIES
 )
 
 set(WebKit_SOURCES
-    NetworkProcess/CustomProtocols/LegacyCustomProtocolManager.cpp
-
     NetworkProcess/Downloads/BlobDownloadClient.cpp
     NetworkProcess/Downloads/Download.cpp
     NetworkProcess/Downloads/DownloadManager.cpp
@@ -184,6 +182,7 @@ set(WebKit_SOURCES
     Shared/SharedStringHashTableReadOnly.cpp
     Shared/SharedStringHashTable.cpp
     Shared/StatisticsData.cpp
+    Shared/URLSchemeTaskParameters.cpp
     Shared/UpdateInfo.cpp
     Shared/UserData.cpp
     Shared/WebBackForwardListItem.cpp
@@ -424,8 +423,6 @@ set(WebKit_SOURCES
 
     UIProcess/Launcher/ProcessLauncher.cpp
 
-    UIProcess/Network/CustomProtocols/LegacyCustomProtocolManagerProxy.cpp
-
     UIProcess/Network/NetworkProcessProxy.cpp
 
     UIProcess/Notifications/NotificationPermissionRequestManagerProxy.cpp
@@ -598,14 +595,12 @@ set(WebKit_SOURCES
 )
 
 set(WebKit_MESSAGES_IN_FILES
-    NetworkProcess/cache/CacheStorageEngineConnection.messages.in
-
-    NetworkProcess/CustomProtocols/LegacyCustomProtocolManager.messages.in
-
     NetworkProcess/NetworkConnectionToWebProcess.messages.in
     NetworkProcess/NetworkProcess.messages.in
     NetworkProcess/NetworkResourceLoader.messages.in
     NetworkProcess/NetworkSocketStream.messages.in
+
+    NetworkProcess/cache/CacheStorageEngineConnection.messages.in
 
     NetworkProcess/webrtc/NetworkRTCMonitor.messages.in
     NetworkProcess/webrtc/NetworkRTCProvider.messages.in
@@ -647,8 +642,6 @@ set(WebKit_MESSAGES_IN_FILES
     UIProcess/Downloads/DownloadProxy.messages.in
 
     UIProcess/Network/NetworkProcessProxy.messages.in
-
-    UIProcess/Network/CustomProtocols/LegacyCustomProtocolManagerProxy.messages.in
 
     UIProcess/Plugins/PluginProcessProxy.messages.in
 

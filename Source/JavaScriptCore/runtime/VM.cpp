@@ -39,6 +39,7 @@
 #include "CommonSlowPaths.h"
 #include "CustomGetterSetter.h"
 #include "DFGWorklist.h"
+#include "DirectEvalExecutable.h"
 #include "Disassembler.h"
 #include "ErrorInstance.h"
 #include "EvalCodeBlock.h"
@@ -47,6 +48,7 @@
 #include "FastMallocAlignedMemoryAllocator.h"
 #include "FunctionCodeBlock.h"
 #include "FunctionConstructor.h"
+#include "FunctionExecutable.h"
 #include "GCActivityCallback.h"
 #include "GetterSetter.h"
 #include "GigacageAlignedMemoryAllocator.h"
@@ -57,6 +59,7 @@
 #include "HostCallReturnValue.h"
 #include "Identifier.h"
 #include "IncrementalSweeper.h"
+#include "IndirectEvalExecutable.h"
 #include "InferredTypeTable.h"
 #include "Interpreter.h"
 #include "JITCode.h"
@@ -64,6 +67,7 @@
 #include "JSAPIValueWrapper.h"
 #include "JSArray.h"
 #include "JSCInlines.h"
+#include "JSDestructibleObjectHeapCellType.h"
 #include "JSFixedArray.h"
 #include "JSFunction.h"
 #include "JSGlobalObjectFunctions.h"
@@ -73,24 +77,30 @@
 #include "JSMapIterator.h"
 #include "JSPromiseDeferred.h"
 #include "JSPropertyNameEnumerator.h"
+#include "JSSegmentedVariableObjectHeapCellType.h"
 #include "JSScriptFetchParameters.h"
 #include "JSScriptFetcher.h"
 #include "JSSet.h"
 #include "JSSetIterator.h"
 #include "JSSourceCode.h"
+#include "JSStringHeapCellType.h"
 #include "JSTemplateRegistryKey.h"
 #include "JSWebAssembly.h"
+#include "JSWebAssemblyCodeBlockHeapCellType.h"
 #include "JSWithScope.h"
 #include "LLIntData.h"
 #include "Lexer.h"
 #include "Lookup.h"
 #include "MinimumReservedZoneSize.h"
 #include "ModuleProgramCodeBlock.h"
+#include "ModuleProgramExecutable.h"
+#include "NativeExecutable.h"
 #include "NativeStdFunctionCell.h"
 #include "Nodes.h"
 #include "Parser.h"
 #include "ProfilerDatabase.h"
 #include "ProgramCodeBlock.h"
+#include "ProgramExecutable.h"
 #include "PromiseDeferredTimer.h"
 #include "PropertyMapHashTable.h"
 #include "RegExpCache.h"
@@ -171,18 +181,35 @@ VM::VM(VMType vmType, HeapType heapType)
     , fastMallocAllocator(std::make_unique<FastMallocAlignedMemoryAllocator>())
     , primitiveGigacageAllocator(std::make_unique<GigacageAlignedMemoryAllocator>(Gigacage::Primitive))
     , jsValueGigacageAllocator(std::make_unique<GigacageAlignedMemoryAllocator>(Gigacage::JSValue))
-    , primitiveGigacageAuxiliarySpace("Primitive Gigacage Auxiliary", heap, AllocatorAttributes(DoesNotNeedDestruction, HeapCell::Auxiliary), primitiveGigacageAllocator.get())
-    , jsValueGigacageAuxiliarySpace("JSValue Gigacage Auxiliary", heap, AllocatorAttributes(DoesNotNeedDestruction, HeapCell::Auxiliary), jsValueGigacageAllocator.get())
-    , cellSpace("JSCell", heap, AllocatorAttributes(DoesNotNeedDestruction, HeapCell::JSCell), fastMallocAllocator.get())
-    , jsValueGigacageCellSpace("JSValue Gigacage JSCell", heap, AllocatorAttributes(DoesNotNeedDestruction, HeapCell::JSCell), jsValueGigacageAllocator.get())
-    , destructibleCellSpace("Destructible JSCell", heap, AllocatorAttributes(NeedsDestruction, HeapCell::JSCell), fastMallocAllocator.get())
-    , stringSpace("JSString", heap, fastMallocAllocator.get())
-    , destructibleObjectSpace("JSDestructibleObject", heap, fastMallocAllocator.get())
-    , eagerlySweptDestructibleObjectSpace("Eagerly Swept JSDestructibleObject", heap, fastMallocAllocator.get())
-    , segmentedVariableObjectSpace("JSSegmentedVariableObjectSpace", heap, fastMallocAllocator.get())
+    , auxiliaryHeapCellType(std::make_unique<HeapCellType>(AllocatorAttributes(DoesNotNeedDestruction, HeapCell::Auxiliary)))
+    , cellHeapCellType(std::make_unique<HeapCellType>(AllocatorAttributes(DoesNotNeedDestruction, HeapCell::JSCell)))
+    , destructibleCellHeapCellType(std::make_unique<HeapCellType>(AllocatorAttributes(NeedsDestruction, HeapCell::JSCell)))
+    , stringHeapCellType(std::make_unique<JSStringHeapCellType>())
+    , destructibleObjectHeapCellType(std::make_unique<JSDestructibleObjectHeapCellType>())
+    , segmentedVariableObjectHeapCellType(std::make_unique<JSSegmentedVariableObjectHeapCellType>())
 #if ENABLE(WEBASSEMBLY)
-    , webAssemblyCodeBlockSpace("JSWebAssemblyCodeBlockSpace", heap, fastMallocAllocator.get())
+    , webAssemblyCodeBlockHeapCellType(std::make_unique<JSWebAssemblyCodeBlockHeapCellType>())
 #endif
+    , primitiveGigacageAuxiliarySpace("Primitive Gigacage Auxiliary", heap, auxiliaryHeapCellType.get(), primitiveGigacageAllocator.get())
+    , jsValueGigacageAuxiliarySpace("JSValue Gigacage Auxiliary", heap, auxiliaryHeapCellType.get(), jsValueGigacageAllocator.get())
+    , cellSpace("JSCell", heap, cellHeapCellType.get(), fastMallocAllocator.get())
+    , jsValueGigacageCellSpace("JSValue Gigacage JSCell", heap, cellHeapCellType.get(), jsValueGigacageAllocator.get())
+    , destructibleCellSpace("Destructible JSCell", heap, destructibleCellHeapCellType.get(), fastMallocAllocator.get())
+    , stringSpace("JSString", heap, stringHeapCellType.get(), fastMallocAllocator.get())
+    , destructibleObjectSpace("JSDestructibleObject", heap, destructibleObjectHeapCellType.get(), fastMallocAllocator.get())
+    , eagerlySweptDestructibleObjectSpace("Eagerly Swept JSDestructibleObject", heap, destructibleObjectHeapCellType.get(), fastMallocAllocator.get())
+    , segmentedVariableObjectSpace("JSSegmentedVariableObjectSpace", heap, segmentedVariableObjectHeapCellType.get(), fastMallocAllocator.get())
+#if ENABLE(WEBASSEMBLY)
+    , webAssemblyCodeBlockSpace("JSWebAssemblyCodeBlockSpace", heap, webAssemblyCodeBlockHeapCellType.get(), fastMallocAllocator.get())
+#endif
+    , directEvalExecutableSpace ISO_SUBSPACE_INIT(heap, destructibleCellHeapCellType.get(), DirectEvalExecutable)
+    , functionExecutableSpace ISO_SUBSPACE_INIT(heap, destructibleCellHeapCellType.get(), FunctionExecutable)
+    , indirectEvalExecutableSpace ISO_SUBSPACE_INIT(heap, destructibleCellHeapCellType.get(), IndirectEvalExecutable)
+    , inferredStructureSpace ISO_SUBSPACE_INIT(heap, destructibleCellHeapCellType.get(), InferredStructure)
+    , inferredTypeSpace ISO_SUBSPACE_INIT(heap, destructibleCellHeapCellType.get(), InferredType)
+    , moduleProgramExecutableSpace ISO_SUBSPACE_INIT(heap, destructibleCellHeapCellType.get(), ModuleProgramExecutable)
+    , nativeExecutableSpace ISO_SUBSPACE_INIT(heap, destructibleCellHeapCellType.get(), NativeExecutable)
+    , programExecutableSpace ISO_SUBSPACE_INIT(heap, destructibleCellHeapCellType.get(), ProgramExecutable)
     , vmType(vmType)
     , clientData(0)
     , topEntryFrame(nullptr)
@@ -265,9 +292,10 @@ VM::VM(VMType vmType, HeapType heapType)
     unlinkedFunctionCodeBlockStructure.set(*this, UnlinkedFunctionCodeBlock::createStructure(*this, 0, jsNull()));
     unlinkedModuleProgramCodeBlockStructure.set(*this, UnlinkedModuleProgramCodeBlock::createStructure(*this, 0, jsNull()));
     propertyTableStructure.set(*this, PropertyTable::createStructure(*this, 0, jsNull()));
-    inferredValueStructure.set(*this, InferredValue::createStructure(*this, 0, jsNull()));
+    inferredStructureStructure.set(*this, InferredStructure::createStructure(*this, 0, jsNull()));
     inferredTypeStructure.set(*this, InferredType::createStructure(*this, 0, jsNull()));
     inferredTypeTableStructure.set(*this, InferredTypeTable::createStructure(*this, 0, jsNull()));
+    inferredValueStructure.set(*this, InferredValue::createStructure(*this, 0, jsNull()));
     functionRareDataStructure.set(*this, FunctionRareData::createStructure(*this, 0, jsNull()));
     exceptionStructure.set(*this, Exception::createStructure(*this, 0, jsNull()));
     promiseDeferredStructure.set(*this, JSPromiseDeferred::createStructure(*this, 0, jsNull()));
@@ -664,7 +692,7 @@ void VM::throwException(ExecState* exec, Exception* exception)
 
 #if ENABLE(EXCEPTION_SCOPE_VERIFICATION)
     m_nativeStackTraceOfLastThrow = StackTrace::captureStackTrace(Options::unexpectedExceptionStackTraceLimit());
-    m_throwingThread = currentThread();
+    m_throwingThread = &Thread::current();
 #endif
 }
 

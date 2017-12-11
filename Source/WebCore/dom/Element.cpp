@@ -27,6 +27,7 @@
 #include "Element.h"
 
 #include "AXObjectCache.h"
+#include "AccessibleNode.h"
 #include "Attr.h"
 #include "AttributeChangeInvalidation.h"
 #include "CSSAnimationController.h"
@@ -42,6 +43,7 @@
 #include "DOMRectList.h"
 #include "DOMTokenList.h"
 #include "DocumentSharedObjectPool.h"
+#include "DocumentTimeline.h"
 #include "Editing.h"
 #include "ElementIterator.h"
 #include "ElementRareData.h"
@@ -84,6 +86,7 @@
 #include "RenderTreeUpdater.h"
 #include "RenderView.h"
 #include "RenderWidget.h"
+#include "RuntimeEnabledFeatures.h"
 #include "SVGDocumentExtensions.h"
 #include "SVGElement.h"
 #include "SVGNames.h"
@@ -539,25 +542,25 @@ bool Element::isFocusable() const
 bool Element::isUserActionElementInActiveChain() const
 {
     ASSERT(isUserActionElement());
-    return document().userActionElements().isInActiveChain(this);
+    return document().userActionElements().inActiveChain(*this);
 }
 
 bool Element::isUserActionElementActive() const
 {
     ASSERT(isUserActionElement());
-    return document().userActionElements().isActive(this);
+    return document().userActionElements().isActive(*this);
 }
 
 bool Element::isUserActionElementFocused() const
 {
     ASSERT(isUserActionElement());
-    return document().userActionElements().isFocused(this);
+    return document().userActionElements().isFocused(*this);
 }
 
 bool Element::isUserActionElementHovered() const
 {
     ASSERT(isUserActionElement());
-    return document().userActionElements().isHovered(this);
+    return document().userActionElements().isHovered(*this);
 }
 
 void Element::setActive(bool flag, bool pause)
@@ -565,7 +568,7 @@ void Element::setActive(bool flag, bool pause)
     if (flag == active())
         return;
 
-    document().userActionElements().setActive(this, flag);
+    document().userActionElements().setActive(*this, flag);
 
     const RenderStyle* renderStyle = this->renderStyle();
     bool reactsToPress = (renderStyle && renderStyle->affectedByActive()) || styleAffectedByActive();
@@ -614,7 +617,7 @@ void Element::setFocus(bool flag)
     if (flag == focused())
         return;
 
-    document().userActionElements().setFocused(this, flag);
+    document().userActionElements().setFocused(*this, flag);
     invalidateStyleForSubtree();
 
     for (Element* element = this; element; element = element->parentElementInComposedTree())
@@ -626,7 +629,7 @@ void Element::setHovered(bool flag)
     if (flag == hovered())
         return;
 
-    document().userActionElements().setHovered(this, flag);
+    document().userActionElements().setHovered(*this, flag);
 
     if (!renderer()) {
         // When setting hover to false, the style needs to be recalc'd even when
@@ -1511,8 +1514,9 @@ void Element::invalidateStyleAndRenderersForSubtree()
 
 bool Element::hasDisplayContents() const
 {
-    if (renderer() || !hasRareData())
+    if (!hasRareData())
         return false;
+
     const RenderStyle* style = elementRareData()->computedStyle();
     return style && style->display() == CONTENTS;
 }
@@ -1520,7 +1524,7 @@ bool Element::hasDisplayContents() const
 void Element::storeDisplayContentsStyle(std::unique_ptr<RenderStyle> style)
 {
     ASSERT(style && style->display() == CONTENTS);
-    ASSERT(!renderer());
+    ASSERT(!renderer() || isPseudoElement());
     ensureElementRareData().setComputedStyle(WTFMove(style));
 }
 
@@ -2670,13 +2674,12 @@ static PseudoElement* beforeOrAfterPseudoElement(Element& host, PseudoId pseudoE
 
 const RenderStyle* Element::existingComputedStyle() const
 {
-    if (auto* renderTreeStyle = renderStyle())
-        return renderTreeStyle;
+    if (hasRareData()) {
+        if (auto* style = elementRareData()->computedStyle())
+            return style;
+    }
 
-    if (hasRareData())
-        return elementRareData()->computedStyle();
-
-    return nullptr;
+    return renderStyle();
 }
 
 const RenderStyle& Element::resolveComputedStyle()
@@ -3038,7 +3041,7 @@ URL Element::getNonEmptyURLAttribute(const QualifiedName& name) const
 
 int Element::getIntegralAttribute(const QualifiedName& attributeName) const
 {
-    return parseHTMLInteger(getAttribute(attributeName)).valueOr(0);
+    return parseHTMLInteger(getAttribute(attributeName)).value_or(0);
 }
 
 void Element::setIntegralAttribute(const QualifiedName& attributeName, int value)
@@ -3048,7 +3051,7 @@ void Element::setIntegralAttribute(const QualifiedName& attributeName, int value
 
 unsigned Element::getUnsignedIntegralAttribute(const QualifiedName& attributeName) const
 {
-    return parseHTMLNonNegativeInteger(getAttribute(attributeName)).valueOr(0);
+    return parseHTMLNonNegativeInteger(getAttribute(attributeName)).value_or(0);
 }
 
 void Element::setUnsignedIntegralAttribute(const QualifiedName& attributeName, unsigned value)
@@ -3415,7 +3418,7 @@ void Element::clearHoverAndActiveStatusBeforeDetachingRenderer()
         document().hoveredElementDidDetach(this);
     if (inActiveChain())
         document().elementInActiveChainDidDetach(this);
-    document().userActionElements().didDetach(this);
+    document().userActionElements().clearActiveAndHovered(*this);
 }
 
 void Element::willRecalcStyle(Style::Change)
@@ -3552,7 +3555,7 @@ void Element::clearHasCSSAnimation()
 
 bool Element::canContainRangeEndPoint() const
 {
-    return !equalLettersIgnoringASCIICase(attributeWithoutSynchronization(roleAttr), "img");
+    return !equalLettersIgnoringASCIICase(AccessibleNode::effectiveStringValueForElement(const_cast<Element&>(*this), AXPropertyName::Role), "img");
 }
 
 String Element::completeURLsInAttributeValue(const URL& base, const Attribute& attribute) const
@@ -3698,6 +3701,35 @@ Element* Element::findAnchorElementForLink(String& outAnchorName)
     }
 
     return nullptr;
+}
+
+Vector<RefPtr<WebAnimation>> Element::getAnimations()
+{
+    // FIXME: Filter and order the list as specified (webkit.org/b/179535).
+    if (auto timeline = document().existingTimeline())
+        return timeline->animationsForElement(*this);
+    return { };
+}
+
+AccessibleNode* Element::accessibleNode()
+{
+    if (!RuntimeEnabledFeatures::sharedFeatures().accessibilityObjectModelEnabled())
+        return nullptr;
+
+    ElementRareData& data = ensureElementRareData();
+    if (!data.accessibleNode())
+        data.setAccessibleNode(std::make_unique<AccessibleNode>(*this));
+    return data.accessibleNode();
+}
+
+AccessibleNode* Element::existingAccessibleNode() const
+{
+    if (!RuntimeEnabledFeatures::sharedFeatures().accessibilityObjectModelEnabled())
+        return nullptr;
+
+    if (!hasRareData())
+        return nullptr;
+    return elementRareData()->accessibleNode();
 }
 
 } // namespace WebCore

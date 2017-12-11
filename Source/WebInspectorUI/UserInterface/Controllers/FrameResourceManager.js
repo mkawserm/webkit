@@ -42,6 +42,9 @@ WI.FrameResourceManager = class FrameResourceManager extends WI.Object
             PageAgent.getResourceTree(this._processMainFrameResourceTreePayload.bind(this));
         }
 
+        if (window.ServiceWorkerAgent)
+            ServiceWorkerAgent.getInitializationInfo(this._processServiceWorkerConfiguration.bind(this));
+
         if (window.NetworkAgent)
             NetworkAgent.enable();
 
@@ -455,7 +458,7 @@ WI.FrameResourceManager = class FrameResourceManager extends WI.Object
         let elapsedTime = WI.timelineManager.computeElapsedTime(timestamp);
         resource.markAsFailed(canceled, elapsedTime, errorText);
 
-        if (resource === resource.parentFrame.provisionalMainResource)
+        if (resource.parentFrame && resource === resource.parentFrame.provisionalMainResource)
             resource.parentFrame.clearProvisionalLoad();
 
         this._resourceRequestIdentifierMap.delete(requestIdentifier);
@@ -504,16 +507,25 @@ WI.FrameResourceManager = class FrameResourceManager extends WI.Object
 
         let resource = null;
 
+        if (!frameIdentifier && targetId) {
+            // This is a new resource for a ServiceWorker target.
+            console.assert(WI.sharedApp.debuggableType === WI.DebuggableType.ServiceWorker);
+            console.assert(targetId === WI.mainTarget.identifier);
+            resource = new WI.Resource(url, null, type, loaderIdentifier, targetId, requestIdentifier, requestMethod, requestHeaders, requestData, elapsedTime, walltime, initiatorSourceCodeLocation, originalRequestWillBeSentTimestamp);
+            resource.target.addResource(resource);
+            return resource;
+        }
+
         let frame = this.frameForIdentifier(frameIdentifier);
         if (frame) {
             // This is a new request for an existing frame, which might be the main resource or a new resource.
-            if (type === PageAgent.ResourceType.Document && frame.mainResource.url === url && frame.loaderIdentifier === loaderIdentifier)
+            if (type === "Document" && frame.mainResource.url === url && frame.loaderIdentifier === loaderIdentifier)
                 resource = frame.mainResource;
-            else if (type === PageAgent.ResourceType.Document && frame.provisionalMainResource && frame.provisionalMainResource.url === url && frame.provisionalLoaderIdentifier === loaderIdentifier)
+            else if (type === "Document" && frame.provisionalMainResource && frame.provisionalMainResource.url === url && frame.provisionalLoaderIdentifier === loaderIdentifier)
                 resource = frame.provisionalMainResource;
             else {
                 resource = new WI.Resource(url, null, type, loaderIdentifier, targetId, requestIdentifier, requestMethod, requestHeaders, requestData, elapsedTime, walltime, initiatorSourceCodeLocation, originalRequestWillBeSentTimestamp);
-                if (resource.target === WI.mainTarget)
+                if (resource.target === WI.pageTarget)
                     this._addResourceToFrame(frame, resource);
                 else if (resource.target)
                     resource.target.addResource(resource);
@@ -522,6 +534,7 @@ WI.FrameResourceManager = class FrameResourceManager extends WI.Object
             }
         } else {
             // This is a new request for a new frame, which is always the main resource.
+            console.assert(WI.sharedApp.debuggableType !== WI.DebuggableType.ServiceWorker);
             console.assert(!targetId);
             resource = new WI.Resource(url, null, type, loaderIdentifier, targetId, requestIdentifier, requestMethod, requestHeaders, requestData, elapsedTime, walltime, initiatorSourceCodeLocation, originalRequestWillBeSentTimestamp);
             frame = new WI.Frame(frameIdentifier, frameName, frameSecurityOrigin, loaderIdentifier, resource);
@@ -565,7 +578,7 @@ WI.FrameResourceManager = class FrameResourceManager extends WI.Object
 
     _addResourceToTarget(target, resource)
     {
-        console.assert(target !== WI.mainTarget);
+        console.assert(target !== WI.pageTarget);
         console.assert(resource);
 
         target.addResource(resource);
@@ -616,10 +629,39 @@ WI.FrameResourceManager = class FrameResourceManager extends WI.Object
         return sourceCode.createSourceCodeLocation(lineNumber, columnNumber);
     }
 
+    _processServiceWorkerConfiguration(error, initializationPayload)
+    {
+        console.assert(this._waitingForMainFrameResourceTreePayload);
+        this._waitingForMainFrameResourceTreePayload = false;
+
+        if (error) {
+            console.error(JSON.stringify(error));
+            return;
+        }
+
+        console.assert(initializationPayload.targetId.startsWith("serviceworker:"));
+
+        WI.mainTarget.identifier = initializationPayload.targetId;
+        WI.mainTarget.name = initializationPayload.url;
+
+        // Create a main resource with this content in case the content never shows up as a WI.Script.
+        const type = WI.Script.SourceType.Program;
+        let script = new WI.LocalScript(WI.mainTarget, initializationPayload.url, type, initializationPayload.content);
+        WI.mainTarget.mainResource = script;
+
+        InspectorBackend.runAfterPendingDispatches(() => {
+            if (WI.mainTarget.mainResource === script) {
+                // We've now received all the scripts, if we don't have a better main resource use this LocalScript.
+                WI.debuggerManager.dataForTarget(WI.mainTarget).addScript(script);
+                WI.debuggerManager.dispatchEventToListeners(WI.DebuggerManager.Event.ScriptAdded, {script});
+            }
+        });
+    }
+
     _processMainFrameResourceTreePayload(error, mainFramePayload)
     {
         console.assert(this._waitingForMainFrameResourceTreePayload);
-        delete this._waitingForMainFrameResourceTreePayload;
+        this._waitingForMainFrameResourceTreePayload = false;
 
         if (error) {
             console.error(JSON.stringify(error));
@@ -679,11 +721,11 @@ WI.FrameResourceManager = class FrameResourceManager extends WI.Object
             // The main resource is included as a resource. We can skip it since we already created
             // a main resource when we created the Frame. The resource payload does not include anything
             // didn't already get from the frame payload.
-            if (resourcePayload.type === PageAgent.ResourceType.Document && resourcePayload.url === payload.frame.url)
+            if (resourcePayload.type === "Document" && resourcePayload.url === payload.frame.url)
                 continue;
 
             var resource = this._createResource(resourcePayload, payload);
-            if (resource.target === WI.mainTarget)
+            if (resource.target === WI.pageTarget)
                 frame.addResource(resource);
             else if (resource.target)
                 resource.target.addResource(resource);

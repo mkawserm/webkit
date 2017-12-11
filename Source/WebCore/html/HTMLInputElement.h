@@ -147,6 +147,10 @@ public:
     HTMLElement* placeholderElement() const final;
     WEBCORE_EXPORT HTMLElement* autoFillButtonElement() const;
 
+#if ENABLE(ALTERNATIVE_PRESENTATION_BUTTON_ELEMENT)
+    WEBCORE_EXPORT HTMLElement* alternativePresentationButtonElement() const;
+#endif
+
     bool checked() const { return m_isChecked; }
     WEBCORE_EXPORT void setChecked(bool, TextFieldEventBehavior = DispatchNoEvent);
 
@@ -163,6 +167,10 @@ public:
     float decorationWidth() const;
 
     WEBCORE_EXPORT void setType(const AtomicString&);
+
+#if ENABLE(ALTERNATIVE_PRESENTATION_BUTTON_ELEMENT)
+    void setTypeWithoutUpdatingAttribute(const AtomicString&);
+#endif
 
     WEBCORE_EXPORT String value() const final;
     WEBCORE_EXPORT ExceptionOr<void> setValue(const String&, TextFieldEventBehavior = DispatchNoEvent);
@@ -285,7 +293,7 @@ public:
     void cacheSelectionInResponseToSetValue(int caretOffset) { cacheSelection(caretOffset, caretOffset, SelectionHasNoDirection); }
 
     Color valueAsColor() const; // Returns transparent color if not type=color.
-    WEBCORE_EXPORT void selectColor(const Color&); // Does nothing if not type=color. Simulates user selection of color; intended for testing.
+    WEBCORE_EXPORT void selectColor(StringView); // Does nothing if not type=color. Simulates user selection of color; intended for testing.
 
     String defaultToolTip() const;
 
@@ -425,7 +433,8 @@ private:
     void requiredAttributeChanged() final;
 
     void initializeInputType();
-    void updateType();
+    std::unique_ptr<InputType> createInputType(const AtomicString&);
+    void updateType(const AtomicString&);
     void runPostTypeUpdateTasks();
     
     void subtreeHasChanged() final;

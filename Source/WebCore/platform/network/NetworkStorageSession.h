@@ -28,6 +28,7 @@
 #include "CredentialStorage.h"
 #include <pal/SessionID.h>
 #include <wtf/Function.h>
+#include <wtf/HashMap.h>
 #include <wtf/HashSet.h>
 #include <wtf/text/WTFString.h>
 
@@ -63,7 +64,6 @@ class NetworkStorageSession {
 public:
     WEBCORE_EXPORT static NetworkStorageSession& defaultStorageSession();
     WEBCORE_EXPORT static NetworkStorageSession* storageSession(PAL::SessionID);
-    WEBCORE_EXPORT static void ensurePrivateBrowsingSession(PAL::SessionID, const String& identifierBase = String());
     WEBCORE_EXPORT static void ensureSession(PAL::SessionID, const String& identifierBase = String());
     WEBCORE_EXPORT static void destroySession(PAL::SessionID);
     WEBCORE_EXPORT static void forEach(const WTF::Function<void(const WebCore::NetworkStorageSession&)>&);
@@ -90,6 +90,7 @@ public:
     CFURLStorageSessionRef platformSession() { return m_platformSession.get(); }
     WEBCORE_EXPORT RetainPtr<CFHTTPCookieStorageRef> cookieStorage() const;
     WEBCORE_EXPORT static void setCookieStoragePartitioningEnabled(bool);
+    WEBCORE_EXPORT static void setStorageAccessAPIEnabled(bool);
 #if HAVE(CFNETWORK_STORAGE_PARTITIONING)
     WEBCORE_EXPORT String cookieStoragePartition(const ResourceRequest&) const;
     WEBCORE_EXPORT bool shouldBlockCookies(const ResourceRequest&) const;
@@ -97,6 +98,8 @@ public:
     String cookieStoragePartition(const URL& firstPartyForCookies, const URL& resource) const;
     WEBCORE_EXPORT void setPrevalentDomainsToPartitionOrBlockCookies(const Vector<String>& domainsToPartition, const Vector<String>& domainsToBlock, const Vector<String>& domainsToNeitherPartitionNorBlock, bool clearFirst);
     WEBCORE_EXPORT void removePrevalentDomains(const Vector<String>& domains);
+    WEBCORE_EXPORT bool isStorageAccessGranted(const String& resourceDomain, const String& firstPartyDomain) const;
+    WEBCORE_EXPORT void setStorageAccessGranted(const String& resourceDomain, const String& firstPartyDomain, bool value);
 #endif
 #elif USE(SOUP)
     NetworkStorageSession(PAL::SessionID, std::unique_ptr<SoupNetworkSession>&&);
@@ -155,6 +158,7 @@ private:
     bool shouldBlockThirdPartyCookies(const String& topPrivatelyControlledDomain) const;
     HashSet<String> m_topPrivatelyControlledDomainsToPartition;
     HashSet<String> m_topPrivatelyControlledDomainsToBlock;
+    HashMap<String, HashSet<String>> m_domainsGrantedStorageAccess;
 #endif
 
 #if PLATFORM(COCOA)

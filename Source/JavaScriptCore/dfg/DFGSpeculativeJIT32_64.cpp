@@ -2206,15 +2206,6 @@ void SpeculativeJIT::compile(Node* node)
         }
         break;
     }
-        
-    case GetLocalUnlinked: {
-        GPRTemporary payload(this);
-        GPRTemporary tag(this);
-        m_jit.load32(JITCompiler::payloadFor(node->unlinkedMachineLocal()), payload.gpr());
-        m_jit.load32(JITCompiler::tagFor(node->unlinkedMachineLocal()), tag.gpr());
-        jsValueResult(tag.gpr(), payload.gpr(), node);
-        break;
-    }
 
     case MovHint: {
         compileMovHint(m_currentNode);
@@ -3939,9 +3930,10 @@ void SpeculativeJIT::compile(Node* node)
         
     case NewArrayBuffer: {
         JSGlobalObject* globalObject = m_jit.graph().globalObjectFor(node->origin.semantic);
+        JSFixedArray* array = node->castOperand<JSFixedArray*>();
+        unsigned numElements = array->length();
         IndexingType indexingType = node->indexingType();
         if (!globalObject->isHavingABadTime() && !hasAnyArrayStorage(indexingType)) {
-            unsigned numElements = node->numConstants();
             
             GPRTemporary result(this);
             GPRTemporary storage(this);
@@ -3950,26 +3942,21 @@ void SpeculativeJIT::compile(Node* node)
             GPRReg storageGPR = storage.gpr();
 
             emitAllocateRawObject(resultGPR, m_jit.graph().registerStructure(globalObject->arrayStructureForIndexingTypeDuringAllocation(indexingType)), storageGPR, numElements, numElements);
-            
-            if (node->indexingType() == ArrayWithDouble) {
-                JSValue* data = m_jit.codeBlock()->constantBuffer(node->startConstant());
-                for (unsigned index = 0; index < node->numConstants(); ++index) {
-                    union {
-                        int32_t halves[2];
-                        double value;
-                    } u;
-                    u.value = data[index].asNumber();
-                    m_jit.store32(Imm32(u.halves[0]), MacroAssembler::Address(storageGPR, sizeof(double) * index));
-                    m_jit.store32(Imm32(u.halves[1]), MacroAssembler::Address(storageGPR, sizeof(double) * index + sizeof(int32_t)));
-                }
-            } else {
-                int32_t* data = bitwise_cast<int32_t*>(m_jit.codeBlock()->constantBuffer(node->startConstant()));
-                for (unsigned index = 0; index < node->numConstants() * 2; ++index) {
-                    m_jit.store32(
-                        Imm32(data[index]), MacroAssembler::Address(storageGPR, sizeof(int32_t) * index));
-                }
+
+            for (unsigned index = 0; index < numElements; ++index) {
+                union {
+                    int32_t halves[2];
+                    double doubleValue;
+                    int64_t encodedValue;
+                } u;
+                if (node->indexingType() == ArrayWithDouble)
+                    u.doubleValue = array->get(index).asNumber();
+                else
+                    u.encodedValue = JSValue::encode(array->get(index));
+                static_assert(sizeof(double) == sizeof(JSValue), "");
+                m_jit.store32(Imm32(u.halves[0]), MacroAssembler::Address(storageGPR, sizeof(JSValue) * index));
+                m_jit.store32(Imm32(u.halves[1]), MacroAssembler::Address(storageGPR, sizeof(JSValue) * index + sizeof(int32_t)));
             }
-            
             cellResult(resultGPR, node);
             break;
         }
@@ -3977,7 +3964,7 @@ void SpeculativeJIT::compile(Node* node)
         flushRegisters();
         GPRFlushedCallResult result(this);
         
-        callOperation(operationNewArrayBuffer, result.gpr(), m_jit.graph().registerStructure(globalObject->arrayStructureForIndexingTypeDuringAllocation(node->indexingType())), node->startConstant(), node->numConstants());
+        callOperation(operationNewArrayBuffer, result.gpr(), m_jit.graph().registerStructure(globalObject->arrayStructureForIndexingTypeDuringAllocation(node->indexingType())), TrustedImmPtr(node->cellOperand()), numElements);
         m_jit.exceptionCheck();
         
         cellResult(result.gpr(), node);
@@ -4124,7 +4111,7 @@ void SpeculativeJIT::compile(Node* node)
         
         RegisteredStructure structure = node->structure();
         size_t allocationSize = JSFinalObject::allocationSize(structure->inlineCapacity());
-        MarkedAllocator* allocatorPtr = subspaceFor<JSFinalObject>(*m_jit.vm())->allocatorFor(allocationSize);
+        MarkedAllocator* allocatorPtr = subspaceFor<JSFinalObject>(*m_jit.vm())->allocatorForNonVirtual(allocationSize, AllocatorForMode::AllocatorIfExists);
 
         m_jit.move(TrustedImmPtr(allocatorPtr), allocatorGPR);
         emitAllocateJSObject(resultGPR, allocatorPtr, allocatorGPR, TrustedImmPtr(structure), TrustedImmPtr(0), scratchGPR, slowPath);
@@ -4422,7 +4409,6 @@ void SpeculativeJIT::compile(Node* node)
         break;
         
     case GetButterfly:
-    case GetButterflyWithoutCaging:
         compileGetButterfly(node);
         break;
 
@@ -4831,6 +4817,11 @@ void SpeculativeJIT::compile(Node* node)
         break;
     }
 
+    case NormalizeMapKey: {
+        compileNormalizeMapKey(node);
+        break;
+    }
+
     case GetMapBucket: {
         SpeculateCellOperand map(this, node->child1());
         JSValueOperand key(this, node->child2());
@@ -4873,6 +4864,14 @@ void SpeculativeJIT::compile(Node* node)
 
     case LoadValueFromMapBucket:
         compileLoadValueFromMapBucket(node);
+        break;
+
+    case SetAdd:
+        compileSetAdd(node);
+        break;
+
+    case MapSet:
+        compileMapSet(node);
         break;
 
     case WeakMapGet:
@@ -5268,7 +5267,7 @@ void SpeculativeJIT::compile(Node* node)
         moveTrueTo(resultPayloadGPR);
         MacroAssembler::Jump done = m_jit.jump();
 
-        addSlowPathGenerator(slowPathCall(slowCases, this, operationHasIndexedProperty, JSValueRegs(resultTagGPR, resultPayloadGPR), baseGPR, indexGPR, static_cast<int32_t>(node->internalMethodType())));
+        addSlowPathGenerator(slowPathCall(slowCases, this, operationHasIndexedPropertyByInt, JSValueRegs(resultTagGPR, resultPayloadGPR), baseGPR, indexGPR, static_cast<int32_t>(node->internalMethodType())));
         
         done.link(&m_jit);
         booleanResult(resultPayloadGPR, node);
@@ -5665,6 +5664,7 @@ void SpeculativeJIT::compile(Node* node)
     case IdentityWithProfile:
     case InitializeEntrypointArguments:
     case EntrySwitch:
+    case CPUIntrinsic:
         DFG_CRASH(m_jit.graph(), node, "unexpected node in DFG backend");
         break;
     }

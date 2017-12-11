@@ -1,5 +1,4 @@
-CONSOLE MESSAGE: Unhandled Promise Rejection: TypeError: Cannot update a null/nonexistent service worker registration
   
 
-FAIL Claim works after redirection to another origin assert_equals: expected (string) "updated" but got (undefined) undefined
+PASS Claim works after redirection to another origin 
 

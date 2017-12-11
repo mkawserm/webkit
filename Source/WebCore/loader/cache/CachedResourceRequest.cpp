@@ -33,6 +33,7 @@
 #include "Element.h"
 #include "FrameLoader.h"
 #include "HTTPHeaderValues.h"
+#include "ImageDecoder.h"
 #include "MemoryCache.h"
 #include "SecurityPolicy.h"
 #include <wtf/NeverDestroyed.h>
@@ -145,6 +146,8 @@ static inline String acceptHeaderValueFromType(CachedResource::Type type)
     case CachedResource::Type::MainResource:
         return ASCIILiteral("text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8");
     case CachedResource::Type::ImageResource:
+        if (ImageDecoder::supportsMediaType(ImageDecoder::MediaType::Video))
+            return ASCIILiteral("image/png,image/svg+xml,image/*;q=0.8,video/*;q=0.8,*/*;q=0.5");
         return ASCIILiteral("image/png,image/svg+xml,image/*;q=0.8,*/*;q=0.5");
     case CachedResource::Type::CSSStyleSheet:
         return ASCIILiteral("text/css,*/*;q=0.1");
@@ -274,6 +277,12 @@ void CachedResourceRequest::setDestinationIfNotSet(FetchOptions::Destination des
 }
 
 #if ENABLE(SERVICE_WORKER)
+void CachedResourceRequest::setClientIdentifierIfNeeded(DocumentIdentifier clientIdentifier)
+{
+    if (!m_options.clientIdentifier)
+        m_options.clientIdentifier = clientIdentifier;
+}
+
 void CachedResourceRequest::setSelectedServiceWorkerIdentifierIfNeeded(ServiceWorkerIdentifier identifier)
 {
     if (isNonSubresourceRequest(m_options.destination))
@@ -287,6 +296,15 @@ void CachedResourceRequest::setSelectedServiceWorkerIdentifierIfNeeded(ServiceWo
         return;
 
     m_options.serviceWorkerIdentifier = identifier;
+}
+
+void CachedResourceRequest::setNavigationServiceWorkerRegistrationData(const std::optional<ServiceWorkerRegistrationData>& data)
+{
+    if (!data || !data->activeWorker) {
+        m_options.serviceWorkersMode = ServiceWorkersMode::None;
+        return;
+    }
+    m_options.serviceWorkerIdentifier = data->activeWorker->identifier;
 }
 #endif
 

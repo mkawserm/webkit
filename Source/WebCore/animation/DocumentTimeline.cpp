@@ -32,7 +32,9 @@
 #include "DisplayRefreshMonitor.h"
 #include "DisplayRefreshMonitorManager.h"
 #include "Document.h"
+#include "KeyframeEffect.h"
 #include "Page.h"
+#include "RenderElement.h"
 
 static const Seconds animationInterval { 15_ms };
 
@@ -45,7 +47,7 @@ Ref<DocumentTimeline> DocumentTimeline::create(Document& document, PlatformDispl
 
 DocumentTimeline::DocumentTimeline(Document& document, PlatformDisplayID displayID)
     : AnimationTimeline(DocumentTimelineClass)
-    , m_document(document)
+    , m_document(&document)
     , m_animationScheduleTimer(*this, &DocumentTimeline::animationScheduleTimerFired)
 #if !USE(REQUEST_ANIMATION_FRAME_DISPLAY_MONITOR)
     , m_animationResolutionTimer(*this, &DocumentTimeline::animationResolutionTimerFired)
@@ -59,9 +61,14 @@ DocumentTimeline::~DocumentTimeline()
     m_invalidationTaskQueue.close();
 }
 
+void DocumentTimeline::detachFromDocument()
+{
+    m_document = nullptr;
+}
+
 std::optional<Seconds> DocumentTimeline::currentTime()
 {
-    if (m_paused)
+    if (m_paused || !m_document)
         return AnimationTimeline::currentTime();
 
     if (!m_cachedCurrentTime) {
@@ -149,13 +156,58 @@ void DocumentTimeline::displayRefreshFired()
 void DocumentTimeline::animationResolutionTimerFired()
 #endif
 {
-    resolveAnimations();
+    updateAnimations();
 }
 
-void DocumentTimeline::resolveAnimations()
+void DocumentTimeline::updateAnimations()
 {
+    if (m_document && !elementToAnimationsMap().isEmpty()) {
+        for (const auto& elementToAnimationsMapItem : elementToAnimationsMap())
+            elementToAnimationsMapItem.key->invalidateStyleAndLayerComposition();
+        m_document->updateStyleIfNeeded();
+    }
+
+    for (auto animation : m_acceleratedAnimationsPendingRunningStateChange)
+        animation->startOrStopAccelerated();
+    m_acceleratedAnimationsPendingRunningStateChange.clear();
+
     // Time has advanced, the timing model requires invalidation now.
     animationTimingModelDidChange();
+}
+
+std::unique_ptr<RenderStyle> DocumentTimeline::animatedStyleForRenderer(RenderElement& renderer)
+{
+    std::unique_ptr<RenderStyle> result;
+
+    if (auto* element = renderer.element()) {
+        for (auto animation : animationsForElement(*element)) {
+            if (animation->effect() && animation->effect()->isKeyframeEffect())
+                downcast<KeyframeEffect>(animation->effect())->getAnimatedStyle(result);
+        }
+    }
+
+    if (!result)
+        result = RenderStyle::clonePtr(renderer.style());
+
+    return result;
+}
+
+void DocumentTimeline::animationAcceleratedRunningStateDidChange(WebAnimation& animation)
+{
+    m_acceleratedAnimationsPendingRunningStateChange.add(&animation);
+}
+
+bool DocumentTimeline::runningAnimationsForElementAreAllAccelerated(Element& element)
+{
+    // FIXME: This will let animations run using hardware compositing even if later in the active
+    // span of the current animations a new animation should require hardware compositing to be
+    // disabled (webkit.org/b/179974).
+    auto animations = animationsForElement(element);
+    for (const auto& animation : animations) {
+        if (animation->effect() && animation->effect()->isKeyframeEffect() && !downcast<KeyframeEffect>(animation->effect())->isRunningAccelerated())
+            return false;
+    }
+    return !animations.isEmpty();
 }
 
 void DocumentTimeline::windowScreenDidChange(PlatformDisplayID displayID)
@@ -170,7 +222,7 @@ void DocumentTimeline::windowScreenDidChange(PlatformDisplayID displayID)
 #if USE(REQUEST_ANIMATION_FRAME_DISPLAY_MONITOR)
 RefPtr<DisplayRefreshMonitor> DocumentTimeline::createDisplayRefreshMonitor(PlatformDisplayID displayID) const
 {
-    if (!m_document->page())
+    if (!m_document || !m_document->page())
         return nullptr;
 
     if (auto monitor = m_document->page()->chrome().client().createDisplayRefreshMonitor(displayID))

@@ -85,7 +85,6 @@ void WebPageCreationParameters::encode(IPC::Encoder& encoder) const
     encoder << availableScreenSize;
     encoder << textAutosizingWidth;
     encoder << ignoresViewportScaleLimits;
-    encoder << allowsBlockSelection;
 #endif
 #if PLATFORM(COCOA)
     encoder << smartInsertDeleteEnabled;
@@ -97,6 +96,9 @@ void WebPageCreationParameters::encode(IPC::Encoder& encoder) const
     encoder << overrideContentSecurityPolicy;
     encoder << cpuLimit;
     encoder << urlSchemeHandlers;
+#if ENABLE(APPLICATION_MANIFEST)
+    encoder << applicationManifest;
+#endif
     encoder << iceCandidateFilteringEnabled;
     encoder << enumeratingAllNetworkInterfacesEnabled;
     encoder << userContentWorlds;
@@ -228,8 +230,6 @@ std::optional<WebPageCreationParameters> WebPageCreationParameters::decode(IPC::
         return std::nullopt;
     if (!decoder.decode(parameters.ignoresViewportScaleLimits))
         return std::nullopt;
-    if (!decoder.decode(parameters.allowsBlockSelection))
-        return std::nullopt;
 #endif
 
 #if PLATFORM(COCOA)
@@ -259,6 +259,14 @@ std::optional<WebPageCreationParameters> WebPageCreationParameters::decode(IPC::
 
     if (!decoder.decode(parameters.urlSchemeHandlers))
         return std::nullopt;
+
+#if ENABLE(APPLICATION_MANIFEST)
+    std::optional<std::optional<WebCore::ApplicationManifest>> applicationManifest;
+    decoder >> applicationManifest;
+    if (!applicationManifest)
+        return std::nullopt;
+    parameters.applicationManifest = WTFMove(*applicationManifest);
+#endif
 
     if (!decoder.decode(parameters.iceCandidateFilteringEnabled))
         return std::nullopt;

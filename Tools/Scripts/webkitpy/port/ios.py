@@ -109,15 +109,19 @@ class IOSPort(DarwinPort):
         wk_string = 'wk1'
         if self.get_option('webkit_test_runner'):
             wk_string = 'wk2'
-        fallback_names = [
-            '{}-{}-{}'.format(self.port_name, self.ios_version().major, wk_string),
-            '{}-{}'.format(self.port_name, self.ios_version().major),
-            '{}-{}'.format(self.port_name, wk_string),
-            self.port_name,
-            '{}-{}'.format(IOSPort.port_name, self.ios_version().major),
-            '{}-{}'.format(IOSPort.port_name, wk_string),
-            IOSPort.port_name,
-        ]
+        # If we don't have a specified version, that means we using the port without an SDK.
+        # This usually means we're doing some type of testing.In this case, don't add version fallbacks
+        fallback_names = []
+        if self.ios_version():
+            fallback_names.append('{}-{}-{}'.format(self.port_name, self.ios_version().major, wk_string))
+            fallback_names.append('{}-{}'.format(self.port_name, self.ios_version().major))
+        fallback_names.append('{}-{}'.format(self.port_name, wk_string))
+        fallback_names.append(self.port_name)
+        if self.ios_version():
+            fallback_names.append('{}-{}'.format(IOSPort.port_name, self.ios_version().major))
+        fallback_names.append('{}-{}'.format(IOSPort.port_name, wk_string))
+        fallback_names.append(IOSPort.port_name)
+
         if self.get_option('webkit_test_runner'):
             fallback_names.append('wk2')
 
@@ -186,7 +190,7 @@ class IOSPort(DarwinPort):
         if len(exception_list) == 1:
             raise
         elif len(exception_list) > 1:
-            print '\n'
+            print('\n')
             for exception in exception_list:
                 _log.error('{} raised: {}'.format(exception[0].__class__.__name__, exception[0]))
                 _log.error(exception[1])

@@ -133,7 +133,7 @@ public:
 
     void keyframeStylesForAnimation(const Element&, const RenderStyle*, KeyframeList&);
 
-    std::unique_ptr<RenderStyle> pseudoStyleForElement(const Element&, const PseudoStyleRequest&, const RenderStyle& parentStyle);
+    std::unique_ptr<RenderStyle> pseudoStyleForElement(const Element&, const PseudoStyleRequest&, const RenderStyle& parentStyle, const SelectorFilter* = nullptr);
 
     std::unique_ptr<RenderStyle> styleForPage(int pageIndex);
     std::unique_ptr<RenderStyle> defaultStyleForElement();
@@ -167,8 +167,7 @@ public:
         UAAndUserCSSRules   = 1 << 1,
         AuthorCSSRules      = 1 << 2,
         EmptyCSSRules       = 1 << 3,
-        CrossOriginCSSRules = 1 << 4,
-        AllButEmptyCSSRules = UAAndUserCSSRules | AuthorCSSRules | CrossOriginCSSRules,
+        AllButEmptyCSSRules = UAAndUserCSSRules | AuthorCSSRules,
         AllCSSRules         = AllButEmptyCSSRules | EmptyCSSRules,
     };
     Vector<RefPtr<StyleRule>> styleRulesForElement(const Element*, unsigned rulesToInclude = AllButEmptyCSSRules);
@@ -348,7 +347,6 @@ public:
     public:
         void clear();
 
-        Document& document() const { return m_element->document(); }
         const Element* element() const { return m_element; }
 
         void setStyle(std::unique_ptr<RenderStyle>);

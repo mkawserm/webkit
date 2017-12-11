@@ -124,7 +124,6 @@ editing/style/apple-style-editable-mix.html [ Failure ]
 # Editing tests that time out:
 editing/deleting/delete-button-background-image-none.html
 editing/input/page-up-down-scrolls.html
-editing/input/reveal-contenteditable-on-input-vertically.html
 editing/selection/caret-at-bidi-boundary.html
 editing/spelling/context-menu-suggestions-multiword-selection.html
 editing/spelling/delete-into-misspelled-word.html
@@ -1904,3 +1903,6 @@ webkit.org/b/172092 [ Release ] fast/parser/adoption-agency-unload-iframe-4.html
 
 # FIXME: For some reason EventSender.keyDown() does not work.
 webkit.org/b/178490 fast/text/scroll-text-overflow-ellipsis.html [ Skip ]
+
+# User-installed fonts test infrastructure is not present in WK1
+webkit.org/b/180062 fast/text/user-installed-fonts [ ImageOnlyFailure ]

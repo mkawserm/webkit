@@ -32,6 +32,7 @@
 #include "ComposedTreeIterator.h"
 #include "Document.h"
 #include "Element.h"
+#include "HTMLParserIdioms.h"
 #include "HTMLSlotElement.h"
 #include "InspectorInstrumentation.h"
 #include "NodeRenderStyle.h"
@@ -175,7 +176,7 @@ void RenderTreeUpdater::updateRenderTree(ContainerNode& root)
             auto& text = downcast<Text>(node);
             auto* textUpdate = m_styleUpdate->textUpdate(text);
             bool didCreateParent = parent().updates && parent().updates->update.change == Style::Detach;
-            bool mayNeedUpdateWhitespaceOnlyRenderer = renderingParent().didCreateOrDestroyChildRenderer && text.containsOnlyWhitespace();
+            bool mayNeedUpdateWhitespaceOnlyRenderer = renderingParent().didCreateOrDestroyChildRenderer && text.data().isAllSpecialCharacters<isHTMLSpace>();
             if (didCreateParent || textUpdate || mayNeedUpdateWhitespaceOnlyRenderer)
                 updateTextRenderer(text, textUpdate);
 
@@ -398,7 +399,8 @@ void RenderTreeUpdater::createRenderer(Element& element, RenderStyle&& style)
 
 bool RenderTreeUpdater::textRendererIsNeeded(const Text& textNode)
 {
-    const RenderElement& parentRenderer = renderTreePosition().parent();
+    auto& renderingParent = this->renderingParent();
+    auto& parentRenderer = renderingParent.renderTreePosition->parent();
     if (!parentRenderer.canHaveChildren())
         return false;
     if (parentRenderer.element() && !parentRenderer.element()->childShouldCreateRenderer(textNode))
@@ -407,15 +409,19 @@ bool RenderTreeUpdater::textRendererIsNeeded(const Text& textNode)
         return true;
     if (!textNode.length())
         return false;
-    if (!textNode.containsOnlyWhitespace())
+    if (!textNode.data().isAllSpecialCharacters<isHTMLSpace>())
+        return true;
+    if (is<RenderText>(renderingParent.previousChildRenderer))
         return true;
     // This text node has nothing but white space. We may still need a renderer in some cases.
-    if (parentRenderer.isTable() || parentRenderer.isTableRow() || parentRenderer.isTableSection() || parentRenderer.isRenderTableCol() || parentRenderer.isFrameSet() || (parentRenderer.isFlexibleBox() && !parentRenderer.isRenderButton()))
+    if (parentRenderer.isTable() || parentRenderer.isTableRow() || parentRenderer.isTableSection() || parentRenderer.isRenderTableCol() || parentRenderer.isFrameSet())
+        return false;
+    if (parentRenderer.isFlexibleBox() && !parentRenderer.isRenderButton())
         return false;
     if (parentRenderer.style().preserveNewline()) // pre/pre-wrap/pre-line always make renderers.
         return true;
 
-    auto* previousRenderer = renderingParent().previousChildRenderer;
+    auto* previousRenderer = renderingParent.previousChildRenderer;
     if (previousRenderer && previousRenderer->isBR()) // <span><br/> <br/></span>
         return false;
 

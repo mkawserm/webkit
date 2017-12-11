@@ -51,6 +51,14 @@ WI.TextRange = class TextRange
         }
     }
 
+    // Static
+
+    static fromText(text)
+    {
+        let lines = text.split("\n");
+        return new WI.TextRange(0, 0, lines.length - 1, lines.lastValue.length);
+    }
+
     // Public
 
     get startLine() { return this._startLine; }
@@ -128,6 +136,12 @@ WI.TextRange = class TextRange
         return new WI.TextRange(startLine, startColumn, endLine, endColumn);
     }
 
+    collapseToStart()
+    {
+        console.assert(!isNaN(this._startLine), "TextRange needs line/column data.");
+        return new WI.TextRange(this._startLine, this._startColumn, this._startLine, this._startColumn);
+    }
+
     collapseToEnd()
     {
         console.assert(!isNaN(this._endLine), "TextRange needs line/column data.");
@@ -146,5 +160,4 @@ WI.TextRange = class TextRange
 
         return this.cloneAndModify(-line, deltaStartColumn, -line, deltaEndColumn);
     }
-
 };

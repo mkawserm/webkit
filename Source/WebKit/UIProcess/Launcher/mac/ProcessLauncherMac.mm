@@ -26,7 +26,6 @@
 #import "config.h"
 #import "ProcessLauncher.h"
 
-#import <WebCore/WebCoreNSStringExtras.h>
 #import <crt_externs.h>
 #import <mach-o/dyld.h>
 #import <mach/machine.h>
@@ -78,7 +77,8 @@ static bool shouldLeakBoost(const ProcessLauncher::LaunchOptions& launchOptions)
     return true;
 #else
     // On Mac, leak a boost onto the NetworkProcess.
-    return launchOptions.processType == ProcessLauncher::ProcessType::Network;
+    return launchOptions.processType == ProcessLauncher::ProcessType::Network
+        || launchOptions.processType == ProcessLauncher::ProcessType::Web;
 #endif
 }
 

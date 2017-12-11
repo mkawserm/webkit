@@ -131,7 +131,7 @@ private:
     CanvasRenderingContext2D* m_canvasContext;
 };
 
-CanvasRenderingContext2D::CanvasRenderingContext2D(HTMLCanvasElement& canvas, bool usesCSSCompatibilityParseMode, bool usesDashboardCompatibilityMode)
+CanvasRenderingContext2D::CanvasRenderingContext2D(CanvasBase& canvas, bool usesCSSCompatibilityParseMode, bool usesDashboardCompatibilityMode)
     : CanvasRenderingContext(canvas)
     , m_stateStack(1)
     , m_usesCSSCompatibilityParseMode(usesCSSCompatibilityParseMode)
@@ -2122,11 +2122,6 @@ ExceptionOr<RefPtr<ImageData>> CanvasRenderingContext2D::getImageData(float sx, 
     return getImageData(ImageBuffer::LogicalCoordinateSystem, sx, sy, sw, sh);
 }
 
-ExceptionOr<RefPtr<ImageData>> CanvasRenderingContext2D::webkitGetImageDataHD(float sx, float sy, float sw, float sh) const
-{
-    return getImageData(ImageBuffer::BackingStoreCoordinateSystem, sx, sy, sw, sh);
-}
-
 ExceptionOr<RefPtr<ImageData>> CanvasRenderingContext2D::getImageData(ImageBuffer::CoordinateSystem coordinateSystem, float sx, float sy, float sw, float sh) const
 {
     if (!canvas().originClean()) {
@@ -2180,19 +2175,9 @@ void CanvasRenderingContext2D::putImageData(ImageData& data, float dx, float dy)
     putImageData(data, dx, dy, 0, 0, data.width(), data.height());
 }
 
-void CanvasRenderingContext2D::webkitPutImageDataHD(ImageData& data, float dx, float dy)
-{
-    webkitPutImageDataHD(data, dx, dy, 0, 0, data.width(), data.height());
-}
-
 void CanvasRenderingContext2D::putImageData(ImageData& data, float dx, float dy, float dirtyX, float dirtyY, float dirtyWidth, float dirtyHeight)
 {
     putImageData(data, ImageBuffer::LogicalCoordinateSystem, dx, dy, dirtyX, dirtyY, dirtyWidth, dirtyHeight);
-}
-
-void CanvasRenderingContext2D::webkitPutImageDataHD(ImageData& data, float dx, float dy, float dirtyX, float dirtyY, float dirtyWidth, float dirtyHeight)
-{
-    putImageData(data, ImageBuffer::BackingStoreCoordinateSystem, dx, dy, dirtyX, dirtyY, dirtyWidth, dirtyHeight);
 }
 
 void CanvasRenderingContext2D::drawFocusIfNeeded(Element& element)
@@ -2219,6 +2204,9 @@ void CanvasRenderingContext2D::putImageData(ImageData& data, ImageBuffer::Coordi
     if (!buffer)
         return;
 
+    if (!data.data())
+        return;
+
     if (dirtyWidth < 0) {
         dirtyX += dirtyWidth;
         dirtyWidth = -dirtyWidth;
@@ -2242,7 +2230,7 @@ void CanvasRenderingContext2D::putImageData(ImageData& data, ImageBuffer::Coordi
     sourceRect.intersect(IntRect(0, 0, data.width(), data.height()));
 
     if (!sourceRect.isEmpty())
-        buffer->putByteArray(Unmultiplied, data.data(), IntSize(data.width(), data.height()), sourceRect, IntPoint(destOffset), coordinateSystem);
+        buffer->putByteArray(*data.data(), AlphaPremultiplication::Unpremultiplied, IntSize(data.width(), data.height()), sourceRect, IntPoint(destOffset), coordinateSystem);
 
     didDraw(destRect, CanvasDidDrawApplyNone); // ignore transform, shadow and clip
 }

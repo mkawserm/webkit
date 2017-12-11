@@ -28,6 +28,8 @@ from webkitpy.common.system.filesystem import FileSystem
 from webkitpy.common.webkit_finder import WebKitFinder
 import webkitpy.thirdparty.autoinstalled.mozlog
 import webkitpy.thirdparty.autoinstalled.mozprocess
+import webkitpy.thirdparty.autoinstalled.pytest
+import webkitpy.thirdparty.autoinstalled.pytest_timeout
 from mozlog import structuredlog
 
 w3c_tools_dir = WebKitFinder(FileSystem()).path_from_webkit_base('WebDriverTests', 'imported', 'w3c', 'tools')
@@ -36,10 +38,8 @@ w3c_tools_dir = WebKitFinder(FileSystem()).path_from_webkit_base('WebDriverTests
 def _ensure_directory_in_path(directory):
     if not directory in sys.path:
         sys.path.insert(0, directory)
-_ensure_directory_in_path(os.path.join(w3c_tools_dir, 'pytest'))
 _ensure_directory_in_path(os.path.join(w3c_tools_dir, 'webdriver'))
 _ensure_directory_in_path(os.path.join(w3c_tools_dir, 'wptrunner'))
-_ensure_directory_in_path(os.path.join(w3c_tools_dir, "webdriver"))
 
 from wptrunner.executors.base import WdspecExecutor, WebDriverProtocol
 from wptrunner.webdriver_server import WebDriverServer
@@ -124,6 +124,7 @@ class WebDriverW3CExecutor(WdspecExecutor):
 
     def __init__(self, driver, server, display_driver):
         WebKitDriverServer.test_env = display_driver._setup_environ_for_test()
+        WebKitDriverServer.test_env.update(driver.browser_env())
         server_config = {'host': server.host(), 'ports': {'http': [str(server.port())]}}
         WdspecExecutor.__init__(self, driver.browser_name(), server_config, driver.binary_path(), None, capabilities=driver.capabilities())
 
@@ -135,4 +136,5 @@ class WebDriverW3CExecutor(WdspecExecutor):
         self.protocol.teardown()
 
     def run(self, path):
-        return self.do_wdspec(self.protocol.session_config, path, 25)
+        # Timeout here doesn't really matter because it's ignored, so we pass 0.
+        return self.do_wdspec(self.protocol.session_config, path, 0)

@@ -29,7 +29,6 @@
 
 #include "GStreamerUtilities.h"
 #include "GraphicsContext.h"
-#include "GraphicsTypes.h"
 #include "ImageGStreamer.h"
 #include "ImageOrientation.h"
 #include "IntRect.h"
@@ -717,11 +716,8 @@ void MediaPlayerPrivateGStreamerBase::pushTextureToCompositor()
         return;
 
     IntSize size = IntSize(GST_VIDEO_INFO_WIDTH(&videoInfo), GST_VIDEO_INFO_HEIGHT(&videoInfo));
-    std::unique_ptr<TextureMapperPlatformLayerBuffer> buffer = m_platformLayerProxy->getAvailableBuffer(size, GraphicsContext3D::DONT_CARE);
+    std::unique_ptr<TextureMapperPlatformLayerBuffer> buffer = m_platformLayerProxy->getAvailableBuffer(size, GL_DONT_CARE);
     if (UNLIKELY(!buffer)) {
-        if (UNLIKELY(!m_context3D))
-            m_context3D = GraphicsContext3D::create(GraphicsContext3DAttributes(), nullptr, GraphicsContext3D::RenderToCurrentGLContext);
-
         TextureMapperContextAttributes contextAttributes;
         contextAttributes.initialize();
 
@@ -1146,7 +1142,7 @@ unsigned MediaPlayerPrivateGStreamerBase::videoDecodedByteCount() const
 }
 
 #if ENABLE(ENCRYPTED_MEDIA)
-void MediaPlayerPrivateGStreamerBase::cdmInstanceAttached(const CDMInstance& instance)
+void MediaPlayerPrivateGStreamerBase::cdmInstanceAttached(CDMInstance& instance)
 {
     ASSERT(!m_cdmInstance);
     m_cdmInstance = &instance;
@@ -1154,7 +1150,7 @@ void MediaPlayerPrivateGStreamerBase::cdmInstanceAttached(const CDMInstance& ins
     m_protectionCondition.notifyAll();
 }
 
-void MediaPlayerPrivateGStreamerBase::cdmInstanceDetached(const CDMInstance& instance)
+void MediaPlayerPrivateGStreamerBase::cdmInstanceDetached(CDMInstance& instance)
 {
 #ifdef NDEBUG
     UNUSED_PARAM(instance);
@@ -1165,7 +1161,7 @@ void MediaPlayerPrivateGStreamerBase::cdmInstanceDetached(const CDMInstance& ins
     m_protectionCondition.notifyAll();
 }
 
-void MediaPlayerPrivateGStreamerBase::attemptToDecryptWithInstance(const CDMInstance& instance)
+void MediaPlayerPrivateGStreamerBase::attemptToDecryptWithInstance(CDMInstance& instance)
 {
     ASSERT(m_cdmInstance.get() == &instance);
     GST_TRACE("instance %p, current stored %p", &instance, m_cdmInstance.get());

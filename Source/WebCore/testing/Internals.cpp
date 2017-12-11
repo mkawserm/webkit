@@ -29,6 +29,7 @@
 
 #include "AXObjectCache.h"
 #include "ActiveDOMCallbackMicrotask.h"
+#include "AnimationTimeline.h"
 #include "ApplicationCacheStorage.h"
 #include "AudioSession.h"
 #include "Autofill.h"
@@ -131,6 +132,7 @@
 #include "ScrollingMomentumCalculator.h"
 #include "SecurityOrigin.h"
 #include "SerializedScriptValue.h"
+#include "ServiceWorker.h"
 #include "ServiceWorkerProvider.h"
 #include "ServiceWorkerRegistrationData.h"
 #include "Settings.h"
@@ -159,9 +161,9 @@
 #include <bytecode/CodeBlock.h>
 #include <inspector/InspectorAgentBase.h>
 #include <inspector/InspectorFrontendChannel.h>
-#include <inspector/InspectorValues.h>
 #include <runtime/JSCInlines.h>
 #include <runtime/JSCJSValue.h>
+#include <wtf/JSONValues.h>
 #include <wtf/Language.h>
 #include <wtf/MemoryPressureHandler.h>
 #include <wtf/MonotonicTime.h>
@@ -1235,7 +1237,7 @@ String Internals::visiblePlaceholder(Element& element)
 
 void Internals::selectColorInColorChooser(HTMLInputElement& element, const String& colorValue)
 {
-    element.selectColor(Color(colorValue));
+    element.selectColor(colorValue);
 }
 
 ExceptionOr<Vector<String>> Internals::formControlStateOfPreviousHistoryItem()
@@ -1563,8 +1565,15 @@ ExceptionOr<void> Internals::setViewBaseBackgroundColor(const String& colorValue
     if (!document || !document->view())
         return Exception { InvalidAccessError };
 
-    document->view()->setBaseBackgroundColor(Color(colorValue));
-    return { };
+    if (colorValue == "transparent") {
+        document->view()->setBaseBackgroundColor(Color::transparent);
+        return { };
+    }
+    if (colorValue == "white") {
+        document->view()->setBaseBackgroundColor(Color::white);
+        return { };
+    }
+    return Exception { SyntaxError };
 }
 
 ExceptionOr<void> Internals::setPagination(const String& mode, int gap, int pageLength)
@@ -1648,11 +1657,11 @@ void Internals::setAutofilled(HTMLInputElement& element, bool enabled)
 static AutoFillButtonType toAutoFillButtonType(Internals::AutoFillButtonType type)
 {
     switch (type) {
-    case Internals::AutoFillButtonType::AutoFillButtonTypeNone:
+    case Internals::AutoFillButtonType::None:
         return AutoFillButtonType::None;
-    case Internals::AutoFillButtonType::AutoFillButtonTypeCredentials:
+    case Internals::AutoFillButtonType::Credentials:
         return AutoFillButtonType::Credentials;
-    case Internals::AutoFillButtonType::AutoFillButtonTypeContacts:
+    case Internals::AutoFillButtonType::Contacts:
         return AutoFillButtonType::Contacts;
     }
     ASSERT_NOT_REACHED();
@@ -1724,7 +1733,7 @@ Ref<Range> Internals::subrange(Range& range, int rangeLocation, int rangeLength)
 
 RefPtr<Range> Internals::rangeOfStringNearLocation(const Range& searchRange, const String& text, unsigned targetOffset)
 {
-    return findClosestPlainText(searchRange, text, 0, targetOffset);
+    return findClosestPlainText(searchRange, text, { }, targetOffset);
 }
 
 ExceptionOr<RefPtr<Range>> Internals::rangeForDictionaryLookupAtLocation(int x, int y)
@@ -1737,8 +1746,7 @@ ExceptionOr<RefPtr<Range>> Internals::rangeForDictionaryLookupAtLocation(int x, 
     document->updateLayoutIgnorePendingStylesheets();
 
     HitTestResult result = document->frame()->mainFrame().eventHandler().hitTestResultAtPoint(IntPoint(x, y));
-    NSDictionary *options = nullptr;
-    return DictionaryLookup::rangeAtHitTestResult(result, &options);
+    return DictionaryLookup::rangeAtHitTestResult(result, nullptr);
 #else
     UNUSED_PARAM(x);
     UNUSED_PARAM(y);
@@ -2118,7 +2126,7 @@ static ExceptionOr<FindOptions> parseFindOptions(const Vector<String>& optionLis
         {"AtWordEnds", AtWordEnds},
         {"DoNotTraverseFlatTree", DoNotTraverseFlatTree},
     };
-    FindOptions result = 0;
+    FindOptions result;
     for (auto& option : optionList) {
         bool found = false;
         for (auto& flag : flagList) {
@@ -2131,7 +2139,7 @@ static ExceptionOr<FindOptions> parseFindOptions(const Vector<String>& optionLis
         if (!found)
             return Exception { SyntaxError };
     }
-    return result;
+    return WTFMove(result);
 }
 
 ExceptionOr<RefPtr<Range>> Internals::rangeOfString(const String& text, RefPtr<Range>&& referenceRange, const Vector<String>& findOptions)
@@ -2743,7 +2751,7 @@ Ref<MemoryInfo> Internals::memoryInfo() const
 Vector<String> Internals::getReferencedFilePaths() const
 {
     frame()->loader().history().saveDocumentAndScrollState();
-    return FormController::getReferencedFilePaths(frame()->loader().history().currentItem()->documentState());
+    return FormController::referencedFilePaths(frame()->loader().history().currentItem()->documentState());
 }
 
 ExceptionOr<void> Internals::startTrackingRepaints()
@@ -4132,11 +4140,11 @@ ExceptionOr<void> Internals::setMediaDeviceState(const String& id, const String&
         return Exception { InvalidAccessError, makeString("\"" + property, "\" is not a valid property for this method.") };
 
     auto salt = document->deviceIDHashSalt();
-    std::optional<CaptureDevice> device = RealtimeMediaSourceCenter::singleton().captureDeviceWithUniqueID(id, salt);
+    CaptureDevice device = RealtimeMediaSourceCenter::singleton().captureDeviceWithUniqueID(id, salt);
     if (!device)
         return Exception { InvalidAccessError, makeString("device with ID \"" + id, "\" not found.") };
 
-    auto result = RealtimeMediaSourceCenter::singleton().setDeviceEnabled(device->persistentId(), value);
+    auto result = RealtimeMediaSourceCenter::singleton().setDeviceEnabled(device.persistentId(), value);
     if (result.hasException())
         return result.releaseException();
 
@@ -4231,19 +4239,6 @@ void Internals::setConsoleMessageListener(RefPtr<StringCallback>&& listener)
     contextDocument()->setConsoleMessageListener(WTFMove(listener));
 }
 
-bool Internals::hasServiceWorkerRegisteredForOrigin(const String& origin)
-{
-#if ENABLE(SERVICE_WORKER)
-    if (!contextDocument())
-        return false;
-
-    return ServiceWorkerProvider::singleton().serviceWorkerConnectionForSession(contextDocument()->sessionID()).hasServiceWorkerRegisteredForOrigin(SecurityOrigin::createFromString(origin));
-#else
-    UNUSED_PARAM(origin);
-    return false;
-#endif
-}
-
 void Internals::setResponseSizeWithPadding(FetchResponse& response, uint64_t size)
 {
     response.setBodySizeWithPadding(size);
@@ -4283,6 +4278,14 @@ void Internals::hasServiceWorkerRegistration(const String& clientURL, HasRegistr
         promise.resolve(!!result);
     });
 }
+
+void Internals::terminateServiceWorker(ServiceWorker& worker)
+{
+    if (!contextDocument())
+        return;
+
+    ServiceWorkerProvider::singleton().serviceWorkerConnectionForSession(contextDocument()->sessionID()).syncTerminateWorker(worker.identifier());
+}
 #endif
 
 String Internals::timelineDescription(AnimationTimeline& timeline)
@@ -4297,13 +4300,46 @@ void Internals::pauseTimeline(AnimationTimeline& timeline)
 
 void Internals::setTimelineCurrentTime(AnimationTimeline& timeline, double currentTime)
 {
-    timeline.setCurrentTime(Seconds(currentTime));
+    timeline.setCurrentTime(Seconds::fromMilliseconds(currentTime));
 }
 
 #if ENABLE(APPLE_PAY)
 MockPaymentCoordinator& Internals::mockPaymentCoordinator() const
 {
     return *m_mockPaymentCoordinator;
+}
+#endif
+
+#if ENABLE(ALTERNATIVE_PRESENTATION_BUTTON_ELEMENT)
+ExceptionOr<void> Internals::substituteWithAlternativePresentationButton(Vector<RefPtr<Element>>&& elementsFromBindings, const String& identifier)
+{
+    if (!frame())
+        return Exception { InvalidAccessError };
+    if (elementsFromBindings.isEmpty())
+        return Exception { TypeError, ASCIILiteral { "Must specify at least one element to substitute." } };
+    Vector<Ref<Element>> elements;
+    elements.reserveInitialCapacity(elementsFromBindings.size());
+    for (auto& element : elementsFromBindings) {
+        if (element)
+            elements.uncheckedAppend(element.releaseNonNull());
+    }
+    frame()->editor().substituteWithAlternativePresentationButton(WTFMove(elements), identifier);
+    return { };
+}
+
+ExceptionOr<void> Internals::removeAlternativePresentationButton(const String& identifier)
+{
+    if (!frame())
+        return Exception { InvalidAccessError };
+    frame()->editor().removeAlternativePresentationButton(identifier);
+    return { };
+}
+
+ExceptionOr<Vector<Ref<Element>>> Internals::elementsReplacedByAlternativePresentationButton(const String& identifier)
+{
+    if (!frame())
+        return Exception { InvalidAccessError };
+    return frame()->editor().elementsReplacedByAlternativePresentationButton(identifier);
 }
 #endif
 

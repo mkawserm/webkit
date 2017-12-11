@@ -213,6 +213,7 @@ typedef JSCell* (JIT_OPERATION *C_JITOperation_EStRZJsfL)(ExecState*, Structure*
 typedef JSCell* (JIT_OPERATION *C_JITOperation_EStRZJsf)(ExecState*, Structure*, Register*, int32_t, JSFunction*);
 typedef JSCell* (JIT_OPERATION *C_JITOperation_EStZ)(ExecState*, Structure*, int32_t);
 typedef JSCell* (JIT_OPERATION *C_JITOperation_EStZZ)(ExecState*, Structure*, int32_t, int32_t);
+typedef JSCell* (JIT_OPERATION *C_JITOperation_EStCS)(ExecState*, Structure*, JSCell*, size_t);
 typedef JSCell* (JIT_OPERATION *C_JITOperation_ECZZ)(ExecState*, JSCell*, int32_t, int32_t);
 typedef JSCell* (JIT_OPERATION *C_JITOperation_EZ)(ExecState*, int32_t);
 typedef JSCell* (JIT_OPERATION *C_JITOperation_EJscI)(ExecState*, JSScope*, UniquedStringImpl*);
@@ -265,7 +266,9 @@ typedef void (JIT_OPERATION *V_JITOperation_ECIZJJ)(ExecState*, JSCell*, Uniqued
 typedef void (JIT_OPERATION *V_JITOperation_ECJZC)(ExecState*, JSCell*, EncodedJSValue, int32_t, JSCell*);
 typedef void (JIT_OPERATION *V_JITOperation_ECCIcf)(ExecState*, JSCell*, JSCell*, InlineCallFrame*);
 typedef void (JIT_OPERATION *V_JITOperation_ECJ)(ExecState*, JSCell*, EncodedJSValue);
+typedef void (JIT_OPERATION *V_JITOperation_ECJZ)(ExecState*, JSCell*, EncodedJSValue, int32_t);
 typedef void (JIT_OPERATION *V_JITOperation_ECJJ)(ExecState*, JSCell*, EncodedJSValue, EncodedJSValue);
+typedef void (JIT_OPERATION *V_JITOperation_ECJJZ)(ExecState*, JSCell*, EncodedJSValue, EncodedJSValue, int32_t);
 typedef void (JIT_OPERATION *V_JITOperation_ECPSPS)(ExecState*, JSCell*, void*, size_t, void*, size_t);
 typedef void (JIT_OPERATION *V_JITOperation_ECZ)(ExecState*, JSCell*, int32_t);
 typedef void (JIT_OPERATION *V_JITOperation_ECC)(ExecState*, JSCell*, JSCell*);
@@ -390,7 +393,6 @@ EncodedJSValue JIT_OPERATION operationCompareStringEq(ExecState*, JSCell* left, 
 size_t JIT_OPERATION operationCompareStringEq(ExecState*, JSCell* left, JSCell* right) WTF_INTERNAL;
 #endif
 EncodedJSValue JIT_OPERATION operationNewArrayWithProfile(ExecState*, ArrayAllocationProfile*, const JSValue* values, int32_t size) WTF_INTERNAL;
-EncodedJSValue JIT_OPERATION operationNewArrayBufferWithProfile(ExecState*, ArrayAllocationProfile*, const JSValue* values, int32_t size) WTF_INTERNAL;
 EncodedJSValue JIT_OPERATION operationNewArrayWithSizeAndProfile(ExecState*, ArrayAllocationProfile*, EncodedJSValue size) WTF_INTERNAL;
 EncodedJSValue JIT_OPERATION operationNewFunction(ExecState*, JSScope*, JSCell*) WTF_INTERNAL;
 EncodedJSValue JIT_OPERATION operationNewFunctionWithInvalidatedReallocationWatchpoint(ExecState*, JSScope*, JSCell*) WTF_INTERNAL;
@@ -459,7 +461,6 @@ int32_t JIT_OPERATION operationCheckIfExceptionIsUncatchableAndNotifyProfiler(Ex
 int32_t JIT_OPERATION operationInstanceOfCustom(ExecState*, EncodedJSValue encodedValue, JSObject* constructor, EncodedJSValue encodedHasInstance) WTF_INTERNAL;
 
 EncodedJSValue JIT_OPERATION operationHasGenericProperty(ExecState*, EncodedJSValue, JSCell*);
-EncodedJSValue JIT_OPERATION operationHasIndexedProperty(ExecState*, JSCell*, int32_t, int32_t);
 JSCell* JIT_OPERATION operationGetPropertyEnumerator(ExecState*, JSCell*);
 EncodedJSValue JIT_OPERATION operationNextEnumeratorPname(ExecState*, JSCell*, int32_t);
 JSCell* JIT_OPERATION operationToIndexString(ExecState*, int32_t);

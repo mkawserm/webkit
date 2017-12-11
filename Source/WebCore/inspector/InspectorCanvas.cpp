@@ -74,6 +74,7 @@
 
 
 namespace WebCore {
+
 using namespace Inspector;
 
 Ref<InspectorCanvas> InspectorCanvas::create(HTMLCanvasElement& canvas, const String& cssCanvasName)
@@ -101,6 +102,7 @@ void InspectorCanvas::resetRecordingData()
     m_actionNeedingSnapshot = nullptr;
     m_serializedDuplicateData = nullptr;
     m_indexedDuplicateData.clear();
+    m_recordingName = { };
     m_bufferLimit = 100 * 1024 * 1024;
     m_bufferUsed = 0;
     m_singleFrame = true;
@@ -133,10 +135,10 @@ void InspectorCanvas::recordAction(const String& name, Vector<RecordCanvasAction
     }
 
     if (!m_frames)
-        m_frames = Inspector::Protocol::Array<Inspector::Protocol::Recording::Frame>::create();
+        m_frames = JSON::ArrayOf<Inspector::Protocol::Recording::Frame>::create();
 
     if (!m_currentActions) {
-        m_currentActions = Inspector::Protocol::Array<InspectorValue>::create();
+        m_currentActions = JSON::ArrayOf<JSON::Value>::create();
 
         auto frame = Inspector::Protocol::Recording::Frame::create()
             .setActions(m_currentActions)
@@ -164,14 +166,14 @@ RefPtr<Inspector::Protocol::Recording::InitialState>&& InspectorCanvas::releaseI
     return WTFMove(m_initialState);
 }
 
-RefPtr<Inspector::Protocol::Array<Inspector::Protocol::Recording::Frame>>&& InspectorCanvas::releaseFrames()
+RefPtr<JSON::ArrayOf<Inspector::Protocol::Recording::Frame>>&& InspectorCanvas::releaseFrames()
 {
     appendActionSnapshotIfNeeded();
 
     return WTFMove(m_frames);
 }
 
-RefPtr<Inspector::Protocol::Array<InspectorValue>>&& InspectorCanvas::releaseData()
+RefPtr<JSON::ArrayOf<JSON::Value>>&& InspectorCanvas::releaseData()
 {
     m_indexedDuplicateData.clear();
     return WTFMove(m_serializedDuplicateData);
@@ -321,9 +323,9 @@ int InspectorCanvas::indexForData(DuplicateDataVariant data)
     }
 
     if (!m_serializedDuplicateData)
-        m_serializedDuplicateData = Inspector::Protocol::Array<InspectorValue>::create();
+        m_serializedDuplicateData = JSON::ArrayOf<JSON::Value>::create();
 
-    RefPtr<InspectorValue> item;
+    RefPtr<JSON::Value> item;
     WTF::switchOn(data,
         [&] (const HTMLImageElement* imageElement) {
             String dataURL = ASCIILiteral("data:,");
@@ -337,7 +339,7 @@ int InspectorCanvas::indexForData(DuplicateDataVariant data)
                 }
             }
 
-            item = InspectorValue::create(dataURL);
+            item = JSON::Value::create(dataURL);
         },
 #if ENABLE(VIDEO)
         [&] (HTMLVideoElement* videoElement) {
@@ -351,7 +353,7 @@ int InspectorCanvas::indexForData(DuplicateDataVariant data)
                 dataURL = imageBuffer->toDataURL("image/png");
             }
 
-            item = InspectorValue::create(dataURL);
+            item = JSON::Value::create(dataURL);
         },
 #endif
         [&] (HTMLCanvasElement* canvasElement) {
@@ -361,21 +363,21 @@ int InspectorCanvas::indexForData(DuplicateDataVariant data)
             if (!result.hasException())
                 dataURL = result.releaseReturnValue().string;
 
-            item = InspectorValue::create(dataURL);
+            item = JSON::Value::create(dataURL);
         },
         [&] (const CanvasGradient* canvasGradient) { item = buildArrayForCanvasGradient(*canvasGradient); },
         [&] (const CanvasPattern* canvasPattern) { item = buildArrayForCanvasPattern(*canvasPattern); },
         [&] (const ImageData* imageData) { item = buildArrayForImageData(*imageData); },
         [&] (const ImageBitmap* imageBitmap) { item = buildArrayForImageBitmap(*imageBitmap); },
         [&] (const ScriptCallFrame& scriptCallFrame) {
-            auto array = Inspector::Protocol::Array<double>::create();
+            auto array = JSON::ArrayOf<double>::create();
             array->addItem(indexForData(scriptCallFrame.functionName()));
             array->addItem(indexForData(scriptCallFrame.sourceURL()));
             array->addItem(static_cast<int>(scriptCallFrame.lineNumber()));
             array->addItem(static_cast<int>(scriptCallFrame.columnNumber()));
             item = WTFMove(array);
         },
-        [&] (const String& value) { item = InspectorValue::create(value); }
+        [&] (const String& value) { item = JSON::Value::create(value); }
     );
 
     m_bufferUsed += item->memoryCost();
@@ -388,9 +390,9 @@ int InspectorCanvas::indexForData(DuplicateDataVariant data)
     return static_cast<int>(index);
 }
 
-static RefPtr<Inspector::Protocol::Array<double>> buildArrayForAffineTransform(const AffineTransform& affineTransform)
+static RefPtr<JSON::ArrayOf<double>> buildArrayForAffineTransform(const AffineTransform& affineTransform)
 {
-    RefPtr<Inspector::Protocol::Array<double>> array = Inspector::Protocol::Array<double>::create();
+    RefPtr<JSON::ArrayOf<double>> array = JSON::ArrayOf<double>::create();
     array->addItem(affineTransform.a());
     array->addItem(affineTransform.b());
     array->addItem(affineTransform.c());
@@ -401,9 +403,9 @@ static RefPtr<Inspector::Protocol::Array<double>> buildArrayForAffineTransform(c
 }
 
 template <typename T>
-static RefPtr<Inspector::Protocol::Array<InspectorValue>> buildArrayForVector(const Vector<T>& vector)
+static RefPtr<JSON::ArrayOf<JSON::Value>> buildArrayForVector(const Vector<T>& vector)
 {
-    RefPtr<Inspector::Protocol::Array<InspectorValue>> array = Inspector::Protocol::Array<InspectorValue>::create();
+    RefPtr<JSON::ArrayOf<JSON::Value>> array = JSON::ArrayOf<JSON::Value>::create();
     for (auto& item : vector)
         array->addItem(item);
     return array;
@@ -414,11 +416,11 @@ RefPtr<Inspector::Protocol::Recording::InitialState> InspectorCanvas::buildIniti
     RefPtr<Inspector::Protocol::Recording::InitialState> initialState = Inspector::Protocol::Recording::InitialState::create()
         .release();
 
-    auto attributes = InspectorObject::create();
+    auto attributes = JSON::Object::create();
     attributes->setInteger(ASCIILiteral("width"), canvas().width());
     attributes->setInteger(ASCIILiteral("height"), canvas().height());
 
-    auto parameters = Inspector::Protocol::Array<InspectorValue>::create();
+    auto parameters = JSON::ArrayOf<JSON::Value>::create();
 
     CanvasRenderingContext* canvasRenderingContext = canvas().renderingContext();
     if (is<CanvasRenderingContext2D>(canvasRenderingContext)) {
@@ -439,7 +441,7 @@ RefPtr<Inspector::Protocol::Recording::InitialState> InspectorCanvas::buildIniti
 
         // The parameter to `setLineDash` is itself an array, so we need to wrap the parameters
         // list in an array to allow spreading.
-        auto setLineDash = Inspector::Protocol::Array<InspectorValue>::create();
+        auto setLineDash = JSON::ArrayOf<JSON::Value>::create();
         setLineDash->addItem(buildArrayForVector(state.lineDash));
         attributes->setArray(ASCIILiteral("setLineDash"), WTFMove(setLineDash));
 
@@ -470,7 +472,7 @@ RefPtr<Inspector::Protocol::Recording::InitialState> InspectorCanvas::buildIniti
         attributes->setBoolean(ASCIILiteral("imageSmoothingEnabled"), context2d->imageSmoothingEnabled());
         attributes->setInteger(ASCIILiteral("imageSmoothingQuality"), indexForData(convertEnumerationToString(context2d->imageSmoothingQuality())));
 
-        auto setPath = Inspector::Protocol::Array<InspectorValue>::create();
+        auto setPath = JSON::ArrayOf<JSON::Value>::create();
         setPath->addItem(indexForData(buildStringFromPath(context2d->getPath()->path())));
         attributes->setArray(ASCIILiteral("setPath"), WTFMove(setPath));
     }
@@ -478,7 +480,7 @@ RefPtr<Inspector::Protocol::Recording::InitialState> InspectorCanvas::buildIniti
     else if (is<WebGLRenderingContextBase>(canvasRenderingContext)) {
         WebGLRenderingContextBase* contextWebGLBase = downcast<WebGLRenderingContextBase>(canvasRenderingContext);
         if (std::optional<WebGLContextAttributes> attributes = contextWebGLBase->getContextAttributes()) {
-            RefPtr<InspectorObject> contextAttributes = InspectorObject::create();
+            RefPtr<JSON::Object> contextAttributes = JSON::Object::create();
             contextAttributes->setBoolean(ASCIILiteral("alpha"), attributes->alpha);
             contextAttributes->setBoolean(ASCIILiteral("depth"), attributes->depth);
             contextAttributes->setBoolean(ASCIILiteral("stencil"), attributes->stencil);
@@ -501,13 +503,13 @@ RefPtr<Inspector::Protocol::Recording::InitialState> InspectorCanvas::buildIniti
     return initialState;
 }
 
-RefPtr<Inspector::Protocol::Array<Inspector::InspectorValue>> InspectorCanvas::buildAction(const String& name, Vector<RecordCanvasActionVariant>&& parameters)
+RefPtr<JSON::ArrayOf<JSON::Value>> InspectorCanvas::buildAction(const String& name, Vector<RecordCanvasActionVariant>&& parameters)
 {
-    RefPtr<Inspector::Protocol::Array<InspectorValue>> action = Inspector::Protocol::Array<InspectorValue>::create();
+    RefPtr<JSON::ArrayOf<JSON::Value>> action = JSON::ArrayOf<JSON::Value>::create();
     action->addItem(indexForData(name));
 
-    RefPtr<Inspector::Protocol::Array<InspectorValue>> parametersData = Inspector::Protocol::Array<Inspector::InspectorValue>::create();
-    RefPtr<Inspector::Protocol::Array<int>> swizzleTypes = Inspector::Protocol::Array<int>::create();
+    RefPtr<JSON::ArrayOf<JSON::Value>> parametersData = JSON::ArrayOf<JSON::Value>::create();
+    RefPtr<JSON::ArrayOf<int>> swizzleTypes = JSON::ArrayOf<int>::create();
 
     auto addParameter = [&parametersData, &swizzleTypes] (auto value, RecordingSwizzleTypes swizzleType) {
         parametersData->addItem(value);
@@ -523,7 +525,7 @@ RefPtr<Inspector::Protocol::Array<Inspector::InspectorValue>> InspectorCanvas::b
             [&] (CanvasTextAlign value) { addParameter(indexForData(convertEnumerationToString(value)), RecordingSwizzleTypes::String); },
             [&] (CanvasTextBaseline value) { addParameter(indexForData(convertEnumerationToString(value)), RecordingSwizzleTypes::String); },
             [&] (const DOMMatrix2DInit& value) {
-                RefPtr<Inspector::Protocol::Array<double>> array = Inspector::Protocol::Array<double>::create();
+                RefPtr<JSON::ArrayOf<double>> array = JSON::ArrayOf<double>::create();
                 array->addItem(value.a.value_or(1));
                 array->addItem(value.b.value_or(0));
                 array->addItem(value.c.value_or(0));
@@ -580,7 +582,7 @@ RefPtr<Inspector::Protocol::Array<Inspector::InspectorValue>> InspectorCanvas::b
     action->addItem(WTFMove(parametersData));
     action->addItem(WTFMove(swizzleTypes));
 
-    RefPtr<Inspector::Protocol::Array<double>> trace = Inspector::Protocol::Array<double>::create();
+    RefPtr<JSON::ArrayOf<double>> trace = JSON::ArrayOf<double>::create();
     auto stackTrace = Inspector::createScriptCallStack(JSMainThreadExecState::currentState(), Inspector::ScriptCallStack::maxCallStackSizeToCapture);
     for (size_t i = 0; i < stackTrace->size(); ++i)
         trace->addItem(indexForData(stackTrace->at(i)));
@@ -589,39 +591,46 @@ RefPtr<Inspector::Protocol::Array<Inspector::InspectorValue>> InspectorCanvas::b
     return action;
 }
 
-RefPtr<Inspector::Protocol::Array<InspectorValue>> InspectorCanvas::buildArrayForCanvasGradient(const CanvasGradient& canvasGradient)
+RefPtr<JSON::ArrayOf<JSON::Value>> InspectorCanvas::buildArrayForCanvasGradient(const CanvasGradient& canvasGradient)
 {
-    const Gradient& gradient = canvasGradient.gradient();
-    bool isRadial = gradient.isRadial();
+    const auto& gradient = canvasGradient.gradient();
 
-    String type = isRadial ? ASCIILiteral("radial-gradient") : ASCIILiteral("linear-gradient");
+    String type = gradient.type() == Gradient::Type::Radial ? ASCIILiteral("radial-gradient") : ASCIILiteral("linear-gradient");
 
-    RefPtr<Inspector::Protocol::Array<float>> parameters = Inspector::Protocol::Array<float>::create();
-    parameters->addItem(gradient.p0().x());
-    parameters->addItem(gradient.p0().y());
-    if (isRadial)
-        parameters->addItem(gradient.startRadius());
-    parameters->addItem(gradient.p1().x());
-    parameters->addItem(gradient.p1().y());
-    if (isRadial)
-        parameters->addItem(gradient.endRadius());
+    RefPtr<JSON::ArrayOf<float>> parameters = JSON::ArrayOf<float>::create();
+    WTF::switchOn(gradient.data(),
+        [&parameters] (const Gradient::LinearData& data) {
+            parameters->addItem(data.point0.x());
+            parameters->addItem(data.point0.y());
+            parameters->addItem(data.point1.x());
+            parameters->addItem(data.point1.y());
+        },
+        [&parameters] (const Gradient::RadialData& data) {
+            parameters->addItem(data.point0.x());
+            parameters->addItem(data.point0.y());
+            parameters->addItem(data.startRadius);
+            parameters->addItem(data.point1.x());
+            parameters->addItem(data.point1.y());
+            parameters->addItem(data.endRadius);
+        }
+    );
 
-    RefPtr<Inspector::Protocol::Array<InspectorValue>> stops = Inspector::Protocol::Array<InspectorValue>::create();
-    for (const Gradient::ColorStop& colorStop : gradient.stops()) {
-        RefPtr<Inspector::Protocol::Array<InspectorValue>> stop = Inspector::Protocol::Array<InspectorValue>::create();
+    RefPtr<JSON::ArrayOf<JSON::Value>> stops = JSON::ArrayOf<JSON::Value>::create();
+    for (auto& colorStop : gradient.stops()) {
+        RefPtr<JSON::ArrayOf<JSON::Value>> stop = JSON::ArrayOf<JSON::Value>::create();
         stop->addItem(colorStop.offset);
         stop->addItem(indexForData(colorStop.color.cssText()));
         stops->addItem(WTFMove(stop));
     }
 
-    RefPtr<Inspector::Protocol::Array<Inspector::InspectorValue>> array = Inspector::Protocol::Array<Inspector::InspectorValue>::create();
+    RefPtr<JSON::ArrayOf<JSON::Value>> array = JSON::ArrayOf<JSON::Value>::create();
     array->addItem(indexForData(type));
     array->addItem(WTFMove(parameters));
     array->addItem(WTFMove(stops));
     return array;
 }
 
-RefPtr<Inspector::Protocol::Array<InspectorValue>> InspectorCanvas::buildArrayForCanvasPattern(const CanvasPattern& canvasPattern)
+RefPtr<JSON::ArrayOf<JSON::Value>> InspectorCanvas::buildArrayForCanvasPattern(const CanvasPattern& canvasPattern)
 {
     Image& tileImage = canvasPattern.pattern().tileImage();
     std::unique_ptr<ImageBuffer> imageBuffer = ImageBuffer::create(tileImage.size(), RenderingMode::Unaccelerated);
@@ -639,29 +648,29 @@ RefPtr<Inspector::Protocol::Array<InspectorValue>> InspectorCanvas::buildArrayFo
     else
         repeat = ASCIILiteral("no-repeat");
 
-    RefPtr<Inspector::Protocol::Array<Inspector::InspectorValue>> array = Inspector::Protocol::Array<Inspector::InspectorValue>::create();
+    RefPtr<JSON::ArrayOf<JSON::Value>> array = JSON::ArrayOf<JSON::Value>::create();
     array->addItem(indexForData(imageBuffer->toDataURL("image/png")));
     array->addItem(indexForData(repeat));
     return array;
 }
 
-RefPtr<Inspector::Protocol::Array<InspectorValue>> InspectorCanvas::buildArrayForImageData(const ImageData& imageData)
+RefPtr<JSON::ArrayOf<JSON::Value>> InspectorCanvas::buildArrayForImageData(const ImageData& imageData)
 {
-    RefPtr<Inspector::Protocol::Array<int>> data = Inspector::Protocol::Array<int>::create();
+    RefPtr<JSON::ArrayOf<int>> data = JSON::ArrayOf<int>::create();
     for (size_t i = 0; i < imageData.data()->length(); ++i)
         data->addItem(imageData.data()->item(i));
 
-    RefPtr<Inspector::Protocol::Array<Inspector::InspectorValue>> array = Inspector::Protocol::Array<Inspector::InspectorValue>::create();
+    RefPtr<JSON::ArrayOf<JSON::Value>> array = JSON::ArrayOf<JSON::Value>::create();
     array->addItem(WTFMove(data));
     array->addItem(imageData.width());
     array->addItem(imageData.height());
     return array;
 }
 
-RefPtr<Inspector::Protocol::Array<InspectorValue>> InspectorCanvas::buildArrayForImageBitmap(const ImageBitmap& imageBitmap)
+RefPtr<JSON::ArrayOf<JSON::Value>> InspectorCanvas::buildArrayForImageBitmap(const ImageBitmap& imageBitmap)
 {
     // FIXME: Needs to include the data somehow.
-    RefPtr<Inspector::Protocol::Array<Inspector::InspectorValue>> array = Inspector::Protocol::Array<Inspector::InspectorValue>::create();
+    RefPtr<JSON::ArrayOf<JSON::Value>> array = JSON::ArrayOf<JSON::Value>::create();
     array->addItem(static_cast<int>(imageBitmap.width()));
     array->addItem(static_cast<int>(imageBitmap.height()));
     return array;

@@ -81,7 +81,7 @@ void JIT::emit_op_new_object(Instruction* currentInstruction)
 {
     Structure* structure = currentInstruction[3].u.objectAllocationProfile->structure();
     size_t allocationSize = JSFinalObject::allocationSize(structure->inlineCapacity());
-    MarkedAllocator* allocator = subspaceFor<JSFinalObject>(*m_vm)->allocatorFor(allocationSize);
+    MarkedAllocator* allocator = subspaceFor<JSFinalObject>(*m_vm)->allocatorForNonVirtual(allocationSize, AllocatorForMode::AllocatorIfExists);
 
     RegisterID resultReg = regT0;
     RegisterID allocatorReg = regT1;
@@ -1032,15 +1032,6 @@ void JIT::emit_op_new_array_with_size(Instruction* currentInstruction)
     callOperation(operationNewArrayWithSizeAndProfile, dst,
         currentInstruction[3].u.arrayAllocationProfile, regT1, regT0);
 #endif
-}
-
-void JIT::emit_op_new_array_buffer(Instruction* currentInstruction)
-{
-    int dst = currentInstruction[1].u.operand;
-    int valuesIndex = currentInstruction[2].u.operand;
-    int size = currentInstruction[3].u.operand;
-    const JSValue* values = codeBlock()->constantBuffer(valuesIndex);
-    callOperation(operationNewArrayBufferWithProfile, dst, currentInstruction[4].u.arrayAllocationProfile, values, size);
 }
 
 #if USE(JSVALUE64)

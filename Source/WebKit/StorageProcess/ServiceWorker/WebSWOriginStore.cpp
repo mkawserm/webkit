@@ -41,38 +41,39 @@ WebSWOriginStore::WebSWOriginStore()
 {
 }
 
-void WebSWOriginStore::add(const SecurityOrigin& origin)
+void WebSWOriginStore::addToStore(const SecurityOrigin& origin)
 {
     m_store.scheduleAddition(computeSharedStringHash(origin.toString()));
     m_store.flushPendingChanges();
 }
 
-void WebSWOriginStore::addAll(const Vector<SecurityOrigin>& origins)
-{
-    for (auto& origin : origins)
-        m_store.scheduleAddition(computeSharedStringHash(origin.toString()));
-    m_store.flushPendingChanges();
-}
-
-void WebSWOriginStore::remove(const SecurityOrigin& origin)
+void WebSWOriginStore::removeFromStore(const SecurityOrigin& origin)
 {
     m_store.scheduleRemoval(computeSharedStringHash(origin.toString()));
     m_store.flushPendingChanges();
 }
 
-void WebSWOriginStore::clear()
+void WebSWOriginStore::clearStore()
 {
     m_store.clear();
+}
+
+void WebSWOriginStore::importComplete()
+{
+    m_isImported = true;
+    for (auto* connection : m_webSWServerConnections)
+        connection->send(Messages::WebSWClientConnection::SetSWOriginTableIsImported());
 }
 
 void WebSWOriginStore::registerSWServerConnection(WebSWServerConnection& connection)
 {
     m_webSWServerConnections.add(&connection);
 
-    if (m_store.isEmpty())
-        return;
+    if (!m_store.isEmpty())
+        sendStoreHandle(connection);
 
-    sendStoreHandle(connection);
+    if (m_isImported)
+        connection.send(Messages::WebSWClientConnection::SetSWOriginTableIsImported());
 }
 
 void WebSWOriginStore::unregisterSWServerConnection(WebSWServerConnection& connection)

@@ -8,7 +8,7 @@ log("* ServiceWorkerGlobalScope properties");
 const expectedProperties = [
     "Blob", "Cache", "CacheStorage", "Client", "Clients", "ExtendableEvent", "ExtendableMessageEvent",
     "FetchEvent", "Headers", "MessageChannel", "MessageEvent", "MessagePort", "Request", "Response",
-    "ServiceWorkerGlobalScope", "WebSocket", "WindowClient", "WorkerGlobalScope", "XMLHttpRequest"];
+    "ServiceWorkerGlobalScope", "WebSocket", "WindowClient", "WorkerGlobalScope"];
 
 let receivedMessages = 0;
 
@@ -20,9 +20,9 @@ navigator.serviceWorker.addEventListener("message", function(event) {
         finishSWTest();
 });
 
-navigator.serviceWorker.register("resources/ServiceWorkerGlobalScope-properties-worker.js", { }).then(function() {
+navigator.serviceWorker.register("resources/ServiceWorkerGlobalScope-properties-worker.js", { }).then(function(registration) {
     for (let property of expectedProperties)
-        navigator.serviceWorker.controller.postMessage("Object.getOwnPropertyDescriptor(self, '" + property + "')");
+        registration.installing.postMessage("Object.getOwnPropertyDescriptor(self, '" + property + "')");
 });
 </script>
 </body>

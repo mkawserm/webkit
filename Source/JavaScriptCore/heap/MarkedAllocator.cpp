@@ -41,15 +41,19 @@ namespace JSC {
 
 static constexpr bool tradeDestructorBlocks = true;
 
-MarkedAllocator::MarkedAllocator(Heap* heap, Subspace* subspace, size_t cellSize)
+MarkedAllocator::MarkedAllocator(Heap* heap, size_t cellSize)
     : m_freeList(cellSize)
     , m_currentBlock(0)
     , m_lastActiveBlock(0)
     , m_cellSize(static_cast<unsigned>(cellSize))
-    , m_attributes(subspace->attributes())
     , m_heap(heap)
-    , m_subspace(subspace)
 {
+}
+
+void MarkedAllocator::setSubspace(Subspace* subspace)
+{
+    m_attributes = subspace->attributes();
+    m_subspace = subspace;
 }
 
 bool MarkedAllocator::isPagedOut(double deadline)
@@ -57,7 +61,7 @@ bool MarkedAllocator::isPagedOut(double deadline)
     unsigned itersSinceLastTimeCheck = 0;
     for (auto* block : m_blocks) {
         if (block)
-            block->block().updateNeedsDestruction();
+            holdLock(block->block().lock());
         ++itersSinceLastTimeCheck;
         if (itersSinceLastTimeCheck >= Heap::s_timeCheckResolution) {
             double currentTime = WTF::monotonicallyIncreasingTime();
@@ -175,19 +179,7 @@ ALWAYS_INLINE void MarkedAllocator::doTestCollectionsIfNeeded(GCDeferralContext*
         allocationCount = 0;
 }
 
-void* MarkedAllocator::allocateSlowCase(GCDeferralContext* deferralContext)
-{
-    bool crashOnFailure = true;
-    return allocateSlowCaseImpl(deferralContext, crashOnFailure);
-}
-
-void* MarkedAllocator::tryAllocateSlowCase(GCDeferralContext* deferralContext)
-{
-    bool crashOnFailure = false;
-    return allocateSlowCaseImpl(deferralContext, crashOnFailure);
-}
-
-void* MarkedAllocator::allocateSlowCaseImpl(GCDeferralContext* deferralContext, bool crashOnFailure)
+void* MarkedAllocator::allocateSlowCase(GCDeferralContext* deferralContext, AllocationFailureMode failureMode)
 {
     SuperSamplerScope superSamplerScope(false);
     ASSERT(m_heap->vm()->currentThreadIsHoldingAPILock());
@@ -204,11 +196,8 @@ void* MarkedAllocator::allocateSlowCaseImpl(GCDeferralContext* deferralContext, 
     
     // Goofy corner case: the GC called a callback and now this allocator has a currentBlock. This only
     // happens when running WebKit tests, which inject a callback into the GC's finalization.
-    if (UNLIKELY(m_currentBlock)) {
-        if (crashOnFailure)
-            return allocate(deferralContext);
-        return tryAllocate(deferralContext);
-    }
+    if (UNLIKELY(m_currentBlock))
+        return allocate(deferralContext, failureMode);
     
     void* result = tryAllocateWithoutCollecting();
     
@@ -217,7 +206,7 @@ void* MarkedAllocator::allocateSlowCaseImpl(GCDeferralContext* deferralContext, 
     
     MarkedBlock::Handle* block = tryAllocateBlock();
     if (!block) {
-        if (crashOnFailure)
+        if (failureMode == AllocationFailureMode::Assert)
             RELEASE_ASSERT_NOT_REACHED();
         else
             return nullptr;
@@ -453,6 +442,33 @@ void MarkedAllocator::assertNoUnswept()
     dataLog("Assertion failed: unswept not empty in ", *this, ".\n");
     dumpBits();
     ASSERT_NOT_REACHED();
+}
+
+RefPtr<SharedTask<MarkedBlock::Handle*()>> MarkedAllocator::parallelNotEmptyBlockSource()
+{
+    class Task : public SharedTask<MarkedBlock::Handle*()> {
+    public:
+        Task(MarkedAllocator& allocator)
+            : m_allocator(allocator)
+        {
+        }
+        
+        MarkedBlock::Handle* run() override
+        {
+            auto locker = holdLock(m_lock);
+            m_index = m_allocator.m_markingNotEmpty.findBit(m_index, true);
+            if (m_index >= m_allocator.m_blocks.size())
+                return nullptr;
+            return m_allocator.m_blocks[m_index++];
+        }
+        
+    private:
+        MarkedAllocator& m_allocator;
+        size_t m_index { 0 };
+        Lock m_lock;
+    };
+    
+    return adoptRef(new Task(*this));
 }
 
 void MarkedAllocator::dump(PrintStream& out) const

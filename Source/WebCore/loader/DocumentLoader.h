@@ -40,6 +40,7 @@
 #include "ResourceLoaderOptions.h"
 #include "ResourceRequest.h"
 #include "ResourceResponse.h"
+#include "ServiceWorkerRegistrationData.h"
 #include "StringWithDirection.h"
 #include "StyleSheetContents.h"
 #include "SubstituteData.h"
@@ -49,17 +50,22 @@
 #include <wtf/RefPtr.h>
 #include <wtf/Vector.h>
 
+#if ENABLE(APPLICATION_MANIFEST)
+#include "ApplicationManifest.h"
+#endif
+
 #if HAVE(RUNLOOP_TIMER)
 #include <wtf/RunLoopTimer.h>
 #endif
 
-#if PLATFORM(COCOA) && !USE(CFURLCONNECTION)
+#if PLATFORM(COCOA)
 #include <wtf/SchedulePair.h>
 #endif
 
 namespace WebCore {
 
 class ApplicationCacheHost;
+class ApplicationManifestLoader;
 class Archive;
 class ArchiveResource;
 class ArchiveResourceCollection;
@@ -156,7 +162,7 @@ public:
     WEBCORE_EXPORT void setTitle(const StringWithDirection&);
     const String& overrideEncoding() const { return m_overrideEncoding; }
 
-#if PLATFORM(COCOA) && !USE(CFURLCONNECTION)
+#if PLATFORM(COCOA)
     void schedule(SchedulePair&);
     void unschedule(SchedulePair&);
 #endif
@@ -296,6 +302,11 @@ public:
 
     const Vector<LinkIcon>& linkIcons() const { return m_linkIcons; }
 
+#if ENABLE(APPLICATION_MANIFEST)
+    WEBCORE_EXPORT uint64_t loadApplicationManifest();
+    void finishedLoadingApplicationManifest(ApplicationManifestLoader&);
+#endif
+
     WEBCORE_EXPORT void setCustomHeaderFields(Vector<HTTPHeaderField>&& fields);
     const Vector<HTTPHeaderField>& customHeaderFields() { return m_customHeaderFields; }
     
@@ -308,6 +319,8 @@ protected:
 
 private:
     Document* document() const;
+
+    void loadMainResource(ResourceRequest&&);
 
     void setRequest(const ResourceRequest&);
 
@@ -324,7 +337,7 @@ private:
     void clearArchiveResources();
 #endif
 
-    void willSendRequest(ResourceRequest&, const ResourceResponse&);
+    void willSendRequest(ResourceRequest&&, const ResourceResponse&, CompletionHandler<void(ResourceRequest&&)>&&);
     void finishedLoading();
     void mainReceivedError(const ResourceError&);
     WEBCORE_EXPORT void redirectReceived(CachedResource&, ResourceRequest&&, const ResourceResponse&, CompletionHandler<void(ResourceRequest&&)>&&) override;
@@ -366,6 +379,10 @@ private:
     void becomeMainResourceClient();
 
     void notifyFinishedLoadingIcon(uint64_t callbackIdentifier, SharedBuffer*);
+
+#if ENABLE(APPLICATION_MANIFEST)
+    void notifyFinishedLoadingApplicationManifest(uint64_t callbackIdentifier, std::optional<ApplicationManifest>);
+#endif
 
     Ref<CachedResourceLoader> m_cachedResourceLoader;
 
@@ -456,6 +473,10 @@ private:
     HashMap<std::unique_ptr<IconLoader>, uint64_t> m_iconLoaders;
     Vector<LinkIcon> m_linkIcons;
 
+#if ENABLE(APPLICATION_MANIFEST)
+    HashMap<std::unique_ptr<ApplicationManifestLoader>, uint64_t> m_applicationManifestLoaders;
+#endif
+
     Vector<HTTPHeaderField> m_customHeaderFields;
     
     bool m_subresourceLoadersArePageCacheAcceptable { false };
@@ -478,6 +499,10 @@ private:
     bool m_userContentExtensionsEnabled { true };
     AutoplayPolicy m_autoplayPolicy { AutoplayPolicy::Default };
     OptionSet<AutoplayQuirk> m_allowedAutoplayQuirks;
+
+#if ENABLE(SERVICE_WORKER)
+    std::optional<ServiceWorkerRegistrationData> m_serviceWorkerRegistrationData;
+#endif
 
 #ifndef NDEBUG
     bool m_hasEverBeenAttached { false };

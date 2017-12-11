@@ -65,7 +65,6 @@
 #include <WebCore/ScrollingConstraints.h>
 #include <WebCore/ScrollingCoordinator.h>
 #include <WebCore/SearchPopupMenu.h>
-#include <WebCore/ServiceWorkerClientIdentifier.h>
 #include <WebCore/TextCheckerClient.h>
 #include <WebCore/TextIndicator.h>
 #include <WebCore/TimingFunction.h>
@@ -291,8 +290,9 @@ std::optional<DOMCacheEngine::Record> ArgumentCoder<DOMCacheEngine::Record>::dec
     if (!decoder.decode(request))
         return std::nullopt;
 
-    WebCore::FetchOptions options;
-    if (!decoder.decode(options))
+    std::optional<WebCore::FetchOptions> options;
+    decoder >> options;
+    if (!options)
         return std::nullopt;
 
     String referrer;
@@ -338,7 +338,7 @@ std::optional<DOMCacheEngine::Record> ArgumentCoder<DOMCacheEngine::Record>::dec
         }
     }
 
-    return {{ WTFMove(identifier), WTFMove(updateResponseCounter), WTFMove(requestHeadersGuard), WTFMove(request), WTFMove(options), WTFMove(referrer), WTFMove(responseHeadersGuard), WTFMove(response), WTFMove(responseBody), responseBodySize }};
+    return {{ WTFMove(identifier), WTFMove(updateResponseCounter), WTFMove(requestHeadersGuard), WTFMove(request), WTFMove(options.value()), WTFMove(referrer), WTFMove(responseHeadersGuard), WTFMove(response), WTFMove(responseBody), responseBodySize }};
 }
 
 void ArgumentCoder<EventTrackingRegions>::encode(Encoder& encoder, const EventTrackingRegions& eventTrackingRegions)
@@ -1901,27 +1901,6 @@ bool ArgumentCoder<TextCheckingRequestData>::decode(Decoder& decoder, TextChecki
     request = TextCheckingRequestData(sequence, text, mask, processType);
     return true;
 }
-
-#if ENABLE(SERVICE_WORKER)
-void ArgumentCoder<ServiceWorkerClientIdentifier>::encode(Encoder& encoder, const ServiceWorkerClientIdentifier& identifier)
-{
-    encoder << identifier.serverConnectionIdentifier << identifier.scriptExecutionContextIdentifier;
-}
-
-bool ArgumentCoder<ServiceWorkerClientIdentifier>::decode(Decoder& decoder, ServiceWorkerClientIdentifier& identifier)
-{
-    uint64_t serverConnectionIdentifier;
-    if (!decoder.decode(serverConnectionIdentifier))
-        return false;
-
-    uint64_t scriptExecutionContextIdentifier;
-    if (!decoder.decode(scriptExecutionContextIdentifier))
-        return false;
-
-    identifier = { serverConnectionIdentifier, scriptExecutionContextIdentifier };
-    return true;
-}
-#endif
 
 void ArgumentCoder<TextCheckingResult>::encode(Encoder& encoder, const TextCheckingResult& result)
 {

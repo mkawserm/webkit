@@ -39,14 +39,13 @@
 namespace WTF {
 
 class PrintStream;
-class SchedulePair;
-struct SchedulePairHash;
-typedef HashSet<RefPtr<SchedulePair>, SchedulePairHash> SchedulePairHashSet;
+class Thread;
 
 // Must be called from the main thread.
 WTF_EXPORT_PRIVATE void initializeMainThread();
 
-WTF_EXPORT_PRIVATE void callOnMainThread(Function<void()>&&, SchedulePairHashSet* = nullptr);
+WTF_EXPORT_PRIVATE void callOnMainThread(Function<void()>&&);
+WTF_EXPORT_PRIVATE void callOnMainThreadAndWait(Function<void()>&&);
 
 #if PLATFORM(COCOA)
 WTF_EXPORT_PRIVATE void callOnWebThreadOrDispatchAsyncOnMainThread(void (^block)());
@@ -56,14 +55,13 @@ WTF_EXPORT_PRIVATE void setMainThreadCallbacksPaused(bool paused);
 
 WTF_EXPORT_PRIVATE bool isMainThread();
 
-WTF_EXPORT_PRIVATE bool canAccessThreadLocalDataForThread(ThreadIdentifier);
+WTF_EXPORT_PRIVATE bool canAccessThreadLocalDataForThread(Thread&);
 
 #if USE(WEB_THREAD)
 WTF_EXPORT_PRIVATE bool isWebThread();
 WTF_EXPORT_PRIVATE bool isUIThread();
 WTF_EXPORT_PRIVATE void initializeWebThread();
-WTF_EXPORT_PRIVATE void initializeApplicationUIThreadIdentifier();
-WTF_EXPORT_PRIVATE void initializeWebThreadIdentifier();
+WTF_EXPORT_PRIVATE void initializeApplicationUIThread();
 void initializeWebThreadPlatform();
 #else
 inline bool isWebThread() { return isMainThread(); }
@@ -85,7 +83,7 @@ WTF_EXPORT_PRIVATE bool isMainThreadOrGCThread();
 
 // NOTE: these functions are internal to the callOnMainThread implementation.
 void initializeMainThreadPlatform();
-void scheduleDispatchFunctionsOnMainThread(SchedulePairHashSet* = nullptr);
+void scheduleDispatchFunctionsOnMainThread();
 void dispatchFunctionsFromMainThread();
 
 #if OS(DARWIN) && !USE(GLIB)
@@ -102,6 +100,7 @@ void initializeMainThreadToProcessMainThreadPlatform();
 
 using WTF::GCThreadType;
 using WTF::callOnMainThread;
+using WTF::callOnMainThreadAndWait;
 using WTF::canAccessThreadLocalDataForThread;
 using WTF::isMainThread;
 using WTF::isMainThreadOrGCThread;
@@ -114,8 +113,7 @@ using WTF::callOnWebThreadOrDispatchAsyncOnMainThread;
 #endif
 #if USE(WEB_THREAD)
 using WTF::initializeWebThread;
-using WTF::initializeApplicationUIThreadIdentifier;
-using WTF::initializeWebThreadIdentifier;
+using WTF::initializeApplicationUIThread;
 #endif
 
 #endif // MainThread_h

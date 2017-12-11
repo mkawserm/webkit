@@ -33,6 +33,7 @@ namespace WTR {
 
 struct TestOptions {
     bool useThreadedScrolling { false };
+    bool useAcceleratedDrawing { false };
     bool useRemoteLayerTree { false };
     bool shouldShowWebView { false };
     bool useFlexibleViewport { false };
@@ -56,6 +57,7 @@ struct TestOptions {
 
     float deviceScaleFactor { 1 };
     Vector<String> overrideLanguages;
+    std::string applicationManifest;
     
     TestOptions(const std::string& pathOrURL);
 
@@ -66,6 +68,7 @@ struct TestOptions {
     bool hasSameInitializationOptions(const TestOptions& options) const
     {
         if (useThreadedScrolling != options.useThreadedScrolling
+            || useAcceleratedDrawing != options.useAcceleratedDrawing
             || overrideLanguages != options.overrideLanguages
             || useMockScrollbars != options.useMockScrollbars
             || needsSiteSpecificQuirks != options.needsSiteSpecificQuirks
@@ -78,7 +81,8 @@ struct TestOptions {
             || enableCredentialManagement != options.enableCredentialManagement
             || enableIsSecureContextAttribute != options.enableIsSecureContextAttribute
             || enableInspectorAdditions != options.enableInspectorAdditions
-            || dumpJSConsoleLogInStdErr != options.dumpJSConsoleLogInStdErr)
+            || dumpJSConsoleLogInStdErr != options.dumpJSConsoleLogInStdErr
+            || applicationManifest != options.applicationManifest)
             return false;
 
         return true;

@@ -27,6 +27,7 @@
 
 #if ENABLE(SERVICE_WORKER)
 
+#include "ServiceWorkerClientIdentifier.h"
 #include "ServiceWorkerContextData.h"
 #include "ServiceWorkerRegistration.h"
 #include "WorkerGlobalScope.h"
@@ -34,37 +35,51 @@
 namespace WebCore {
 
 class DeferredPromise;
+class ExtendableEvent;
+struct ServiceWorkerClientData;
+class ServiceWorkerClient;
 class ServiceWorkerClients;
 class ServiceWorkerThread;
 
-class ServiceWorkerGlobalScope : public WorkerGlobalScope {
+class ServiceWorkerGlobalScope final : public WorkerGlobalScope {
 public:
     template<typename... Args> static Ref<ServiceWorkerGlobalScope> create(Args&&... args)
     {
         return adoptRef(*new ServiceWorkerGlobalScope(std::forward<Args>(args)...));
     }
 
-    virtual ~ServiceWorkerGlobalScope();
+    ~ServiceWorkerGlobalScope();
 
     bool isServiceWorkerGlobalScope() const final { return true; }
 
     ServiceWorkerClients& clients() { return m_clients.get(); }
-    ServiceWorkerRegistration* registration();
+    ServiceWorkerRegistration& registration() { return m_registration.get(); }
     
-    uint64_t serverConnectionIdentifier() const { return m_serverConnectionIdentifier; }
-
     void skipWaiting(Ref<DeferredPromise>&&);
 
     EventTargetInterface eventTargetInterface() const final;
 
     ServiceWorkerThread& thread();
 
-private:
-    ServiceWorkerGlobalScope(uint64_t serverConnectionIdentifier, const ServiceWorkerContextData&, const URL&, const String& identifier, const String& userAgent, bool isOnline, ServiceWorkerThread&, bool shouldBypassMainWorldContentSecurityPolicy, Ref<SecurityOrigin>&& topOrigin, MonotonicTime timeOrigin, IDBClient::IDBConnectionProxy*, SocketProvider*, PAL::SessionID);
+    ServiceWorkerClient* serviceWorkerClient(ServiceWorkerClientIdentifier);
+    void addServiceWorkerClient(ServiceWorkerClient&);
+    void removeServiceWorkerClient(ServiceWorkerClient&);
 
-    uint64_t m_serverConnectionIdentifier;
+    void updateExtendedEventsSet(ExtendableEvent* newEvent = nullptr);
+
+private:
+    ServiceWorkerGlobalScope(const ServiceWorkerContextData&, const URL&, const String& identifier, const String& userAgent, bool isOnline, ServiceWorkerThread&, bool shouldBypassMainWorldContentSecurityPolicy, Ref<SecurityOrigin>&& topOrigin, MonotonicTime timeOrigin, IDBClient::IDBConnectionProxy*, SocketProvider*, PAL::SessionID);
+
+    bool hasPendingEvents() const { return !m_extendedEvents.isEmpty(); }
+
     ServiceWorkerContextData m_contextData;
+    Ref<ServiceWorkerRegistration> m_registration;
     Ref<ServiceWorkerClients> m_clients;
+    HashMap<ServiceWorkerClientIdentifier, ServiceWorkerClient*> m_clientMap;
+    Vector<Ref<ExtendableEvent>> m_extendedEvents;
+
+    uint64_t m_lastRequestIdentifier { 0 };
+    HashMap<uint64_t, RefPtr<DeferredPromise>> m_pendingSkipWaitingPromises;
 };
 
 } // namespace WebCore

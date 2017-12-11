@@ -40,11 +40,14 @@ class WebSWOriginTable {
 public:
     WebSWOriginTable() = default;
 
+    bool isImported() const { return m_isImported; }
+    void setIsImported() { m_isImported = true; }
     bool contains(const WebCore::SecurityOrigin&) const;
     void setSharedMemory(const SharedMemory::Handle&);
 
 private:
     SharedStringHashTableReadOnly m_serviceWorkerOriginTable;
+    bool m_isImported { false };
 };
 
 } // namespace WebKit

@@ -36,6 +36,7 @@ WI.SpreadsheetStyleProperty = class SpreadsheetStyleProperty extends WI.Object
         this._element = document.createElement("div");
         this._element.dataset.propertyIndex = index;
 
+        this._contentElement = null;
         this._nameElement = null;
         this._valueElement = null;
 
@@ -128,6 +129,16 @@ WI.SpreadsheetStyleProperty = class SpreadsheetStyleProperty extends WI.Object
         this._element.title = elementTitle;
     }
 
+    applyFilter(filterText)
+    {
+        let matchesName = this._nameElement.textContent.includes(filterText);
+        let matchesValue = this._valueElement.textContent.includes(filterText);
+        let matches = matchesName || matchesValue;
+        this._contentElement.classList.toggle(WI.GeneralStyleDetailsSidebarPanel.FilterMatchSectionClassName, matches);
+        this._contentElement.classList.toggle(WI.GeneralStyleDetailsSidebarPanel.NoFilterMatchInPropertyClassName, !matches);
+        return matches;
+    }
+
     // Private
 
     _remove()
@@ -158,21 +169,25 @@ WI.SpreadsheetStyleProperty = class SpreadsheetStyleProperty extends WI.Object
             });
         }
 
-        if (!this._property.enabled)
-            this.element.append("/* ");
+        this._contentElement = this.element.appendChild(document.createElement("span"));
 
-        this._nameElement = this.element.appendChild(document.createElement("span"));
+        if (!this._property.enabled)
+            this._contentElement.append("/* ");
+
+        this._nameElement = this._contentElement.appendChild(document.createElement("span"));
         this._nameElement.classList.add("name");
         this._nameElement.textContent = this._property.name;
 
-        this.element.append(": ");
+        this._contentElement.append(": ");
 
-        this._valueElement = this.element.appendChild(document.createElement("span"));
+        this._valueElement = this._contentElement.appendChild(document.createElement("span"));
         this._valueElement.classList.add("value");
         this._renderValue(this._property.rawValue);
 
         if (this._property.editable && this._property.enabled) {
             this._nameElement.tabIndex = 0;
+            this._nameElement.addEventListener("beforeinput", this._handleNameBeforeInput.bind(this));
+
             this._nameTextField = new WI.SpreadsheetTextField(this, this._nameElement, this._nameCompletionDataProvider.bind(this));
 
             this._valueElement.tabIndex = 0;
@@ -184,13 +199,13 @@ WI.SpreadsheetStyleProperty = class SpreadsheetStyleProperty extends WI.Object
             this._setupJumpToSymbol(this._valueElement);
         }
 
-        this.element.append(";");
+        this._contentElement.append(";");
 
         if (this._property.enabled) {
             this._warningElement = this.element.appendChild(document.createElement("span"));
             this._warningElement.className = "warning";
         } else
-            this.element.append(" */");
+            this._contentElement.append(" */");
 
         this.updateStatus();
     }
@@ -258,6 +273,14 @@ WI.SpreadsheetStyleProperty = class SpreadsheetStyleProperty extends WI.Object
             this._remove();
         else if (textField === this._valueTextField)
             this._renderValue(this._valueElement.textContent);
+    }
+
+    spreadsheetTextFieldDidBackspace(textField)
+    {
+        if (textField === this._nameTextField)
+            this.spreadsheetTextFieldDidCommit(textField, {direction: "backward"});
+        else if (textField === this._valueTextField)
+            this._nameTextField.startEditing();
     }
 
     // Private
@@ -463,6 +486,16 @@ WI.SpreadsheetStyleProperty = class SpreadsheetStyleProperty extends WI.Object
         this._property.rawValue = this._valueElement.textContent.trim();
     }
 
+    _handleNameBeforeInput(event)
+    {
+        if (event.data !== ":" || event.inputType !== "insertText")
+            return;
+
+        event.preventDefault();
+        this._nameTextField.discardCompletion();
+        this._valueTextField.startEditing();
+    }
+
     _nameCompletionDataProvider(prefix)
     {
         return WI.CSSCompletions.cssNameCompletions.startsWith(prefix);
@@ -470,7 +503,8 @@ WI.SpreadsheetStyleProperty = class SpreadsheetStyleProperty extends WI.Object
 
     _valueCompletionDataProvider(prefix)
     {
-        return WI.CSSKeywordCompletions.forProperty(this._property.name).startsWith(prefix);
+        let propertyName = this._nameElement.textContent.trim();
+        return WI.CSSKeywordCompletions.forProperty(propertyName).startsWith(prefix);
     }
 
     _setupJumpToSymbol(element)

@@ -92,7 +92,9 @@ static WebProcessProxy::WebPageProxyMap& globalPageMap()
 
 Ref<WebProcessProxy> WebProcessProxy::create(WebProcessPool& processPool, WebsiteDataStore& websiteDataStore)
 {
-    return adoptRef(*new WebProcessProxy(processPool, websiteDataStore));
+    auto proxy = adoptRef(*new WebProcessProxy(processPool, websiteDataStore));
+    proxy->connect();
+    return proxy;
 }
 
 WebProcessProxy::WebProcessProxy(WebProcessPool& processPool, WebsiteDataStore& websiteDataStore)
@@ -111,8 +113,6 @@ WebProcessProxy::WebProcessProxy(WebProcessPool& processPool, WebsiteDataStore& 
 #endif
 {
     WebPasteboardProxy::singleton().addWebProcessProxy(*this);
-
-    connect();
 }
 
 WebProcessProxy::~WebProcessProxy()
@@ -445,10 +445,13 @@ void WebProcessProxy::assumeReadAccessToBaseURL(const String& urlString)
     // There's a chance that urlString does not point to a directory.
     // Get url's base URL to add to m_localPathsWithAssumedReadAccess.
     URL baseURL(URL(), url.baseAsString());
+    String path = baseURL.fileSystemPath();
+    if (path.isNull())
+        return;
     
     // Client loads an alternate string. This doesn't grant universal file read, but the web process is assumed
     // to have read access to this directory already.
-    m_localPathsWithAssumedReadAccess.add(baseURL.fileSystemPath());
+    m_localPathsWithAssumedReadAccess.add(path);
 }
 
 bool WebProcessProxy::hasAssumedReadAccessToURL(const URL& url) const
@@ -573,7 +576,7 @@ void WebProcessProxy::getNetworkProcessConnection(Ref<Messages::WebProcessProxy:
 
 void WebProcessProxy::getStorageProcessConnection(Ref<Messages::WebProcessProxy::GetStorageProcessConnection::DelayedReply>&& reply)
 {
-    m_processPool->getStorageProcessConnection(WTFMove(reply));
+    m_processPool->getStorageProcessConnection(isServiceWorkerProcess(), WTFMove(reply));
 }
 
 #if !PLATFORM(COCOA)
@@ -1224,13 +1227,6 @@ const HashSet<String>& WebProcessProxy::platformPathsWithAssumedReadAccess()
 {
     static NeverDestroyed<HashSet<String>> platformPathsWithAssumedReadAccess;
     return platformPathsWithAssumedReadAccess;
-}
-#endif
-
-#if ENABLE(SERVICE_WORKER)
-void WebProcessProxy::didGetWorkerContextConnection(const IPC::Attachment& connection)
-{
-    m_processPool->didGetWorkerContextProcessConnection(connection);
 }
 #endif
 

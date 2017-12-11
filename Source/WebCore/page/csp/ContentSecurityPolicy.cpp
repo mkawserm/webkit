@@ -52,10 +52,10 @@
 #include "SecurityPolicyViolationEvent.h"
 #include "Settings.h"
 #include "TextEncoding.h"
-#include <inspector/InspectorValues.h>
 #include <inspector/ScriptCallStack.h>
 #include <inspector/ScriptCallStackFactory.h>
 #include <pal/crypto/CryptoDigest.h>
+#include <wtf/JSONValues.h>
 #include <wtf/SetForScope.h>
 #include <wtf/text/StringBuilder.h>
 #include <wtf/text/TextPosition.h>
@@ -332,11 +332,11 @@ ContentSecurityPolicy::HashInEnforcedAndReportOnlyPoliciesPair ContentSecurityPo
 
     // FIXME: Compute the digest with respect to the raw bytes received from the page.
     // See <https://bugs.webkit.org/show_bug.cgi?id=155184>.
-    CString contentCString = encodingToUse.encode(content, EntitiesForUnencodables);
+    auto encodedContent = encodingToUse.encode(content, UnencodableHandling::Entities);
     bool foundHashInEnforcedPolicies = false;
     bool foundHashInReportOnlyPolicies = false;
     for (auto algorithm : algorithms) {
-        ContentSecurityPolicyHash hash = cryptographicDigestForBytes(algorithm, contentCString.data(), contentCString.length());
+        ContentSecurityPolicyHash hash = cryptographicDigestForBytes(algorithm, encodedContent.data(), encodedContent.size());
         if (!foundHashInEnforcedPolicies && allPoliciesWithDispositionAllow(ContentSecurityPolicy::Disposition::Enforce, std::forward<Predicate>(predicate), hash))
             foundHashInEnforcedPolicies = true;
         if (!foundHashInReportOnlyPolicies && allPoliciesWithDispositionAllow(ContentSecurityPolicy::Disposition::ReportOnly, std::forward<Predicate>(predicate), hash))
@@ -549,6 +549,13 @@ bool ContentSecurityPolicy::allowFontFromSource(const URL& url, RedirectResponse
     return allowResourceFromSource(url, redirectResponseReceived, ContentSecurityPolicyDirectiveNames::fontSrc, &ContentSecurityPolicyDirectiveList::violatedDirectiveForFont);
 }
 
+#if ENABLE(APPLICATION_MANIFEST)
+bool ContentSecurityPolicy::allowManifestFromSource(const URL& url, RedirectResponseReceived redirectResponseReceived) const
+{
+    return allowResourceFromSource(url, redirectResponseReceived, ContentSecurityPolicyDirectiveNames::manifestSrc, &ContentSecurityPolicyDirectiveList::violatedDirectiveForManifest);
+}
+#endif // ENABLE(APPLICATION_MANIFEST)
+
 bool ContentSecurityPolicy::allowMediaFromSource(const URL& url, RedirectResponseReceived redirectResponseReceived) const
 {
     return allowResourceFromSource(url, redirectResponseReceived, ContentSecurityPolicyDirectiveNames::mediaSrc, &ContentSecurityPolicyDirectiveList::violatedDirectiveForMedia);
@@ -681,7 +688,7 @@ void ContentSecurityPolicy::reportViolation(const String& effectiveViolatedDirec
     // sent explicitly. As for which directive was violated, that's pretty
     // harmless information.
 
-    auto cspReport = InspectorObject::create();
+    auto cspReport = JSON::Object::create();
     cspReport->setString(ASCIILiteral("document-uri"), documentURI);
     cspReport->setString(ASCIILiteral("referrer"), referrer);
     cspReport->setString(ASCIILiteral("violated-directive"), violatedDirectiveText);
@@ -695,7 +702,7 @@ void ContentSecurityPolicy::reportViolation(const String& effectiveViolatedDirec
         cspReport->setInteger(ASCIILiteral("column-number"), columnNumber);
     }
 
-    auto reportObject = InspectorObject::create();
+    auto reportObject = JSON::Object::create();
     reportObject->setObject(ASCIILiteral("csp-report"), WTFMove(cspReport));
 
     auto report = FormData::create(reportObject->toJSONString().utf8());

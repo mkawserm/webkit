@@ -28,9 +28,12 @@
 #if ENABLE(SERVICE_WORKER)
 
 #include "SWServer.h"
+#include "ServiceWorkerClientIdentifier.h"
 #include "ServiceWorkerRegistrationData.h"
 #include "ServiceWorkerTypes.h"
 #include <wtf/HashCountedSet.h>
+#include <wtf/MonotonicTime.h>
+#include <wtf/WallTime.h>
 
 namespace WebCore {
 
@@ -39,9 +42,11 @@ class SWServerWorker;
 enum class ServiceWorkerRegistrationState;
 enum class ServiceWorkerState;
 struct ExceptionData;
+struct ServiceWorkerContextData;
 struct ServiceWorkerFetchResult;
 
 class SWServerRegistration {
+    WTF_MAKE_FAST_ALLOCATED;
 public:
     SWServerRegistration(SWServer&, const ServiceWorkerRegistrationKey&, ServiceWorkerUpdateViaCache, const URL& scopeURL, const URL& scriptURL);
     ~SWServerRegistration();
@@ -53,24 +58,42 @@ public:
     WEBCORE_EXPORT ServiceWorkerRegistrationData data() const;
 
     bool isUninstalling() const { return m_uninstalling; }
-    void setIsUninstalling(bool value) { m_uninstalling = value; }
+    void setIsUninstalling(bool);
 
-    void setLastUpdateTime(double time) { m_lastUpdateTime = time; }
+    void setLastUpdateTime(WallTime time) { m_lastUpdateTime = time; }
     ServiceWorkerUpdateViaCache updateViaCache() const { return m_updateViaCache; }
 
     void updateRegistrationState(ServiceWorkerRegistrationState, SWServerWorker*);
     void updateWorkerState(SWServerWorker&, ServiceWorkerState);
     void fireUpdateFoundEvent();
 
-    void addClientServiceWorkerRegistration(uint64_t connectionIdentifier);
-    void removeClientServiceWorkerRegistration(uint64_t connectionIdentifier);
+    void addClientServiceWorkerRegistration(SWServerConnectionIdentifier);
+    void removeClientServiceWorkerRegistration(SWServerConnectionIdentifier);
 
     SWServerWorker* installingWorker() const { return m_installingWorker.get(); }
     SWServerWorker* waitingWorker() const { return m_waitingWorker.get(); }
     SWServerWorker* activeWorker() const { return m_activeWorker.get(); }
 
+    MonotonicTime creationTime() const { return m_creationTime; }
+
+    bool hasClientsUsingRegistration() const { return !m_clientsUsingRegistration.isEmpty(); }
+    void addClientUsingRegistration(const ServiceWorkerClientIdentifier&);
+    void removeClientUsingRegistration(const ServiceWorkerClientIdentifier&);
+    void unregisterServerConnection(SWServerConnectionIdentifier);
+
+    void notifyClientsOfControllerChange();
+    void controlClient(ServiceWorkerClientIdentifier);
+
+    void clear();
+    bool tryClear();
+    void tryActivate();
+    void didFinishActivation(ServiceWorkerIdentifier);
+
 private:
     void forEachConnection(const WTF::Function<void(SWServer::Connection&)>&);
+
+    void activate();
+    void handleClientUnload();
 
     ServiceWorkerRegistrationIdentifier m_identifier;
     ServiceWorkerRegistrationKey m_registrationKey;
@@ -83,10 +106,13 @@ private:
     RefPtr<SWServerWorker> m_waitingWorker;
     RefPtr<SWServerWorker> m_activeWorker;
 
-    double m_lastUpdateTime { 0 };
+    WallTime m_lastUpdateTime;
     
-    HashCountedSet<uint64_t> m_connectionsWithClientRegistrations;
+    HashCountedSet<SWServerConnectionIdentifier> m_connectionsWithClientRegistrations;
     SWServer& m_server;
+
+    MonotonicTime m_creationTime;
+    HashMap<SWServerConnectionIdentifier, HashSet<DocumentIdentifier>> m_clientsUsingRegistration;
 };
 
 } // namespace WebCore

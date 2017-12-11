@@ -29,6 +29,7 @@
 #include "GraphicsContext.h"
 #include "HitTestResult.h"
 #include "InlineTextBox.h"
+#include "LayoutState.h"
 #include "LogicalSelectionOffsetCaches.h"
 #include "PaintInfo.h"
 #include "RenderFragmentedFlow.h"
@@ -38,8 +39,11 @@
 #include "RenderRubyText.h"
 #include "RenderView.h"
 #include "VerticalPositionCache.h"
+#include <wtf/IsoMallocInlines.h>
 
 namespace WebCore {
+
+WTF_MAKE_ISO_ALLOCATED_IMPL(RootInlineBox);
 
 struct SameSizeAsRootInlineBox : public InlineFlowBox {
     unsigned variables[7];

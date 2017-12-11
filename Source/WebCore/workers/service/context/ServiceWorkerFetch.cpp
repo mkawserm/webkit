@@ -28,11 +28,13 @@
 
 #if ENABLE(SERVICE_WORKER)
 
+#include "CrossOriginAccessControl.h"
 #include "EventNames.h"
 #include "FetchEvent.h"
 #include "FetchRequest.h"
 #include "FetchResponse.h"
 #include "ResourceRequest.h"
+#include "ServiceWorkerClientIdentifier.h"
 #include "WorkerGlobalScope.h"
 
 namespace WebCore {
@@ -56,7 +58,9 @@ static void processResponse(Ref<Client>&& client, FetchResponse* response)
                 client->didFail();
                 return;
             }
-            client->didReceiveData(result.releaseReturnValue().releaseNonNull());
+
+            if (auto buffer = result.releaseReturnValue())
+                client->didReceiveData(buffer.releaseNonNull());
             client->didFinish();
         });
         return;
@@ -68,15 +72,17 @@ static void processResponse(Ref<Client>&& client, FetchResponse* response)
                 client->didFail();
                 return;
             }
-            client->didReceiveData(result.releaseReturnValue().releaseNonNull());
+
+            if (auto buffer = result.releaseReturnValue())
+                client->didReceiveData(buffer.releaseNonNull());
             client->didFinish();
         });
         return;
     }
 
     auto body = response->consumeBody();
-    WTF::switchOn(body, [] (Ref<FormData>&) {
-        // FIXME: Support FormData response bodies.
+    WTF::switchOn(body, [&] (Ref<FormData>& formData) {
+        client->didReceiveFormData(WTFMove(formData));
     }, [&] (Ref<SharedBuffer>& buffer) {
         client->didReceiveData(WTFMove(buffer));
     }, [] (std::nullptr_t&) {
@@ -85,17 +91,26 @@ static void processResponse(Ref<Client>&& client, FetchResponse* response)
     client->didFinish();
 }
 
-void dispatchFetchEvent(Ref<Client>&& client, WorkerGlobalScope& globalScope, ResourceRequest&& request, FetchOptions&& options)
+Ref<FetchEvent> dispatchFetchEvent(Ref<Client>&& client, WorkerGlobalScope& globalScope, std::optional<ServiceWorkerClientIdentifier> clientId, ResourceRequest&& request, FetchOptions&& options)
 {
     ASSERT(globalScope.isServiceWorkerGlobalScope());
 
-    // FIXME: Set request body and referrer.
-    auto requestHeaders = FetchHeaders::create(FetchHeaders::Guard::Immutable, HTTPHeaderMap { request.httpHeaderFields() });
-    auto fetchRequest = FetchRequest::create(globalScope, std::nullopt, WTFMove(requestHeaders),  WTFMove(request), WTFMove(options), { });
+    auto httpReferrer = request.httpReferrer();
+    // We are intercepting fetch calls after going through the HTTP layer, which adds some specific headers.
+    // Let's clean them so that cross origin checks do not fail.
+    cleanRedirectedRequestForAccessControl(request);
 
-    // FIXME: Initialize other FetchEvent::Init fields.
+    auto requestHeaders = FetchHeaders::create(FetchHeaders::Guard::Immutable, HTTPHeaderMap { request.httpHeaderFields() });
+    auto fetchRequest = FetchRequest::create(globalScope, FetchBody::fromFormData(request.httpBody()), WTFMove(requestHeaders),  WTFMove(request), WTFMove(options), WTFMove(httpReferrer));
+
     FetchEvent::Init init;
     init.request = WTFMove(fetchRequest);
+    if (options.mode == FetchOptions::Mode::Navigate) {
+        // FIXME: Set reservedClientId.
+        if (clientId)
+            init.targetClientId = clientId->toString();
+    } else if (clientId)
+        init.clientId = clientId->toString();
     init.cancelable = true;
     auto event = FetchEvent::create(eventNames().fetchEvent, WTFMove(init), Event::IsTrusted::Yes);
 
@@ -108,11 +123,12 @@ void dispatchFetchEvent(Ref<Client>&& client, WorkerGlobalScope& globalScope, Re
     if (!event->respondWithEntered()) {
         if (event->defaultPrevented()) {
             client->didFail();
-            return;
+            return event;
         }
         client->didNotHandle();
         // FIXME: Handle soft update.
     }
+    return event;
 }
 
 } // namespace ServiceWorkerFetch

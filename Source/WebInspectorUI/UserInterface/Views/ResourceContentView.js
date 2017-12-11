@@ -78,7 +78,12 @@ WI.ResourceContentView = class ResourceContentView extends WI.ContentView
 
     contentAvailable(content, base64Encoded)
     {
-        // Implemented by subclasses.
+        throw WI.NotImplementedError.subclassMustOverride();
+    }
+
+    showGenericNoContentMessage()
+    {
+        this.showMessage(WI.UIString("Resource has no content"));
     }
 
     showGenericErrorMessage()

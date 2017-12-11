@@ -320,7 +320,7 @@ bool AccessCase::propagateTransitions(SlotVisitor& visitor) const
 
     switch (m_type) {
     case Transition:
-        if (Heap::isMarkedConcurrently(m_structure->previousID()))
+        if (Heap::isMarked(m_structure->previousID()))
             visitor.appendUnbarriered(m_structure.get());
         else
             result = false;
@@ -955,7 +955,7 @@ void AccessCase::generateImpl(AccessGenerationState& state)
             size_t newSize = newStructure()->outOfLineCapacity() * sizeof(JSValue);
 
             if (allocatingInline) {
-                MarkedAllocator* allocator = vm.jsValueGigacageAuxiliarySpace.allocatorFor(newSize);
+                MarkedAllocator* allocator = vm.jsValueGigacageAuxiliarySpace.allocatorFor(newSize, AllocatorForMode::AllocatorIfExists);
 
                 if (!allocator) {
                     // Yuck, this case would suck!

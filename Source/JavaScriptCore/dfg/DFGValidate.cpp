@@ -333,6 +333,19 @@ public:
                     VALIDATE((node), type == Array::ArrayStorage || type == Array::SlowPutArrayStorage);
                     break;
                 }
+                case CPUIntrinsic: {
+                    switch (node->intrinsic()) {
+                    case CPUMfenceIntrinsic:
+                    case CPURdtscIntrinsic:
+                    case CPUCpuidIntrinsic:
+                    case CPUPauseIntrinsic:
+                        break;
+                    default:
+                        VALIDATE((node), false);
+                        break;
+                    }
+                    break;
+                }
                 default:
                     break;
                 }
@@ -702,7 +715,6 @@ private:
                     
                 case GetLocal:
                 case SetLocal:
-                case GetLocalUnlinked:
                 case SetArgument:
                 case Phantom:
                     VALIDATE((node), !"bad node type for SSA");
@@ -777,6 +789,10 @@ private:
                     }
                     break;
                 }
+
+                case Spread:
+                    VALIDATE((node), !node->child1()->isPhantomAllocation() || node->child1()->op() == PhantomCreateRest);
+                    break;
 
                 case EntrySwitch:
                     VALIDATE((node), node->entrySwitchData()->cases.size() == m_graph.m_numberOfEntrypoints);

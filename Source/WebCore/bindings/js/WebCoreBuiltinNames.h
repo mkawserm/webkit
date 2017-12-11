@@ -31,6 +31,7 @@
 namespace WebCore {
 
 #define WEBCORE_COMMON_PRIVATE_IDENTIFIERS_EACH_PROPERTY_NAME(macro) \
+    macro(AccessibleNode) \
     macro(Animation) \
     macro(AnimationEffect) \
     macro(AnimationEffectTiming) \
@@ -140,6 +141,7 @@ namespace WebCore {
     macro(VRFieldOfView) \
     macro(VRFrameData) \
     macro(VRStageParameters) \
+    macro(VisualViewport) \
     macro(WebGL2RenderingContext) \
     macro(WebGLVertexArrayObject) \
     macro(WebGPUBuffer) \
@@ -278,6 +280,7 @@ namespace WebCore {
     macro(underlyingSink) \
     macro(underlyingSource) \
     macro(view) \
+    macro(visualViewport) \
     macro(webRTCLegacyAPIEnabled) \
     macro(webkit) \
     macro(webkitAudioContext) \

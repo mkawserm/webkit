@@ -48,6 +48,9 @@ class MockPlatformInfo(object):
     def is_win(self):
         return self.os_name == 'win'
 
+    def is_native_win(self):
+        return self.is_win() and not self.is_cygwin()
+
     def is_cygwin(self):
         return self.os_name == 'cygwin'
 
@@ -64,10 +67,10 @@ class MockPlatformInfo(object):
         return 80
 
     def xcode_sdk_version(self, sdk_name):
-        return Version('8.1')
+        return Version(8, 1)
 
     def xcode_version(self):
-        return Version('8.0')
+        return Version(8, 0)
 
     def xcode_simctl_list(self):
         return self.expected_xcode_simctl_list

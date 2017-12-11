@@ -76,7 +76,7 @@ class MacPort(DarwinPort):
     def default_baseline_search_path(self):
         mac_version = 'mac-{}'.format(self._os_version)
         if mac_version.endswith(self.FUTURE_VERSION) or mac_version not in self.VERSION_FALLBACK_ORDER:
-            version_fallback = [self._os_version]
+            version_fallback = [mac_version]
         else:
             version_fallback = self.VERSION_FALLBACK_ORDER[self.VERSION_FALLBACK_ORDER.index(mac_version):-1]
         wk_string = 'wk1'
@@ -221,7 +221,7 @@ class MacPort(DarwinPort):
         for domain in ["DumpRenderTree", "WebKitTestRunner"]:
             try:
                 self._executive.run_command(["defaults", "delete", domain])
-            except ScriptError, e:
+            except ScriptError as e:
                 # 'defaults' returns 1 if the domain did not exist
                 if e.exit_code != 1:
                     raise e
@@ -233,7 +233,7 @@ class MacPort(DarwinPort):
                 self._helper.stdin.write("x\n")
                 self._helper.stdin.close()
                 self._helper.wait()
-            except IOError, e:
+            except IOError as e:
                 _log.debug("IOError raised while stopping helper: %s" % str(e))
             self._helper = None
 

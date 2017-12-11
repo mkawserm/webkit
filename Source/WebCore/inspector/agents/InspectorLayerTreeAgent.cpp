@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012, 2015 Apple Inc. All rights reserved.
+ * Copyright (C) 2012-2017 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -44,6 +44,7 @@
 
 
 namespace WebCore {
+
 using namespace Inspector;
 
 InspectorLayerTreeAgent::InspectorLayerTreeAgent(WebAgentContext& context)
@@ -101,9 +102,9 @@ void InspectorLayerTreeAgent::pseudoElementDestroyed(PseudoElement& pseudoElemen
     unbindPseudoElement(&pseudoElement);
 }
 
-void InspectorLayerTreeAgent::layersForNode(ErrorString& errorString, int nodeId, RefPtr<Inspector::Protocol::Array<Inspector::Protocol::LayerTree::Layer>>& layers)
+void InspectorLayerTreeAgent::layersForNode(ErrorString& errorString, int nodeId, RefPtr<JSON::ArrayOf<Inspector::Protocol::LayerTree::Layer>>& layers)
 {
-    layers = Inspector::Protocol::Array<Inspector::Protocol::LayerTree::Layer>::create();
+    layers = JSON::ArrayOf<Inspector::Protocol::LayerTree::Layer>::create();
 
     auto* node = m_instrumentingAgents.inspectorDOMAgent()->nodeForId(nodeId);
     if (!node) {
@@ -121,7 +122,7 @@ void InspectorLayerTreeAgent::layersForNode(ErrorString& errorString, int nodeId
         gatherLayersUsingRenderObjectHierarchy(errorString, downcast<RenderElement>(*renderer), layers);
 }
 
-void InspectorLayerTreeAgent::gatherLayersUsingRenderObjectHierarchy(ErrorString& errorString, RenderElement& renderer, RefPtr<Inspector::Protocol::Array<Inspector::Protocol::LayerTree::Layer>>& layers)
+void InspectorLayerTreeAgent::gatherLayersUsingRenderObjectHierarchy(ErrorString& errorString, RenderElement& renderer, RefPtr<JSON::ArrayOf<Inspector::Protocol::LayerTree::Layer>>& layers)
 {
     if (renderer.hasLayer()) {
         gatherLayersUsingRenderLayerHierarchy(errorString, downcast<RenderLayerModelObject>(renderer).layer(), layers);
@@ -132,7 +133,7 @@ void InspectorLayerTreeAgent::gatherLayersUsingRenderObjectHierarchy(ErrorString
         gatherLayersUsingRenderObjectHierarchy(errorString, child, layers);
 }
 
-void InspectorLayerTreeAgent::gatherLayersUsingRenderLayerHierarchy(ErrorString& errorString, RenderLayer* renderLayer, RefPtr<Inspector::Protocol::Array<Inspector::Protocol::LayerTree::Layer>>& layers)
+void InspectorLayerTreeAgent::gatherLayersUsingRenderLayerHierarchy(ErrorString& errorString, RenderLayer* renderLayer, RefPtr<JSON::ArrayOf<Inspector::Protocol::LayerTree::Layer>>& layers)
 {
     if (renderLayer->isComposited())
         layers->addItem(buildObjectForLayer(errorString, renderLayer));
@@ -318,44 +319,38 @@ String InspectorLayerTreeAgent::bind(const RenderLayer* layer)
 {
     if (!layer)
         return emptyString();
-    String identifier = m_documentLayerToIdMap.get(layer);
-    if (identifier.isNull()) {
-        identifier = IdentifiersFactory::createIdentifier();
-        m_documentLayerToIdMap.set(layer, identifier);
+    return m_documentLayerToIdMap.ensure(layer, [this, layer] {
+        auto identifier = IdentifiersFactory::createIdentifier();
         m_idToLayer.set(identifier, layer);
-    }
-    return identifier;
+        return identifier;
+    }).iterator->value;
 }
 
 void InspectorLayerTreeAgent::unbind(const RenderLayer* layer)
 {
-    HashMap<const RenderLayer*, String>::iterator iterator = m_documentLayerToIdMap.find(layer);
-    if (iterator == m_documentLayerToIdMap.end())
+    auto identifier = m_documentLayerToIdMap.take(layer);
+    if (identifier.isNull())
         return;
-    m_idToLayer.remove(iterator->value);
-    m_documentLayerToIdMap.remove(iterator);
+    m_idToLayer.remove(identifier);
 }
 
 String InspectorLayerTreeAgent::bindPseudoElement(PseudoElement* pseudoElement)
 {
     if (!pseudoElement)
         return emptyString();
-    String identifier = m_pseudoElementToIdMap.get(pseudoElement);
-    if (identifier.isNull()) {
-        identifier = IdentifiersFactory::createIdentifier();
-        m_pseudoElementToIdMap.set(pseudoElement, identifier);
+    return m_pseudoElementToIdMap.ensure(pseudoElement, [this, pseudoElement] {
+        auto identifier = IdentifiersFactory::createIdentifier();
         m_idToPseudoElement.set(identifier, pseudoElement);
-    }
-    return identifier;
+        return identifier;
+    }).iterator->value;
 }
 
 void InspectorLayerTreeAgent::unbindPseudoElement(PseudoElement* pseudoElement)
 {
-    HashMap<PseudoElement*, String>::iterator iterator = m_pseudoElementToIdMap.find(pseudoElement);
-    if (iterator == m_pseudoElementToIdMap.end())
+    auto identifier = m_pseudoElementToIdMap.take(pseudoElement);
+    if (identifier.isNull())
         return;
-    m_idToPseudoElement.remove(iterator->value);
-    m_pseudoElementToIdMap.remove(iterator);
+    m_idToPseudoElement.remove(identifier);
 }
 
 } // namespace WebCore

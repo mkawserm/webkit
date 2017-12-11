@@ -91,10 +91,9 @@ static Frame* targetFrame(Frame& frame, Event* event)
 {
     if (!event)
         return &frame;
-    auto node = event->target()->toNode();
-    if (!node)
+    if (!is<Node>(event->target()))
         return &frame;
-    return node->document().frame();
+    return downcast<Node>(*event->target()).document().frame();
 }
 
 static bool applyCommandToFrame(Frame& frame, EditorCommandSource source, EditAction action, Ref<EditingStyle>&& style)
@@ -379,7 +378,7 @@ static bool executeDeleteWordForward(Frame& frame, Event*, EditorCommandSource, 
 
 static bool executeFindString(Frame& frame, Event*, EditorCommandSource, const String& value)
 {
-    return frame.editor().findString(value, CaseInsensitive | WrapAround | DoNotTraverseFlatTree);
+    return frame.editor().findString(value, { CaseInsensitive, WrapAround, DoNotTraverseFlatTree });
 }
 
 static bool executeFontName(Frame& frame, Event*, EditorCommandSource source, const String& value)

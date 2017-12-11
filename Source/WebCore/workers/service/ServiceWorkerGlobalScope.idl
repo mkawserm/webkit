@@ -29,6 +29,10 @@
     Exposed=ServiceWorker,
     Conditional=SERVICE_WORKER,
     EnabledAtRuntime=ServiceWorker,
+    ImplicitThis,
+    JSCustomMarkFunction,
+    IsImmutablePrototypeExoticObject,
+    IsImmutablePrototypeExoticObjectOnPrototype,
 ] interface ServiceWorkerGlobalScope : WorkerGlobalScope {
     [SameObject] readonly attribute ServiceWorkerClients clients;
     [SameObject] readonly attribute ServiceWorkerRegistration registration;

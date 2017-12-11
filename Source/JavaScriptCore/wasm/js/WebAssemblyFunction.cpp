@@ -141,7 +141,7 @@ static EncodedJSValue JSC_HOST_CALL callWebAssemblyFunction(ExecState* exec)
     vm.wasmContext.store(wasmInstance, vm.softStackLimit());
     ASSERT(wasmFunction->instance());
     ASSERT(&wasmFunction->instance()->instance() == vm.wasmContext.load());
-    EncodedJSValue rawResult = vmEntryToWasm(wasmFunction->jsEntrypoint(), &vm, &protoCallFrame);
+    EncodedJSValue rawResult = vmEntryToWasm(wasmFunction->jsEntrypoint().executableAddress(), &vm, &protoCallFrame);
     // We need to make sure this is in a register or on the stack since it's stored in Vector<JSValue>.
     // This probably isn't strictly necessary, since the WebAssemblyFunction* should keep the instance
     // alive. But it's good hygiene.
@@ -150,7 +150,9 @@ static EncodedJSValue JSC_HOST_CALL callWebAssemblyFunction(ExecState* exec)
         // This is just for some extra safety instead of leaving a cached
         // value in there. If we ever forget to set the value to be a real
         // bounds, this will force every stack overflow check to immediately
-        // fire.
+        // fire. The stack limit never changes while executing except when
+        // WebAssembly is used through the JSC API: API users can ask the code
+        // to migrate threads.
         wasmInstance->setCachedStackLimit(bitwise_cast<void*>(std::numeric_limits<uintptr_t>::max()));
     }
     vm.wasmContext.store(prevWasmInstance, vm.softStackLimit());

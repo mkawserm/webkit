@@ -96,7 +96,7 @@ public:
     bool shouldCheckColumnBreaks() const override;
 
     typedef HashMap<RenderBox*, WeakPtr<RenderMultiColumnSpannerPlaceholder>> SpannerMap;
-    std::unique_ptr<SpannerMap> takeSpannerMap() { return WTFMove(m_spannerMap); }
+    SpannerMap& spannerMap() { return *m_spannerMap; }
 
 private:
     bool isRenderMultiColumnFlow() const override { return true; }
@@ -119,8 +119,6 @@ private:
     void handleSpannerRemoval(RenderObject& spanner);
     RenderObject* processPossibleSpannerDescendant(RenderObject*& subtreeRoot, RenderObject& descendant);
 
-    SpannerMap& spannerMap() { return *m_spannerMap; }
-    
 private:
     std::unique_ptr<SpannerMap> m_spannerMap;
 

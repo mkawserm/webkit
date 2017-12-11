@@ -145,10 +145,11 @@ static Vector<OperatingDate> mergeOperatingDates(const Vector<OperatingDate>& ex
     return mergedDates;
 }
 
-WebResourceLoadStatisticsStore::WebResourceLoadStatisticsStore(const String& resourceLoadStatisticsDirectory, Function<void (const String&)>&& testingCallback, UpdatePrevalentDomainsToPartitionOrBlockCookiesHandler&& updatePrevalentDomainsToPartitionOrBlockCookiesHandler, RemovePrevalentDomainsHandler&& removeDomainsHandler)
+WebResourceLoadStatisticsStore::WebResourceLoadStatisticsStore(const String& resourceLoadStatisticsDirectory, Function<void(const String&)>&& testingCallback, UpdatePrevalentDomainsToPartitionOrBlockCookiesHandler&& updatePrevalentDomainsToPartitionOrBlockCookiesHandler, UpdateStorageAccessForPrevalentDomainsHandler&& updateStorageAccessForPrevalentDomainsHandler, RemovePrevalentDomainsHandler&& removeDomainsHandler)
     : m_statisticsQueue(WorkQueue::create("WebResourceLoadStatisticsStore Process Data Queue", WorkQueue::Type::Serial, WorkQueue::QOS::Utility))
     , m_persistentStorage(*this, resourceLoadStatisticsDirectory)
     , m_updatePrevalentDomainsToPartitionOrBlockCookiesHandler(WTFMove(updatePrevalentDomainsToPartitionOrBlockCookiesHandler))
+    , m_updateStorageAccessForPrevalentDomainsHandler(WTFMove(updateStorageAccessForPrevalentDomainsHandler))
     , m_removeDomainsHandler(WTFMove(removeDomainsHandler))
     , m_dailyTasksTimer(RunLoop::main(), this, &WebResourceLoadStatisticsStore::performDailyTasks)
     , m_statisticsTestingCallback(WTFMove(testingCallback))
@@ -244,14 +245,55 @@ void WebResourceLoadStatisticsStore::resourceLoadStatisticsUpdated(Vector<WebCor
     processStatisticsAndDataRecords();
 }
 
-void WebResourceLoadStatisticsStore::requestStorageAccess(String&& subFrameHost, String&& topFrameHost, WTF::Function<void (bool)>&& callback)
+void WebResourceLoadStatisticsStore::hasStorageAccess(String&& subFrameHost, String&& topFrameHost, WTF::CompletionHandler<void (bool)>&& callback)
+{
+    ASSERT(subFrameHost != topFrameHost);
+    ASSERT(RunLoop::isMain());
+    
+    m_statisticsQueue->dispatch([this, protectedThis = makeRef(*this), subFramePrimaryDomain = isolatedPrimaryDomain(subFrameHost), topFramePrimaryDomain = isolatedPrimaryDomain(topFrameHost), callback = WTFMove(callback)] () mutable {
+        
+        auto& topFrameStatistic = ensureResourceStatisticsForPrimaryDomain(topFramePrimaryDomain);
+        if (topFrameStatistic.storageAccessUnderTopFrameOrigins.contains(subFramePrimaryDomain)) {
+            callback(true);
+            return;
+        }
+        
+        auto& subFrameStatistic = ensureResourceStatisticsForPrimaryDomain(subFramePrimaryDomain);
+        if (shouldBlockCookies(subFrameStatistic)) {
+            callback(false);
+            return;
+        }
+        
+        callback(!shouldPartitionCookies(subFrameStatistic));
+    });
+}
+
+void WebResourceLoadStatisticsStore::requestStorageAccess(String&& subFrameHost, String&& topFrameHost, WTF::CompletionHandler<void (bool)>&& callback)
 {
     ASSERT(subFrameHost != topFrameHost);
     ASSERT(RunLoop::isMain());
 
-    m_statisticsQueue->dispatch([this, protectedThis = makeRef(*this), subFramePrimaryDomain = isolatedPrimaryDomain(subFrameHost), callback = WTFMove(callback)] () {
-        auto& statistic = ensureResourceStatisticsForPrimaryDomain(subFramePrimaryDomain);
-        callback(!statistic.isPrevalentResource || statistic.hadUserInteraction);
+    m_statisticsQueue->dispatch([this, protectedThis = makeRef(*this), subFramePrimaryDomain = isolatedPrimaryDomain(subFrameHost), topFramePrimaryDomain = isolatedPrimaryDomain(topFrameHost), callback = WTFMove(callback)] () mutable {
+
+        auto& topFrameStatistic = ensureResourceStatisticsForPrimaryDomain(topFramePrimaryDomain);
+        if (topFrameStatistic.storageAccessUnderTopFrameOrigins.contains(subFramePrimaryDomain)) {
+            callback(true);
+            return;
+        }
+        
+        auto& subFrameStatistic = ensureResourceStatisticsForPrimaryDomain(subFramePrimaryDomain);
+        if (shouldBlockCookies(subFrameStatistic)) {
+            callback(false);
+            return;
+        }
+        
+        if (!shouldPartitionCookies(subFrameStatistic)) {
+            callback(true);
+            return;
+        }
+        
+        m_updateStorageAccessForPrevalentDomainsHandler(subFramePrimaryDomain, topFramePrimaryDomain, true, WTFMove(callback));
+        topFrameStatistic.storageAccessUnderTopFrameOrigins.add(subFramePrimaryDomain);
     });
 }
     
@@ -322,6 +364,20 @@ void WebResourceLoadStatisticsStore::logUserInteraction(const URL& url)
         statistics.mostRecentUserInteractionTime = WallTime::now();
 
         updateCookiePartitioningForDomains({ }, { }, { primaryDomain }, ShouldClearFirst::No);
+    });
+}
+
+void WebResourceLoadStatisticsStore::logNonRecentUserInteraction(const URL& url)
+{
+    if (url.isBlankURL() || url.isEmpty())
+        return;
+    
+    m_statisticsQueue->dispatch([this, protectedThis = makeRef(*this), primaryDomain = isolatedPrimaryDomain(url)] {
+        auto& statistics = ensureResourceStatisticsForPrimaryDomain(primaryDomain);
+        statistics.hadUserInteraction = true;
+        statistics.mostRecentUserInteractionTime = WallTime::now() - (m_parameters.timeToLiveCookiePartitionFree + Seconds::fromHours(1));
+
+        updateCookiePartitioningForDomains({ primaryDomain }, { }, { }, ShouldClearFirst::No);
     });
 }
 
@@ -726,7 +782,7 @@ void WebResourceLoadStatisticsStore::updateCookiePartitioning()
 void WebResourceLoadStatisticsStore::updateCookiePartitioningForDomains(const Vector<String>& domainsToPartition, const Vector<String>& domainsToBlock, const Vector<String>& domainsToNeitherPartitionNorBlock, ShouldClearFirst shouldClearFirst)
 {
     ASSERT(!RunLoop::isMain());
-    if (domainsToPartition.isEmpty() && domainsToBlock.isEmpty() && domainsToNeitherPartitionNorBlock.isEmpty())
+    if (domainsToPartition.isEmpty() && domainsToBlock.isEmpty() && domainsToNeitherPartitionNorBlock.isEmpty() && shouldClearFirst == ShouldClearFirst::No)
         return;
 
     RunLoop::main().dispatch([this, shouldClearFirst, protectedThis = makeRef(*this), domainsToPartition = crossThreadCopy(domainsToPartition), domainsToBlock = crossThreadCopy(domainsToBlock), domainsToNeitherPartitionNorBlock = crossThreadCopy(domainsToNeitherPartitionNorBlock)] () {

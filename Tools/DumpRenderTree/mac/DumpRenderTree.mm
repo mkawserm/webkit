@@ -840,7 +840,6 @@ static NSString *libraryPathForDumpRenderTree()
 static void enableExperimentalFeatures(WebPreferences* preferences)
 {
     [preferences setCSSGridLayoutEnabled:YES];
-    [preferences setDisplayContentsEnabled:YES];
     // FIXME: SpringTimingFunction
     [preferences setGamepadsEnabled:YES];
     [preferences setLinkPreloadEnabled:YES];
@@ -855,6 +854,9 @@ static void enableExperimentalFeatures(WebPreferences* preferences)
     [preferences setCacheAPIEnabled:NO];
     [preferences setReadableByteStreamAPIEnabled:YES];
     [preferences setWritableStreamAPIEnabled:YES];
+    preferences.encryptedMediaAPIEnabled = YES;
+    [preferences setAccessibilityObjectModelEnabled:YES];
+    [preferences setVisualViewportAPIEnabled:YES];
 }
 
 // Called before each test.
@@ -982,6 +984,7 @@ static void setWebPreferencesForTestOptions(const TestOptions& options)
     WebPreferences *preferences = [WebPreferences standardPreferences];
 
     preferences.attachmentElementEnabled = options.enableAttachmentElement;
+    preferences.acceleratedDrawingEnabled = options.useAcceleratedDrawing;
     preferences.intersectionObserverEnabled = options.enableIntersectionObserver;
     preferences.menuItemElementEnabled = options.enableMenuItemElement;
     preferences.modernMediaControlsEnabled = options.enableModernMediaControls;
@@ -1060,36 +1063,6 @@ static void setDefaultsToConsistentValuesForTesting()
     };
 
     [[NSUserDefaults standardUserDefaults] setVolatileDomain:processInstanceDefaults forName:NSArgumentDomain];
-}
-
-static void runThread()
-{
-    static ThreadIdentifier previousId = 0;
-    ThreadIdentifier currentId = currentThread();
-    // Verify 2 successive threads do not get the same Id.
-    ASSERT(previousId != currentId);
-    previousId = currentId;
-}
-
-static void* runPthread(void*)
-{
-    runThread();
-    return nullptr;
-}
-
-static void testThreadIdentifierMap()
-{
-    // Imitate 'foreign' threads that are not created by WTF.
-    pthread_t pthread;
-    pthread_create(&pthread, 0, &runPthread, 0);
-    pthread_join(pthread, 0);
-
-    pthread_create(&pthread, 0, &runPthread, 0);
-    pthread_join(pthread, 0);
-
-    // Now create another thread using WTF. On OSX, it will have the same pthread handle
-    // but should get a different RefPtr<Thread>.
-    Thread::create("DumpRenderTree: test", runThread);
 }
 
 static void allocateGlobalControllers()
@@ -1279,9 +1252,6 @@ void dumpRenderTree(int argc, const char *argv[])
 
     [NSURLRequest setAllowsAnyHTTPSCertificate:YES forHost:@"localhost"];
     [NSURLRequest setAllowsAnyHTTPSCertificate:YES forHost:@"127.0.0.1"];
-
-    // http://webkit.org/b/32689
-    testThreadIdentifierMap();
 
     if (threaded)
         startJavaScriptThreads();
@@ -1590,9 +1560,9 @@ static void changeWindowScaleIfNeeded(const char* testPathOrUR)
     WTF::String localPathOrUrl = String(testPathOrUR);
     float currentScaleFactor = [[[mainFrame webView] window] backingScaleFactor];
     float requiredScaleFactor = 1;
-    if (localPathOrUrl.findIgnoringCase("/hidpi-3x-") != notFound)
+    if (localPathOrUrl.containsIgnoringASCIICase("/hidpi-3x-"))
         requiredScaleFactor = 3;
-    else if (localPathOrUrl.findIgnoringCase("/hidpi-") != notFound)
+    else if (localPathOrUrl.containsIgnoringASCIICase("/hidpi-"))
         requiredScaleFactor = 2;
     if (currentScaleFactor == requiredScaleFactor)
         return;

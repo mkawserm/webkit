@@ -25,11 +25,9 @@
 
 WI.ResourceSidebarPanel = class ResourceSidebarPanel extends WI.NavigationSidebarPanel
 {
-    constructor(contentBrowser)
+    constructor()
     {
         super("resource", WI.UIString("Resources"), true);
-
-        this.contentBrowser = contentBrowser;
 
         this._navigationBar = new WI.NavigationBar;
         this.addSubview(this._navigationBar);
@@ -312,10 +310,11 @@ WI.ResourceSidebarPanel = class ResourceSidebarPanel extends WI.NavigationSideba
         if (!script.url && !script.sourceURL)
             return;
 
-        // Worker script.
-        if (script.target !== WI.mainTarget) {
+        // Target main resource.
+        if (script.target !== WI.pageTarget) {
             if (script.isMainResource())
                 this._addTargetWithMainResource(script.target);
+            this.contentTreeOutline.disclosureButtons = true;
             return;
         }
 
@@ -433,7 +432,7 @@ WI.ResourceSidebarPanel = class ResourceSidebarPanel extends WI.NavigationSideba
 
     _addTargetWithMainResource(target)
     {
-        console.assert(target.type === WI.Target.Type.Worker);
+        console.assert(target.type === WI.Target.Type.Worker || target.type === WI.Target.Type.ServiceWorker);
 
         let targetTreeElement = new WI.WorkerTreeElement(target);
         this._targetTreeElementMap.set(target, targetTreeElement);

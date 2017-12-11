@@ -29,12 +29,13 @@
 
 #include "Connection.h"
 #include <WebCore/ServiceWorkerFetch.h>
+#include <WebCore/ServiceWorkerTypes.h>
 
 namespace WebKit {
 
 class WebServiceWorkerFetchTaskClient final : public WebCore::ServiceWorkerFetch::Client {
 public:
-    static Ref<WebServiceWorkerFetchTaskClient> create(Ref<IPC::Connection>&& connection, uint64_t serverConnectionIdentifier, uint64_t fetchTaskIdentifier)
+    static Ref<WebServiceWorkerFetchTaskClient> create(Ref<IPC::Connection>&& connection, WebCore::SWServerConnectionIdentifier serverConnectionIdentifier, uint64_t fetchTaskIdentifier)
     {
         return adoptRef(*new WebServiceWorkerFetchTaskClient(WTFMove(connection), serverConnectionIdentifier, fetchTaskIdentifier));
     }
@@ -42,16 +43,17 @@ public:
     ~WebServiceWorkerFetchTaskClient();
 
 private:
-    WebServiceWorkerFetchTaskClient(Ref<IPC::Connection>&&, uint64_t serverConnectionIdentifier, uint64_t fetchTaskIdentifier);
+    WebServiceWorkerFetchTaskClient(Ref<IPC::Connection>&&, WebCore::SWServerConnectionIdentifier, uint64_t fetchTaskIdentifier);
 
     void didReceiveResponse(const WebCore::ResourceResponse&) final;
     void didReceiveData(Ref<WebCore::SharedBuffer>&&) final;
+    void didReceiveFormData(Ref<WebCore::FormData>&&) final;
     void didFail() final;
     void didFinish() final;
     void didNotHandle() final;
 
     RefPtr<IPC::Connection> m_connection;
-    uint64_t m_serverConnectionIdentifier { 0 };
+    WebCore::SWServerConnectionIdentifier m_serverConnectionIdentifier;
     uint64_t m_fetchTaskIdentifier { 0 };
 };
 

@@ -511,6 +511,12 @@ public:
         m_assembler.negl_r(srcDest);
     }
 
+    void neg32(RegisterID src, RegisterID dest)
+    {
+        move32IfNeeded(src, dest);
+        m_assembler.negl_r(dest);
+    }
+
     void neg32(Address srcDest)
     {
         m_assembler.negl_m(srcDest.offset, srcDest.base);
@@ -3878,6 +3884,26 @@ public:
 #endif // COMPILER(GCC_OR_CLANG)
         s_sse4_1CheckState = (flags & (1 << 19)) ? CPUIDCheckState::Set : CPUIDCheckState::Clear;
         s_avxCheckState = (flags & (1 << 28)) ? CPUIDCheckState::Set : CPUIDCheckState::Clear;
+    }
+
+    void mfence()
+    {
+        m_assembler.mfence();
+    }
+
+    void rdtsc()
+    {
+        m_assembler.rdtsc();
+    }
+
+    void pause()
+    {
+        m_assembler.pause();
+    }
+
+    void cpuid()
+    {
+        m_assembler.cpuid();
     }
 
 protected:

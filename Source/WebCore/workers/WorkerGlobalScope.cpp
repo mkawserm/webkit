@@ -86,7 +86,7 @@ WorkerGlobalScope::WorkerGlobalScope(const URL& url, const String& identifier, c
 
 WorkerGlobalScope::~WorkerGlobalScope()
 {
-    ASSERT(currentThread() == thread().threadID());
+    ASSERT(thread().thread() == &Thread::current());
 
     m_performance = nullptr;
     m_crypto = nullptr;
@@ -162,8 +162,8 @@ IDBClient::IDBConnectionProxy* WorkerGlobalScope::idbConnectionProxy()
 void WorkerGlobalScope::stopIndexedDatabase()
 {
 #if ENABLE(INDEXED_DATABASE_IN_WORKERS)
-    ASSERT(m_connectionProxy);
-    m_connectionProxy->forgetActivityForCurrentThread();
+    if (m_connectionProxy)
+        m_connectionProxy->forgetActivityForCurrentThread();
 #endif
 }
 
@@ -329,7 +329,7 @@ void WorkerGlobalScope::addMessage(MessageSource source, MessageLevel level, con
 
 bool WorkerGlobalScope::isContextThread() const
 {
-    return currentThread() == thread().threadID();
+    return thread().thread() == &Thread::current();
 }
 
 bool WorkerGlobalScope::isJSExecutionForbidden() const
@@ -395,7 +395,7 @@ Performance& WorkerGlobalScope::performance() const
     return *m_performance;
 }
 
-CacheStorageConnection& WorkerGlobalScope::cacheStorageConnection()
+WorkerCacheStorageConnection& WorkerGlobalScope::cacheStorageConnection()
 {
     if (!m_cacheStorageConnection)
         m_cacheStorageConnection = WorkerCacheStorageConnection::create(*this);

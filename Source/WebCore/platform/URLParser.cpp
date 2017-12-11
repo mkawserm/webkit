@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 Apple Inc. All rights reserved.
+ * Copyright (C) 2016-2017 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -429,6 +429,11 @@ ALWAYS_INLINE static bool shouldPercentEncodeQueryByte(uint8_t byte, const bool&
     return false;
 }
 
+bool URLParser::isInUserInfoEncodeSet(UChar c)
+{
+    return WebCore::isInUserInfoEncodeSet(c);
+}
+
 template<typename CharacterType, URLParser::ReportSyntaxViolation reportSyntaxViolation>
 ALWAYS_INLINE void URLParser::advance(CodePointIterator<CharacterType>& iterator, const CodePointIterator<CharacterType>& iteratorForSyntaxViolationPosition)
 {
@@ -616,9 +621,9 @@ template<typename CharacterType>
 void URLParser::encodeQuery(const Vector<UChar>& source, const TextEncoding& encoding, CodePointIterator<CharacterType> iterator)
 {
     // FIXME: It is unclear in the spec what to do when encoding fails. The behavior should be specified and tested.
-    CString encoded = encoding.encode(StringView(source.data(), source.size()), URLEncodedEntitiesForUnencodables);
-    const char* data = encoded.data();
-    size_t length = encoded.length();
+    auto encoded = encoding.encode(StringView(source.data(), source.size()), UnencodableHandling::URLEncodedEntities);
+    auto* data = encoded.data();
+    size_t length = encoded.size();
     
     if (!length == !iterator.atEnd()) {
         syntaxViolation(iterator);
@@ -2086,10 +2091,10 @@ void URLParser::parseAuthority(CodePointIterator<CharacterType> iterator)
             appendToASCIIBuffer(':');
             break;
         }
-        utf8PercentEncode<isInUserInfoEncodeSet>(iterator);
+        utf8PercentEncode<WebCore::isInUserInfoEncodeSet>(iterator);
     }
     for (; !iterator.atEnd(); advance(iterator))
-        utf8PercentEncode<isInUserInfoEncodeSet>(iterator);
+        utf8PercentEncode<WebCore::isInUserInfoEncodeSet>(iterator);
     m_url.m_passwordEnd = currentPosition(iterator);
     if (!m_url.m_userEnd)
         m_url.m_userEnd = m_url.m_passwordEnd;
@@ -2309,11 +2314,11 @@ Expected<URLParser::IPv4Address, URLParser::IPv4ParsingError> URLParser::parseIP
     if (!iterator.atEnd() || !items.size() || items.size() > 4)
         return makeUnexpected(IPv4ParsingError::NotIPv4);
     for (const auto& item : items) {
-        if (!item.hasValue() && item.error() == IPv4PieceParsingError::Failure)
+        if (!item.has_value() && item.error() == IPv4PieceParsingError::Failure)
             return makeUnexpected(IPv4ParsingError::NotIPv4);
     }
     for (const auto& item : items) {
-        if (!item.hasValue() && item.error() == IPv4PieceParsingError::Overflow)
+        if (!item.has_value() && item.error() == IPv4PieceParsingError::Overflow)
             return makeUnexpected(IPv4ParsingError::Failure);
     }
     if (items.size() > 1) {
@@ -2533,19 +2538,10 @@ Vector<LChar, URLParser::defaultInlineBufferSize> URLParser::percentDecode(const
     return output;
 }
 
-ALWAYS_INLINE static bool containsOnlyASCII(const String& string)
-{
-    ASSERT(!string.isNull());
-    if (string.is8Bit())
-        return charactersAreAllASCII(string.characters8(), string.length());
-    return charactersAreAllASCII(string.characters16(), string.length());
-}
-
-template<typename CharacterType>
-std::optional<Vector<LChar, URLParser::defaultInlineBufferSize>> URLParser::domainToASCII(const String& domain, const CodePointIterator<CharacterType>& iteratorForSyntaxViolationPosition)
+template<typename CharacterType> std::optional<Vector<LChar, URLParser::defaultInlineBufferSize>> URLParser::domainToASCII(StringImpl& domain, const CodePointIterator<CharacterType>& iteratorForSyntaxViolationPosition)
 {
     Vector<LChar, defaultInlineBufferSize> ascii;
-    if (containsOnlyASCII(domain)) {
+    if (domain.isAllASCII()) {
         size_t length = domain.length();
         if (domain.is8Bit()) {
             const LChar* characters = domain.characters8();
@@ -2762,7 +2758,7 @@ bool URLParser::parseHostAndPort(CodePointIterator<CharacterType> iterator)
         return false;
     if (domain != StringView(percentDecoded.data(), percentDecoded.size()))
         syntaxViolation(hostBegin);
-    auto asciiDomain = domainToASCII(domain, hostBegin);
+    auto asciiDomain = domainToASCII(*domain.impl(), hostBegin);
     if (!asciiDomain || hasForbiddenHostCodePoint(asciiDomain.value()))
         return false;
     Vector<LChar, defaultInlineBufferSize>& asciiDomainValue = asciiDomain.value();

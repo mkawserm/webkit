@@ -27,6 +27,7 @@
 
 #pragma once
 
+#include "CanvasBase.h"
 #include "FloatRect.h"
 #include "HTMLElement.h"
 #include "ImageBitmapRenderingContextSettings.h"
@@ -71,7 +72,7 @@ public:
     virtual void canvasDestroyed(HTMLCanvasElement&) = 0;
 };
 
-class HTMLCanvasElement final : public HTMLElement {
+class HTMLCanvasElement final : public HTMLElement, public CanvasBase {
 public:
     static Ref<HTMLCanvasElement> create(Document&);
     static Ref<HTMLCanvasElement> create(const QualifiedName&, Document&);
@@ -81,15 +82,15 @@ public:
     void removeObserver(CanvasObserver&);
     HashSet<Element*> cssCanvasClients() const;
 
-    unsigned width() const { return size().width(); }
-    unsigned height() const { return size().height(); }
+    unsigned width() const final { return size().width(); }
+    unsigned height() const final { return size().height(); }
 
     WEBCORE_EXPORT ExceptionOr<void> setWidth(unsigned);
     WEBCORE_EXPORT ExceptionOr<void> setHeight(unsigned);
 
-    const IntSize& size() const { return m_size; }
+    const IntSize& size() const final { return m_size; }
 
-    void setSize(const IntSize& newSize)
+    void setSize(const IntSize& newSize) override
     { 
         if (newSize == size())
             return;
@@ -150,10 +151,7 @@ public:
     void makePresentationCopy();
     void clearPresentationCopy();
 
-    SecurityOrigin* securityOrigin() const;
-    void setOriginClean() { m_originClean = true; }
-    void setOriginTainted() { m_originClean = false; }
-    bool originClean() const { return m_originClean; }
+    SecurityOrigin* securityOrigin() const final;
 
     AffineTransform baseTransform() const;
 
@@ -177,6 +175,8 @@ public:
 private:
     HTMLCanvasElement(const QualifiedName&, Document&);
 
+    bool isHTMLCanvasElement() const final { return true; }
+
     void parseAttribute(const QualifiedName&, const AtomicString&) final;
     RenderPtr<RenderElement> createElementRenderer(RenderStyle&&, const RenderTreePosition&) final;
 
@@ -196,13 +196,15 @@ private:
 
     bool isGPUBased() const;
 
+    void refCanvasBase() final { HTMLElement::ref(); }
+    void derefCanvasBase() final { HTMLElement::deref(); }
+
     HashSet<CanvasObserver*> m_observers;
     std::unique_ptr<CanvasRenderingContext> m_context;
 
     FloatRect m_dirtyRect;
     mutable IntSize m_size;
 
-    bool m_originClean { true };
     bool m_ignoreReset { false };
 
     bool m_usesDisplayListDrawing { false };
@@ -221,3 +223,16 @@ private:
 };
 
 } // namespace WebCore
+
+namespace WTF {
+template<typename ArgType> class TypeCastTraits<const WebCore::HTMLCanvasElement, ArgType, false /* isBaseType */> {
+public:
+    static bool isOfType(ArgType& node) { return checkTagName(node); }
+private:
+    static bool checkTagName(const WebCore::CanvasBase& base) { return base.isHTMLCanvasElement(); }
+    static bool checkTagName(const WebCore::HTMLElement& element) { return element.hasTagName(WebCore::HTMLNames::canvasTag); }
+    static bool checkTagName(const WebCore::Node& node) { return node.hasTagName(WebCore::HTMLNames::canvasTag); }
+    static bool checkTagName(const WebCore::EventTarget& target) { return is<WebCore::Node>(target) && checkTagName(downcast<WebCore::Node>(target)); }
+};
+}
+

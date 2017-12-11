@@ -67,15 +67,11 @@ private:
 
 // FIXME: Use a valid WorkerReportingProxy
 // FIXME: Use a valid WorkerObjectProxy
-// FIXME: Use a valid IDBConnection
-// FIXME: Use a valid SocketProvider
-// FIXME: Use a valid user agent
 // FIXME: Use a valid isOnline flag
 // FIXME: Use valid runtime flags
 
-ServiceWorkerThread::ServiceWorkerThread(uint64_t serverConnectionIdentifier, const ServiceWorkerContextData& data, PAL::SessionID, WorkerLoaderProxy& loaderProxy, WorkerDebuggerProxy& debuggerProxy)
-    : WorkerThread(data.scriptURL, "serviceworker:" + Inspector::IdentifiersFactory::createIdentifier(), ASCIILiteral("WorkerUserAgent"), /* isOnline */ false, data.script, loaderProxy, debuggerProxy, DummyServiceWorkerThreadProxy::shared(), WorkerThreadStartMode::Normal, ContentSecurityPolicyResponseHeaders { }, false, SecurityOrigin::create(data.scriptURL).get(), MonotonicTime::now(), nullptr, nullptr, JSC::RuntimeFlags::createAllEnabled(), SessionID::defaultSessionID())
-    , m_serverConnectionIdentifier(serverConnectionIdentifier)
+ServiceWorkerThread::ServiceWorkerThread(const ServiceWorkerContextData& data, PAL::SessionID, String&& userAgent, WorkerLoaderProxy& loaderProxy, WorkerDebuggerProxy& debuggerProxy, IDBClient::IDBConnectionProxy* idbConnectionProxy, SocketProvider* socketProvider)
+    : WorkerThread(data.scriptURL, "serviceworker:" + Inspector::IdentifiersFactory::createIdentifier(), WTFMove(userAgent), /* isOnline */ false, data.script, loaderProxy, debuggerProxy, DummyServiceWorkerThreadProxy::shared(), WorkerThreadStartMode::Normal, ContentSecurityPolicyResponseHeaders { }, false, SecurityOrigin::create(data.scriptURL).get(), MonotonicTime::now(), idbConnectionProxy, socketProvider, JSC::RuntimeFlags::createAllEnabled(), SessionID::defaultSessionID())
     , m_data(data.isolatedCopy())
     , m_workerObjectProxy(DummyServiceWorkerThreadProxy::shared())
 {
@@ -86,7 +82,7 @@ ServiceWorkerThread::~ServiceWorkerThread() = default;
 
 Ref<WorkerGlobalScope> ServiceWorkerThread::createWorkerGlobalScope(const URL& url, const String& identifier, const String& userAgent, bool isOnline, const ContentSecurityPolicyResponseHeaders&, bool shouldBypassMainWorldContentSecurityPolicy, Ref<SecurityOrigin>&& topOrigin, MonotonicTime timeOrigin, PAL::SessionID sessionID)
 {
-    return ServiceWorkerGlobalScope::create(m_serverConnectionIdentifier, m_data, url, identifier, userAgent, isOnline, *this, shouldBypassMainWorldContentSecurityPolicy, WTFMove(topOrigin), timeOrigin, idbConnectionProxy(), socketProvider(), sessionID);
+    return ServiceWorkerGlobalScope::create(m_data, url, identifier, userAgent, isOnline, *this, shouldBypassMainWorldContentSecurityPolicy, WTFMove(topOrigin), timeOrigin, idbConnectionProxy(), socketProvider(), sessionID);
 }
 
 void ServiceWorkerThread::runEventLoop()
@@ -95,45 +91,66 @@ void ServiceWorkerThread::runEventLoop()
     WorkerThread::runEventLoop();
 }
 
-void ServiceWorkerThread::postFetchTask(Ref<ServiceWorkerFetch::Client>&& client, ResourceRequest&& request, FetchOptions&& options)
+void ServiceWorkerThread::postFetchTask(Ref<ServiceWorkerFetch::Client>&& client, std::optional<ServiceWorkerClientIdentifier>&& clientId, ResourceRequest&& request, FetchOptions&& options)
 {
     // FIXME: instead of directly using runLoop(), we should be using something like WorkerGlobalScopeProxy.
     // FIXME: request and options come straigth from IPC so are already isolated. We should be able to take benefit of that.
-    runLoop().postTaskForMode([client = WTFMove(client), request = request.isolatedCopy(), options = options.isolatedCopy()] (ScriptExecutionContext& context) mutable {
-        ServiceWorkerFetch::dispatchFetchEvent(WTFMove(client), downcast<WorkerGlobalScope>(context), WTFMove(request), WTFMove(options));
+    runLoop().postTaskForMode([client = WTFMove(client), clientId, request = request.isolatedCopy(), options = options.isolatedCopy()] (ScriptExecutionContext& context) mutable {
+        auto& serviceWorkerGlobalScope = downcast<ServiceWorkerGlobalScope>(context);
+        auto fetchEvent = ServiceWorkerFetch::dispatchFetchEvent(WTFMove(client), serviceWorkerGlobalScope, clientId, WTFMove(request), WTFMove(options));
+        serviceWorkerGlobalScope.updateExtendedEventsSet(fetchEvent.ptr());
     }, WorkerRunLoop::defaultMode());
 }
 
-void ServiceWorkerThread::postMessageToServiceWorkerGlobalScope(Ref<SerializedScriptValue>&& message, std::unique_ptr<MessagePortChannelArray>&& channels, const ServiceWorkerClientIdentifier& sourceIdentifier, const String& sourceOrigin)
+static void fireMessageEvent(ServiceWorkerGlobalScope& scope, Ref<SerializedScriptValue>&& message, std::unique_ptr<MessagePortChannelArray>&& channels, ExtendableMessageEventSource&& source, Ref<SecurityOrigin>&& sourceOrigin)
 {
-    ScriptExecutionContext::Task task([channels = WTFMove(channels), message = WTFMove(message), sourceIdentifier, sourceOrigin = sourceOrigin.isolatedCopy()] (ScriptExecutionContext& context) mutable {
+    auto ports = MessagePort::entanglePorts(scope, WTFMove(channels));
+    auto messageEvent = ExtendableMessageEvent::create(WTFMove(ports), WTFMove(message), sourceOrigin->toString(), { }, source);
+    scope.dispatchEvent(messageEvent);
+    scope.thread().workerObjectProxy().confirmMessageFromWorkerObject(scope.hasPendingActivity());
+    scope.updateExtendedEventsSet(messageEvent.ptr());
+}
+
+void ServiceWorkerThread::postMessageToServiceWorker(Ref<SerializedScriptValue>&& message, std::unique_ptr<MessagePortChannelArray>&& channels, ServiceWorkerClientIdentifier sourceIdentifier, ServiceWorkerClientData&& sourceData)
+{
+    runLoop().postTask([channels = WTFMove(channels), message = WTFMove(message), sourceIdentifier, sourceData = sourceData.isolatedCopy()] (auto& context) mutable {
         auto& serviceWorkerGlobalScope = downcast<ServiceWorkerGlobalScope>(context);
-        auto ports = MessagePort::entanglePorts(serviceWorkerGlobalScope, WTFMove(channels));
-        ExtendableMessageEventSource source = RefPtr<ServiceWorkerClient> { ServiceWorkerWindowClient::create(context, sourceIdentifier) };
-        serviceWorkerGlobalScope.dispatchEvent(ExtendableMessageEvent::create(WTFMove(ports), WTFMove(message), sourceOrigin, { }, WTFMove(source)));
-        serviceWorkerGlobalScope.thread().workerObjectProxy().confirmMessageFromWorkerObject(serviceWorkerGlobalScope.hasPendingActivity());
+        RefPtr<ServiceWorkerClient> source = ServiceWorkerClient::getOrCreate(serviceWorkerGlobalScope, sourceIdentifier, WTFMove(sourceData));
+        auto sourceOrigin = SecurityOrigin::create(source->url());
+        fireMessageEvent(serviceWorkerGlobalScope, WTFMove(message), WTFMove(channels), ExtendableMessageEventSource { source }, WTFMove(sourceOrigin));
     });
-    runLoop().postTask(WTFMove(task));
+}
+
+void ServiceWorkerThread::postMessageToServiceWorker(Ref<SerializedScriptValue>&& message, std::unique_ptr<MessagePortChannelArray>&& channels, ServiceWorkerData&& sourceData)
+{
+    runLoop().postTask([channels = WTFMove(channels), message = WTFMove(message), sourceData = sourceData.isolatedCopy()] (auto& context) mutable {
+        auto& serviceWorkerGlobalScope = downcast<ServiceWorkerGlobalScope>(context);
+        RefPtr<ServiceWorker> source = ServiceWorker::getOrCreate(serviceWorkerGlobalScope, WTFMove(sourceData));
+        auto sourceOrigin = SecurityOrigin::create(source->scriptURL());
+        fireMessageEvent(downcast<ServiceWorkerGlobalScope>(context), WTFMove(message), WTFMove(channels), ExtendableMessageEventSource { source }, WTFMove(sourceOrigin));
+    });
 }
 
 void ServiceWorkerThread::fireInstallEvent()
 {
-    ScriptExecutionContext::Task task([serviceWorkerIdentifier = this->identifier()] (ScriptExecutionContext& context) mutable {
-        auto& serviceWorkerGlobalScope = downcast<ServiceWorkerGlobalScope>(context);
-        auto installEvent = ExtendableEvent::create(eventNames().installEvent, { }, ExtendableEvent::IsTrusted::Yes);
-        serviceWorkerGlobalScope.dispatchEvent(installEvent);
+    ScriptExecutionContext::Task task([jobDataIdentifier = m_data.jobDataIdentifier, serviceWorkerIdentifier = this->identifier()] (ScriptExecutionContext& context) mutable {
+        context.postTask([jobDataIdentifier, serviceWorkerIdentifier](ScriptExecutionContext& context) {
+            auto& serviceWorkerGlobalScope = downcast<ServiceWorkerGlobalScope>(context);
+            auto installEvent = ExtendableEvent::create(eventNames().installEvent, { }, ExtendableEvent::IsTrusted::Yes);
+            serviceWorkerGlobalScope.dispatchEvent(installEvent);
 
-        installEvent->whenAllExtendLifetimePromisesAreSettled([serviceWorkerIdentifier](HashSet<Ref<DOMPromise>>&& extendLifetimePromises) {
-            bool hasRejectedAnyPromise = false;
-            for (auto& promise : extendLifetimePromises) {
-                if (promise->status() == DOMPromise::Status::Rejected) {
-                    hasRejectedAnyPromise = true;
-                    break;
+            installEvent->whenAllExtendLifetimePromisesAreSettled([jobDataIdentifier, serviceWorkerIdentifier](HashSet<Ref<DOMPromise>>&& extendLifetimePromises) {
+                bool hasRejectedAnyPromise = false;
+                for (auto& promise : extendLifetimePromises) {
+                    if (promise->status() == DOMPromise::Status::Rejected) {
+                        hasRejectedAnyPromise = true;
+                        break;
+                    }
                 }
-            }
-            callOnMainThread([serviceWorkerIdentifier, hasRejectedAnyPromise] () mutable {
-                if (auto* connection = SWContextManager::singleton().connection())
-                    connection->didFinishInstall(serviceWorkerIdentifier, !hasRejectedAnyPromise);
+                callOnMainThread([jobDataIdentifier, serviceWorkerIdentifier, hasRejectedAnyPromise] () mutable {
+                    if (auto* connection = SWContextManager::singleton().connection())
+                        connection->didFinishInstall(jobDataIdentifier, serviceWorkerIdentifier, !hasRejectedAnyPromise);
+                });
             });
         });
     });
@@ -143,14 +160,16 @@ void ServiceWorkerThread::fireInstallEvent()
 void ServiceWorkerThread::fireActivateEvent()
 {
     ScriptExecutionContext::Task task([serviceWorkerIdentifier = this->identifier()] (ScriptExecutionContext& context) mutable {
-        auto& serviceWorkerGlobalScope = downcast<ServiceWorkerGlobalScope>(context);
-        auto activateEvent = ExtendableEvent::create(eventNames().activateEvent, { }, ExtendableEvent::IsTrusted::Yes);
-        serviceWorkerGlobalScope.dispatchEvent(activateEvent);
+        context.postTask([serviceWorkerIdentifier](ScriptExecutionContext& context) {
+            auto& serviceWorkerGlobalScope = downcast<ServiceWorkerGlobalScope>(context);
+            auto activateEvent = ExtendableEvent::create(eventNames().activateEvent, { }, ExtendableEvent::IsTrusted::Yes);
+            serviceWorkerGlobalScope.dispatchEvent(activateEvent);
 
-        activateEvent->whenAllExtendLifetimePromisesAreSettled([serviceWorkerIdentifier](HashSet<Ref<DOMPromise>>&&) {
-            callOnMainThread([serviceWorkerIdentifier] () mutable {
-                if (auto* connection = SWContextManager::singleton().connection())
-                    connection->didFinishActivation(serviceWorkerIdentifier);
+            activateEvent->whenAllExtendLifetimePromisesAreSettled([serviceWorkerIdentifier](HashSet<Ref<DOMPromise>>&&) {
+                callOnMainThread([serviceWorkerIdentifier] () mutable {
+                    if (auto* connection = SWContextManager::singleton().connection())
+                        connection->didFinishActivation(serviceWorkerIdentifier);
+                });
             });
         });
     });

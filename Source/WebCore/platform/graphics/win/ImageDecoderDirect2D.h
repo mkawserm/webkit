@@ -47,6 +47,8 @@ public:
         return adoptRef(*new ImageDecoderDirect2D());
     }
 
+    static bool supportsMediaType(MediaType type) { return type == MediaType::Image; }
+
     static size_t bytesDecodedToDetermineProperties();
 
     String filenameExtension() const final;
@@ -69,7 +71,7 @@ public:
     bool frameAllowSubsamplingAtIndex(size_t) const final;
     unsigned frameBytesAtIndex(size_t, SubsamplingLevel = SubsamplingLevel::Default) const final;
 
-    NativeImagePtr createFrameImageAtIndex(size_t, SubsamplingLevel = SubsamplingLevel::Default, const DecodingOptions& = DecodingMode::Synchronous) const final;
+    NativeImagePtr createFrameImageAtIndex(size_t, SubsamplingLevel = SubsamplingLevel::Default, const DecodingOptions& = DecodingOptions(DecodingMode::Synchronous)) const final;
 
     void setData(SharedBuffer&, bool allDataReceived) final;
     bool isAllDataReceived() const final { return m_isAllDataReceived; }

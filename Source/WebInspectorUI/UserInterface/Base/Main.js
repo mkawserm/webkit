@@ -90,9 +90,11 @@ WI.loaded = function()
 
     // Main backend target.
     WI.mainTarget = new WI.MainTarget;
+    WI.pageTarget = WI.sharedApp.debuggableType === WI.DebuggableType.Web ? WI.mainTarget : null;
 
     // Enable agents.
-    InspectorAgent.enable();
+    if (window.InspectorAgent)
+        InspectorAgent.enable();
 
     // Perform one-time tasks.
     WI.CSSCompletions.requestCSSCompletions();
@@ -135,7 +137,7 @@ WI.loaded = function()
     // Tell the backend we are initialized after all our initialization messages have been sent.
     setTimeout(function() {
         // COMPATIBILITY (iOS 8): Inspector.initialized did not exist yet.
-        if (InspectorAgent.initialized)
+        if (window.InspectorAgent && InspectorAgent.initialized)
             InspectorAgent.initialized();
     }, 0);
 
@@ -303,7 +305,7 @@ WI.contentLoaded = function()
 
     this.searchKeyboardShortcut = new WI.KeyboardShortcut(WI.KeyboardShortcut.Modifier.CommandOrControl | WI.KeyboardShortcut.Modifier.Shift, "F", this._focusSearchField.bind(this));
     this._findKeyboardShortcut = new WI.KeyboardShortcut(WI.KeyboardShortcut.Modifier.CommandOrControl, "F", this._find.bind(this));
-    this._saveKeyboardShortcut = new WI.KeyboardShortcut(WI.KeyboardShortcut.Modifier.CommandOrControl, "S", this._save.bind(this));
+    this.saveKeyboardShortcut = new WI.KeyboardShortcut(WI.KeyboardShortcut.Modifier.CommandOrControl, "S", this._save.bind(this));
     this._saveAsKeyboardShortcut = new WI.KeyboardShortcut(WI.KeyboardShortcut.Modifier.Shift | WI.KeyboardShortcut.Modifier.CommandOrControl, "S", this._saveAs.bind(this));
 
     this.openResourceKeyboardShortcut = new WI.KeyboardShortcut(WI.KeyboardShortcut.Modifier.CommandOrControl | WI.KeyboardShortcut.Modifier.Shift, "O", this._showOpenResourceDialog.bind(this));
@@ -500,24 +502,6 @@ WI.contentLoaded = function()
 
     if (this.runBootstrapOperations)
         this.runBootstrapOperations();
-};
-
-// This function returns a lazily constructed instance of a class scoped to this WebInspector
-// instance. In the unlikely event that we ever need to construct multiple WebInspector instances
-// this allows us to scope objects within the WI.
-// Classes can prevent usage of this function via a static `disallowInstanceForClass` function that
-// returns true. It is then their responsibility to ensure that the returned value is tracked.
-// Currently it is only used for sidebars.
-WI.instanceForClass = function(constructor)
-{
-    console.assert(typeof constructor === "function");
-    if (typeof constructor.disallowInstanceForClass === "function" && constructor.disallowInstanceForClass())
-        return new constructor;
-
-    let key = `__${constructor.name}`;
-    if (!WI[key])
-        WI[key] = new constructor;
-    return WI[key];
 };
 
 WI.isTabTypeAllowed = function(tabType)
@@ -826,17 +810,20 @@ WI.openURL = function(url, frame, options = {})
         return;
     }
 
-    var searchChildFrames = false;
+    let searchChildFrames = false;
     if (!frame) {
         frame = this.frameResourceManager.mainFrame;
         searchChildFrames = true;
     }
 
-    console.assert(frame);
-
-    // WI.Frame.resourceForURL does not check the main resource, only sub-resources. So check both.
+    let resource;
     let simplifiedURL = removeURLFragment(url);
-    var resource = frame.url === simplifiedURL ? frame.mainResource : frame.resourceForURL(simplifiedURL, searchChildFrames);
+    if (frame) {
+        // WI.Frame.resourceForURL does not check the main resource, only sub-resources. So check both.
+        resource = frame.url === simplifiedURL ? frame.mainResource : frame.resourceForURL(simplifiedURL, searchChildFrames);
+    } else if (WI.sharedApp.debuggableType === WI.DebuggableType.ServiceWorker)
+        resource = WI.mainTarget.resourceCollection.resourceForURL(removeURLFragment(url));
+
     if (resource) {
         let positionToReveal = new WI.SourceCodePosition(options.lineNumber, 0);
         this.showSourceCode(resource, Object.shallowMerge(options, {positionToReveal}));
@@ -902,10 +889,6 @@ WI.showSplitConsole = function()
     if (this.consoleDrawer.currentContentView === this.consoleContentView)
         return;
 
-    // Be sure to close the view in the tab content browser before showing it in the
-    // split content browser. We can only show a content view in one browser at a time.
-    if (this.consoleContentView.parentContainer)
-        this.consoleContentView.parentContainer.closeContentView(this.consoleContentView);
     this.consoleDrawer.showContentView(this.consoleContentView);
 };
 
@@ -2263,9 +2246,33 @@ WI.createMessageTextView = function(message, isError)
     if (isError)
         messageElement.classList.add("error");
 
-    messageElement.textContent = message;
+    let textElement = messageElement.appendChild(document.createElement("div"));
+    textElement.className = "message";
+    textElement.textContent = message;
 
     return messageElement;
+};
+
+WI.createNavigationItemHelp = function(formatString, navigationItem)
+{
+    console.assert(typeof formatString === "string");
+    console.assert(navigationItem instanceof WI.NavigationItem);
+
+    function append(a, b) {
+        a.append(b);
+        return a;
+    }
+
+    let containerElement = document.createElement("div");
+    containerElement.className = "navigation-item-help";
+    containerElement.__navigationItem = navigationItem;
+
+    let wrapperElement = document.createElement("div");
+    wrapperElement.className = "navigation-bar";
+    wrapperElement.appendChild(navigationItem.element);
+
+    String.format(formatString, [wrapperElement], String.standardFormatters, containerElement, append);
+    return containerElement;
 };
 
 WI.createGoToArrowButton = function()

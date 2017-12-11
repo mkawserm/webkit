@@ -214,6 +214,8 @@ void SubresourceLoader::willSendRequestInternal(ResourceRequest&& newRequest, co
             opaqueRedirectedResponse.setType(ResourceResponse::Type::Opaqueredirect);
             opaqueRedirectedResponse.setTainting(ResourceResponse::Tainting::Opaqueredirect);
             m_resource->responseReceived(opaqueRedirectedResponse);
+            if (reachedTerminalState())
+                return;
 
             NetworkLoadMetrics emptyMetrics;
             didFinishLoading(emptyMetrics);
@@ -471,6 +473,11 @@ static void logResourceLoaded(Frame* frame, CachedResource::Type type)
     case CachedResource::SVGDocumentResource:
         resourceType = DiagnosticLoggingKeys::svgDocumentKey();
         break;
+#if ENABLE(APPLICATION_MANIFEST)
+    case CachedResource::ApplicationManifest:
+        resourceType = DiagnosticLoggingKeys::applicationManifestKey();
+        break;
+#endif
 #if ENABLE(LINK_PREFETCH)
     case CachedResource::LinkPrefetch:
     case CachedResource::LinkSubresource:
@@ -492,7 +499,7 @@ bool SubresourceLoader::checkResponseCrossOriginAccessControl(const ResourceResp
 
 #if ENABLE(SERVICE_WORKER)
     if (response.source() == ResourceResponse::Source::ServiceWorker)
-        return true;
+        return response.tainting() != ResourceResponse::Tainting::Opaque;
 #endif
 
     ASSERT(m_origin);

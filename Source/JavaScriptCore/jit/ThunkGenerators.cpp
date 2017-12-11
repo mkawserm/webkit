@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010, 2012-2014, 2016-2017 Apple Inc. All rights reserved.
+ * Copyright (C) 2010-2017 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -213,7 +213,11 @@ MacroAssemblerCodeRef virtualThunkFor(VM* vm, CallLinkInfo& callLinkInfo)
     
     // Now we know that we have a CodeBlock, and we're committed to making a fast
     // call.
-    
+#if USE(JSVALUE64)
+    jit.move(CCallHelpers::TrustedImm64(g_jitCodePoison), GPRInfo::regT1);
+    jit.xor64(GPRInfo::regT1, GPRInfo::regT4);
+#endif
+
     // Make a tail call. This will return back to JIT code.
     JSInterfaceJIT::Label callCode(jit.label());
     emitPointerValidation(jit, GPRInfo::regT4);
@@ -303,9 +307,12 @@ static MacroAssemblerCodeRef nativeForGenerator(VM* vm, ThunkFunctionType thunkF
     jit.emitGetFromCallFrameHeaderPtr(CallFrameSlot::callee, X86Registers::esi);
     if (thunkFunctionType == ThunkFunctionType::JSFunction) {
         jit.loadPtr(JSInterfaceJIT::Address(X86Registers::esi, JSFunction::offsetOfExecutable()), X86Registers::r9);
-        jit.call(JSInterfaceJIT::Address(X86Registers::r9, executableOffsetToFunction));
+        jit.loadPtr(JSInterfaceJIT::Address(X86Registers::r9, executableOffsetToFunction), X86Registers::r9);
     } else
-        jit.call(JSInterfaceJIT::Address(X86Registers::esi, InternalFunction::offsetOfNativeFunctionFor(kind)));
+        jit.loadPtr(JSInterfaceJIT::Address(X86Registers::esi, InternalFunction::offsetOfNativeFunctionFor(kind)), X86Registers::r9);
+    jit.move(JSInterfaceJIT::TrustedImm64(g_nativeCodePoison), X86Registers::esi);
+    jit.xor64(X86Registers::esi, X86Registers::r9);
+    jit.call(X86Registers::r9);
 
 #else
     // Calling convention:      f(ecx, edx, r8, r9, ...);
@@ -337,9 +344,13 @@ static MacroAssemblerCodeRef nativeForGenerator(VM* vm, ThunkFunctionType thunkF
     jit.emitGetFromCallFrameHeaderPtr(CallFrameSlot::callee, ARM64Registers::x1);
     if (thunkFunctionType == ThunkFunctionType::JSFunction) {
         jit.loadPtr(JSInterfaceJIT::Address(ARM64Registers::x1, JSFunction::offsetOfExecutable()), ARM64Registers::x2);
-        jit.call(JSInterfaceJIT::Address(ARM64Registers::x2, executableOffsetToFunction));
+        jit.loadPtr(JSInterfaceJIT::Address(ARM64Registers::x2, executableOffsetToFunction), ARM64Registers::x2);
     } else
-        jit.call(JSInterfaceJIT::Address(ARM64Registers::x1, InternalFunction::offsetOfNativeFunctionFor(kind)));
+        jit.loadPtr(JSInterfaceJIT::Address(ARM64Registers::x1, InternalFunction::offsetOfNativeFunctionFor(kind)), ARM64Registers::x2);
+    jit.move(JSInterfaceJIT::TrustedImm64(g_nativeCodePoison), ARM64Registers::x1);
+    jit.xor64(ARM64Registers::x1, ARM64Registers::x2);
+    jit.call(ARM64Registers::x2);
+
 #elif CPU(ARM) || CPU(MIPS)
 #if CPU(MIPS)
     // Allocate stack space for (unused) 16 bytes (8-byte aligned) for 4 arguments.
@@ -1158,6 +1169,10 @@ MacroAssemblerCodeRef boundThisNoArgsFunctionCallGenerator(VM* vm)
         GPRInfo::regT0);
     CCallHelpers::Jump noCode = jit.branchTestPtr(CCallHelpers::Zero, GPRInfo::regT0);
     
+#if USE(JSVALUE64)
+    jit.move(CCallHelpers::TrustedImm64(g_jitCodePoison), GPRInfo::regT1);
+    jit.xor64(GPRInfo::regT1, GPRInfo::regT0);
+#endif
     emitPointerValidation(jit, GPRInfo::regT0);
     jit.call(GPRInfo::regT0);
     

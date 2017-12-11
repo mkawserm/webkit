@@ -246,7 +246,8 @@ private:
     int32_t WARN_UNUSED_RETURN fixupPointerPlusOffset(ExpressionType&, uint32_t);
 
     void restoreWasmContextInstance(Procedure&, BasicBlock*, Value*);
-    void restoreWebAssemblyGlobalState(const MemoryInformation&, Value* instance, Procedure&, BasicBlock*);
+    enum class RestoreCachedStackLimit { No, Yes };
+    void restoreWebAssemblyGlobalState(RestoreCachedStackLimit, const MemoryInformation&, Value* instance, Procedure&, BasicBlock*);
 
     Origin origin();
 
@@ -450,9 +451,16 @@ B3IRGenerator::B3IRGenerator(const ModuleInformation& info, Procedure& procedure
     emitTierUpCheck(TierUpCount::functionEntryDecrement(), Origin());
 }
 
-void B3IRGenerator::restoreWebAssemblyGlobalState(const MemoryInformation& memory, Value* instance, Procedure& proc, BasicBlock* block)
+void B3IRGenerator::restoreWebAssemblyGlobalState(RestoreCachedStackLimit restoreCachedStackLimit, const MemoryInformation& memory, Value* instance, Procedure& proc, BasicBlock* block)
 {
     restoreWasmContextInstance(proc, block, instance);
+
+    if (restoreCachedStackLimit == RestoreCachedStackLimit::Yes) {
+        // The Instance caches the stack limit, but also knows where its canonical location is.
+        Value* pointerToActualStackLimit = m_currentBlock->appendNew<MemoryValue>(m_proc, Load, pointerType(), origin(), instanceValue(), safeCast<int32_t>(Instance::offsetOfPointerToActualStackLimit()));
+        Value* actualStackLimit = m_currentBlock->appendNew<MemoryValue>(m_proc, Load, pointerType(), origin(), pointerToActualStackLimit);
+        m_currentBlock->appendNew<MemoryValue>(m_proc, Store, origin(), actualStackLimit, instanceValue(), safeCast<int32_t>(Instance::offsetOfCachedStackLimit()));
+    }
 
     if (!!memory) {
         const PinnedRegisterInfo* pinnedRegs = &PinnedRegisterInfo::get();
@@ -558,7 +566,9 @@ auto B3IRGenerator::addUnreachable() -> PartialResult
 
 auto B3IRGenerator::addGrowMemory(ExpressionType delta, ExpressionType& result) -> PartialResult
 {
-    int32_t (*growMemory)(Instance*, int32_t) = [] (Instance* instance, int32_t delta) -> int32_t {
+    int32_t (*growMemory)(void*, Instance*, int32_t) = [] (void* callFrame, Instance* instance, int32_t delta) -> int32_t {
+        instance->storeTopCallFrame(callFrame);
+
         if (delta < 0)
             return -1;
 
@@ -571,6 +581,7 @@ auto B3IRGenerator::addGrowMemory(ExpressionType delta, ExpressionType& result) 
             case Memory::GrowFailReason::OutOfMemory:
                 return -1;
             }
+            RELEASE_ASSERT_NOT_REACHED();
         }
 
         return grown.value().pageCount();
@@ -578,9 +589,9 @@ auto B3IRGenerator::addGrowMemory(ExpressionType delta, ExpressionType& result) 
 
     result = m_currentBlock->appendNew<CCallValue>(m_proc, Int32, origin(),
         m_currentBlock->appendNew<ConstPtrValue>(m_proc, origin(), bitwise_cast<void*>(growMemory)),
-        instanceValue(), delta);
+        m_currentBlock->appendNew<B3::Value>(m_proc, B3::FramePointer, origin()), instanceValue(), delta);
 
-    restoreWebAssemblyGlobalState(m_info.memory, instanceValue(), m_proc, m_currentBlock);
+    restoreWebAssemblyGlobalState(RestoreCachedStackLimit::No, m_info.memory, instanceValue(), m_proc, m_currentBlock);
 
     return { };
 }
@@ -1146,7 +1157,7 @@ auto B3IRGenerator::addCall(uint32_t functionIndex, const Signature& signature, 
         }
 
         // The call could have been to another WebAssembly instance, and / or could have modified our Memory.
-        restoreWebAssemblyGlobalState(m_info.memory, instanceValue(), m_proc, continuation);
+        restoreWebAssemblyGlobalState(RestoreCachedStackLimit::Yes, m_info.memory, instanceValue(), m_proc, continuation);
     } else {
         result = wasmCallingConvention().setupCall(m_proc, m_currentBlock, origin(), args, toB3Type(returnType),
             [=] (PatchpointValue* patchpoint) {
@@ -1305,7 +1316,7 @@ auto B3IRGenerator::addCallIndirect(const Signature& signature, Vector<Expressio
         });
 
     // The call could have been to another WebAssembly instance, and / or could have modified our Memory.
-    restoreWebAssemblyGlobalState(m_info.memory, instanceValue(), m_proc, m_currentBlock);
+    restoreWebAssemblyGlobalState(RestoreCachedStackLimit::Yes, m_info.memory, instanceValue(), m_proc, m_currentBlock);
 
     return { };
 }

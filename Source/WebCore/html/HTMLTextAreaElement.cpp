@@ -2,7 +2,7 @@
  * Copyright (C) 1999 Lars Knoll (knoll@kde.org)
  *           (C) 1999 Antti Koivisto (koivisto@kde.org)
  *           (C) 2001 Dirk Mueller (mueller@kde.org)
- * Copyright (C) 2004-2008, 2010, 2014, 2016 Apple Inc. All rights reserved.
+ * Copyright (C) 2004-2017 Apple Inc. All rights reserved.
  *           (C) 2006 Alexey Proskuryakov (ap@nypop.com)
  * Copyright (C) 2007 Samuel Weinig (sam@webkit.org)
  *
@@ -95,7 +95,7 @@ HTMLTextAreaElement::HTMLTextAreaElement(const QualifiedName& tagName, Document&
 
 Ref<HTMLTextAreaElement> HTMLTextAreaElement::create(const QualifiedName& tagName, Document& document, HTMLFormElement* form)
 {
-    Ref<HTMLTextAreaElement> textArea = adoptRef(*new HTMLTextAreaElement(tagName, document, form));
+    auto textArea = adoptRef(*new HTMLTextAreaElement(tagName, document, form));
     textArea->ensureUserAgentShadowRoot();
     return textArea;
 }
@@ -114,7 +114,7 @@ const AtomicString& HTMLTextAreaElement::formControlType() const
 
 FormControlState HTMLTextAreaElement::saveFormControlState() const
 {
-    return m_isDirty ? FormControlState(value()) : FormControlState();
+    return m_isDirty ? FormControlState { { value() } } : FormControlState { };
 }
 
 void HTMLTextAreaElement::restoreFormControlState(const FormControlState& state)
@@ -202,13 +202,13 @@ void HTMLTextAreaElement::parseAttribute(const QualifiedName& name, const Atomic
 
 void HTMLTextAreaElement::maxLengthAttributeChanged(const AtomicString& newValue)
 {
-    internalSetMaxLength(parseHTMLNonNegativeInteger(newValue).valueOr(-1));
+    internalSetMaxLength(parseHTMLNonNegativeInteger(newValue).value_or(-1));
     updateValidity();
 }
 
 void HTMLTextAreaElement::minLengthAttributeChanged(const AtomicString& newValue)
 {
-    internalSetMinLength(parseHTMLNonNegativeInteger(newValue).valueOr(-1));
+    internalSetMinLength(parseHTMLNonNegativeInteger(newValue).value_or(-1));
     updateValidity();
 }
 

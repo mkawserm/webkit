@@ -89,7 +89,7 @@ WKURLRef TestInvocation::url() const
 
 bool TestInvocation::urlContains(const char* searchString) const
 {
-    return m_urlString.contains(searchString, false);
+    return m_urlString.containsIgnoringASCIICase(searchString);
 }
 
 void TestInvocation::setIsPixelTest(const std::string& expectedPixelHash)
@@ -744,6 +744,12 @@ void TestInvocation::didReceiveMessageFromInjectedBundle(WKStringRef messageName
         return;
     }
 
+    if (WKStringIsEqualToUTF8CString(messageName, "TerminateServiceWorkerProcess")) {
+        ASSERT(!messageBody);
+        TestController::singleton().terminateServiceWorkerProcess();
+        return;
+    }
+
     if (WKStringIsEqualToUTF8CString(messageName, "RunUIProcessScript")) {
         WKDictionaryRef messageBodyDictionary = static_cast<WKDictionaryRef>(messageBody);
         WKRetainPtr<WKStringRef> scriptKey(AdoptWK, WKStringCreateWithUTF8CString("Script"));
@@ -824,6 +830,12 @@ WKRetainPtr<WKTypeRef> TestInvocation::didReceiveSynchronousMessageFromInjectedB
         return nullptr;
     }
 
+    if (WKStringIsEqualToUTF8CString(messageName, "SetStorageAccessAPIEnabled")) {
+        WKBooleanRef accept = static_cast<WKBooleanRef>(messageBody);
+        WKCookieManagerSetStorageAccessAPIEnabled(WKContextGetCookieManager(TestController::singleton().context()), WKBooleanGetValue(accept));
+        return nullptr;
+    }
+    
     if (WKStringIsEqualToUTF8CString(messageName, "SetAllowsAnySSLCertificate")) {
         TestController::singleton().setAllowsAnySSLCertificate(WKBooleanGetValue(static_cast<WKBooleanRef>(messageBody)));
         return nullptr;
@@ -1006,6 +1018,13 @@ WKRetainPtr<WKTypeRef> TestInvocation::didReceiveSynchronousMessageFromInjectedB
         WKBooleanRef value = static_cast<WKBooleanRef>(WKDictionaryGetItemForKey(messageBodyDictionary, valueKey.get()));
         
         TestController::singleton().setStatisticsHasHadUserInteraction(hostName, WKBooleanGetValue(value));
+        return nullptr;
+    }
+
+    if (WKStringIsEqualToUTF8CString(messageName, "SetStatisticsHasHadNonRecentUserInteraction")) {
+        ASSERT(WKGetTypeID(messageBody) == WKStringGetTypeID());
+        WKStringRef hostName = static_cast<WKStringRef>(messageBody);
+        TestController::singleton().setStatisticsHasHadNonRecentUserInteraction(hostName);
         return nullptr;
     }
 
@@ -1231,6 +1250,19 @@ WKRetainPtr<WKTypeRef> TestInvocation::didReceiveSynchronousMessageFromInjectedB
         auto domCacheSize = TestController::singleton().domCacheSize(origin);
         WKRetainPtr<WKTypeRef> result(AdoptWK, WKUInt64Create(domCacheSize));
         return result;
+    }
+
+    if (WKStringIsEqualToUTF8CString(messageName, "GetApplicationManifest")) {
+#ifdef __BLOCKS__
+        WKPageGetApplicationManifest_b(TestController::singleton().mainWebView()->page(), ^{
+            WKRetainPtr<WKStringRef> messageName = adoptWK(WKStringCreateWithUTF8CString("DidGetApplicationManifest"));
+            WKPagePostMessageToInjectedBundle(TestController::singleton().mainWebView()->page(), messageName.get(), 0);
+        });
+#else
+        // FIXME: Add API for loading the manifest on non-__BLOCKS__ ports.
+        ASSERT_NOT_REACHED();
+#endif
+        return nullptr;
     }
 
     ASSERT_NOT_REACHED();

@@ -12,10 +12,14 @@ editing/mac [ Pass ]
 fast/scrolling/latching [ Pass ]
 media/mac [ Pass ]
 
+fast/forms/alternative-presentation-button [ Pass ]
+accessibility/alternative-presentation-button-input-type.html [ Pass ]
+accessibility/alternative-presentation-button.html [ Pass ]
 fast/forms/search/search-padding-cancel-results-buttons.html [ Pass ]
 fast/forms/search/search-results-hidden-crash.html [ Pass ]
 
 fast/url/user-visible [ Pass ]
+fast/images/eps-as-image.html [ Pass ]
 
 fast/text-autosizing/ios/ipad/programmatic-text-size-adjust.html [ Skip ]
 fast/text-autosizing/ios/ipad/text-size-adjust-inline-style.html [ Skip ]
@@ -711,7 +715,7 @@ webkit.org/b/159662 mathml/presentation/href-enter.html [ Skip ]
 webkit.org/b/159662 mathml/presentation/href-style.html [ Skip ]
 
 # This test fails because the USE_TYPO_METRICS flag is ignored for non-math font
-webkit.org/b/150394 imported/mathml-in-html5/mathml/relations/text-and-math/use-typo-metrics-1.html [ ImageOnlyFailure ]
+webkit.org/b/150394 imported/w3c/web-platform-tests/mathml/relations/text-and-math/use-typo-metrics-1.html [ ImageOnlyFailure ]
 
 webkit.org/b/128255 compositing/columns/composited-lr-paginated-repaint.html [ Pass Failure ]
 webkit.org/b/128255 compositing/columns/composited-rl-paginated-repaint.html [ Pass Failure ]
@@ -1064,7 +1068,7 @@ webkit.org/b/178028 inspector/canvas/create-context-2d.html [ Pass Timeout ]
 webkit.org/b/174066 inspector/canvas/create-context-webgl2.html [ Pass Timeout ]
 webkit.org/b/174066 inspector/canvas/create-context-webgpu.html [ Pass Timeout ]
 webkit.org/b/174272 inspector/canvas/css-canvas-clients.html [ Pass Timeout ]
-webkit.org/b/174066 inspector/canvas/shaderProgram-add-remove-webgl2.html [ Pass Timeout ]
+webkit.org/b/174066 inspector/canvas/shaderProgram-add-remove-webgl2.html [ Pass Failure Timeout ]
 webkit.org/b/153460 inspector/codemirror/prettyprinting-css-rules.html [ Pass Timeout ]
 webkit.org/b/160048 [ Debug ] inspector/codemirror/prettyprinting-javascript.html [ Pass Timeout ]
 webkit.org/b/152025 [ Debug ] inspector/console/messagesCleared.html [ Pass Timeout ]
@@ -1121,7 +1125,7 @@ webkit.org/b/156078 inspector/console/heapSnapshot.html [ Pass Timeout ]
 webkit.org/b/158006 inspector/console/console-time.html [ Pass Timeout ]
 webkit.org/b/156634 inspector/formatting/formatting-javascript.html [ Pass Timeout ]
 webkit.org/b/158948 inspector/timeline [ Pass Timeout ]
-webkit.org/b/168091 [ Debug ] inspector/worker/resources-in-worker.html [ Pass Timeout ]
+webkit.org/b/168091 inspector/worker/resources-in-worker.html [ Pass Failure ]
 
 webkit.org/b/149128 fast/text/control-characters [ ImageOnlyFailure ]
 
@@ -1453,6 +1457,7 @@ media/modern-media-controls/icon-service [ Pass ]
 media/modern-media-controls/invalid-placard [ Pass ]
 media/modern-media-controls/layout-item [ Pass ]
 media/modern-media-controls/layout-node [ Pass ]
+media/modern-media-controls/localized-strings [ Pass ]
 media/modern-media-controls/macos-fullscreen-media-controls/macos-fullscreen-media-controls-drag-is-prevented-over-button.html [ Pass ]
 media/modern-media-controls/macos-fullscreen-media-controls/macos-fullscreen-media-controls-drag.html [ Pass ]
 media/modern-media-controls/macos-fullscreen-media-controls/macos-fullscreen-media-controls-volume-controls-hidden-when-mute-button-disabled.html [ Pass ]
@@ -1482,6 +1487,7 @@ media/modern-media-controls/skip-forward-button [ Pass ]
 media/modern-media-controls/slider [ Pass ]
 media/modern-media-controls/status-label [ Pass ]
 media/modern-media-controls/status-support [ Pass ]
+media/modern-media-controls/text-tracks [ Pass ]
 media/modern-media-controls/time-control [ Pass ]
 media/modern-media-controls/time-label [ Pass ]
 media/modern-media-controls/time-label/ios-time-label.html [ Skip ]
@@ -1719,9 +1725,6 @@ webkit.org/b/176878 [ Debug ] fast/multicol/spanner-crash-when-adding-summary.ht
 # <rdar://problem/33850189>
 [ HighSierra+ ] http/tests/websocket/tests/hybi/deflate-frame-parameter.html [ Failure ]
 
-# <rdar://problem/34507977>
-webkit.org/b/177119 webgl/1.0.2/conformance/textures/tex-image-and-sub-image-2d-with-video.html [ Pass Failure ]
-
 # Release logging not supported
 [ ElCapitan ] inspector/console/webcore-logging.html [ Skip ]
 
@@ -1739,8 +1742,23 @@ webkit.org/b/178465 [ Debug ] fast/html/marquee-reparent-check.html [ Skip ]
 
 webkit.org/b/175998 http/tests/security/mixedContent/insecure-css-with-secure-cookies.html [ Pass Failure ]
 
-webkit.org/b/179342 http/tests/workers/service/registration-task-queue-scheduling-1.html [ Pass Failure ]
-
 # AVContentKeySession not available pre-High Sierra
 [ ElCapitan Sierra ] platform/mac/media/encrypted-media/fps-createMediaKeys.html [ Skip ]
 [ ElCapitan Sierra ] platform/mac/media/encrypted-media/fps-requestMediaKeySystemAccess.html [ Skip ]
+[ ElCapitan Sierra ] platform/mac/media/encrypted-media/fps-createSession.html [ Skip ]
+[ ElCapitan Sierra ] platform/mac/media/encrypted-media/fps-generateRequest.html [ Skip ]
+[ ElCapitan Sierra ] platform/mac/media/encrypted-media/fps-encrypted-event.html [ Skip ]
+
+# rdar://problem/35395437
+[ HighSierra+ ] imported/w3c/web-platform-tests/media-source/mediasource-play.html [ Failure ]
+[ HighSierra+ ] imported/w3c/web-platform-tests/media-source/mediasource-redundant-seek.html [ Failure ]
+[ HighSierra+ ] imported/w3c/web-platform-tests/media-source/mediasource-remove.html [ Failure ]
+
+webkit.org/b/165311 [ Sierra+ ] media/modern-media-controls/pip-support/pip-support-click.html [ Pass Failure ]
+
+webkit.org/b/176693 storage/indexeddb/modern/idbtransaction-objectstore-failures-private.html [ Pass Failure ]
+
+# User-installed font infrastructure is ony present on certain OSes.
+webkit.org/b/180062 [ ElCapitan Sierra HighSierra ] fast/text/user-installed-fonts/disable.html [ ImageOnlyFailure ]
+webkit.org/b/180062 [ ElCapitan Sierra HighSierra ] fast/text/user-installed-fonts/shadow-postscript.html [ ImageOnlyFailure ]
+webkit.org/b/180062 [ ElCapitan Sierra HighSierra ] fast/text/user-installed-fonts/shadow.html [ ImageOnlyFailure ]

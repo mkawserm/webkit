@@ -48,6 +48,7 @@ class MediaTime;
 
 namespace WebCore {
 
+class ContentType;
 class PixelBufferConformerCV;
 class WebCoreDecompressionSession;
 
@@ -55,6 +56,9 @@ class ImageDecoderAVFObjC : public ImageDecoder {
 public:
     static RefPtr<ImageDecoderAVFObjC> create(SharedBuffer&, const String& mimeType, AlphaOption, GammaAndColorProfileOption);
     virtual ~ImageDecoderAVFObjC();
+
+    static bool supportsMediaType(MediaType);
+    static bool supportsContentType(const ContentType&);
 
     size_t bytesDecodedToDetermineProperties() const override { return 0; }
     static bool canDecodeType(const String& mimeType);
@@ -78,7 +82,7 @@ public:
     bool frameAllowSubsamplingAtIndex(size_t) const final;
     unsigned frameBytesAtIndex(size_t, SubsamplingLevel = SubsamplingLevel::Default) const final;
 
-    NativeImagePtr createFrameImageAtIndex(size_t, SubsamplingLevel = SubsamplingLevel::Default, const DecodingOptions& = DecodingMode::Synchronous) final;
+    NativeImagePtr createFrameImageAtIndex(size_t, SubsamplingLevel = SubsamplingLevel::Default, const DecodingOptions& = DecodingOptions(DecodingMode::Synchronous)) final;
 
     void setExpectedContentSize(long long) final;
     void setData(SharedBuffer&, bool allDataReceived) final;

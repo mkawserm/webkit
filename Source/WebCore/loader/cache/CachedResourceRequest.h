@@ -43,6 +43,7 @@ struct BlockedStatus;
 
 class Document;
 class FrameLoader;
+struct ServiceWorkerRegistrationData;
 enum class ReferrerPolicy;
 
 bool isRequestCrossOrigin(SecurityOrigin*, const URL& requestURL, const ResourceLoaderOptions&);
@@ -97,7 +98,9 @@ public:
     static String splitFragmentIdentifierFromRequestURL(ResourceRequest&);
 
 #if ENABLE(SERVICE_WORKER)
+    void setClientIdentifierIfNeeded(DocumentIdentifier);
     void setSelectedServiceWorkerIdentifierIfNeeded(ServiceWorkerIdentifier);
+    void setNavigationServiceWorkerRegistrationData(const std::optional<ServiceWorkerRegistrationData>&);
 #endif
 
 private:

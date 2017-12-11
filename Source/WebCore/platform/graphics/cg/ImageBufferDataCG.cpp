@@ -131,10 +131,8 @@ Vector<uint8_t> ImageBufferData::toBGRAData(bool accelerateRendering, int width,
         return result;
     }
 #if USE(IOSURFACE_CANVAS_BACKING_STORE)
-    IOSurfaceRef surfaceRef = surface->surface();
-    IOSurfaceLock(surfaceRef, kIOSurfaceLockReadOnly, nullptr);
-    transferData(result.data(), IOSurfaceGetBaseAddress(surfaceRef), width, height, IOSurfaceGetBytesPerRow(surfaceRef));
-    IOSurfaceUnlock(surfaceRef, kIOSurfaceLockReadOnly, nullptr);
+    IOSurface::Locker lock(*surface);
+    transferData(result.data(), lock.surfaceBaseAddress(), width, height, surface->bytesPerRow());
 #else
     ASSERT_NOT_REACHED();
 #endif
@@ -142,7 +140,7 @@ Vector<uint8_t> ImageBufferData::toBGRAData(bool accelerateRendering, int width,
 }
 
 
-RefPtr<Uint8ClampedArray> ImageBufferData::getData(const IntRect& rect, const IntSize& size, bool accelerateRendering, bool unmultiplied, float resolutionScale) const
+RefPtr<Uint8ClampedArray> ImageBufferData::getData(AlphaPremultiplication outputFormat, const IntRect& rect, const IntSize& size, bool accelerateRendering, float resolutionScale) const
 {
     Checked<unsigned, RecordOverflow> area = 4;
     area *= rect.width();
@@ -151,7 +149,7 @@ RefPtr<Uint8ClampedArray> ImageBufferData::getData(const IntRect& rect, const In
         return nullptr;
 
     auto result = Uint8ClampedArray::createUninitialized(area.unsafeGet());
-    unsigned char* resultData = result ? result->data() : nullptr;
+    uint8_t* resultData = result ? result->data() : nullptr;
     if (!resultData)
         return nullptr;
 
@@ -194,20 +192,20 @@ RefPtr<Uint8ClampedArray> ImageBufferData::getData(const IntRect& rect, const In
         return result;
     
     unsigned destBytesPerRow = 4 * rect.width();
-    unsigned char* destRows = resultData + desty * destBytesPerRow + destx * 4;
+    uint8_t* destRows = resultData + desty * destBytesPerRow + destx * 4;
     
     unsigned srcBytesPerRow;
-    unsigned char* srcRows;
+    uint8_t* srcRows;
     
     if (!accelerateRendering) {
         if (!data)
             return result;
 
         srcBytesPerRow = bytesPerRow.unsafeGet();
-        srcRows = reinterpret_cast<unsigned char*>(data) + originy * srcBytesPerRow + originx * 4;
+        srcRows = reinterpret_cast<uint8_t*>(data) + originy * srcBytesPerRow + originx * 4;
 
 #if USE(ACCELERATE)
-        if (unmultiplied) {
+        if (outputFormat == AlphaPremultiplication::Unpremultiplied) {
 
             vImage_Buffer src;
             src.width = width.unsafeGet();
@@ -242,7 +240,7 @@ RefPtr<Uint8ClampedArray> ImageBufferData::getData(const IntRect& rect, const In
             RetainPtr<CGContextRef> destinationContext = adoptCF(CGBitmapContextCreate(destRows, destw.unsafeGet(), desth.unsafeGet(), 8, destBytesPerRow, colorSpace, kCGImageAlphaPremultipliedLast));
             CGContextSetBlendMode(destinationContext.get(), kCGBlendModeCopy);
             CGContextDrawImage(destinationContext.get(), CGRectMake(0, 0, width.unsafeGet() / resolutionScale, height.unsafeGet() / resolutionScale), sourceImage.get()); // FIXME: Add subpixel translation.
-            if (!unmultiplied)
+            if (outputFormat == AlphaPremultiplication::Premultiplied)
                 return result;
 
             srcRows = destRows;
@@ -250,13 +248,13 @@ RefPtr<Uint8ClampedArray> ImageBufferData::getData(const IntRect& rect, const In
             width = destw;
             height = desth;
         }
-        if (unmultiplied) {
+        if (outputFormat == AlphaPremultiplication::Unpremultiplied) {
             if ((width * 4).hasOverflowed())
                 CRASH();
             for (int y = 0; y < height.unsafeGet(); ++y) {
                 for (int x = 0; x < width.unsafeGet(); x++) {
                     int basex = x * 4;
-                    unsigned char alpha = srcRows[basex + 3];
+                    uint8_t alpha = srcRows[basex + 3];
 #if USE_ARGB32
                     // Byte order is different as we use image buffers of ARGB32
                     if (alpha) {
@@ -277,7 +275,7 @@ RefPtr<Uint8ClampedArray> ImageBufferData::getData(const IntRect& rect, const In
                         destRows[basex + 2] = (srcRows[basex + 2] * 255) / alpha;
                         destRows[basex + 3] = alpha;
                     } else
-                        reinterpret_cast<uint32_t*>(destRows + basex)[0] = reinterpret_cast<uint32_t*>(srcRows + basex)[0];
+                        reinterpret_cast<uint32_t*>(destRows + basex)[0] = reinterpret_cast<const uint32_t*>(srcRows + basex)[0];
 #endif
                 }
                 srcRows += srcBytesPerRow;
@@ -303,14 +301,11 @@ RefPtr<Uint8ClampedArray> ImageBufferData::getData(const IntRect& rect, const In
         }
     } else {
 #if USE(IOSURFACE_CANVAS_BACKING_STORE)
-        // FIXME: WebCore::IOSurface should have a locking RAII object and base-address getter.
-        IOSurfaceRef surfaceRef = surface->surface();
-        IOSurfaceLock(surfaceRef, kIOSurfaceLockReadOnly, nullptr);
-        srcBytesPerRow = IOSurfaceGetBytesPerRow(surfaceRef);
-        srcRows = static_cast<unsigned char*>(IOSurfaceGetBaseAddress(surfaceRef)) + originy * srcBytesPerRow + originx * 4;
+        IOSurface::Locker lock(*surface);
+        srcBytesPerRow = surface->bytesPerRow();
+        srcRows = static_cast<uint8_t*>(lock.surfaceBaseAddress()) + originy * srcBytesPerRow + originx * 4;
 
 #if USE(ACCELERATE)
-
         vImage_Buffer src;
         src.width = width.unsafeGet();
         src.height = height.unsafeGet();
@@ -329,7 +324,7 @@ RefPtr<Uint8ClampedArray> ImageBufferData::getData(const IntRect& rect, const In
             src = dest;
         }
 
-        if (unmultiplied)
+        if (outputFormat == AlphaPremultiplication::Unpremultiplied)
             unpremultiplyBufferData(src, dest);
         else {
             // Swap pixel channels from BGRA to RGBA.
@@ -353,12 +348,12 @@ RefPtr<Uint8ClampedArray> ImageBufferData::getData(const IntRect& rect, const In
         if ((width * 4).hasOverflowed())
             CRASH();
 
-        if (unmultiplied) {
+        if (outputFormat == AlphaPremultiplication::Unpremultiplied) {
             for (int y = 0; y < height.unsafeGet(); ++y) {
                 for (int x = 0; x < width.unsafeGet(); x++) {
                     int basex = x * 4;
-                    unsigned char b = srcRows[basex];
-                    unsigned char alpha = srcRows[basex + 3];
+                    uint8_t b = srcRows[basex];
+                    uint8_t alpha = srcRows[basex + 3];
                     if (alpha) {
                         destRows[basex] = (srcRows[basex + 2] * 255) / alpha;
                         destRows[basex + 1] = (srcRows[basex + 1] * 255) / alpha;
@@ -378,7 +373,7 @@ RefPtr<Uint8ClampedArray> ImageBufferData::getData(const IntRect& rect, const In
             for (int y = 0; y < height.unsafeGet(); ++y) {
                 for (int x = 0; x < width.unsafeGet(); x++) {
                     int basex = x * 4;
-                    unsigned char b = srcRows[basex];
+                    uint8_t b = srcRows[basex];
                     destRows[basex] = srcRows[basex + 2];
                     destRows[basex + 1] = srcRows[basex + 1];
                     destRows[basex + 2] = b;
@@ -389,7 +384,6 @@ RefPtr<Uint8ClampedArray> ImageBufferData::getData(const IntRect& rect, const In
             }
         }
 #endif // USE(ACCELERATE)
-        IOSurfaceUnlock(surfaceRef, kIOSurfaceLockReadOnly, nullptr);
 #else
         ASSERT_NOT_REACHED();
 #endif // USE(IOSURFACE_CANVAS_BACKING_STORE)
@@ -398,7 +392,7 @@ RefPtr<Uint8ClampedArray> ImageBufferData::getData(const IntRect& rect, const In
     return result;
 }
 
-void ImageBufferData::putData(Uint8ClampedArray*& source, const IntSize& sourceSize, const IntRect& sourceRect, const IntPoint& destPoint, const IntSize& size, bool accelerateRendering, bool unmultiplied, float resolutionScale)
+void ImageBufferData::putData(const Uint8ClampedArray& source, AlphaPremultiplication sourceFormat, const IntSize& sourceSize, const IntRect& sourceRect, const IntPoint& destPoint, const IntSize& size, bool accelerateRendering, float resolutionScale)
 {
 #if ASSERT_DISABLED
     UNUSED_PARAM(size);
@@ -441,25 +435,25 @@ void ImageBufferData::putData(Uint8ClampedArray*& source, const IntSize& sourceS
         return;
     
     unsigned srcBytesPerRow = 4 * sourceSize.width();
-    unsigned char* srcRows = source->data() + (originy * srcBytesPerRow + originx * 4).unsafeGet();
+    const uint8_t* srcRows = source.data() + (originy * srcBytesPerRow + originx * 4).unsafeGet();
     unsigned destBytesPerRow;
-    unsigned char* destRows;
+    uint8_t* destRows;
     
     if (!accelerateRendering) {
         if (!data)
             return;
 
         destBytesPerRow = bytesPerRow.unsafeGet();
-        destRows = reinterpret_cast<unsigned char*>(data) + (desty * destBytesPerRow + destx * 4).unsafeGet();
+        destRows = reinterpret_cast<uint8_t*>(data) + (desty * destBytesPerRow + destx * 4).unsafeGet();
 
 #if USE(ACCELERATE)
-        if (unmultiplied) {
+        if (sourceFormat == AlphaPremultiplication::Unpremultiplied) {
 
             vImage_Buffer src;
             src.width = width.unsafeGet();
             src.height = height.unsafeGet();
             src.rowBytes = srcBytesPerRow;
-            src.data = srcRows;
+            src.data = const_cast<uint8_t*>(srcRows);
 
             vImage_Buffer dest;
             dest.width = destw.unsafeGet();
@@ -482,12 +476,12 @@ void ImageBufferData::putData(Uint8ClampedArray*& source, const IntSize& sourceS
         }
 #endif
         if (resolutionScale != 1) {
-            RetainPtr<CGContextRef> sourceContext = adoptCF(CGBitmapContextCreate(srcRows, width.unsafeGet(), height.unsafeGet(), 8, srcBytesPerRow, colorSpace, kCGImageAlphaPremultipliedLast));
+            RetainPtr<CGContextRef> sourceContext = adoptCF(CGBitmapContextCreate(const_cast<uint8_t*>(srcRows), width.unsafeGet(), height.unsafeGet(), 8, srcBytesPerRow, colorSpace, kCGImageAlphaPremultipliedLast));
             RetainPtr<CGImageRef> sourceImage = adoptCF(CGBitmapContextCreateImage(sourceContext.get()));
             RetainPtr<CGContextRef> destinationContext = adoptCF(CGBitmapContextCreate(destRows, destw.unsafeGet(), desth.unsafeGet(), 8, destBytesPerRow, colorSpace, kCGImageAlphaPremultipliedLast));
             CGContextSetBlendMode(destinationContext.get(), kCGBlendModeCopy);
             CGContextDrawImage(destinationContext.get(), CGRectMake(0, 0, width.unsafeGet() / resolutionScale, height.unsafeGet() / resolutionScale), sourceImage.get()); // FIXME: Add subpixel translation.
-            if (!unmultiplied)
+            if (sourceFormat == AlphaPremultiplication::Premultiplied)
                 return;
 
             // The premultiplying will be done in-place.
@@ -500,10 +494,10 @@ void ImageBufferData::putData(Uint8ClampedArray*& source, const IntSize& sourceS
         for (int y = 0; y < height.unsafeGet(); ++y) {
             for (int x = 0; x < width.unsafeGet(); x++) {
                 int basex = x * 4;
-                unsigned char alpha = srcRows[basex + 3];
+                uint8_t alpha = srcRows[basex + 3];
 #if USE_ARGB32
                 // Byte order is different as we use image buffers of ARGB32
-                if (unmultiplied && alpha != 255) {
+                if (sourceFormat == AlphaPremultiplication::Unpremultiplied && alpha != 255) {
                     destRows[basex] = (srcRows[basex + 2] * alpha + 254) / 255;
                     destRows[basex + 1] = (srcRows[basex + 1] * alpha + 254) / 255;
                     destRows[basex + 2] = (srcRows[basex + 0] * alpha + 254) / 255;
@@ -515,13 +509,13 @@ void ImageBufferData::putData(Uint8ClampedArray*& source, const IntSize& sourceS
                     destRows[basex + 3] = alpha;
                 }
 #else
-                if (unmultiplied && alpha != 255) {
+                if (sourceFormat == AlphaPremultiplication::Unpremultiplied && alpha != 255) {
                     destRows[basex] = (srcRows[basex] * alpha + 254) / 255;
                     destRows[basex + 1] = (srcRows[basex + 1] * alpha + 254) / 255;
                     destRows[basex + 2] = (srcRows[basex + 2] * alpha + 254) / 255;
                     destRows[basex + 3] = alpha;
                 } else
-                    reinterpret_cast<uint32_t*>(destRows + basex)[0] = reinterpret_cast<uint32_t*>(srcRows + basex)[0];
+                    reinterpret_cast<uint32_t*>(destRows + basex)[0] = reinterpret_cast<const uint32_t*>(srcRows + basex)[0];
 #endif
             }
             destRows += destBytesPerRow;
@@ -529,17 +523,16 @@ void ImageBufferData::putData(Uint8ClampedArray*& source, const IntSize& sourceS
         }
     } else {
 #if USE(IOSURFACE_CANVAS_BACKING_STORE)
-        IOSurfaceRef surfaceRef = surface->surface();
-        IOSurfaceLock(surfaceRef, 0, nullptr);
-        destBytesPerRow = IOSurfaceGetBytesPerRow(surfaceRef);
-        destRows = static_cast<unsigned char*>(IOSurfaceGetBaseAddress(surfaceRef)) + (desty * destBytesPerRow + destx * 4).unsafeGet();
+        IOSurface::Locker lock(*surface, IOSurface::Locker::AccessMode::ReadWrite);
+        destBytesPerRow = surface->bytesPerRow();
+        destRows = static_cast<uint8_t*>(lock.surfaceBaseAddress()) + (desty * destBytesPerRow + destx * 4).unsafeGet();
 
 #if USE(ACCELERATE)
         vImage_Buffer src;
         src.width = width.unsafeGet();
         src.height = height.unsafeGet();
         src.rowBytes = srcBytesPerRow;
-        src.data = srcRows;
+        src.data = const_cast<uint8_t*>(srcRows);
 
         vImage_Buffer dest;
         dest.width = destw.unsafeGet();
@@ -553,7 +546,7 @@ void ImageBufferData::putData(Uint8ClampedArray*& source, const IntSize& sourceS
             src = dest;
         }
 
-        if (unmultiplied)
+        if (sourceFormat == AlphaPremultiplication::Unpremultiplied)
             premultiplyBufferData(src, dest);
         else {
             // Swap pixel channels from RGBA to BGRA.
@@ -562,13 +555,13 @@ void ImageBufferData::putData(Uint8ClampedArray*& source, const IntSize& sourceS
         }
 #else
         if (resolutionScale != 1) {
-            RetainPtr<CGContextRef> sourceContext = adoptCF(CGBitmapContextCreate(srcRows, width.unsafeGet(), height.unsafeGet(), 8, srcBytesPerRow, colorSpace, kCGImageAlphaPremultipliedLast));
+            RetainPtr<CGContextRef> sourceContext = adoptCF(CGBitmapContextCreate(reinterpret_cast<void*>(const_cast<uint8_t*>(srcRows)), width.unsafeGet(), height.unsafeGet(), 8, srcBytesPerRow, colorSpace, kCGImageAlphaPremultipliedLast));
             RetainPtr<CGImageRef> sourceImage = adoptCF(CGBitmapContextCreateImage(sourceContext.get()));
             RetainPtr<CGContextRef> destinationContext = adoptCF(CGBitmapContextCreate(destRows, destw.unsafeGet(), desth.unsafeGet(), 8, destBytesPerRow, colorSpace, kCGImageAlphaPremultipliedLast));
             CGContextSetBlendMode(destinationContext.get(), kCGBlendModeCopy);
             CGContextDrawImage(destinationContext.get(), CGRectMake(0, 0, width.unsafeGet() / resolutionScale, height.unsafeGet() / resolutionScale), sourceImage.get()); // FIXME: Add subpixel translation.
 
-            srcRows = destRows;
+            srcRows = const_cast<const uint8_t*>(destRows);
             srcBytesPerRow = destBytesPerRow;
             width = destw;
             height = desth;
@@ -577,9 +570,9 @@ void ImageBufferData::putData(Uint8ClampedArray*& source, const IntSize& sourceS
         for (int y = 0; y < height.unsafeGet(); ++y) {
             for (int x = 0; x < width.unsafeGet(); x++) {
                 int basex = x * 4;
-                unsigned char b = srcRows[basex];
-                unsigned char alpha = srcRows[basex + 3];
-                if (unmultiplied && alpha != 255) {
+                uint8_t b = srcRows[basex];
+                uint8_t alpha = srcRows[basex + 3];
+                if (sourceFormat == AlphaPremultiplication::Unpremultiplied && alpha != 255) {
                     destRows[basex] = (srcRows[basex + 2] * alpha + 254) / 255;
                     destRows[basex + 1] = (srcRows[basex + 1] * alpha + 254) / 255;
                     destRows[basex + 2] = (b * alpha + 254) / 255;
@@ -595,8 +588,6 @@ void ImageBufferData::putData(Uint8ClampedArray*& source, const IntSize& sourceS
             srcRows += srcBytesPerRow;
         }
 #endif // USE(ACCELERATE)
-
-        IOSurfaceUnlock(surfaceRef, 0, nullptr);
 #else
         ASSERT_NOT_REACHED();
 #endif // USE(IOSURFACE_CANVAS_BACKING_STORE)

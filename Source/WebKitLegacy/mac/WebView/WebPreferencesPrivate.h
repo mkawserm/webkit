@@ -574,6 +574,7 @@ extern NSString *WebPreferencesCacheModelChangedInternalNotification;
 - (BOOL)isSecureContextAttributeEnabled;
 
 @property (nonatomic) BOOL visualViewportEnabled;
+@property (nonatomic) BOOL visualViewportAPIEnabled;
 @property (nonatomic) BOOL largeImageAsyncDecodingEnabled;
 @property (nonatomic) BOOL animatedImageAsyncDecodingEnabled;
 @property (nonatomic) BOOL javaScriptMarkupEnabled;
@@ -590,10 +591,12 @@ extern NSString *WebPreferencesCacheModelChangedInternalNotification;
 @property (nonatomic) BOOL mediaUserGestureInheritsFromDocument;
 @property (nonatomic) BOOL isSecureContextAttributeEnabled;
 @property (nonatomic) BOOL legacyEncryptedMediaAPIEnabled;
+@property (nonatomic) BOOL encryptedMediaAPIEnabled;
 @property (nonatomic) BOOL viewportFitEnabled;
 @property (nonatomic) BOOL constantPropertiesEnabled;
 @property (nonatomic) BOOL inspectorAdditionsEnabled;
 @property (nonatomic) BOOL allowMediaContentTypesRequiringHardwareSupportAsFallback;
+@property (nonatomic) BOOL accessibilityObjectModelEnabled;
 
 #if TARGET_OS_IPHONE
 @property (nonatomic) BOOL quickLookDocumentSavingEnabled;

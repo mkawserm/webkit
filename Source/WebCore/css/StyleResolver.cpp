@@ -319,7 +319,7 @@ StyleResolver::State::State(const Element& element, const RenderStyle* parentSty
 
 inline void StyleResolver::State::updateConversionData()
 {
-    m_cssToLengthConversionData = CSSToLengthConversionData(m_style.get(), m_rootElementStyle, m_element ? document().renderView() : nullptr);
+    m_cssToLengthConversionData = CSSToLengthConversionData(m_style.get(), m_rootElementStyle, m_element ? m_element->document().renderView() : nullptr);
 }
 
 inline void StyleResolver::State::setStyle(std::unique_ptr<RenderStyle> style)
@@ -552,9 +552,9 @@ void StyleResolver::keyframeStylesForAnimation(const Element& element, const Ren
     }
 }
 
-std::unique_ptr<RenderStyle> StyleResolver::pseudoStyleForElement(const Element& element, const PseudoStyleRequest& pseudoStyleRequest, const RenderStyle& parentStyle)
+std::unique_ptr<RenderStyle> StyleResolver::pseudoStyleForElement(const Element& element, const PseudoStyleRequest& pseudoStyleRequest, const RenderStyle& parentStyle, const SelectorFilter* selectorFilter)
 {
-    m_state = State(element, &parentStyle);
+    m_state = State(element, &parentStyle, m_overrideDocumentElementStyle, selectorFilter);
 
     State& state = m_state;
 
@@ -1132,12 +1132,8 @@ Vector<RefPtr<StyleRule>> StyleResolver::pseudoStyleRulesForElement(const Elemen
             collector.matchUserRules(rulesToInclude & EmptyCSSRules);
     }
 
-    if (m_matchAuthorAndUserStyles && (rulesToInclude & AuthorCSSRules)) {
-        collector.setSameOriginOnly(!(rulesToInclude & CrossOriginCSSRules));
-
-        // Check the rules in author sheets.
+    if (m_matchAuthorAndUserStyles && (rulesToInclude & AuthorCSSRules))
         collector.matchAuthorRules(rulesToInclude & EmptyCSSRules);
-    }
 
     return collector.matchedRuleList();
 }
@@ -1702,7 +1698,7 @@ void StyleResolver::applyProperty(CSSPropertyID id, CSSValue* value, SelectorChe
 
 RefPtr<CSSValue> StyleResolver::resolvedVariableValue(CSSPropertyID propID, const CSSValue& value)
 {
-    CSSParser parser(m_state.document());
+    CSSParser parser(document());
     return parser.parseValueWithVariableReferences(propID, value, m_state.style()->customProperties(), m_state.style()->direction(), m_state.style()->writingMode());
 }
 
@@ -1792,6 +1788,7 @@ void StyleResolver::initializeFontStyle()
     fontDescription.setOneFamily(standardFamily);
     fontDescription.setKeywordSizeFromIdentifier(CSSValueMedium);
     setFontSize(fontDescription, Style::fontSizeForKeyword(CSSValueMedium, false, document()));
+    fontDescription.setMayRepresentUserInstalledFont(!settings().shouldDisallowUserInstalledFonts());
     setFontDescription(fontDescription);
 }
 
@@ -1803,8 +1800,7 @@ void StyleResolver::setFontSize(FontCascadeDescription& fontDescription, float s
 
 bool StyleResolver::colorFromPrimitiveValueIsDerivedFromElement(const CSSPrimitiveValue& value)
 {
-    int ident = value.valueID();
-    switch (ident) {
+    switch (value.valueID()) {
     case CSSValueWebkitText:
     case CSSValueWebkitLink:
     case CSSValueWebkitActivelink:
@@ -1820,26 +1816,23 @@ Color StyleResolver::colorFromPrimitiveValue(const CSSPrimitiveValue& value, boo
     if (value.isRGBColor())
         return value.color();
 
-    const State& state = m_state;
-    CSSValueID ident = value.valueID();
-    switch (ident) {
-    case 0:
-        return Color();
+    auto identifier = value.valueID();
+    switch (identifier) {
     case CSSValueWebkitText:
-        return state.document().textColor();
+        return document().textColor();
     case CSSValueWebkitLink:
-        return (state.element()->isLink() && forVisitedLink) ? state.document().visitedLinkColor() : state.document().linkColor();
+        return (m_state.element()->isLink() && forVisitedLink) ? document().visitedLinkColor() : document().linkColor();
     case CSSValueWebkitActivelink:
-        return state.document().activeLinkColor();
+        return document().activeLinkColor();
     case CSSValueWebkitFocusRingColor:
         return RenderTheme::focusRingColor();
     case CSSValueCurrentcolor:
         // Color is an inherited property so depending on it effectively makes the property inherited.
-        state.style()->setHasExplicitlyInheritedProperties();
-        return state.style()->color();
-    default: {
-        return StyleColor::colorFromKeyword(ident);
-    }
+        // FIXME: Setting the flag as a side effect of calling this function is a bit oblique. Can we do better?
+        m_state.style()->setHasExplicitlyInheritedProperties();
+        return m_state.style()->color();
+    default:
+        return StyleColor::colorFromKeyword(identifier);
     }
 }
 
@@ -1928,7 +1921,7 @@ bool StyleResolver::createFilterOperations(const CSSValue& inValue, FilterOperat
                 continue;
 
             String cssUrl = primitiveValue.stringValue();
-            URL url = m_state.document().completeURL(cssUrl);
+            URL url = document().completeURL(cssUrl);
 
             RefPtr<ReferenceFilterOperation> operation = ReferenceFilterOperation::create(cssUrl, url.fragmentIdentifier());
             operations.operations().append(operation);

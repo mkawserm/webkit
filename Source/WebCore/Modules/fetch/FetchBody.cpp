@@ -48,7 +48,7 @@ FetchBody FetchBody::extract(ScriptExecutionContext& context, Init&& value, Stri
         return FetchBody(WTFMove(blob));
     }, [&](RefPtr<DOMFormData>& value) mutable {
         Ref<DOMFormData> domFormData = value.releaseNonNull();
-        auto formData = FormData::createMultiPart(domFormData.get(), &static_cast<Document&>(context));
+        auto formData = FormData::createMultiPart(domFormData.get(), &downcast<Document>(context));
         contentType = makeString("multipart/form-data; boundary=", formData->boundary().data());
         return FetchBody(WTFMove(formData));
     }, [&](RefPtr<URLSearchParams>& value) mutable {
@@ -67,6 +67,21 @@ FetchBody FetchBody::extract(ScriptExecutionContext& context, Init&& value, Stri
         contentType = HTTPHeaderValues::textPlainContentType();
         return FetchBody(WTFMove(value));
     });
+}
+
+std::optional<FetchBody> FetchBody::fromFormData(FormData* formData)
+{
+    if (!formData || formData->isEmpty())
+        return std::nullopt;
+
+    if (auto buffer = formData->asSharedBuffer()) {
+        FetchBody body;
+        body.m_consumer.setData(buffer.releaseNonNull());
+        return WTFMove(body);
+    }
+
+    // FIXME: Support blob and form data bodies.
+    return std::nullopt;
 }
 
 void FetchBody::arrayBuffer(FetchBodyOwner& owner, Ref<DeferredPromise>&& promise)
@@ -134,7 +149,7 @@ void FetchBody::consume(FetchBodyOwner& owner, Ref<DeferredPromise>&& promise)
     }
     if (isFormData()) {
         // FIXME: Support consuming FormData.
-        promise->reject();
+        promise->reject(NotSupportedError);
         return;
     }
 
@@ -142,6 +157,7 @@ void FetchBody::consume(FetchBodyOwner& owner, Ref<DeferredPromise>&& promise)
 }
 
 #if ENABLE(STREAMS_API)
+
 void FetchBody::consumeAsStream(FetchBodyOwner& owner, FetchBodySource& source)
 {
     bool closeStream = false;
@@ -152,12 +168,12 @@ void FetchBody::consumeAsStream(FetchBodyOwner& owner, FetchBodySource& source)
         closeStream = source.enqueue(ArrayBuffer::tryCreate(arrayBufferViewBody().baseAddress(), arrayBufferViewBody().byteLength()));
         m_data = nullptr;
     } else if (isText()) {
-        auto data = UTF8Encoding().encode(textBody(), EntitiesForUnencodables);
-        closeStream = source.enqueue(ArrayBuffer::tryCreate(data.data(), data.length()));
+        auto data = UTF8Encoding().encode(textBody(), UnencodableHandling::Entities);
+        closeStream = source.enqueue(ArrayBuffer::tryCreate(data.data(), data.size()));
         m_data = nullptr;
     } else if (isURLSearchParams()) {
-        auto data = UTF8Encoding().encode(urlSearchParamsBody().toString(), EntitiesForUnencodables);
-        closeStream = source.enqueue(ArrayBuffer::tryCreate(data.data(), data.length()));
+        auto data = UTF8Encoding().encode(urlSearchParamsBody().toString(), UnencodableHandling::Entities);
+        closeStream = source.enqueue(ArrayBuffer::tryCreate(data.data(), data.size()));
         m_data = nullptr;
     } else if (isBlob()) {
         owner.loadBlob(blobBody(), nullptr);
@@ -172,6 +188,7 @@ void FetchBody::consumeAsStream(FetchBodyOwner& owner, FetchBodySource& source)
     if (closeStream)
         source.close();
 }
+
 #endif
 
 void FetchBody::consumeArrayBuffer(Ref<DeferredPromise>&& promise)
@@ -188,8 +205,8 @@ void FetchBody::consumeArrayBufferView(Ref<DeferredPromise>&& promise)
 
 void FetchBody::consumeText(Ref<DeferredPromise>&& promise, const String& text)
 {
-    auto data = UTF8Encoding().encode(text, EntitiesForUnencodables);
-    m_consumer.resolveWithData(WTFMove(promise), reinterpret_cast<const uint8_t*>(data.data()), data.length());
+    auto data = UTF8Encoding().encode(text, UnencodableHandling::Entities);
+    m_consumer.resolveWithData(WTFMove(promise), data.data(), data.size());
     m_data = nullptr;
 }
 
@@ -213,9 +230,9 @@ void FetchBody::loadingSucceeded()
 RefPtr<FormData> FetchBody::bodyAsFormData(ScriptExecutionContext& context) const
 {
     if (isText())
-        return FormData::create(UTF8Encoding().encode(textBody(), EntitiesForUnencodables));
+        return FormData::create(UTF8Encoding().encode(textBody(), UnencodableHandling::Entities));
     if (isURLSearchParams())
-        return FormData::create(UTF8Encoding().encode(urlSearchParamsBody().toString(), EntitiesForUnencodables));
+        return FormData::create(UTF8Encoding().encode(urlSearchParamsBody().toString(), UnencodableHandling::Entities));
     if (isBlob()) {
         RefPtr<FormData> body = FormData::create();
         body->appendBlob(blobBody().url());
@@ -228,9 +245,12 @@ RefPtr<FormData> FetchBody::bodyAsFormData(ScriptExecutionContext& context) cons
     if (isFormData()) {
         ASSERT(!context.isWorkerGlobalScope());
         RefPtr<FormData> body = const_cast<FormData*>(&formDataBody());
-        body->generateFiles(static_cast<Document*>(&context));
+        body->generateFiles(&downcast<Document>(context));
         return body;
     }
+    if (auto* data = m_consumer.data())
+        return FormData::create(data->data(), data->size());
+
     ASSERT_NOT_REACHED();
     return nullptr;
 }
@@ -253,15 +273,10 @@ FetchBody::TakenData FetchBody::take()
     if (isFormData())
         return formDataBody();
 
-    if (isText()) {
-        auto data = UTF8Encoding().encode(textBody(), EntitiesForUnencodables);
-        return SharedBuffer::create(data.data(), data.length());
-    }
-
-    if (isURLSearchParams()) {
-        auto data = UTF8Encoding().encode(urlSearchParamsBody().toString(), EntitiesForUnencodables);
-        return SharedBuffer::create(data.data(), data.length());
-    }
+    if (isText())
+        return SharedBuffer::create(UTF8Encoding().encode(textBody(), UnencodableHandling::Entities));
+    if (isURLSearchParams())
+        return SharedBuffer::create(UTF8Encoding().encode(urlSearchParamsBody().toString(), UnencodableHandling::Entities));
 
     if (isArrayBuffer())
         return SharedBuffer::create(reinterpret_cast<const char*>(arrayBufferBody().data()), arrayBufferBody().byteLength());

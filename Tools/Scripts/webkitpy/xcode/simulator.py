@@ -173,11 +173,9 @@ class Simulator(object):
     Represents the iOS Simulator infrastructure under the currently select Xcode.app bundle.
     """
     device_type_re = re.compile('(?P<name>.+)\((?P<identifier>[^)]+)\)')
-    # FIXME: runtime_re parses the version from the runtime name, but that does not contain the full version number
-    # (it can omit the revision). We should instead parse the version from the number contained in parentheses.
-    runtime_re = re.compile('(i|watch|tv)OS (?P<version>\d+\.\d)(?P<internal> Internal)? \(\d+\.\d+(\.\d+)? - (?P<build_version>[^)]+)\) \((?P<identifier>[^)]+)\)( \((?P<availability>[^)]+)\))?')
-    new_runtime_re = re.compile('(i|watch|tv)OS (?P<version>\d+\.\d)(?P<internal> Internal)? \(\d+\.\d+(\.\d+)? - (?P<build_version>[^)]+)\) - (?P<identifier>[^)]+)( \((?P<availability>[^)]+)\))?')
-    unavailable_version_re = re.compile('-- Unavailable: (?P<identifier>[^ ]+) --')
+    runtime_re = re.compile('(?P<os>.+) \((?P<version>\d+\.\d+(\.\d+)?) - (?P<build_version>[^)]+)\) \((?P<identifier>[^)]+)\)( \((?P<availability>[^)]+)\))?')
+    new_runtime_re = re.compile('(?P<os>.+) \((?P<version>\d+\.\d+(\.\d+)?) - (?P<build_version>[^)]+)\) - (?P<identifier>[^)]+)( \((?P<availability>[^)]+)\))?')
+    unavailable_version_re = re.compile('-- (Unavailable: )?(?P<identifier>[^ ]+) --')
     version_re = re.compile('-- (i|watch|tv)OS (?P<version>\d+\.\d+)(?P<internal> Internal)? --')
     devices_re = re.compile(
         '\s*(?P<name>.+) \((?P<udid>[A-Z0-9\-]+)\) \((?P<state>[^)]+)\)( \((?P<availability>[^)]+)\))?')
@@ -335,10 +333,10 @@ class Simulator(object):
                 if line != '== Devices ==':
                     raise RuntimeError('Expected == Devices == header but got: "{}"'.format(line))
                 break
-            runtime = Runtime(version=Version(runtime_match.group('version')),
+            runtime = Runtime(version=Version.from_string(runtime_match.group('version')),
                               identifier=runtime_match.group('identifier'),
                               available=runtime_match.group('availability') is None,
-                              is_internal_runtime=bool(runtime_match.group('internal')))
+                              is_internal_runtime=('Internal' in runtime_match.group('os')))
             self.runtimes.append(runtime)
         self._parse_devices(lines)
 
@@ -353,7 +351,7 @@ class Simulator(object):
         for line in lines:
             version_match = self.version_re.match(line)
             if version_match:
-                current_runtime = self.runtime(version=Version(version_match.group('version')), is_internal_runtime=bool(version_match.group('internal')))
+                current_runtime = self.runtime(version=Version.from_string(version_match.group('version')), is_internal_runtime=bool(version_match.group('internal')))
                 assert current_runtime
                 continue
 

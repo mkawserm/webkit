@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2016 Apple Inc. All rights reserved.
+ * Copyright (C) 2010-2017 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -82,6 +82,7 @@
 #include <WebCore/URL.h>
 #include <WebCore/UserInterfaceLayoutDirection.h>
 #include <memory>
+#include <wtf/CompletionHandler.h>
 #include <wtf/HashMap.h>
 #include <wtf/HashSet.h>
 #include <wtf/MonotonicTime.h>
@@ -104,6 +105,8 @@ OBJC_CLASS _WKRemoteObjectRegistry;
 
 #if PLATFORM(COCOA)
 #include "LayerRepresentation.h"
+#include "TouchBarMenuData.h"
+#include "TouchBarMenuItemData.h"
 #endif
 
 #if PLATFORM(GTK)
@@ -155,6 +158,7 @@ class SharedBuffer;
 class TextIndicator;
 class ValidationBubble;
 
+struct ApplicationManifest;
 struct DictionaryPopupInfo;
 struct ExceptionDetails;
 struct FileChooserSettings;
@@ -175,6 +179,12 @@ enum class ShouldSample;
 template <typename> class RectEdges;
 using FloatBoxExtent = RectEdges<float>;
 }
+
+#if ENABLE(ATTACHMENT_ELEMENT)
+namespace WebCore {
+struct AttachmentDisplayOptions;
+}
+#endif
 
 #if PLATFORM(GTK)
 typedef GtkWidget* PlatformWidget;
@@ -227,6 +237,7 @@ struct LoadParameters;
 struct PlatformPopupMenuData;
 struct PrintInfo;
 struct WebPopupItem;
+struct URLSchemeTaskParameters;
 
 #if USE(QUICK_LOOK)
 class QuickLookDocumentData;
@@ -236,6 +247,7 @@ typedef GenericCallback<uint64_t> UnsignedCallback;
 typedef GenericCallback<EditingRange> EditingRangeCallback;
 typedef GenericCallback<const String&> StringCallback;
 typedef GenericCallback<API::SerializedScriptValue*, bool, const WebCore::ExceptionDetails&> ScriptValueCallback;
+typedef GenericCallback<RefPtr<WebCore::SharedBuffer>> SharedBufferCallback;
 
 #if PLATFORM(GTK)
 typedef GenericCallback<API::Error*> PrintFinishedCallback;
@@ -254,6 +266,10 @@ struct QueuedTouchEvents {
 
 typedef GenericCallback<const String&, bool, int32_t> ValidateCommandCallback;
 typedef GenericCallback<const WebCore::IntRect&, const EditingRange&> RectForCharacterRangeCallback;
+
+#if ENABLE(APPLICATION_MANIFEST)
+typedef GenericCallback<const std::optional<WebCore::ApplicationManifest>&> ApplicationManifestCallback;
+#endif
 
 #if PLATFORM(MAC)
 typedef GenericCallback<const AttributedString&, const EditingRange&> AttributedStringForCharacterRangeCallback;
@@ -474,7 +490,11 @@ public:
     bool canDelete() const { return hasSelectedRange() && isContentEditable(); }
     bool hasSelectedRange() const { return m_editorState.selectionIsRange; }
     bool isContentEditable() const { return m_editorState.isContentEditable; }
-    
+
+#if PLATFORM(COCOA)
+    const TouchBarMenuData& touchBarMenuData() const { return m_touchBarMenuData; }
+#endif
+
     bool maintainsInactiveSelection() const;
     void setMaintainsInactiveSelection(bool);
     void setEditable(bool);
@@ -823,7 +843,7 @@ public:
     void performDictionaryLookupOfCurrentSelection();
 #endif
 
-    void receivedPolicyDecision(WebCore::PolicyAction, WebFrameProxy&, uint64_t listenerID, API::Navigation* navigationID, const WebsitePolicies&);
+    void receivedPolicyDecision(WebCore::PolicyAction, WebFrameProxy&, uint64_t listenerID, API::Navigation* navigationID, std::optional<WebsitePolicies>&&);
 
     void backForwardRemovedItem(uint64_t itemID);
 
@@ -872,6 +892,9 @@ public:
     void removeEditCommand(WebEditCommandProxy*);
     bool isValidEditCommand(WebEditCommandProxy*);
     void registerEditCommand(Ref<WebEditCommandProxy>&&, UndoOrRedo);
+
+    bool canUndo();
+    bool canRedo();
 
 #if PLATFORM(COCOA)
     void registerKeypressCommandName(const String& name) { m_knownKeypressCommandNames.add(name); }
@@ -1209,10 +1232,25 @@ public:
 #endif
     void editorStateChanged(const EditorState&);
 
+#if PLATFORM(COCOA)
+    void touchBarMenuDataRemoved();
+    void touchBarMenuDataChanged(const TouchBarMenuData&);
+    void touchBarMenuItemDataAdded(const TouchBarMenuItemData&);
+    void touchBarMenuItemDataRemoved(const TouchBarMenuItemData&);
+#endif
+
+    void hasStorageAccess(String&& subFrameHost, String&& topFrameHost, uint64_t webProcessContextId);
     void requestStorageAccess(String&& subFrameHost, String&& topFrameHost, uint64_t webProcessContextId);
 
 #if ENABLE(ATTACHMENT_ELEMENT)
-    void insertAttachment(const String& identifier, const String& filename, std::optional<String> contentType, WebCore::SharedBuffer& data, Function<void(CallbackBase::Error)>&&);
+    void insertAttachment(const String& identifier, const WebCore::AttachmentDisplayOptions&, const String& filename, std::optional<String> contentType, WebCore::SharedBuffer& data, Function<void(CallbackBase::Error)>&&);
+    void requestAttachmentData(const String& identifier, Function<void(RefPtr<WebCore::SharedBuffer>, CallbackBase::Error)>&&);
+    void setAttachmentDisplayOptions(const String& identifier, WebCore::AttachmentDisplayOptions, Function<void(CallbackBase::Error)>&&);
+    void setAttachmentDataAndContentType(const String& identifier, WebCore::SharedBuffer& data, std::optional<String>&& newContentType, std::optional<String>&& newFilename, Function<void(CallbackBase::Error)>&&);
+#endif
+
+#if ENABLE(APPLICATION_MANIFEST)
+    void getApplicationManifest(Function<void(const std::optional<WebCore::ApplicationManifest>&, CallbackBase::Error)>&&);
 #endif
 
 private:
@@ -1230,7 +1268,7 @@ private:
     void resetState(ResetStateReason);
     void resetStateAfterProcessExited();
 
-    void setUserAgent(const String&);
+    void setUserAgent(String&&);
 
     // IPC::MessageReceiver
     // Implemented in generated WebPageProxyMessageReceiver.cpp
@@ -1288,7 +1326,7 @@ private:
 
     void didDestroyNavigation(uint64_t navigationID);
 
-    void decidePolicyForNavigationAction(uint64_t frameID, const WebCore::SecurityOriginData& frameSecurityOrigin, uint64_t navigationID, NavigationActionData&&, const FrameInfoData&, uint64_t originatingPageID, const WebCore::ResourceRequest& originalRequest, WebCore::ResourceRequest&&, uint64_t listenerID, const UserData&, bool& receivedPolicyAction, uint64_t& newNavigationID, WebCore::PolicyAction&, DownloadID&, WebsitePolicies&);
+    void decidePolicyForNavigationAction(uint64_t frameID, const WebCore::SecurityOriginData& frameSecurityOrigin, uint64_t navigationID, NavigationActionData&&, const FrameInfoData&, uint64_t originatingPageID, const WebCore::ResourceRequest& originalRequest, WebCore::ResourceRequest&&, uint64_t listenerID, const UserData&, bool& receivedPolicyAction, uint64_t& newNavigationID, WebCore::PolicyAction&, DownloadID&, std::optional<WebsitePolicies>&);
     void decidePolicyForNewWindowAction(uint64_t frameID, const WebCore::SecurityOriginData& frameSecurityOrigin, NavigationActionData&&, WebCore::ResourceRequest&&, const String& frameName, uint64_t listenerID, const UserData&);
     void decidePolicyForResponse(uint64_t frameID, const WebCore::SecurityOriginData& frameSecurityOrigin, uint64_t navigationID, const WebCore::ResourceResponse&, const WebCore::ResourceRequest&, bool canShowMIMEType, uint64_t listenerID, const UserData&);
     void decidePolicyForResponseSync(uint64_t frameID, const WebCore::SecurityOriginData& frameSecurityOrigin, uint64_t navigationID, const WebCore::ResourceResponse&, const WebCore::ResourceRequest&, bool canShowMIMEType, uint64_t listenerID, const UserData&, bool& receivedPolicyAction, WebCore::PolicyAction&, DownloadID&);
@@ -1466,6 +1504,7 @@ private:
 
     void voidCallback(CallbackID);
     void dataCallback(const IPC::DataReference&, CallbackID);
+    void sharedBufferCallback(const IPC::DataReference&, bool isNull, CallbackID);
     void imageCallback(const ShareableBitmap::Handle&, CallbackID);
     void stringCallback(const String&, CallbackID);
     void invalidateStringCallback(CallbackID);
@@ -1474,6 +1513,9 @@ private:
     void validateCommandCallback(const String&, bool, int, CallbackID);
     void unsignedCallback(uint64_t, CallbackID);
     void editingRangeCallback(const EditingRange&, CallbackID);
+#if ENABLE(APPLICATION_MANIFEST)
+    void applicationManifestCallback(const std::optional<WebCore::ApplicationManifest>&, CallbackID);
+#endif
 #if PLATFORM(COCOA)
     void machSendRightCallback(const WebCore::MachSendRight&, CallbackID);
 #endif
@@ -1623,10 +1665,12 @@ private:
 #endif
 #endif
 
-    void startURLSchemeTask(uint64_t handlerIdentifier, uint64_t taskIdentifier, const WebCore::ResourceRequest&);
+    void startURLSchemeTask(URLSchemeTaskParameters&&);
     void stopURLSchemeTask(uint64_t handlerIdentifier, uint64_t taskIdentifier);
 
     void handleAutoFillButtonClick(const UserData&);
+
+    void handleAlternativePresentationButtonClick(const UserData&);
 
     void finishInitializingWebPageAfterProcessLaunch();
 
@@ -1766,6 +1810,10 @@ private:
     EditorState m_editorState;
     bool m_isEditable { false };
 
+#if PLATFORM(COCOA)
+    TouchBarMenuData m_touchBarMenuData;
+#endif
+
     double m_textZoomFactor { 1 };
     double m_pageZoomFactor { 1 };
     double m_pageScaleFactor { 1 };
@@ -1819,7 +1867,7 @@ private:
     bool m_syncNavigationActionPolicyActionIsValid { false };
     WebCore::PolicyAction m_syncNavigationActionPolicyAction { WebCore::PolicyAction::Use };
     DownloadID m_syncNavigationActionPolicyDownloadID { 0 };
-    WebsitePolicies m_syncNavigationActionPolicyWebsitePolicies;
+    std::optional<WebsitePolicies> m_syncNavigationActionPolicyWebsitePolicies;
 
     bool m_shouldSuppressAppLinksInNextNavigationPolicyDecision { false };
 

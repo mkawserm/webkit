@@ -491,7 +491,7 @@ void RenderElement::addChild(RenderPtr<RenderObject> newChild, RenderObject* bef
 
         table->addChild(WTFMove(newChild));
     } else
-        insertChildInternal(WTFMove(newChild), beforeChild, NotifyChildren);
+        insertChildInternal(WTFMove(newChild), beforeChild);
 
     if (is<RenderText>(child))
         downcast<RenderText>(child).styleDidChange(StyleDifferenceEqual, nullptr);
@@ -512,7 +512,7 @@ void RenderElement::addChild(RenderPtr<RenderObject> newChild, RenderObject* bef
 
 RenderPtr<RenderObject> RenderElement::takeChild(RenderObject& oldChild)
 {
-    return takeChildInternal(oldChild, NotifyChildren);
+    return takeChildInternal(oldChild);
 }
 
 void RenderElement::removeAndDestroyChild(RenderObject& oldChild)
@@ -529,7 +529,7 @@ void RenderElement::destroyLeftoverChildren()
     }
 }
 
-void RenderElement::insertChildInternal(RenderPtr<RenderObject> newChildPtr, RenderObject* beforeChild, NotifyChildrenType notifyChildren)
+void RenderElement::insertChildInternal(RenderPtr<RenderObject> newChildPtr, RenderObject* beforeChild)
 {
     RELEASE_ASSERT_WITH_MESSAGE(!view().frameView().layoutContext().layoutState(), "Layout must not mutate render tree");
 
@@ -567,8 +567,7 @@ void RenderElement::insertChildInternal(RenderPtr<RenderObject> newChildPtr, Ren
 
     newChild->initializeFragmentedFlowStateOnInsertion();
     if (!renderTreeBeingDestroyed()) {
-        if (notifyChildren == NotifyChildren)
-            newChild->insertedIntoTree();
+        newChild->insertedIntoTree();
         if (is<RenderElement>(*newChild))
             RenderCounter::rendererSubtreeAttached(downcast<RenderElement>(*newChild));
     }
@@ -586,7 +585,7 @@ void RenderElement::insertChildInternal(RenderPtr<RenderObject> newChildPtr, Ren
         newChild->setHasOutlineAutoAncestor();
 }
 
-RenderPtr<RenderObject> RenderElement::takeChildInternal(RenderObject& oldChild, NotifyChildrenType notifyChildren)
+RenderPtr<RenderObject> RenderElement::takeChildInternal(RenderObject& oldChild)
 {
     RELEASE_ASSERT_WITH_MESSAGE(!view().frameView().layoutContext().layoutState(), "Layout must not mutate render tree");
 
@@ -599,7 +598,7 @@ RenderPtr<RenderObject> RenderElement::takeChildInternal(RenderObject& oldChild,
     // So that we'll get the appropriate dirty bit set (either that a normal flow child got yanked or
     // that a positioned child got yanked). We also repaint, so that the area exposed when the child
     // disappears gets repainted properly.
-    if (!renderTreeBeingDestroyed() && notifyChildren == NotifyChildren && oldChild.everHadLayout()) {
+    if (!renderTreeBeingDestroyed() && oldChild.everHadLayout()) {
         oldChild.setNeedsLayoutAndPrefWidthsRecalc();
         // We only repaint |oldChild| if we have a RenderLayer as its visual overflow may not be tracked by its parent.
         if (oldChild.isBody())
@@ -622,7 +621,7 @@ RenderPtr<RenderObject> RenderElement::takeChildInternal(RenderObject& oldChild,
     if (!renderTreeBeingDestroyed() && oldChild.isSelectionBorder())
         frame().selection().setNeedsSelectionUpdate();
 
-    if (!renderTreeBeingDestroyed() && notifyChildren == NotifyChildren)
+    if (!renderTreeBeingDestroyed())
         oldChild.willBeRemovedFromTree();
 
     oldChild.resetFragmentedFlowStateOnRemoval();
@@ -652,8 +651,10 @@ RenderPtr<RenderObject> RenderElement::takeChildInternal(RenderObject& oldChild,
     if (!renderTreeBeingDestroyed() && is<RenderElement>(oldChild))
         RenderCounter::rendererRemovedFromTree(downcast<RenderElement>(oldChild));
 
-    if (AXObjectCache* cache = document().existingAXObjectCache())
-        cache->childrenChanged(this);
+    if (!renderTreeBeingDestroyed()) {
+        if (AXObjectCache* cache = document().existingAXObjectCache())
+            cache->childrenChanged(this);
+    }
 
     return RenderPtr<RenderObject>(&oldChild);
 }
@@ -914,31 +915,19 @@ void RenderElement::styleWillChange(StyleDifference diff, const RenderStyle& new
         s_noLongerAffectsParentBlock = false;
     }
 
-    bool newStyleUsesFixedBackgrounds = newStyle.hasFixedBackgroundImage();
-    bool oldStyleUsesFixedBackgrounds = m_style.hasFixedBackgroundImage();
-    if (newStyleUsesFixedBackgrounds || oldStyleUsesFixedBackgrounds) {
-        bool repaintFixedBackgroundsOnScroll = !settings().fixedBackgroundsPaintRelativeToDocument();
-        bool newStyleSlowScroll = repaintFixedBackgroundsOnScroll && newStyleUsesFixedBackgrounds;
-        bool oldStyleSlowScroll = oldStyle && repaintFixedBackgroundsOnScroll && oldStyleUsesFixedBackgrounds;
+    bool newStyleSlowScroll = false;
+    if (newStyle.hasFixedBackgroundImage() && !settings().fixedBackgroundsPaintRelativeToDocument()) {
+        newStyleSlowScroll = true;
         bool drawsRootBackground = isDocumentElementRenderer() || (isBody() && !rendererHasBackground(document().documentElement()->renderer()));
-        if (drawsRootBackground && repaintFixedBackgroundsOnScroll) {
-            if (view().compositor().supportsFixedRootBackgroundCompositing()) {
-                if (newStyleSlowScroll && newStyle.hasEntirelyFixedBackground())
-                    newStyleSlowScroll = false;
-
-                if (oldStyleSlowScroll && m_style.hasEntirelyFixedBackground())
-                    oldStyleSlowScroll = false;
-            }
-        }
-
-        if (oldStyleSlowScroll != newStyleSlowScroll) {
-            if (oldStyleSlowScroll)
-                view().frameView().removeSlowRepaintObject(this);
-
-            if (newStyleSlowScroll)
-                view().frameView().addSlowRepaintObject(this);
-        }
+        if (drawsRootBackground && newStyle.hasEntirelyFixedBackground() && view().compositor().supportsFixedRootBackgroundCompositing())
+            newStyleSlowScroll = false;
     }
+
+    if (view().frameView().hasSlowRepaintObject(*this)) {
+        if (!newStyleSlowScroll)
+            view().frameView().removeSlowRepaintObject(*this);
+    } else if (newStyleSlowScroll)
+        view().frameView().addSlowRepaintObject(*this);
 
     if (isDocumentElementRenderer() || isBody())
         view().frameView().updateExtendBackgroundIfNecessary();
@@ -957,9 +946,9 @@ void RenderElement::handleDynamicFloatPositionChange()
             // An anonymous block must be made to wrap this inline.
             auto newBlock = downcast<RenderBlock>(*parent()).createAnonymousBlock();
             auto& block = *newBlock;
-            parent()->insertChildInternal(WTFMove(newBlock), this, RenderElement::NotifyChildren);
-            auto thisToMove = parent()->takeChildInternal(*this, RenderElement::NotifyChildren);
-            block.insertChildInternal(WTFMove(thisToMove), nullptr, RenderElement::NotifyChildren);
+            parent()->insertChildInternal(WTFMove(newBlock), this);
+            auto thisToMove = parent()->takeChildInternal(*this);
+            block.insertChildInternal(WTFMove(thisToMove), nullptr);
         }
     }
 }
@@ -1125,9 +1114,7 @@ inline void RenderElement::clearSubtreeLayoutRootIfNeeded() const
 void RenderElement::willBeDestroyed()
 {
     if (m_style.hasFixedBackgroundImage() && !settings().fixedBackgroundsPaintRelativeToDocument())
-        view().frameView().removeSlowRepaintObject(this);
-
-    destroyLeftoverChildren();
+        view().frameView().removeSlowRepaintObject(*this);
 
     unregisterForVisibleInViewportCallback();
 

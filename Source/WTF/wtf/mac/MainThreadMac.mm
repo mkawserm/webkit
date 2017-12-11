@@ -66,8 +66,8 @@ static pthread_t mainThreadPthread;
 static NSThread* mainThreadNSThread;
 
 #if USE(WEB_THREAD)
-static ThreadIdentifier sApplicationUIThreadIdentifier;
-static ThreadIdentifier sWebThreadIdentifier;
+static Thread* sApplicationUIThread;
+static Thread* sWebThread;
 #endif
 
 void initializeMainThreadPlatform()
@@ -122,7 +122,7 @@ static void postTimer()
     CFRunLoopAddTimer(CFRunLoopGetCurrent(), CFRunLoopTimerCreate(0, 0, 0, 0, 0, timerFired, 0), kCFRunLoopCommonModes);
 }
 
-void scheduleDispatchFunctionsOnMainThread(SchedulePairHashSet* pairs)
+void scheduleDispatchFunctionsOnMainThread()
 {
     ASSERT(staticMainThreadCaller);
 
@@ -130,23 +130,15 @@ void scheduleDispatchFunctionsOnMainThread(SchedulePairHashSet* pairs)
         postTimer();
         return;
     }
-
-    RetainPtr<NSArray<NSString *>> modes;
-    if (pairs) {
-        modes = adoptNS([[NSMutableArray alloc] initWithCapacity:pairs->size()]);
-        for (auto& pair : *pairs)
-            [(NSMutableArray *)modes.get() addObject:(NSString *)pair->mode()];
-    } else
-        modes = @[(NSString *)kCFRunLoopCommonModes];
     
     if (mainThreadEstablishedAsPthreadMain) {
         ASSERT(!mainThreadNSThread);
-        [staticMainThreadCaller performSelectorOnMainThread:@selector(call) withObject:nil waitUntilDone:NO modes:modes.get()];
+        [staticMainThreadCaller performSelectorOnMainThread:@selector(call) withObject:nil waitUntilDone:NO];
         return;
     }
 
     ASSERT(mainThreadNSThread);
-    [staticMainThreadCaller performSelector:@selector(call) onThread:mainThreadNSThread withObject:nil waitUntilDone:NO modes:modes.get()];
+    [staticMainThreadCaller performSelector:@selector(call) onThread:mainThreadNSThread withObject:nil waitUntilDone:NO];
 }
 
 void callOnWebThreadOrDispatchAsyncOnMainThread(void (^block)())
@@ -176,21 +168,16 @@ bool isUIThread()
     return pthread_main_np();
 }
 
+// Keep in mind that isWebThread can be called even when destroying the current thread.
 bool isWebThread()
 {
     return pthread_equal(pthread_self(), mainThreadPthread);
 }
 
-void initializeApplicationUIThreadIdentifier()
+void initializeApplicationUIThread()
 {
     ASSERT(pthread_main_np());
-    sApplicationUIThreadIdentifier = currentThread();
-}
-
-void initializeWebThreadIdentifier()
-{
-    ASSERT(!pthread_main_np());
-    sWebThreadIdentifier = currentThread();
+    sApplicationUIThread = &Thread::current();
 }
 
 void initializeWebThreadPlatform()
@@ -200,16 +187,18 @@ void initializeWebThreadPlatform()
     mainThreadEstablishedAsPthreadMain = false;
     mainThreadPthread = pthread_self();
     mainThreadNSThread = [[NSThread currentThread] retain];
+
+    sWebThread = &Thread::current();
 }
 
-bool canAccessThreadLocalDataForThread(ThreadIdentifier threadId)
+bool canAccessThreadLocalDataForThread(Thread& thread)
 {
-    ThreadIdentifier currentThreadId = currentThread();
-    if (threadId == currentThreadId)
+    Thread& currentThread = Thread::current();
+    if (&thread == &currentThread)
         return true;
 
-    if (threadId == sWebThreadIdentifier || threadId == sApplicationUIThreadIdentifier)
-        return (currentThreadId == sWebThreadIdentifier || currentThreadId == sApplicationUIThreadIdentifier) && webThreadIsUninitializedOrLockedOrDisabled();
+    if (&thread == sWebThread || &thread == sApplicationUIThread)
+        return (&currentThread == sWebThread || &currentThread == sApplicationUIThread) && webThreadIsUninitializedOrLockedOrDisabled();
 
     return false;
 }

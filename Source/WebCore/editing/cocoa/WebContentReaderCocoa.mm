@@ -38,7 +38,7 @@
 #import "FrameLoader.h"
 #import "FrameLoaderClient.h"
 #import "HTMLBodyElement.h"
-#import "HTMLIframeElement.h"
+#import "HTMLIFrameElement.h"
 #import "HTMLImageElement.h"
 #import "LegacyWebArchive.h"
 #import "MainFrame.h"
@@ -95,7 +95,7 @@ static NSDictionary *attributesForAttributedStringConversion()
         @"InterchangeNewline": @YES,
         @"CoalesceTabSpans": @YES,
         @"OutputBaseURL": [(NSURL *)URL::fakeURLWithRelativePart(emptyString()) retain], // The value needs +1 refcount, as NSAttributedString over-releases it.
-        @"WebResourceHandler": [WebArchiveResourceWebResourceHandler new],
+        @"WebResourceHandler": [[WebArchiveResourceWebResourceHandler new] autorelease],
     };
 }
 
@@ -312,7 +312,7 @@ static String stripMicrosoftPrefix(const String& string)
     // It's a simple-minded way to ignore the CF_HTML clipboard format, just skipping over the
     // description part and parsing the entire context plus fragment.
     if (string.startsWith("Version:")) {
-        size_t location = string.findIgnoringCase("<html");
+        size_t location = string.findIgnoringASCIICase("<html");
         if (location != notFound)
             return string.substring(location);
     }

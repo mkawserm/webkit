@@ -29,6 +29,7 @@
 #include <limits.h>
 #include <unicode/utypes.h>
 #include <wtf/Forward.h>
+#include <wtf/Optional.h>
 #include <wtf/RetainPtr.h>
 #include <wtf/Vector.h>
 #include <wtf/text/CString.h>
@@ -44,8 +45,6 @@
 #endif
 
 namespace WTF {
-
-using CharacterMatchFunction = bool (*)(UChar);
 
 // StringView is a non-owning reference to a string, similar to the proposed std::string_view.
 
@@ -126,7 +125,7 @@ public:
     SplitResult split(UChar) const;
 
     size_t find(UChar, unsigned start = 0) const;
-    size_t find(CharacterMatchFunction, unsigned start = 0) const;
+    size_t find(CodeUnitMatchFunction, unsigned start = 0) const;
 
     WTF_EXPORT_STRING_API size_t find(StringView, unsigned start) const;
 
@@ -148,6 +147,7 @@ public:
     int toInt() const;
     int toInt(bool& isValid) const;
     int toIntStrict(bool& isValid) const;
+    std::optional<uint64_t> toUInt64Strict() const;
     float toFloat(bool& isValid) const;
 
     static void invalidate(const StringImpl&);
@@ -451,16 +451,16 @@ inline bool StringView::contains(UChar character) const
 inline void StringView::getCharactersWithUpconvert(LChar* destination) const
 {
     ASSERT(is8Bit());
-    StringImpl::copyChars(destination, characters8(), m_length);
+    StringImpl::copyCharacters(destination, characters8(), m_length);
 }
 
 inline void StringView::getCharactersWithUpconvert(UChar* destination) const
 {
     if (is8Bit()) {
-        StringImpl::copyChars(destination, characters8(), m_length);
+        StringImpl::copyCharacters(destination, characters8(), m_length);
         return;
     }
-    StringImpl::copyChars(destination, characters16(), m_length);
+    StringImpl::copyCharacters(destination, characters16(), m_length);
 }
 
 inline StringView::UpconvertedCharacters::UpconvertedCharacters(const StringView& string)
@@ -525,6 +525,13 @@ inline int StringView::toIntStrict(bool& isValid) const
     return charactersToIntStrict(characters16(), m_length, &isValid);
 }
 
+inline std::optional<uint64_t> StringView::toUInt64Strict() const
+{
+    bool isValid;
+    uint64_t result = is8Bit() ? charactersToUInt64Strict(characters8(), m_length, &isValid) : charactersToUInt64Strict(characters16(), m_length, &isValid);
+    return isValid ? std::make_optional(result) : std::nullopt;
+}
+
 inline String StringView::toStringWithoutCopying() const
 {
     if (is8Bit())
@@ -539,7 +546,7 @@ inline size_t StringView::find(UChar character, unsigned start) const
     return WTF::find(characters16(), m_length, character, start);
 }
 
-inline size_t StringView::find(CharacterMatchFunction matchFunction, unsigned start) const
+inline size_t StringView::find(CodeUnitMatchFunction matchFunction, unsigned start) const
 {
     if (is8Bit())
         return WTF::find(characters8(), m_length, matchFunction, start);
@@ -980,4 +987,4 @@ using WTF::append;
 using WTF::equal;
 using WTF::StringView;
 
-#endif // StringView_h
+#endif

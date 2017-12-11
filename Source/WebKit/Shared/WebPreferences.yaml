@@ -787,6 +787,13 @@ ViewportFitEnabled:
   humanReadableName: "Viewport Fit"
   humanReadableDescription: "Enable viewport-fit viewport parameter"
 
+DisplayContentsEnabled:
+  type: bool
+  defaultValue: true
+  humanReadableName: "CSS display: contents"
+  humanReadableDescription: "Enable CSS display: contents support"
+  webcoreBinding: RuntimeEnabledFeatures
+
 IncrementalRenderingSuppressionTimeout:
   type: double
   defaultValue: 5
@@ -1027,6 +1034,10 @@ VisibleDebugOverlayRegions:
   defaultValue: 0
   category: debug
 
+ShouldDisallowUserInstalledFonts:
+  type: bool
+  defaultValue: false
+
 
 # For experimental features:
 # The type should be boolean.
@@ -1058,14 +1069,6 @@ ConstantPropertiesEnabled:
   humanReadableName: "Constant Properties"
   humanReadableDescription: "Enable CSS constant() properties"
   category: experimental
-
-DisplayContentsEnabled:
-  type: bool
-  defaultValue: DEFAULT_EXPERIMENTAL_FEATURES_ENABLED
-  humanReadableName: "CSS display: contents"
-  humanReadableDescription: "Enable CSS display: contents support"
-  category: experimental
-  webcoreBinding: RuntimeEnabledFeatures
 
 SpringTimingFunctionEnabled:
   type: bool
@@ -1123,6 +1126,13 @@ SubresourceIntegrityEnabled:
   humanReadableDescription: "Enable SubresourceIntegrity"
   category: experimental
 
+VisualViewportAPIEnabled:
+  type: bool
+  defaultValue: false
+  humanReadableName: "VisualViewportAPI"
+  humanReadableDescription: "Enable Visual Viewport API"
+  category: experimental
+
 WebAnimationsEnabled:
   type: bool
   defaultValue: false
@@ -1148,3 +1158,11 @@ WebGPUEnabled:
   category: experimental
   webcoreBinding: RuntimeEnabledFeatures
   condition: ENABLE(WEBGPU)
+
+AccessibilityObjectModelEnabled:
+    type: bool
+    defaultValue: false
+    humanReadableName: "Accessibility Object Model"
+    humanReadableDescription: "Accessibility Object Model support"
+    category: experimental
+    webcoreBinding: RuntimeEnabledFeatures

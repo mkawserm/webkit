@@ -37,6 +37,7 @@
 
 namespace JSC {
 
+class CompleteSubspace;
 class CopyVisitor;
 class GCDeferralContext;
 class ExecState;
@@ -46,17 +47,19 @@ class JSDestructibleObject;
 class JSGlobalObject;
 class LLIntOffsetsExtractor;
 class PropertyDescriptor;
+class PropertyName;
 class PropertyNameArray;
 class Structure;
-
-enum class AllocationFailureMode {
-    ShouldAssertOnFailure,
-    ShouldNotAssertOnFailure
-};
 
 enum class GCDeferralContextArgPresense {
     HasArg,
     DoesNotHaveArg
+};
+
+enum class PropertyReificationResult {
+    Nothing,
+    Something,
+    TriedButFailed, // Sometimes the property name already exists but has special behavior and can't be reified, e.g. Array.length.
 };
 
 template<typename T> void* allocateCell(Heap&, size_t = sizeof(T));
@@ -79,8 +82,8 @@ template<typename T> void* tryAllocateCell(Heap&, GCDeferralContext*, size_t = s
 class JSCell : public HeapCell {
     friend class JSValue;
     friend class MarkedBlock;
-    template<typename T, AllocationFailureMode, GCDeferralContextArgPresense>
-    friend void* tryAllocateCellHelper(Heap&, GCDeferralContext*, size_t);
+    template<typename T>
+    friend void* tryAllocateCellHelper(Heap&, size_t, GCDeferralContext*, AllocationFailureMode);
 
 public:
     static const unsigned StructureFlags = 0;
@@ -91,7 +94,7 @@ public:
     // FIXME: Refer to Subspace by reference.
     // https://bugs.webkit.org/show_bug.cgi?id=166988
     template<typename CellType>
-    static Subspace* subspaceFor(VM&);
+    static CompleteSubspace* subspaceFor(VM&);
 
     static JSCell* seenMultipleCalleeObjects() { return bitwise_cast<JSCell*>(static_cast<uintptr_t>(1)); }
 
@@ -169,6 +172,8 @@ public:
 
     static void visitChildren(JSCell*, SlotVisitor&);
     static void visitOutputConstraints(JSCell*, SlotVisitor&);
+
+    JS_EXPORT_PRIVATE static PropertyReificationResult reifyPropertyNameIfNeeded(JSCell*, ExecState*, PropertyName&);
 
     JS_EXPORT_PRIVATE static void heapSnapshot(JSCell*, HeapSnapshotBuilder&);
 
@@ -311,7 +316,7 @@ inline To jsDynamicCast(VM& vm, JSValue from)
 // FIXME: Refer to Subspace by reference.
 // https://bugs.webkit.org/show_bug.cgi?id=166988
 template<typename Type>
-inline Subspace* subspaceFor(VM& vm)
+inline auto subspaceFor(VM& vm)
 {
     return Type::template subspaceFor<Type>(vm);
 }

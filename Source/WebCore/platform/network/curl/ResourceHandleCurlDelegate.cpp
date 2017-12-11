@@ -422,7 +422,7 @@ void ResourceHandleCurlDelegate::handleDataURL()
     String data = url.substring(index + 1);
     auto originalSize = data.length();
 
-    bool base64 = mediaType.endsWith(";base64", false);
+    bool base64 = mediaType.endsWithIgnoringASCIICase(";base64");
     if (base64)
         mediaType = mediaType.left(mediaType.length() - 7);
 
@@ -457,9 +457,9 @@ void ResourceHandleCurlDelegate::handleDataURL()
 
         // didReceiveResponse might cause the client to be deleted.
         if (m_handle->client()) {
-            CString encodedData = encoding.encode(data, URLEncodedEntitiesForUnencodables);
-            if (encodedData.length())
-                m_handle->client()->didReceiveBuffer(m_handle, SharedBuffer::create(encodedData.data(), encodedData.length()), originalSize);
+            auto encodedData = encoding.encode(data, UnencodableHandling::URLEncodedEntities);
+            if (encodedData.size())
+                m_handle->client()->didReceiveBuffer(m_handle, SharedBuffer::create(WTFMove(encodedData)), originalSize);
         }
     }
 

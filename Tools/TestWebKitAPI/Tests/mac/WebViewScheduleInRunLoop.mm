@@ -29,18 +29,19 @@
 #import <WebKit/WebFrameLoadDelegate.h>
 #import <WebKit/WebViewPrivate.h>
 #import <wtf/RetainPtr.h>
+#import <wtf/Vector.h>
 
 @interface ScheduleInRunLoopDelegate : NSObject <WebFrameLoadDelegate> {
 }
 @end
 
-static bool didFinishLoad;
+static size_t loadsFinished;
 
 @implementation ScheduleInRunLoopDelegate
 
 - (void)webView:(WebView *)sender didFinishLoadForFrame:(WebFrame *)frame
 {
-    didFinishLoad = true;
+    loadsFinished++;
 }
 
 @end
@@ -49,15 +50,20 @@ namespace TestWebKitAPI {
 
 TEST(WebKitLegacy, ScheduleInRunLoop)
 {
-    auto webView = adoptNS([[WebView alloc] init]);
+    const size_t webViewCount = 50;
+    Vector<RetainPtr<WebView>> webViews;
     auto delegate = adoptNS([[ScheduleInRunLoopDelegate alloc] init]);
-    [webView setFrameLoadDelegate:delegate.get()];
-    [webView unscheduleFromRunLoop:[NSRunLoop currentRunLoop] forMode:(NSString *)kCFRunLoopCommonModes];
-    [webView scheduleInRunLoop:[NSRunLoop currentRunLoop] forMode:@"TestRunLoopMode"];
-    [[webView mainFrame] loadRequest:[NSURLRequest requestWithURL:[[NSBundle mainBundle] URLForResource:@"simple" withExtension:@"html" subdirectory:@"TestWebKitAPI.resources"]]];
+    for (size_t i = 0; i < webViewCount; ++i) {
+        auto webView = adoptNS([[WebView alloc] init]);
+        [webView setFrameLoadDelegate:delegate.get()];
+        [webView unscheduleFromRunLoop:[NSRunLoop currentRunLoop] forMode:(NSString *)kCFRunLoopCommonModes];
+        [webView scheduleInRunLoop:[NSRunLoop currentRunLoop] forMode:@"TestRunLoopMode"];
+        [[webView mainFrame] loadRequest:[NSURLRequest requestWithURL:[[NSBundle mainBundle] URLForResource:@"simple" withExtension:@"html" subdirectory:@"TestWebKitAPI.resources"]]];
+        webViews.append(WTFMove(webView));
+    }
 
-    while (!didFinishLoad)
-        CFRunLoopRunInMode(CFSTR("TestRunLoopMode"), std::numeric_limits<double>::max(), true);
+    while (loadsFinished < webViewCount)
+        CFRunLoopRunInMode(CFSTR("TestRunLoopMode"), .001, true);
 }
 
 } // namespace TestWebKitAPI

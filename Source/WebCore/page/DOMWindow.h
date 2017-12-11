@@ -77,6 +77,7 @@ class ScheduledAction;
 class Screen;
 class Storage;
 class StyleMedia;
+class VisualViewport;
 class WebKitNamespace;
 class WebKitPoint;
 
@@ -243,6 +244,8 @@ public:
     void resizeBy(float x, float y) const;
     void resizeTo(float width, float height) const;
 
+    VisualViewport* visualViewport() const;
+
     // Timers
     ExceptionOr<int> setTimeout(JSC::ExecState&, std::unique_ptr<ScheduledAction>, int timeout, Vector<JSC::Strong<JSC::Unknown>>&& arguments);
     void clearTimeout(int timeoutId);
@@ -341,8 +344,6 @@ private:
     EventTargetInterface eventTargetInterface() const final { return DOMWindowEventTargetInterfaceType; }
     ScriptExecutionContext* scriptExecutionContext() const final { return ContextDestructionObserver::scriptExecutionContext(); }
 
-    DOMWindow* toDOMWindow() final;
-
     Page* page();
     bool allowedToChangeWindowGeometry() const;
 
@@ -386,6 +387,7 @@ private:
     mutable RefPtr<BarProp> m_statusbar;
     mutable RefPtr<BarProp> m_toolbar;
     mutable RefPtr<Location> m_location;
+    mutable RefPtr<VisualViewport> m_visualViewport;
 
     String m_status;
     String m_defaultStatus;
@@ -431,3 +433,7 @@ inline String DOMWindow::defaultStatus() const
 }
 
 } // namespace WebCore
+
+SPECIALIZE_TYPE_TRAITS_BEGIN(WebCore::DOMWindow)
+    static bool isType(const WebCore::EventTarget& target) { return target.eventTargetInterface() == WebCore::DOMWindowEventTargetInterfaceType; }
+SPECIALIZE_TYPE_TRAITS_END()

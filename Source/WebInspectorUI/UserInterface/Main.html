@@ -40,7 +40,6 @@
     <link rel="stylesheet" href="Views/ButtonToolbarItem.css">
     <link rel="stylesheet" href="Views/CSSStyleDeclarationSection.css">
     <link rel="stylesheet" href="Views/CSSStyleDeclarationTextEditor.css">
-    <link rel="stylesheet" href="Views/CSSStyleDetailsSidebarPanel.css">
     <link rel="stylesheet" href="Views/CallFrameIcons.css">
     <link rel="stylesheet" href="Views/CallFrameTreeElement.css">
     <link rel="stylesheet" href="Views/CallFrameView.css">
@@ -49,6 +48,7 @@
     <link rel="stylesheet" href="Views/CanvasOverviewContentView.css">
     <link rel="stylesheet" href="Views/CanvasTabContentView.css">
     <link rel="stylesheet" href="Views/ChartDetailsSectionRow.css">
+    <link rel="stylesheet" href="Views/CheckboxNavigationItem.css">
     <link rel="stylesheet" href="Views/CircleChart.css">
     <link rel="stylesheet" href="Views/ClusterContentView.css">
     <link rel="stylesheet" href="Views/CodeMirrorOverrides.css">
@@ -90,6 +90,7 @@
     <link rel="stylesheet" href="Views/FolderIcon.css">
     <link rel="stylesheet" href="Views/FontResourceContentView.css">
     <link rel="stylesheet" href="Views/FormattedValue.css">
+    <link rel="stylesheet" href="Views/GeneralStyleDetailsSidebarPanel.css">
     <link rel="stylesheet" href="Views/GoToLineDialog.css">
     <link rel="stylesheet" href="Views/GradientEditor.css">
     <link rel="stylesheet" href="Views/GradientSlider.css">
@@ -148,11 +149,12 @@
     <link rel="stylesheet" href="Views/RenderingFrameTimelineView.css">
     <link rel="stylesheet" href="Views/Resizer.css">
     <link rel="stylesheet" href="Views/ResourceCookiesContentView.css">
-    <link rel="stylesheet" href="Views/ResourceMetricsContentView.css">
     <link rel="stylesheet" href="Views/ResourceDetailsSection.css">
     <link rel="stylesheet" href="Views/ResourceDetailsSidebarPanel.css">
     <link rel="stylesheet" href="Views/ResourceHeadersContentView.css">
     <link rel="stylesheet" href="Views/ResourceIcons.css">
+    <link rel="stylesheet" href="Views/ResourceSizesContentView.css">
+    <link rel="stylesheet" href="Views/ResourceTimingContentView.css">
     <link rel="stylesheet" href="Views/ResourceSidebarPanel.css">
     <link rel="stylesheet" href="Views/ResourceTimelineDataGridNode.css">
     <link rel="stylesheet" href="Views/ResourceTimingBreakdownView.css">
@@ -326,6 +328,10 @@
     <script src="Models/TimelineRange.js"></script>
     <script src="Models/TimelineRecord.js"></script>
 
+    <script src="Models/Resource.js"></script>
+    <script src="Models/Script.js"></script>
+    <script src="Models/LocalScript.js"></script>
+
     <script src="Models/AnalyzerMessage.js"></script>
     <script src="Models/ApplicationCacheFrame.js"></script>
     <script src="Models/ApplicationCacheManifest.js"></script>
@@ -409,7 +415,6 @@
     <script src="Models/RecordingFrame.js"></script>
     <script src="Models/RecordingInitialStateAction.js"></script>
     <script src="Models/RenderingFrameTimelineRecord.js"></script>
-    <script src="Models/Resource.js"></script>
     <script src="Models/ResourceCollection.js"></script>
     <script src="Models/ResourceQueryMatch.js"></script>
     <script src="Models/ResourceQueryResult.js"></script>
@@ -417,7 +422,6 @@
     <script src="Models/ResourceTimingData.js"></script>
     <script src="Models/Revision.js"></script>
     <script src="Models/ScopeChainNode.js"></script>
-    <script src="Models/Script.js"></script>
     <script src="Models/ScriptInstrument.js"></script>
     <script src="Models/ScriptSyntaxTree.js"></script>
     <script src="Models/ScriptTimelineRecord.js"></script>
@@ -462,7 +466,6 @@
     <script src="Views/NavigationItem.js"></script>
     <script src="Views/Popover.js"></script>
     <script src="Views/SidebarPanel.js"></script>
-    <script src="Views/StyleDetailsPanel.js"></script>
     <script src="Views/TabBar.js"></script>
     <script src="Views/TabBarItem.js"></script>
     <script src="Views/TabBrowser.js"></script>
@@ -505,6 +508,12 @@
     <script src="Views/TimelineRecordTreeElement.js"></script>
     <script src="Views/TimelineTreeElement.js"></script>
 
+    <script src="Views/GeneralStyleDetailsSidebarPanel.js"></script>
+    <script src="Views/RulesStyleDetailsSidebarPanel.js"></script>
+    <script src="Views/ComputedStyleDetailsSidebarPanel.js"></script>
+    <script src="Views/VisualStyleDetailsSidebarPanel.js"></script>
+    <script src="Views/StyleDetailsPanel.js"></script>
+
     <script src="Views/CanvasTabContentView.js"></script>
     <script src="Views/ConsoleTabContentView.js"></script>
     <script src="Views/DebuggerTabContentView.js"></script>
@@ -542,7 +551,6 @@
     <script src="Views/ButtonToolbarItem.js"></script>
     <script src="Views/CSSStyleDeclarationSection.js"></script>
     <script src="Views/CSSStyleDeclarationTextEditor.js"></script>
-    <script src="Views/CSSStyleDetailsSidebarPanel.js"></script>
     <script src="Views/CSSStyleSheetTreeElement.js"></script>
     <script src="Views/CallFrameTreeElement.js"></script>
     <script src="Views/CallFrameView.js"></script>
@@ -551,6 +559,7 @@
     <script src="Views/CanvasOverviewContentView.js"></script>
     <script src="Views/CanvasTreeElement.js"></script>
     <script src="Views/ChartDetailsSectionRow.js"></script>
+    <script src="Views/CheckboxNavigationItem.js"></script>
     <script src="Views/CircleChart.js"></script>
     <script src="Views/ClusterContentView.js"></script>
     <script src="Views/CodeMirrorAdditions.js"></script>
@@ -691,13 +700,14 @@
     <script src="Views/ResourceClusterContentView.js"></script>
     <script src="Views/ResourceCollectionContentView.js"></script>
     <script src="Views/ResourceCookiesContentView.js"></script>
-    <script src="Views/ResourceMetricsContentView.js"></script>
     <script src="Views/ResourceDetailsSection.js"></script>
     <script src="Views/ResourceDetailsSidebarPanel.js"></script>
     <script src="Views/ResourceHeadersContentView.js"></script>
     <script src="Views/ResourceSidebarPanel.js"></script>
+    <script src="Views/ResourceSizesContentView.js"></script>
     <script src="Views/ResourceTimelineDataGridNode.js"></script>
     <script src="Views/ResourceTimingBreakdownView.js"></script>
+    <script src="Views/ResourceTimingContentView.js"></script>
     <script src="Views/ResourceTimingPopoverDataGridNode.js"></script>
     <script src="Views/RulesStyleDetailsPanel.js"></script>
     <script src="Views/ScopeBar.js"></script>
@@ -719,6 +729,7 @@
     <script src="Views/ShaderProgramContentView.js"></script>
     <script src="Views/ShaderProgramTreeElement.js"></script>
     <script src="Views/Sidebar.js"></script>
+    <script src="Views/SidebarNavigationBar.js"></script>
     <script src="Views/Slider.js"></script>
     <script src="Views/SoftContextMenu.js"></script>
     <script src="Views/SourceCodeTextEditor.js"></script>
@@ -798,6 +809,7 @@
     <script src="Controllers/BreakpointLogMessageLexer.js"></script>
     <script src="Controllers/BreakpointPopoverController.js"></script>
     <script src="Controllers/CSSStyleManager.js"></script>
+    <script src="Controllers/CallFrameTreeController.js"></script>
     <script src="Controllers/CanvasManager.js"></script>
     <script src="Controllers/CodeMirrorColorEditingController.js"></script>
     <script src="Controllers/CodeMirrorCompletionController.js"></script>

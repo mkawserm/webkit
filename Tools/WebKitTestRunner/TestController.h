@@ -159,6 +159,7 @@ public:
     bool isStatisticsRegisteredAsSubFrameUnder(WKStringRef subFrameHost, WKStringRef topFrameHost);
     bool isStatisticsRegisteredAsRedirectingTo(WKStringRef hostRedirectedFrom, WKStringRef hostRedirectedTo);
     void setStatisticsHasHadUserInteraction(WKStringRef hostName, bool value);
+    void setStatisticsHasHadNonRecentUserInteraction(WKStringRef hostName);
     bool isStatisticsHasHadUserInteraction(WKStringRef hostName);
     void setStatisticsGrandfathered(WKStringRef hostName, bool value);
     bool isStatisticsGrandfathered(WKStringRef hostName);
@@ -187,6 +188,7 @@ public:
     void setOpenPanelFileURLs(WKArrayRef fileURLs) { m_openPanelFileURLs = fileURLs; }
 
     void terminateNetworkProcess();
+    void terminateServiceWorkerProcess();
 
     void removeAllSessionCredentials();
 

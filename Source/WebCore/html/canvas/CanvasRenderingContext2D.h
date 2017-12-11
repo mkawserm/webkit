@@ -50,12 +50,12 @@
 
 namespace WebCore {
 
+class CanvasBase;
 class CanvasGradient;
 class CanvasPattern;
 class DOMMatrix;
 class FloatRect;
 class GraphicsContext;
-class HTMLCanvasElement;
 class HTMLImageElement;
 class HTMLVideoElement;
 class ImageBitmap;
@@ -73,8 +73,10 @@ using CanvasImageSource = Variant<RefPtr<HTMLImageElement>, RefPtr<HTMLCanvasEle
 
 class CanvasRenderingContext2D final : public CanvasRenderingContext, public CanvasPath {
 public:
-    CanvasRenderingContext2D(HTMLCanvasElement&, bool usesCSSCompatibilityParseMode, bool usesDashboardCompatibilityMode);
+    CanvasRenderingContext2D(CanvasBase&, bool usesCSSCompatibilityParseMode, bool usesDashboardCompatibilityMode);
     virtual ~CanvasRenderingContext2D();
+
+    HTMLCanvasElement& canvas() const { return downcast<HTMLCanvasElement>(canvasBase()); }
 
     float lineWidth() const;
     void setLineWidth(float);
@@ -185,11 +187,8 @@ public:
     ExceptionOr<RefPtr<ImageData>> createImageData(ImageData*) const;
     ExceptionOr<RefPtr<ImageData>> createImageData(float width, float height) const;
     ExceptionOr<RefPtr<ImageData>> getImageData(float sx, float sy, float sw, float sh) const;
-    ExceptionOr<RefPtr<ImageData>> webkitGetImageDataHD(float sx, float sy, float sw, float sh) const;
     void putImageData(ImageData&, float dx, float dy);
     void putImageData(ImageData&, float dx, float dy, float dirtyX, float dirtyY, float dirtyWidth, float dirtyHeight);
-    void webkitPutImageDataHD(ImageData&, float dx, float dy);
-    void webkitPutImageDataHD(ImageData&, float dx, float dy, float dirtyX, float dirtyY, float dirtyWidth, float dirtyHeight);
 
     void drawFocusIfNeeded(Element&);
     void drawFocusIfNeeded(Path2D&, Element&);

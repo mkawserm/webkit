@@ -28,13 +28,13 @@
 
 #if ENABLE(SERVICE_WORKER)
 
+#include "SecurityOrigin.h"
 #include "URLHash.h"
 
 namespace WebCore {
 
-ServiceWorkerRegistrationKey::ServiceWorkerRegistrationKey(URL&& clientURL, SecurityOriginData&& topOrigin, URL&& scope)
-    : m_clientCreationURL(WTFMove(clientURL))
-    , m_topOrigin(WTFMove(topOrigin))
+ServiceWorkerRegistrationKey::ServiceWorkerRegistrationKey(SecurityOriginData&& topOrigin, URL&& scope)
+    : m_topOrigin(WTFMove(topOrigin))
     , m_scope(WTFMove(scope))
 {
     ASSERT(!m_scope.hasFragment());
@@ -47,39 +47,94 @@ ServiceWorkerRegistrationKey ServiceWorkerRegistrationKey::emptyKey()
 
 unsigned ServiceWorkerRegistrationKey::hash() const
 {
-    unsigned hashes[3];
-    hashes[0] = URLHash::hash(m_clientCreationURL);
-    hashes[1] = SecurityOriginDataHash::hash(m_topOrigin);
-    hashes[2] = StringHash::hash(m_scope);
+    unsigned hashes[2];
+    hashes[0] = SecurityOriginDataHash::hash(m_topOrigin);
+    hashes[1] = StringHash::hash(m_scope);
 
     return StringHasher::hashMemory(hashes, sizeof(hashes));
 }
 
 bool ServiceWorkerRegistrationKey::operator==(const ServiceWorkerRegistrationKey& other) const
 {
-    return m_clientCreationURL == other.m_clientCreationURL && m_topOrigin == other.m_topOrigin && m_scope == other.m_scope;
+    return m_topOrigin == other.m_topOrigin && m_scope == other.m_scope;
 }
 
 ServiceWorkerRegistrationKey ServiceWorkerRegistrationKey::isolatedCopy() const
 {
-    return { m_clientCreationURL.isolatedCopy(), m_topOrigin.isolatedCopy(), m_scope.isolatedCopy() };
+    return { m_topOrigin.isolatedCopy(), m_scope.isolatedCopy() };
 }
 
 bool ServiceWorkerRegistrationKey::isMatching(const SecurityOriginData& topOrigin, const URL& clientURL) const
 {
+    return originIsMatching(topOrigin, clientURL) && clientURL.string().startsWith(m_scope);
+}
+
+bool ServiceWorkerRegistrationKey::originIsMatching(const SecurityOriginData& topOrigin, const URL& clientURL) const
+{
     if (topOrigin != m_topOrigin)
         return false;
 
-    if (!protocolHostAndPortAreEqual(clientURL, m_scope))
-        return false;
+    return protocolHostAndPortAreEqual(clientURL, m_scope);
+}
 
-    return clientURL.string().startsWith(m_scope);
+bool ServiceWorkerRegistrationKey::relatesToOrigin(const SecurityOrigin& origin) const
+{
+    if (m_topOrigin == SecurityOriginData::fromSecurityOrigin(origin))
+        return true;
+
+    auto scopeOrigin = SecurityOrigin::create(m_scope);
+    return scopeOrigin->isSameOriginAs(origin);
+}
+
+static const char separatorCharacter = '_';
+
+String ServiceWorkerRegistrationKey::toDatabaseKey() const
+{
+    if (m_topOrigin.port)
+        return makeString(m_topOrigin.protocol, separatorCharacter, m_topOrigin.host, separatorCharacter, String::number(m_topOrigin.port.value()), separatorCharacter, m_scope.string());
+    return makeString(m_topOrigin.protocol, separatorCharacter, m_topOrigin.host, separatorCharacter, separatorCharacter, m_scope.string());
+}
+
+std::optional<ServiceWorkerRegistrationKey> ServiceWorkerRegistrationKey::fromDatabaseKey(const String& key)
+{
+    auto first = key.find(separatorCharacter, 0);
+    auto second = key.find(separatorCharacter, first + 1);
+    auto third = key.find(separatorCharacter, second + 1);
+
+    if (first == second || second == third)
+        return std::nullopt;
+
+    std::optional<uint16_t> shortPort;
+
+    // If there's a gap between third and second, we expect to have a port to decode
+    if (third - second > 1) {
+        bool ok;
+        unsigned port;
+        if (key.is8Bit())
+            port = charactersToUIntStrict(key.characters8() + second + 1, third - second - 1 , &ok);
+        else
+            port = charactersToUIntStrict(key.characters16() + second + 1, third - second - 1, &ok);
+
+        if (!ok)
+            return std::nullopt;
+
+        if (port > std::numeric_limits<uint16_t>::max())
+            return std::nullopt;
+
+        shortPort = static_cast<uint16_t>(port);
+    }
+
+    auto scope = URL { URL(), key.substring(third + 1) };
+    if (!scope.isValid())
+        return std::nullopt;
+
+    return ServiceWorkerRegistrationKey { { key.substring(0, first), key.substring(first + 1, second - first - 1), shortPort }, WTFMove(scope) };
 }
 
 #ifndef NDEBUG
 String ServiceWorkerRegistrationKey::loggingString() const
 {
-    return makeString(m_topOrigin.debugString(), "-", m_clientCreationURL.string(), "-", m_scope.string());
+    return makeString(m_topOrigin.debugString(), "-", m_scope.string());
 }
 #endif
 

@@ -26,22 +26,48 @@
 #pragma once
 
 #include "AnimationEffect.h"
+#include "CSSPropertyBlendingClient.h"
+#include "KeyframeList.h"
+#include "RenderStyle.h"
 #include <wtf/Ref.h>
 
 namespace WebCore {
 
 class Element;
 
-class KeyframeEffect final : public AnimationEffect {
+class KeyframeEffect final : public AnimationEffect
+    , public CSSPropertyBlendingClient {
 public:
-    static Ref<KeyframeEffect> create(Element*);
+    static ExceptionOr<Ref<KeyframeEffect>> create(JSC::ExecState&, Element*, JSC::Strong<JSC::JSObject>&&);
     ~KeyframeEffect() { }
 
     Element* target() const { return m_target.get(); }
+    ExceptionOr<void> setKeyframes(JSC::ExecState&, JSC::Strong<JSC::JSObject>&&);
+    void getAnimatedStyle(std::unique_ptr<RenderStyle>& animatedStyle);
+    void applyAtLocalTime(Seconds, RenderStyle&) override;
+    void startOrStopAccelerated();
+    bool isRunningAccelerated() const { return m_startedAccelerated; }
+
+    RenderElement* renderer() const override;
+    const RenderStyle& currentStyle() const override;
+    bool isAccelerated() const override { return false; }
+    bool filterFunctionListsMatch() const override { return false; }
+    bool transformFunctionListsMatch() const override { return false; }
+#if ENABLE(FILTERS_LEVEL_2)
+    bool backdropFilterFunctionListsMatch() const override { return false; }
+#endif
 
 private:
     KeyframeEffect(Element*);
+    ExceptionOr<void> processKeyframes(JSC::ExecState&, JSC::Strong<JSC::JSObject>&&);
+    void computeStackingContextImpact();
+    bool shouldRunAccelerated();
+
     RefPtr<Element> m_target;
+    KeyframeList m_keyframes;
+    bool m_triggersStackingContext { false };
+    bool m_started { false };
+    bool m_startedAccelerated { false };
 
 };
 

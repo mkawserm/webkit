@@ -1,3 +1,198 @@
+2017-12-08  Konstantin Tokarev  <annulen@yandex.ru>
+
+        [python] Replace print operator with print() function for python3 compatibility
+        https://bugs.webkit.org/show_bug.cgi?id=180592
+
+        Reviewed by Michael Catanzaro.
+
+        * AVFoundationSupport.py:
+
+2017-12-08  Eric Carlson  <eric.carlson@apple.com>
+
+        Move Logger from PAL to WTF so it can be used outside of WebCore
+        https://bugs.webkit.org/show_bug.cgi?id=180561
+
+        Reviewed by Alex Christensen.
+
+        * PAL.xcodeproj/project.pbxproj:
+        * pal/Logger.h: Removed.
+        * pal/LoggerHelper.h: Removed.
+
+2017-12-07  Myles C. Maxfield  <mmaxfield@apple.com>
+
+        [Cocoa] Add SPI to disallow user-installed fonts
+        https://bugs.webkit.org/show_bug.cgi?id=180062
+        <rdar://problem/35042408>
+
+        Reviewed by Simon Fraser.
+
+        * pal/spi/cocoa/CoreTextSPI.h:
+
+2017-12-02  Darin Adler  <darin@apple.com>
+
+        Modernize some aspects of text codecs, eliminate WebKit use of strcasecmp
+        https://bugs.webkit.org/show_bug.cgi?id=180009
+
+        Reviewed by Alex Christensen.
+
+        * PAL.xcodeproj/project.pbxproj: Added UnencodableHandling.h.
+        * pal/text/UnencodableHandling.h: Moved the UnencodableHandling enumeration
+        here from TextCodec.h and changed it to an enum class.
+
+2017-12-04  David Quesada  <david_quesada@apple.com>
+
+        Add a class for parsing application manifests
+        https://bugs.webkit.org/show_bug.cgi?id=177973
+        rdar://problem/34747949
+
+        Reviewed by Geoffrey Garen.
+
+        * Configurations/FeatureDefines.xcconfig: Add ENABLE_APPLICATION_MANIFEST feature flag.
+
+2017-12-04  Zan Dobersek  <zdobersek@igalia.com>
+
+        Unreviewed WPE build fix.
+
+        * pal/PlatformWPE.cmake: Use GLIB_INCLUDE_DIRS for building the PAL library.
+
+2017-12-04  Michael Catanzaro  <mcatanzaro@igalia.com>
+
+        [WPE][GTK] Implement PAL::SleepDisabler
+        https://bugs.webkit.org/show_bug.cgi?id=178485
+
+        Reviewed by Carlos Garcia Campos.
+
+        * pal/PlatformGTK.cmake:
+        * pal/PlatformWPE.cmake:
+        * pal/system/SleepDisabler.cpp:
+        * pal/system/glib/SleepDisablerGLib.cpp: Added.
+        (PAL::SleepDisabler::create):
+        (PAL::SleepDisablerGLib::SleepDisablerGLib):
+        (PAL::SleepDisablerGLib::~SleepDisablerGLib):
+        (PAL::SleepDisablerGLib::acquireInhibitor):
+        (PAL::SleepDisablerGLib::releaseInhibitor):
+        * pal/system/glib/SleepDisablerGLib.h: Added.
+
+2017-11-30  Stephan Szabo  <stephan.szabo@sony.com>
+
+        Make LegacyCustomProtocolManager optional for network process
+        https://bugs.webkit.org/show_bug.cgi?id=176230
+
+        Reviewed by Alex Christensen.
+
+        * Configurations/FeatureDefines.xcconfig:
+
+2017-11-29  Brent Fulgham  <bfulgham@apple.com>
+
+        Part 2: Adopt updated NSKeyed[Un]Archiver API when available
+        https://bugs.webkit.org/show_bug.cgi?id=180127
+        <rdar://problem/35710738>
+
+        Reviewed by Simon Fraser.
+
+        The API that accepts a user-allocated NSMutableData is deprecated. Switch (for macOS 10.12 and newer)
+        to the modern API. Use the original API for macOS builds prior to 10.12.
+
+        * pal/spi/cocoa/NSKeyedArchiverSPI.h:
+        (secureArchiver): Added.
+        (secureArchiverFromMutableData): Deleted.
+
+2017-11-29  Alex Christensen  <achristensen@webkit.org>
+
+        Fix Mac CMake build.
+
+        * pal/PlatformMac.cmake:
+
+2017-11-28  Brent Fulgham  <bfulgham@apple.com>
+
+        Adopt updated NSKeyed[Un]Archiver API when available
+        https://bugs.webkit.org/show_bug.cgi?id=180127
+        <rdar://problem/35710738>
+
+        Reviewed by Alex Christensen.
+
+        Add new convenience methods (and SPI headers) so we can adopt new NSKeyedArchiver
+        API that uses secure coding by default.
+
+        * PAL.xcodeproj/project.pbxproj:
+        * pal/spi/cocoa/NSKeyedArchiverSPI.h: Added.
+        (securelyArchivedDataWithRootObject): New convenience method.
+        (securelyUnarchiveRootObjectOfClassFromData): Ditto.
+        (secureArchiverFromMutableData): Ditto.
+        (secureUnarchiverFromData): Ditto.
+
+2017-11-28  Tim Horton  <timothy_horton@apple.com>
+
+        REGRESSION (High Sierra): Layout Test fast/multicol/newmulticol/spanner2.html is a flaky image failure on WK1
+        https://bugs.webkit.org/show_bug.cgi?id=177826
+        <rdar://problem/34876498>
+
+        Reviewed by Alexey Proskuryakov.
+
+        * pal/spi/cg/CoreGraphicsSPI.h:
+
+2017-11-27  Tim Horton  <timothy_horton@apple.com>
+
+        One too many zeroes in macOS version number in FeatureDefines
+        https://bugs.webkit.org/show_bug.cgi?id=180011
+
+        Reviewed by Dan Bernstein.
+
+        * Configurations/FeatureDefines.xcconfig:
+
+2017-11-19  Tim Horton  <timothy_horton@apple.com>
+
+        Remove unused TOUCH_ICON_LOADING feature flag
+        https://bugs.webkit.org/show_bug.cgi?id=179873
+
+        Reviewed by Simon Fraser.
+
+        * Configurations/FeatureDefines.xcconfig:
+
+2017-11-19  Tim Horton  <timothy_horton@apple.com>
+
+        Remove unused LEGACY_VENDOR_PREFIXES feature flag
+        https://bugs.webkit.org/show_bug.cgi?id=179872
+
+        Reviewed by Darin Adler.
+
+        * Configurations/FeatureDefines.xcconfig:
+
+2017-11-16  Daniel Bates  <dabates@apple.com>
+
+        Add feature define for alternative presentation button element
+        https://bugs.webkit.org/show_bug.cgi?id=179692
+        Part of <rdar://problem/34917108>
+
+        Reviewed by Andy Estes.
+
+        Only enabled on Cocoa platforms by default.
+
+        * Configurations/FeatureDefines.xcconfig:
+
+2017-11-14  Daniel Bates  <dabates@apple.com>
+
+        Update comment in FeatureDefines.xcconfig to reflect location of Visual Studio property files
+        for feature defines
+
+        Following r195498 and r201917 the Visual Studio property files for feature defines have
+        moved from directory WebKitLibraries/win/tools/vsprops to directory Source/cmake/tools/vsprops.
+        Update the comment in FeatureDefines.xcconfig to reflect the new location and names of these
+        files.
+
+        * Configurations/FeatureDefines.xcconfig:
+
+2017-11-08  Keith Miller  <keith_miller@apple.com>
+
+        Async iteration should only fetch the next method once and add feature flag
+        https://bugs.webkit.org/show_bug.cgi?id=179451
+
+        Reviewed by Geoffrey Garen.
+
+        Add feature flag for Async iteration.
+
+        * Configurations/FeatureDefines.xcconfig:
+
 2017-11-10  John Wilander  <wilander@apple.com>
 
         Ignore HSTS for partitioned, cross-origin subresource requests

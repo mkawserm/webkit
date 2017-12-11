@@ -102,18 +102,19 @@ class AbstractEarlyWarningSystem(AbstractReviewQueue, EarlyWarningSystemTaskDele
             succeeded = task.run()
             if not succeeded:
                 # Caller unlocks when review_patch returns True, so we only need to unlock on transient failure.
+                # Unlocking the patch would result in patch being re-tried.
                 self._unlock_patch(patch)
             return succeeded
         except PatchIsNotValid as error:
             self._did_error(patch, "%s did not process patch. Reason: %s" % (self.name, error.failure_message))
             return False
-        except UnableToApplyPatch, e:
+        except UnableToApplyPatch as e:
             self._did_error(patch, "%s unable to apply patch." % self.name)
             return False
-        except PatchIsNotApplicable, e:
+        except PatchIsNotApplicable as e:
             self._did_skip(patch)
             return False
-        except ScriptError, e:
+        except ScriptError as e:
             self._post_reject_message_on_bug(self._tool, patch, task.failure_status_id, self._failing_tests_message(task, patch))
             results_archive = task.results_archive_from_patch_test_run(patch)
             if results_archive:

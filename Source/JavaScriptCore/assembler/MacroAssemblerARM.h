@@ -128,6 +128,13 @@ public:
         m_assembler.adds(dest, src, m_assembler.getImm(imm.m_value, ARMRegisters::S0));
     }
 
+    void getEffectiveAddress(BaseIndex address, RegisterID dest)
+    {
+        m_assembler.add(dest, address.base, m_assembler.lsl(address.index, static_cast<int>(address.scale)));
+        if (address.offset)
+            add32(TrustedImm32(address.offset), dest);
+    }
+
     void and32(RegisterID src, RegisterID dest)
     {
         m_assembler.bitAnds(dest, dest, src);
@@ -215,6 +222,11 @@ public:
     void neg32(RegisterID srcDest)
     {
         m_assembler.rsbs(srcDest, srcDest, ARMAssembler::getOp2Byte(0));
+    }
+
+    void neg32(RegisterID src, RegisterID dest)
+    {
+        m_assembler.rsbs(dest, src, ARMAssembler::getOp2Byte(0));
     }
 
     void or32(RegisterID src, RegisterID dest)
@@ -1413,17 +1425,6 @@ public:
         ARMWord w = ARMAssembler::getOp2(0x80000000);
         ASSERT(w != ARMAssembler::InvalidImmediate);
         m_assembler.cmp(ARMRegisters::S0, w);
-        return Jump(m_assembler.jmp(branchType == BranchIfTruncateFailed ? ARMAssembler::EQ : ARMAssembler::NE));
-    }
-
-    Jump branchTruncateDoubleToUint32(FPRegisterID src, RegisterID dest, BranchTruncateType branchType = BranchIfTruncateFailed)
-    {
-        truncateDoubleToUint32(src, dest);
-
-        m_assembler.add(ARMRegisters::S0, dest, ARMAssembler::getOp2Byte(1));
-        m_assembler.bic(ARMRegisters::S0, ARMRegisters::S0, ARMAssembler::getOp2Byte(1));
-
-        m_assembler.cmp(ARMRegisters::S0, ARMAssembler::getOp2Byte(0));
         return Jump(m_assembler.jmp(branchType == BranchIfTruncateFailed ? ARMAssembler::EQ : ARMAssembler::NE));
     }
 

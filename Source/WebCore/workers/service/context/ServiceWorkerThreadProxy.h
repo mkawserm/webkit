@@ -47,14 +47,20 @@ struct ServiceWorkerContextData;
 
 class ServiceWorkerThreadProxy final : public ThreadSafeRefCounted<ServiceWorkerThreadProxy>, public WorkerLoaderProxy, public WorkerDebuggerProxy {
 public:
-    WEBCORE_EXPORT static Ref<ServiceWorkerThreadProxy> create(PageConfiguration&&, uint64_t serverConnectionIdentifier, const ServiceWorkerContextData&, PAL::SessionID, CacheStorageProvider&);
+    template<typename... Args> static Ref<ServiceWorkerThreadProxy> create(Args&&... args)
+    {
+        return adoptRef(*new ServiceWorkerThreadProxy(std::forward<Args>(args)...));
+    }
 
     ServiceWorkerIdentifier identifier() const { return m_serviceWorkerThread->identifier(); }
     ServiceWorkerThread& thread() { return m_serviceWorkerThread.get(); }
     ServiceWorkerInspectorProxy& inspectorProxy() { return m_inspectorProxy; }
 
+    bool isTerminatingOrTerminated() const { return m_isTerminatingOrTerminated; }
+    void setTerminatingOrTerminated(bool terminating) { m_isTerminatingOrTerminated = terminating; }
+
 private:
-    ServiceWorkerThreadProxy(PageConfiguration&&, uint64_t serverConnectionIdentifier, const ServiceWorkerContextData&, PAL::SessionID, CacheStorageProvider&);
+    WEBCORE_EXPORT ServiceWorkerThreadProxy(PageConfiguration&&, const ServiceWorkerContextData&, PAL::SessionID, String&& userAgent, CacheStorageProvider&);
 
     // WorkerLoaderProxy
     bool postTaskForModeToWorkerGlobalScope(ScriptExecutionContext::Task&&, const String& mode) final;
@@ -63,6 +69,7 @@ private:
 
     // WorkerDebuggerProxy
     void postMessageToDebugger(const String&) final;
+    void setResourceCachingDisabled(bool) final;
 
     UniqueRef<Page> m_page;
     Ref<Document> m_document;
@@ -70,6 +77,8 @@ private:
     CacheStorageProvider& m_cacheStorageProvider;
     RefPtr<CacheStorageConnection> m_cacheStorageConnection;
     PAL::SessionID m_sessionID;
+    bool m_isTerminatingOrTerminated { false };
+
     ServiceWorkerInspectorProxy m_inspectorProxy;
 #if ENABLE(REMOTE_INSPECTOR)
     std::unique_ptr<ServiceWorkerDebuggable> m_remoteDebuggable;

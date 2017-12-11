@@ -23,6 +23,7 @@
 
 #include "RuleFeature.h"
 #include "SelectorCompiler.h"
+#include "SelectorFilter.h"
 #include "StyleRule.h"
 #include <wtf/Forward.h>
 #include <wtf/HashMap.h>
@@ -31,11 +32,6 @@
 
 namespace WebCore {
 
-enum AddRuleFlags {
-    RuleHasNoSpecialState         = 0,
-    RuleHasDocumentSecurityOrigin = 1,
-};
-    
 enum PropertyWhitelistType {
     PropertyWhitelistNone   = 0,
     PropertyWhitelistMarker,
@@ -63,7 +59,7 @@ class RuleData {
 public:
     static const unsigned maximumSelectorComponentCount = 8192;
 
-    RuleData(StyleRule*, unsigned selectorIndex, unsigned position, AddRuleFlags);
+    RuleData(StyleRule*, unsigned selectorIndex, unsigned position);
 
     unsigned position() const { return m_position; }
     StyleRule* rule() const { return m_rule.get(); }
@@ -74,11 +70,8 @@ public:
     MatchBasedOnRuleHash matchBasedOnRuleHash() const { return static_cast<MatchBasedOnRuleHash>(m_matchBasedOnRuleHash); }
     bool containsUncommonAttributeSelector() const { return m_containsUncommonAttributeSelector; }
     unsigned linkMatchType() const { return m_linkMatchType; }
-    bool hasDocumentSecurityOrigin() const { return m_hasDocumentSecurityOrigin; }
     PropertyWhitelistType propertyWhitelistType() const { return static_cast<PropertyWhitelistType>(m_propertyWhitelistType); }
-    // Try to balance between memory usage (there can be lots of RuleData objects) and good filtering performance.
-    static const unsigned maximumIdentifierCount = 4;
-    const unsigned* descendantSelectorIdentifierHashes() const { return m_descendantSelectorIdentifierHashes; }
+    const SelectorFilter::Hashes& descendantSelectorIdentifierHashes() const { return m_descendantSelectorIdentifierHashes; }
 
     void disableSelectorFiltering() { m_descendantSelectorIdentifierHashes[0] = 0; }
 
@@ -103,7 +96,6 @@ public:
 private:
     RefPtr<StyleRule> m_rule;
     unsigned m_selectorIndex : 13;
-    unsigned m_hasDocumentSecurityOrigin : 1;
     // This number was picked fairly arbitrarily. We can probably lower it if we need to.
     // Some simple testing showed <100,000 RuleData's on large sites.
     unsigned m_position : 18;
@@ -112,8 +104,7 @@ private:
     unsigned m_containsUncommonAttributeSelector : 1;
     unsigned m_linkMatchType : 2; //  SelectorChecker::LinkMatchMask
     unsigned m_propertyWhitelistType : 2;
-    // Use plain array instead of a Vector to minimize memory overhead.
-    unsigned m_descendantSelectorIdentifierHashes[maximumIdentifierCount];
+    SelectorFilter::Hashes m_descendantSelectorIdentifierHashes;
 #if ENABLE(CSS_SELECTOR_JIT)
     mutable SelectorCompilationStatus m_compilationStatus;
     mutable JSC::MacroAssemblerCodeRef m_compiledSelectorCodeRef;
@@ -160,8 +151,8 @@ public:
 
     void addRulesFromSheet(StyleSheetContents&, const MediaQueryEvaluator&, StyleResolver* = 0);
 
-    void addStyleRule(StyleRule*, AddRuleFlags);
-    void addRule(StyleRule*, unsigned selectorIndex, AddRuleFlags);
+    void addStyleRule(StyleRule*);
+    void addRule(StyleRule*, unsigned selectorIndex);
     void addPageRule(StyleRulePage*);
     void addToRuleSet(const AtomicString& key, AtomRuleMap&, const RuleData&);
     void shrinkToFit();
@@ -190,7 +181,7 @@ public:
     bool hasHostPseudoClassRulesMatchingInShadowTree() const { return m_hasHostPseudoClassRulesMatchingInShadowTree; }
 
 private:
-    void addChildRules(const Vector<RefPtr<StyleRuleBase>>&, const MediaQueryEvaluator& medium, StyleResolver*, bool hasDocumentSecurityOrigin, bool isInitiatingElementInUserAgentShadowTree, AddRuleFlags);
+    void addChildRules(const Vector<RefPtr<StyleRuleBase>>&, const MediaQueryEvaluator& medium, StyleResolver*, bool isInitiatingElementInUserAgentShadowTree);
 
     AtomRuleMap m_idRules;
     AtomRuleMap m_classRules;

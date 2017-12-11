@@ -30,6 +30,7 @@
 #include "ResourceResponse.h"
 #include "ServiceWorkerJobClient.h"
 #include "ServiceWorkerJobData.h"
+#include "ServiceWorkerTypes.h"
 #include "WorkerScriptLoader.h"
 #include "WorkerScriptLoaderClient.h"
 #include <wtf/RefPtr.h>
@@ -55,14 +56,19 @@ public:
     WEBCORE_EXPORT ~ServiceWorkerJob();
 
     void failedWithException(const Exception&);
-    void resolvedWithRegistration(ServiceWorkerRegistrationData&&, WTF::Function<void()>&& promiseResolvedHandler);
+    void resolvedWithRegistration(ServiceWorkerRegistrationData&&, ShouldNotifyWhenResolved);
     void resolvedWithUnregistrationResult(bool);
     void startScriptFetch();
+
+    using Identifier = ServiceWorkerJobIdentifier;
+    Identifier identifier() const { return m_jobData.identifier().jobIdentifier; }
 
     ServiceWorkerJobData data() const { return m_jobData; }
     DeferredPromise& promise() { return m_promise.get(); }
 
     void fetchScriptWithContext(ScriptExecutionContext&);
+
+    const DocumentOrWorkerIdentifier& contextIdentifier() { return m_contextIdentifier; }
 
 private:
     ServiceWorkerJob(ServiceWorkerJobClient&, Ref<DeferredPromise>&&, ServiceWorkerJobData&&);
@@ -79,12 +85,12 @@ private:
 
     bool m_completed { false };
 
-    Ref<RunLoop> m_runLoop { RunLoop::current() };
+    DocumentOrWorkerIdentifier m_contextIdentifier;
     RefPtr<WorkerScriptLoader> m_scriptLoader;
     ResourceResponse m_lastResponse;
 
 #if !ASSERT_DISABLED
-    ThreadIdentifier m_creationThread { currentThread() };
+    Ref<Thread> m_creationThread { Thread::current() };
 #endif
 };
 

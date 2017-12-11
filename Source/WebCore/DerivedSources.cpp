@@ -36,6 +36,7 @@
 #include "JSANGLEInstancedArrays.cpp"
 #endif
 #include "JSAbstractWorker.cpp"
+#include "JSAccessibleNode.cpp"
 #include "JSAnimationEvent.cpp"
 #include "JSAttr.cpp"
 #include "JSBarProp.cpp"
@@ -612,6 +613,7 @@
 #endif
 #include "JSValidityState.cpp"
 #include "JSVideoPlaybackQuality.cpp"
+#include "JSVisualViewport.cpp"
 #include "JSVoidCallback.cpp"
 #include "JSWaveShaperNode.cpp"
 #include "JSWebKitAnimationEvent.cpp"

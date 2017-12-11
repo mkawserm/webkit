@@ -27,7 +27,11 @@
 
 #if ENABLE(SERVICE_WORKER)
 
+#include "DocumentIdentifier.h"
+#include "ServiceWorkerIdentifier.h"
+#include <wtf/EnumTraits.h>
 #include <wtf/ObjectIdentifier.h>
+#include <wtf/Variant.h>
 
 namespace WebCore {
 
@@ -45,11 +49,71 @@ enum class ServiceWorkerState {
     Redundant,
 };
 
+enum class ServiceWorkerClientFrameType {
+    Auxiliary,
+    TopLevel,
+    Nested,
+    None
+};
+
 enum class ShouldNotifyWhenResolved { No, Yes };
 
 enum ServiceWorkerRegistrationIdentifierType { };
 using ServiceWorkerRegistrationIdentifier = ObjectIdentifier<ServiceWorkerRegistrationIdentifierType>;
 
+enum ServiceWorkerJobIdentifierType { };
+using ServiceWorkerJobIdentifier = ObjectIdentifier<ServiceWorkerJobIdentifierType>;
+
+enum SWServerToContextConnectionIdentifierType { };
+using SWServerToContextConnectionIdentifier = ObjectIdentifier<SWServerToContextConnectionIdentifierType>;
+
+enum SWServerConnectionIdentifierType { };
+using SWServerConnectionIdentifier = ObjectIdentifier<SWServerConnectionIdentifierType>;
+
+using DocumentOrWorkerIdentifier = Variant<DocumentIdentifier, ServiceWorkerIdentifier>;
+
 } // namespace WebCore
+
+namespace WTF {
+
+template <> struct EnumTraits<WebCore::ServiceWorkerClientFrameType> {
+    using values = EnumValues<
+        WebCore::ServiceWorkerClientFrameType,
+        WebCore::ServiceWorkerClientFrameType::Auxiliary,
+        WebCore::ServiceWorkerClientFrameType::TopLevel,
+        WebCore::ServiceWorkerClientFrameType::Nested,
+        WebCore::ServiceWorkerClientFrameType::None
+    >;
+};
+
+template <> struct EnumTraits<WebCore::ServiceWorkerRegistrationState> {
+    using values = EnumValues<
+        WebCore::ServiceWorkerRegistrationState,
+        WebCore::ServiceWorkerRegistrationState::Installing,
+        WebCore::ServiceWorkerRegistrationState::Waiting,
+        WebCore::ServiceWorkerRegistrationState::Active
+    >;
+};
+
+template <> struct EnumTraits<WebCore::ServiceWorkerState> {
+    using values = EnumValues<
+        WebCore::ServiceWorkerState,
+        WebCore::ServiceWorkerState::Installing,
+        WebCore::ServiceWorkerState::Installed,
+        WebCore::ServiceWorkerState::Activating,
+        WebCore::ServiceWorkerState::Activated,
+        WebCore::ServiceWorkerState::Redundant
+    >;
+};
+
+template <> struct EnumTraits<WebCore::ShouldNotifyWhenResolved> {
+    using values = EnumValues<
+        WebCore::ShouldNotifyWhenResolved,
+        WebCore::ShouldNotifyWhenResolved::No,
+        WebCore::ShouldNotifyWhenResolved::Yes
+    >;
+};
+
+} // namespace WTF
 
 #endif // ENABLE(SERVICE_WORKER)

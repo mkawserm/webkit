@@ -58,10 +58,22 @@ private:
     IsoTLS();
     
     template<typename Config, typename Type>
-    static IsoAllocator<Config>& allocator(api::IsoHeap<Type>&);
+    static void* allocateImpl(api::IsoHeap<Type>&, bool abortOnFailure);
+    
+    template<typename Config>
+    void* allocateFast(unsigned offset, bool abortOnFailure);
     
     template<typename Config, typename Type>
-    static IsoDeallocator<Config>& deallocator(api::IsoHeap<Type>&);
+    static void* allocateSlow(api::IsoHeap<Type>&, bool abortOnFailure);
+    
+    template<typename Config, typename Type>
+    static void deallocateImpl(api::IsoHeap<Type>&, void* p);
+    
+    template<typename Config>
+    void deallocateFast(unsigned offset, void* p);
+    
+    template<typename Config, typename Type>
+    static void deallocateSlow(api::IsoHeap<Type>&, void* p);
     
     static IsoTLS* get();
     static void set(IsoTLS*);
@@ -80,6 +92,16 @@ private:
     
     template<typename Func>
     void forEachEntry(const Func&);
+    
+    static bool isUsingDebugHeap();
+    
+    struct DebugMallocResult {
+        void* ptr { nullptr };
+        bool usingDebugHeap { false };
+    };
+    
+    BEXPORT static DebugMallocResult debugMalloc(size_t);
+    BEXPORT static bool debugFree(void*);
     
     IsoTLSEntry* m_lastEntry { nullptr };
     unsigned m_extent { 0 };

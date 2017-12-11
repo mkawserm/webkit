@@ -382,7 +382,7 @@ ALWAYS_INLINE Structure* JSObject::visitButterflyImpl(SlotVisitor& visitor)
     structure = vm.getStructure(structureID);
     lastOffset = structure->lastOffset();
     IndexingType indexingType = structure->indexingType();
-    Dependency indexingTypeDependency = dependency(indexingType);
+    Dependency indexingTypeDependency = Dependency::fence(indexingType);
     Locker<JSCell> locker(NoLockingNecessary);
     switch (indexingType) {
     case ALL_CONTIGUOUS_INDEXING_TYPES:
@@ -396,13 +396,13 @@ ALWAYS_INLINE Structure* JSObject::visitButterflyImpl(SlotVisitor& visitor)
     default:
         break;
     }
-    butterfly = consume(this, indexingTypeDependency)->butterfly();
-    Dependency butterflyDependency = dependency(butterfly);
+    butterfly = indexingTypeDependency.consume(this)->butterfly();
+    Dependency butterflyDependency = Dependency::fence(butterfly);
     if (!butterfly)
         return structure;
-    if (consume(this, butterflyDependency)->structureID() != structureID)
+    if (butterflyDependency.consume(this)->structureID() != structureID)
         return nullptr;
-    if (consume(structure, butterflyDependency)->lastOffset() != lastOffset)
+    if (butterflyDependency.consume(structure)->lastOffset() != lastOffset)
         return nullptr;
     
     markAuxiliaryAndVisitOutOfLineProperties(visitor, butterfly, structure, lastOffset);
@@ -1603,6 +1603,14 @@ ArrayStorage* JSObject::ensureArrayStorageExistsAndEnterDictionaryIndexingMode(V
 void JSObject::switchToSlowPutArrayStorage(VM& vm)
 {
     switch (indexingType()) {
+    case ArrayClass:
+        ensureArrayStorage(vm);
+        RELEASE_ASSERT(hasAnyArrayStorage(indexingType()));
+        if (hasSlowPutArrayStorage(indexingType()))
+            return;
+        switchToSlowPutArrayStorage(vm);
+        break;
+
     case ALL_UNDECIDED_INDEXING_TYPES:
         convertUndecidedToArrayStorage(vm, NonPropertyTransition::AllocateSlowPutArrayStorage);
         break;
@@ -3173,7 +3181,7 @@ bool JSObject::increaseVectorLength(VM& vm, unsigned newLength)
 
 bool JSObject::ensureLengthSlow(VM& vm, unsigned length)
 {
-    Butterfly* butterfly = this->butterfly()->caged();
+    Butterfly* butterfly = this->butterfly();
     
     ASSERT(length <= MAX_STORAGE_VECTOR_LENGTH);
     ASSERT(hasContiguous(indexingType()) || hasInt32(indexingType()) || hasDouble(indexingType()) || hasUndecided(indexingType()));
@@ -3233,7 +3241,7 @@ void JSObject::reallocateAndShrinkButterfly(VM& vm, unsigned length)
     ASSERT(!m_butterfly->indexingHeader()->preCapacity(structure()));
 
     DeferGC deferGC(vm.heap);
-    Butterfly* newButterfly = butterfly()->caged()->resizeArray(vm, this, structure(), 0, ArrayStorage::sizeFor(length));
+    Butterfly* newButterfly = butterfly()->resizeArray(vm, this, structure(), 0, ArrayStorage::sizeFor(length));
     newButterfly->setVectorLength(length);
     newButterfly->setPublicLength(length);
     WTF::storeStoreFence();

@@ -127,6 +127,26 @@ WebChromeClient::WebChromeClient(WebPage& page)
 {
 }
 
+void WebChromeClient::didInsertMenuElement(HTMLMenuElement& element)
+{
+    m_page.didInsertMenuElement(element);
+}
+
+void WebChromeClient::didRemoveMenuElement(HTMLMenuElement& element)
+{
+    m_page.didRemoveMenuElement(element);
+}
+
+void WebChromeClient::didInsertMenuItemElement(HTMLMenuItemElement& element)
+{
+    m_page.didInsertMenuItemElement(element);
+}
+
+void WebChromeClient::didRemoveMenuItemElement(HTMLMenuItemElement& element)
+{
+    m_page.didRemoveMenuItemElement(element);
+}
+
 inline WebChromeClient::~WebChromeClient()
 {
 }
@@ -1169,6 +1189,18 @@ void WebChromeClient::handleAutoFillButtonClick(HTMLInputElement& inputElement)
     m_page.send(Messages::WebPageProxy::HandleAutoFillButtonClick(UserData(WebProcess::singleton().transformObjectsToHandles(userData.get()).get())));
 }
 
+void WebChromeClient::handleAlternativePresentationButtonClick(Node& node)
+{
+    RefPtr<API::Object> userData;
+
+    // Notify the bundle client.
+    auto nodeHandle = InjectedBundleNodeHandle::getOrCreate(node);
+    m_page.injectedBundleUIClient().didClickAlternativePresentationButton(m_page, nodeHandle.get(), userData);
+
+    // Notify the UIProcess.
+    m_page.send(Messages::WebPageProxy::HandleAlternativePresentationButtonClick(UserData(WebProcess::singleton().transformObjectsToHandles(userData.get()).get())));
+}
+
 #if ENABLE(WIRELESS_PLAYBACK_TARGET) && !PLATFORM(IOS)
 
 void WebChromeClient::addPlaybackTargetPickerClient(uint64_t contextId)
@@ -1224,7 +1256,12 @@ void WebChromeClient::didInvalidateDocumentMarkerRects()
     m_page.findController().didInvalidateDocumentMarkerRects();
 }
 
-void WebChromeClient::requestStorageAccess(String&& subFrameHost, String&& topFrameHost, WTF::Function<void (bool)>&& callback)
+void WebChromeClient::hasStorageAccess(String&& subFrameHost, String&& topFrameHost, WTF::CompletionHandler<void (bool)>&& callback)
+{
+    m_page.hasStorageAccess(WTFMove(subFrameHost), WTFMove(topFrameHost), WTFMove(callback));
+}
+
+void WebChromeClient::requestStorageAccess(String&& subFrameHost, String&& topFrameHost, WTF::CompletionHandler<void (bool)>&& callback)
 {
     m_page.requestStorageAccess(WTFMove(subFrameHost), WTFMove(topFrameHost), WTFMove(callback));
 }

@@ -42,7 +42,6 @@
 #include "URL.h"
 #include <CoreMedia/CoreMedia.h>
 #include <heap/HeapInlines.h>
-#include <pal/Logger.h>
 #include <runtime/DataView.h>
 #include <runtime/TypedArrayInlines.h>
 #include <runtime/Uint16Array.h>
@@ -578,9 +577,9 @@ void MediaPlayerPrivateAVFoundation::updateStates()
         m_haveReportedFirstVideoFrame = false;
 
     if (m_networkState != newNetworkState)
-        ALWAYS_LOG(LOGIDENTIFIER, "entered with networkState ", static_cast<int>(m_networkState), ", exiting with ", static_cast<int>(newNetworkState));
+        ALWAYS_LOG(LOGIDENTIFIER, "entered with networkState ", m_networkState, ", exiting with ", newNetworkState);
     if (m_readyState != newReadyState)
-        ALWAYS_LOG(LOGIDENTIFIER, "entered with readyState ", static_cast<int>(m_readyState), ", exiting with ", static_cast<int>(newReadyState));
+        ALWAYS_LOG(LOGIDENTIFIER, "entered with readyState ", m_readyState, ", exiting with ", newReadyState);
 
     setNetworkState(newNetworkState);
     setReadyState(newReadyState);

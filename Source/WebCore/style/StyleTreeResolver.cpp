@@ -30,6 +30,7 @@
 #include "CSSFontSelector.h"
 #include "ComposedTreeAncestorIterator.h"
 #include "ComposedTreeIterator.h"
+#include "DocumentTimeline.h"
 #include "ElementIterator.h"
 #include "HTMLBodyElement.h"
 #include "HTMLMeterElement.h"
@@ -232,7 +233,7 @@ ElementUpdate TreeResolver::resolvePseudoStyle(Element& element, const ElementUp
     if (!elementUpdate.style->hasPseudoStyle(pseudoId))
         return { };
 
-    auto pseudoStyle = scope().styleResolver.pseudoStyleForElement(element, { pseudoId }, *elementUpdate.style);
+    auto pseudoStyle = scope().styleResolver.pseudoStyleForElement(element, { pseudoId }, *elementUpdate.style, &scope().selectorFilter);
     if (!pseudoStyle)
         return { };
 
@@ -244,15 +245,6 @@ ElementUpdate TreeResolver::resolvePseudoStyle(Element& element, const ElementUp
             element.setBeforePseudoElement(WTFMove(newPseudoElement));
         else
             element.setAfterPseudoElement(WTFMove(newPseudoElement));
-    }
-
-    if (pseudoStyle->display() == CONTENTS) {
-        // For display:contents we create an inline wrapper that inherits its style from the display:contents style.
-        auto contentsStyle = RenderStyle::createPtr();
-        contentsStyle->setStyleType(pseudoId);
-        contentsStyle->inheritFrom(*pseudoStyle);
-        contentsStyle->copyContentFrom(*pseudoStyle);
-        pseudoStyle = WTFMove(contentsStyle);
     }
 
     return createAnimatedElementUpdate(WTFMove(pseudoStyle), *pseudoElement, elementUpdate.change);
@@ -274,9 +266,20 @@ const RenderStyle* TreeResolver::parentBoxStyle() const
 
 ElementUpdate TreeResolver::createAnimatedElementUpdate(std::unique_ptr<RenderStyle> newStyle, Element& element, Change parentChange)
 {
+    auto* oldStyle = renderOrDisplayContentsStyle(element);
+
+    if (auto timeline = element.document().existingTimeline()) {
+        auto webAnimations = timeline->animationsForElement(element);
+        if (!webAnimations.isEmpty()) {
+            auto animatedStyle = RenderStyle::clonePtr(*newStyle);
+            for (const auto& animation : webAnimations)
+                animation->resolve(*animatedStyle);
+            newStyle = WTFMove(animatedStyle);
+        }
+    }
+
     auto& animationController = m_document.frame()->animation();
 
-    auto* oldStyle = renderOrDisplayContentsStyle(element);
     auto animationUpdate = animationController.updateAnimations(element, *newStyle, oldStyle);
 
     if (animationUpdate.style)

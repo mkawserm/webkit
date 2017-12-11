@@ -51,6 +51,7 @@
 #include "StyleTreeResolver.h"
 #include "SubframeLoader.h"
 #include "TypedElementDescendantIterator.h"
+#include "UserGestureIndicator.h"
 #include <runtime/CatchScope.h>
 
 namespace WebCore {
@@ -96,7 +97,7 @@ HTMLPlugInImageElement::HTMLPlugInImageElement(const QualifiedName& tagName, Doc
     : HTMLPlugInElement(tagName, document)
     , m_simulatedMouseClickTimer(*this, &HTMLPlugInImageElement::simulatedMouseClickTimerFired, simulatedMouseClickTimerDelay)
     , m_removeSnapshotTimer(*this, &HTMLPlugInImageElement::removeSnapshotTimerFired)
-    , m_createdDuringUserGesture(ScriptController::processingUserGesture())
+    , m_createdDuringUserGesture(UserGestureIndicator::processingUserGesture())
 {
     setHasCustomStyleResolveCallbacks();
 }
@@ -395,19 +396,19 @@ void HTMLPlugInImageElement::didAddUserAgentShadowRoot(ShadowRoot& root)
     scope.clearException();
 }
 
-bool HTMLPlugInImageElement::partOfSnapshotOverlay(const Node* node) const
+bool HTMLPlugInImageElement::partOfSnapshotOverlay(const EventTarget* target) const
 {
     static NeverDestroyed<AtomicString> selector(".snapshot-overlay", AtomicString::ConstructFromLiteral);
     auto shadow = userAgentShadowRoot();
     if (!shadow)
         return false;
-    if (!node)
+    if (!is<Node>(target))
         return false;
     auto queryResult = shadow->querySelector(selector.get());
     if (queryResult.hasException())
         return false;
     auto snapshotLabel = makeRefPtr(queryResult.releaseReturnValue());
-    return snapshotLabel && snapshotLabel->contains(node);
+    return snapshotLabel && snapshotLabel->contains(downcast<Node>(target));
 }
 
 void HTMLPlugInImageElement::removeSnapshotTimerFired()
@@ -639,7 +640,7 @@ void HTMLPlugInImageElement::subframeLoaderWillCreatePlugIn(const URL& url)
         return;
     }
 
-    if (ScriptController::processingUserGesture()) {
+    if (UserGestureIndicator::processingUserGesture()) {
         LOG(Plugins, "%p Script is currently processing user gesture, set to play", this);
         m_snapshotDecision = NeverSnapshot;
         return;

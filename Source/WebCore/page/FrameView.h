@@ -250,6 +250,8 @@ public:
     // Used with delegated scrolling (i.e. iOS).
     WEBCORE_EXPORT void setLayoutViewportOverrideRect(std::optional<LayoutRect>, TriggerLayoutOrNot = TriggerLayoutOrNot::Yes);
 
+    WEBCORE_EXPORT void setVisualViewportOverrideRect(std::optional<LayoutRect>);
+
     // These are in document coordinates, unaffected by page scale (but affected by zooming).
     WEBCORE_EXPORT LayoutRect layoutViewportRect() const;
     WEBCORE_EXPORT LayoutRect visualViewportRect() const;
@@ -273,8 +275,8 @@ public:
     void setIsOverlapped(bool);
     void setContentIsOpaque(bool);
 
-    void addSlowRepaintObject(RenderElement*);
-    void removeSlowRepaintObject(RenderElement*);
+    void addSlowRepaintObject(RenderElement&);
+    void removeSlowRepaintObject(RenderElement&);
     bool hasSlowRepaintObject(const RenderElement& renderer) const { return m_slowRepaintObjects && m_slowRepaintObjects->contains(&renderer); }
     bool hasSlowRepaintObjects() const { return m_slowRepaintObjects && m_slowRepaintObjects->size(); }
 
@@ -466,6 +468,7 @@ public:
     FloatSize documentToClientOffset() const;
     FloatRect documentToClientRect(FloatRect) const;
     FloatPoint documentToClientPoint(FloatPoint) const;
+    WEBCORE_EXPORT FloatRect clientToDocumentRect(FloatRect) const;
     WEBCORE_EXPORT FloatPoint clientToDocumentPoint(FloatPoint) const;
 
     FloatRect layoutViewportToAbsoluteRect(FloatRect) const;
@@ -741,6 +744,7 @@ private:
     void scrollPositionChanged(const ScrollPosition& oldPosition, const ScrollPosition& newPosition);
     void scrollableAreaSetChanged();
     void sendScrollEvent();
+    void resetScrollAnchor();
 
     bool hasCustomScrollbars() const;
 
@@ -820,6 +824,7 @@ private:
     
     LayoutPoint m_layoutViewportOrigin;
     std::optional<LayoutRect> m_layoutViewportOverrideRect;
+    std::optional<LayoutRect> m_visualViewportOverrideRect; // Used when the iOS keyboard is showing.
 
     RefPtr<Node> m_nodeToDraw;
     PaintBehavior m_paintBehavior;

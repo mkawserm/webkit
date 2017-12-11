@@ -94,7 +94,6 @@ class Extensions3DOpenGL;
 class HostWindow;
 class Image;
 class ImageBuffer;
-class ImageSource;
 class ImageData;
 class IntRect;
 class IntSize;
@@ -725,7 +724,6 @@ public:
     enum RenderStyle {
         RenderOffscreen,
         RenderDirectlyToHostWindow,
-        RenderToCurrentGLContext
     };
 
     class ContextLostCallback {
@@ -744,8 +742,11 @@ public:
     void setErrorMessageCallback(std::unique_ptr<ErrorMessageCallback>);
 
     static RefPtr<GraphicsContext3D> create(GraphicsContext3DAttributes, HostWindow*, RenderStyle = RenderOffscreen);
-    static RefPtr<GraphicsContext3D> createForCurrentGLContext();
     ~GraphicsContext3D();
+
+#if PLATFORM(COCOA)
+    static Ref<GraphicsContext3D> createShared(GraphicsContext3D& sharedContext);
+#endif
 
 #if PLATFORM(COCOA)
     PlatformGraphicsContext3D platformGraphicsContext3D() const { return m_contextObj; }
@@ -1264,7 +1265,6 @@ public:
         bool extractImage(bool premultiplyAlpha, bool ignoreGammaAndColorProfile);
 
 #if USE(CAIRO)
-        ImageSource* m_decoder;
         RefPtr<cairo_surface_t> m_imageSurface;
 #elif USE(CG)
         RetainPtr<CGImageRef> m_cgImage;
@@ -1291,7 +1291,7 @@ public:
     unsigned textureSeed(GC3Duint texture) { return m_state.textureSeedCount.count(texture); }
 
 private:
-    GraphicsContext3D(GraphicsContext3DAttributes, HostWindow*, RenderStyle = RenderOffscreen);
+    GraphicsContext3D(GraphicsContext3DAttributes, HostWindow*, RenderStyle = RenderOffscreen, GraphicsContext3D* sharedContext = nullptr);
 
     // Helper for packImageData/extractImageData/extractTextureData which implement packing of pixel
     // data into the specified OpenGL destination format and type.

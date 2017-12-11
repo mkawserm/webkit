@@ -411,6 +411,7 @@ WKRetainPtr<WKContextConfigurationRef> TestController::generateContextConfigurat
         WKContextConfigurationSetApplicationCacheDirectory(configuration.get(), toWK(temporaryFolder + separator + "ApplicationCache").get());
         WKContextConfigurationSetDiskCacheDirectory(configuration.get(), toWK(temporaryFolder + separator + "Cache").get());
         WKContextConfigurationSetIndexedDBDatabaseDirectory(configuration.get(), toWK(temporaryFolder + separator + "Databases" + separator + "IndexedDB").get());
+        WKContextConfigurationSetServiceWorkerDatabaseDirectory(configuration.get(), toWK(temporaryFolder + separator + "ServiceWorkers").get());
         WKContextConfigurationSetLocalStorageDirectory(configuration.get(), toWK(temporaryFolder + separator + "LocalStorage").get());
         WKContextConfigurationSetWebSQLDatabaseDirectory(configuration.get(), toWK(temporaryFolder + separator + "Databases" + separator + "WebSQL").get());
         WKContextConfigurationSetMediaKeysStorageDirectory(configuration.get(), toWK(temporaryFolder + separator + "MediaKeys").get());
@@ -681,7 +682,6 @@ void TestController::resetPreferencesToConsistentValues(const TestOptions& optio
     WKPreferencesSetArtificialPluginInitializationDelayEnabled(preferences, false);
     WKPreferencesSetTabToLinksEnabled(preferences, false);
     WKPreferencesSetInteractiveFormValidationEnabled(preferences, true);
-    WKPreferencesSetDisplayContentsEnabled(preferences, true);
     WKPreferencesSetDataTransferItemsEnabled(preferences, true);
     WKPreferencesSetCustomPasteboardDataEnabled(preferences, true);
 
@@ -721,7 +721,7 @@ void TestController::resetPreferencesToConsistentValues(const TestOptions& optio
     WKPreferencesSetHiddenPageDOMTimerThrottlingEnabled(preferences, false);
     WKPreferencesSetHiddenPageCSSAnimationSuspensionEnabled(preferences, false);
 
-    WKPreferencesSetAcceleratedDrawingEnabled(preferences, m_shouldUseAcceleratedDrawing);
+    WKPreferencesSetAcceleratedDrawingEnabled(preferences, m_shouldUseAcceleratedDrawing || options.useAcceleratedDrawing);
     // FIXME: We should be testing the default.
     WKPreferencesSetStorageBlockingPolicy(preferences, kWKAllowAllStorage);
 
@@ -742,6 +742,8 @@ void TestController::resetPreferencesToConsistentValues(const TestOptions& optio
     WKPreferencesSetInspectorAdditionsEnabled(preferences, options.enableInspectorAdditions);
 
     WKPreferencesSetStorageAccessAPIEnabled(preferences, true);
+    
+    WKPreferencesSetAccessibilityObjectModelEnabled(preferences, true);
 
     platformResetPreferencesToConsistentValues();
 }
@@ -981,6 +983,13 @@ static bool parseBooleanTestHeaderValue(const std::string& value)
     return false;
 }
 
+static std::string parseStringTestHeaderValueAsRelativePath(const std::string& value, const std::string& pathOrURL)
+{
+    WKRetainPtr<WKURLRef> baseURL(AdoptWK, createTestURL(pathOrURL.c_str()));
+    WKRetainPtr<WKURLRef> relativeURL(AdoptWK, WKURLCreateWithBaseURL(baseURL.get(), value.c_str()));
+    return toSTD(adoptWK(WKURLCopyPath(relativeURL.get())));
+}
+
 static void updateTestOptionsFromTestHeader(TestOptions& testOptions, const std::string& pathOrURL, const std::string& absolutePath)
 {
     std::string filename = absolutePath;
@@ -1025,6 +1034,8 @@ static void updateTestOptionsFromTestHeader(TestOptions& testOptions, const std:
             String(value.c_str()).split(",", false, testOptions.overrideLanguages);
         if (key == "useThreadedScrolling")
             testOptions.useThreadedScrolling = parseBooleanTestHeaderValue(value);
+        if (key == "useAcceleratedDrawing")
+            testOptions.useAcceleratedDrawing = parseBooleanTestHeaderValue(value);
         if (key == "useFlexibleViewport")
             testOptions.useFlexibleViewport = parseBooleanTestHeaderValue(value);
         if (key == "useDataDetection")
@@ -1055,6 +1066,8 @@ static void updateTestOptionsFromTestHeader(TestOptions& testOptions, const std:
             testOptions.enableInspectorAdditions = parseBooleanTestHeaderValue(value);
         if (key == "dumpJSConsoleLogInStdErr")
             testOptions.dumpJSConsoleLogInStdErr = parseBooleanTestHeaderValue(value);
+        if (key == "applicationManifest")
+            testOptions.applicationManifest = parseStringTestHeaderValueAsRelativePath(value, pathOrURL);
         pairStart = pairEnd + 1;
     }
 }
@@ -2271,6 +2284,11 @@ void TestController::terminateNetworkProcess()
     WKContextTerminateNetworkProcess(platformContext());
 }
 
+void TestController::terminateServiceWorkerProcess()
+{
+    WKContextTerminateServiceWorkerProcess(platformContext());
+}
+
 #if !PLATFORM(COCOA)
 void TestController::platformWillRunTest(const TestInvocation&)
 {
@@ -2479,6 +2497,12 @@ void TestController::setStatisticsHasHadUserInteraction(WKStringRef host, bool v
 {
     auto* dataStore = WKContextGetWebsiteDataStore(platformContext());
     WKWebsiteDataStoreSetStatisticsHasHadUserInteraction(dataStore, host, value);
+}
+
+void TestController::setStatisticsHasHadNonRecentUserInteraction(WKStringRef host)
+{
+    auto* dataStore = WKContextGetWebsiteDataStore(platformContext());
+    WKWebsiteDataStoreSetStatisticsHasHadNonRecentUserInteraction(dataStore, host);
 }
 
 bool TestController::isStatisticsHasHadUserInteraction(WKStringRef host)

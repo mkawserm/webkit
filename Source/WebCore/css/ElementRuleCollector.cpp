@@ -464,7 +464,7 @@ void ElementRuleCollector::collectMatchingRulesForList(const RuleSet::RuleDataVe
         if (!ruleData.canMatchPseudoElement() && m_pseudoStyleRequest.pseudoId != NOPSEUDO)
             continue;
 
-        if (m_selectorFilter && m_selectorFilter->fastRejectSelector<RuleData::maximumIdentifierCount>(ruleData.descendantSelectorIdentifierHashes()))
+        if (m_selectorFilter && m_selectorFilter->fastRejectSelector(ruleData.descendantSelectorIdentifierHashes()))
             continue;
 
         StyleRule* rule = ruleData.rule();
@@ -474,10 +474,6 @@ void ElementRuleCollector::collectMatchingRulesForList(const RuleSet::RuleDataVe
         // and that means we always have to consider it.
         const StyleProperties* properties = rule->propertiesWithoutDeferredParsing();
         if (properties && properties->isEmpty() && !matchRequest.includeEmptyRules)
-            continue;
-
-        // FIXME: Exposing the non-standard getMatchedCSSRules API to web is the only reason this is needed.
-        if (m_sameOriginOnly && !ruleData.hasDocumentSecurityOrigin())
             continue;
 
         unsigned specificity;

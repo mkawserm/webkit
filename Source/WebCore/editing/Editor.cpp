@@ -109,6 +109,11 @@
 #include "ServicesOverlayController.h"
 #endif
 
+#if ENABLE(ALTERNATIVE_PRESENTATION_BUTTON_ELEMENT)
+#include "AlternativePresentationButtonElement.h"
+#include "AlternativePresentationButtonSubstitution.h"
+#endif
+
 namespace WebCore {
 
 static bool dispatchBeforeInputEvent(Element& element, const AtomicString& inputType, const String& data = { }, RefPtr<DataTransfer>&& dataTransfer = nullptr, const Vector<RefPtr<StaticRange>>& targetRanges = { }, bool cancelable = true)
@@ -233,16 +238,18 @@ TemporarySelectionChange::~TemporarySelectionChange()
 // we should use the target control's selection for this editing operation.
 VisibleSelection Editor::selectionForCommand(Event* event)
 {
-    VisibleSelection selection = m_frame.selection().selection();
+    auto selection = m_frame.selection().selection();
     if (!event)
         return selection;
     // If the target is a text control, and the current selection is outside of its shadow tree,
     // then use the saved selection for that text control.
-    HTMLTextFormControlElement* textFormControlOfSelectionStart = enclosingTextFormControl(selection.start());
-    HTMLTextFormControlElement* textFromControlOfTarget = is<HTMLTextFormControlElement>(*event->target()->toNode()) ? downcast<HTMLTextFormControlElement>(event->target()->toNode().get()) : nullptr;
-    if (textFromControlOfTarget && (selection.start().isNull() || textFromControlOfTarget != textFormControlOfSelectionStart)) {
-        if (RefPtr<Range> range = textFromControlOfTarget->selection())
-            return VisibleSelection(*range, DOWNSTREAM, selection.isDirectional());
+    if (is<HTMLTextFormControlElement>(event->target())) {
+        auto& target = downcast<HTMLTextFormControlElement>(*event->target());
+        auto start = selection.start();
+        if (start.isNull() || &target != enclosingTextFormControl(start)) {
+            if (auto range = target.selection())
+                return { *range, DOWNSTREAM, selection.isDirectional() };
+        }
     }
     return selection;
 }
@@ -1172,6 +1179,11 @@ void Editor::clear()
     m_customCompositionUnderlines.clear();
     m_shouldStyleWithCSS = false;
     m_defaultParagraphSeparator = EditorParagraphSeparatorIsDiv;
+#if ENABLE(ALTERNATIVE_PRESENTATION_BUTTON_ELEMENT)
+    m_alternativePresentationButtonElementToSubstitutionMap.clear();
+    m_alternativePresentationButtonIdentifierToElementMap.clear();
+    m_lastAlternativePresentationButtonSubstitution = nullptr;
+#endif
 }
 
 bool Editor::insertText(const String& text, Event* triggeringEvent, TextEventInputType inputType)
@@ -3243,7 +3255,7 @@ bool Editor::findString(const String& target, FindOptions options)
 
     m_frame.selection().setSelection(VisibleSelection(*resultRange, DOWNSTREAM));
 
-    if (!(options & DoNotRevealSelection))
+    if (!(options.contains(DoNotRevealSelection)))
         m_frame.selection().revealSelection();
 
     return true;
@@ -3258,8 +3270,8 @@ RefPtr<Range> Editor::rangeOfString(const String& target, Range* referenceRange,
     // is used depends on whether we're searching forward or backward, and whether startInSelection is set.
     RefPtr<Range> searchRange(rangeOfContents(document()));
 
-    bool forward = !(options & Backwards);
-    bool startInReferenceRange = referenceRange && (options & StartInSelection);
+    bool forward = !options.contains(Backwards);
+    bool startInReferenceRange = referenceRange && options.contains(StartInSelection);
     if (referenceRange) {
         if (forward)
             searchRange->setStart(startInReferenceRange ? referenceRange->startPosition() : referenceRange->endPosition());
@@ -3311,7 +3323,7 @@ RefPtr<Range> Editor::rangeOfString(const String& target, Range* referenceRange,
 
     // If we didn't find anything and we're wrapping, search again in the entire document (this will
     // redundantly re-search the area already searched in some cases).
-    if (resultRange->collapsed() && options & WrapAround) {
+    if (resultRange->collapsed() && options.contains(WrapAround)) {
         searchRange = rangeOfContents(document());
         resultRange = findPlainText(*searchRange, target, options);
         // We used to return false here if we ended up with the same range that we started with
@@ -3353,7 +3365,7 @@ unsigned Editor::countMatchesForText(const String& target, Range* range, FindOpt
 
     unsigned matchCount = 0;
     do {
-        RefPtr<Range> resultRange(findPlainText(*searchRange, target, options & ~Backwards));
+        RefPtr<Range> resultRange(findPlainText(*searchRange, target, options - Backwards));
         if (resultRange->collapsed()) {
             if (!resultRange->startContainer().isInShadowTree())
                 break;
@@ -3557,7 +3569,7 @@ void Editor::editorUIUpdateTimerFired()
             UChar32 c = newStart.characterBefore();
             // FIXME: VisiblePosition::characterAfter() and characterBefore() do not emit newlines the same
             // way as TextIterator, so we do an isStartOfParagraph check here.
-            if (isSpaceOrNewline(c) || c == 0xA0 || isStartOfParagraph(newStart)) {
+            if (isSpaceOrNewline(c) || c == noBreakSpace || isStartOfParagraph(newStart)) {
                 startWordSide = RightWordIfOnBoundary;
             }
             newAdjacentWords = VisibleSelection(startOfWord(newStart, startWordSide), endOfWord(newStart, RightWordIfOnBoundary));
@@ -3779,28 +3791,29 @@ void Editor::notifyClientOfAttachmentUpdates()
     m_insertedAttachmentIdentifiers.clear();
 }
 
-void Editor::insertAttachment(const String& identifier, const String& filename, const String& filepath, std::optional<String> contentType)
+void Editor::insertAttachment(const String& identifier, const AttachmentDisplayOptions& options, const String& filename, const String& filepath, std::optional<String> contentType)
 {
     if (!contentType)
         contentType = File::contentTypeForFile(filename);
-    insertAttachmentFromFile(identifier, filename, *contentType, File::create(filepath));
+    insertAttachmentFromFile(identifier, options, filename, *contentType, File::create(filepath));
 }
 
-void Editor::insertAttachment(const String& identifier, const String& filename, Ref<SharedBuffer>&& data, std::optional<String> contentType)
+void Editor::insertAttachment(const String& identifier, const AttachmentDisplayOptions& options, const String& filename, Ref<SharedBuffer>&& data, std::optional<String> contentType)
 {
     if (!contentType)
         contentType = File::contentTypeForFile(filename);
-    insertAttachmentFromFile(identifier, filename, *contentType, File::create(Blob::create(data, *contentType), filename));
+    insertAttachmentFromFile(identifier, options, filename, *contentType, File::create(Blob::create(WTFMove(data), *contentType), filename));
 }
 
-void Editor::insertAttachmentFromFile(const String& identifier, const String& filename, const String& contentType, Ref<File>&& file)
+void Editor::insertAttachmentFromFile(const String& identifier, const AttachmentDisplayOptions& options, const String& filename, const String& contentType, Ref<File>&& file)
 {
     auto attachment = HTMLAttachmentElement::create(HTMLNames::attachmentTag, document());
     attachment->setAttribute(HTMLNames::titleAttr, filename);
     attachment->setAttribute(HTMLNames::subtitleAttr, fileSizeDescription(file->size()));
     attachment->setAttribute(HTMLNames::typeAttr, contentType);
     attachment->setUniqueIdentifier(identifier);
-    attachment->setFile(file.ptr());
+    attachment->setFile(WTFMove(file));
+    attachment->updateDisplayMode(options.mode);
 
     auto fragmentToInsert = document().createDocumentFragment();
     fragmentToInsert->appendChild(attachment.get());
@@ -3809,6 +3822,66 @@ void Editor::insertAttachmentFromFile(const String& identifier, const String& fi
 }
 
 #endif // ENABLE(ATTACHMENT_ELEMENT)
+
+#if ENABLE(ALTERNATIVE_PRESENTATION_BUTTON_ELEMENT)
+
+void Editor::substituteWithAlternativePresentationButton(Vector<Ref<Element>>&& elements, const String& identifier)
+{
+    if (elements.isEmpty())
+        return;
+
+    // The implementation of the first element is exchanged for the alternative presentation button.
+    // All other elements are hidden.
+    Ref<Element> elementForAlternativePresentation = WTFMove(elements[0]);
+    elements.remove(0);
+
+    m_lastAlternativePresentationButtonIdentifier = identifier;
+    if (is<HTMLInputElement>(elementForAlternativePresentation))
+        m_lastAlternativePresentationButtonSubstitution = std::make_unique<AlternativePresentationButtonSubstitution>(downcast<HTMLInputElement>(elementForAlternativePresentation.get()), WTFMove(elements));
+    else {
+        // FIXME: This substitution is only safe to do if and only if elementForAlternativePresentation can support a user-
+        // agent shadow root and does not support an author shadow root. Not all elements meet this criterion (e.g. <details>).
+        // See <https://bugs.webkit.org/show_bug.cgi?id=180086> for more details.
+        m_lastAlternativePresentationButtonSubstitution = std::make_unique<AlternativePresentationButtonSubstitution>(elementForAlternativePresentation.get(), WTFMove(elements));
+    }
+    m_lastAlternativePresentationButtonSubstitution->apply();
+}
+
+void Editor::removeAlternativePresentationButton(const String& identifier)
+{
+    if (!m_alternativePresentationButtonIdentifierToElementMap.contains(identifier))
+        return;
+    auto* button = m_alternativePresentationButtonIdentifierToElementMap.take(identifier);
+    ASSERT(m_alternativePresentationButtonElementToSubstitutionMap.contains(button));
+    auto substitution = m_alternativePresentationButtonElementToSubstitutionMap.take(button);
+    substitution->unapply();
+}
+
+Vector<Ref<Element>> Editor::elementsReplacedByAlternativePresentationButton(const String& identifier)
+{
+    if (!m_alternativePresentationButtonIdentifierToElementMap.contains(identifier))
+        return { };
+    auto* button = m_alternativePresentationButtonIdentifierToElementMap.get(identifier);
+    ASSERT(m_alternativePresentationButtonElementToSubstitutionMap.contains(button));
+    auto substitution = m_alternativePresentationButtonElementToSubstitutionMap.get(button);
+    return substitution->replacedElements();
+}
+
+void Editor::didInsertAlternativePresentationButtonElement(AlternativePresentationButtonElement& button)
+{
+    ASSERT(!m_alternativePresentationButtonElementToSubstitutionMap.contains(&button));
+    ASSERT(!m_alternativePresentationButtonIdentifierToElementMap.contains(m_lastAlternativePresentationButtonIdentifier));
+    m_alternativePresentationButtonElementToSubstitutionMap.set(&button, WTFMove(m_lastAlternativePresentationButtonSubstitution));
+    m_alternativePresentationButtonIdentifierToElementMap.set(m_lastAlternativePresentationButtonIdentifier, &button);
+    button.setUniqueIdentifier(m_lastAlternativePresentationButtonIdentifier);
+}
+
+void Editor::didRemoveAlternativePresentationButtonElement(AlternativePresentationButtonElement& button)
+{
+    removeAlternativePresentationButton(button.uniqueIdentifier());
+}
+
+#endif // ENABLE(ALTERNATIVE_PRESENTATION_BUTTON_ELEMENT)
 
 void Editor::handleAcceptedCandidate(TextCheckingResult acceptedCandidate)
 {

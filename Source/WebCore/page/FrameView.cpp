@@ -301,6 +301,8 @@ void FrameView::resetScrollbarsAndClearContentsSize()
 {
     resetScrollbars();
 
+    LOG(Layout, "FrameView %p resetScrollbarsAndClearContentsSize", this);
+
     setScrollbarsSuppressed(true);
     setContentsSize(IntSize());
     setScrollbarsSuppressed(false);
@@ -428,7 +430,7 @@ void FrameView::invalidateRect(const IntRect& rect)
         return;
 
     IntRect repaintRect = rect;
-    repaintRect.move(renderer->borderLeft() + renderer->paddingLeft(), renderer->borderTop() + renderer->paddingTop());
+    repaintRect.moveBy(roundedIntPoint(renderer->contentBoxLocation()));
     renderer->repaintRectangle(repaintRect);
 }
 
@@ -799,8 +801,6 @@ void FrameView::updateCompositingLayersAfterLayout()
     if (!renderView)
         return;
 
-    // This call will make sure the cached hasAcceleratedCompositing is updated from the pref
-    renderView->compositor().cacheAcceleratedCompositingFlags();
     renderView->compositor().updateCompositingLayers(CompositingUpdateType::AfterLayout);
 }
 
@@ -1450,39 +1450,40 @@ void FrameView::setCannotBlitToWindow()
     updateCanBlitOnScrollRecursively();
 }
 
-void FrameView::addSlowRepaintObject(RenderElement* o)
+void FrameView::addSlowRepaintObject(RenderElement& renderer)
 {
     bool hadSlowRepaintObjects = hasSlowRepaintObjects();
 
     if (!m_slowRepaintObjects)
         m_slowRepaintObjects = std::make_unique<HashSet<const RenderElement*>>();
 
-    m_slowRepaintObjects->add(o);
+    m_slowRepaintObjects->add(&renderer);
+    if (hadSlowRepaintObjects)
+        return;
 
-    if (!hadSlowRepaintObjects) {
-        updateCanBlitOnScrollRecursively();
+    updateCanBlitOnScrollRecursively();
 
-        if (Page* page = frame().page()) {
-            if (ScrollingCoordinator* scrollingCoordinator = page->scrollingCoordinator())
-                scrollingCoordinator->frameViewHasSlowRepaintObjectsDidChange(*this);
-        }
+    if (auto* page = frame().page()) {
+        if (auto* scrollingCoordinator = page->scrollingCoordinator())
+            scrollingCoordinator->frameViewHasSlowRepaintObjectsDidChange(*this);
     }
 }
 
-void FrameView::removeSlowRepaintObject(RenderElement* o)
+void FrameView::removeSlowRepaintObject(RenderElement& renderer)
 {
     if (!m_slowRepaintObjects)
         return;
 
-    m_slowRepaintObjects->remove(o);
-    if (m_slowRepaintObjects->isEmpty()) {
-        m_slowRepaintObjects = nullptr;
-        updateCanBlitOnScrollRecursively();
+    m_slowRepaintObjects->remove(&renderer);
+    if (!m_slowRepaintObjects->isEmpty())
+        return;
 
-        if (Page* page = frame().page()) {
-            if (ScrollingCoordinator* scrollingCoordinator = page->scrollingCoordinator())
-                scrollingCoordinator->frameViewHasSlowRepaintObjectsDidChange(*this);
-        }
+    m_slowRepaintObjects = nullptr;
+    updateCanBlitOnScrollRecursively();
+
+    if (auto* page = frame().page()) {
+        if (auto* scrollingCoordinator = page->scrollingCoordinator())
+            scrollingCoordinator->frameViewHasSlowRepaintObjectsDidChange(*this);
     }
 }
 
@@ -1635,6 +1636,11 @@ void FrameView::setLayoutViewportOverrideRect(std::optional<LayoutRect> rect, Tr
         setViewportConstrainedObjectsNeedLayout();
 }
 
+void FrameView::setVisualViewportOverrideRect(std::optional<LayoutRect> rect)
+{
+    m_visualViewportOverrideRect = rect;
+}
+
 LayoutSize FrameView::baseLayoutViewportSize() const
 {
     return renderView() ? renderView()->size() : size();
@@ -1654,11 +1660,12 @@ void FrameView::updateLayoutViewport()
 
     LOG_WITH_STREAM(Scrolling, stream << "\nFrameView " << this << " updateLayoutViewport() totalContentSize " << totalContentsSize() << " unscaledDocumentRect " << (renderView() ? renderView()->unscaledDocumentRect() : IntRect()) << " header height " << headerHeight() << " footer height " << footerHeight() << " fixed behavior " << scrollBehaviorForFixedElements());
     LOG_WITH_STREAM(Scrolling, stream << "layoutViewport: " << layoutViewport);
-    LOG_WITH_STREAM(Scrolling, stream << "visualViewport: " << visualViewportRect());
+    LOG_WITH_STREAM(Scrolling, stream << "visualViewport: " << visualViewportRect() << " (is override " << (bool)m_visualViewportOverrideRect << ")");
     LOG_WITH_STREAM(Scrolling, stream << "stable origins: min: " << minStableLayoutViewportOrigin() << " max: "<< maxStableLayoutViewportOrigin());
     
     if (m_layoutViewportOverrideRect) {
         if (m_inProgrammaticScroll) {
+            LOG_WITH_STREAM(Scrolling, stream << "computing new override layout viewport because of programmatic scrolling");
             LayoutPoint newOrigin = computeLayoutViewportOrigin(visualViewportRect(), minStableLayoutViewportOrigin(), maxStableLayoutViewportOrigin(), layoutViewport, StickToDocumentBounds);
             setLayoutViewportOverrideRect(LayoutRect(newOrigin, m_layoutViewportOverrideRect.value().size()));
         }
@@ -1725,6 +1732,9 @@ LayoutRect FrameView::visibleDocumentRect(const FloatRect& visibleContentRect, f
 
 LayoutRect FrameView::visualViewportRect() const
 {
+    if (m_visualViewportOverrideRect)
+        return m_visualViewportOverrideRect.value();
+
     FloatRect visibleContentRect = this->visibleContentRect(LegacyIOSDocumentVisibleRect);
     return visibleDocumentRect(visibleContentRect, headerHeight(), footerHeight(), totalContentsSize(), frameScaleFactor());
 }
@@ -2088,28 +2098,28 @@ void FrameView::restoreScrollbar()
 
 bool FrameView::scrollToFragment(const URL& url)
 {
-    // If our URL has no ref, then we have no place we need to jump to.
-    // OTOH If CSS target was set previously, we want to set it to 0, recalc
-    // and possibly repaint because :target pseudo class may have been
-    // set (see bug 11321).
-    if (!url.hasFragmentIdentifier()) {
-        frame().document()->setCSSTarget(nullptr);
-        return false;
-    }
-
     String fragmentIdentifier = url.fragmentIdentifier();
     if (scrollToAnchor(fragmentIdentifier))
         return true;
 
     // Try again after decoding the ref, based on the document's encoding.
-    if (TextResourceDecoder* decoder = frame().document()->decoder())
-        return scrollToAnchor(decodeURLEscapeSequences(fragmentIdentifier, decoder->encoding()));
+    if (TextResourceDecoder* decoder = frame().document()->decoder()) {
+        if (scrollToAnchor(decodeURLEscapeSequences(fragmentIdentifier, decoder->encoding())))
+            return true;
+    }
 
+    resetScrollAnchor();
     return false;
 }
 
-bool FrameView::scrollToAnchor(const String& name)
+bool FrameView::scrollToAnchor(const String& fragmentIdentifier)
 {
+    LOG(Scrolling, "FrameView::scrollToAnchor %s", fragmentIdentifier.utf8().data());
+
+    // If our URL has no ref, then we have no place we need to jump to.
+    if (fragmentIdentifier.isNull())
+        return false;
+
     ASSERT(frame().document());
     auto& document = *frame().document();
 
@@ -2120,22 +2130,27 @@ bool FrameView::scrollToAnchor(const String& name)
 
     document.setGotoAnchorNeededAfterStylesheetsLoad(false);
 
-    Element* anchorElement = document.findAnchor(name);
+    Element* anchorElement = document.findAnchor(fragmentIdentifier);
+
+    LOG(Scrolling, " anchorElement is %p", anchorElement);
 
     // Setting to null will clear the current target.
     document.setCSSTarget(anchorElement);
 
     if (is<SVGDocument>(document)) {
+        if (fragmentIdentifier.isEmpty())
+            return false;
         if (auto rootElement = SVGDocument::rootElement(document)) {
-            rootElement->scrollToAnchor(name, anchorElement);
-            if (!anchorElement)
+            if (rootElement->scrollToFragment(fragmentIdentifier))
                 return true;
+            // If SVG failed to scrollToAnchor() and anchorElement is null, no other scrolling will be possible.
+            if (!anchorElement)
+                return false;
         }
-    }
-
-    // Implement the rule that "" and "top" both mean top of page as in other browsers.
-    if (!anchorElement && !(name.isEmpty() || equalLettersIgnoringASCIICase(name, "top")))
+    } else if (!anchorElement && !(fragmentIdentifier.isEmpty() || equalLettersIgnoringASCIICase(fragmentIdentifier, "top"))) {
+        // Implement the rule that "" and "top" both mean top of page as in other browsers.
         return false;
+    }
 
     ContainerNode* scrollPositionAnchor = anchorElement;
     if (!scrollPositionAnchor)
@@ -2157,6 +2172,8 @@ bool FrameView::scrollToAnchor(const String& name)
 
 void FrameView::maintainScrollPositionAtAnchor(ContainerNode* anchorNode)
 {
+    LOG(Scrolling, "FrameView::maintainScrollPositionAtAnchor at %p", anchorNode);
+
     m_maintainScrollPositionAnchor = anchorNode;
     if (!m_maintainScrollPositionAnchor)
         return;
@@ -2186,12 +2203,34 @@ void FrameView::scrollElementToRect(const Element& element, const IntRect& rect)
 
 void FrameView::setScrollPosition(const ScrollPosition& scrollPosition)
 {
+    LOG_WITH_STREAM(Scrolling, stream << "FrameView::setScrollPosition " << scrollPosition << " , clearing anchor");
+
     SetForScope<bool> changeInProgrammaticScroll(m_inProgrammaticScroll, true);
     m_maintainScrollPositionAnchor = nullptr;
     Page* page = frame().page();
     if (page && page->expectsWheelEventTriggers())
         scrollAnimator().setWheelEventTestTrigger(page->testTrigger());
     ScrollView::setScrollPosition(scrollPosition);
+}
+
+void FrameView::resetScrollAnchor()
+{
+    ASSERT(frame().document());
+    auto& document = *frame().document();
+
+    // If CSS target was set previously, we want to set it to 0, recalc
+    // and possibly repaint because :target pseudo class may have been
+    // set (see bug 11321).
+    document.setCSSTarget(nullptr);
+
+    if (is<SVGDocument>(document)) {
+        if (auto rootElement = SVGDocument::rootElement(document)) {
+            // We need to update the layout before resetScrollAnchor(), otherwise we
+            // could really mess things up if resetting the anchor comes at a bad moment.
+            document.updateStyleIfNeeded();
+            rootElement->resetScrollAnchor();
+        }
+    }
 }
 
 void FrameView::contentsResized()
@@ -2468,7 +2507,7 @@ static unsigned countRenderedCharactersInRenderObjectWithThreshold(const RenderE
     unsigned count = 0;
     for (const RenderObject* descendant = &renderer; descendant; descendant = descendant->nextInPreOrder()) {
         if (is<RenderText>(*descendant)) {
-            count += downcast<RenderText>(*descendant).text()->length();
+            count += downcast<RenderText>(*descendant).text().length();
             if (count >= threshold)
                 break;
         }
@@ -2929,6 +2968,9 @@ bool FrameView::shouldUpdate() const
 void FrameView::scrollToAnchor()
 {
     RefPtr<ContainerNode> anchorNode = m_maintainScrollPositionAnchor;
+
+    LOG_WITH_STREAM(Scrolling, stream << "FrameView::scrollToAnchor() " << anchorNode.get());
+
     if (!anchorNode)
         return;
 
@@ -2939,6 +2981,8 @@ void FrameView::scrollToAnchor()
     bool insideFixed = false;
     if (anchorNode != frame().document() && anchorNode->renderer())
         rect = anchorNode->renderer()->absoluteAnchorRect(&insideFixed);
+
+    LOG_WITH_STREAM(Scrolling, stream << " anchor node rect " << rect);
 
     // Scroll nested layers and frames to reveal the anchor.
     // Align to the top and to the closest side (this matches other browsers).
@@ -2953,6 +2997,7 @@ void FrameView::scrollToAnchor()
         cache->handleScrolledToAnchor(anchorNode.get());
 
     // scrollRectToVisible can call into setScrollPosition(), which resets m_maintainScrollPositionAnchor.
+    LOG_WITH_STREAM(Scrolling, stream << " restoring anchor node to " << anchorNode.get());
     m_maintainScrollPositionAnchor = anchorNode;
 }
 
@@ -3285,6 +3330,8 @@ void FrameView::autoSizeIfEnabled()
         document->updateLayoutIgnorePendingStylesheets();
     }
     m_didRunAutosize = true;
+
+    LOG_WITH_STREAM(Layout, stream << "FrameView " << this << " autoSizeIfEnabled() changed size from " << size << " to " << frameRect().size());
 }
 
 void FrameView::setAutoSizeFixedMinimumHeight(int fixedMinimumHeight)
@@ -3862,6 +3909,8 @@ bool FrameView::wasScrolledByUser() const
 
 void FrameView::setWasScrolledByUser(bool wasScrolledByUser)
 {
+    LOG(Scrolling, "FrameView::setWasScrolledByUser at %d", wasScrolledByUser);
+
     if (m_inProgrammaticScroll)
         return;
     m_maintainScrollPositionAnchor = nullptr;
@@ -4344,10 +4393,8 @@ IntRect FrameView::convertToContainingView(const IntRect& localRect) const
             if (!renderer)
                 return localRect;
                 
-            IntRect rect(localRect);
-            // Add borders and padding??
-            rect.move(renderer->borderLeft() + renderer->paddingLeft(),
-                      renderer->borderTop() + renderer->paddingTop());
+            auto rect = localRect;
+            rect.moveBy(roundedIntPoint(renderer->contentBoxLocation()));
             return parentView.convertFromRendererToContainingView(renderer, rect);
         }
         
@@ -4368,10 +4415,8 @@ IntRect FrameView::convertFromContainingView(const IntRect& parentRect) const
             if (!renderer)
                 return parentRect;
 
-            IntRect rect = parentView.convertFromContainingViewToRenderer(renderer, parentRect);
-            // Subtract borders and padding
-            rect.move(-renderer->borderLeft() - renderer->paddingLeft(),
-                      -renderer->borderTop() - renderer->paddingTop());
+            auto rect = parentView.convertFromContainingViewToRenderer(renderer, parentRect);
+            rect.moveBy(-roundedIntPoint(renderer->contentBoxLocation()));
             return rect;
         }
         
@@ -4392,11 +4437,8 @@ IntPoint FrameView::convertToContainingView(const IntPoint& localPoint) const
             if (!renderer)
                 return localPoint;
                 
-            IntPoint point(localPoint);
-
-            // Add borders and padding
-            point.move(renderer->borderLeft() + renderer->paddingLeft(),
-                       renderer->borderTop() + renderer->paddingTop());
+            auto point = localPoint;
+            point.moveBy(roundedIntPoint(renderer->contentBoxLocation()));
             return parentView.convertFromRendererToContainingView(renderer, point);
         }
         
@@ -4417,10 +4459,8 @@ IntPoint FrameView::convertFromContainingView(const IntPoint& parentPoint) const
             if (!renderer)
                 return parentPoint;
 
-            IntPoint point = parentView.convertFromContainingViewToRenderer(renderer, parentPoint);
-            // Subtract borders and padding
-            point.move(-renderer->borderLeft() - renderer->paddingLeft(),
-                       -renderer->borderTop() - renderer->paddingTop());
+            auto point = parentView.convertFromContainingViewToRenderer(renderer, parentPoint);
+            point.moveBy(-roundedIntPoint(renderer->contentBoxLocation()));
             return point;
         }
         
@@ -4471,6 +4511,12 @@ FloatPoint FrameView::documentToClientPoint(FloatPoint p) const
 {
     p.move(documentToClientOffset());
     return p;
+}
+
+FloatRect FrameView::clientToDocumentRect(FloatRect rect) const
+{
+    rect.move(-documentToClientOffset());
+    return rect;
 }
 
 FloatPoint FrameView::clientToDocumentPoint(FloatPoint point) const

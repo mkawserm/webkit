@@ -45,6 +45,7 @@
 #import <WebKit/WKWebsiteDataRecordPrivate.h>
 #import <WebKit/WKWebsiteDataStorePrivate.h>
 #import <WebKit/WKWebsiteDataStoreRef.h>
+#import <WebKit/_WKApplicationManifest.h>
 #import <WebKit/_WKProcessPoolConfiguration.h>
 #import <WebKit/_WKUserContentExtensionStore.h>
 #import <WebKit/_WKUserContentExtensionStorePrivate.h>
@@ -77,6 +78,7 @@ void initializeWebViewConfiguration(const char* libraryPath, WKStringRef injecte
 
 #if (PLATFORM(MAC) && __MAC_OS_X_VERSION_MIN_REQUIRED >= 101300) || PLATFORM(IOS)
     WKCookieManagerSetCookieStoragePartitioningEnabled(WKContextGetCookieManager(context), true);
+    WKCookieManagerSetStorageAccessAPIEnabled(WKContextGetCookieManager(context), true);
 #endif
 
     WKWebsiteDataStore* poolWebsiteDataStore = (WKWebsiteDataStore *)WKContextGetWebsiteDataStore((WKContextRef)globalWebViewConfiguration.processPool);
@@ -151,6 +153,12 @@ void TestController::platformCreateWebView(WKPageConfigurationRef, const TestOpt
 
     if (options.enableAttachmentElement)
         [copiedConfiguration _setAttachmentElementEnabled: YES];
+
+    if (options.applicationManifest.length()) {
+        auto manifestPath = [NSString stringWithUTF8String:options.applicationManifest.c_str()];
+        NSString *text = [NSString stringWithContentsOfFile:manifestPath usedEncoding:nullptr error:nullptr];
+        [copiedConfiguration _setApplicationManifest:[_WKApplicationManifest applicationManifestFromJSON:text manifestURL:nil documentURL:nil]];
+    }
 
     m_mainWebView = std::make_unique<PlatformWebView>(copiedConfiguration.get(), options);
 #else
@@ -301,6 +309,11 @@ bool TestController::isStatisticsRegisteredAsRedirectingTo(WKStringRef hostRedir
 void TestController::setStatisticsHasHadUserInteraction(WKStringRef hostName, bool value)
 {
     [globalWebViewConfiguration.websiteDataStore _resourceLoadStatisticsSetHadUserInteraction:value forHost:toNSString(hostName)];
+}
+
+void TestController::setStatisticsHasHadNonRecentUserInteraction(WKStringRef hostName)
+{
+    [globalWebViewConfiguration.websiteDataStore _resourceLoadStatisticsSetHasHadNonRecentUserInteractionForHost:toNSString(hostName)];
 }
 
 bool TestController::isStatisticsHasHadUserInteraction(WKStringRef hostName)

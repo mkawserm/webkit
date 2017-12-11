@@ -49,6 +49,7 @@
 #import <WebCore/RuntimeApplicationChecks.h>
 #import <WebCore/SharedBuffer.h>
 #import <pal/spi/cf/CFNetworkSPI.h>
+#import <pal/spi/cocoa/NSKeyedArchiverSPI.h>
 #import <sys/param.h>
 
 #if PLATFORM(IOS)
@@ -61,6 +62,7 @@
 using namespace WebCore;
 
 NSString *WebDatabaseDirectoryDefaultsKey = @"WebDatabaseDirectory";
+NSString *WebServiceWorkerRegistrationDirectoryDefaultsKey = @"WebServiceWorkerRegistrationDirectory";
 NSString *WebKitLocalCacheDefaultsKey = @"WebKitLocalCache";
 NSString *WebStorageDirectoryDefaultsKey = @"WebKitLocalStorageDatabasePathPreferenceKey";
 NSString *WebKitJSCJITEnabledDefaultsKey = @"WebKitJSCJITEnabledDefaultsKey";
@@ -214,10 +216,14 @@ void WebProcessPool::platformInitializeWebProcess(WebProcessCreationParameters& 
     parameters.fontWhitelist = m_fontWhitelist;
 
     if (m_bundleParameters) {
+#if (PLATFORM(MAC) && __MAC_OS_X_VERSION_MIN_REQUIRED < 101200)
         auto data = adoptNS([[NSMutableData alloc] init]);
         auto keyedArchiver = adoptNS([[NSKeyedArchiver alloc] initForWritingWithMutableData:data.get()]);
 
         [keyedArchiver setRequiresSecureCoding:YES];
+#else
+        auto keyedArchiver = secureArchiver();
+#endif
 
         @try {
             [keyedArchiver encodeObject:m_bundleParameters.get() forKey:@"parameters"];
@@ -225,6 +231,10 @@ void WebProcessPool::platformInitializeWebProcess(WebProcessCreationParameters& 
         } @catch (NSException *exception) {
             LOG_ERROR("Failed to encode bundle parameters: %@", exception);
         }
+
+#if (!PLATFORM(MAC) || __MAC_OS_X_VERSION_MIN_REQUIRED >= 101200)
+        auto data = retainPtr(keyedArchiver.get().encodedData);
+#endif
 
         parameters.bundleParameterData = API::Data::createWithoutCopying((const unsigned char*)[data bytes], [data length], [] (unsigned char*, const void* data) {
             [(NSData *)data release];
@@ -254,6 +264,7 @@ void WebProcessPool::platformInitializeWebProcess(WebProcessCreationParameters& 
 
 #if !LOG_DISABLED || !RELEASE_LOG_DISABLED
     parameters.webCoreLoggingChannels = [[NSUserDefaults standardUserDefaults] stringForKey:@"WebCoreLogging"];
+    parameters.webKitLoggingChannels = [[NSUserDefaults standardUserDefaults] stringForKey:@"WebKit2Logging"];
 #endif
 
     // FIXME: Remove this and related parameter when <rdar://problem/29448368> is fixed.
@@ -295,6 +306,7 @@ void WebProcessPool::platformInitializeNetworkProcess(NetworkProcessCreationPara
 #endif
 
     parameters.cookieStoragePartitioningEnabled = cookieStoragePartitioningEnabled();
+    parameters.storageAccessAPIEnabled = storageAccessAPIEnabled();
 
 #if ENABLE(NETWORK_CAPTURE)
     parameters.recordReplayMode = [defaults stringForKey:WebKitRecordReplayModeDefaultsKey];
@@ -377,6 +389,16 @@ String WebProcessPool::legacyPlatformDefaultIndexedDBDatabaseDirectory()
     // We should fix this, and move WebSQL into a subdirectory (https://bugs.webkit.org/show_bug.cgi?id=124807)
     // In the meantime, an entity name prefixed with three underscores will not conflict with any WebSQL entities.
     return FileSystem::pathByAppendingComponent(legacyPlatformDefaultWebSQLDatabaseDirectory(), "___IndexedDB");
+}
+
+String WebProcessPool::legacyPlatformDefaultServiceWorkerRegistrationDirectory()
+{
+    registerUserDefaultsIfNeeded();
+
+    NSString *directory = [[NSUserDefaults standardUserDefaults] objectForKey:WebServiceWorkerRegistrationDirectoryDefaultsKey];
+    if (!directory || ![directory isKindOfClass:[NSString class]])
+        directory = @"~/Library/WebKit/ServiceWorkers";
+    return stringByResolvingSymlinksInPath([directory stringByStandardizingPath]);
 }
 
 String WebProcessPool::legacyPlatformDefaultLocalStorageDirectory()
@@ -585,6 +607,12 @@ void WebProcessPool::setCookieStoragePartitioningEnabled(bool enabled)
 {
     m_cookieStoragePartitioningEnabled = enabled;
     sendToNetworkingProcess(Messages::NetworkProcess::SetCookieStoragePartitioningEnabled(enabled));
+}
+
+void WebProcessPool::setStorageAccessAPIEnabled(bool enabled)
+{
+    m_storageAccessAPIEnabled = enabled;
+    sendToNetworkingProcess(Messages::NetworkProcess::SetStorageAccessAPIEnabled(enabled));
 }
 
 int networkProcessLatencyQOS()

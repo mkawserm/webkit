@@ -35,6 +35,7 @@
 #include "DFGPureValue.h"
 #include "DOMJITCallDOMGetterSnippet.h"
 #include "DOMJITSignature.h"
+#include "JSFixedArray.h"
 
 namespace JSC { namespace DFG {
 
@@ -437,6 +438,7 @@ void clobberize(Graph& graph, Node* node, const ReadFunctor& read, const WriteFu
     case Switch:
     case EntrySwitch:
     case ForceOSRExit:
+    case CPUIntrinsic:
     case CheckBadCell:
     case Return:
     case Unreachable:
@@ -746,11 +748,6 @@ void clobberize(Graph& graph, Node* node, const ReadFunctor& read, const WriteFu
         return;
     }
         
-    case GetLocalUnlinked:
-        read(AbstractHeap(Stack, node->unlinkedLocal()));
-        def(HeapLocation(StackLoc, AbstractHeap(Stack, node->unlinkedLocal())), LazyNode(node));
-        return;
-        
     case GetByVal: {
         ArrayMode mode = node->arrayMode();
         LocationKind indexedPropertyLoc = indexedPropertyLocForResultType(node->result());
@@ -783,8 +780,13 @@ void clobberize(Graph& graph, Node* node, const ReadFunctor& read, const WriteFu
             return;
             
         case Array::DirectArguments:
-            read(DirectArgumentsProperties);
-            def(HeapLocation(indexedPropertyLoc, DirectArgumentsProperties, node->child1(), node->child2()), LazyNode(node));
+            if (mode.isInBounds()) {
+                read(DirectArgumentsProperties);
+                def(HeapLocation(indexedPropertyLoc, DirectArgumentsProperties, node->child1(), node->child2()), LazyNode(node));
+                return;
+            }
+            read(World);
+            write(Heap);
             return;
             
         case Array::ScopedArguments:
@@ -1041,11 +1043,6 @@ void clobberize(Graph& graph, Node* node, const ReadFunctor& read, const WriteFu
     case GetButterfly:
         read(JSObject_butterfly);
         def(HeapLocation(ButterflyLoc, JSObject_butterfly, node->child1()), LazyNode(node));
-        return;
-
-    case GetButterflyWithoutCaging:
-        read(JSObject_butterfly);
-        def(HeapLocation(ButterflyWithoutCagingLoc, JSObject_butterfly, node->child1()), LazyNode(node));
         return;
 
     case CheckSubClass:
@@ -1393,7 +1390,8 @@ void clobberize(Graph& graph, Node* node, const ReadFunctor& read, const WriteFu
         read(HeapObjectCount);
         write(HeapObjectCount);
 
-        unsigned numElements = node->numConstants();
+        JSFixedArray* array = node->castOperand<JSFixedArray*>();
+        unsigned numElements = array->length();
         def(HeapLocation(ArrayLengthLoc, Butterfly_publicLength, node),
             LazyNode(graph.freeze(jsNumber(numElements))));
 
@@ -1421,11 +1419,10 @@ void clobberize(Graph& graph, Node* node, const ReadFunctor& read, const WriteFu
             return;
         }
 
-        JSValue* data = graph.m_codeBlock->constantBuffer(node->startConstant());
         if (numElements < graph.m_uint32ValuesInUse.size()) {
             for (unsigned index = 0; index < numElements; ++index) {
                 def(HeapLocation(indexedPropertyLoc, heap, node, LazyNode(graph.freeze(jsNumber(index)))),
-                    LazyNode(graph.freeze(data[index]), op));
+                    LazyNode(graph.freeze(array->get(index)), op));
             }
         } else {
             Vector<uint32_t> possibleIndices;
@@ -1436,7 +1433,7 @@ void clobberize(Graph& graph, Node* node, const ReadFunctor& read, const WriteFu
             }
             for (uint32_t index : possibleIndices) {
                 def(HeapLocation(indexedPropertyLoc, heap, node, LazyNode(graph.freeze(jsNumber(index)))),
-                    LazyNode(graph.freeze(data[index]), op));
+                    LazyNode(graph.freeze(array->get(index)), op));
             }
         }
         return;
@@ -1590,50 +1587,70 @@ void clobberize(Graph& graph, Node* node, const ReadFunctor& read, const WriteFu
         def(PureValue(node));
         return;
 
+    case NormalizeMapKey:
+        def(PureValue(node));
+        return;
+
     case GetMapBucket: {
-        read(MiscFields);
         Edge& mapEdge = node->child1();
         Edge& keyEdge = node->child2();
-        def(HeapLocation(MapBucketLoc, MiscFields, mapEdge, keyEdge), LazyNode(node));
+        AbstractHeapKind heap = (mapEdge.useKind() == MapObjectUse) ? JSMapFields : JSSetFields;
+        read(heap);
+        def(HeapLocation(MapBucketLoc, heap, mapEdge, keyEdge), LazyNode(node));
         return;
     }
 
     case GetMapBucketHead: {
-        read(MiscFields);
         Edge& mapEdge = node->child1();
-        def(HeapLocation(MapBucketHeadLoc, MiscFields, mapEdge), LazyNode(node));
+        AbstractHeapKind heap = (mapEdge.useKind() == MapObjectUse) ? JSMapFields : JSSetFields;
+        read(heap);
+        def(HeapLocation(MapBucketHeadLoc, heap, mapEdge), LazyNode(node));
         return;
     }
 
     case GetMapBucketNext: {
-        read(MiscFields);
-        LocationKind locationKind = MapBucketMapNextLoc;
-        if (node->bucketOwnerType() == BucketOwnerType::Set)
-            locationKind = MapBucketSetNextLoc;
+        AbstractHeapKind heap = (node->bucketOwnerType() == BucketOwnerType::Map) ? JSMapFields : JSSetFields;
+        read(heap);
         Edge& bucketEdge = node->child1();
-        def(HeapLocation(locationKind, MiscFields, bucketEdge), LazyNode(node));
+        def(HeapLocation(MapBucketNextLoc, heap, bucketEdge), LazyNode(node));
         return;
     }
 
     case LoadKeyFromMapBucket: {
-        read(MiscFields);
+        AbstractHeapKind heap = (node->bucketOwnerType() == BucketOwnerType::Map) ? JSMapFields : JSSetFields;
+        read(heap);
         Edge& bucketEdge = node->child1();
-        def(HeapLocation(MapBucketKeyLoc, MiscFields, bucketEdge), LazyNode(node));
+        def(HeapLocation(MapBucketKeyLoc, heap, bucketEdge), LazyNode(node));
         return;
     }
 
     case LoadValueFromMapBucket: {
-        read(MiscFields);
+        AbstractHeapKind heap = (node->bucketOwnerType() == BucketOwnerType::Map) ? JSMapFields : JSSetFields;
+        read(heap);
         Edge& bucketEdge = node->child1();
-        def(HeapLocation(MapBucketValueLoc, MiscFields, bucketEdge), LazyNode(node));
+        def(HeapLocation(MapBucketValueLoc, heap, bucketEdge), LazyNode(node));
         return;
     }
 
     case WeakMapGet: {
-        read(MiscFields);
         Edge& mapEdge = node->child1();
         Edge& keyEdge = node->child2();
-        def(HeapLocation(WeakMapGetLoc, MiscFields, mapEdge, keyEdge), LazyNode(node));
+        read(JSWeakMapFields);
+        def(HeapLocation(WeakMapGetLoc, JSWeakMapFields, mapEdge, keyEdge), LazyNode(node));
+        return;
+    }
+
+    case SetAdd: {
+        // FIXME: Define defs for them to participate in CSE.
+        // https://bugs.webkit.org/show_bug.cgi?id=179911
+        write(JSSetFields);
+        return;
+    }
+
+    case MapSet: {
+        // FIXME: Define defs for them to participate in CSE.
+        // https://bugs.webkit.org/show_bug.cgi?id=179911
+        write(JSMapFields);
         return;
     }
 

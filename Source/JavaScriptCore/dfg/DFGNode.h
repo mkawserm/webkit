@@ -97,11 +97,16 @@ struct MultiPutByOffsetData {
 };
 
 struct NewArrayBufferData {
-    unsigned startConstant;
-    unsigned numConstants;
-    unsigned vectorLengthHint;
-    IndexingType indexingType;
+    union {
+        struct {
+            unsigned vectorLengthHint;
+            unsigned indexingType;
+        };
+        uint64_t asQuadWord;
+    };
 };
+static_assert(sizeof(IndexingType) <= sizeof(unsigned), "");
+static_assert(sizeof(NewArrayBufferData) == sizeof(uint64_t), "");
 
 struct BranchTarget {
     BranchTarget()
@@ -528,15 +533,6 @@ public:
         children.reset();
     }
     
-    void convertToGetLocalUnlinked(VirtualRegister local)
-    {
-        m_op = GetLocalUnlinked;
-        m_flags &= ~NodeMustGenerate;
-        m_opInfo = local.offset();
-        m_opInfo2 = VirtualRegister().offset();
-        children.reset();
-    }
-    
     void convertToPutStack(StackAccessData* data)
     {
         m_op = PutStack;
@@ -671,15 +667,6 @@ public:
         ASSERT(m_op == Flush);
         m_op = PhantomLocal;
         children = AdjacencyList();
-    }
-    
-    void convertToGetLocal(VariableAccessData* variable, Node* phi)
-    {
-        ASSERT(m_op == GetLocalUnlinked);
-        m_op = GetLocal;
-        m_opInfo = variable;
-        m_opInfo2 = OpInfoWrapper();
-        children.setChild1(Edge(phi));
     }
     
     void convertToToString()
@@ -941,7 +928,6 @@ public:
     bool hasUnlinkedLocal()
     {
         switch (op()) {
-        case GetLocalUnlinked:
         case ExtractOSREntryLocal:
         case MovHint:
         case ZombieHint:
@@ -956,23 +942,6 @@ public:
     {
         ASSERT(hasUnlinkedLocal());
         return VirtualRegister(m_opInfo.as<int32_t>());
-    }
-    
-    bool hasUnlinkedMachineLocal()
-    {
-        return op() == GetLocalUnlinked;
-    }
-    
-    void setUnlinkedMachineLocal(VirtualRegister reg)
-    {
-        ASSERT(hasUnlinkedMachineLocal());
-        m_opInfo2 = reg.offset();
-    }
-    
-    VirtualRegister unlinkedMachineLocal()
-    {
-        ASSERT(hasUnlinkedMachineLocal());
-        return VirtualRegister(m_opInfo2.as<int32_t>());
     }
     
     bool hasStackAccessData()
@@ -1121,30 +1090,26 @@ public:
         return m_flags & NodeMayHaveNonNumberResult;
     }
 
-    bool hasConstantBuffer()
+    bool hasNewArrayBufferData()
     {
         return op() == NewArrayBuffer;
     }
     
-    NewArrayBufferData* newArrayBufferData()
+    NewArrayBufferData newArrayBufferData()
     {
-        ASSERT(hasConstantBuffer());
-        return m_opInfo.as<NewArrayBufferData*>();
-    }
-    
-    unsigned startConstant()
-    {
-        return newArrayBufferData()->startConstant;
-    }
-    
-    unsigned numConstants()
-    {
-        return newArrayBufferData()->numConstants;
+        ASSERT(hasNewArrayBufferData());
+        return m_opInfo2.asNewArrayBufferData();
     }
 
+    unsigned hasVectorLengthHint()
+    {
+        return op() == NewArrayBuffer;
+    }
+    
     unsigned vectorLengthHint()
     {
-        return newArrayBufferData()->vectorLengthHint;
+        ASSERT(hasVectorLengthHint());
+        return newArrayBufferData().vectorLengthHint;
     }
     
     bool hasIndexingType()
@@ -1177,7 +1142,7 @@ public:
     {
         ASSERT(hasIndexingType());
         if (op() == NewArrayBuffer)
-            return newArrayBufferData()->indexingType;
+            return static_cast<IndexingType>(newArrayBufferData().indexingType);
         return static_cast<IndexingType>(m_opInfo.as<uint32_t>());
     }
     
@@ -1442,6 +1407,12 @@ public:
         ASSERT(isEntrySwitch());
         return m_opInfo.as<EntrySwitchData*>();
     }
+
+    Intrinsic intrinsic()
+    {
+        RELEASE_ASSERT(op() == CPUIntrinsic);
+        return m_opInfo.as<Intrinsic>();
+    }
     
     unsigned numSuccessors()
     {
@@ -1669,6 +1640,7 @@ public:
         case CreateActivation:
         case MaterializeCreateActivation:
         case NewRegexp:
+        case NewArrayBuffer:
         case CompareEqPtr:
         case CallObjectConstructor:
         case DirectCall:
@@ -2663,7 +2635,7 @@ public:
 
     bool hasBucketOwnerType()
     {
-        return op() == GetMapBucketNext;
+        return op() == GetMapBucketNext || op() == LoadKeyFromMapBucket || op() == LoadValueFromMapBucket;
     }
 
     BucketOwnerType bucketOwnerType()
@@ -2786,6 +2758,11 @@ private:
             u.pointer = bitwise_cast<void*>(structure);
             return *this;
         }
+        OpInfoWrapper& operator=(NewArrayBufferData newArrayBufferData)
+        {
+            u.int64 = bitwise_cast<uint64_t>(newArrayBufferData);
+            return *this;
+        }
         template <typename T>
         ALWAYS_INLINE auto as() const -> typename std::enable_if<std::is_pointer<T>::value && !std::is_const<typename std::remove_pointer<T>::type>::value, T>::type
         {
@@ -2809,6 +2786,10 @@ private:
         ALWAYS_INLINE RegisteredStructure asRegisteredStructure() const
         {
             return bitwise_cast<RegisteredStructure>(u.pointer);
+        }
+        ALWAYS_INLINE NewArrayBufferData asNewArrayBufferData() const
+        {
+            return bitwise_cast<NewArrayBufferData>(u.int64);
         }
 
         union {

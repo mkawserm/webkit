@@ -72,7 +72,7 @@ const GlobalObjectMethodTable JSDOMWindowBase::s_globalObjectMethodTable = {
     &moduleLoaderImportModule,
     &moduleLoaderResolve,
     &moduleLoaderFetch,
-    nullptr, // moduleLoaderCreateImportMetaProperties
+    &moduleLoaderCreateImportMetaProperties,
     &moduleLoaderEvaluate,
     &promiseRejectionTracker,
     &defaultLanguage
@@ -289,40 +289,7 @@ JSDOMWindow* toJSDOMWindow(JSC::VM& vm, JSValue value)
 
 DOMWindow& incumbentDOMWindow(ExecState& state)
 {
-    class GetCallerGlobalObjectFunctor {
-    public:
-        GetCallerGlobalObjectFunctor() = default;
-
-        StackVisitor::Status operator()(StackVisitor& visitor) const
-        {
-            if (!m_hasSkippedFirstFrame) {
-                m_hasSkippedFirstFrame = true;
-                return StackVisitor::Continue;
-            }
-
-            if (auto* codeBlock = visitor->codeBlock())
-                m_globalObject = codeBlock->globalObject();
-            else {
-                ASSERT(visitor->callee().rawPtr());
-                // FIXME: Callee is not an object if the caller is Web Assembly.
-                // Figure out what to do here. We can probably get the global object
-                // from the top-most Wasm Instance. https://bugs.webkit.org/show_bug.cgi?id=165721
-                if (visitor->callee().isCell() && visitor->callee().asCell()->isObject())
-                    m_globalObject = jsCast<JSObject*>(visitor->callee().asCell())->globalObject();
-            }
-            return StackVisitor::Done;
-        }
-
-        JSGlobalObject* globalObject() const { return m_globalObject; }
-
-    private:
-        mutable bool m_hasSkippedFirstFrame { false };
-        mutable JSGlobalObject* m_globalObject { nullptr };
-    };
-
-    GetCallerGlobalObjectFunctor iter;
-    state.iterate(iter);
-    return iter.globalObject() ? asJSDOMWindow(iter.globalObject())->wrapped() : firstDOMWindow(state);
+    return asJSDOMWindow(&callerGlobalObject(state))->wrapped();
 }
 
 DOMWindow& activeDOMWindow(ExecState& state)
@@ -396,6 +363,14 @@ JSC::JSInternalPromise* JSDOMWindowBase::moduleLoaderImportModule(JSC::JSGlobalO
         return document->moduleLoader()->importModule(globalObject, exec, moduleLoader, moduleName, parameters, sourceOrigin);
     JSC::JSInternalPromiseDeferred* deferred = JSC::JSInternalPromiseDeferred::create(exec, globalObject);
     return deferred->reject(exec, jsUndefined());
+}
+
+JSC::JSObject* JSDOMWindowBase::moduleLoaderCreateImportMetaProperties(JSC::JSGlobalObject* globalObject, JSC::ExecState* exec, JSC::JSModuleLoader* moduleLoader, JSC::JSValue moduleKey, JSC::JSModuleRecord* moduleRecord, JSC::JSValue scriptFetcher)
+{
+    JSDOMWindowBase* thisObject = JSC::jsCast<JSDOMWindowBase*>(globalObject);
+    if (RefPtr<Document> document = thisObject->wrapped().document())
+        return document->moduleLoader()->createImportMetaProperties(globalObject, exec, moduleLoader, moduleKey, moduleRecord, scriptFetcher);
+    return constructEmptyObject(exec, globalObject->nullPrototypeObjectStructure());
 }
 
 void JSDOMWindowBase::promiseRejectionTracker(JSGlobalObject* jsGlobalObject, ExecState* exec, JSPromise* promise, JSPromiseRejectionOperation operation)

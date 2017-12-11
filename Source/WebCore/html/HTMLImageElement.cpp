@@ -163,7 +163,7 @@ ImageCandidate HTMLImageElement::bestFitSourceFromPictureElement()
             String type = typeAttribute.string();
             type.truncate(type.find(';'));
             type = stripLeadingAndTrailingHTMLSpaces(type);
-            if (!type.isEmpty() && !MIMETypeRegistry::isSupportedImageOrSVGMIMEType(type))
+            if (!type.isEmpty() && !MIMETypeRegistry::isSupportedImageVideoOrSVGMIMEType(type))
                 continue;
         }
 
@@ -538,6 +538,16 @@ bool HTMLImageElement::complete() const
     return m_imageLoader.imageComplete();
 }
 
+DecodingMode HTMLImageElement::decodingMode() const
+{
+    const AtomicString& decodingMode = attributeWithoutSynchronization(decodingAttr);
+    if (equalLettersIgnoringASCIICase(decodingMode, "sync"))
+        return DecodingMode::Synchronous;
+    if (equalLettersIgnoringASCIICase(decodingMode, "async"))
+        return DecodingMode::Asynchronous;
+    return DecodingMode::Auto;
+}
+    
 void HTMLImageElement::decode(Ref<DeferredPromise>&& promise)
 {
     return m_imageLoader.decode(WTFMove(promise));

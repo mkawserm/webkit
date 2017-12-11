@@ -117,6 +117,7 @@
 #include "SubframeLoader.h"
 #include "TextResourceDecoder.h"
 #include "UserContentController.h"
+#include "UserGestureIndicator.h"
 #include "WindowFeatures.h"
 #include "XMLDocumentParser.h"
 #include <wtf/CompletionHandler.h>
@@ -420,7 +421,7 @@ void FrameLoader::submitForm(Ref<FormSubmission>&& submission)
 
     Frame* targetFrame = findFrameForNavigation(submission->target(), &submission->state().sourceDocument());
     if (!targetFrame) {
-        if (!DOMWindow::allowPopUp(m_frame) && !ScriptController::processingUserGesture())
+        if (!DOMWindow::allowPopUp(m_frame) && !UserGestureIndicator::processingUserGesture())
             return;
 
         // FIXME: targetFrame can be null for two distinct reasons:
@@ -732,7 +733,7 @@ void FrameLoader::didBeginDocument(bool dispatch)
         if (!headerContentLanguage.isEmpty()) {
             size_t commaIndex = headerContentLanguage.find(',');
             headerContentLanguage.truncate(commaIndex); // notFound == -1 == don't truncate
-            headerContentLanguage = headerContentLanguage.stripWhiteSpace(isHTMLSpace);
+            headerContentLanguage = stripLeadingAndTrailingHTMLSpaces(headerContentLanguage);
             if (!headerContentLanguage.isEmpty())
                 m_frame.document()->setContentLanguage(headerContentLanguage);
         }
@@ -743,6 +744,8 @@ void FrameLoader::didBeginDocument(bool dispatch)
 
 void FrameLoader::finishedParsing()
 {
+    LOG(Loading, "WebCoreLoading %s: Finished parsing", m_frame.tree().uniqueName().string().utf8().data());
+
     m_frame.injectUserScripts(InjectAtDocumentEnd);
 
     if (m_stateMachine.creatingInitialEmptyDocument())
@@ -1217,7 +1220,7 @@ void FrameLoader::loadFrameRequest(FrameLoadRequest&& request, Event* event, For
 
 static ShouldOpenExternalURLsPolicy shouldOpenExternalURLsPolicyToApply(Frame& currentFrame, InitiatedByMainFrame initiatedByMainFrame, ShouldOpenExternalURLsPolicy propagatedPolicy)
 {
-    if (ScriptController::processingUserGesture())
+    if (UserGestureIndicator::processingUserGesture())
         return ShouldOpenExternalURLsPolicy::ShouldAllow;
 
     if (initiatedByMainFrame == InitiatedByMainFrame::Yes)
@@ -1248,6 +1251,10 @@ bool FrameLoader::isNavigationAllowed() const
 {
     return m_pageDismissalEventBeingDispatched == PageDismissalType::None && NavigationDisabler::isNavigationAllowed(m_frame);
 }
+
+struct SharedBool : public RefCounted<SharedBool> {
+    bool value { false };
+};
 
 void FrameLoader::loadURL(FrameLoadRequest&& frameLoadRequest, const String& referrer, FrameLoadType newLoadType, Event* event, FormState* formState)
 {
@@ -1312,9 +1319,17 @@ void FrameLoader::loadURL(FrameLoadRequest&& frameLoadRequest, const String& ref
         oldDocumentLoader->setLastCheckedRequest(ResourceRequest());
         policyChecker().stopCheck();
         policyChecker().setLoadType(newLoadType);
-        policyChecker().checkNavigationPolicy(request, false /* didReceiveRedirectResponse */, oldDocumentLoader.get(), formState, [this] (const ResourceRequest& request, FormState*, bool shouldContinue) {
-            continueFragmentScrollAfterNavigationPolicy(request, shouldContinue);
+        auto completionHandlerCalled = adoptRef(*new SharedBool);
+        policyChecker().checkNavigationPolicy(ResourceRequest(request), false /* didReceiveRedirectResponse */, oldDocumentLoader.get(), formState, [this, completionHandlerCalled = completionHandlerCalled.copyRef()] (const ResourceRequest& request, FormState*, bool shouldContinue) {
+            if (!completionHandlerCalled->value) {
+                completionHandlerCalled->value = true;
+                continueFragmentScrollAfterNavigationPolicy(request, shouldContinue);
+            }
         });
+            if (!completionHandlerCalled->value) {
+            completionHandlerCalled->value = true;
+            continueFragmentScrollAfterNavigationPolicy(WTFMove(request), true);
+        }
         return;
     }
 
@@ -1472,9 +1487,17 @@ void FrameLoader::loadWithDocumentLoader(DocumentLoader* loader, FrameLoadType t
         oldDocumentLoader->setTriggeringAction(action);
         oldDocumentLoader->setLastCheckedRequest(ResourceRequest());
         policyChecker().stopCheck();
-        policyChecker().checkNavigationPolicy(loader->request(), false /* didReceiveRedirectResponse */, oldDocumentLoader.get(), formState, [this] (const ResourceRequest& request, FormState*, bool shouldContinue) {
-            continueFragmentScrollAfterNavigationPolicy(request, shouldContinue);
+        auto completionHandlerCalled = adoptRef(*new SharedBool);
+        policyChecker().checkNavigationPolicy(ResourceRequest(loader->request()), false /* didReceiveRedirectResponse */, oldDocumentLoader.get(), formState, [this, completionHandlerCalled = completionHandlerCalled.copyRef()] (const ResourceRequest& request, FormState*, bool shouldContinue) {
+            if (!completionHandlerCalled->value) {
+                completionHandlerCalled->value = true;
+                continueFragmentScrollAfterNavigationPolicy(request, shouldContinue);
+            }
         });
+        if (!completionHandlerCalled->value) {
+            completionHandlerCalled->value = true;
+            continueFragmentScrollAfterNavigationPolicy(loader->request(), true);
+        }
         return;
     }
 
@@ -1499,7 +1522,7 @@ void FrameLoader::loadWithDocumentLoader(DocumentLoader* loader, FrameLoadType t
         }
     }
 
-    policyChecker().checkNavigationPolicy(loader->request(), false /* didReceiveRedirectResponse */, loader, formState, [this, allowNavigationToInvalidURL] (const ResourceRequest& request, FormState* formState, bool shouldContinue) {
+    policyChecker().checkNavigationPolicy(ResourceRequest(loader->request()), false /* didReceiveRedirectResponse */, loader, formState, [this, allowNavigationToInvalidURL] (const ResourceRequest& request, FormState* formState, bool shouldContinue) {
         continueLoadAfterNavigationPolicy(request, formState, shouldContinue, allowNavigationToInvalidURL);
     });
 }
@@ -2888,7 +2911,7 @@ bool FrameLoader::shouldPerformFragmentNavigation(bool isFormSubmission, const S
 
 static bool itemAllowsScrollRestoration(HistoryItem* historyItem)
 {
-    return historyItem && historyItem->shouldRestoreScrollPosition();
+    return !historyItem || historyItem->shouldRestoreScrollPosition();
 }
 
 static bool isSameDocumentReload(bool isNewNavigation, FrameLoadType loadType)

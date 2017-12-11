@@ -127,7 +127,6 @@ static _WKDragLiftDelay toDragLiftDelay(NSUInteger value)
     BOOL _allowsInlineMediaPlayback;
     BOOL _inlineMediaPlaybackRequiresPlaysInlineAttribute;
     BOOL _allowsInlineMediaPlaybackAfterFullscreen;
-    BOOL _allowsBlockSelection;
     _WKDragLiftDelay _dragLiftDelay;
 #endif
 
@@ -146,6 +145,10 @@ static _WKDragLiftDelay toDragLiftDelay(NSUInteger value)
     BOOL _initialCapitalizationEnabled;
     BOOL _waitsForPaintAfterViewDidMoveToWindow;
     BOOL _controlledByAutomation;
+
+#if ENABLE(APPLICATION_MANIFEST)
+    RetainPtr<_WKApplicationManifest> _applicationManifest;
+#endif
 
 #if ENABLE(APPLE_PAY)
     BOOL _applePayEnabled;
@@ -218,7 +221,6 @@ static _WKDragLiftDelay toDragLiftDelay(NSUInteger value)
 
 #if PLATFORM(IOS)
     _selectionGranularity = WKSelectionGranularityDynamic;
-    _allowsBlockSelection = [[NSUserDefaults standardUserDefaults] boolForKey:@"WebKitDebugAllowBlockSelection"];
     _dragLiftDelay = toDragLiftDelay([[NSUserDefaults standardUserDefaults] integerForKey:@"WebKitDebugDragLiftDelay"]);
 #endif
 
@@ -335,7 +337,6 @@ static _WKDragLiftDelay toDragLiftDelay(NSUInteger value)
     configuration->_allowsPictureInPictureMediaPlayback = self->_allowsPictureInPictureMediaPlayback;
     configuration->_alwaysRunsAtForegroundPriority = _alwaysRunsAtForegroundPriority;
     configuration->_selectionGranularity = self->_selectionGranularity;
-    configuration->_allowsBlockSelection = self->_allowsBlockSelection;
     configuration->_ignoresViewportScaleLimits = self->_ignoresViewportScaleLimits;
     configuration->_dragLiftDelay = self->_dragLiftDelay;
 #endif
@@ -356,6 +357,9 @@ static _WKDragLiftDelay toDragLiftDelay(NSUInteger value)
 #if ENABLE(APPLE_PAY)
     configuration->_applePayEnabled = self->_applePayEnabled;
 #endif
+#if ENABLE(APPLICATION_MANIFEST)
+    configuration->_applicationManifest = self->_applicationManifest;
+#endif
     configuration->_needsStorageAccessFromFileURLsQuirk = self->_needsStorageAccessFromFileURLsQuirk;
     configuration->_overrideContentSecurityPolicy = adoptNS([self->_overrideContentSecurityPolicy copyWithZone:zone]);
 
@@ -363,6 +367,8 @@ static _WKDragLiftDelay toDragLiftDelay(NSUInteger value)
     configuration->_mediaContentTypesRequiringHardwareSupport = adoptNS([self._mediaContentTypesRequiringHardwareSupport copyWithZone:zone]);
     configuration->_legacyEncryptedMediaAPIEnabled = self->_legacyEncryptedMediaAPIEnabled;
     configuration->_allowMediaContentTypesRequiringHardwareSupportAsFallback = self->_allowMediaContentTypesRequiringHardwareSupportAsFallback;
+
+    configuration->_groupIdentifier = adoptNS([self->_groupIdentifier copyWithZone:zone]);
 
     return configuration;
 }
@@ -640,16 +646,6 @@ static NSString *defaultApplicationNameForUserAgent()
     _allowsInlineMediaPlaybackAfterFullscreen = allows;
 }
 
-- (BOOL)_allowsBlockSelection
-{
-    return _allowsBlockSelection;
-}
-
-- (void)_setAllowsBlockSelection:(BOOL)allowsBlockSelection
-{
-    _allowsBlockSelection = allowsBlockSelection;
-}
-
 - (_WKDragLiftDelay)_dragLiftDelay
 {
     return _dragLiftDelay;
@@ -755,6 +751,22 @@ static NSString *defaultApplicationNameForUserAgent()
 - (void)_setControlledByAutomation:(BOOL)controlledByAutomation
 {
     _controlledByAutomation = controlledByAutomation;
+}
+
+- (_WKApplicationManifest *)_applicationManifest
+{
+#if ENABLE(APPLICATION_MANIFEST)
+    return _applicationManifest.get();
+#else
+    return nil;
+#endif
+}
+
+- (void)_setApplicationManifest:(_WKApplicationManifest *)applicationManifest
+{
+#if ENABLE(APPLICATION_MANIFEST)
+    _applicationManifest = applicationManifest;
+#endif
 }
 
 #if PLATFORM(MAC)

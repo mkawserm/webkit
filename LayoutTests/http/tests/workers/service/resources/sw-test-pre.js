@@ -35,6 +35,54 @@ function waitForState(worker, state)
 
 function finishSWTest()
 {
-	if (window.testRunner)
-		testRunner.notifyDone();
+    if (window.testRunner)
+        testRunner.notifyDone();
 }
+
+function withFrame(scopeURL)
+{
+    return new Promise((resolve) => {
+        let frame = document.createElement('iframe');
+        frame.src = scopeURL;
+        frame.onload = function() { resolve(frame); };
+        document.body.appendChild(frame);
+    });
+}
+
+function registerAndWaitForActive(workerURL, scopeURL)
+{
+    return navigator.serviceWorker.register(workerURL, { scope : scopeURL }).then(function(registration) {
+        return new Promise(resolve => {
+            if (registration.active)
+                resolve(registration);
+            worker = registration.installing;
+            worker.addEventListener("statechange", () => {
+                if (worker.state === "activated")
+                    resolve(registration);
+            });
+        });
+    });
+}
+
+async function interceptedFrame(workerURL, scopeURL)
+{
+    await registerAndWaitForActive(workerURL, scopeURL);
+    return await withFrame(scopeURL);
+}
+
+function gc() {
+    if (typeof GCController !== "undefined")
+        GCController.collect();
+    else {
+        var gcRec = function (n) {
+            if (n < 1)
+                return {};
+            var temp = {i: "ab" + i + (i / 100000)};
+            temp += "foo";
+            gcRec(n-1);
+        };
+        for (var i = 0; i < 1000; i++)
+            gcRec(10);
+    }
+}
+

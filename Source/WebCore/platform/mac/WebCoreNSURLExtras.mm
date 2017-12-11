@@ -28,8 +28,6 @@
 
 #import "config.h"
 #import "URLParser.h"
-#import "WebCoreObjCExtras.h"
-#import "WebCoreNSStringExtras.h"
 #import "WebCoreNSURLExtras.h"
 #import <wtf/Function.h>
 #import <wtf/HexNumber.h>
@@ -47,7 +45,6 @@
 
 typedef void (* StringRangeApplierFunction)(NSString *string, NSRange range, void *context);
 
-static pthread_once_t IDNScriptWhiteListFileRead = PTHREAD_ONCE_INIT;
 static uint32_t IDNScriptWhiteList[(USCRIPT_CODE_LIMIT + 31) / 32];
 
 
@@ -279,26 +276,24 @@ static BOOL readIDNScriptWhiteListFile(NSString *filename)
     return YES;
 }
 
-static void readIDNScriptWhiteList(void)
-{
-    // Read white list from library.
-    NSArray *dirs = NSSearchPathForDirectoriesInDomains(NSLibraryDirectory, NSAllDomainsMask, YES);
-    int numDirs = [dirs count];
-    for (int i = 0; i < numDirs; i++) {
-        if (readIDNScriptWhiteListFile([[dirs objectAtIndex:i] stringByAppendingPathComponent:@"IDNScriptWhiteList.txt"]))
-            return;
-    }
-    
-    // Fall back on white list inside bundle.
-    NSBundle *bundle = [NSBundle bundleWithIdentifier:@"com.apple.WebCore"];
-    
-    if (!readIDNScriptWhiteListFile([bundle pathForResource:@"IDNScriptWhiteList" ofType:@"txt"]))
-        CRASH();
-}
-
 static BOOL allCharactersInIDNScriptWhiteList(const UChar *buffer, int32_t length)
 {
-    pthread_once(&IDNScriptWhiteListFileRead, readIDNScriptWhiteList);
+    static dispatch_once_t flag;
+    dispatch_once(&flag, ^{
+        // Read white list from library.
+        NSArray *dirs = NSSearchPathForDirectoriesInDomains(NSLibraryDirectory, NSAllDomainsMask, YES);
+        int numDirs = [dirs count];
+        for (int i = 0; i < numDirs; i++) {
+            if (readIDNScriptWhiteListFile([[dirs objectAtIndex:i] stringByAppendingPathComponent:@"IDNScriptWhiteList.txt"]))
+                return;
+        }
+
+        // Fall back on white list inside bundle.
+        NSBundle *bundle = [NSBundle bundleWithIdentifier:@"com.apple.WebCore"];
+
+        if (!readIDNScriptWhiteListFile([bundle pathForResource:@"IDNScriptWhiteList" ofType:@"txt"]))
+            CRASH();
+    });
     
     int32_t i = 0;
     std::optional<UChar32> previousCodePoint;
@@ -721,7 +716,7 @@ static void applyHostNameFunctionToURLString(NSString *string, StringRangeApplie
     
     // Maybe we should implement this using a character buffer instead?
     
-    if (hasCaseInsensitivePrefix(string, @"mailto:")) {
+    if (protocolIs(string, "mailto")) {
         applyHostNameFunctionToMailToURLString(string, f, context);
         return;
     }

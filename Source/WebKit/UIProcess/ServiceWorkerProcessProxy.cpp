@@ -31,9 +31,17 @@
 #include "WebPreferencesStore.h"
 #include "WebProcessMessages.h"
 #include "WebProcessPool.h"
+#include "WebSWContextManagerConnectionMessages.h"
 #include <WebCore/NotImplemented.h>
 
 namespace WebKit {
+
+Ref<ServiceWorkerProcessProxy> ServiceWorkerProcessProxy::create(WebProcessPool& pool, WebsiteDataStore& store)
+{
+    auto proxy = adoptRef(*new ServiceWorkerProcessProxy { pool, store });
+    proxy->connect();
+    return proxy;
+}
 
 ServiceWorkerProcessProxy::ServiceWorkerProcessProxy(WebProcessPool& pool, WebsiteDataStore& store)
     : WebProcessProxy { pool, store }
@@ -45,9 +53,21 @@ ServiceWorkerProcessProxy::~ServiceWorkerProcessProxy()
 {
 }
 
+void ServiceWorkerProcessProxy::getLaunchOptions(ProcessLauncher::LaunchOptions& launchOptions)
+{
+    WebProcessProxy::getLaunchOptions(launchOptions);
+
+    launchOptions.extraInitializationData.add(ASCIILiteral("service-worker-process"), ASCIILiteral("1"));
+}
+
 void ServiceWorkerProcessProxy::start(const WebPreferencesStore& store)
 {
-    send(Messages::WebProcess::GetWorkerContextConnection(m_serviceWorkerPageID, store), 0);
+    send(Messages::WebProcess::EstablishWorkerContextConnectionToStorageProcess { m_serviceWorkerPageID, store }, 0);
+}
+
+void ServiceWorkerProcessProxy::setUserAgent(const String& userAgent)
+{
+    send(Messages::WebSWContextManagerConnection::SetUserAgent { userAgent }, 0);
 }
 
 void ServiceWorkerProcessProxy::didReceiveAuthenticationChallenge(uint64_t pageID, uint64_t frameID, Ref<AuthenticationChallengeProxy>&& challenge)

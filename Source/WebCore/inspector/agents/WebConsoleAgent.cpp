@@ -40,6 +40,7 @@
 
 
 namespace WebCore {
+
 using namespace Inspector;
 
 WebConsoleAgent::WebConsoleAgent(AgentContext& context, InspectorHeapAgent* heapAgent)
@@ -47,7 +48,7 @@ WebConsoleAgent::WebConsoleAgent(AgentContext& context, InspectorHeapAgent* heap
 {
 }
 
-void WebConsoleAgent::getLoggingChannels(ErrorString&, RefPtr<Inspector::Protocol::Array<Inspector::Protocol::Console::Channel>>& channels)
+void WebConsoleAgent::getLoggingChannels(ErrorString&, RefPtr<JSON::ArrayOf<Inspector::Protocol::Console::Channel>>& channels)
 {
     static const struct ChannelTable {
         NeverDestroyed<String> name;
@@ -57,7 +58,7 @@ void WebConsoleAgent::getLoggingChannels(ErrorString&, RefPtr<Inspector::Protoco
         { MAKE_STATIC_STRING_IMPL("Media"), Inspector::Protocol::Console::ChannelSource::Media },
     };
 
-    channels = Inspector::Protocol::Array<Inspector::Protocol::Console::Channel>::create();
+    channels = JSON::ArrayOf<Inspector::Protocol::Console::Channel>::create();
 
     size_t length = WTF_ARRAY_LENGTH(channelTable);
     for (size_t i = 0; i < length; ++i) {
@@ -65,23 +66,17 @@ void WebConsoleAgent::getLoggingChannels(ErrorString&, RefPtr<Inspector::Protoco
         if (!logChannel)
             return;
 
-        Inspector::Protocol::Console::ChannelLevel level = Inspector::Protocol::Console::ChannelLevel::Off;
+        auto level = Inspector::Protocol::Console::ChannelLevel::Off;
         if (logChannel->state != WTFLogChannelOff) {
             switch (logChannel->level) {
             case WTFLogLevelAlways:
-                level = Inspector::Protocol::Console::ChannelLevel::Log;
-                break;
             case WTFLogLevelError:
-                level = Inspector::Protocol::Console::ChannelLevel::Error;
-                break;
             case WTFLogLevelWarning:
-                level = Inspector::Protocol::Console::ChannelLevel::Warning;
+                level = Inspector::Protocol::Console::ChannelLevel::Basic;
                 break;
             case WTFLogLevelInfo:
-                level = Inspector::Protocol::Console::ChannelLevel::Info;
-                break;
             case WTFLogLevelDebug:
-                level = Inspector::Protocol::Console::ChannelLevel::Debug;
+                level = Inspector::Protocol::Console::ChannelLevel::Verbose;
                 break;
             }
         }
@@ -104,15 +99,9 @@ static std::optional<std::pair<WTFLogChannelState, WTFLogLevel>> channelConfigur
         level = WTFLogLevelError;
     } else {
         state = WTFLogChannelOn;
-        if (equalIgnoringASCIICase(levelString, "log"))
-            level = WTFLogLevelAlways;
-        else if (equalIgnoringASCIICase(levelString, "error"))
-            level = WTFLogLevelError;
-        else if (equalIgnoringASCIICase(levelString, "warning"))
+        if (equalIgnoringASCIICase(levelString, "basic"))
             level = WTFLogLevelWarning;
-        else if (equalIgnoringASCIICase(levelString, "info"))
-            level = WTFLogLevelInfo;
-        else if (equalIgnoringASCIICase(levelString, "debug"))
+        else if (equalIgnoringASCIICase(levelString, "verbose"))
             level = WTFLogLevelDebug;
         else
             return std::nullopt;

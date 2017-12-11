@@ -90,7 +90,11 @@ class VoidCallback;
 class WebGLRenderingContext;
 class XMLHttpRequest;
 
-class Internals final : public RefCounted<Internals>,  private ContextDestructionObserver
+#if ENABLE(SERVICE_WORKER)
+class ServiceWorker;
+#endif
+
+class Internals final : public RefCounted<Internals>, private ContextDestructionObserver
 #if ENABLE(MEDIA_STREAM)
     , private RealtimeMediaSource::Observer
 #endif
@@ -230,7 +234,7 @@ public:
     bool elementShouldAutoComplete(HTMLInputElement&);
     void setEditingValue(HTMLInputElement&, const String&);
     void setAutofilled(HTMLInputElement&, bool enabled);
-    enum class AutoFillButtonType { AutoFillButtonTypeNone, AutoFillButtonTypeContacts, AutoFillButtonTypeCredentials };
+    enum class AutoFillButtonType { None, Contacts, Credentials };
     void setShowAutoFillButton(HTMLInputElement&, AutoFillButtonType);
     ExceptionOr<void> scrollElementToRect(Element&, int x, int y, int w, int h);
 
@@ -623,12 +627,17 @@ public:
     Ref<FetchEvent> createBeingDispatchedFetchEvent(ScriptExecutionContext&);
     using HasRegistrationPromise = DOMPromiseDeferred<IDLBoolean>;
     void hasServiceWorkerRegistration(const String& clientURL, HasRegistrationPromise&&);
+    void terminateServiceWorker(ServiceWorker&);
 #endif
-
-    bool hasServiceWorkerRegisteredForOrigin(const String&);
 
 #if ENABLE(APPLE_PAY)
     MockPaymentCoordinator& mockPaymentCoordinator() const;
+#endif
+
+#if ENABLE(ALTERNATIVE_PRESENTATION_BUTTON_ELEMENT)
+    ExceptionOr<void> substituteWithAlternativePresentationButton(Vector<RefPtr<Element>>&&, const String&);
+    ExceptionOr<void> removeAlternativePresentationButton(const String&);
+    ExceptionOr<Vector<Ref<Element>>> elementsReplacedByAlternativePresentationButton(const String&);
 #endif
 
     String timelineDescription(AnimationTimeline&);

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008, 2015-2017 Apple Inc. All rights reserved.
+ * Copyright (C) 2008-2017 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -37,6 +37,7 @@
 #include "JSGlobalObject.h"
 #include "JSLock.h"
 #include "LLIntData.h"
+#include "MacroAssemblerCodeRef.h"
 #include "Options.h"
 #include "StructureIDTable.h"
 #include "SuperSampler.h"
@@ -58,6 +59,7 @@ void initializeThreading()
 
     std::call_once(initializeThreadingOnceFlag, []{
         WTF::initializeThreading();
+        initializePoison();
         Options::initialize();
 #if ENABLE(WRITE_BARRIER_PROFILING)
         WriteBarrierCounters::initialize();

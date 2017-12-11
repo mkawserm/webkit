@@ -321,7 +321,7 @@ void InjectedBundle::setPrivateBrowsingEnabled(WebPageGroupProxy* pageGroup, boo
 {
     if (enabled) {
         WebProcess::singleton().ensureLegacyPrivateBrowsingSessionInNetworkProcess();
-        WebFrameNetworkingContext::ensurePrivateBrowsingSession({ { }, { }, { }, { }, { }, { }, { PAL::SessionID::legacyPrivateSessionID(), { }, { }, AllowsCellularAccess::Yes }});
+        WebFrameNetworkingContext::ensureWebsiteDataStoreSession({ { }, { }, { }, { }, { }, { }, { PAL::SessionID::legacyPrivateSessionID(), { }, { }, AllowsCellularAccess::Yes }});
     } else
         SessionTracker::destroySession(PAL::SessionID::legacyPrivateSessionID());
 
@@ -433,7 +433,7 @@ bool InjectedBundle::isPageBoxVisible(WebFrame* frame, int pageIndex)
 
 bool InjectedBundle::isProcessingUserGesture()
 {
-    return ScriptController::processingUserGesture();
+    return UserGestureIndicator::processingUserGesture();
 }
 
 void InjectedBundle::addUserScript(WebPageGroupProxy* pageGroup, InjectedBundleScriptWorld* scriptWorld, String&& source, String&& url, API::Array* whitelist, API::Array* blacklist, WebCore::UserScriptInjectionTime injectionTime, WebCore::UserContentInjectedFrames injectedFrames)
@@ -581,6 +581,7 @@ uint64_t InjectedBundle::webNotificationID(JSContextRef jsContext, JSValueRef js
 Ref<API::Data> InjectedBundle::createWebDataFromUint8Array(JSContextRef context, JSValueRef data)
 {
     JSC::ExecState* execState = toJS(context);
+    JSLockHolder lock(execState);
     RefPtr<Uint8Array> arrayData = WebCore::toUnsharedUint8Array(execState->vm(), toJS(execState, data));
     return API::Data::create(static_cast<unsigned char*>(arrayData->baseAddress()), arrayData->byteLength());
 }

@@ -28,6 +28,7 @@
 
 #include "CSSFontFaceSource.h"
 #include "CSSFontFamily.h"
+#include "CSSFontSelector.h"
 #include "CSSFontStyleValue.h"
 #include "CSSParser.h"
 #include "CSSPrimitiveValue.h"
@@ -40,7 +41,8 @@
 
 namespace WebCore {
 
-CSSFontFaceSet::CSSFontFaceSet()
+CSSFontFaceSet::CSSFontFaceSet(CSSFontSelector* owningFontSelector)
+    : m_owningFontSelector(owningFontSelector)
 {
 }
 
@@ -98,10 +100,14 @@ bool CSSFontFaceSet::hasFace(const CSSFontFace& face) const
 
 void CSSFontFaceSet::ensureLocalFontFacesForFamilyRegistered(const String& familyName)
 {
+    ASSERT(m_owningFontSelector);
     if (m_locallyInstalledFacesLookupTable.contains(familyName))
         return;
 
-    Vector<FontSelectionCapabilities> capabilities = FontCache::singleton().getFontSelectionCapabilitiesInFamily(familyName);
+    FontCache::AllowUserInstalledFonts allowUserInstalledFonts = FontCache::AllowUserInstalledFonts::Yes;
+    if (m_owningFontSelector->document() && m_owningFontSelector->document()->settings().shouldDisallowUserInstalledFonts())
+        allowUserInstalledFonts = FontCache::AllowUserInstalledFonts::No;
+    Vector<FontSelectionCapabilities> capabilities = FontCache::singleton().getFontSelectionCapabilitiesInFamily(familyName, allowUserInstalledFonts);
     if (capabilities.isEmpty())
         return;
 
@@ -164,7 +170,8 @@ void CSSFontFaceSet::addToFacesLookupTable(CSSFontFace& face)
         if (addResult.isNewEntry) {
             // m_locallyInstalledFontFaces grows without bound, eventually encorporating every font installed on the system.
             // This is by design.
-            ensureLocalFontFacesForFamilyRegistered(familyName);
+            if (m_owningFontSelector)
+                ensureLocalFontFacesForFamilyRegistered(familyName);
             familyFontFaces = { };
         }
 
@@ -328,7 +335,7 @@ static HashSet<UChar32> codePointsFromString(StringView stringView)
     return result;
 }
 
-ExceptionOr<Vector<std::reference_wrapper<CSSFontFace>>> CSSFontFaceSet::matchingFaces(const String& font, const String& string)
+ExceptionOr<Vector<std::reference_wrapper<CSSFontFace>>> CSSFontFaceSet::matchingFacesExcludingPreinstalledFonts(const String& font, const String& string)
 {
     auto style = MutableStyleProperties::create();
     auto parseResult = CSSParser::parseValue(style, CSSPropertyFont, font, true, HTMLStandardMode);
@@ -360,6 +367,8 @@ ExceptionOr<Vector<std::reference_wrapper<CSSFontFace>>> CSSFontFaceSet::matchin
             if (!faces)
                 continue;
             for (auto& constituentFace : faces->constituentFaces()) {
+                if (constituentFace->isLocalFallback())
+                    continue;
                 if (constituentFace->rangesMatchCodePoint(codePoint)) {
                     resultConstituents.add(constituentFace.ptr());
                     found = true;
@@ -380,7 +389,7 @@ ExceptionOr<Vector<std::reference_wrapper<CSSFontFace>>> CSSFontFaceSet::matchin
 
 ExceptionOr<bool> CSSFontFaceSet::check(const String& font, const String& text)
 {
-    auto matchingFaces = this->matchingFaces(font, text);
+    auto matchingFaces = this->matchingFacesExcludingPreinstalledFonts(font, text);
     if (matchingFaces.hasException())
         return matchingFaces.releaseException();
 

@@ -54,13 +54,11 @@ namespace WebCore {
 using namespace PAL;
 
 class CoreAudioCaptureSourceFactory : public RealtimeMediaSource::AudioCaptureFactory
-#if PLATFORM(IOS)
-    , public RealtimeMediaSource::SingleSourceFactory<CoreAudioCaptureSource>
-#endif
 {
 public:
-    CaptureSourceOrError createAudioCaptureSource(const String& deviceID, const MediaConstraints* constraints) final {
-        return CoreAudioCaptureSource::create(deviceID, constraints);
+    CaptureSourceOrError createAudioCaptureSource(const CaptureDevice& device, const MediaConstraints* constraints) final
+    {
+        return CoreAudioCaptureSource::create(device.persistentId(), constraints);
     }
 };
 

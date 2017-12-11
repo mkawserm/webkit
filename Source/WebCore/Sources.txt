@@ -23,6 +23,16 @@
 
 Modules/airplay/WebKitPlaybackTargetAvailabilityEvent.cpp
 
+#if ENABLE_APPLICATION_MANIFEST
+
+Modules/applicationmanifest/ApplicationManifestParser.cpp
+
+loader/ApplicationManifestLoader.cpp
+
+loader/cache/CachedApplicationManifest.cpp
+
+#endif
+
 Modules/beacon/NavigatorBeacon.cpp
 
 Modules/cache/CacheStorageConnection.cpp
@@ -308,6 +318,7 @@ accessibility/AccessibilityTableHeaderContainer.cpp
 accessibility/AccessibilityTableRow.cpp
 accessibility/AccessibilityTree.cpp
 accessibility/AccessibilityTreeItem.cpp
+accessibility/AccessibleNode.cpp
 
 animation/AnimationEffect.cpp
 animation/AnimationEffectTiming.cpp
@@ -320,6 +331,7 @@ bindings/js/CachedModuleScriptLoader.cpp
 bindings/js/CachedScriptFetcher.cpp
 bindings/js/CallTracer.cpp
 bindings/js/CommonVM.cpp
+bindings/js/DOMGCOutputConstraint.cpp
 bindings/js/DOMWrapperWorld.cpp
 bindings/js/GCController.cpp
 bindings/js/IDBBindingUtilities.cpp
@@ -403,6 +415,7 @@ bindings/js/JSReadableStreamSourceCustom.cpp
 bindings/js/JSSVGPathSegCustom.cpp
 bindings/js/JSStyleSheetCustom.cpp
 bindings/js/JSServiceWorkerClientCustom.cpp
+bindings/js/JSServiceWorkerGlobalScopeCustom.cpp
 bindings/js/JSTextCustom.cpp
 bindings/js/JSTextTrackCueCustom.cpp
 bindings/js/JSTextTrackCustom.cpp
@@ -417,6 +430,7 @@ bindings/js/JSWebGPURenderPassAttachmentDescriptorCustom.cpp
 bindings/js/JSWebGPURenderingContextCustom.cpp
 bindings/js/JSWorkerGlobalScopeBase.cpp
 bindings/js/JSWorkerGlobalScopeCustom.cpp
+bindings/js/JSWorkerNavigatorCustom.cpp
 bindings/js/JSXMLDocumentCustom.cpp
 bindings/js/JSXMLHttpRequestCustom.cpp
 bindings/js/JSXPathNSResolverCustom.cpp
@@ -889,6 +903,7 @@ html/BaseClickableWithKeyInputType.cpp
 html/BaseDateAndTimeInputType.cpp
 html/BaseTextInputType.cpp
 html/ButtonInputType.cpp
+html/CanvasBase.cpp
 html/CheckboxInputType.cpp
 html/ColorInputType.cpp
 html/DOMFormData.cpp
@@ -1150,10 +1165,13 @@ inspector/agents/WebHeapAgent.cpp
 inspector/agents/page/PageConsoleAgent.cpp
 inspector/agents/page/PageDebuggerAgent.cpp
 inspector/agents/page/PageHeapAgent.cpp
+inspector/agents/page/PageNetworkAgent.cpp
 inspector/agents/page/PageRuntimeAgent.cpp
 
+inspector/agents/worker/ServiceWorkerAgent.cpp
 inspector/agents/worker/WorkerConsoleAgent.cpp
 inspector/agents/worker/WorkerDebuggerAgent.cpp
+inspector/agents/worker/WorkerNetworkAgent.cpp
 inspector/agents/worker/WorkerRuntimeAgent.cpp
 
 loader/ContentFilter.cpp
@@ -1247,6 +1265,7 @@ mathml/MathMLOperatorDictionary.cpp
 mathml/MathMLOperatorElement.cpp
 mathml/MathMLPaddedElement.cpp
 mathml/MathMLPresentationElement.cpp
+mathml/MathMLRootElement.cpp
 mathml/MathMLRowElement.cpp
 mathml/MathMLScriptsElement.cpp
 mathml/MathMLSelectElement.cpp
@@ -1331,6 +1350,7 @@ page/UserContentProvider.cpp
 page/UserContentController.cpp
 page/UserContentURLPattern.cpp
 page/VisitedLinkStore.cpp
+page/VisualViewport.cpp
 page/WheelEventDeltaFilter.cpp
 page/WheelEventTestTrigger.cpp
 page/WindowFeatures.cpp
@@ -1476,6 +1496,7 @@ platform/encryptedmedia/CDMFactory.cpp
 
 platform/graphics/BitmapImage.cpp
 platform/graphics/Color.cpp
+platform/graphics/ColorUtilities.cpp
 platform/graphics/ComplexTextController.cpp
 platform/graphics/CrossfadeGeneratedImage.cpp
 platform/graphics/DisplayRefreshMonitor.cpp
@@ -1500,6 +1521,7 @@ platform/graphics/FontTaggedSettings.cpp
 platform/graphics/FontGenericFamilies.cpp
 platform/graphics/FontPlatformData.cpp
 platform/graphics/FontRanges.cpp
+platform/graphics/FourCC.cpp
 platform/graphics/GeneratedImage.cpp
 platform/graphics/GeometryUtilities.cpp
 platform/graphics/Gradient.cpp
@@ -1514,7 +1536,6 @@ platform/graphics/Image.cpp
 platform/graphics/ImageBuffer.cpp
 platform/graphics/ImageDecoder.cpp
 platform/graphics/ImageFrame.cpp
-platform/graphics/ImageFrameCache.cpp
 platform/graphics/ImageOrientation.cpp
 platform/graphics/ImageSource.cpp
 platform/graphics/IntPoint.cpp
@@ -1723,6 +1744,7 @@ rendering/FlexibleBoxAlgorithm.cpp
 rendering/FixedTableLayout.cpp
 rendering/FloatingObjects.cpp
 rendering/Grid.cpp
+rendering/GridLayoutFunctions.cpp
 rendering/GridTrackSizingAlgorithm.cpp
 rendering/HitTestLocation.cpp
 rendering/HitTestResult.cpp
@@ -1835,6 +1857,7 @@ rendering/SimpleLineLayoutTextFragmentIterator.cpp
 rendering/TextDecorationPainter.cpp
 rendering/TextPaintStyle.cpp
 rendering/TextPainter.cpp
+rendering/TrailingFloatsRootInlineBox.cpp
 
 rendering/line/LineBreaker.cpp
 rendering/line/LineInfo.cpp
@@ -2165,11 +2188,14 @@ workers/WorkerThread.cpp
 workers/service/ExtendableEvent.cpp
 workers/service/ExtendableMessageEvent.cpp
 workers/service/FetchEvent.cpp
+workers/service/SWClientConnection.cpp
 workers/service/ServiceWorker.cpp
 workers/service/ServiceWorkerClient.cpp
+workers/service/ServiceWorkerClientData.cpp
 workers/service/ServiceWorkerClients.cpp
 workers/service/ServiceWorkerContainer.cpp
 workers/service/ServiceWorkerContextData.cpp
+workers/service/ServiceWorkerData.cpp
 workers/service/ServiceWorkerGlobalScope.cpp
 workers/service/ServiceWorkerJob.cpp
 workers/service/ServiceWorkerJobData.cpp
@@ -2187,10 +2213,13 @@ workers/service/context/ServiceWorkerThread.cpp
 workers/service/context/ServiceWorkerThreadProxy.cpp
 workers/service/context/SWContextManager.cpp
 
-workers/service/server/SWClientConnection.cpp
+workers/service/server/RegistrationDatabase.cpp
+workers/service/server/RegistrationStore.cpp
+workers/service/server/SWOriginStore.cpp
 workers/service/server/SWServer.cpp
 workers/service/server/SWServerJobQueue.cpp
 workers/service/server/SWServerRegistration.cpp
+workers/service/server/SWServerToContextConnection.cpp
 workers/service/server/SWServerWorker.cpp
 
 xml/DOMParser.cpp
@@ -2251,6 +2280,7 @@ JSHTMLElementWrapperFactory.cpp
 JSAbortController.cpp
 JSAbortSignal.cpp
 JSAbstractWorker.cpp
+JSAccessibleNode.cpp
 JSAesCbcCfbParams.cpp
 JSAesCtrParams.cpp
 JSAesGcmParams.cpp
@@ -2929,6 +2959,7 @@ JSVRStageParameters.cpp
 JSValidityState.cpp
 JSVideoPlaybackQuality.cpp
 JSVisibilityState.cpp
+JSVisualViewport.cpp
 JSVoidCallback.cpp
 JSWaveShaperNode.cpp
 JSWebAnimation.cpp

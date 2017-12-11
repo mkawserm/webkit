@@ -35,6 +35,7 @@
 #include "AccessibilityListBox.h"
 #include "AccessibilitySpinButton.h"
 #include "AccessibilityTable.h"
+#include "AccessibleNode.h"
 #include "Editing.h"
 #include "ElementIterator.h"
 #include "EventNames.h"
@@ -144,7 +145,7 @@ void AccessibilityNodeObject::childrenChanged()
         // Sometimes this function can be called many times within a short period of time, leading to posting too many AXLiveRegionChanged
         // notifications. To fix this, we used a timer to make sure we only post one notification for the children changes within a pre-defined
         // time interval.
-        if (parent->supportsARIALiveRegion())
+        if (parent->supportsLiveRegion())
             cache->postLiveRegionChangeNotification(parent);
         
         // If this element is an ARIA text control, notify the AT of changes.
@@ -480,12 +481,12 @@ bool AccessibilityNodeObject::isSearchField() const
 
     // Check the node name of the input type, sometimes it's "search".
     const AtomicString& nameAttribute = getAttribute(nameAttr);
-    if (nameAttribute.contains("search", false))
+    if (nameAttribute.containsIgnoringASCIICase("search"))
         return true;
 
     // Check the form action and the name, which will sometimes be "search".
     auto* form = inputElement.form();
-    if (form && (form->name().contains("search", false) || form->action().contains("search", false)))
+    if (form && (form->name().containsIgnoringASCIICase("search") || form->action().containsIgnoringASCIICase("search")))
         return true;
 
     return false;
@@ -624,11 +625,11 @@ bool AccessibilityNodeObject::isEnabled() const
 {
     // ARIA says that the disabled status applies to the current element and all descendant elements.
     for (AccessibilityObject* object = const_cast<AccessibilityNodeObject*>(this); object; object = object->parentObject()) {
-        const AtomicString& disabledStatus = object->getAttribute(aria_disabledAttr);
-        if (equalLettersIgnoringASCIICase(disabledStatus, "true"))
-            return false;
-        if (equalLettersIgnoringASCIICase(disabledStatus, "false"))
+        if (auto disabled = object->boolValueForProperty(AXPropertyName::Disabled)) {
+            if (disabled.value())
+                return false;
             break;
+        }
     }
     
     if (roleValue() == AccessibilityRole::HorizontalRule)
@@ -657,7 +658,7 @@ bool AccessibilityNodeObject::isPressed() const
 
     // If this is an toggle button, check the aria-pressed attribute rather than node()->active()
     if (isToggleButton())
-        return equalLettersIgnoringASCIICase(getAttribute(aria_pressedAttr), "true");
+        return equalLettersIgnoringASCIICase(stringValueForProperty(AXPropertyName::Pressed), "true");
 
     if (!is<Element>(*node))
         return false;
@@ -689,7 +690,7 @@ bool AccessibilityNodeObject::isChecked() const
         break;
     }
     
-    if (validRole && equalLettersIgnoringASCIICase(getAttribute(aria_checkedAttr), "true"))
+    if (validRole && equalLettersIgnoringASCIICase(stringValueForProperty(AXPropertyName::Checked), "true"))
         return true;
 
     return false;
@@ -703,11 +704,8 @@ bool AccessibilityNodeObject::isHovered() const
 
 bool AccessibilityNodeObject::isMultiSelectable() const
 {
-    const AtomicString& ariaMultiSelectable = getAttribute(aria_multiselectableAttr);
-    if (equalLettersIgnoringASCIICase(ariaMultiSelectable, "true"))
-        return true;
-    if (equalLettersIgnoringASCIICase(ariaMultiSelectable, "false"))
-        return false;
+    if (auto multiSelectable = boolValueForProperty(AXPropertyName::Multiselectable))
+        return multiSelectable.value();
     
     return node() && node()->hasTagName(selectTag) && downcast<HTMLSelectElement>(*node()).multiple();
 }
@@ -715,11 +713,8 @@ bool AccessibilityNodeObject::isMultiSelectable() const
 bool AccessibilityNodeObject::isRequired() const
 {
     // Explicit aria-required values should trump native required attributes.
-    const AtomicString& requiredValue = getAttribute(aria_requiredAttr);
-    if (equalLettersIgnoringASCIICase(requiredValue, "true"))
-        return true;
-    if (equalLettersIgnoringASCIICase(requiredValue, "false"))
-        return false;
+    if (auto axRequired = boolValueForProperty(AXPropertyName::Required))
+        return axRequired.value();
 
     Node* n = this->node();
     if (is<HTMLFormControlElement>(n))
@@ -765,9 +760,9 @@ int AccessibilityNodeObject::headingLevel() const
         return false;
 
     if (isHeading()) {
-        int ariaLevel = getAttribute(aria_levelAttr).toInt();
-        if (ariaLevel > 0)
-            return ariaLevel;
+        int level = unsignedValueForProperty(AXPropertyName::Level);
+        if (level > 0)
+            return level;
     }
 
     if (node->hasTagName(h1Tag))
@@ -801,7 +796,7 @@ String AccessibilityNodeObject::valueDescription() const
     if (!isRangeControl())
         return String();
 
-    return getAttribute(aria_valuetextAttr).string();
+    return stringValueForProperty(AXPropertyName::ValueText);
 }
 
 float AccessibilityNodeObject::valueForRange() const
@@ -817,9 +812,8 @@ float AccessibilityNodeObject::valueForRange() const
 
     // In ARIA 1.1, the implicit value for aria-valuenow on a spin button is 0.
     // For other roles, it is half way between aria-valuemin and aria-valuemax.
-    auto& value = getAttribute(aria_valuenowAttr);
-    if (!value.isEmpty())
-        return value.toFloat();
+    if (hasProperty(AXPropertyName::ValueNow))
+        return doubleValueForProperty(AXPropertyName::ValueNow);
 
     return isSpinButton() ? 0 : (minValueForRange() + maxValueForRange()) / 2;
 }
@@ -835,9 +829,8 @@ float AccessibilityNodeObject::maxValueForRange() const
     if (!isRangeControl())
         return 0.0f;
 
-    auto& value = getAttribute(aria_valuemaxAttr);
-    if (!value.isEmpty())
-        return value.toFloat();
+    if (hasProperty(AXPropertyName::ValueMax))
+        return doubleValueForProperty(AXPropertyName::ValueMax);
 
     // In ARIA 1.1, the implicit value for aria-valuemax on a spin button
     // is that there is no maximum value. For other roles, it is 100.
@@ -855,9 +848,8 @@ float AccessibilityNodeObject::minValueForRange() const
     if (!isRangeControl())
         return 0.0f;
 
-    auto& value = getAttribute(aria_valueminAttr);
-    if (!value.isEmpty())
-        return value.toFloat();
+    if (hasProperty(AXPropertyName::ValueMin))
+        return doubleValueForProperty(AXPropertyName::ValueMin);
 
     // In ARIA 1.1, the implicit value for aria-valuemin on a spin button
     // is that there is no minimum value. For other roles, it is 0.
@@ -1169,7 +1161,7 @@ String AccessibilityNodeObject::ariaAccessibilityDescription() const
     if (!ariaLabeledBy.isEmpty())
         return ariaLabeledBy;
 
-    const AtomicString& ariaLabel = getAttribute(aria_labelAttr);
+    const AtomicString& ariaLabel = stringValueForProperty(AXPropertyName::Label);
     if (!ariaLabel.isEmpty())
         return ariaLabel;
 
@@ -1185,7 +1177,7 @@ static Element* siblingWithAriaRole(Node* node, const char* role)
 
     for (auto& sibling : childrenOfType<Element>(*parent)) {
         // FIXME: Should skip sibling that is the same as the node.
-        if (equalIgnoringASCIICase(sibling.attributeWithoutSynchronization(roleAttr), role))
+        if (equalIgnoringASCIICase(AccessibleNode::effectiveStringValueForElement(sibling, AXPropertyName::Role), role))
             return &sibling;
     }
 
@@ -1276,7 +1268,7 @@ String AccessibilityNodeObject::textForLabelElement(Element* element) const
     
     // Then check for aria-label attribute.
     if (result.isEmpty())
-        result = label->attributeWithoutSynchronization(aria_labelAttr);
+        result = AccessibleNode::effectiveStringValueForElement(*label, AXPropertyName::Label);
     
     return !result.isEmpty() ? result : label->innerText();
 }
@@ -1315,7 +1307,7 @@ void AccessibilityNodeObject::alternativeText(Vector<AccessibilityText>& textOrd
     
     ariaLabeledByText(textOrder);
     
-    const AtomicString& ariaLabel = getAttribute(aria_labelAttr);
+    const AtomicString& ariaLabel = stringValueForProperty(AXPropertyName::Label);
     if (!ariaLabel.isEmpty())
         textOrder.append(AccessibilityText(ariaLabel, AccessibilityTextSource::Alternative));
     
@@ -1507,7 +1499,7 @@ String AccessibilityNodeObject::alternativeTextForWebArea() const
     
     // Check if the HTML element has an aria-label for the webpage.
     if (Element* documentElement = document->documentElement()) {
-        const AtomicString& ariaLabel = documentElement->attributeWithoutSynchronization(aria_labelAttr);
+        const AtomicString& ariaLabel = AccessibleNode::effectiveStringValueForElement(*documentElement, AXPropertyName::Label);
         if (!ariaLabel.isEmpty())
             return ariaLabel;
     }
@@ -1625,10 +1617,8 @@ unsigned AccessibilityNodeObject::hierarchicalLevel() const
     Node* node = this->node();
     if (!is<Element>(node))
         return 0;
-    Element& element = downcast<Element>(*node);
-    const AtomicString& ariaLevel = element.attributeWithoutSynchronization(aria_levelAttr);
-    if (!ariaLevel.isEmpty())
-        return ariaLevel.toInt();
+    if (hasProperty(AXPropertyName::Level))
+        return unsignedValueForProperty(AXPropertyName::Level);
     
     // Only tree item will calculate its level through the DOM currently.
     if (roleValue() != AccessibilityRole::TreeItem)
@@ -1687,7 +1677,7 @@ static bool shouldUseAccessibilityObjectInnerText(AccessibilityObject* obj, Acce
         && !obj->accessibleNameDerivesFromContent())
         return false;
     
-    if (equalLettersIgnoringASCIICase(obj->getAttribute(aria_hiddenAttr), "true"))
+    if (obj->boolValueForProperty(AXPropertyName::Hidden).value())
         return false;
     
     // If something doesn't expose any children, then we can always take the inner text content.
@@ -1878,7 +1868,7 @@ String AccessibilityNodeObject::stringValue() const
         int selectedIndex = selectElement.selectedIndex();
         const Vector<HTMLElement*>& listItems = selectElement.listItems();
         if (selectedIndex >= 0 && static_cast<size_t>(selectedIndex) < listItems.size()) {
-            const AtomicString& overriddenDescription = listItems[selectedIndex]->attributeWithoutSynchronization(aria_labelAttr);
+            const AtomicString& overriddenDescription = AccessibleNode::effectiveStringValueForElement(*listItems[selectedIndex], AXPropertyName::Label);
             if (!overriddenDescription.isNull())
                 return overriddenDescription;
         }
@@ -1910,12 +1900,7 @@ void AccessibilityNodeObject::colorValue(int& r, int& g, int& b) const
     if (!is<HTMLInputElement>(node()))
         return;
 
-    auto& input = downcast<HTMLInputElement>(*node());
-    if (!input.isColorControl())
-        return;
-
-    // HTMLInputElement::value always returns a string parseable by Color().
-    Color color(input.value());
+    auto color = downcast<HTMLInputElement>(*node()).valueAsColor();
     r = color.red();
     g = color.green();
     b = color.blue();
@@ -1931,7 +1916,7 @@ static String accessibleNameForNode(Node* node, Node* labelledbyNode)
         return String();
     
     Element& element = downcast<Element>(*node);
-    const AtomicString& ariaLabel = element.attributeWithoutSynchronization(aria_labelAttr);
+    const AtomicString& ariaLabel = AccessibleNode::effectiveStringValueForElement(element, AXPropertyName::Label);
     if (!ariaLabel.isEmpty())
         return ariaLabel;
     
@@ -2076,7 +2061,7 @@ bool AccessibilityNodeObject::canSetValueAttribute() const
             return !input.isReadOnly();
     }
 
-    String readOnly = ariaReadOnlyValue();
+    String readOnly = readOnlyValue();
     if (!readOnly.isEmpty())
         return readOnly == "true" ? false : true;
 
@@ -2092,12 +2077,12 @@ bool AccessibilityNodeObject::canSetValueAttribute() const
 #if PLATFORM(GTK)
     // In ATK, input types which support aria-readonly are treated as having a
     // settable value if the user can modify the widget's value or its state.
-    if (supportsARIAReadOnly())
+    if (supportsReadOnly())
         return true;
 
     if (isRadioButton()) {
         auto radioGroup = radioGroupAncestor();
-        return radioGroup ? radioGroup->ariaReadOnlyValue() != "true" : true;
+        return radioGroup ? radioGroup->readOnlyValue() != "true" : true;
     }
 #endif
 
@@ -2119,7 +2104,7 @@ bool AccessibilityNodeObject::canSetValueAttribute() const
 
 AccessibilityRole AccessibilityNodeObject::determineAriaRoleAttribute() const
 {
-    const AtomicString& ariaRole = getAttribute(roleAttr);
+    const AtomicString& ariaRole = stringValueForProperty(AXPropertyName::Role);
     if (ariaRole.isNull() || ariaRole.isEmpty())
         return AccessibilityRole::Unknown;
     
@@ -2145,7 +2130,7 @@ AccessibilityRole AccessibilityNodeObject::determineAriaRoleAttribute() const
     // describes the purpose of the content in the region." The Core AAM states, "Special case:
     // if the region does not have an accessible name, do not expose the element as a landmark.
     // Use the native host language role of the element instead."
-    if (role == AccessibilityRole::LandmarkRegion && !hasAttribute(aria_labelAttr) && !hasAttribute(aria_labelledbyAttr))
+    if (role == AccessibilityRole::LandmarkRegion && !hasProperty(AXPropertyName::Label) && !hasAttribute(aria_labelledbyAttr))
         role = AccessibilityRole::Unknown;
 
     if (static_cast<int>(role))

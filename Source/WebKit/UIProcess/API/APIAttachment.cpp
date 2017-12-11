@@ -26,6 +26,9 @@
 #include "config.h"
 #include "APIAttachment.h"
 
+#include <WebCore/AttachmentTypes.h>
+#include <WebCore/SharedBuffer.h>
+#include <wtf/BlockPtr.h>
 #include <wtf/text/WTFString.h>
 
 namespace API {
@@ -43,6 +46,32 @@ Attachment::Attachment(const WTF::String& identifier, WebKit::WebPageProxy& webP
 
 Attachment::~Attachment()
 {
+}
+
+void Attachment::requestData(Function<void(RefPtr<WebCore::SharedBuffer>, WebKit::CallbackBase::Error)>&& callback)
+{
+    if (m_webPage)
+        m_webPage->requestAttachmentData(m_identifier, WTFMove(callback));
+    else
+        callback(nullptr, WebKit::CallbackBase::Error::OwnerWasInvalidated);
+}
+
+void Attachment::setDisplayOptions(WebCore::AttachmentDisplayOptions options, Function<void(WebKit::CallbackBase::Error)>&& callback)
+{
+    if (m_webPage)
+        m_webPage->setAttachmentDisplayOptions(m_identifier, options, WTFMove(callback));
+    else
+        callback(WebKit::CallbackBase::Error::OwnerWasInvalidated);
+}
+
+void Attachment::setDataAndContentType(WebCore::SharedBuffer& data, const WTF::String& newContentType, const WTF::String& newFilename, Function<void(WebKit::CallbackBase::Error)>&& callback)
+{
+    auto optionalNewContentType = newContentType.isNull() ? std::nullopt : std::optional<WTF::String> { newContentType };
+    auto optionalNewFilename = newFilename.isNull() ? std::nullopt : std::optional<WTF::String> { newFilename };
+    if (m_webPage)
+        m_webPage->setAttachmentDataAndContentType(m_identifier, data, WTFMove(optionalNewContentType), WTFMove(optionalNewFilename), WTFMove(callback));
+    else
+        callback(WebKit::CallbackBase::Error::OwnerWasInvalidated);
 }
 
 }

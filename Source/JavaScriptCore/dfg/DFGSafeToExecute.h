@@ -73,6 +73,7 @@ public:
         case StringObjectUse:
         case StringOrStringObjectUse:
         case NotStringVarUse:
+        case NotSymbolUse:
         case NotCellUse:
         case OtherUse:
         case MiscUse:
@@ -185,7 +186,6 @@ bool safeToExecute(AbstractStateType& state, Graph& graph, Node* node)
     case Phi:
     case Flush:
     case PhantomLocal:
-    case GetLocalUnlinked:
     case SetArgument:
     case BitAnd:
     case BitOr:
@@ -240,7 +240,6 @@ bool safeToExecute(AbstractStateType& state, Graph& graph, Node* node)
     case CheckStructureOrEmpty:
     case GetExecutable:
     case GetButterfly:
-    case GetButterflyWithoutCaging:
     case CallDOMGetter:
     case CallDOM:
     case CheckSubClass:
@@ -351,6 +350,7 @@ bool safeToExecute(AbstractStateType& state, Graph& graph, Node* node)
     case SuperSamplerBegin:
     case SuperSamplerEnd:
     case ForceOSRExit:
+    case CPUIntrinsic:
     case CheckTraps:
     case LogShadowChickenPrologue:
     case LogShadowChickenTail:
@@ -415,6 +415,7 @@ bool safeToExecute(AbstractStateType& state, Graph& graph, Node* node)
     case ResolveScopeForHoistingFuncDeclInEval:
     case ResolveScope:
     case MapHash:
+    case NormalizeMapKey:
     case StringSlice:
     case ToLowerCase:
     case GetMapBucket:
@@ -463,12 +464,14 @@ bool safeToExecute(AbstractStateType& state, Graph& graph, Node* node)
     case GetIndexedPropertyStorage:
     case GetArrayLength:
     case GetVectorLength:
-    case ArrayPush:
     case ArrayPop:
     case StringCharAt:
     case StringCharCodeAt:
         return node->arrayMode().alreadyChecked(graph, node, state.forNode(node->child1()));
-        
+
+    case ArrayPush:
+        return node->arrayMode().alreadyChecked(graph, node, state.forNode(graph.varArgChild(node, 1)));
+
     case GetTypedArrayByteOffset:
         return !(state.forNode(node->child1()).m_type & ~(SpecTypedArrayView));
             
@@ -532,6 +535,10 @@ bool safeToExecute(AbstractStateType& state, Graph& graph, Node* node)
         }
         return true;
     }
+
+    case SetAdd:
+    case MapSet:
+        return false;
 
     case LastNodeType:
         RELEASE_ASSERT_NOT_REACHED();

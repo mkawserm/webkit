@@ -1,3 +1,186 @@
+2017-12-08  Yusuke Suzuki  <utatane.tea@gmail.com>
+
+        Use StaticLock and Lock instead of Mutex in Windows WebKitLegacy
+        https://bugs.webkit.org/show_bug.cgi?id=180572
+
+        Reviewed by Mark Lam.
+
+        Use StaticLock and drop DEPRECATED_DEFINE_STATIC_LOCAL.
+        Also we use Lock instead of Mutex.
+
+        * WebKitQuartzCoreAdditions/CAD3DRenderer.cpp:
+        (WKQCA::CAD3DRenderer::swapChain):
+        (WKQCA::CAD3DRenderer::renderAndPresent):
+        (WKQCA::CAD3DRenderer::renderToImage):
+        (WKQCA::CAD3DRenderer::setDeviceIsLost):
+        (WKQCA::CAD3DRenderer::renderInternal):
+        * WebKitQuartzCoreAdditions/CAD3DRenderer.h:
+        * WebKitQuartzCoreAdditions/CAView.cpp:
+        (WKQCA::CAView::Handle::create):
+        Return Ref<Handle> instead of RefPtr<>.
+
+        (WKQCA::CAView::Handle::lock):
+        (WKQCA::CAView::Handle::view const):
+        (WKQCA::CAView::Handle::clear):
+        (WKQCA::views):
+        (WKQCA::viewsNeedingUpdate):
+        (WKQCA::CAView::releaseAllD3DResources):
+        (WKQCA::CAView::CAView):
+        (WKQCA::CAView::~CAView):
+        (WKQCA::CAView::setLayer):
+        (WKQCA::CAView::update):
+        (WKQCA::CAView::drawToWindow):
+        (WKQCA::CAView::drawToWindowInternal):
+        (WKQCA::CAView::drawToImage):
+        (WKQCA::CAView::willDraw):
+        (WKQCA::CAView::drawIntoDC):
+        (WKQCA::CAView::setShouldInvertColors):
+        (WKQCA::CAView::scheduleNextDraw):
+        (WKQCA::CAView::displayLinkReachedCAMediaTime):
+        (WKQCA::CAView::contextDidChange):
+        (WKQCA::CAView::updateSoon):
+        (WKQCA::CAView::updateViewsNow):
+        (WKQCA::CAView::d3dDevice9):
+        (WKQCA::CAView::Handle::mutex): Deleted.
+        (WKQCA::globalStateMutex): Deleted.
+        (): Deleted.
+        * WebKitQuartzCoreAdditions/CAView.h:
+
+2017-12-07  Yusuke Suzuki  <utatane.tea@gmail.com>
+
+        Use StaticLock instead of NeverDestroyed<Lock>
+        https://bugs.webkit.org/show_bug.cgi?id=180507
+
+        Reviewed by Saam Barati.
+
+        * WebLocalizableStrings.cpp:
+        (findCachedString):
+        (cacheString):
+        (mainBundleLocStrings): Deleted.
+        (frameworkLocStringsMutex): Deleted.
+
+2017-12-05  Per Arne Vollan  <pvollan@apple.com>
+
+        [Win] Scrollbars are sometimes not rendered in accelerated compositing mode.
+        https://bugs.webkit.org/show_bug.cgi?id=180431
+        <rdar://problem/34531264>
+
+        Reviewed by Simon Fraser.
+
+        Fix the signatures of GraphicsLayerClient that should have been overridden, and use
+        'override' to make sure this doesn't break in the future.
+
+        * WebView.cpp:
+        (WebView::notifyAnimationStarted):
+        (WebView::paintContents):
+        * WebView.h:
+
+2017-11-23  Darin Adler  <darin@apple.com>
+
+        Fix dictionary leak in lookup, convert FindOptions to OptionSet, tweak code style nearby
+        https://bugs.webkit.org/show_bug.cgi?id=179981
+
+        Reviewed by Sam Weinig.
+
+        * WebView.cpp:
+        (WebView::searchFor): Use |= instead of | to build FindOptions.
+        (WebView::markAllMatchesForText): Create FindOptions with |= instead of |.
+        (WebView::findString): Create FindOptions with |=; the old code just passed a
+        WebKit FindOptions through without converting to WebCore::FindOptions.
+
+2017-11-23  Darin Adler  <darin@apple.com>
+
+        Reduce WTF::String operations that do unnecessary Unicode operations instead of ASCII
+        https://bugs.webkit.org/show_bug.cgi?id=179907
+
+        Reviewed by Sam Weinig.
+
+        * Plugins/PluginDatabaseWin.cpp:
+        (WebCore::PluginDatabase::getPluginPathsInDirectories const): Use
+        startsWithLettersIgnoringASCIICase and endsWithIgnoringASCIICase.
+        * WebDownloadCFNet.cpp:
+        (WebDownload::initToResumeWithBundle): Use endsWithIgnoringASCIICase.
+
+        * WebView.cpp:
+        (WebView::markAllMatchesForText): Fix old code that was passing TextCaseSensitivity
+        to a function that actually takes FindOptions. By luck, TextCaseSensitive happens to
+        be 0, which is correct FindOptions for case sensitive matching, and TextCaseInsensitive
+        happens to be 1, which is correct FindOptions for case insensitive matching, so fixing
+        the code does not cause any change in behavior.
+
+2017-11-22  Ali Juma  <ajuma@chromium.org>
+
+        Implement VisualViewport API attributes
+        https://bugs.webkit.org/show_bug.cgi?id=179385
+
+        Reviewed by Frédéric Wang.
+
+        Add a VisualViewportAPI preference.
+
+        * Interfaces/IWebPreferencesPrivate.idl:
+        * WebPreferenceKeysPrivate.h:
+        * WebPreferences.cpp:
+        (WebPreferences::initializeDefaultSettings):
+        (WebPreferences::visualViewportAPIEnabled):
+        (WebPreferences::setVisualViewportAPIEnabled):
+        * WebPreferences.h:
+        * WebView.cpp:
+        (WebView::notifyPreferencesChanged):
+
+2017-11-22  Commit Queue  <commit-queue@webkit.org>
+
+        Unreviewed, rolling out r225093.
+        https://bugs.webkit.org/show_bug.cgi?id=179938
+
+        Compilation failed on WinCairo 64-bit Release (Requested by
+        fredw on #webkit).
+
+        Reverted changeset:
+
+        "Implement VisualViewport API attributes"
+        https://bugs.webkit.org/show_bug.cgi?id=179385
+        https://trac.webkit.org/changeset/225093
+
+2017-11-21  Ali Juma  <ajuma@chromium.org>
+
+        Implement VisualViewport API attributes
+        https://bugs.webkit.org/show_bug.cgi?id=179385
+
+        Reviewed by Frédéric Wang.
+
+        Add a VisualViewportAPI preference.
+
+        * Interfaces/IWebPreferencesPrivate.idl:
+        * WebPreferenceKeysPrivate.h:
+        * WebPreferences.cpp:
+        (WebPreferences::initializeDefaultSettings):
+        (WebPreferences::visualViewportAPIEnabled):
+        (WebPreferences::setVisualViewportAPIEnabled):
+        * WebPreferences.h:
+        * WebView.cpp:
+        (WebView::notifyPreferencesChanged):
+
+2017-11-14  Alex Christensen  <achristensen@webkit.org>
+
+        Clean up old URL parser remnants
+        https://bugs.webkit.org/show_bug.cgi?id=179573
+
+        Reviewed by Darin Adler.
+
+        * WebCoreSupport/WebContextMenuClient.cpp:
+        (WebContextMenuClient::searchWithGoogle):
+        Use https if we do end up searching with google.
+
+2017-11-12  Darin Adler  <darin@apple.com>
+
+        More is<> and downcast<>, less static_cast<>
+        https://bugs.webkit.org/show_bug.cgi?id=179600
+
+        Reviewed by Chris Dumez.
+
+        * WebView.cpp:
+        (WebView::handleEditingKeyboardEvent): Use downcast.
+
 2017-11-09  Christopher Reid  <chris.reid@sony.com>
 
         Use enum classes within FileSystem

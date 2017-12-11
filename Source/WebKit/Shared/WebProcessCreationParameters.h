@@ -95,6 +95,7 @@ struct WebProcessCreationParameters {
     String mediaKeyStorageDirectory;
 
     String webCoreLoggingChannels;
+    String webKitLoggingChannels;
 
     Vector<String> urlSchemesRegisteredAsEmptyDocument;
     Vector<String> urlSchemesRegisteredAsSecure;
@@ -133,7 +134,7 @@ struct WebProcessCreationParameters {
 
     TextCheckerState textCheckerState;
 
-#if PLATFORM(COCOA) || USE(CFURLCONNECTION)
+#if PLATFORM(COCOA)
     String uiProcessBundleIdentifier;
 #endif
 

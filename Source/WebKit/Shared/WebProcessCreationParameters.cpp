@@ -67,6 +67,7 @@ void WebProcessCreationParameters::encode(IPC::Encoder& encoder) const
 #endif
     encoder << mediaKeyStorageDirectory;
     encoder << webCoreLoggingChannels;
+    encoder << webKitLoggingChannels;
     encoder << mediaKeyStorageDirectoryExtensionHandle;
 #if ENABLE(MEDIA_STREAM)
     encoder << audioCaptureExtensionHandle;
@@ -95,7 +96,7 @@ void WebProcessCreationParameters::encode(IPC::Encoder& encoder) const
     encoder << textCheckerState;
     encoder << fullKeyboardAccessEnabled;
     encoder << defaultRequestTimeoutInterval;
-#if PLATFORM(COCOA) || USE(CFURLCONNECTION)
+#if PLATFORM(COCOA)
     encoder << uiProcessBundleIdentifier;
 #endif
     encoder << presentingApplicationPID;
@@ -190,6 +191,8 @@ bool WebProcessCreationParameters::decode(IPC::Decoder& decoder, WebProcessCreat
         return false;
     if (!decoder.decode(parameters.webCoreLoggingChannels))
         return false;
+    if (!decoder.decode(parameters.webKitLoggingChannels))
+        return false;
     if (!decoder.decode(parameters.mediaKeyStorageDirectoryExtensionHandle))
         return false;
 #if ENABLE(MEDIA_STREAM)
@@ -244,7 +247,7 @@ bool WebProcessCreationParameters::decode(IPC::Decoder& decoder, WebProcessCreat
         return false;
     if (!decoder.decode(parameters.defaultRequestTimeoutInterval))
         return false;
-#if PLATFORM(COCOA) || USE(CFURLCONNECTION)
+#if PLATFORM(COCOA)
     if (!decoder.decode(parameters.uiProcessBundleIdentifier))
         return false;
 #endif

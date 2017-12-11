@@ -2,7 +2,7 @@
     Copyright (C) 1998 Lars Knoll (knoll@mpi-hd.mpg.de)
     Copyright (C) 2001 Dirk Mueller (mueller@kde.org)
     Copyright (C) 2002 Waldo Bastian (bastian@kde.org)
-    Copyright (C) 2004-2016 Apple Inc. All rights reserved.
+    Copyright (C) 2004-2017 Apple Inc. All rights reserved.
     Copyright (C) 2009 Torch Mobile Inc. http://www.torchmobile.com/
 
     This library is free software; you can redistribute it and/or
@@ -77,6 +77,10 @@
 #include <wtf/text/CString.h>
 #include <wtf/text/WTFString.h>
 
+#if ENABLE(APPLICATION_MANIFEST)
+#include "CachedApplicationManifest.h"
+#endif
+
 #if ENABLE(VIDEO_TRACK)
 #include "CachedTextTrack.h"
 #endif
@@ -134,6 +138,10 @@ static CachedResource* createResource(CachedResource::Type type, CachedResourceR
     case CachedResource::TextTrackResource:
         return new CachedTextTrack(WTFMove(request), sessionID);
 #endif
+#if ENABLE(APPLICATION_MANIFEST)
+    case CachedResource::ApplicationManifest:
+        return new CachedApplicationManifest(WTFMove(request), sessionID);
+#endif
     }
     ASSERT_NOT_REACHED();
     return nullptr;
@@ -184,11 +192,11 @@ Frame* CachedResourceLoader::frame() const
 
 PAL::SessionID CachedResourceLoader::sessionID() const
 {
-    PAL::SessionID sessionID = PAL::SessionID::defaultSessionID();
-
-    if (Frame* f = frame())
-        sessionID = f->page()->sessionID();
-
+    auto sessionID = PAL::SessionID::defaultSessionID();
+    if (auto* frame = this->frame()) {
+        if (auto* page = frame->page())
+            sessionID = page->sessionID();
+    }
     return sessionID;
 }
 
@@ -322,6 +330,13 @@ ResourceErrorOr<CachedResourceHandle<CachedRawResource>> CachedResourceLoader::r
     return castCachedResourceTo<CachedRawResource>(requestResource(CachedResource::MainResource, WTFMove(request)));
 }
 
+#if ENABLE(APPLICATION_MANIFEST)
+ResourceErrorOr<CachedResourceHandle<CachedApplicationManifest>> CachedResourceLoader::requestApplicationManifest(CachedResourceRequest&& request)
+{
+    return castCachedResourceTo<CachedApplicationManifest>(requestResource(CachedResource::ApplicationManifest, WTFMove(request)));
+}
+#endif // ENABLE(APPLICATION_MANIFEST)
+
 static MixedContentChecker::ContentType contentTypeFromResourceType(CachedResource::Type type)
 {
     switch (type) {
@@ -360,6 +375,10 @@ static MixedContentChecker::ContentType contentTypeFromResourceType(CachedResour
 
 #if ENABLE(VIDEO_TRACK)
     case CachedResource::TextTrackResource:
+        return MixedContentChecker::ContentType::Active;
+#endif
+#if ENABLE(APPLICATION_MANIFEST)
+    case CachedResource::ApplicationManifest:
         return MixedContentChecker::ContentType::Active;
 #endif
     default:
@@ -418,6 +437,9 @@ bool CachedResourceLoader::checkInsecureContent(CachedResource::Type type, const
     case CachedResource::LinkSubresource:
         // Prefetch cannot affect the current document.
 #endif
+#if ENABLE(APPLICATION_MANIFEST)
+    case CachedResource::ApplicationManifest:
+#endif
         break;
     }
     return true;
@@ -466,6 +488,12 @@ bool CachedResourceLoader::allowedByContentSecurityPolicy(CachedResource::Type t
     case CachedResource::Beacon:
     case CachedResource::RawResource:
         return true;
+#if ENABLE(APPLICATION_MANIFEST)
+    case CachedResource::ApplicationManifest:
+        if (!m_document->contentSecurityPolicy()->allowManifestFromSource(url, redirectResponseReceived))
+            return false;
+        break;
+#endif
     default:
         ASSERT_NOT_REACHED();
     }
@@ -693,6 +721,7 @@ void CachedResourceLoader::prepareFetch(CachedResource::Type type, CachedResourc
         if (!request.origin())
             request.setOrigin(document->securityOrigin());
 #if ENABLE(SERVICE_WORKER)
+        request.setClientIdentifierIfNeeded(document->identifier());
         if (auto* activeServiceWorker = document->activeServiceWorker())
             request.setSelectedServiceWorkerIdentifierIfNeeded(activeServiceWorker->identifier());
 #endif
@@ -746,9 +775,9 @@ ResourceErrorOr<CachedResourceHandle<CachedResource>> CachedResourceLoader::requ
     }
 
 #if ENABLE(CONTENT_EXTENSIONS)
-    if (frame() && frame()->mainFrame().page() && m_documentLoader) {
+    if (frame() && frame()->page() && m_documentLoader) {
         const auto& resourceRequest = request.resourceRequest();
-        auto* page = frame()->mainFrame().page();
+        auto* page = frame()->page();
         auto blockedStatus = page->userContentProvider().processContentExtensionRulesForLoad(resourceRequest.url(), toResourceType(type), *m_documentLoader);
         request.applyBlockedStatus(blockedStatus, page);
         if (blockedStatus.blockedLoad) {
@@ -800,11 +829,8 @@ ResourceErrorOr<CachedResourceHandle<CachedResource>> CachedResourceLoader::requ
 
     auto& memoryCache = MemoryCache::singleton();
     if (request.allowsCaching() && memoryCache.disabled()) {
-        DocumentResourceMap::iterator it = m_documentResources.find(url.string());
-        if (it != m_documentResources.end()) {
-            it->value->setOwningCachedResourceLoader(nullptr);
-            m_documentResources.remove(it);
-        }
+        if (auto handle = m_documentResources.take(url.string()))
+            handle->setOwningCachedResourceLoader(nullptr);
     }
 
     // See if we can use an existing resource from the cache.
@@ -1231,11 +1257,7 @@ CachePolicy CachedResourceLoader::cachePolicy(CachedResource::Type type, const U
 
 void CachedResourceLoader::removeCachedResource(CachedResource& resource)
 {
-#ifndef NDEBUG
-    DocumentResourceMap::iterator it = m_documentResources.find(resource.url());
-    if (it != m_documentResources.end())
-        ASSERT(it->value.get() == &resource);
-#endif
+    ASSERT(!m_documentResources.contains(resource.url()) || m_documentResources.get(resource.url()).get() == &resource);
     m_documentResources.remove(resource.url());
 }
 

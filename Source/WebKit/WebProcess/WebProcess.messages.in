@@ -47,7 +47,6 @@ messages -> WebProcess LegacyReceiver {
 
     ClearCachedCredentials()
 
-    EnsurePrivateBrowsingSession(PAL::SessionID sessionID)
     AddWebsiteDataStore(struct WebKit::WebsiteDataStoreParameters websiteDataStoreParameters);
     DestroySession(PAL::SessionID sessionID)
 
@@ -115,6 +114,6 @@ messages -> WebProcess LegacyReceiver {
 #endif
 
 #if ENABLE(SERVICE_WORKER)
-    GetWorkerContextConnection(uint64_t pageID, struct WebKit::WebPreferencesStore store)
+    EstablishWorkerContextConnectionToStorageProcess(uint64_t pageID, struct WebKit::WebPreferencesStore store)
 #endif
 }

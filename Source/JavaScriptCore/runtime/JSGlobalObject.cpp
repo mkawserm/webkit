@@ -85,7 +85,6 @@
 #include "JSDataView.h"
 #include "JSDataViewPrototype.h"
 #include "JSDollarVM.h"
-#include "JSDollarVMPrototype.h"
 #include "JSFunction.h"
 #include "JSGeneratorFunction.h"
 #include "JSGenericTypedArrayViewConstructorInlines.h"
@@ -387,7 +386,8 @@ void JSGlobalObject::init(VM& vm)
     ExecState::initGlobalExec(JSGlobalObject::globalExec(), globalCallee);
     ExecState* exec = JSGlobalObject::globalExec();
 
-    m_functionStructure.set(vm, this, JSFunction::createStructure(vm, this, m_functionPrototype.get()));
+    m_strictFunctionStructure.set(vm, this, JSFunction::createStructure(vm, this, m_functionPrototype.get()));
+    m_sloppyFunctionStructure.set(vm, this, JSFunction::createStructure(vm, this, m_functionPrototype.get()));
     m_customGetterSetterFunctionStructure.initLater(
         [] (const Initializer<Structure>& init) {
             init.set(JSCustomGetterSetterFunction::createStructure(init.vm, init.owner, init.owner->m_functionPrototype.get()));
@@ -400,10 +400,6 @@ void JSGlobalObject::init(VM& vm)
     m_nativeStdFunctionStructure.initLater(
         [] (const Initializer<Structure>& init) {
             init.set(JSNativeStdFunction::createStructure(init.vm, init.owner, init.owner->m_functionPrototype.get()));
-        });
-    m_namedFunctionStructure.initLater(
-        [] (const Initializer<Structure>& init) {
-            init.set(Structure::addPropertyTransition(init.vm, init.owner->m_functionStructure.get(), init.vm.propertyNames->name, PropertyAttribute::DontDelete | PropertyAttribute::ReadOnly | PropertyAttribute::DontEnum, init.owner->m_functionNameOffset));
         });
     JSFunction* callFunction = nullptr;
     JSFunction* applyFunction = nullptr;
@@ -896,8 +892,7 @@ putDirectWithoutTransition(vm, vm.propertyNames-> jsName, lowerName ## Construct
     m_linkTimeConstants[static_cast<unsigned>(LinkTimeConstant::ThrowTypeErrorFunction)] = m_throwTypeErrorFunction.get();
 
     if (UNLIKELY(Options::useDollarVM())) {
-        JSDollarVMPrototype* dollarVMPrototype = JSDollarVMPrototype::create(vm, this, JSDollarVMPrototype::createStructure(vm, this, m_objectPrototype.get()));
-        m_dollarVMStructure.set(vm, this, JSDollarVM::createStructure(vm, this, dollarVMPrototype));
+        m_dollarVMStructure.set(vm, this, JSDollarVM::createStructure(vm, this, m_objectPrototype.get()));
         JSDollarVM* dollarVM = JSDollarVM::create(vm, m_dollarVMStructure.get());
 
         GlobalPropertyInfo extraStaticGlobals[] = {
@@ -1128,11 +1123,8 @@ ObjectsWithBrokenIndexingFinder::ObjectsWithBrokenIndexingFinder(
 
 inline bool hasBrokenIndexing(JSObject* object)
 {
-    // This will change if we have more indexing types.
     IndexingType type = object->indexingType();
-    // This could be made obviously more efficient, but isn't made so right now, because
-    // we expect this to be an unlikely slow path anyway.
-    return hasUndecided(type) || hasInt32(type) || hasDouble(type) || hasContiguous(type) || hasArrayStorage(type);
+    return type && !hasSlowPutArrayStorage(type);
 }
 
 inline void ObjectsWithBrokenIndexingFinder::visit(JSCell* cell)
@@ -1320,12 +1312,12 @@ void JSGlobalObject::visitChildren(JSCell* cell, SlotVisitor& visitor)
     thisObject->m_nullPrototypeObjectStructure.visit(visitor);
     visitor.append(thisObject->m_errorStructure);
     visitor.append(thisObject->m_calleeStructure);
-    visitor.append(thisObject->m_functionStructure);
+    visitor.append(thisObject->m_strictFunctionStructure);
+    visitor.append(thisObject->m_sloppyFunctionStructure);
     thisObject->m_customGetterSetterFunctionStructure.visit(visitor);
     thisObject->m_boundFunctionStructure.visit(visitor);
     visitor.append(thisObject->m_getterSetterStructure);
     thisObject->m_nativeStdFunctionStructure.visit(visitor);
-    thisObject->m_namedFunctionStructure.visit(visitor);
     visitor.append(thisObject->m_symbolObjectStructure);
     visitor.append(thisObject->m_regExpStructure);
     visitor.append(thisObject->m_generatorFunctionStructure);

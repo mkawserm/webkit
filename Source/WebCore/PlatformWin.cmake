@@ -59,7 +59,6 @@ list(APPEND WebCore_SOURCES
 
     platform/audio/PlatformMediaSessionManager.cpp
 
-    platform/graphics/FourCC.cpp
     platform/graphics/GraphicsContext3DPrivate.cpp
 
     platform/graphics/egl/GLContextEGL.cpp
@@ -237,6 +236,8 @@ set(WebCore_FORWARDING_HEADERS_DIRECTORIES
     svg/properties
 
     svg/graphics/filters
+
+    workers/service
 )
 
 if (USE_CF)
@@ -299,12 +300,16 @@ file(COPY
     DESTINATION
     ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/WebKit.resources
 )
-if (WTF_PLATFORM_WIN_CAIRO AND EXISTS ${WEBKIT_LIBRARIES_DIR}/cacert.pem)
+if (WTF_PLATFORM_WIN_CAIRO AND EXISTS ${WEBKIT_LIBRARIES_DIR}/etc/ssl/cert.pem)
     make_directory(${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/WebKit.resources/certificates)
     file(COPY
-        ${WEBKIT_LIBRARIES_DIR}/cacert.pem
+        ${WEBKIT_LIBRARIES_DIR}/etc/ssl/cert.pem
         DESTINATION
         ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/WebKit.resources/certificates
+    )
+    file(RENAME
+        ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/WebKit.resources/certificates/cert.pem
+        ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/WebKit.resources/certificates/cacert.pem
     )
 endif ()
 

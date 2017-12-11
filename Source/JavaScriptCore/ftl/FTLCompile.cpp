@@ -71,7 +71,7 @@ void compile(State& state, Safepoint::Result& safepointResult)
 
     if (safepointResult.didGetCancelled())
         return;
-    RELEASE_ASSERT(!state.graph.m_vm.heap.collectorBelievesThatTheWorldIsStopped());
+    RELEASE_ASSERT(!state.graph.m_vm.heap.worldIsStopped());
     
     if (state.allocationFailed)
         return;
@@ -152,8 +152,8 @@ void compile(State& state, Safepoint::Result& safepointResult)
     if (vm.shouldBuilderPCToCodeOriginMapping())
         codeBlock->setPCToCodeOriginMap(std::make_unique<PCToCodeOriginMap>(PCToCodeOriginMapBuilder(vm, WTFMove(originMap)), *state.finalizer->b3CodeLinkBuffer));
 
-    state.generatedFunction = bitwise_cast<GeneratedFunction>(
-        state.finalizer->b3CodeLinkBuffer->locationOf(state.proc->entrypointLabel(0)));
+    CodeLocationLabel label = state.finalizer->b3CodeLinkBuffer->locationOf(state.proc->entrypointLabel(0));
+    state.generatedFunction = label.executableAddress<GeneratedFunction>();
     state.jitCode->initializeB3Byproducts(state.proc->releaseByproducts());
 
     for (auto pair : state.graph.m_entrypointIndexToCatchBytecodeOffset) {

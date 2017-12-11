@@ -40,8 +40,11 @@
 #include "RootInlineBox.h"
 #include "Text.h"
 #include <math.h>
+#include <wtf/IsoMallocInlines.h>
 
 namespace WebCore {
+
+WTF_MAKE_ISO_ALLOCATED_IMPL(InlineFlowBox);
 
 struct SameSizeAsInlineFlowBox : public InlineBox {
     void* pointers[5];
@@ -379,7 +382,7 @@ float InlineFlowBox::placeBoxRangeInInlineDirection(InlineBox* firstChild, Inlin
         if (is<RenderText>(child->renderer())) {
             auto& textBox = downcast<InlineTextBox>(*child);
             RenderText& renderText = textBox.renderer();
-            if (renderText.textLength()) {
+            if (renderText.text().length()) {
                 if (needsWordSpacing && isSpaceOrNewline(renderText.characterAt(textBox.start())))
                     logicalLeft += textBox.lineStyle().fontCascade().wordSpacing();
                 needsWordSpacing = !isSpaceOrNewline(renderText.characterAt(textBox.end()));

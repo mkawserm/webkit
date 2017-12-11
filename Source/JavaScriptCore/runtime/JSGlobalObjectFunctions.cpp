@@ -39,7 +39,6 @@
 #include "JSPromise.h"
 #include "JSPromiseDeferred.h"
 #include "JSString.h"
-#include "JSStringBuilder.h"
 #include "Lexer.h"
 #include "LiteralParser.h"
 #include "Nodes.h"
@@ -54,7 +53,6 @@
 #include <wtf/Assertions.h>
 #include <wtf/HexNumber.h>
 #include <wtf/MathExtras.h>
-#include <wtf/StringExtras.h>
 #include <wtf/dtoa.h>
 #include <wtf/text/StringBuilder.h>
 #include <wtf/unicode/UTF8.h>
@@ -172,7 +170,7 @@ static JSValue decode(ExecState* exec, const CharType* characters, int length, c
     VM& vm = exec->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
 
-    JSStringBuilder builder;
+    StringBuilder builder;
     int k = 0;
     UChar u = 0;
     while (k < length) {
@@ -232,7 +230,7 @@ static JSValue decode(ExecState* exec, const CharType* characters, int length, c
         builder.append(c);
     }
     scope.release();
-    return builder.build(exec);
+    return jsString(&vm, builder.toString());
 }
 
 static JSValue decode(ExecState* exec, const Bitmap<256>& doNotUnescape, bool strict)
@@ -593,7 +591,7 @@ EncodedJSValue JSC_HOST_CALL globalFuncEscape(ExecState* exec)
     );
 
     return JSValue::encode(toStringView(exec, exec->argument(0), [&] (StringView view) {
-        JSStringBuilder builder;
+        StringBuilder builder;
         if (view.is8Bit()) {
             const LChar* c = view.characters8();
             for (unsigned k = 0; k < view.length(); k++, c++) {
@@ -605,8 +603,7 @@ EncodedJSValue JSC_HOST_CALL globalFuncEscape(ExecState* exec)
                     appendByteAsHex(static_cast<LChar>(u), builder);
                 }
             }
-
-            return builder.build(exec);
+            return jsString(exec, builder.toString());
         }
 
         const UChar* c = view.characters16();
@@ -625,7 +622,7 @@ EncodedJSValue JSC_HOST_CALL globalFuncEscape(ExecState* exec)
             }
         }
 
-        return builder.build(exec);
+        return jsString(exec, builder.toString());
     }));
 }
 

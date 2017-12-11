@@ -34,15 +34,12 @@
 #include <cstdio>
 #include <mutex>
 
-#if BCPU(ARM64)
-// FIXME: There is no good reason for ARM64 to be special.
-// https://bugs.webkit.org/show_bug.cgi?id=177605
-#define GIGACAGE_RUNWAY 0
-#else
-// FIXME: Consider making this 32GB, in case unsigned 32-bit indices find their way into indexed accesses.
-// https://bugs.webkit.org/show_bug.cgi?id=175062
-#define GIGACAGE_RUNWAY (16llu * 1024 * 1024 * 1024)
-#endif
+// This is exactly 32GB because inside JSC, indexed accesses for arrays, typed arrays, etc,
+// use unsigned 32-bit ints as indices. The items those indices access are 8 bytes or less
+// in size. 2^32 * 8 = 32GB. This means if an access on a caged type happens to go out of
+// bounds, the access is guaranteed to land somewhere else in the cage or inside the runway.
+// If this were less than 32GB, those OOB accesses could reach outside of the cage.
+#define GIGACAGE_RUNWAY (32llu * 1024 * 1024 * 1024)
 
 char g_gigacageBasePtrs[GIGACAGE_BASE_PTRS_SIZE] __attribute__((aligned(GIGACAGE_BASE_PTRS_SIZE)));
 
@@ -246,17 +243,14 @@ bool isDisablingPrimitiveGigacageDisabled()
 
 bool shouldBeEnabled()
 {
-    static std::once_flag onceFlag;
     static bool cached = false;
+
+#if GIGACAGE_ENABLED
+    static std::once_flag onceFlag;
     std::call_once(
         onceFlag,
         [] {
-#if BCPU(ARM64)
-            // FIXME: Make WasmBench run with gigacage on iOS and re-enable on ARM64:
-            // https://bugs.webkit.org/show_bug.cgi?id=178557
-            return;
-#endif
-            bool result = GIGACAGE_ENABLED && !PerProcess<Environment>::get()->isDebugHeapEnabled();
+            bool result = !PerProcess<Environment>::get()->isDebugHeapEnabled();
             if (!result)
                 return;
             
@@ -270,6 +264,7 @@ bool shouldBeEnabled()
             
             cached = true;
         });
+#endif // GIGACAGE_ENABLED
     
     return cached;
 }

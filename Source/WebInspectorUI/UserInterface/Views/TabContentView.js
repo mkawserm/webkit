@@ -178,7 +178,8 @@ WI.TabContentView = class TabContentView extends WI.ContentView
         if (!this._navigationSidebarPanelConstructor)
             return null;
         if (!this._navigationSidebarPanel)
-            this._navigationSidebarPanel = WI.instanceForClass(this._navigationSidebarPanelConstructor);
+            this._navigationSidebarPanel = new this._navigationSidebarPanelConstructor;
+
         return this._navigationSidebarPanel;
     }
 
@@ -188,7 +189,7 @@ WI.TabContentView = class TabContentView extends WI.ContentView
     get detailsSidebarPanels()
     {
         if (!this._detailsSidebarPanels)
-            this._detailsSidebarPanels = this._detailsSidebarPanelConstructors.map(constructor => WI.instanceForClass(constructor));
+            this._detailsSidebarPanels = this._detailsSidebarPanelConstructors.map((constructor) => new constructor);
 
         return this._detailsSidebarPanels;
     }

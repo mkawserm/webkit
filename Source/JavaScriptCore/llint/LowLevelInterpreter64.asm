@@ -1946,8 +1946,15 @@ macro doCall(slowPath, prepareCall)
     storei PC, ArgumentCount + TagOffset[cfr]
     storei t2, ArgumentCount + PayloadOffset[t3]
     move t3, sp
-    prepareCall(LLIntCallLinkInfo::machineCodeTarget[t1], t2, t3, t4)
-    callTargetFunction(LLIntCallLinkInfo::machineCodeTarget[t1])
+    if X86_64_WIN
+        prepareCall(LLIntCallLinkInfo::machineCodeTarget[t1], t2, t3, t4)
+        callTargetFunction(LLIntCallLinkInfo::machineCodeTarget[t1])
+    else
+        loadp _g_jitCodePoison, t2
+        xorp LLIntCallLinkInfo::machineCodeTarget[t1], t2
+        prepareCall(t2, t1, t3, t4)
+        callTargetFunction(t2)
+    end
 
 .opCallSlow:
     slowPathForCall(slowPath, prepareCall)
@@ -2069,14 +2076,18 @@ macro nativeCallTrampoline(executableOffsetToFunction)
     loadp JSFunction::m_executable[t1], t1
     checkStackPointerAlignment(t3, 0xdead0001)
     if C_LOOP
-        cloopCallNative executableOffsetToFunction[t1]
+        loadp _g_nativeCodePoison, t2
+        xorp executableOffsetToFunction[t1], t2
+        cloopCallNative t2
     else
         if X86_64_WIN
             subp 32, sp
-        end
-        call executableOffsetToFunction[t1]
-        if X86_64_WIN
+            call executableOffsetToFunction[t1]
             addp 32, sp
+        else
+            loadp _g_nativeCodePoison, t2
+            xorp executableOffsetToFunction[t1], t2
+            call t2
         end
     end
 
@@ -2108,14 +2119,18 @@ macro internalFunctionCallTrampoline(offsetOfFunction)
     loadp Callee[cfr], t1
     checkStackPointerAlignment(t3, 0xdead0001)
     if C_LOOP
-        cloopCallNative offsetOfFunction[t1]
+        loadp _g_nativeCodePoison, t2
+        xorp offsetOfFunction[t1], t2
+        cloopCallNative t2
     else
         if X86_64_WIN
             subp 32, sp
-        end
-        call offsetOfFunction[t1]
-        if X86_64_WIN
+            call offsetOfFunction[t1]
             addp 32, sp
+        else
+            loadp _g_nativeCodePoison, t2
+            xorp offsetOfFunction[t1], t2
+            call t2
         end
     end
 

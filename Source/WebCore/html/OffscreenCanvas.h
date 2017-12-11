@@ -25,16 +25,27 @@
 
 #pragma once
 
+#include "CanvasBase.h"
+#include "CanvasRenderingContext.h"
 #include "EventTarget.h"
+#include "ExceptionOr.h"
 #include "IntSize.h"
 #include "JSDOMPromiseDeferred.h"
 #include "ScriptWrappable.h"
+#include <wtf/Forward.h>
 #include <wtf/RefCounted.h>
 #include <wtf/text/WTFString.h>
 
 namespace WebCore {
 
-class OffscreenCanvas : public RefCounted<OffscreenCanvas>, public EventTargetWithInlineData {
+class ImageBitmap;
+class WebGLRenderingContext;
+
+#if ENABLE(WEBGL)
+using OffscreenRenderingContext = RefPtr<WebGLRenderingContext>;
+#endif
+
+class OffscreenCanvas final : public RefCounted<OffscreenCanvas>, public CanvasBase, public EventTargetWithInlineData {
     WTF_MAKE_FAST_ALLOCATED;
 public:
 
@@ -51,14 +62,18 @@ public:
     static Ref<OffscreenCanvas> create(ScriptExecutionContext&, unsigned width, unsigned height);
     ~OffscreenCanvas();
 
-    unsigned width() const;
+    unsigned width() const final;
     void setWidth(unsigned);
-    unsigned height() const;
+    unsigned height() const final;
     void setHeight(unsigned);
 
-    // The currently unimplemented OffscreenCanvas methods.
-    // OffscreenRenderingContext? getContext(OffscreenRenderingContextType contextType, any... arguments);
-    // ImageBitmap transferToImageBitmap();
+    const IntSize& size() const final;
+    void setSize(const IntSize&) final;
+
+#if ENABLE(WEBGL)
+    ExceptionOr<OffscreenRenderingContext> getContext(JSC::ExecState&, RenderingContextType, Vector<JSC::Strong<JSC::Unknown>>&& arguments);
+#endif
+    RefPtr<ImageBitmap> transferToImageBitmap();
     // void convertToBlob(ImageEncodeOptions options);
 
     using RefCounted::ref;
@@ -68,14 +83,21 @@ private:
 
     OffscreenCanvas(ScriptExecutionContext&, unsigned width, unsigned height);
 
-    // EventTargetWithInlineData.
-    ScriptExecutionContext* scriptExecutionContext() const final { return &m_scriptExecutionContext; }
+    bool isOffscreenCanvas() const final { return true; }
+
+    ScriptExecutionContext* scriptExecutionContext() const final { return CanvasBase::scriptExecutionContext(); }
+
     EventTargetInterface eventTargetInterface() const final { return OffscreenCanvasEventTargetInterfaceType; }
     void refEventTarget() final { ref(); }
     void derefEventTarget() final { deref(); }
 
+    void refCanvasBase() final { ref(); }
+    void derefCanvasBase() final { deref(); }
+
     IntSize m_size;
-    ScriptExecutionContext& m_scriptExecutionContext;
+    std::unique_ptr<CanvasRenderingContext> m_context;
 };
 
 }
+
+SPECIALIZE_TYPE_TRAITS_CANVAS(WebCore::OffscreenCanvas, isOffscreenCanvas())

@@ -28,6 +28,7 @@
 #include "WebPageProxy.h"
 
 #include "APIArray.h"
+#include "APIAttachment.h"
 #include "APIContextMenuClient.h"
 #include "APIFindClient.h"
 #include "APIFindMatchesClient.h"
@@ -75,6 +76,7 @@
 #include "PrintInfo.h"
 #include "TextChecker.h"
 #include "TextCheckerState.h"
+#include "URLSchemeTaskParameters.h"
 #include "UserMediaPermissionRequestProxy.h"
 #include "UserMediaProcessManager.h"
 #include "WKContextPrivate.h"
@@ -113,6 +115,7 @@
 #include "WebURLSchemeHandler.h"
 #include "WebUserContentControllerProxy.h"
 #include "WebsiteDataStore.h"
+#include <WebCore/AttachmentTypes.h>
 #include <WebCore/BitmapImage.h>
 #include <WebCore/DiagnosticLoggingClient.h>
 #include <WebCore/DiagnosticLoggingKeys.h>
@@ -129,6 +132,7 @@
 #include <WebCore/PublicSuffix.h>
 #include <WebCore/RenderEmbeddedObject.h>
 #include <WebCore/SerializedCryptoKeyWrap.h>
+#include <WebCore/SharedBuffer.h>
 #include <WebCore/TextCheckerClient.h>
 #include <WebCore/TextIndicator.h>
 #include <WebCore/URL.h>
@@ -139,6 +143,10 @@
 #include <wtf/NeverDestroyed.h>
 #include <wtf/SystemTracing.h>
 #include <wtf/text/StringView.h>
+
+#if ENABLE(APPLICATION_MANIFEST)
+#include "APIApplicationManifest.h"
+#endif
 
 #if ENABLE(ASYNC_SCROLLING)
 #include "RemoteScrollingCoordinatorProxy.h"
@@ -151,6 +159,8 @@
 #if PLATFORM(COCOA)
 #include "RemoteLayerTreeDrawingAreaProxy.h"
 #include "RemoteLayerTreeScrollingPerformanceData.h"
+#include "TouchBarMenuData.h"
+#include "TouchBarMenuItemData.h"
 #include "VideoFullscreenManagerProxy.h"
 #include "VideoFullscreenManagerProxyMessages.h"
 #include "ViewSnapshotStore.h"
@@ -402,8 +412,7 @@ WebPageProxy::WebPageProxy(PageClient& pageClient, WebProcessProxy& process, uin
     m_process->addMessageReceiver(Messages::WebPageProxy::messageReceiverName(), m_pageID, *this);
 
 #if PLATFORM(COCOA)
-    const CFIndex activityStateChangeRunLoopOrder = (CFIndex)RunLoopObserver::WellKnownRunLoopOrders::CoreAnimationCommit - 1;
-    m_activityStateChangeDispatcher = std::make_unique<RunLoopObserver>(activityStateChangeRunLoopOrder, [this] {
+    m_activityStateChangeDispatcher = std::make_unique<RunLoopObserver>(static_cast<CFIndex>(RunLoopObserver::WellKnownRunLoopOrders::ActivityStateChange), [this] {
         this->dispatchActivityStateChange();
     });
 #endif
@@ -2272,7 +2281,7 @@ void WebPageProxy::centerSelectionInVisibleArea()
     m_process->send(Messages::WebPage::CenterSelectionInVisibleArea(), m_pageID);
 }
 
-void WebPageProxy::receivedPolicyDecision(PolicyAction action, WebFrameProxy& frame, uint64_t listenerID, API::Navigation* navigation, const WebsitePolicies& websitePolicies)
+void WebPageProxy::receivedPolicyDecision(PolicyAction action, WebFrameProxy& frame, uint64_t listenerID, API::Navigation* navigation, std::optional<WebsitePolicies>&& websitePolicies)
 {
     if (!isValid())
         return;
@@ -2321,11 +2330,17 @@ void WebPageProxy::receivedPolicyDecision(PolicyAction action, WebFrameProxy& fr
     m_process->send(Messages::WebPage::DidReceivePolicyDecision(frame.frameID(), listenerID, action, navigation ? navigation->navigationID() : 0, downloadID, websitePolicies), m_pageID);
 }
 
-void WebPageProxy::setUserAgent(const String& userAgent)
+void WebPageProxy::setUserAgent(String&& userAgent)
 {
     if (m_userAgent == userAgent)
         return;
-    m_userAgent = userAgent;
+    m_userAgent = WTFMove(userAgent);
+
+#if ENABLE(SERVICE_WORKER)
+    // We update the service worker there at the moment to be sure we use values used by actual web pages.
+    // FIXME: Refactor this when we have a better User-Agent story.
+    process().processPool().updateServiceWorkerUserAgent(m_userAgent);
+#endif
 
     if (!isValid())
         return;
@@ -2356,7 +2371,7 @@ void WebPageProxy::setCustomUserAgent(const String& customUserAgent)
         return;
     }
 
-    setUserAgent(m_customUserAgent);
+    setUserAgent(String { m_customUserAgent });
 }
 
 void WebPageProxy::resumeActiveDOMObjectsAndAnimations()
@@ -3676,7 +3691,7 @@ void WebPageProxy::frameDidBecomeFrameSet(uint64_t frameID, bool value)
         m_frameSetLargestFrame = value ? m_mainFrame : 0;
 }
 
-void WebPageProxy::decidePolicyForNavigationAction(uint64_t frameID, const SecurityOriginData& frameSecurityOrigin, uint64_t navigationID, NavigationActionData&& navigationActionData, const FrameInfoData& originatingFrameInfoData, uint64_t originatingPageID, const WebCore::ResourceRequest& originalRequest, ResourceRequest&& request, uint64_t listenerID, const UserData& userData, bool& receivedPolicyAction, uint64_t& newNavigationID, WebCore::PolicyAction& policyAction, DownloadID& downloadID, WebsitePolicies& websitePolicies)
+void WebPageProxy::decidePolicyForNavigationAction(uint64_t frameID, const SecurityOriginData& frameSecurityOrigin, uint64_t navigationID, NavigationActionData&& navigationActionData, const FrameInfoData& originatingFrameInfoData, uint64_t originatingPageID, const WebCore::ResourceRequest& originalRequest, ResourceRequest&& request, uint64_t listenerID, const UserData& userData, bool& receivedPolicyAction, uint64_t& newNavigationID, WebCore::PolicyAction& policyAction, DownloadID& downloadID, std::optional<WebsitePolicies>& websitePolicies)
 {
     PageClientProtector protector(m_pageClient);
 
@@ -4895,6 +4910,20 @@ void WebPageProxy::removeEditCommand(WebEditCommandProxy* command)
     m_process->send(Messages::WebPage::DidRemoveEditCommand(command->commandID()), m_pageID);
 }
 
+bool WebPageProxy::canUndo()
+{
+    bool result;
+    canUndoRedo(Undo, result);
+    return result;
+}
+
+bool WebPageProxy::canRedo()
+{
+    bool result;
+    canUndoRedo(Redo, result);
+    return result;
+}
+
 bool WebPageProxy::isValidEditCommand(WebEditCommandProxy* command)
 {
     return m_editCommandSet.find(command) != m_editCommandSet.end();
@@ -5161,13 +5190,28 @@ void WebPageProxy::voidCallback(CallbackID callbackID)
     callback->performCallback();
 }
 
+void WebPageProxy::sharedBufferCallback(const IPC::DataReference& dataReference, bool isNull, CallbackID callbackID)
+{
+    auto callback = m_callbacks.take<SharedBufferCallback>(callbackID);
+    if (!callback) {
+        ASSERT_NOT_REACHED();
+        return;
+    }
+
+    if (isNull) {
+        ASSERT(dataReference.isEmpty());
+        callback->performCallbackWithReturnValue(nullptr);
+        return;
+    }
+
+    callback->performCallbackWithReturnValue(SharedBuffer::create(dataReference.data(), dataReference.size()));
+}
+
 void WebPageProxy::dataCallback(const IPC::DataReference& dataReference, CallbackID callbackID)
 {
     auto callback = m_callbacks.take<DataCallback>(callbackID);
-    if (!callback) {
-        // FIXME: Log error or assert.
+    if (!callback)
         return;
-    }
 
     callback->performCallbackWithReturnValue(API::Data::create(dataReference.data(), dataReference.size()).ptr());
 }
@@ -5278,6 +5322,17 @@ void WebPageProxy::editingRangeCallback(const EditingRange& range, CallbackID ca
 
     callback->performCallbackWithReturnValue(range);
 }
+
+#if ENABLE(APPLICATION_MANIFEST)
+void WebPageProxy::applicationManifestCallback(const std::optional<WebCore::ApplicationManifest>& manifestOrNull, CallbackID callbackID)
+{
+    auto callback = m_callbacks.take<ApplicationManifestCallback>(callbackID);
+    if (!callback)
+        return;
+
+    callback->performCallbackWithReturnValue(manifestOrNull);
+}
+#endif
 
 #if PLATFORM(COCOA)
 void WebPageProxy::machSendRightCallback(const MachSendRight& sendRight, CallbackID callbackID)
@@ -5741,7 +5796,6 @@ WebPageCreationParameters WebPageProxy::creationParameters()
     parameters.textAutosizingWidth = textAutosizingWidth();
     parameters.mimeTypesWithCustomContentProviders = m_pageClient.mimeTypesWithCustomContentProviders();
     parameters.ignoresViewportScaleLimits = m_forceAlwaysUserScalable;
-    parameters.allowsBlockSelection = m_pageClient.allowsBlockSelection();
 #endif
 
 #if PLATFORM(MAC)
@@ -5766,6 +5820,10 @@ WebPageCreationParameters WebPageProxy::creationParameters()
 #if USE(LIBWEBRTC)
     parameters.enumeratingAllNetworkInterfacesEnabled = m_preferences->enumeratingAllNetworkInterfacesEnabled();
 #endif
+#endif
+
+#if ENABLE(APPLICATION_MANIFEST)
+    parameters.applicationManifest = m_configuration->applicationManifest() ? std::optional<WebCore::ApplicationManifest>(m_configuration->applicationManifest()->applicationManifest()) : std::nullopt;
 #endif
 
     m_process->addWebUserContentControllerProxy(m_userContentController, parameters);
@@ -6223,7 +6281,7 @@ void WebPageProxy::saveDataToFileInDownloadsFolder(String&& suggestedFilename, S
 
 void WebPageProxy::savePDFToFileInDownloadsFolder(String&& suggestedFilename, URL&& originatingURL, const IPC::DataReference& dataReference)
 {
-    if (!suggestedFilename.endsWith(".pdf", false))
+    if (!suggestedFilename.endsWithIgnoringASCIICase(".pdf"))
         return;
 
     saveDataToFileInDownloadsFolder(WTFMove(suggestedFilename), ASCIILiteral("application/pdf"), WTFMove(originatingURL),
@@ -6850,6 +6908,11 @@ void WebPageProxy::handleAutoFillButtonClick(const UserData& userData)
     m_uiClient->didClickAutoFillButton(*this, m_process->transformHandlesToObjects(userData.object()).get());
 }
 
+void WebPageProxy::handleAlternativePresentationButtonClick(const UserData& userData)
+{
+    m_uiClient->didClickAlternativePresentationButton(*this, m_process->transformHandlesToObjects(userData.object()).get());
+}
+
 #if ENABLE(WIRELESS_PLAYBACK_TARGET) && !PLATFORM(IOS)
 void WebPageProxy::addPlaybackTargetPickerClient(uint64_t contextId)
 {
@@ -7088,12 +7151,12 @@ WebURLSchemeHandler* WebPageProxy::urlSchemeHandlerForScheme(const String& schem
     return m_urlSchemeHandlersByScheme.get(scheme);
 }
 
-void WebPageProxy::startURLSchemeTask(uint64_t handlerIdentifier, uint64_t taskIdentifier, const WebCore::ResourceRequest& request)
+void WebPageProxy::startURLSchemeTask(URLSchemeTaskParameters&& parameters)
 {
-    auto iterator = m_urlSchemeHandlersByIdentifier.find(handlerIdentifier);
+    auto iterator = m_urlSchemeHandlersByIdentifier.find(parameters.handlerIdentifier);
     MESSAGE_CHECK(iterator != m_urlSchemeHandlersByIdentifier.end());
 
-    iterator->value->startTask(*this, taskIdentifier, request);
+    iterator->value->startTask(*this, parameters.taskIdentifier, WTFMove(parameters.request));
 }
 
 void WebPageProxy::stopURLSchemeTask(uint64_t handlerIdentifier, uint64_t taskIdentifier)
@@ -7104,6 +7167,13 @@ void WebPageProxy::stopURLSchemeTask(uint64_t handlerIdentifier, uint64_t taskId
     iterator->value->stopTask(*this, taskIdentifier);
 }
 
+void WebPageProxy::hasStorageAccess(String&& subFrameHost, String&& topFrameHost, uint64_t webProcessContextId)
+{
+    m_websiteDataStore->hasStorageAccess(WTFMove(subFrameHost), WTFMove(topFrameHost), [this, webProcessContextId] (bool hasAccess) {
+        m_process->send(Messages::WebPage::StorageAccessResponse(hasAccess, webProcessContextId), m_pageID);
+    });
+}
+
 void WebPageProxy::requestStorageAccess(String&& subFrameHost, String&& topFrameHost, uint64_t webProcessContextId)
 {
     m_websiteDataStore->requestStorageAccess(WTFMove(subFrameHost), WTFMove(topFrameHost), [this, webProcessContextId] (bool wasGranted) {
@@ -7111,12 +7181,67 @@ void WebPageProxy::requestStorageAccess(String&& subFrameHost, String&& topFrame
     });
 }
 
+#if PLATFORM(COCOA)
+void WebPageProxy::touchBarMenuDataChanged(const TouchBarMenuData& touchBarMenuData)
+{
+    m_touchBarMenuData = touchBarMenuData;
+}
+
+void WebPageProxy::touchBarMenuItemDataAdded(const TouchBarMenuItemData& touchBarMenuItemData)
+{
+    m_touchBarMenuData.addMenuItem(touchBarMenuItemData);
+}
+
+void WebPageProxy::touchBarMenuItemDataRemoved(const TouchBarMenuItemData& touchBarMenuItemData)
+{
+    m_touchBarMenuData.removeMenuItem(touchBarMenuItemData);
+}
+#endif
+
 #if ENABLE(ATTACHMENT_ELEMENT)
 
-void WebPageProxy::insertAttachment(const String& identifier, const String& filename, std::optional<String> contentType, SharedBuffer& data, Function<void(CallbackBase::Error)>&& callback)
+void WebPageProxy::insertAttachment(const String& identifier, const AttachmentDisplayOptions& options, const String& filename, std::optional<String> contentType, SharedBuffer& data, Function<void(CallbackBase::Error)>&& callback)
 {
+    if (!isValid()) {
+        callback(CallbackBase::Error::OwnerWasInvalidated);
+        return;
+    }
+
     auto callbackID = m_callbacks.put(WTFMove(callback), m_process->throttler().backgroundActivityToken());
-    m_process->send(Messages::WebPage::InsertAttachment(identifier, filename, contentType, IPC::SharedBufferDataReference { &data }, callbackID), m_pageID);
+    m_process->send(Messages::WebPage::InsertAttachment(identifier, options, filename, contentType, IPC::SharedBufferDataReference { &data }, callbackID), m_pageID);
+}
+
+void WebPageProxy::requestAttachmentData(const String& identifier, Function<void(RefPtr<SharedBuffer>, CallbackBase::Error)>&& callback)
+{
+    if (!isValid()) {
+        callback(nullptr, CallbackBase::Error::OwnerWasInvalidated);
+        return;
+    }
+
+    auto callbackID = m_callbacks.put(WTFMove(callback), m_process->throttler().backgroundActivityToken());
+    m_process->send(Messages::WebPage::RequestAttachmentData(identifier, callbackID), m_pageID);
+}
+
+void WebPageProxy::setAttachmentDisplayOptions(const String& identifier, AttachmentDisplayOptions options, Function<void(CallbackBase::Error)>&& callback)
+{
+    if (!isValid()) {
+        callback(CallbackBase::Error::OwnerWasInvalidated);
+        return;
+    }
+
+    auto callbackID = m_callbacks.put(WTFMove(callback), m_process->throttler().backgroundActivityToken());
+    m_process->send(Messages::WebPage::SetAttachmentDisplayOptions(identifier, options, callbackID), m_pageID);
+}
+
+void WebPageProxy::setAttachmentDataAndContentType(const String& identifier, SharedBuffer& data, std::optional<String>&& newContentType, std::optional<String>&& newFilename, Function<void(CallbackBase::Error)>&& callback)
+{
+    if (!isValid()) {
+        callback(CallbackBase::Error::OwnerWasInvalidated);
+        return;
+    }
+
+    auto callbackID = m_callbacks.put(WTFMove(callback), m_process->throttler().backgroundActivityToken());
+    m_process->send(Messages::WebPage::SetAttachmentDataAndContentType(identifier, IPC::SharedBufferDataReference { &data }, WTFMove(newContentType), WTFMove(newFilename), callbackID), m_pageID);
 }
 
 void WebPageProxy::didInsertAttachment(const String& identifier)
@@ -7130,5 +7255,19 @@ void WebPageProxy::didRemoveAttachment(const String& identifier)
 }
 
 #endif // ENABLE(ATTACHMENT_ELEMENT)
+
+#if ENABLE(APPLICATION_MANIFEST)
+void WebPageProxy::getApplicationManifest(Function<void(const std::optional<WebCore::ApplicationManifest>&, CallbackBase::Error)>&& callbackFunction)
+{
+    if (!isValid()) {
+        callbackFunction(std::nullopt, CallbackBase::Error::Unknown);
+        return;
+    }
+
+    auto callbackID = m_callbacks.put(WTFMove(callbackFunction), m_process->throttler().backgroundActivityToken());
+    m_loadDependentStringCallbackIDs.add(callbackID);
+    m_process->send(Messages::WebPage::GetApplicationManifest(callbackID), m_pageID);
+}
+#endif
 
 } // namespace WebKit

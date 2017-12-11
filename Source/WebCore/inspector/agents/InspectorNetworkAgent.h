@@ -37,11 +37,11 @@
 #include <inspector/InspectorBackendDispatchers.h>
 #include <inspector/InspectorFrontendDispatchers.h>
 #include <wtf/HashSet.h>
+#include <wtf/JSONValues.h>
 #include <wtf/text/WTFString.h>
 #include <yarr/RegularExpression.h>
 
 namespace Inspector {
-class InspectorObject;
 class InjectedScriptManager;
 }
 
@@ -57,6 +57,7 @@ class ResourceError;
 class ResourceLoader;
 class ResourceRequest;
 class ResourceResponse;
+class TextResourceDecoder;
 class URL;
 class WebSocket;
 
@@ -64,11 +65,17 @@ struct WebSocketFrame;
 
 typedef String ErrorString;
 
-class InspectorNetworkAgent final : public InspectorAgentBase, public Inspector::NetworkBackendDispatcherHandler {
+class InspectorNetworkAgent : public InspectorAgentBase, public Inspector::NetworkBackendDispatcherHandler {
+    WTF_MAKE_NONCOPYABLE(InspectorNetworkAgent);
     WTF_MAKE_FAST_ALLOCATED;
 public:
-    InspectorNetworkAgent(WebAgentContext&, InspectorPageAgent*);
+    explicit InspectorNetworkAgent(WebAgentContext&);
     virtual ~InspectorNetworkAgent();
+
+    static bool shouldTreatAsText(const String& mimeType);
+    static Ref<TextResourceDecoder> createTextDecoder(const String& mimeType, const String& textEncodingName);
+    static std::optional<String> textContentForCachedResource(CachedResource&);
+    static bool cachedResourceContent(CachedResource&, String* result, bool* base64Encoded);
 
     void didCreateFrontendAndBackend(Inspector::FrontendRouter*, Inspector::BackendDispatcher*) override;
     void willDestroyFrontendAndBackend(Inspector::DisconnectReason) override;
@@ -76,15 +83,14 @@ public:
     // InspectorInstrumentation
     void willRecalculateStyle();
     void didRecalculateStyle();
-    void willSendRequest(unsigned long identifier, DocumentLoader&, ResourceRequest&, const ResourceResponse& redirectResponse);
-    void willSendRequestOfType(unsigned long identifier, DocumentLoader&, ResourceRequest&, InspectorInstrumentation::LoadType);
-    void didReceiveResponse(unsigned long identifier, DocumentLoader&, const ResourceResponse&, ResourceLoader*);
+    void willSendRequest(unsigned long identifier, DocumentLoader*, ResourceRequest&, const ResourceResponse& redirectResponse);
+    void willSendRequestOfType(unsigned long identifier, DocumentLoader*, ResourceRequest&, InspectorInstrumentation::LoadType);
+    void didReceiveResponse(unsigned long identifier, DocumentLoader*, const ResourceResponse&, ResourceLoader*);
     void didReceiveData(unsigned long identifier, const char* data, int dataLength, int encodedDataLength);
-    void didFinishLoading(unsigned long identifier, DocumentLoader&, const NetworkLoadMetrics&, ResourceLoader*);
-    void didFailLoading(unsigned long identifier, DocumentLoader&, const ResourceError&);
-    void didLoadResourceFromMemoryCache(DocumentLoader&, CachedResource&);
+    void didFinishLoading(unsigned long identifier, DocumentLoader*, const NetworkLoadMetrics&, ResourceLoader*);
+    void didFailLoading(unsigned long identifier, DocumentLoader*, const ResourceError&);
+    void didLoadResourceFromMemoryCache(DocumentLoader*, CachedResource&);
     void didReceiveThreadableLoaderResponse(unsigned long identifier, DocumentThreadableLoader&);
-    void didFinishXHRLoading(unsigned long identifier, const String& decodedText);
     void willLoadXHRSynchronously();
     void didLoadXHRSynchronously();
     void didReceiveScriptResponse(unsigned long identifier);
@@ -100,27 +106,33 @@ public:
     void setInitialScriptContent(unsigned long identifier, const String& sourceString);
     void didScheduleStyleRecalculation(Document&);
 
-    void searchOtherRequests(const JSC::Yarr::RegularExpression&, RefPtr<Inspector::Protocol::Array<Inspector::Protocol::Page::SearchResult>>&);
-    void searchInRequest(ErrorString&, const String& requestId, const String& query, bool caseSensitive, bool isRegex, RefPtr<Inspector::Protocol::Array<Inspector::Protocol::GenericTypes::SearchMatch>>&);
-
-    RefPtr<Inspector::Protocol::Network::Initiator> buildInitiatorObject(Document*);
+    void searchOtherRequests(const JSC::Yarr::RegularExpression&, RefPtr<JSON::ArrayOf<Inspector::Protocol::Page::SearchResult>>&);
+    void searchInRequest(ErrorString&, const String& requestId, const String& query, bool caseSensitive, bool isRegex, RefPtr<JSON::ArrayOf<Inspector::Protocol::GenericTypes::SearchMatch>>&);
 
     // Called from frontend.
-    void enable(ErrorString&) override;
-    void disable(ErrorString&) override;
-    void setExtraHTTPHeaders(ErrorString&, const Inspector::InspectorObject& headers) override;
-    void getResponseBody(ErrorString&, const String& requestId, String* content, bool* base64Encoded) override;
-    void setResourceCachingDisabled(ErrorString&, bool disabled) override;
-    void loadResource(ErrorString&, const String& frameId, const String& url, Ref<LoadResourceCallback>&&) override;
-    void resolveWebSocket(ErrorString&, const String& requestId, const String* const objectGroup, RefPtr<Inspector::Protocol::Runtime::RemoteObject>&) override;
+    void enable(ErrorString&) final;
+    void disable(ErrorString&) final;
+    void setExtraHTTPHeaders(ErrorString&, const JSON::Object& headers) final;
+    void getResponseBody(ErrorString&, const String& requestId, String* content, bool* base64Encoded) final;
+    void setResourceCachingDisabled(ErrorString&, bool disabled) final;
+    void loadResource(ErrorString&, const String& frameId, const String& url, Ref<LoadResourceCallback>&&) final;
+    void resolveWebSocket(ErrorString&, const String& requestId, const String* const objectGroup, RefPtr<Inspector::Protocol::Runtime::RemoteObject>&) final;
+
+    virtual String loaderIdentifier(DocumentLoader*) = 0;
+    virtual String frameIdentifier(DocumentLoader*) = 0;
+    virtual Vector<WebSocket*> activeWebSockets(const LockHolder&) = 0;
+    virtual void setResourceCachingDisabled(bool) = 0;
+    virtual ScriptExecutionContext* scriptExecutionContext(ErrorString&, const String& frameId) = 0;
+    virtual bool shouldForceBufferingNetworkResourceData() const = 0;
 
 private:
     void enable();
 
-    void willSendRequest(unsigned long identifier, DocumentLoader&, ResourceRequest&, const ResourceResponse& redirectResponse, InspectorPageAgent::ResourceType);
+    void willSendRequest(unsigned long identifier, DocumentLoader*, ResourceRequest&, const ResourceResponse& redirectResponse, InspectorPageAgent::ResourceType);
 
     WebSocket* webSocketForRequestId(const String& requestId);
 
+    RefPtr<Inspector::Protocol::Network::Initiator> buildInitiatorObject(Document*);
     Ref<Inspector::Protocol::Network::ResourceTiming> buildObjectForTiming(const NetworkLoadMetrics&, ResourceLoader&);
     Ref<Inspector::Protocol::Network::Metrics> buildObjectForMetrics(const NetworkLoadMetrics&);
     RefPtr<Inspector::Protocol::Network::Response> buildObjectForResourceResponse(const ResourceResponse&, ResourceLoader*);
@@ -131,7 +143,6 @@ private:
     std::unique_ptr<Inspector::NetworkFrontendDispatcher> m_frontendDispatcher;
     RefPtr<Inspector::NetworkBackendDispatcher> m_backendDispatcher;
     Inspector::InjectedScriptManager& m_injectedScriptManager;
-    InspectorPageAgent* m_pageAgent { nullptr };
 
     // FIXME: InspectorNetworkAgent should not be aware of style recalculation.
     RefPtr<Inspector::Protocol::Network::Initiator> m_styleRecalculationInitiator;

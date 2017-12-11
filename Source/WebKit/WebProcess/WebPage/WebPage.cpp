@@ -121,6 +121,7 @@
 #include "WebUserContentController.h"
 #include "WebUserMediaClient.h"
 #include "WebValidationMessageClient.h"
+#include "WebsiteDataStoreParameters.h"
 #include <JavaScriptCore/APICast.h>
 #include <WebCore/ApplicationCacheStorage.h>
 #include <WebCore/ArchiveResource.h>
@@ -141,14 +142,18 @@
 #include <WebCore/ElementIterator.h>
 #include <WebCore/EventHandler.h>
 #include <WebCore/EventNames.h>
+#include <WebCore/File.h>
 #include <WebCore/FocusController.h>
 #include <WebCore/FormState.h>
 #include <WebCore/FrameLoadRequest.h>
 #include <WebCore/FrameLoaderTypes.h>
 #include <WebCore/FrameView.h>
+#include <WebCore/HTMLAttachmentElement.h>
 #include <WebCore/HTMLFormElement.h>
 #include <WebCore/HTMLImageElement.h>
 #include <WebCore/HTMLInputElement.h>
+#include <WebCore/HTMLMenuElement.h>
+#include <WebCore/HTMLMenuItemElement.h>
 #include <WebCore/HTMLOListElement.h>
 #include <WebCore/HTMLPlugInElement.h>
 #include <WebCore/HTMLPlugInImageElement.h>
@@ -186,6 +191,7 @@
 #include <WebCore/SubframeLoader.h>
 #include <WebCore/SubstituteData.h>
 #include <WebCore/TextIterator.h>
+#include <WebCore/UserGestureIndicator.h>
 #include <WebCore/UserInputBridge.h>
 #include <WebCore/UserScript.h>
 #include <WebCore/UserStyleSheet.h>
@@ -202,6 +208,7 @@
 #include <runtime/SamplingProfiler.h>
 #include <wtf/RunLoop.h>
 #include <wtf/SetForScope.h>
+#include <wtf/text/TextStream.h>
 
 #if ENABLE(DATA_DETECTION)
 #include "DataDetectionResult.h"
@@ -219,6 +226,8 @@
 #include "PDFPlugin.h"
 #include "PlaybackSessionManager.h"
 #include "RemoteLayerTreeTransaction.h"
+#include "TouchBarMenuData.h"
+#include "TouchBarMenuItemData.h"
 #include "VideoFullscreenManager.h"
 #include "WKStringCF.h"
 #include <WebCore/LegacyWebArchive.h>
@@ -348,7 +357,6 @@ WebPage::WebPage(uint64_t pageID, WebPageCreationParameters&& parameters)
     , m_forceAlwaysUserScalable(parameters.ignoresViewportScaleLimits)
     , m_screenSize(parameters.screenSize)
     , m_availableScreenSize(parameters.availableScreenSize)
-    , m_allowsBlockSelection(parameters.allowsBlockSelection)
 #endif
     , m_layerVolatilityTimer(*this, &WebPage::layerVolatilityTimerFired)
     , m_activityState(parameters.activityState)
@@ -409,6 +417,10 @@ WebPage::WebPage(uint64_t pageID, WebPageCreationParameters&& parameters)
 
 #if ENABLE(APPLE_PAY)
     pageConfiguration.paymentCoordinatorClient = new WebPaymentCoordinator(*this);
+#endif
+
+#if ENABLE(APPLICATION_MANIFEST)
+    pageConfiguration.applicationManifest = parameters.applicationManifest;
 #endif
 
     m_page = std::make_unique<Page>(WTFMove(pageConfiguration));
@@ -798,12 +810,8 @@ RefPtr<Plugin> WebPage::createPlugin(WebFrame* frame, HTMLPlugInElement* pluginE
     if (isBlockedPlugin || !pluginProcessToken) {
 #if ENABLE(PDFKIT_PLUGIN)
         String path = parameters.url.path();
-        if (shouldUsePDFPlugin() && (MIMETypeRegistry::isPDFOrPostScriptMIMEType(parameters.mimeType) || (parameters.mimeType.isEmpty() && (path.endsWith(".pdf", false) || path.endsWith(".ps", false))))) {
-            auto pdfPlugin = PDFPlugin::create(frame);
-            return WTFMove(pdfPlugin);
-        }
-#else
-        UNUSED_PARAM(frame);
+        if (shouldUsePDFPlugin() && (MIMETypeRegistry::isPDFOrPostScriptMIMEType(parameters.mimeType) || (parameters.mimeType.isEmpty() && (path.endsWithIgnoringASCIICase(".pdf") || path.endsWithIgnoringASCIICase(".ps")))))
+            return PDFPlugin::create(*frame);
 #endif
     }
 
@@ -864,8 +872,6 @@ EditorState WebPage::editorState(IncludePostLayoutDataHint shouldIncludePostLayo
         postLayoutData.canCut = editor.canCut();
         postLayoutData.canCopy = editor.canCopy();
         postLayoutData.canPaste = editor.canPaste();
-        postLayoutData.canUndo = editor.canUndo();
-        postLayoutData.canRedo = editor.canRedo();
 
 #if PLATFORM(COCOA)
         if (result.isContentEditable && !selection.isNone()) {
@@ -1003,26 +1009,23 @@ Ref<API::Array> WebPage::trackedRepaintRects()
 
 PluginView* WebPage::focusedPluginViewForFrame(Frame& frame)
 {
-    if (!frame.document()->isPluginDocument())
-        return 0;
+    if (!is<PluginDocument>(frame.document()))
+        return nullptr;
 
-    PluginDocument* pluginDocument = static_cast<PluginDocument*>(frame.document());
+    auto& pluginDocument = downcast<PluginDocument>(*frame.document());
+    if (pluginDocument.focusedElement() != pluginDocument.pluginElement())
+        return nullptr;
 
-    if (pluginDocument->focusedElement() != pluginDocument->pluginElement())
-        return 0;
-
-    PluginView* pluginView = static_cast<PluginView*>(pluginDocument->pluginWidget());
-    return pluginView;
+    return pluginViewForFrame(&frame);
 }
 
 PluginView* WebPage::pluginViewForFrame(Frame* frame)
 {
-    if (!frame->document()->isPluginDocument())
-        return 0;
+    if (!frame || !is<PluginDocument>(frame->document()))
+        return nullptr;
 
-    PluginDocument* pluginDocument = static_cast<PluginDocument*>(frame->document());
-    PluginView* pluginView = static_cast<PluginView*>(pluginDocument->pluginWidget());
-    return pluginView;
+    auto& document = downcast<PluginDocument>(*frame->document());
+    return static_cast<PluginView*>(document.pluginWidget());
 }
 
 void WebPage::executeEditingCommand(const String& commandName, const String& argument)
@@ -1748,6 +1751,7 @@ bool WebPage::setFixedLayoutSize(const IntSize& size)
     if (!view || view->fixedLayoutSize() == size)
         return false;
 
+    LOG_WITH_STREAM(VisibleRects, stream << "WebPage " << m_pageID << " setFixedLayoutSize " << size);
     view->setFixedLayoutSize(size);
 
     send(Messages::WebPageProxy::FixedLayoutSizeDidChange(size));
@@ -2738,11 +2742,11 @@ void WebPage::setLayerHostingMode(LayerHostingMode layerHostingMode)
 void WebPage::setSessionID(PAL::SessionID sessionID)
 {
     if (sessionID.isEphemeral())
-        WebProcess::singleton().ensurePrivateBrowsingSession(sessionID);
+        WebProcess::singleton().addWebsiteDataStore({{ }, { }, { }, { }, { }, { }, { sessionID, { }, { }, { }}});
     m_page->setSessionID(sessionID);
 }
 
-void WebPage::didReceivePolicyDecision(uint64_t frameID, uint64_t listenerID, PolicyAction policyAction, uint64_t navigationID, const DownloadID& downloadID, WebsitePolicies&& websitePolicies)
+void WebPage::didReceivePolicyDecision(uint64_t frameID, uint64_t listenerID, PolicyAction policyAction, uint64_t navigationID, const DownloadID& downloadID, std::optional<WebsitePolicies>&& websitePolicies)
 {
     WebFrame* frame = WebProcess::singleton().webFrame(frameID);
     if (!frame)
@@ -3243,11 +3247,10 @@ NotificationPermissionRequestManager* WebPage::notificationPermissionRequestMana
 }
 
 #if !PLATFORM(GTK) && !PLATFORM(COCOA) && !PLATFORM(WPE)
+
 bool WebPage::handleEditingKeyboardEvent(KeyboardEvent* evt)
 {
-    auto node = evt->target()->toNode();
-    ASSERT(node);
-    Frame* frame = node->document().frame();
+    Frame* frame = downcast<Node>(*evt->target()).document().frame();
     ASSERT(frame);
 
     const PlatformKeyboardEvent* keyEvent = evt->keyEvent();
@@ -3276,6 +3279,7 @@ bool WebPage::handleEditingKeyboardEvent(KeyboardEvent* evt)
 
     return frame->editor().insertText(evt->keyEvent()->text(), evt);
 }
+
 #endif
 
 #if ENABLE(DRAG_SUPPORT)
@@ -3481,7 +3485,7 @@ void WebPage::setActiveOpenPanelResultListener(Ref<WebOpenPanelResultListener>&&
 
 bool WebPage::findStringFromInjectedBundle(const String& target, FindOptions options)
 {
-    return m_page->findString(target, options);
+    return m_page->findString(target, core(options));
 }
 
 void WebPage::findString(const String& string, uint32_t options, uint32_t maxMatchCount)
@@ -3594,9 +3598,9 @@ void WebPage::prepareToSendUserMediaPermissionRequest()
 }
 #endif
 
-void WebPage::userMediaAccessWasGranted(uint64_t userMediaID, String&& audioDeviceUID, String&& videoDeviceUID, String&& mediaDeviceIdentifierHashSalt)
+void WebPage::userMediaAccessWasGranted(uint64_t userMediaID, WebCore::CaptureDevice&& audioDevice, WebCore::CaptureDevice&& videoDevice, String&& mediaDeviceIdentifierHashSalt)
 {
-    m_userMediaPermissionRequestManager->userMediaAccessWasGranted(userMediaID, WTFMove(audioDeviceUID), WTFMove(videoDeviceUID), WTFMove(mediaDeviceIdentifierHashSalt));
+    m_userMediaPermissionRequestManager->userMediaAccessWasGranted(userMediaID, WTFMove(audioDevice), WTFMove(videoDevice), WTFMove(mediaDeviceIdentifierHashSalt));
 }
 
 void WebPage::userMediaAccessWasDenied(uint64_t userMediaID, uint64_t reason, String&& invalidConstraint)
@@ -3783,6 +3787,7 @@ void WebPage::mainFrameDidLayout()
 #if PLATFORM(IOS)
     if (FrameView* frameView = mainFrameView()) {
         IntSize newContentSize = frameView->contentsSize();
+        LOG_WITH_STREAM(VisibleRects, stream << "WebPage " << m_pageID << " mainFrameDidLayout setting content size to " << newContentSize);
         if (m_viewportConfiguration.setContentsSize(newContentSize))
             viewportConfigurationChanged();
     }
@@ -4062,19 +4067,17 @@ void WebPage::stopSpeaking()
 #endif
 
 #if PLATFORM(MAC)
+
 RetainPtr<PDFDocument> WebPage::pdfDocumentForPrintingFrame(Frame* coreFrame)
 {
-    Document* document = coreFrame->document();
-    if (!is<PluginDocument>(document))
-        return nullptr;
-
-    PluginView* pluginView = static_cast<PluginView*>(downcast<PluginDocument>(*document).pluginWidget());
+    PluginView* pluginView = pluginViewForFrame(coreFrame);
     if (!pluginView)
         return nullptr;
 
     return pluginView->pdfDocumentForPrinting();
 }
-#endif // PLATFORM(MAC)
+
+#endif
 
 void WebPage::beginPrinting(uint64_t frameID, const PrintInfo& printInfo)
 {
@@ -4089,7 +4092,7 @@ void WebPage::beginPrinting(uint64_t frameID, const PrintInfo& printInfo)
 #if PLATFORM(MAC)
     if (pdfDocumentForPrintingFrame(coreFrame))
         return;
-#endif // PLATFORM(MAC)
+#endif
 
     if (!m_printContext)
         m_printContext = std::make_unique<PrintContext>(coreFrame);
@@ -4283,7 +4286,7 @@ void WebPage::addResourceRequest(unsigned long identifier, const WebCore::Resour
     if (!request.url().protocolIsInHTTPFamily())
         return;
 
-    if (m_mainFrameProgressCompleted && !ScriptController::processingUserGesture())
+    if (m_mainFrameProgressCompleted && !UserGestureIndicator::processingUserGesture())
         return;
 
     ASSERT(!m_trackedNetworkResourceRequestIdentifiers.contains(identifier));
@@ -5089,6 +5092,8 @@ void WebPage::didCommitLoad(WebFrame* frame)
     const Frame* coreFrame = frame->coreFrame();
     
     bool viewportChanged = false;
+
+    LOG_WITH_STREAM(VisibleRects, stream << "WebPage " << m_pageID << " didCommitLoad setting content size to " << coreFrame->view()->contentsSize());
     if (m_viewportConfiguration.setContentsSize(coreFrame->view()->contentsSize()))
         viewportChanged = true;
 
@@ -5123,6 +5128,42 @@ void WebPage::didFinishLoad(WebFrame* frame)
     m_determinePrimarySnapshottedPlugInTimer.startOneShot(0_s);
 #else
     UNUSED_PARAM(frame);
+#endif
+}
+
+void WebPage::didInsertMenuElement(HTMLMenuElement& element)
+{
+#if PLATFORM(COCOA)
+    sendTouchBarMenuDataAddedUpdate(element);
+#else
+    UNUSED_PARAM(element);
+#endif
+}
+
+void WebPage::didRemoveMenuElement(HTMLMenuElement& element)
+{
+#if PLATFORM(COCOA)
+    sendTouchBarMenuDataRemovedUpdate(element);
+#else
+    UNUSED_PARAM(element);
+#endif
+}
+
+void WebPage::didInsertMenuItemElement(HTMLMenuItemElement& element)
+{
+#if PLATFORM(COCOA)
+    sendTouchBarMenuItemDataAddedUpdate(element);
+#else
+    UNUSED_PARAM(element);
+#endif
+}
+
+void WebPage::didRemoveMenuItemElement(HTMLMenuItemElement& element)
+{
+#if PLATFORM(COCOA)
+    sendTouchBarMenuItemDataRemovedUpdate(element);
+#else
+    UNUSED_PARAM(element);
 #endif
 }
 
@@ -5346,6 +5387,28 @@ void WebPage::sendEditorStateUpdate()
         m_drawingArea->scheduleCompositingLayerFlush();
     }
 }
+
+#if PLATFORM(COCOA)
+void WebPage::sendTouchBarMenuDataRemovedUpdate(HTMLMenuElement& element)
+{
+    send(Messages::WebPageProxy::TouchBarMenuDataChanged(TouchBarMenuData { }));
+}
+
+void WebPage::sendTouchBarMenuDataAddedUpdate(HTMLMenuElement& element)
+{
+    send(Messages::WebPageProxy::TouchBarMenuDataChanged(TouchBarMenuData {element}));
+}
+
+void WebPage::sendTouchBarMenuItemDataAddedUpdate(HTMLMenuItemElement& element)
+{
+    send(Messages::WebPageProxy::TouchBarMenuItemDataAdded(TouchBarMenuItemData {element}));
+}
+
+void WebPage::sendTouchBarMenuItemDataRemovedUpdate(HTMLMenuItemElement& element)
+{
+    send(Messages::WebPageProxy::TouchBarMenuItemDataRemoved(TouchBarMenuItemData {element}));
+}
+#endif
 
 void WebPage::sendPartialEditorStateAndSchedulePostLayoutUpdate()
 {
@@ -5747,7 +5810,18 @@ static uint64_t nextRequestStorageAccessContextId()
     return ++nextContextId;
 }
 
-void WebPage::requestStorageAccess(String&& subFrameHost, String&& topFrameHost, WTF::Function<void (bool)>&& callback)
+void WebPage::hasStorageAccess(String&& subFrameHost, String&& topFrameHost, WTF::CompletionHandler<void (bool)>&& callback)
+{
+    auto contextId = nextRequestStorageAccessContextId();
+    auto addResult = m_storageAccessResponseCallbackMap.add(contextId, WTFMove(callback));
+    ASSERT(addResult.isNewEntry);
+    if (addResult.iterator->value)
+        send(Messages::WebPageProxy::HasStorageAccess(WTFMove(subFrameHost), WTFMove(topFrameHost), contextId));
+    else
+        callback(false);
+}
+    
+void WebPage::requestStorageAccess(String&& subFrameHost, String&& topFrameHost, WTF::CompletionHandler<void (bool)>&& callback)
 {
     auto contextId = nextRequestStorageAccessContextId();
     auto addResult = m_storageAccessResponseCallbackMap.add(contextId, WTFMove(callback));
@@ -5765,15 +5839,95 @@ void WebPage::storageAccessResponse(bool wasGranted, uint64_t contextId)
     callback(wasGranted);
 }
 
+void WebPage::invokeSharedBufferCallback(RefPtr<SharedBuffer>&& buffer, CallbackID callbackID)
+{
+    if (buffer)
+        send(Messages::WebPageProxy::SharedBufferCallback(IPC::SharedBufferDataReference { buffer.get() }, false, callbackID));
+    else
+        send(Messages::WebPageProxy::SharedBufferCallback({ }, true, callbackID));
+}
+
 #if ENABLE(ATTACHMENT_ELEMENT)
 
-void WebPage::insertAttachment(const String& identifier, const String& filename, std::optional<String> contentType, const IPC::DataReference& data, CallbackID callbackID)
+void WebPage::insertAttachment(const String& identifier, const AttachmentDisplayOptions& options, const String& filename, std::optional<String> contentType, const IPC::DataReference& data, CallbackID callbackID)
 {
     auto& frame = m_page->focusController().focusedOrMainFrame();
-    frame.editor().insertAttachment(identifier, filename, SharedBuffer::create(data.data(), data.size()), contentType);
+    frame.editor().insertAttachment(identifier, options, filename, SharedBuffer::create(data.data(), data.size()), contentType);
     send(Messages::WebPageProxy::VoidCallback(callbackID));
 }
 
+void WebPage::requestAttachmentData(const String& identifier, CallbackID callbackID)
+{
+    auto attachment = attachmentElementWithIdentifier(identifier);
+    if (!attachment) {
+        invokeSharedBufferCallback({ }, callbackID);
+        return;
+    }
+
+    attachment->requestData([callbackID, protectedThis = makeRef(*this), protectedAttachment = WTFMove(attachment)] (RefPtr<SharedBuffer>&& buffer) {
+        if (buffer)
+            protectedThis->invokeSharedBufferCallback(WTFMove(buffer), callbackID);
+        else
+            protectedThis->invokeSharedBufferCallback({ }, callbackID);
+    });
+}
+
+void WebPage::setAttachmentDisplayOptions(const String& identifier, const AttachmentDisplayOptions& options, CallbackID callbackID)
+{
+    if (auto attachment = attachmentElementWithIdentifier(identifier)) {
+        attachment->document().updateLayout();
+        attachment->updateDisplayMode(options.mode);
+    }
+    send(Messages::WebPageProxy::VoidCallback(callbackID));
+}
+
+void WebPage::setAttachmentDataAndContentType(const String& identifier, const IPC::DataReference& data, std::optional<String> newContentType, std::optional<String> newFilename, CallbackID callbackID)
+{
+    if (auto attachment = attachmentElementWithIdentifier(identifier)) {
+        attachment->document().updateLayout();
+        attachment->updateFileWithData(SharedBuffer::create(data.data(), data.size()), WTFMove(newContentType), WTFMove(newFilename));
+    }
+    send(Messages::WebPageProxy::VoidCallback(callbackID));
+}
+
+RefPtr<HTMLAttachmentElement> WebPage::attachmentElementWithIdentifier(const String& identifier) const
+{
+    // FIXME: Handle attachment elements in subframes too as well.
+    auto* frame = mainFrame();
+    if (!frame || !frame->document())
+        return nullptr;
+
+    return frame->document()->attachmentForIdentifier(identifier);
+}
+
 #endif // ENABLE(ATTACHMENT_ELEMENT)
+
+#if ENABLE(APPLICATION_MANIFEST)
+void WebPage::getApplicationManifest(CallbackID callbackID)
+{
+    ASSERT(callbackID.isValid());
+    Document* mainFrameDocument = m_mainFrame->coreFrame()->document();
+    DocumentLoader* loader = mainFrameDocument ? mainFrameDocument->loader() : nullptr;
+
+    if (!loader) {
+        send(Messages::WebPageProxy::ApplicationManifestCallback(std::nullopt, callbackID));
+        return;
+    }
+
+    auto coreCallbackID = loader->loadApplicationManifest();
+    if (!coreCallbackID) {
+        send(Messages::WebPageProxy::ApplicationManifestCallback(std::nullopt, callbackID));
+        return;
+    }
+
+    m_applicationManifestFetchCallbackMap.add(coreCallbackID, callbackID.toInteger());
+}
+
+void WebPage::didFinishLoadingApplicationManifest(uint64_t coreCallbackID, const std::optional<WebCore::ApplicationManifest>& manifest)
+{
+    auto callbackID = CallbackID::fromInteger(m_applicationManifestFetchCallbackMap.take(coreCallbackID));
+    send(Messages::WebPageProxy::ApplicationManifestCallback(manifest, callbackID));
+}
+#endif // ENABLE(APPLICATION_MANIFEST)
 
 } // namespace WebKit

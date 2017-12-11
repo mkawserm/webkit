@@ -70,7 +70,6 @@ inline CapabilityLevel canCompile(Node* node)
     case ArrayifyToStructure:
     case PutStructure:
     case GetButterfly:
-    case GetButterflyWithoutCaging:
     case NewObject:
     case NewStringObject:
     case NewArray:
@@ -202,11 +201,14 @@ inline CapabilityLevel canCompile(Node* node)
     case HasOwnProperty:
     case IsCellWithType:
     case MapHash:
+    case NormalizeMapKey:
     case GetMapBucket:
     case GetMapBucketHead:
     case GetMapBucketNext:
     case LoadKeyFromMapBucket:
     case LoadValueFromMapBucket:
+    case SetAdd:
+    case MapSet:
     case WeakMapGet:
     case IsEmpty:
     case IsUndefined:
@@ -266,6 +268,8 @@ inline CapabilityLevel canCompile(Node* node)
     case PutGetterSetterById:
     case PutGetterByVal:
     case PutSetterByVal:
+    case DeleteById:
+    case DeleteByVal:
     case CreateRest:
     case GetRestLength:
     case RegExpExec:
@@ -315,6 +319,7 @@ inline CapabilityLevel canCompile(Node* node)
     case AtomicsXor:
     case AtomicsIsLockFree:
     case InitializeEntrypointArguments:
+    case CPUIntrinsic:
         // These are OK.
         break;
 
@@ -512,6 +517,7 @@ CapabilityLevel canCompile(Graph& graph)
                 case MiscUse:
                 case StringIdentUse:
                 case NotStringVarUse:
+                case NotSymbolUse:
                 case AnyIntUse:
                 case DoubleRepAnyIntUse:
                     // These are OK.

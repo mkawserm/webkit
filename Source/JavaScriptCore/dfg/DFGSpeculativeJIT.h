@@ -1112,6 +1112,12 @@ public:
         m_jit.setupArgumentsWithExecState(TrustedImmPtr(structure));
         return appendCallSetResult(operation, result);
     }
+    JITCompiler::Call callOperation(C_JITOperation_EStCS operation, GPRReg result, RegisteredStructure structure, TrustedImmPtr pointer, size_t size)
+    {
+        m_jit.setupArgumentsWithExecState(TrustedImmPtr(structure), pointer, TrustedImmPtr(size));
+        return appendCallSetResult(operation, result);
+    }
+
 
 #if USE(JSVALUE64)
     JITCompiler::Call callOperation(C_JITOperation_EStJscSymtabJ operation, GPRReg result, RegisteredStructure structure, GPRReg scope, SymbolTable* table, TrustedImm64 initialValue)
@@ -1574,11 +1580,6 @@ public:
         m_jit.setupArgumentsWithExecState(TrustedImmPtr(pointer), TrustedImmPtr(size));
         return appendCallSetResult(operation, result);
     }
-    JITCompiler::Call callOperation(J_JITOperation_ESS operation, GPRReg result, int startConstant, int numConstants)
-    {
-        m_jit.setupArgumentsWithExecState(TrustedImm32(startConstant), TrustedImm32(numConstants));
-        return appendCallSetResult(operation, result);
-    }
     JITCompiler::Call callOperation(J_JITOperation_EPP operation, GPRReg result, GPRReg arg1, void* pointer)
     {
         m_jit.setupArgumentsWithExecState(arg1, TrustedImmPtr(pointer));
@@ -1932,9 +1933,19 @@ public:
         m_jit.setupArgumentsWithExecState(arg1, arg2.payloadGPR());
         return appendCall(operation);
     }
+    JITCompiler::Call callOperation(V_JITOperation_ECJZ operation, GPRReg arg1, JSValueRegs arg2, GPRReg arg3)
+    {
+        m_jit.setupArgumentsWithExecState(arg1, arg2.payloadGPR(), arg3);
+        return appendCall(operation);
+    }
     JITCompiler::Call callOperation(V_JITOperation_ECJJ operation, GPRReg arg1, GPRReg arg2, GPRReg arg3)
     {
         m_jit.setupArgumentsWithExecState(arg1, arg2, arg3);
+        return appendCall(operation);
+    }
+    JITCompiler::Call callOperation(V_JITOperation_ECJJZ operation, GPRReg arg1, JSValueRegs arg2, JSValueRegs arg3, GPRReg arg4)
+    {
+        m_jit.setupArgumentsWithExecState(arg1, arg2.payloadGPR(), arg3.payloadGPR(), arg4);
         return appendCall(operation);
     }
     JITCompiler::Call callOperation(V_JITOperation_ECCJ operation, GPRReg arg1, GPRReg arg2, JSValueRegs arg3)
@@ -2216,11 +2227,6 @@ public:
         m_jit.setupArgumentsWithExecState(TrustedImmPtr(pointer), TrustedImmPtr(size));
         return appendCallSetResult(operation, result.payloadGPR(), result.tagGPR());
     }
-    JITCompiler::Call callOperation(J_JITOperation_ESS operation, JSValueRegs result, int startConstant, int numConstants)
-    {
-        m_jit.setupArgumentsWithExecState(TrustedImm32(startConstant), TrustedImm32(numConstants));
-        return appendCallSetResult(operation, result.payloadGPR(), result.tagGPR());
-    }
     JITCompiler::Call callOperation(J_JITOperation_EJP operation, JSValueRegs result, JSValueRegs arg1, void* pointer)
     {
         m_jit.setupArgumentsWithExecState(EABI_32BIT_DUMMY_ARG arg1.payloadGPR(), arg1.tagGPR(), TrustedImmPtr(pointer));
@@ -2500,6 +2506,16 @@ public:
     JITCompiler::Call callOperation(V_JITOperation_ECJJ operation, GPRReg arg1, JSValueRegs arg2, JSValueRegs arg3)
     {
         m_jit.setupArgumentsWithExecState(arg1, arg2.payloadGPR(), arg2.tagGPR(), arg3.payloadGPR(), arg3.tagGPR());
+        return appendCall(operation);
+    }
+    JITCompiler::Call callOperation(V_JITOperation_ECJZ operation, GPRReg arg1, JSValueRegs arg2, GPRReg arg3)
+    {
+        m_jit.setupArgumentsWithExecState(arg1, arg2.payloadGPR(), arg2.tagGPR(), arg3);
+        return appendCall(operation);
+    }
+    JITCompiler::Call callOperation(V_JITOperation_ECJJZ operation, GPRReg arg1, JSValueRegs arg2, JSValueRegs arg3, GPRReg arg4)
+    {
+        m_jit.setupArgumentsWithExecState(arg1, arg2.payloadGPR(), arg2.tagGPR(), arg3.payloadGPR(), arg3.tagGPR(), arg4);
         return appendCall(operation);
     }
     JITCompiler::Call callOperation(V_JITOperation_ECCJ operation, GPRReg arg1, GPRReg arg2, JSValueRegs arg3)
@@ -2838,9 +2854,9 @@ public:
         BasicBlock* target;
     };
     
-    void emitSwitchIntJump(SwitchData*, GPRReg value, GPRReg scratch);
+    void emitSwitchIntJump(SwitchData*, GPRReg value, GPRReg scratch, GPRReg scratch2);
     void emitSwitchImm(Node*, SwitchData*);
-    void emitSwitchCharStringJump(SwitchData*, GPRReg value, GPRReg scratch);
+    void emitSwitchCharStringJump(SwitchData*, GPRReg value, GPRReg scratch, GPRReg scratch2);
     void emitSwitchChar(Node*, SwitchData*);
     void emitBinarySwitchStringRecurse(
         SwitchData*, const Vector<StringSwitchCase>&, unsigned numChecked,
@@ -2874,8 +2890,11 @@ public:
     void compileCallDOMGetter(Node*);
     void compileCallDOM(Node*);
     void compileCheckSubClass(Node*);
+    void compileNormalizeMapKey(Node*);
     void compileGetMapBucketHead(Node*);
     void compileGetMapBucketNext(Node*);
+    void compileSetAdd(Node*);
+    void compileMapSet(Node*);
     void compileWeakMapGet(Node*);
     void compileLoadKeyFromMapBucket(Node*);
     void compileLoadValueFromMapBucket(Node*);
@@ -3158,6 +3177,7 @@ public:
     void speculateStringOrOther(Edge, JSValueRegs, GPRReg scratch);
     void speculateStringOrOther(Edge);
     void speculateNotStringVar(Edge);
+    void speculateNotSymbol(Edge);
     template<typename StructureLocationType>
     void speculateStringObjectForStructure(Edge, StructureLocationType);
     void speculateStringObject(Edge, GPRReg);

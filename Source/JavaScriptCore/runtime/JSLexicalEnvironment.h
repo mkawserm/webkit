@@ -41,7 +41,7 @@ class JSLexicalEnvironment : public JSSymbolTableObject {
     friend class LLIntOffsetsExtractor;
 public:
     template<typename CellType>
-    static Subspace* subspaceFor(VM& vm)
+    static CompleteSubspace* subspaceFor(VM& vm)
     {
         RELEASE_ASSERT(!CellType::needsDestruction);
         return &vm.jsValueGigacageCellSpace;
@@ -52,7 +52,7 @@ public:
 
     WriteBarrierBase<Unknown>* variables()
     {
-        return bitwise_cast<WriteBarrierBase<Unknown>*>(bitwise_cast<char*>(Gigacage::caged(Gigacage::JSValue, this)) + offsetOfVariables());
+        return bitwise_cast<WriteBarrierBase<Unknown>*>(bitwise_cast<char*>(this) + offsetOfVariables());
     }
 
     bool isValidScopeOffset(ScopeOffset offset)

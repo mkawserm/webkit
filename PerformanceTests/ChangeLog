@@ -1,3 +1,220 @@
+2017-12-08  Konstantin Tokarev  <annulen@yandex.ru>
+
+        [python] Replace print operator with print() function for python3 compatibility
+        https://bugs.webkit.org/show_bug.cgi?id=180592
+
+        Reviewed by Michael Catanzaro.
+
+        * JSBench/harness.py:
+
+2017-12-01  Filip Pizlo  <fpizlo@apple.com>
+
+        GC constraint solving should be parallel
+        https://bugs.webkit.org/show_bug.cgi?id=179934
+
+        Reviewed by JF Bastien.
+        
+        Added a version of splay that measures latency in a way that run-jsc-benchmarks groks.
+
+        * Octane/splay.js: Added.
+        (this.Setup.setup.setup):
+        (this.TearDown.tearDown.tearDown):
+        (Benchmark):
+        (BenchmarkResult):
+        (BenchmarkResult.prototype.valueOf):
+        (BenchmarkSuite):
+        (alert):
+        (Math.random):
+        (BenchmarkSuite.ResetRNG):
+        (RunStep):
+        (BenchmarkSuite.RunSuites):
+        (BenchmarkSuite.CountBenchmarks):
+        (BenchmarkSuite.GeometricMean):
+        (BenchmarkSuite.GeometricMeanTime):
+        (BenchmarkSuite.AverageAbovePercentile):
+        (BenchmarkSuite.GeometricMeanLatency):
+        (BenchmarkSuite.FormatScore):
+        (BenchmarkSuite.prototype.NotifyStep):
+        (BenchmarkSuite.prototype.NotifyResult):
+        (BenchmarkSuite.prototype.NotifyError):
+        (BenchmarkSuite.prototype.RunSingleBenchmark):
+        (RunNextSetup):
+        (RunNextBenchmark):
+        (RunNextTearDown):
+        (BenchmarkSuite.prototype.RunStep):
+        (GeneratePayloadTree):
+        (GenerateKey):
+        (SplayUpdateStats):
+        (InsertNewNode):
+        (SplaySetup):
+        (SplayTearDown):
+        (SplayRun):
+        (SplayTree):
+        (SplayTree.prototype.isEmpty):
+        (SplayTree.prototype.insert):
+        (SplayTree.prototype.remove):
+        (SplayTree.prototype.find):
+        (SplayTree.prototype.findMax):
+        (SplayTree.prototype.findGreatestLessThan):
+        (SplayTree.prototype.exportKeys):
+        (SplayTree.prototype.splay_):
+        (SplayTree.Node):
+        (SplayTree.Node.prototype.traverse_):
+        (report):
+        (start):
+
+2017-12-04  Antti Koivisto  <antti@apple.com>
+
+        Fix StyleBench/InteractiveRunner.html
+        https://bugs.webkit.org/show_bug.cgi?id=180355
+
+        * StyleBench/InteractiveRunner.html:
+
+2017-12-01  Antti Koivisto  <antti@apple.com>
+
+        Add StyleBench
+        https://bugs.webkit.org/show_bug.cgi?id=180140
+        <rdar://problem/35366401>
+
+        * Skipped: Skip InteractiveRunner.html
+
+2017-11-30  Antti Koivisto  <antti@apple.com>
+
+        Add StyleBench
+        https://bugs.webkit.org/show_bug.cgi?id=180140
+
+        Reviewed by Simon Fraser and Joseph Pecoraro.
+
+        StyleBench tests performance of the CSS style resolution and style invalidation. Each test run
+        creates a large document and a large stylesheet using varying settings. It then applies
+        a series of mutations to the document and measures the time to update the style and rendering.
+        The resulting layout is simple, most of the pressure is on selector matching.
+
+        StyleBench uses Speedometer framework for UI and measurements. For profiling purposes, it can also
+        be run locally by opening style-bench.html directly.
+
+        There are currently four subtests:
+
+        - child and descendant combinators only (all other tests have these too).
+        - sibling combinators: '~' and '+'
+        - positional pseudo classes: :nth-child and similar
+        - ::before and ::after pseudo elements
+
+        The measured DOM mutations are:
+
+        - add classes
+        - remove classes
+        - add leaf elements
+        - remove leaf elements
+
+        * StyleBench: Added.
+        * StyleBench/InteractiveRunner.html: Added.
+
+            Copied and customized from Speedometer.
+
+        * StyleBench/index.html: Added.
+
+            Copied and customized from Speedometer.
+
+        * StyleBench/resources: Added.
+        * StyleBench/resources/style-bench.html: Added.
+        * StyleBench/resources/style-bench.js: Added.
+
+            The test class.
+
+        (Random):
+        (Random.prototype.get next):
+        (Random.prototype.chance):
+        (Random.prototype.number):
+        (nextAnimationFrame):
+        (defaultConfiguration):
+        (descendantCombinatorConfiguration):
+        (siblingCombinatorConfiguration):
+        (pseudoClassConfiguration):
+        (beforeAndAfterConfiguration):
+        (predefinedConfigurations):
+
+            Four predefined configurations.
+
+        (prototype.randomElementName):
+        (prototype.randomCombinator):
+        (prototype.randomPseudoClass):
+        (prototype.makeSimpleSelector):
+        (prototype.makeSelector):
+        (prototype.get randomColorComponent):
+        (prototype.makeDeclaration):
+        (prototype.makeRule):
+        (prototype.makeStylesheet):
+        (prototype.makeStyle):
+        (prototype.makeElement):
+        (prototype.makeTreeWithDepth):
+        (prototype.makeTree):
+        (prototype.updateCachedTestElements):
+        (prototype.randomTreeElement):
+        (prototype.addClasses):
+        (prototype.removeClasses):
+        (prototype.addLeafElements):
+        (prototype.removeLeafElements):
+        (prototype.async.runForever):
+        * StyleBench/resources/tests.js: Added.
+        (makeSteps):
+        (makeSuite):
+
+            Generates Speedometer Suites.
+
+2017-11-29  Robin Morisset  <rmorisset@apple.com>
+
+        The recursive tail call optimisation is wrong on closures
+        https://bugs.webkit.org/show_bug.cgi?id=179835
+
+        Reviewed by Saam Barati.
+
+        This new benchmark is a very close variant of the merge-sort benchmark, that writes mergeSorted in a kinda CPS style,
+        to stress the use of closures, and of polymorphic calls.
+
+        * TailBench9000/merge-sort-cps.js: Added.
+        (createRNG):
+        (mergeSorted):
+        (checkSorted.check):
+        (add):
+        (build):
+        (compare):
+        (checkSpectrum):
+        (buildArray):
+        (test):
+
+2017-11-22  Antti Koivisto  <antti@apple.com>
+
+        Add performance test for inlines and inline-blocks without text
+        https://bugs.webkit.org/show_bug.cgi?id=179955
+
+        Reviewed by Darin Adler.
+
+        Test for https://bugs.webkit.org/show_bug.cgi?id=179950
+
+        * Layout/inline-layout-no-text.html: Added.
+
+2017-11-12  Jon Lee  <jonlee@apple.com>
+
+        Add isolated text tests for MotionMark
+        https://bugs.webkit.org/show_bug.cgi?id=179226
+
+        Reviewed by Darin Adler.
+
+        Add a private suite that simplifies the design test.
+
+        * MotionMark/resources/debug-runner/tests.js:
+        * MotionMark/resources/runner/tests.js:
+        * MotionMark/tests/master/design.html: Copied from PerformanceTests/MotionMark/tests/master/text.html.
+        Rename the html file to the title of the test.
+        * MotionMark/tests/master/resources/design.js: Renamed from PerformanceTests/MotionMark/tests/master/resources/text.js.
+        * MotionMark/tests/text/design-6.html: Copied from PerformanceTests/MotionMark/tests/master/text.html.
+        Six active cells
+        * MotionMark/tests/text/design-6.js: Added.
+        * MotionMark/tests/text/design.html: Renamed from PerformanceTests/MotionMark/tests/master/text.html.
+        Replace the text with empty table cells that are populated with desired text.
+        * MotionMark/tests/text/design.js: Added.
+
 2017-11-06  Robin Morisset  <rmorisset@apple.com>
 
         Add a third benchmark to TailBench

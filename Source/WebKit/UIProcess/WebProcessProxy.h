@@ -103,6 +103,8 @@ public:
     unsigned pageCount() const { return m_pageMap.size(); }
     unsigned visiblePageCount() const { return m_visiblePageCounter.value(); }
 
+    virtual bool isServiceWorkerProcess() const { return false; }
+
     void addVisitedLinkStore(VisitedLinkStore&);
     void addWebUserContentControllerProxy(WebUserContentControllerProxy&, WebPageCreationParameters&);
     void didDestroyVisitedLinkStore(VisitedLinkStore&);
@@ -182,10 +184,6 @@ public:
     bool isUnderMemoryPressure() const { return m_isUnderMemoryPressure; }
     void didExceedInactiveMemoryLimitWhileActive();
 
-#if ENABLE(SERVICE_WORKER)
-    void didGetWorkerContextConnection(const IPC::Attachment& connection);
-#endif
-
     void processTerminated();
 
     void didExceedCPULimit();
@@ -194,14 +192,14 @@ public:
 
 protected:
     static uint64_t generatePageID();
-    explicit WebProcessProxy(WebProcessPool&, WebsiteDataStore&);
+    WebProcessProxy(WebProcessPool&, WebsiteDataStore&);
 
-private:
-    // From ChildProcessProxy
+    // ChildProcessProxy
     void getLaunchOptions(ProcessLauncher::LaunchOptions&) override;
     void connectionWillOpen(IPC::Connection&) override;
     void processWillShutDown(IPC::Connection&) override;
 
+private:
     // Called when the web process has crashed or we know that it will terminate soon.
     // Will potentially cause the WebProcessProxy object to be freed.
     void shutDown();

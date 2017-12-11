@@ -46,6 +46,15 @@ sub ditto($$)
         File::Copy::Recursive::dircopy($source, $destination) or die "Unable to copy directory $source to $destination: $!";
     } elsif ($^O eq 'darwin') {
         system('ditto', $source, $destination);
+    } elsif ($^O ne 'MSWin32') {
+        # Ditto copies the *contents* of the source directory, not the directory itself.
+        opendir(my $dh, $source) or die "Can't open $source: $!";
+        while (readdir $dh) {
+            if ($_ ne '..' and $_ ne '.') {
+                system('cp', '-R', "${source}/$_", $destination) or die "Failed to copy ${source}/$_ to $destination: $!";
+            }
+        }
+        closedir $dh;
     } else {
         die "Please install the PEP module File::Copy::Recursive";
     }
@@ -302,9 +311,6 @@ if ($shouldCombineMain) {
 
     ditto(File::Spec->catdir($uiRoot, 'Images'), File::Spec->catdir($targetResourcePath, 'Images'));
 
-    # Remove Images/gtk on Mac and Windows builds.
-    remove_tree(File::Spec->catdir($targetResourcePath, 'Images', 'gtk')) if defined $ENV{'MAC_OS_X_VERSION_MAJOR'} or defined $ENV{'OFFICIAL_BUILD'};
-
     # Remove ESLint until needed: <https://webkit.org/b/136515> Web Inspector: JavaScript source text editor should have a linter
     unlink $targetESLintJS;
 
@@ -378,6 +384,17 @@ if ($shouldCombineTest) {
 
     # Copy over Test.html.
     copy($derivedSourcesTestHTML, File::Spec->catfile($targetResourcePath, 'Test.html'));
+
+    # Combine the JavaScript files for testing into a single file (TestStub.js).
+    system($perl, $combineResourcesCmd,
+        '--input-html', File::Spec->catfile($uiRoot, 'TestStub.html'),
+        '--derived-sources-dir', $derivedSourcesDir,
+        '--output-dir', $derivedSourcesDir,
+        '--output-script-name', 'TestStubCombined.js');
+
+    # Copy over TestStub.html and TestStubCombined.js.
+    copy(File::Spec->catfile($derivedSourcesDir, 'TestStub.html'), File::Spec->catfile($targetResourcePath, 'TestStub.html'));
+    copy(File::Spec->catfile($derivedSourcesDir, 'TestStubCombined.js'), File::Spec->catfile($targetResourcePath, 'TestStubCombined.js'));
 
     # Copy the Legacy directory.
     ditto(File::Spec->catfile($uiRoot, 'Protocol', 'Legacy'), File::Spec->catfile($protocolDir, 'Legacy'));

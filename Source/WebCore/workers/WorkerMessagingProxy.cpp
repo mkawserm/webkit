@@ -59,7 +59,7 @@ WorkerMessagingProxy::WorkerMessagingProxy(Worker& workerObject)
     , m_workerObject(&workerObject)
 {
     ASSERT((is<Document>(*m_scriptExecutionContext) && isMainThread())
-        || (is<WorkerGlobalScope>(*m_scriptExecutionContext) && currentThread() == downcast<WorkerGlobalScope>(*m_scriptExecutionContext).thread().threadID()));
+        || (is<WorkerGlobalScope>(*m_scriptExecutionContext) && downcast<WorkerGlobalScope>(*m_scriptExecutionContext).thread().thread() == &Thread::current()));
 
     // Nobody outside this class ref counts this object. The original ref
     // is balanced by the deref in workerGlobalScopeDestroyedInternal.
@@ -69,7 +69,7 @@ WorkerMessagingProxy::~WorkerMessagingProxy()
 {
     ASSERT(!m_workerObject);
     ASSERT((is<Document>(*m_scriptExecutionContext) && isMainThread())
-        || (is<WorkerGlobalScope>(*m_scriptExecutionContext) && currentThread() == downcast<WorkerGlobalScope>(*m_scriptExecutionContext).thread().threadID()));
+        || (is<WorkerGlobalScope>(*m_scriptExecutionContext) && downcast<WorkerGlobalScope>(*m_scriptExecutionContext).thread().thread() == &Thread::current()));
 }
 
 void WorkerMessagingProxy::startWorkerGlobalScope(const URL& scriptURL, const String& userAgent, bool isOnline, const String& sourceCode, const ContentSecurityPolicyResponseHeaders& contentSecurityPolicyResponseHeaders, bool shouldBypassMainWorldContentSecurityPolicy, MonotonicTime timeOrigin, JSC::RuntimeFlags runtimeFlags, PAL::SessionID sessionID)
@@ -177,13 +177,22 @@ void WorkerMessagingProxy::postMessageToDebugger(const String& message)
     });
 }
 
+void WorkerMessagingProxy::setResourceCachingDisabled(bool disabled)
+{
+    postTaskToLoader([disabled] (ScriptExecutionContext& context) {
+        ASSERT(isMainThread());
+        if (auto* page = downcast<Document>(context).page())
+            page->setResourceCachingDisabled(disabled);
+    });
+}
+
 void WorkerMessagingProxy::workerThreadCreated(DedicatedWorkerThread& workerThread)
 {
     m_workerThread = &workerThread;
 
     if (m_askedToTerminate) {
         // Worker.terminate() could be called from JS before the thread was created.
-        m_workerThread->stop();
+        m_workerThread->stop(nullptr);
     } else {
         ASSERT(!m_unconfirmedMessageCount);
         m_unconfirmedMessageCount = m_queuedEarlyTasks.size();
@@ -259,7 +268,7 @@ void WorkerMessagingProxy::terminateWorkerGlobalScope()
     m_inspectorProxy->workerTerminated();
 
     if (m_workerThread)
-        m_workerThread->stop();
+        m_workerThread->stop(nullptr);
 }
 
 void WorkerMessagingProxy::confirmMessageFromWorkerObject(bool hasPendingActivity)

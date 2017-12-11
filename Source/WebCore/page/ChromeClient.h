@@ -42,6 +42,7 @@
 #include "SearchPopupMenu.h"
 #include "WebCoreKeyboardUIMode.h"
 #include <runtime/ConsoleTypes.h>
+#include <wtf/CompletionHandler.h>
 #include <wtf/Forward.h>
 #include <wtf/Seconds.h>
 
@@ -444,6 +445,8 @@ public:
 
     virtual void handleAutoFillButtonClick(HTMLInputElement&) { }
 
+    virtual void handleAlternativePresentationButtonClick(Node&) { }
+
 #if ENABLE(WIRELESS_PLAYBACK_TARGET)
     virtual void addPlaybackTargetPickerClient(uint64_t /*contextId*/) { }
     virtual void removePlaybackTargetPickerClient(uint64_t /*contextId*/) { }
@@ -464,7 +467,13 @@ public:
     virtual void reportProcessCPUTime(Seconds, ActivityStateForCPUSampling) { }
     virtual RefPtr<Icon> createIconForFiles(const Vector<String>& /* filenames */) = 0;
 
-    virtual void requestStorageAccess(String&& /*subFrameHost*/, String&& /*topFrameHost*/, WTF::Function<void (bool)>&& callback) { callback(false); }
+    virtual void hasStorageAccess(String&& /*subFrameHost*/, String&& /*topFrameHost*/, WTF::CompletionHandler<void (bool)>&& callback) { callback(false); }
+    virtual void requestStorageAccess(String&& /*subFrameHost*/, String&& /*topFrameHost*/, WTF::CompletionHandler<void (bool)>&& callback) { callback(false); }
+
+    virtual void didInsertMenuElement(HTMLMenuElement&) { }
+    virtual void didRemoveMenuElement(HTMLMenuElement&) { }
+    virtual void didInsertMenuItemElement(HTMLMenuItemElement&) { }
+    virtual void didRemoveMenuItemElement(HTMLMenuItemElement&) { }
 
 protected:
     virtual ~ChromeClient() = default;

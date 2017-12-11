@@ -50,6 +50,10 @@
 #include "ColorSpaceData.h"
 #endif
 
+#if ENABLE(APPLICATION_MANIFEST)
+#include <WebCore/ApplicationManifest.h>
+#endif
+
 namespace IPC {
 class Decoder;
 class Encoder;
@@ -137,7 +141,6 @@ struct WebPageCreationParameters {
     WebCore::FloatSize availableScreenSize;
     float textAutosizingWidth;
     bool ignoresViewportScaleLimits;
-    bool allowsBlockSelection;
 #endif
 #if PLATFORM(COCOA)
     bool smartInsertDeleteEnabled;
@@ -152,6 +155,10 @@ struct WebPageCreationParameters {
     std::optional<double> cpuLimit;
 
     HashMap<String, uint64_t> urlSchemeHandlers;
+
+#if ENABLE(APPLICATION_MANIFEST)
+    std::optional<WebCore::ApplicationManifest> applicationManifest;
+#endif
 
     // WebRTC members.
     bool iceCandidateFilteringEnabled { true };

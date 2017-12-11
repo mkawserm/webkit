@@ -135,16 +135,20 @@ WI.CanvasDetailsSidebarPanel = class CanvasDetailsSidebarPanel extends WI.Detail
         this._cssCanvasSection.element.hidden = true;
         this._sections.push(this._cssCanvasSection);
 
+        const selectable = false;
+        let backtraceTreeOutline = new WI.TreeOutline(null, selectable);
+        backtraceTreeOutline.disclosureButtons = false;
+        this._backtraceTreeController = new WI.CallFrameTreeController(backtraceTreeOutline);
+
+        let backtraceRow = new WI.DetailsSectionRow;
+        backtraceRow.element.appendChild(backtraceTreeOutline.element);
         this._backtraceSection = new WI.DetailsSection("canvas-backtrace", WI.UIString("Backtrace"));
+        this._backtraceSection.groups = [new WI.DetailsSectionGroup([backtraceRow])];
+
         this._backtraceSection.element.hidden = true;
         this._sections.push(this._backtraceSection);
 
-        this._emptyContentPlaceholder = document.createElement("div");
-        this._emptyContentPlaceholder.className = "empty-content-placeholder";
-
-        let emptyContentPlaceholderMessage = this._emptyContentPlaceholder.appendChild(document.createElement("div"));
-        emptyContentPlaceholderMessage.className = "message";
-        emptyContentPlaceholderMessage.textContent = WI.UIString("No Canvas Selected");
+        this._emptyContentPlaceholder = WI.createMessageTextView(WI.UIString("No Canvas Selected"));
     }
 
     layout()
@@ -318,14 +322,9 @@ WI.CanvasDetailsSidebarPanel = class CanvasDetailsSidebarPanel extends WI.Detail
 
     _refreshBacktraceSection()
     {
-        this._backtraceSection.element.hidden = !this._canvas.backtrace.length;
-
-        const showFunctionName = true;
-        this._backtraceSection.groups = this._canvas.backtrace.map((callFrame) => {
-            return {
-                element: new WI.CallFrameView(callFrame, showFunctionName),
-            };
-        });
+        let callFrames = this._canvas.backtrace;
+        this._backtraceTreeController.callFrames = callFrames;
+        this._backtraceSection.element.hidden = !callFrames.length;
     }
 
     _formatMemoryRow()
