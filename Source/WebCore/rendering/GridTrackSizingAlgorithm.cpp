@@ -98,22 +98,12 @@ static bool shouldClearOverrideContainingBlockContentSizeForChild(const RenderBo
     return child.hasRelativeLogicalHeight() || child.style().logicalHeight().isIntrinsicOrAuto();
 }
 
-static bool hasOverrideContainingBlockContentSizeForChild(const RenderBox& child, GridTrackSizingDirection direction)
-{
-    return direction == ForColumns ? child.hasOverrideContainingBlockLogicalWidth() : child.hasOverrideContainingBlockLogicalHeight();
-}
-
 static void setOverrideContainingBlockContentSizeForChild(RenderBox& child, GridTrackSizingDirection direction, std::optional<LayoutUnit> size)
 {
     if (direction == ForColumns)
         child.setOverrideContainingBlockContentLogicalWidth(size);
     else
         child.setOverrideContainingBlockContentLogicalHeight(size);
-}
-
-static std::optional<LayoutUnit> overrideContainingBlockContentSizeForChild(const RenderBox& child, GridTrackSizingDirection direction)
-{
-    return direction == ForColumns ? child.overrideContainingBlockContentLogicalWidth() : child.overrideContainingBlockContentLogicalHeight();
 }
 
 // FIXME: we borrowed this from RenderBlock. We cannot call it from here because it's protected for RenderObjects.
@@ -235,12 +225,28 @@ void GridTrackSizingAlgorithm::sizeTrackToFitNonSpanningItem(const GridSpan& spa
     unsigned trackPosition = span.startLine();
     GridTrackSize trackSize = gridTrackSize(m_direction, trackPosition);
 
-    if (trackSize.hasMinContentMinTrackBreadth())
+    if (trackSize.hasMinContentMinTrackBreadth()) {
         track.setBaseSize(std::max(track.baseSize(), m_strategy->minContentForChild(gridItem)));
-    else if (trackSize.hasMaxContentMinTrackBreadth())
+    } else if (trackSize.hasMaxContentMinTrackBreadth()) {
         track.setBaseSize(std::max(track.baseSize(), m_strategy->maxContentForChild(gridItem)));
-    else if (trackSize.hasAutoMinTrackBreadth())
-        track.setBaseSize(std::max(track.baseSize(), m_strategy->minSizeForChild(gridItem)));
+    } else if (trackSize.hasAutoMinTrackBreadth()) {
+        auto minSize = m_strategy->minSizeForChild(gridItem);
+        bool isRowAxis = m_direction == GridLayoutFunctions::flowAwareDirectionForChild(*m_renderGrid, gridItem, ForColumns);
+        Length gridItemSize = isRowAxis ? gridItem.style().logicalWidth() : gridItem.style().logicalHeight();
+        Length gridItemMinSize = isRowAxis ? gridItem.style().logicalMinWidth() : gridItem.style().logicalMinHeight();
+        bool overflowIsVisible = isRowAxis ? gridItem.style().overflowInlineDirection() == OVISIBLE : gridItem.style().overflowBlockDirection() == OVISIBLE;
+
+        if (gridItemSize.isAuto() && gridItemMinSize.isAuto() && overflowIsVisible && trackSize.hasFixedMaxTrackBreadth()) {
+            auto maxTrackBreadth = valueForLength(trackSize.maxTrackBreadth().length(), availableSpace().value_or(LayoutUnit()));
+            if (minSize > maxTrackBreadth) {
+                auto marginAndBorderAndPadding = GridLayoutFunctions::marginLogicalSizeForChild(*m_renderGrid, m_direction, gridItem);
+                marginAndBorderAndPadding += isRowAxis ? gridItem.borderAndPaddingLogicalWidth() : gridItem.borderAndPaddingLogicalHeight();
+                minSize = std::max(maxTrackBreadth, marginAndBorderAndPadding);
+            }
+        }
+
+        track.setBaseSize(std::max(track.baseSize(), minSize));
+    }
 
     if (trackSize.hasMinContentMaxTrackBreadth()) {
         track.setGrowthLimit(std::max(track.growthLimit(), m_strategy->minContentForChild(gridItem)));
@@ -771,7 +777,7 @@ bool GridTrackSizingAlgorithmStrategy::updateOverrideContainingBlockContentSizeF
 {
     if (!overrideSize)
         overrideSize = m_algorithm.gridAreaBreadthForChild(child, direction);
-    if (hasOverrideContainingBlockContentSizeForChild(child, direction) && overrideContainingBlockContentSizeForChild(child, direction) == overrideSize)
+    if (GridLayoutFunctions::hasOverrideContainingBlockContentSizeForChild(child, direction) && GridLayoutFunctions::overrideContainingBlockContentSizeForChild(child, direction) == overrideSize)
         return false;
 
     setOverrideContainingBlockContentSizeForChild(child, direction, overrideSize);

@@ -216,7 +216,7 @@ webkit.org/b/167108 imported/w3c/web-platform-tests/media-source/URL-createObjec
 webkit.org/b/167108 imported/w3c/web-platform-tests/media-source/mediasource-activesourcebuffers.html [ Crash Failure ]
 webkit.org/b/167108 imported/w3c/web-platform-tests/media-source/mediasource-addsourcebuffer-mode.html [ Failure ]
 webkit.org/b/167108 imported/w3c/web-platform-tests/media-source/mediasource-addsourcebuffer.html [ Failure ]
-webkit.org/b/167108 imported/w3c/web-platform-tests/media-source/mediasource-append-buffer.html [ Failure ]
+webkit.org/b/167108 imported/w3c/web-platform-tests/media-source/mediasource-append-buffer.html [ Crash Failure ]
 webkit.org/b/167108 imported/w3c/web-platform-tests/media-source/mediasource-avtracks.html [ Failure ]
 webkit.org/b/167108 imported/w3c/web-platform-tests/media-source/mediasource-buffered.html [ Failure ]
 webkit.org/b/167108 imported/w3c/web-platform-tests/media-source/mediasource-config-change-webm-a-bitrate.html [ Failure ]
@@ -1321,6 +1321,8 @@ webkit.org/b/177816 webgl/1.0.2/conformance/ogles/GL/vec/vec_001_to_008.html [ C
 webkit.org/b/180097 media/video-concurrent-visible-playback.html [ Crash Pass ]
 webkit.org/b/180098 security/isSecureContext-disabled.html [ Crash Pass ]
 
+webkit.org/b/180803 http/tests/media/hls/video-cookie.html [ Crash ]
+
 #////////////////////////////////////////////////////////////////////////////////////////
 # End of Crashing tests
 #////////////////////////////////////////////////////////////////////////////////////////
@@ -1404,6 +1406,9 @@ webkit.org/b/104809 media/adopt-node-crash.html [ Crash Timeout Pass ]
 webkit.org/b/104809 media/encrypted-media/encrypted-media-not-loaded.html [ Failure Timeout Crash ]
 webkit.org/b/104809 media/encrypted-media/encrypted-media-syntax.html [ Failure Timeout ]
 webkit.org/b/104809 media/track/track-cues-pause-on-exit.html [ Timeout Pass ]
+
+webkit.org/b/180071 media/encrypted-media/clearKey/clearKey-encrypted-cenc-event.html [ Failure ]
+webkit.org/b/180071 media/encrypted-media/clearKey/clearKey-encrypted-cenc-event-mse.html [ Failure ]
 
 # This test also crashes after the FTL merge
 webkit.org/b/106415 webkit.org/b/119255 fast/workers/worker-close-more.html [ Timeout Crash Pass ]
@@ -1898,6 +1903,10 @@ webkit.org/b/179756 imported/w3c/web-platform-tests/WebCryptoAPI/wrapKey_unwrapK
 webkit.org/b/180095 imported/w3c/web-platform-tests/WebCryptoAPI/sign_verify/test_rsa_pss.https.html [ Pass Failure ]
 
 webkit.org/b/180369 http/tests/security/mixedContent/insecure-xhr-in-main-frame.html [ Pass Crash ]
+
+webkit.org/b/180806 fast/html/menuitem-element.html [ Pass Crash ]
+
+webkit.org/b/179174 inspector/console/webcore-logging.html [ Failure Crash ]
 
 #////////////////////////////////////////////////////////////////////////////////////////
 # End of Flaky tests
@@ -2484,7 +2493,7 @@ webkit.org/b/98382 accessibility/visible-elements.html [ Failure ]
 Bug(GTK) fast/events/frame-tab-focus.html [ Failure ]
 
 # Looks like a bug in the testRunner global history support due to missing API.
-Bug(GTK) fast/history/window-open.html [ Failure ]
+webkit.org/b/100238 fast/history/window-open.html [ Failure ]
 
 # These failures appear to be bugs in the EventSender
 webkit.org/b/53964 fast/forms/listbox-onchange.html [ Failure ]
@@ -2691,7 +2700,23 @@ webkit.org/b/120839 animations/cross-fade-background-image.html [ ImageOnlyFailu
 
 webkit.org/b/121905 fast/images/exif-orientation.html [ Failure ]
 
-webkit.org/b/124504 fast/text/break-word-pre-wrap.html [ ImageOnlyFailure ]
+webkit.org/b/180581 fast/text/break-word-pre-wrap.html [ ImageOnlyFailure ]
+webkit.org/b/180581 css3/shapes/shape-outside/values/shape-margin-001.html [ Failure ]
+webkit.org/b/180581 css3/shapes/shape-outside/values/shape-outside-circle-004.html [ Failure ]
+webkit.org/b/180581 css3/shapes/shape-outside/values/shape-outside-circle-005.html [ Failure ]
+webkit.org/b/180581 css3/shapes/shape-outside/values/shape-outside-ellipse-004.html [ Failure ]
+webkit.org/b/180581 css3/shapes/shape-outside/values/shape-outside-ellipse-005.html [ Failure ]
+webkit.org/b/180581 css3/shapes/shape-outside/values/shape-outside-inset-003.html [ Failure ]
+webkit.org/b/180581 css3/shapes/shape-outside/values/shape-outside-polygon-004.html [ Failure ]
+webkit.org/b/180581 css3/shapes/shape-outside/values/shape-outside-shape-arguments-000.html [ Failure ]
+webkit.org/b/180581 imported/w3c/web-platform-tests/css/css-shapes-1/shape-outside/values/shape-margin-001.html [ Failure ]
+webkit.org/b/180581 imported/w3c/web-platform-tests/css/css-shapes-1/shape-outside/values/shape-outside-circle-004.html [ Failure ]
+webkit.org/b/180581 imported/w3c/web-platform-tests/css/css-shapes-1/shape-outside/values/shape-outside-circle-005.html [ Failure ]
+webkit.org/b/180581 imported/w3c/web-platform-tests/css/css-shapes-1/shape-outside/values/shape-outside-ellipse-004.html [ Failure ]
+webkit.org/b/180581 imported/w3c/web-platform-tests/css/css-shapes-1/shape-outside/values/shape-outside-ellipse-005.html [ Failure ]
+webkit.org/b/180581 imported/w3c/web-platform-tests/css/css-shapes-1/shape-outside/values/shape-outside-inset-003.html [ Failure ]
+webkit.org/b/180581 imported/w3c/web-platform-tests/css/css-shapes-1/shape-outside/values/shape-outside-polygon-004.html [ Failure ]
+webkit.org/b/180581 imported/w3c/web-platform-tests/css/css-shapes-1/shape-outside/values/shape-outside-shape-arguments-000.html [ Failure ]
 
 webkit.org/b/124507 fast/css3-text/css3-text-decoration/text-decoration-skip/text-decoration-skip-ink.html [ ImageOnlyFailure ]
 webkit.org/b/139486 fast/css3-text/css3-text-decoration/text-decoration-skip/decoration-skip-crash-fallback-svg.html [ ImageOnlyFailure ]
@@ -2807,24 +2832,7 @@ webkit.org/b/135530 accessibility/parent-delete.html [ Failure ]
 webkit.org/b/135533 editing/pasteboard/img-srcset-copy-paste-canonicalization.html [ Failure ]
 
 # Various failures from the W3C CSS Shapes test suite import
-webkit.org/b/136065 css3/shapes/shape-outside/values/shape-margin-001.html [ Failure ]
-webkit.org/b/136065 css3/shapes/shape-outside/values/shape-outside-circle-004.html [ Failure ]
-webkit.org/b/136065 css3/shapes/shape-outside/values/shape-outside-circle-005.html [ Failure ]
-webkit.org/b/136065 css3/shapes/shape-outside/values/shape-outside-ellipse-004.html [ Failure ]
-webkit.org/b/136065 css3/shapes/shape-outside/values/shape-outside-ellipse-005.html [ Failure ]
-webkit.org/b/136065 css3/shapes/shape-outside/values/shape-outside-inset-003.html [ Failure ]
-webkit.org/b/136065 css3/shapes/shape-outside/values/shape-outside-polygon-004.html [ Failure ]
-webkit.org/b/136065 css3/shapes/shape-outside/values/shape-outside-shape-arguments-000.html [ Failure ]
 webkit.org/b/136065 css3/shapes/shape-outside/supported-shapes/circle/shape-outside-circle-027.html [ ImageOnlyFailure ]
-
-webkit.org/b/136065 imported/w3c/web-platform-tests/css/css-shapes-1/shape-outside/values/shape-margin-001.html [ Failure ]
-webkit.org/b/136065 imported/w3c/web-platform-tests/css/css-shapes-1/shape-outside/values/shape-outside-circle-004.html [ Failure ]
-webkit.org/b/136065 imported/w3c/web-platform-tests/css/css-shapes-1/shape-outside/values/shape-outside-circle-005.html [ Failure ]
-webkit.org/b/136065 imported/w3c/web-platform-tests/css/css-shapes-1/shape-outside/values/shape-outside-ellipse-004.html [ Failure ]
-webkit.org/b/136065 imported/w3c/web-platform-tests/css/css-shapes-1/shape-outside/values/shape-outside-ellipse-005.html [ Failure ]
-webkit.org/b/136065 imported/w3c/web-platform-tests/css/css-shapes-1/shape-outside/values/shape-outside-inset-003.html [ Failure ]
-webkit.org/b/136065 imported/w3c/web-platform-tests/css/css-shapes-1/shape-outside/values/shape-outside-polygon-004.html [ Failure ]
-webkit.org/b/136065 imported/w3c/web-platform-tests/css/css-shapes-1/shape-outside/values/shape-outside-shape-arguments-000.html [ Failure ]
 webkit.org/b/136065 imported/w3c/web-platform-tests/css/css-shapes-1/shape-outside/supported-shapes/circle/shape-outside-circle-027.html [ ImageOnlyFailure ]
 
 # The backing store is cleared when page cached in GTK
@@ -2918,9 +2926,6 @@ webkit.org/b/148935 accessibility/scroll-to-make-visible-nested.html [ Failure ]
 webkit.org/b/148935 accessibility/scroll-to-make-visible-with-subfocus.html [ Failure ]
 
 webkit.org/b/148936 imported/w3c/web-platform-tests/html/semantics/embedded-content/media-elements/mime-types/canPlayType.html [ Failure ]
-webkit.org/b/148936 imported/w3c/web-platform-tests/html/semantics/forms/textfieldselection/textfieldselection-setSelectionRange.html [ Failure ]
-webkit.org/b/148936 imported/w3c/web-platform-tests/html/semantics/forms/the-form-element/form-autocomplete.html [ Failure ]
-webkit.org/b/148936 imported/w3c/web-platform-tests/html/semantics/forms/the-input-element/telephone.html [ Failure ]
 
 webkit.org/b/149128 fast/text/control-characters [ ImageOnlyFailure ]
 
@@ -3233,8 +3238,6 @@ webkit.org/b/173413 imported/w3c/web-platform-tests/html/semantics/forms/textfie
 
 webkit.org/b/143702 media/progress-events-generated-correctly.html [ Failure Pass ]
 
-webkit.org/b/173413 imported/w3c/web-platform-tests/html/webappapis/system-state-and-capabilities/the-navigator-object/navigator-pluginarray.html [ Failure ]
-
 webkit.org/b/174460 fast/canvas/canvas-blend-image.html [ Failure ]
 webkit.org/b/174460 fast/canvas/canvas-blend-solid.html [ Failure ]
 
@@ -3261,11 +3264,7 @@ webkit.org/b/175422 http/tests/blink/sendbeacon/beacon-same-origin.html [ Failur
 
 webkit.org/b/175582 imported/w3c/web-platform-tests/WebCryptoAPI/generateKey/successes.worker.html [ Failure ]
 
-webkit.org/b/175586 imported/w3c/web-platform-tests/XMLHttpRequest/send-network-error-sync-events.sub.htm [ Failure ]
-
 webkit.org/b/175931 fast/canvas/webgl/no-info-log-for-simple-shaders.html [ Failure ]
-
-webkit.org/b/175932 http/tests/media/hls/video-cookie.html [ Failure ]
 
 webkit.org/b/176021 fast/events/overflow-viewport-renderer-deleted.html [ Missing ]
 
@@ -3285,8 +3284,6 @@ webkit.org/b/176649 fast/text/international/synthesized-italic-vertical.html [ I
 
 webkit.org/b/177294 platform/gtk/fonts/fontconfig-aliasing-settings.html [ Failure ]
 webkit.org/b/177294 fast/text/fitzpatrick-combination.html [ ImageOnlyFailure ]
-
-webkit.org/b/177319 imported/w3c/web-platform-tests/html/semantics/forms/the-form-element/form-elements-filter.html [ Failure ]
 
 webkit.org/b/175661 inspector/worker/resources-in-worker.html [ Failure ]
 
@@ -3332,8 +3329,6 @@ webkit.org/b/178456 media/audio-playback-volume-changes-with-restrictions.html [
 webkit.org/b/178591 http/tests/navigation/keyboard-events-during-provisional-navigation.html [ Failure ]
 webkit.org/b/178591 http/tests/navigation/keyboard-events-during-provisional-subframe-navigation.html [ Failure ]
 
-webkit.org/b/179174 inspector/console/webcore-logging.html [ Failure ]
-
 webkit.org/b/179605 editing/execCommand/underline-selection-containing-image.html [ Failure ]
 
 webkit.org/b/179721 media/video-fullscreen-restriction-removed.html [ Failure ]
@@ -3356,6 +3351,16 @@ webkit.org/b/179052 compositing/contents-format/subpixel-antialiased-nested-laye
 webkit.org/b/180371 fast/attachment/attachment-without-appearance.html [ ImageOnlyFailure ]
 
 webkit.org/b/180062 fast/text/user-installed-fonts [ ImageOnlyFailure ]
+
+webkit.org/b/180749 http/wpt/offscreen-canvas/transferToImageBitmap-webgl.html [ ImageOnlyFailure ]
+
+webkit.org/b/180801 fast/forms/input-autofilled.html [ Failure ]
+
+webkit.org/b/180802 imported/w3c/web-platform-tests/html/webappapis/system-state-and-capabilities/the-navigator-object/navigator-pluginarray.html [ Failure ]
+
+webkit.org/b/180803 imported/w3c/web-platform-tests/media-source/mediasource-duration-boundaryconditions.html [ Failure ]
+
+webkit.org/b/180805 inspector/canvas/requestContent-bitmaprenderer.html [ Failure ]
 
 #////////////////////////////////////////////////////////////////////////////////////////
 # End of non-crashing, non-flaky tests failing

@@ -177,7 +177,7 @@ inline ToThisResult isToThisAnIdentity(VM& vm, bool isStrictMode, AbstractValue&
         bool overridesToThis = false;
         valueForNode.m_structure.forEach([&](RegisteredStructure structure) {
             TypeInfo type = structure->typeInfo();
-            ASSERT(type.isObject() || type.type() == StringType || type.type() == SymbolType);
+            ASSERT(type.isObject() || type.type() == StringType || type.type() == SymbolType || type.type() == BigIntType);
             if (!isStrictMode)
                 ASSERT(type.isObject());
             // We don't need to worry about strings/symbols here since either:
@@ -1130,6 +1130,7 @@ bool AbstractInterpreter<AbstractStateType>::executeEffects(unsigned clobberLimi
 
     case LoadKeyFromMapBucket:
     case LoadValueFromMapBucket:
+    case ExtractValueFromWeakMapGet:
         forNode(node).makeHeapTop();
         break;
 
@@ -1157,7 +1158,7 @@ bool AbstractInterpreter<AbstractStateType>::executeEffects(unsigned clobberLimi
         break;
 
     case WeakMapGet:
-        forNode(node).makeHeapTop();
+        forNode(node).makeBytecodeTop();
         break;
 
     case IsEmpty:
@@ -2297,15 +2298,12 @@ bool AbstractInterpreter<AbstractStateType>::executeEffects(unsigned clobberLimi
             m_graph, m_codeBlock->globalObjectFor(node->origin.semantic)->asyncFunctionStructure());
         break;
 
-    case NewFunction:
-        if (node->castOperand<FunctionExecutable*>()->isStrictMode()) {
-            forNode(node).set(
-                m_graph, m_codeBlock->globalObjectFor(node->origin.semantic)->strictFunctionStructure());
-        } else {
-            forNode(node).set(
-                m_graph, m_codeBlock->globalObjectFor(node->origin.semantic)->sloppyFunctionStructure());
-        }
+    case NewFunction: {
+        JSGlobalObject* globalObject = m_codeBlock->globalObjectFor(node->origin.semantic);
+        Structure* structure = JSFunction::selectStructureForNewFuncExp(globalObject, node->castOperand<FunctionExecutable*>());
+        forNode(node).set(m_graph, structure);
         break;
+    }
         
     case GetCallee:
         if (FunctionExecutable* executable = jsDynamicCast<FunctionExecutable*>(m_vm, m_codeBlock->ownerExecutable())) {

@@ -82,24 +82,19 @@ void WebSWClientConnection::removeServiceWorkerRegistrationInServer(ServiceWorke
     send(Messages::WebSWServerConnection::RemoveServiceWorkerRegistrationInServer(identifier));
 }
 
-void WebSWClientConnection::postMessageToServiceWorker(ServiceWorkerIdentifier destinationIdentifier, Ref<SerializedScriptValue>&& scriptValue, ServiceWorkerClientIdentifier sourceIdentifier, ServiceWorkerClientData&& source)
+void WebSWClientConnection::postMessageToServiceWorker(ServiceWorkerIdentifier destinationIdentifier, Ref<SerializedScriptValue>&& scriptValue, const ServiceWorkerOrClientIdentifier& sourceIdentifier)
 {
-    send(Messages::WebSWServerConnection::PostMessageToServiceWorkerFromClient(destinationIdentifier, IPC::DataReference { scriptValue->data() }, sourceIdentifier, WTFMove(source)));
+    send(Messages::WebSWServerConnection::PostMessageToServiceWorker(destinationIdentifier, IPC::DataReference { scriptValue->data() }, sourceIdentifier) );
 }
 
-void WebSWClientConnection::postMessageToServiceWorker(ServiceWorkerIdentifier destinationIdentifier, Ref<SerializedScriptValue>&& scriptValue, ServiceWorkerIdentifier sourceWorkerIdentifier)
+void WebSWClientConnection::registerServiceWorkerClient(const SecurityOrigin& topOrigin, const WebCore::ServiceWorkerClientData& data, const std::optional<WebCore::ServiceWorkerIdentifier>& controllingServiceWorkerIdentifier)
 {
-    send(Messages::WebSWServerConnection::PostMessageToServiceWorkerFromServiceWorker(destinationIdentifier, IPC::DataReference { scriptValue->data() }, sourceWorkerIdentifier));
+    send(Messages::WebSWServerConnection::RegisterServiceWorkerClient { SecurityOriginData::fromSecurityOrigin(topOrigin), data, controllingServiceWorkerIdentifier });
 }
 
-void WebSWClientConnection::registerServiceWorkerClient(const SecurityOrigin& topOrigin, WebCore::DocumentIdentifier contextIdentifier, const WebCore::ServiceWorkerClientData& data, const std::optional<WebCore::ServiceWorkerIdentifier>& controllingServiceWorkerIdentifier)
+void WebSWClientConnection::unregisterServiceWorkerClient(DocumentIdentifier contextIdentifier)
 {
-    send(Messages::WebSWServerConnection::RegisterServiceWorkerClient { SecurityOriginData::fromSecurityOrigin(topOrigin), contextIdentifier, data, controllingServiceWorkerIdentifier });
-}
-
-void WebSWClientConnection::unregisterServiceWorkerClient(WebCore::DocumentIdentifier contextIdentifier)
-{
-    send(Messages::WebSWServerConnection::UnregisterServiceWorkerClient { contextIdentifier });
+    send(Messages::WebSWServerConnection::UnregisterServiceWorkerClient { ServiceWorkerClientIdentifier { serverConnectionIdentifier(), contextIdentifier } });
 }
 
 void WebSWClientConnection::didResolveRegistrationPromise(const ServiceWorkerRegistrationKey& key)

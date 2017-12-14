@@ -1,3 +1,20 @@
+2017-12-11  Joseph Pecoraro  <pecoraro@apple.com>
+
+        Unreviewed build fix after r225766.
+
+        * pal/spi/mac/AVFoundationSPI.h:
+        Conform AVStreamDataParser to the AVContentKeyRecipient protocol if available.
+
+2017-12-11  David Quesada  <david_quesada@apple.com>
+
+        Turn on ENABLE_APPLICATION_MANIFEST
+        https://bugs.webkit.org/show_bug.cgi?id=180562
+        rdar://problem/35924737
+
+        Reviewed by Geoffrey Garen.
+
+        * Configurations/FeatureDefines.xcconfig:
+
 2017-12-08  Konstantin Tokarev  <annulen@yandex.ru>
 
         [python] Replace print operator with print() function for python3 compatibility

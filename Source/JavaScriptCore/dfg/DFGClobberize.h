@@ -1312,6 +1312,9 @@ void clobberize(Graph& graph, Node* node, const ReadFunctor& read, const WriteFu
     }
 
     case Spread: {
+        if (node->child1()->op() == PhantomCreateRest)
+            read(Stack);
+
         if (node->child1().useKind() == ArrayUse) {
             // FIXME: We can probably CSE these together, but we need to construct the right rules
             // to prove that nobody writes to child1() in between two Spreads: https://bugs.webkit.org/show_bug.cgi?id=164531
@@ -1635,8 +1638,9 @@ void clobberize(Graph& graph, Node* node, const ReadFunctor& read, const WriteFu
     case WeakMapGet: {
         Edge& mapEdge = node->child1();
         Edge& keyEdge = node->child2();
-        read(JSWeakMapFields);
-        def(HeapLocation(WeakMapGetLoc, JSWeakMapFields, mapEdge, keyEdge), LazyNode(node));
+        AbstractHeapKind heap = (mapEdge.useKind() == WeakMapObjectUse) ? JSWeakMapFields : JSWeakSetFields;
+        read(heap);
+        def(HeapLocation(WeakMapGetLoc, heap, mapEdge, keyEdge), LazyNode(node));
         return;
     }
 
@@ -1653,6 +1657,10 @@ void clobberize(Graph& graph, Node* node, const ReadFunctor& read, const WriteFu
         write(JSMapFields);
         return;
     }
+
+    case ExtractValueFromWeakMapGet:
+        def(PureValue(node));
+        return;
 
     case StringSlice:
         def(PureValue(node));

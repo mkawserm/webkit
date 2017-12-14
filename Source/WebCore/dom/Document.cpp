@@ -152,6 +152,7 @@
 #include "RenderWidget.h"
 #include "RequestAnimationFrameCallback.h"
 #include "ResourceLoadObserver.h"
+#include "RuntimeApplicationChecks.h"
 #include "RuntimeEnabledFeatures.h"
 #include "SVGDocumentExtensions.h"
 #include "SVGElement.h"
@@ -159,6 +160,7 @@
 #include "SVGNames.h"
 #include "SVGSVGElement.h"
 #include "SVGTitleElement.h"
+#include "SVGUseElement.h"
 #include "SVGZoomEvent.h"
 #include "SWClientConnection.h"
 #include "SchemeRegistry.h"
@@ -167,6 +169,7 @@
 #include "ScriptModuleLoader.h"
 #include "ScriptRunner.h"
 #include "ScriptSourceCode.h"
+#include "ScriptState.h"
 #include "ScriptedAnimationController.h"
 #include "ScrollingCoordinator.h"
 #include "SecurityOrigin.h"
@@ -627,8 +630,9 @@ Document::~Document()
     if (hasRareData())
         clearRareData();
 
-    ASSERT(m_listsInvalidatedAtDocument.isEmpty());
-    ASSERT(m_collectionsInvalidatedAtDocument.isEmpty());
+    RELEASE_ASSERT_WITH_SECURITY_IMPLICATION(m_listsInvalidatedAtDocument.isEmpty());
+    RELEASE_ASSERT_WITH_SECURITY_IMPLICATION(m_collectionsInvalidatedAtDocument.isEmpty());
+    RELEASE_ASSERT_WITH_SECURITY_IMPLICATION(m_svgUseElements.isEmpty());
 
     for (unsigned count : m_nodeListAndCollectionCounts)
         ASSERT_UNUSED(count, !count);
@@ -1232,7 +1236,7 @@ void Document::setVisualUpdatesAllowed(ReadyState readyState)
         if (m_visualUpdatesSuppressionTimer.isActive()) {
             ASSERT(!m_visualUpdatesAllowed);
 
-            if (!view()->visualUpdatesAllowedByClient())
+            if (view() && !view()->visualUpdatesAllowedByClient())
                 return;
 
             setVisualUpdatesAllowed(true);
@@ -1270,8 +1274,8 @@ void Document::setVisualUpdatesAllowed(bool visualUpdatesAllowed)
         }
     }
 
-    if (view())
-        view()->updateCompositingLayersAfterLayout();
+    if (frameView)
+        frameView->updateCompositingLayersAfterLayout();
 
     if (RenderView* renderView = this->renderView())
         renderView->repaintViewAndCompositedLayers();
@@ -1286,7 +1290,7 @@ void Document::visualUpdatesSuppressionTimerFired()
 
     // If the client is extending the visual update suppression period explicitly, the
     // watchdog should not re-enable visual updates itself, but should wait for the client.
-    if (!view()->visualUpdatesAllowedByClient())
+    if (view() && !view()->visualUpdatesAllowedByClient())
         return;
 
     setVisualUpdatesAllowed(true);
@@ -1785,6 +1789,15 @@ void Document::resolveStyle(ResolveStyleType type)
     RenderView::RepaintRegionAccumulator repaintRegionAccumulator(renderView());
     AnimationUpdateBlock animationUpdateBlock(&m_frame->animation());
 
+    // FIXME: Do this update per tree scope.
+    {
+        auto elements = copyToVectorOf<RefPtr<SVGUseElement>>(m_svgUseElements);
+        // We can't clear m_svgUseElements here because updateShadowTree may end up executing arbitrary scripts
+        // which may insert new SVG use elements or remove existing ones inside sync IPC via ImageLoader::updateFromElement.
+        for (auto& element : elements)
+            element->updateShadowTree();
+    }
+
     // FIXME: We should update style on our ancestor chain before proceeding (especially for seamless),
     // however doing so currently causes several tests to crash, as Frame::setDocument calls Document::attach
     // before setting the DOMWindow on the Frame, or the SecurityOrigin on the document. The attach, in turn
@@ -1923,15 +1936,9 @@ bool Document::needsStyleRecalc() const
 
 inline bool static isSafeToUpdateStyleOrLayout(FrameView* frameView)
 {
-#if USE(WEB_THREAD)
-    // FIXME: Remove this code: <rdar://problem/35522719>
-    bool usingWebThread = WebThreadIsEnabled();
-#else
-    bool usingWebThread = false;
-#endif
     bool isSafeToExecuteScript = NoEventDispatchAssertion::InMainThread::isEventAllowed();
     bool isInFrameFlattening = frameView && frameView->isInChildFrameWithFrameFlattening();
-    return isSafeToExecuteScript || isInFrameFlattening || usingWebThread;
+    return isSafeToExecuteScript || isInFrameFlattening || !isInWebProcess();
 }
 
 bool Document::updateStyleIfNeeded()
@@ -4969,6 +4976,11 @@ void Document::privateBrowsingStateDidChange()
 
     for (auto* element : m_privateBrowsingStateChangedElements)
         element->privateBrowsingStateDidChange();
+
+#if ENABLE(SERVICE_WORKER)
+    if (RuntimeEnabledFeatures::sharedFeatures().serviceWorkerEnabled())
+        setServiceWorkerConnection(&ServiceWorkerProvider::singleton().serviceWorkerConnectionForSession(sessionID()));
+#endif
 }
 
 void Document::registerForPrivateBrowsingStateChangedCallbacks(Element* e)
@@ -5248,6 +5260,18 @@ SVGDocumentExtensions& Document::accessSVGExtensions()
     if (!m_svgExtensions)
         m_svgExtensions = std::make_unique<SVGDocumentExtensions>(*this);
     return *m_svgExtensions;
+}
+
+void Document::addSVGUseElement(SVGUseElement& element)
+{
+    auto result = m_svgUseElements.add(&element);
+    RELEASE_ASSERT_WITH_SECURITY_IMPLICATION(result.isNewEntry);
+}
+
+void Document::removeSVGUseElement(SVGUseElement& element)
+{
+    bool didRemove = m_svgUseElements.remove(&element);
+    RELEASE_ASSERT_WITH_SECURITY_IMPLICATION(didRemove);
 }
 
 bool Document::hasSVGRootNode() const
@@ -7405,6 +7429,9 @@ void Document::hasStorageAccess(Ref<DeferredPromise>&& passedPromise)
 
     RefPtr<DeferredPromise> promise(WTFMove(passedPromise));
 
+    if (m_hasFrameSpecificStorageAccess)
+        promise->resolve<IDLBoolean>(true);
+    
     if (!m_frame || securityOrigin().isUnique()) {
         promise->resolve<IDLBoolean>(false);
         return;
@@ -7443,6 +7470,9 @@ void Document::requestStorageAccess(Ref<DeferredPromise>&& passedPromise)
     ASSERT(settings().storageAccessAPIEnabled());
     
     RefPtr<DeferredPromise> promise(WTFMove(passedPromise));
+    
+    if (m_hasFrameSpecificStorageAccess)
+        promise->resolve();
     
     if (!m_frame || securityOrigin().isUnique()) {
         promise->reject();
@@ -7488,16 +7518,22 @@ void Document::requestStorageAccess(Ref<DeferredPromise>&& passedPromise)
     builder.append(topHost);
     builder.appendLiteral("?");
     Page* page = this->page();
+
+    ASSERT(m_frame);
+    auto frameID = m_frame->loader().client().frameID();
+    auto pageID = m_frame->loader().client().pageID();
+
     // FIXME: Don't use runJavaScriptConfirm because it responds synchronously.
     if ((page && page->chrome().runJavaScriptConfirm(*m_frame, builder.toString())) || m_grantStorageAccessOverride) {
-        page->chrome().client().requestStorageAccess(WTFMove(iframeHost), WTFMove(topHost), [documentReference = m_weakFactory.createWeakPtr(*this), promise] (bool wasGranted) {
+        page->chrome().client().requestStorageAccess(WTFMove(iframeHost), WTFMove(topHost), frameID, pageID, [documentReference = m_weakFactory.createWeakPtr(*this), promise] (bool wasGranted) {
             Document* document = documentReference.get();
             if (!document)
                 return;
 
-            if (wasGranted)
+            if (wasGranted) {
+                document->m_hasFrameSpecificStorageAccess = true;
                 promise->resolve();
-            else
+            } else
                 promise->reject();
         });
         return;
@@ -7601,26 +7637,18 @@ static MessageLevel messageLevelFromWTFLogLevel(WTFLogLevel level)
     return MessageLevel::Log;
 }
 
-void Document::didLogMessage(const WTFLogChannel& channel, WTFLogLevel level, const String& logMessage)
+void Document::didLogMessage(const WTFLogChannel& channel, WTFLogLevel level, Vector<JSONLogValue>&& logMessages)
 {
-    if (!this->page())
+    if (!page())
         return;
 
     ASSERT(sessionID().isAlwaysOnLoggingAllowed());
 
     auto messageSource = messageSourceForWTFLogChannel(channel);
     auto messageLevel = messageLevelFromWTFLogLevel(level);
+    auto message = std::make_unique<Inspector::ConsoleMessage>(messageSource, MessageType::Log, messageLevel, WTFMove(logMessages), mainWorldExecState(frame()));
 
-    callOnMainThread([documentReference = m_weakFactory.createWeakPtr(*this), messageSource, messageLevel, logMessage]() mutable {
-        ASSERT(isMainThread());
-
-        Document* document = documentReference.get();
-        if (!document)
-            return;
-
-        auto message = std::make_unique<Inspector::ConsoleMessage>(messageSource, MessageType::Log, messageLevel, logMessage);
-        document->addConsoleMessage(WTFMove(message));
-    });
+    addConsoleMessage(WTFMove(message));
 }
 
 #if ENABLE(SERVICE_WORKER)
@@ -7635,7 +7663,7 @@ void Document::setServiceWorkerConnection(SWClientConnection* serviceWorkerConne
         return;
 
     auto controllingServiceWorkerIdentifier = activeServiceWorker() ? std::make_optional<ServiceWorkerIdentifier>(activeServiceWorker()->identifier()) : std::nullopt;
-    m_serviceWorkerConnection->registerServiceWorkerClient(topOrigin(), identifier(), ServiceWorkerClientData::from(*this), controllingServiceWorkerIdentifier);
+    m_serviceWorkerConnection->registerServiceWorkerClient(topOrigin(), ServiceWorkerClientData::from(*this, *serviceWorkerConnection), controllingServiceWorkerIdentifier);
 }
 #endif
 

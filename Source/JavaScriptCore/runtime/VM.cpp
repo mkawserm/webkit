@@ -61,11 +61,13 @@
 #include "IncrementalSweeper.h"
 #include "IndirectEvalExecutable.h"
 #include "InferredTypeTable.h"
+#include "InferredValue.h"
 #include "Interpreter.h"
 #include "JITCode.h"
 #include "JITWorklist.h"
 #include "JSAPIValueWrapper.h"
 #include "JSArray.h"
+#include "JSBigInt.h"
 #include "JSCInlines.h"
 #include "JSDestructibleObjectHeapCellType.h"
 #include "JSFixedArray.h"
@@ -85,6 +87,7 @@
 #include "JSSourceCode.h"
 #include "JSStringHeapCellType.h"
 #include "JSTemplateRegistryKey.h"
+#include "JSWeakMap.h"
 #include "JSWebAssembly.h"
 #include "JSWebAssemblyCodeBlockHeapCellType.h"
 #include "JSWithScope.h"
@@ -205,11 +208,16 @@ VM::VM(VMType vmType, HeapType heapType)
     , directEvalExecutableSpace ISO_SUBSPACE_INIT(heap, destructibleCellHeapCellType.get(), DirectEvalExecutable)
     , functionExecutableSpace ISO_SUBSPACE_INIT(heap, destructibleCellHeapCellType.get(), FunctionExecutable)
     , indirectEvalExecutableSpace ISO_SUBSPACE_INIT(heap, destructibleCellHeapCellType.get(), IndirectEvalExecutable)
-    , inferredStructureSpace ISO_SUBSPACE_INIT(heap, destructibleCellHeapCellType.get(), InferredStructure)
     , inferredTypeSpace ISO_SUBSPACE_INIT(heap, destructibleCellHeapCellType.get(), InferredType)
+    , inferredValueSpace ISO_SUBSPACE_INIT(heap, destructibleCellHeapCellType.get(), InferredValue)
     , moduleProgramExecutableSpace ISO_SUBSPACE_INIT(heap, destructibleCellHeapCellType.get(), ModuleProgramExecutable)
     , nativeExecutableSpace ISO_SUBSPACE_INIT(heap, destructibleCellHeapCellType.get(), NativeExecutable)
     , programExecutableSpace ISO_SUBSPACE_INIT(heap, destructibleCellHeapCellType.get(), ProgramExecutable)
+    , propertyTableSpace ISO_SUBSPACE_INIT(heap, destructibleCellHeapCellType.get(), PropertyTable)
+    , structureRareDataSpace ISO_SUBSPACE_INIT(heap, destructibleCellHeapCellType.get(), StructureRareData)
+    , structureSpace ISO_SUBSPACE_INIT(heap, destructibleCellHeapCellType.get(), Structure)
+    , inferredTypesWithFinalizers(inferredTypeSpace)
+    , inferredValuesWithFinalizers(inferredValueSpace)
     , vmType(vmType)
     , clientData(0)
     , topEntryFrame(nullptr)
@@ -292,7 +300,6 @@ VM::VM(VMType vmType, HeapType heapType)
     unlinkedFunctionCodeBlockStructure.set(*this, UnlinkedFunctionCodeBlock::createStructure(*this, 0, jsNull()));
     unlinkedModuleProgramCodeBlockStructure.set(*this, UnlinkedModuleProgramCodeBlock::createStructure(*this, 0, jsNull()));
     propertyTableStructure.set(*this, PropertyTable::createStructure(*this, 0, jsNull()));
-    inferredStructureStructure.set(*this, InferredStructure::createStructure(*this, 0, jsNull()));
     inferredTypeStructure.set(*this, InferredType::createStructure(*this, 0, jsNull()));
     inferredTypeTableStructure.set(*this, InferredTypeTable::createStructure(*this, 0, jsNull()));
     inferredValueStructure.set(*this, InferredValue::createStructure(*this, 0, jsNull()));
@@ -308,6 +315,7 @@ VM::VM(VMType vmType, HeapType heapType)
     hashMapBucketMapStructure.set(*this, HashMapBucket<HashMapBucketDataKeyValue>::createStructure(*this, 0, jsNull()));
     setIteratorStructure.set(*this, JSSetIterator::createStructure(*this, 0, jsNull()));
     mapIteratorStructure.set(*this, JSMapIterator::createStructure(*this, 0, jsNull()));
+    bigIntStructure.set(*this, JSBigInt::createStructure(*this, 0, jsNull()));
 
     sentinelSetBucket.set(*this, JSSet::BucketType::createSentinel(*this));
     sentinelMapBucket.set(*this, JSMap::BucketType::createSentinel(*this));

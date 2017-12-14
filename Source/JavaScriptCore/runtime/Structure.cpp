@@ -26,6 +26,7 @@
 #include "config.h"
 #include "Structure.h"
 
+#include "BuiltinNames.h"
 #include "CodeBlock.h"
 #include "DumpContext.h"
 #include "JSCInlines.h"
@@ -98,7 +99,7 @@ bool StructureTransitionTable::contains(UniquedStringImpl* rep, unsigned attribu
     return map()->get(std::make_pair(rep, attributes));
 }
 
-Structure* StructureTransitionTable::get(UniquedStringImpl* rep, unsigned attributes) const
+inline Structure* StructureTransitionTable::get(UniquedStringImpl* rep, unsigned attributes) const
 {
     if (isUsingSingleSlot()) {
         Structure* transition = singleTransition();
@@ -873,6 +874,7 @@ void Structure::startWatchingPropertyForReplacements(VM& vm, PropertyName proper
 
 void Structure::didCachePropertyReplacement(VM& vm, PropertyOffset offset)
 {
+    RELEASE_ASSERT(isValidOffset(offset));
     ensurePropertyReplacementWatchpointSet(vm, offset)->fireAll(vm, "Did cache property replacement");
 }
 

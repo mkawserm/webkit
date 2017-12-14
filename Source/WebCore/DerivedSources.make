@@ -97,6 +97,7 @@ JS_BINDING_IDLS = \
     $(WebCore)/Modules/applepay/ApplePayPaymentContact.idl \
     $(WebCore)/Modules/applepay/ApplePayPaymentMethod.idl \
     $(WebCore)/Modules/applepay/ApplePayPaymentMethodSelectedEvent.idl \
+    $(WebCore)/Modules/applepay/ApplePayPaymentMethodType.idl \
 	$(WebCore)/Modules/applepay/ApplePayPaymentMethodUpdate.idl \
     $(WebCore)/Modules/applepay/ApplePayPaymentPass.idl \
     $(WebCore)/Modules/applepay/ApplePayPaymentRequest.idl \
@@ -109,7 +110,7 @@ JS_BINDING_IDLS = \
 	$(WebCore)/Modules/applepay/ApplePayShippingMethodUpdate.idl \
     $(WebCore)/Modules/applepay/ApplePayValidateMerchantEvent.idl \
     $(WebCore)/Modules/applepay/paymentrequest/ApplePayMerchantValidationEvent.idl \
-    $(WebCore)/Modules/applepay/paymentrequest/ApplePayPaymentMethodUpdateEvent.idl \
+    $(WebCore)/Modules/applepay/paymentrequest/ApplePayModifier.idl \
     $(WebCore)/Modules/applepay/paymentrequest/ApplePayRequest.idl \
     $(WebCore)/Modules/beacon/NavigatorBeacon.idl \
     $(WebCore)/Modules/cache/DOMWindowCaches.idl \
@@ -348,6 +349,8 @@ JS_BINDING_IDLS = \
     $(WebCore)/animation/Animatable.idl \
     $(WebCore)/animation/AnimationEffect.idl \
     $(WebCore)/animation/AnimationEffectTiming.idl \
+    $(WebCore)/animation/AnimationPlaybackEvent.idl \
+    $(WebCore)/animation/AnimationPlaybackEventInit.idl \
     $(WebCore)/animation/AnimationTimeline.idl \
     $(WebCore)/animation/DocumentTimeline.idl \
     $(WebCore)/animation/KeyframeEffect.idl \
@@ -657,6 +660,7 @@ JS_BINDING_IDLS = \
     $(WebCore)/html/canvas/OESTextureHalfFloat.idl \
     $(WebCore)/html/canvas/OESTextureHalfFloatLinear.idl \
     $(WebCore)/html/canvas/OESVertexArrayObject.idl \
+    $(WebCore)/html/canvas/OffscreenCanvasRenderingContext2D.idl \
     $(WebCore)/html/canvas/Path2D.idl \
     $(WebCore)/html/canvas/WebGL2RenderingContext.idl \
     $(WebCore)/html/canvas/WebGLActiveInfo.idl \
