@@ -2,6 +2,10 @@ include(platform/ImageDecoders.cmake)
 include(platform/Linux.cmake)
 include(platform/TextureMapper.cmake)
 
+if (JPEG_DEFINITIONS)
+    add_definitions(${JPEG_DEFINITIONS})
+endif ()
+
 list(APPEND WebCore_INCLUDE_DIRECTORIES
     "${DERIVED_SOURCES_JAVASCRIPTCORE_DIR}"
     "${DERIVED_SOURCES_JAVASCRIPTCORE_DIR}/inspector"
@@ -68,6 +72,8 @@ list(APPEND WebCore_SOURCES
     platform/KillRingNone.cpp
 
     platform/audio/qt/AudioBusQt.cpp
+
+    platform/crypto/qt/CryptoDigestQt.cpp
 
     platform/graphics/ImageSource.cpp
     platform/graphics/PlatformDisplay.cpp

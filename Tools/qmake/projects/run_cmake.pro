@@ -25,11 +25,10 @@ build_pass|!debug_and_release {
         USE_LIBHYPHEN=OFF
 
     !isEmpty(_QMAKE_SUPER_CACHE_) {
-        CMAKE_PREFIX_PATH=\"$$ROOT_QT_BUILD_DIR/qtbase;$$ROOT_QT_BUILD_DIR/qtlocation;$$ROOT_QT_BUILD_DIR/qtsensors;$$ROOT_QT_BUILD_DIR/qtdeclarative;$$ROOT_QT_BUILD_DIR/qtwebchannel\"
+        CMAKE_CONFIG += CMAKE_PREFIX_PATH=\"$$ROOT_QT_BUILD_DIR/qtbase;$$ROOT_QT_BUILD_DIR/qtlocation;$$ROOT_QT_BUILD_DIR/qtsensors;$$ROOT_QT_BUILD_DIR/qtdeclarative;$$ROOT_QT_BUILD_DIR/qtwebchannel\"
     } else {
-        CMAKE_PREFIX_PATH=\"$$[QT_INSTALL_PREFIX]\"
+        CMAKE_CONFIG += Qt5_DIR=\"$$[QT_INSTALL_LIBS]/cmake/Qt5\"
     }
-    CMAKE_CONFIG += CMAKE_PREFIX_PATH=$$CMAKE_PREFIX_PATH
 
     static: CMAKE_CONFIG += USE_THIN_ARCHIVES=OFF
 
@@ -39,8 +38,12 @@ build_pass|!debug_and_release {
     !qtConfig(system-jpeg):exists($$QTBASE_DIR) {
         CMAKE_CONFIG += \
             QT_BUNDLED_JPEG=1 \
-            JPEG_INCLUDE_DIR=$$QTBASE_DIR/src/3rdparty/libjpeg \
             JPEG_LIBRARIES=$$staticLibPath(qtjpeg)
+
+        exists($$QTBASE_DIR/src/3rdparty/libjpeg/src/jpeglib.h): \
+            CMAKE_CONFIG += JPEG_INCLUDE_DIR=$$QTBASE_DIR/src/3rdparty/libjpeg/src
+        else: \
+            CMAKE_CONFIG += JPEG_INCLUDE_DIR=$$QTBASE_DIR/src/3rdparty/libjpeg
     }
 
     !qtConfig(system-png):qtConfig(png):exists($$QTBASE_DIR) {
@@ -56,10 +59,6 @@ build_pass|!debug_and_release {
         exists($$QTBASE_DIR/src/3rdparty/zlib/src/zlib.h): \
             CMAKE_CONFIG += ZLIB_INCLUDE_DIRS=$$QTBASE_DIR/src/3rdparty/zlib/src
         else: CMAKE_CONFIG += ZLIB_INCLUDE_DIRS=$$QTBASE_DIR/src/3rdparty/zlib
-    }
-
-    qtConfig(opengles2):!qtConfig(dynamicgl) {
-        CMAKE_CONFIG += QT_USES_GLES2_ONLY=1
     }
 
     exists($$ROOT_BUILD_DIR/conanbuildinfo.cmake):exists($$ROOT_BUILD_DIR/conanfile.txt) {
@@ -84,6 +83,8 @@ build_pass|!debug_and_release {
         debug_and_release:build_all:CONFIG(debug, debug|release) {
             CMAKE_CONFIG += CMAKE_INSTALL_PREFIX=\"$$[QT_INSTALL_PREFIX]/debug\"
         }
+
+        !qt_framework: CMAKE_CONFIG += MACOS_BUILD_FRAMEWORKS=OFF
     }
 
     !isEmpty(use_ninja): cmake_args += "-G Ninja"

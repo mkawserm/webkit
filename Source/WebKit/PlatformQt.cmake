@@ -418,7 +418,7 @@ install(
     COMPONENT Data
 )
 
-file(GLOB WebKit_PRIVATE_HEADERS qt/Api/*_p.h ../WebKit2/UIProcess/API/qt/*_p.h)
+file(GLOB WebKit_PRIVATE_HEADERS qt/Api/*_p.h)
 install(
     FILES
         ${WebKit_PRIVATE_HEADERS}
@@ -473,7 +473,7 @@ if (QT_STATIC_BUILD)
     set(WEBKITWIDGETS_PKGCONGIG_DEPS "${WEBKITWIDGETS_PKGCONGIG_DEPS} Qt5PrintSupport")
     set(WEBKITWIDGETS_PRI_DEPS "${WEBKITWIDGETS_PRI_DEPS} printsupport")
     set(EXTRA_LIBS_NAMES WebCore JavaScriptCore WTF)
-    append_lib_names_to_list(EXTRA_LIBS_NAMES ${LIBXML2_LIBRARIES} ${SQLITE_LIBRARIES} ${ZLIB_LIBRARIES})
+    append_lib_names_to_list(EXTRA_LIBS_NAMES ${LIBXML2_LIBRARIES} ${SQLITE_LIBRARIES} ${ZLIB_LIBRARIES} ${JPEG_LIBRARIES} ${PNG_LIBRARIES})
     if (NOT USE_SYSTEM_MALLOC)
         list(APPEND EXTRA_LIBS_NAMES bmalloc)
     endif ()
@@ -502,6 +502,7 @@ endif ()
 if (NOT MACOS_BUILD_FRAMEWORKS)
     ecm_generate_pkgconfig_file(
         BASE_NAME Qt5WebKit
+        DESCRIPTION "Qt WebKit module"
         DEPS "${WEBKIT_PKGCONGIG_DEPS}"
         FILENAME_VAR WebKit_PKGCONFIG_FILENAME
     )
@@ -726,6 +727,7 @@ install(
 if (NOT MACOS_BUILD_FRAMEWORKS)
     ecm_generate_pkgconfig_file(
         BASE_NAME Qt5WebKitWidgets
+        DESCRIPTION "Qt WebKitWidgets module"
         DEPS "${WEBKITWIDGETS_PKGCONFIG_DEPS}"
         FILENAME_VAR WebKitWidgets_PKGCONFIG_FILENAME
     )
@@ -859,7 +861,8 @@ endif ()
 
 if (MACOS_BUILD_FRAMEWORKS)
     set_target_properties(WebKitWidgets PROPERTIES
-        FRAMEWORK_VERSION 5
+        FRAMEWORK_VERSION ${PROJECT_VERSION_MAJOR}
+        SOVERSION ${MACOS_COMPATIBILITY_VERSION}
         MACOSX_FRAMEWORK_IDENTIFIER org.qt-project.QtWebKitWidgets
     )
 endif ()
