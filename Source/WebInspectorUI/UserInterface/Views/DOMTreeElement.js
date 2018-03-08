@@ -1271,7 +1271,7 @@ WI.DOMTreeElement = class DOMTreeElement extends WI.TreeElement
                 attrValueElement.textContent = value;
             } else {
                 if (value.startsWith("data:"))
-                    value = value.trimMiddle(60);
+                    value = value.truncateMiddle(60);
 
                 attrValueElement = document.createElement("a");
                 attrValueElement.href = rewrittenURL;
@@ -1601,7 +1601,7 @@ WI.DOMTreeElement = class DOMTreeElement extends WI.TreeElement
             this.expand();
         }
 
-        this._startEditingAsHTML(commitCallback, Object.shallowMerge(options, {position}));
+        this._startEditingAsHTML(commitCallback, {...options, position});
     }
 
     _addHTML(event)

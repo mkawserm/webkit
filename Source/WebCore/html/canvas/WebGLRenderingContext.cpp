@@ -59,12 +59,30 @@
 #include "WebGLLoseContext.h"
 #include "WebGLVertexArrayObjectOES.h"
 #include <JavaScriptCore/GenericTypedArrayViewInlines.h>
+#include <JavaScriptCore/HeapInlines.h>
 #include <JavaScriptCore/JSCJSValueInlines.h>
 #include <JavaScriptCore/JSCellInlines.h>
 #include <JavaScriptCore/JSGenericTypedArrayViewInlines.h>
-#include <heap/HeapInlines.h>
 
 namespace WebCore {
+
+std::unique_ptr<WebGLRenderingContext> WebGLRenderingContext::create(CanvasBase& canvas, GraphicsContext3DAttributes attributes)
+{
+    auto renderingContext = std::unique_ptr<WebGLRenderingContext>(new WebGLRenderingContext(canvas, attributes));
+
+    InspectorInstrumentation::didCreateCanvasRenderingContext(*renderingContext);
+
+    return renderingContext;
+}
+
+std::unique_ptr<WebGLRenderingContext> WebGLRenderingContext::create(CanvasBase& canvas, Ref<GraphicsContext3D>&& context, GraphicsContext3DAttributes attributes)
+{
+    auto renderingContext = std::unique_ptr<WebGLRenderingContext>(new WebGLRenderingContext(canvas, WTFMove(context), attributes));
+
+    InspectorInstrumentation::didCreateCanvasRenderingContext(*renderingContext);
+
+    return renderingContext;
+}
 
 WebGLRenderingContext::WebGLRenderingContext(CanvasBase& canvas, GraphicsContext3DAttributes attributes)
     : WebGLRenderingContextBase(canvas, attributes)
@@ -700,12 +718,13 @@ bool WebGLRenderingContext::validateIndexArrayConservative(GC3Denum type, unsign
     if (!maxIndex)
         return false;
 
-    // The number of required elements is one more than the maximum
-    // index that will be accessed.
-    numElementsRequired = maxIndex.value() + 1;
+    // The number of required elements is one more than the maximum index that will be accessed.
+    auto checkedNumElementsRequired = checkedAddAndMultiply<unsigned>(maxIndex.value(), 1, 1);
+    if (!checkedNumElementsRequired)
+        return false;
+    numElementsRequired = checkedNumElementsRequired.value();
 
-    // Check for overflow.
-    return numElementsRequired > 0;
+    return true;
 }
 
 bool WebGLRenderingContext::validateBlendEquation(const char* functionName, GC3Denum mode)

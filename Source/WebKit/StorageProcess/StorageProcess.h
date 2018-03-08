@@ -42,9 +42,10 @@ class FormDataReference;
 
 namespace WebCore {
 class SWServer;
+class ServiceWorkerRegistrationKey;
+struct MessageWithMessagePorts;
 struct SecurityOriginData;
 struct ServiceWorkerClientIdentifier;
-class ServiceWorkerRegistrationKey;
 }
 
 namespace WebKit {
@@ -65,7 +66,7 @@ class StorageProcess : public ChildProcess
 #endif
 {
     WTF_MAKE_NONCOPYABLE(StorageProcess);
-    friend class NeverDestroyed<StorageProcess>;
+    friend NeverDestroyed<StorageProcess>;
 public:
     static StorageProcess& singleton();
     ~StorageProcess();
@@ -85,11 +86,17 @@ public:
     void getSandboxExtensionsForBlobFiles(const Vector<String>& filenames, WTF::Function<void (SandboxExtension::HandleArray&&)>&& completionHandler);
 #endif
 
+#if PLATFORM(IOS)
+    bool parentProcessHasServiceWorkerEntitlement() const;
+#else
+    bool parentProcessHasServiceWorkerEntitlement() const { return true; }
+#endif
+
 #if ENABLE(SERVICE_WORKER)
     // For now we just have one global connection to service worker context processes.
     // This will change in the future.
     WebSWServerToContextConnection* globalServerToContextConnection();
-    void createServerToContextConnection();
+    void createServerToContextConnection(std::optional<PAL::SessionID>);
 
     WebCore::SWServer& swServerForSession(PAL::SessionID);
     void registerSWServerConnection(WebSWServerConnection&);
@@ -121,10 +128,10 @@ private:
     void createStorageToWebProcessConnection(bool isServiceWorkerProcess);
 
     void fetchWebsiteData(PAL::SessionID, OptionSet<WebsiteDataType> websiteDataTypes, uint64_t callbackID);
-    void deleteWebsiteData(PAL::SessionID, OptionSet<WebsiteDataType> websiteDataTypes, std::chrono::system_clock::time_point modifiedSince, uint64_t callbackID);
+    void deleteWebsiteData(PAL::SessionID, OptionSet<WebsiteDataType> websiteDataTypes, WallTime modifiedSince, uint64_t callbackID);
     void deleteWebsiteDataForOrigins(PAL::SessionID, OptionSet<WebsiteDataType> websiteDataTypes, const Vector<WebCore::SecurityOriginData>& origins, uint64_t callbackID);
 #if ENABLE(SANDBOX_EXTENSIONS)
-    void grantSandboxExtensionsForBlobs(const Vector<String>& paths, const SandboxExtension::HandleArray&);
+    void grantSandboxExtensionsForBlobs(const Vector<String>& paths, SandboxExtension::HandleArray&&);
     void didGetSandboxExtensionsForBlobFiles(uint64_t requestID, SandboxExtension::HandleArray&&);
 #endif
 #if ENABLE(SERVICE_WORKER)
@@ -135,7 +142,9 @@ private:
     void didFailFetch(WebCore::SWServerConnectionIdentifier, uint64_t fetchIdentifier);
     void didNotHandleFetch(WebCore::SWServerConnectionIdentifier, uint64_t fetchIdentifier);
 
-    void postMessageToServiceWorkerClient(const WebCore::ServiceWorkerClientIdentifier& destinationIdentifier, const IPC::DataReference& message, WebCore::ServiceWorkerIdentifier sourceIdentifier, const String& sourceOrigin);
+    void postMessageToServiceWorkerClient(const WebCore::ServiceWorkerClientIdentifier& destinationIdentifier, WebCore::MessageWithMessagePorts&&, WebCore::ServiceWorkerIdentifier sourceIdentifier, const String& sourceOrigin);
+    void postMessageToServiceWorker(WebCore::ServiceWorkerIdentifier destination, WebCore::MessageWithMessagePorts&&, const WebCore::ServiceWorkerOrClientIdentifier& source, WebCore::SWServerConnectionIdentifier);
+
     WebSWOriginStore& swOriginStoreForSession(PAL::SessionID);
     bool needsServerToContextConnection() const;
 #endif

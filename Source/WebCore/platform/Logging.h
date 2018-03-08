@@ -69,6 +69,7 @@ namespace WebCore {
     M(MediaStream) \
     M(MediaSourceSamples) \
     M(MemoryPressure) \
+    M(MessagePorts) \
     M(Network) \
     M(NotYetImplemented) \
     M(PageCache) \
@@ -78,6 +79,7 @@ namespace WebCore {
     M(PopupBlocking) \
     M(Progress) \
     M(RemoteInspector) \
+    M(RequestAnimationFrame) \
     M(ResourceLoading) \
     M(ResourceLoadObserver) \
     M(ResourceLoadStatistics) \

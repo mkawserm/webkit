@@ -37,8 +37,8 @@
 #include "Logging.h"
 #include "MainFrame.h"
 #include "MouseEvent.h"
-#include "NoEventDispatchAssertion.h"
 #include "ScopedEventQueue.h"
+#include "ScriptDisallowedScope.h"
 #include "ShadowRoot.h"
 #include "TextEvent.h"
 #include "TouchEvent.h"
@@ -130,7 +130,7 @@ static bool shouldSuppressEventDispatchInDOM(Node& node, Event& event)
 
 void EventDispatcher::dispatchEvent(Node& node, Event& event)
 {
-    ASSERT_WITH_SECURITY_IMPLICATION(NoEventDispatchAssertion::InMainThread::isEventDispatchAllowedInSubtree(node));
+    ASSERT_WITH_SECURITY_IMPLICATION(ScriptDisallowedScope::InMainThread::isEventDispatchAllowedInSubtree(node));
     
     LOG(Events, "EventDispatcher::dispatchEvent %s on node %s", event.type().string().utf8().data(), node.nodeName().utf8().data());
 
@@ -140,6 +140,8 @@ void EventDispatcher::dispatchEvent(Node& node, Event& event)
     EventPath eventPath { node, event };
 
     ChildNodesLazySnapshot::takeChildNodesLazySnapshot();
+
+    event.resetBeforeDispatch();
 
     event.setTarget(EventPath::eventTargetRespectingTargetRules(node));
     if (!event.target())
@@ -175,7 +177,8 @@ void EventDispatcher::dispatchEvent(Node& node, Event& event)
     }
 }
 
-void EventDispatcher::dispatchEvent(const Vector<EventTarget*>& targets, Event& event)
+template<typename T>
+static void dispatchEventWithType(const Vector<T*>& targets, Event& event)
 {
     ASSERT(targets.size() >= 1);
     ASSERT(*targets.begin());
@@ -183,8 +186,19 @@ void EventDispatcher::dispatchEvent(const Vector<EventTarget*>& targets, Event& 
     EventPath eventPath { targets };
     event.setTarget(*targets.begin());
     event.setEventPath(eventPath);
+    event.resetBeforeDispatch();
     dispatchEventInDOM(event, eventPath);
     event.resetAfterDispatch();
+}
+
+void EventDispatcher::dispatchEvent(const Vector<EventTarget*>& targets, Event& event)
+{
+    dispatchEventWithType<EventTarget>(targets, event);
+}
+
+void EventDispatcher::dispatchEvent(const Vector<Element*>& targets, Event& event)
+{
+    dispatchEventWithType<Element>(targets, event);
 }
 
 }

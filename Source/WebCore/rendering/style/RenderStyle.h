@@ -34,6 +34,7 @@
 #include "DataRef.h"
 #include "FilterOperations.h"
 #include "FontDescription.h"
+#include "GapLength.h"
 #include "GraphicsTypes.h"
 #include "Length.h"
 #include "LengthBox.h"
@@ -550,8 +551,6 @@ public:
     bool isGridAutoFlowAlgorithmDense() const { return (m_rareNonInheritedData->grid->gridAutoFlow & InternalAutoFlowAlgorithmDense); }
     const Vector<GridTrackSize>& gridAutoColumns() const { return m_rareNonInheritedData->grid->gridAutoColumns; }
     const Vector<GridTrackSize>& gridAutoRows() const { return m_rareNonInheritedData->grid->gridAutoRows; }
-    const Length& gridColumnGap() const { return m_rareNonInheritedData->grid->gridColumnGap; }
-    const Length& gridRowGap() const { return m_rareNonInheritedData->grid->gridRowGap; }
 
     const GridPosition& gridItemColumnStart() const { return m_rareNonInheritedData->gridItem->gridColumnStart; }
     const GridPosition& gridItemColumnEnd() const { return m_rareNonInheritedData->gridItem->gridColumnEnd; }
@@ -575,8 +574,8 @@ public:
     const Length& marqueeIncrement() const { return m_rareNonInheritedData->marquee->increment; }
     int marqueeSpeed() const { return m_rareNonInheritedData->marquee->speed; }
     int marqueeLoopCount() const { return m_rareNonInheritedData->marquee->loops; }
-    EMarqueeBehavior marqueeBehavior() const { return static_cast<EMarqueeBehavior>(m_rareNonInheritedData->marquee->behavior); }
-    EMarqueeDirection marqueeDirection() const { return static_cast<EMarqueeDirection>(m_rareNonInheritedData->marquee->direction); }
+    MarqueeBehavior marqueeBehavior() const { return static_cast<MarqueeBehavior>(m_rareNonInheritedData->marquee->behavior); }
+    MarqueeDirection marqueeDirection() const { return static_cast<MarqueeDirection>(m_rareNonInheritedData->marquee->direction); }
     EUserModify userModify() const { return static_cast<EUserModify>(m_rareInheritedData->userModify); }
     EUserDrag userDrag() const { return static_cast<EUserDrag>(m_rareNonInheritedData->userDrag); }
     EUserSelect userSelect() const { return static_cast<EUserSelect>(m_rareInheritedData->userSelect); }
@@ -604,8 +603,8 @@ public:
     bool hasAutoColumnCount() const { return m_rareNonInheritedData->multiCol->autoCount; }
     bool specifiesColumns() const { return !hasAutoColumnCount() || !hasAutoColumnWidth() || !hasInlineColumnAxis(); }
     ColumnFill columnFill() const { return static_cast<ColumnFill>(m_rareNonInheritedData->multiCol->fill); }
-    float columnGap() const { return m_rareNonInheritedData->multiCol->gap; }
-    bool hasNormalColumnGap() const { return m_rareNonInheritedData->multiCol->normalGap; }
+    const GapLength& columnGap() const { return m_rareNonInheritedData->columnGap; }
+    const GapLength& rowGap() const { return m_rareNonInheritedData->rowGap; }
     EBorderStyle columnRuleStyle() const { return m_rareNonInheritedData->multiCol->rule.style(); }
     unsigned short columnRuleWidth() const { return m_rareNonInheritedData->multiCol->ruleWidth(); }
     bool columnRuleIsTransparent() const { return m_rareNonInheritedData->multiCol->rule.isTransparent(); }
@@ -683,6 +682,8 @@ public:
     
     LineBoxContain lineBoxContain() const { return m_rareInheritedData->lineBoxContain; }
     const LineClampValue& lineClamp() const { return m_rareNonInheritedData->lineClamp; }
+    const LinesClampValue& linesClamp() const { return m_rareNonInheritedData->linesClamp; }
+    bool hasLinesClamp() const { return !linesClamp().start().isNone(); }
     const IntSize& initialLetter() const { return m_rareNonInheritedData->initialLetter; }
     int initialLetterDrop() const { return initialLetter().width(); }
     int initialLetterHeight() const { return initialLetter().height(); }
@@ -745,7 +746,7 @@ public:
     float imageResolution() const { return m_rareInheritedData->imageResolution; }
 #endif
     
-    ESpeak speak() const { return static_cast<ESpeak>(m_rareInheritedData->speak); }
+    ESpeakAs speakAs() const { return static_cast<ESpeakAs>(m_rareInheritedData->speakAs); }
 
     FilterOperations& mutableFilter() { return m_rareNonInheritedData.access().filter.access().operations; }
     const FilterOperations& filter() const { return m_rareNonInheritedData->filter->operations; }
@@ -1095,13 +1096,11 @@ public:
     void setGridItemColumnEnd(const GridPosition& columnEndPosition) { SET_NESTED_VAR(m_rareNonInheritedData, gridItem, gridColumnEnd, columnEndPosition); }
     void setGridItemRowStart(const GridPosition& rowStartPosition) { SET_NESTED_VAR(m_rareNonInheritedData, gridItem, gridRowStart, rowStartPosition); }
     void setGridItemRowEnd(const GridPosition& rowEndPosition) { SET_NESTED_VAR(m_rareNonInheritedData, gridItem, gridRowEnd, rowEndPosition); }
-    void setGridColumnGap(Length&& length) { SET_NESTED_VAR(m_rareNonInheritedData, grid, gridColumnGap, WTFMove(length)); }
-    void setGridRowGap(Length&& length) { SET_NESTED_VAR(m_rareNonInheritedData, grid, gridRowGap, WTFMove(length)); }
 
     void setMarqueeIncrement(Length&& length) { SET_NESTED_VAR(m_rareNonInheritedData, marquee, increment, WTFMove(length)); }
     void setMarqueeSpeed(int f) { SET_NESTED_VAR(m_rareNonInheritedData, marquee, speed, f); }
-    void setMarqueeDirection(EMarqueeDirection d) { SET_NESTED_VAR(m_rareNonInheritedData, marquee, direction, d); }
-    void setMarqueeBehavior(EMarqueeBehavior b) { SET_NESTED_VAR(m_rareNonInheritedData, marquee, behavior, b); }
+    void setMarqueeDirection(MarqueeDirection d) { SET_NESTED_VAR(m_rareNonInheritedData, marquee, direction, static_cast<unsigned>(d)); }
+    void setMarqueeBehavior(MarqueeBehavior b) { SET_NESTED_VAR(m_rareNonInheritedData, marquee, behavior, static_cast<unsigned>(b)); }
     void setMarqueeLoopCount(int i) { SET_NESTED_VAR(m_rareNonInheritedData, marquee, loops, i); }
     void setUserModify(EUserModify u) { SET_VAR(m_rareInheritedData, userModify, u); }
     void setUserDrag(EUserDrag d) { SET_VAR(m_rareNonInheritedData, userDrag, d); }
@@ -1127,8 +1126,8 @@ public:
     void setColumnCount(unsigned short c) { SET_NESTED_VAR(m_rareNonInheritedData, multiCol, autoCount, false); SET_NESTED_VAR(m_rareNonInheritedData, multiCol, count, c); }
     void setHasAutoColumnCount() { SET_NESTED_VAR(m_rareNonInheritedData, multiCol, autoCount, true); SET_NESTED_VAR(m_rareNonInheritedData, multiCol, count, 0); }
     void setColumnFill(ColumnFill columnFill) { SET_NESTED_VAR(m_rareNonInheritedData, multiCol, fill, columnFill); }
-    void setColumnGap(float f) { SET_NESTED_VAR(m_rareNonInheritedData, multiCol, normalGap, false); SET_NESTED_VAR(m_rareNonInheritedData, multiCol, gap, f); }
-    void setHasNormalColumnGap() { SET_NESTED_VAR(m_rareNonInheritedData, multiCol, normalGap, true); SET_NESTED_VAR(m_rareNonInheritedData, multiCol, gap, 0); }
+    void setColumnGap(GapLength&& gapLength) { SET_VAR(m_rareNonInheritedData, columnGap, WTFMove(gapLength)); }
+    void setRowGap(GapLength&& gapLength) { SET_VAR(m_rareNonInheritedData, rowGap, WTFMove(gapLength)); }
     void setColumnRuleColor(const Color& c) { SET_BORDERVALUE_COLOR(m_rareNonInheritedData.access().multiCol, rule, c); }
     void setColumnRuleStyle(EBorderStyle b) { SET_NESTED_VAR(m_rareNonInheritedData, multiCol, rule.m_style, b); }
     void setColumnRuleWidth(unsigned short w) { SET_NESTED_VAR(m_rareNonInheritedData, multiCol, rule.m_width, w); }
@@ -1142,7 +1141,7 @@ public:
     void setTransformOriginZ(float f) { SET_NESTED_VAR(m_rareNonInheritedData, transform, z, f); }
     void setTransformBox(TransformBox box) { SET_NESTED_VAR(m_rareNonInheritedData, transform, transformBox, box); }
 
-    void setSpeak(ESpeak s) { SET_VAR(m_rareInheritedData, speak, s); }
+    void setSpeakAs(ESpeakAs s) { SET_VAR(m_rareInheritedData, speakAs, s); }
     void setTextCombine(TextCombine v) { SET_VAR(m_rareNonInheritedData, textCombine, v); }
     void setTextDecorationColor(const Color& c) { SET_VAR(m_rareNonInheritedData, textDecorationColor, c); }
     void setTextEmphasisColor(const Color& c) { SET_VAR(m_rareInheritedData, textEmphasisColor, c); }
@@ -1196,6 +1195,7 @@ public:
 
     void setLineBoxContain(LineBoxContain c) { SET_VAR(m_rareInheritedData, lineBoxContain, c); }
     void setLineClamp(LineClampValue c) { SET_VAR(m_rareNonInheritedData, lineClamp, c); }
+    void setLinesClamp(const LinesClampValue& c) { SET_VAR(m_rareNonInheritedData, linesClamp, c); }
     
     void setInitialLetter(const IntSize& size) { SET_VAR(m_rareNonInheritedData, initialLetter, size); }
     
@@ -1362,7 +1362,6 @@ public:
 
     const CounterDirectiveMap* counterDirectives() const;
     CounterDirectiveMap& accessCounterDirectives();
-    const CounterDirectives getCounterDirectives(const AtomicString& identifier) const;
 
     QuotesData* quotes() const { return m_rareInheritedData->quotes.get(); }
     void setQuotes(RefPtr<QuotesData>&&);
@@ -1494,6 +1493,7 @@ public:
     static float initialFlexShrink() { return 1; }
     static Length initialFlexBasis() { return Length(Auto); }
     static int initialOrder() { return 0; }
+    static StyleSelfAlignmentData initialJustifyItems() { return StyleSelfAlignmentData(ItemPositionLegacy, OverflowAlignmentDefault); }
     static StyleSelfAlignmentData initialSelfAlignment() { return StyleSelfAlignmentData(ItemPositionAuto, OverflowAlignmentDefault); }
     static StyleSelfAlignmentData initialDefaultAlignment() { return StyleSelfAlignmentData(isCSSGridLayoutEnabled() ? ItemPositionNormal : ItemPositionStretch, OverflowAlignmentDefault); }
     static StyleContentAlignmentData initialContentAlignment() { return StyleContentAlignmentData(ContentPositionNormal, ContentDistributionDefault, OverflowAlignmentDefault); }
@@ -1502,8 +1502,8 @@ public:
     static int initialMarqueeLoopCount() { return -1; }
     static int initialMarqueeSpeed() { return 85; }
     static Length initialMarqueeIncrement() { return Length(6, Fixed); }
-    static EMarqueeBehavior initialMarqueeBehavior() { return MSCROLL; }
-    static EMarqueeDirection initialMarqueeDirection() { return MAUTO; }
+    static MarqueeBehavior initialMarqueeBehavior() { return MarqueeBehavior::Scroll; }
+    static MarqueeDirection initialMarqueeDirection() { return MarqueeDirection::Auto; }
     static EUserModify initialUserModify() { return READ_ONLY; }
     static EUserDrag initialUserDrag() { return DRAG_AUTO; }
     static EUserSelect initialUserSelect() { return SELECT_TEXT; }
@@ -1514,7 +1514,7 @@ public:
     static EOverflowWrap initialOverflowWrap() { return NormalOverflowWrap; }
     static ENBSPMode initialNBSPMode() { return NBNORMAL; }
     static LineBreak initialLineBreak() { return LineBreakAuto; }
-    static ESpeak initialSpeak() { return SpeakNormal; }
+    static ESpeakAs initialSpeakAs() { return SpeakNormal; }
     static Hyphens initialHyphens() { return HyphensManual; }
     static short initialHyphenationLimitBefore() { return -1; }
     static short initialHyphenationLimitAfter() { return -1; }
@@ -1531,6 +1531,8 @@ public:
     static unsigned short initialColumnCount() { return 1; }
     static ColumnFill initialColumnFill() { return ColumnFillBalance; }
     static ColumnSpan initialColumnSpan() { return ColumnSpanNone; }
+    static GapLength initialColumnGap() { return GapLength(); }
+    static GapLength initialRowGap() { return GapLength(); }
     static const TransformOperations& initialTransform() { static NeverDestroyed<TransformOperations> ops; return ops; }
     static Length initialTransformOriginX() { return Length(50.0f, Percent); }
     static Length initialTransformOriginY() { return Length(50.0f, Percent); }
@@ -1623,9 +1625,6 @@ public:
     static OrderedNamedGridLinesMap initialOrderedNamedGridColumnLines() { return OrderedNamedGridLinesMap(); }
     static OrderedNamedGridLinesMap initialOrderedNamedGridRowLines() { return OrderedNamedGridLinesMap(); }
 
-    static Length initialGridColumnGap() { return Length(Fixed); }
-    static Length initialGridRowGap() { return Length(Fixed); }
-
     // 'auto' is the default.
     static GridPosition initialGridItemColumnStart() { return GridPosition(); }
     static GridPosition initialGridItemColumnEnd() { return GridPosition(); }
@@ -1640,6 +1639,7 @@ public:
 
     static IntSize initialInitialLetter() { return IntSize(); }
     static LineClampValue initialLineClamp() { return LineClampValue(); }
+    static LinesClampValue initialLinesClamp() { return LinesClampValue(); }
     static ETextSecurity initialTextSecurity() { return TSNONE; }
 
 #if PLATFORM(IOS)
@@ -2041,7 +2041,7 @@ inline bool RenderStyle::breakWords() const
 inline bool RenderStyle::hasInlineColumnAxis() const
 {
     auto axis = columnAxis();
-    return axis == AutoColumnAxis || isHorizontalWritingMode() == (axis == HorizontalColumnAxis);
+    return (axis == AutoColumnAxis || isHorizontalWritingMode() == (axis == HorizontalColumnAxis)) && !hasLinesClamp();
 }
 
 inline ImageOrientationEnum RenderStyle::imageOrientation() const

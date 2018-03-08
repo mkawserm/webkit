@@ -45,6 +45,7 @@
 #include "RenderTableCell.h"
 #include "RenderTableCol.h"
 #include "RenderTableSection.h"
+#include "RenderTreeBuilder.h"
 #include "RenderView.h"
 #include "StyleInheritedData.h"
 #include <wtf/IsoMallocInlines.h>
@@ -132,92 +133,41 @@ static inline void resetSectionPointerIfNotBefore(WeakPtr<RenderTableSection>& s
         section.clear();
 }
 
-void RenderTable::addChild(RenderPtr<RenderObject> child, RenderObject* beforeChild)
+void RenderTable::willInsertTableColumn(RenderTableCol&, RenderObject*)
 {
-    bool wrapInAnonymousSection = !child->isOutOfFlowPositioned();
+    m_hasColElements = true;
+}
 
-    if (is<RenderTableCaption>(*child))
-        wrapInAnonymousSection = false;
-    else if (is<RenderTableCol>(*child)) {
-        m_hasColElements = true;
-        wrapInAnonymousSection = false;
-    } else if (is<RenderTableSection>(*child)) {
-        switch (child->style().display()) {
-            case TABLE_HEADER_GROUP:
-                resetSectionPointerIfNotBefore(m_head, beforeChild);
-                if (!m_head) {
-                    m_head = makeWeakPtr(downcast<RenderTableSection>(child.get()));
-                } else {
-                    resetSectionPointerIfNotBefore(m_firstBody, beforeChild);
-                    if (!m_firstBody) 
-                        m_firstBody = makeWeakPtr(downcast<RenderTableSection>(child.get()));
-                }
-                wrapInAnonymousSection = false;
-                break;
-            case TABLE_FOOTER_GROUP:
-                resetSectionPointerIfNotBefore(m_foot, beforeChild);
-                if (!m_foot) {
-                    m_foot = makeWeakPtr(downcast<RenderTableSection>(child.get()));
-                    wrapInAnonymousSection = false;
-                    break;
-                }
-                FALLTHROUGH;
-            case TABLE_ROW_GROUP:
-                resetSectionPointerIfNotBefore(m_firstBody, beforeChild);
-                if (!m_firstBody)
-                    m_firstBody = makeWeakPtr(downcast<RenderTableSection>(child.get()));
-                wrapInAnonymousSection = false;
-                break;
-            default:
-                ASSERT_NOT_REACHED();
+void RenderTable::willInsertTableSection(RenderTableSection& child, RenderObject* beforeChild)
+{
+    switch (child.style().display()) {
+    case TABLE_HEADER_GROUP:
+        resetSectionPointerIfNotBefore(m_head, beforeChild);
+        if (!m_head)
+            m_head = makeWeakPtr(child);
+        else {
+            resetSectionPointerIfNotBefore(m_firstBody, beforeChild);
+            if (!m_firstBody)
+                m_firstBody = makeWeakPtr(child);
         }
-    } else if (is<RenderTableCell>(*child) || is<RenderTableRow>(*child))
-        wrapInAnonymousSection = true;
-    else
-        wrapInAnonymousSection = true;
-
-    if (is<RenderTableSection>(*child))
-        setNeedsSectionRecalc();
-
-    if (!wrapInAnonymousSection) {
-        if (beforeChild && beforeChild->parent() != this)
-            beforeChild = splitAnonymousBoxesAroundChild(beforeChild);
-
-        RenderBox::addChild(WTFMove(child), beforeChild);
-        return;
-    }
-
-    if (!beforeChild && is<RenderTableSection>(lastChild()) && lastChild()->isAnonymous() && !lastChild()->isBeforeContent()) {
-        downcast<RenderTableSection>(*lastChild()).addChild(WTFMove(child));
-        return;
-    }
-
-    if (beforeChild && !beforeChild->isAnonymous() && beforeChild->parent() == this) {
-        RenderObject* section = beforeChild->previousSibling();
-        if (is<RenderTableSection>(section) && section->isAnonymous()) {
-            downcast<RenderTableSection>(*section).addChild(WTFMove(child));
-            return;
+        break;
+    case TABLE_FOOTER_GROUP:
+        resetSectionPointerIfNotBefore(m_foot, beforeChild);
+        if (!m_foot) {
+            m_foot = makeWeakPtr(child);
+            break;
         }
+        FALLTHROUGH;
+    case TABLE_ROW_GROUP:
+        resetSectionPointerIfNotBefore(m_firstBody, beforeChild);
+        if (!m_firstBody)
+            m_firstBody = makeWeakPtr(child);
+        break;
+    default:
+        ASSERT_NOT_REACHED();
     }
 
-    RenderObject* lastBox = beforeChild;
-    while (lastBox && lastBox->parent()->isAnonymous() && !is<RenderTableSection>(*lastBox) && lastBox->style().display() != TABLE_CAPTION && lastBox->style().display() != TABLE_COLUMN_GROUP)
-        lastBox = lastBox->parent();
-    if (lastBox && lastBox->isAnonymous() && !isAfterContent(lastBox) && lastBox->isTableSection()) {
-        RenderTableSection& section = downcast<RenderTableSection>(*lastBox);
-        if (beforeChild == &section)
-            beforeChild = section.firstRow();
-        section.addChild(WTFMove(child), beforeChild);
-        return;
-    }
-
-    if (beforeChild && !is<RenderTableSection>(*beforeChild) && beforeChild->style().display() != TABLE_CAPTION && beforeChild->style().display() != TABLE_COLUMN_GROUP)
-        beforeChild = nullptr;
-
-    auto newSection = RenderTableSection::createAnonymousWithParentRenderer(*this);
-    auto& section = *newSection;
-    addChild(WTFMove(newSection), beforeChild);
-    section.addChild(WTFMove(child));
+    setNeedsSectionRecalc();
 }
 
 void RenderTable::addCaption(RenderTableCaption& caption)
@@ -1110,6 +1060,10 @@ void RenderTable::recalcSections() const
     
     m_columns.resize(maxCols);
     m_columnPos.resize(maxCols + 1);
+
+    // Now that we know the number of maximum number of columns, let's shrink the sections grids if needed.
+    for (auto& section : childrenOfType<RenderTableSection>(const_cast<RenderTable&>(*this)))
+        section.removeRedundantColumns();
 
     ASSERT(selfNeedsLayout());
 

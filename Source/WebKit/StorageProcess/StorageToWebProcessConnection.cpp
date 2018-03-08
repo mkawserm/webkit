@@ -169,17 +169,6 @@ void StorageToWebProcessConnection::establishSWServerConnection(SessionID sessio
 
     auto addResult = m_swConnections.add(serverConnectionIdentifier, WTFMove(connection));
     ASSERT_UNUSED(addResult, addResult.isNewEntry);
-
-    if (!StorageProcess::singleton().globalServerToContextConnection())
-        StorageProcess::singleton().createServerToContextConnection();
-}
-
-void StorageToWebProcessConnection::removeSWServerConnection(WebCore::SWServer::Connection::Identifier serverConnectionIdentifier)
-{
-    ASSERT(m_swConnections.contains(serverConnectionIdentifier));
-
-    auto connection = m_swConnections.take(serverConnectionIdentifier);
-    connection->disconnectedFromWebProcess();
 }
 
 void StorageToWebProcessConnection::workerContextProcessConnectionCreated()

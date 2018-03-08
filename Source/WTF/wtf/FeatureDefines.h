@@ -160,6 +160,12 @@ the public iOS SDK. See <https://webkit.org/b/179167>. */
 #define ENABLE_DOWNLOAD_ATTRIBUTE 0
 #endif
 
+#if !defined(ENABLE_WKPDFVIEW)
+#if !PLATFORM(WATCHOS) && !PLATFORM(APPLETV) && !ENABLE(MINIMAL_SIMULATOR)
+#define ENABLE_WKPDFVIEW 1
+#endif
+#endif
+
 #endif /* PLATFORM(IOS) */
 
 /* --------- Apple MAC port (not IOS) --------- */
@@ -222,10 +228,6 @@ the public iOS SDK. See <https://webkit.org/b/179167>. */
 #endif /* PLATFORM(MAC) */
 
 #if PLATFORM(COCOA)
-
-#if !defined(ENABLE_DATA_DETECTION)
-#define ENABLE_DATA_DETECTION 0
-#endif
 
 #if !defined(ENABLE_LEGACY_ENCRYPTED_MEDIA)
 #define ENABLE_LEGACY_ENCRYPTED_MEDIA 1

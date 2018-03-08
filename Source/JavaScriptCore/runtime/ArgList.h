@@ -57,7 +57,7 @@ public:
             m_markSet->remove(this);
 
         if (EncodedJSValue* base = mallocBase())
-            fastFree(base);
+            Gigacage::free(Gigacage::JSValue, base);
     }
 
     size_t size() const { return m_size; }
@@ -165,6 +165,7 @@ private:
 };
 
 class ArgList {
+    WTF_MAKE_FAST_ALLOCATED;
     friend class Interpreter;
     friend class JIT;
 public:

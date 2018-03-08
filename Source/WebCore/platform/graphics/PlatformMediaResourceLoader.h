@@ -51,9 +51,6 @@ public:
     virtual void accessControlCheckFailed(PlatformMediaResource&, const ResourceError&) { }
     virtual void loadFailed(PlatformMediaResource&, const ResourceError&) { }
     virtual void loadFinished(PlatformMediaResource&) { }
-#if USE(SOUP)
-    virtual char* getOrCreateReadBuffer(PlatformMediaResource&, size_t /*requestedSize*/, size_t& /*actualSize*/) { return nullptr; };
-#endif
 };
 
 class PlatformMediaResourceLoader : public ThreadSafeRefCounted<PlatformMediaResourceLoader> {
@@ -73,7 +70,7 @@ protected:
     PlatformMediaResourceLoader() = default;
 };
 
-class PlatformMediaResource : public RefCounted<PlatformMediaResource> {
+class PlatformMediaResource : public ThreadSafeRefCounted<PlatformMediaResource> {
     WTF_MAKE_NONCOPYABLE(PlatformMediaResource); WTF_MAKE_FAST_ALLOCATED;
 public:
     PlatformMediaResource() = default;
@@ -83,6 +80,7 @@ public:
     virtual bool didPassAccessControlCheck() const { return false; }
 
     void setClient(std::unique_ptr<PlatformMediaResourceClient>&& client) { m_client = WTFMove(client); }
+    PlatformMediaResourceClient* client() { return m_client.get(); }
 
 protected:
     std::unique_ptr<PlatformMediaResourceClient> m_client;

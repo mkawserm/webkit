@@ -38,8 +38,11 @@
 #include "PluginProcessConnectionMessages.h"
 #include "PluginProxyMessages.h"
 #include "WebProcessConnectionMessages.h"
-#include <unistd.h>
 #include <wtf/SetForScope.h>
+
+#if !OS(WINDOWS)
+#include <unistd.h>
+#endif
 
 using namespace WebCore;
 
@@ -281,7 +284,7 @@ void WebProcessConnection::createPluginAsynchronously(const PluginCreationParame
     uint32_t remoteLayerClientID = 0;
     
     if (creationParameters.artificialPluginInitializationDelayEnabled) {
-        unsigned artificialPluginInitializationDelay = 5;
+        Seconds artificialPluginInitializationDelay { 5_s };
         sleep(artificialPluginInitializationDelay);
     }
 

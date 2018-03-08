@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2017 Apple Inc. All rights reserved.
+ * Copyright (C) 2010-2018 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -85,6 +85,10 @@ static NSString * const WebKitNetworkCacheEfficacyLoggingEnabledDefaultsKey = @"
 
 static NSString * const WebKitSuppressMemoryPressureHandlerDefaultsKey = @"WebKitSuppressMemoryPressureHandler";
 static NSString * const WebKitNetworkLoadThrottleLatencyMillisecondsDefaultsKey = @"WebKitNetworkLoadThrottleLatencyMilliseconds";
+
+#if HAVE(CFNETWORK_STORAGE_PARTITIONING) && !RELEASE_LOG_DISABLED
+static NSString * const WebKitLogCookieInformationDefaultsKey = @"WebKitLogCookieInformation";
+#endif
 
 #if ENABLE(NETWORK_CAPTURE)
 static NSString * const WebKitRecordReplayModeDefaultsKey = @"WebKitRecordReplayMode";
@@ -271,6 +275,10 @@ void WebProcessPool::platformInitializeWebProcess(WebProcessCreationParameters& 
     if (isSafari && !parameters.shouldCaptureAudioInUIProcess && mediaDevicesEnabled)
         SandboxExtension::createHandleForGenericExtension("com.apple.webkit.microphone", parameters.audioCaptureExtensionHandle);
 #endif
+
+#if HAVE(CFNETWORK_STORAGE_PARTITIONING) && !RELEASE_LOG_DISABLED
+    parameters.shouldLogUserInteraction = [defaults boolForKey:WebKitLogCookieInformationDefaultsKey];
+#endif
 }
 
 void WebProcessPool::platformInitializeNetworkProcess(NetworkProcessCreationParameters& parameters)
@@ -307,6 +315,10 @@ void WebProcessPool::platformInitializeNetworkProcess(NetworkProcessCreationPara
 
     parameters.cookieStoragePartitioningEnabled = cookieStoragePartitioningEnabled();
     parameters.storageAccessAPIEnabled = storageAccessAPIEnabled();
+
+#if HAVE(CFNETWORK_STORAGE_PARTITIONING) && !RELEASE_LOG_DISABLED
+    parameters.logCookieInformation = [defaults boolForKey:WebKitLogCookieInformationDefaultsKey];
+#endif
 
 #if ENABLE(NETWORK_CAPTURE)
     parameters.recordReplayMode = [defaults stringForKey:WebKitRecordReplayModeDefaultsKey];
@@ -389,16 +401,6 @@ String WebProcessPool::legacyPlatformDefaultIndexedDBDatabaseDirectory()
     // We should fix this, and move WebSQL into a subdirectory (https://bugs.webkit.org/show_bug.cgi?id=124807)
     // In the meantime, an entity name prefixed with three underscores will not conflict with any WebSQL entities.
     return FileSystem::pathByAppendingComponent(legacyPlatformDefaultWebSQLDatabaseDirectory(), "___IndexedDB");
-}
-
-String WebProcessPool::legacyPlatformDefaultServiceWorkerRegistrationDirectory()
-{
-    registerUserDefaultsIfNeeded();
-
-    NSString *directory = [[NSUserDefaults standardUserDefaults] objectForKey:WebServiceWorkerRegistrationDirectoryDefaultsKey];
-    if (!directory || ![directory isKindOfClass:[NSString class]])
-        directory = @"~/Library/WebKit/ServiceWorkers";
-    return stringByResolvingSymlinksInPath([directory stringByStandardizingPath]);
 }
 
 String WebProcessPool::legacyPlatformDefaultLocalStorageDirectory()
@@ -556,6 +558,15 @@ void WebProcessPool::registerNotificationObservers()
         TextChecker::didChangeAutomaticDashSubstitutionEnabled();
         textCheckerStateChanged();
     }];
+
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= 101400
+    m_scrollerStyleNotificationObserver = [[NSNotificationCenter defaultCenter] addObserverForName:NSPreferredScrollerStyleDidChangeNotification object:nil queue:[NSOperationQueue currentQueue] usingBlock:^(NSNotification *notification) {
+        auto scrollbarStyle = [NSScroller preferredScrollerStyle];
+        for (auto& processPool : WebKit::WebProcessPool::allProcessPools())
+            processPool->sendToAllProcesses(Messages::WebProcess::ScrollerStylePreferenceChanged(scrollbarStyle));
+    }];
+#endif
+
 #endif // !PLATFORM(IOS)
 }
 
@@ -567,6 +578,9 @@ void WebProcessPool::unregisterNotificationObservers()
     [[NSNotificationCenter defaultCenter] removeObserver:m_automaticSpellingCorrectionNotificationObserver.get()];
     [[NSNotificationCenter defaultCenter] removeObserver:m_automaticQuoteSubstitutionNotificationObserver.get()];
     [[NSNotificationCenter defaultCenter] removeObserver:m_automaticDashSubstitutionNotificationObserver.get()];
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= 101400
+    [[NSNotificationCenter defaultCenter] removeObserver:m_scrollerStyleNotificationObserver.get()];
+#endif
 #endif // !PLATFORM(IOS)
 }
 

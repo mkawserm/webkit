@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2006-2017 Apple Inc. All rights reserved.
+ *  Copyright (C) 2006-2018 Apple Inc. All rights reserved.
  *
  *  This library is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU Library General Public
@@ -35,25 +35,30 @@ class CString;
 class CrashOnOverflow;
 class FunctionDispatcher;
 class Hasher;
+class MonotonicTime;
 class OrdinalNumber;
 class PrintStream;
 class SHA1;
+class Seconds;
 class String;
 class StringBuilder;
 class StringImpl;
 class StringView;
 class TextPosition;
 class TextStream;
+class WallTime;
 
 struct FastMalloc;
 
 template<typename> class CompletionHandler;
+template<typename T> struct DumbPtrTraits;
+template<typename T> struct DumbValueTraits;
 template<typename> class Function;
 template<typename> class LazyNeverDestroyed;
 template<typename> class NeverDestroyed;
 template<typename> class OptionSet;
-template<typename> class Ref;
-template<typename> class RefPtr;
+template<typename T, typename = DumbPtrTraits<T>> class Ref;
+template<typename T, typename = DumbPtrTraits<T>> class RefPtr;
 template<typename> class StringBuffer;
 template<typename, typename = void> class StringTypeAdapter;
 
@@ -80,6 +85,8 @@ using WTF::AtomicStringImpl;
 using WTF::BinarySemaphore;
 using WTF::CString;
 using WTF::CompletionHandler;
+using WTF::DumbPtrTraits;
+using WTF::DumbValueTraits;
 using WTF::Function;
 using WTF::FunctionDispatcher;
 using WTF::HashCountedSet;

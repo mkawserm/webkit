@@ -36,7 +36,6 @@
 #include "HTMLNames.h"
 #include "HTMLObjectElement.h"
 #include "HTMLParserIdioms.h"
-#include "NoEventDispatchAssertion.h"
 #include "Page.h"
 #include "RenderImage.h"
 #include "RenderSVGImage.h"
@@ -158,7 +157,6 @@ void ImageLoader::clearImageWithoutConsideringPendingLoadEvent()
 
 void ImageLoader::updateFromElement()
 {
-    RELEASE_ASSERT(NoEventDispatchAssertion::InMainThread::isEventAllowed());
     // If we're not making renderers for the page, then don't load images. We don't want to slow
     // down the raw HTML parsing case by loading images we don't intend to display.
     Document& document = element().document();
@@ -414,12 +412,12 @@ void ImageLoader::decode()
         return;
     }
 
-    Image* image = m_image->image();
-    if (!image || m_image->errorOccurred()) {
+    if (!m_image || !m_image->image() || m_image->errorOccurred()) {
         decodeError("Loading error.");
         return;
     }
 
+    Image* image = m_image->image();
     if (!image->isBitmapImage()) {
         decodeError("Invalid image type.");
         return;

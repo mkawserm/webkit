@@ -27,7 +27,6 @@
 
 #include "AXObjectCache.h"
 #include "AccessibilityMenuList.h"
-#include "AccessibleNode.h"
 #include "CSSFontSelector.h"
 #include "Chrome.h"
 #include "Frame.h"
@@ -42,6 +41,7 @@
 #include "RenderScrollbar.h"
 #include "RenderText.h"
 #include "RenderTheme.h"
+#include "RenderTreeBuilder.h"
 #include "RenderView.h"
 #include "StyleResolver.h"
 #include "TextRun.h"
@@ -99,20 +99,11 @@ void RenderMenuList::willBeDestroyed()
     RenderFlexibleBox::willBeDestroyed();
 }
 
-void RenderMenuList::createInnerBlock()
+void RenderMenuList::setInnerRenderer(RenderBlock& innerRenderer)
 {
-    if (m_innerBlock) {
-        ASSERT(firstChild() == m_innerBlock);
-        ASSERT(!m_innerBlock->nextSibling());
-        return;
-    }
-
-    // Create an anonymous block.
-    ASSERT(!firstChild());
-    auto newInnerBlock = createAnonymousBlock();
-    m_innerBlock = makeWeakPtr(*newInnerBlock.get());
+    ASSERT(!m_innerBlock.get());
+    m_innerBlock = makeWeakPtr(innerRenderer);
     adjustInnerStyle();
-    RenderFlexibleBox::addChild(WTFMove(newInnerBlock));
 }
 
 void RenderMenuList::adjustInnerStyle()
@@ -174,22 +165,10 @@ HTMLSelectElement& RenderMenuList::selectElement() const
     return downcast<HTMLSelectElement>(nodeForNonAnonymous());
 }
 
-void RenderMenuList::addChild(RenderPtr<RenderObject> newChild, RenderObject* beforeChild)
+void RenderMenuList::didAttachChild(RenderObject& child, RenderObject*)
 {
-    createInnerBlock();
-    auto& child = *newChild;
-    m_innerBlock->addChild(WTFMove(newChild), beforeChild);
-    ASSERT(m_innerBlock == firstChild());
-
     if (AXObjectCache* cache = document().existingAXObjectCache())
         cache->childrenChanged(this, &child);
-}
-
-RenderPtr<RenderObject> RenderMenuList::takeChild(RenderObject& oldChild)
-{
-    if (!m_innerBlock || &oldChild == m_innerBlock)
-        return RenderFlexibleBox::takeChild(oldChild);
-    return m_innerBlock->takeChild(oldChild);
 }
 
 void RenderMenuList::styleDidChange(StyleDifference diff, const RenderStyle* oldStyle)
@@ -298,7 +277,11 @@ void RenderMenuList::setText(const String& s)
     else {
         auto newButtonText = createRenderer<RenderText>(document(), textToUse);
         m_buttonText = makeWeakPtr(*newButtonText);
-        addChild(WTFMove(newButtonText));
+        // FIXME: This mutation should go through the normal RenderTreeBuilder path.
+        if (RenderTreeBuilder::current())
+            RenderTreeBuilder::current()->attach(*this, WTFMove(newButtonText));
+        else
+            RenderTreeBuilder(*document().renderView()).attach(*this, WTFMove(newButtonText));
     }
 
     adjustInnerStyle();
@@ -373,10 +356,7 @@ void RenderMenuList::showPopup()
     if (m_popupIsVisible)
         return;
 
-    // Create m_innerBlock here so it ends up as the first child.
-    // This is important because otherwise we might try to create m_innerBlock
-    // inside the showPopup call and it would fail.
-    createInnerBlock();
+    ASSERT(m_innerBlock);
     if (!m_popup)
         m_popup = document().page()->chrome().createPopupMenu(*this);
     m_popupIsVisible = true;
@@ -476,7 +456,7 @@ String RenderMenuList::itemAccessibilityText(unsigned listIndex) const
     const Vector<HTMLElement*>& listItems = selectElement().listItems();
     if (listIndex >= listItems.size())
         return String();
-    return AccessibleNode::effectiveStringValueForElement(*listItems[listIndex], AXPropertyName::Label);
+    return listItems[listIndex]->attributeWithoutSynchronization(aria_labelAttr);
 }
     
 String RenderMenuList::itemToolTip(unsigned listIndex) const

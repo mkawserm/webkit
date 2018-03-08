@@ -25,8 +25,6 @@
 
 #pragma once
 
-#if USE(NETWORK_SESSION)
-
 #include "DownloadID.h"
 #include "SandboxExtension.h"
 #include <WebCore/Credential.h>
@@ -119,7 +117,7 @@ public:
         m_pendingDownload = &pendingDownload;
     }
 
-    virtual void setPendingDownloadLocation(const String& filename, const SandboxExtension::Handle&, bool /*allowOverwrite*/) { m_pendingDownloadLocation = filename; }
+    virtual void setPendingDownloadLocation(const String& filename, SandboxExtension::Handle&&, bool /*allowOverwrite*/) { m_pendingDownloadLocation = filename; }
     const String& pendingDownloadLocation() const { return m_pendingDownloadLocation; }
     bool isDownload() const { return !!m_pendingDownloadID.downloadID(); }
 
@@ -160,5 +158,3 @@ protected:
 };
 
 } // namespace WebKit
-
-#endif // USE(NETWORK_SESSION)

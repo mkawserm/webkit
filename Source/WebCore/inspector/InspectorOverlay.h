@@ -33,7 +33,7 @@
 #include "LayoutRect.h"
 #include "NodeList.h"
 #include "Timer.h"
-#include <inspector/InspectorProtocolObjects.h>
+#include <JavaScriptCore/InspectorProtocolObjects.h>
 #include <wtf/Deque.h>
 #include <wtf/JSONValues.h>
 #include <wtf/RefPtr.h>
@@ -153,7 +153,7 @@ private:
     std::unique_ptr<Page> m_overlayPage;
     HighlightConfig m_quadHighlightConfig;
     
-    typedef std::pair<std::chrono::steady_clock::time_point, FloatRect> TimeRectPair;
+    using TimeRectPair = std::pair<MonotonicTime, FloatRect>;
     Deque<TimeRectPair> m_paintRects;
     Timer m_paintRectUpdateTimer;
     bool m_indicating {false};

@@ -52,7 +52,7 @@
 #include "SubframeLoader.h"
 #include "TypedElementDescendantIterator.h"
 #include "UserGestureIndicator.h"
-#include <runtime/CatchScope.h>
+#include <JavaScriptCore/CatchScope.h>
 
 namespace WebCore {
 
@@ -233,7 +233,7 @@ void HTMLPlugInImageElement::willDetachRenderers()
 {
     auto widget = makeRefPtr(pluginWidget(PluginLoadingPolicy::DoNotLoad));
     if (is<PluginViewBase>(widget))
-        downcast<PluginViewBase>(*widget).willDetatchRenderer();
+        downcast<PluginViewBase>(*widget).willDetachRenderer();
 
     HTMLPlugInElement::willDetachRenderers();
 }

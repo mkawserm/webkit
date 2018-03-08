@@ -26,6 +26,7 @@
 #include "config.h"
 #include "StorageProcess.h"
 
+#include "ChildProcessMessages.h"
 #include "StorageProcessCreationParameters.h"
 #include "StorageProcessMessages.h"
 #include "StorageProcessProxyMessages.h"
@@ -111,7 +112,7 @@ void StorageProcess::connectionToContextProcessWasClosed()
         swServer->markAllWorkersAsTerminated();
 
     if (shouldRelaunch)
-        createServerToContextConnection();
+        createServerToContextConnection(std::nullopt);
 }
 
 // The rule is that we need a context process (and a connection to it) as long as we have SWServerConnections to regular WebProcesses.
@@ -138,12 +139,20 @@ void StorageProcess::didReceiveMessage(IPC::Connection& connection, IPC::Decoder
         return;
     }
 
+    if (decoder.messageReceiverName() == Messages::ChildProcess::messageReceiverName()) {
+        ChildProcess::didReceiveMessage(connection, decoder);
+        return;
+    }
+
 #if ENABLE(SERVICE_WORKER)
     if (decoder.messageReceiverName() == Messages::WebSWServerToContextConnection::messageReceiverName()) {
+        ASSERT(parentProcessHasServiceWorkerEntitlement());
+        if (!parentProcessHasServiceWorkerEntitlement())
+            return;
         if (auto* swConnection = SWServerToContextConnection::globalServerToContextConnection()) {
             auto* webSWConnection = static_cast<WebSWServerToContextConnection*>(swConnection);
             webSWConnection->didReceiveMessage(connection, decoder);
-            return;        
+            return;
         }
     }
 #endif
@@ -184,6 +193,9 @@ void StorageProcess::initializeWebsiteDataStore(const StorageProcessCreationPara
     }
 #endif
 #if ENABLE(SERVICE_WORKER)
+    if (!parentProcessHasServiceWorkerEntitlement())
+        return;
+
     addResult = m_swDatabasePaths.ensure(parameters.sessionID, [path = parameters.serviceWorkerRegistrationDirectory] {
         return path;
     });
@@ -191,6 +203,9 @@ void StorageProcess::initializeWebsiteDataStore(const StorageProcessCreationPara
         SandboxExtension::consumePermanently(parameters.serviceWorkerRegistrationDirectoryExtensionHandle);
         postStorageTask(createCrossThreadTask(*this, &StorageProcess::ensurePathExists, parameters.serviceWorkerRegistrationDirectory));
     }
+
+    for (auto& scheme : parameters.urlSchemesServiceWorkersCanHandle)
+        registerURLSchemeServiceWorkersCanHandle(scheme);
 #endif
 }
 
@@ -251,6 +266,7 @@ void StorageProcess::createStorageToWebProcessConnection(bool isServiceWorkerPro
 
 #if ENABLE(SERVICE_WORKER)
     if (isServiceWorkerProcess && !m_storageToWebProcessConnections.isEmpty()) {
+        ASSERT(parentProcessHasServiceWorkerEntitlement());
         ASSERT(m_waitingForServerToContextProcessConnection);
         m_serverToContextConnection = WebSWServerToContextConnection::create(m_storageToWebProcessConnections.last()->connection());
         m_waitingForServerToContextProcessConnection = false;
@@ -265,46 +281,46 @@ void StorageProcess::createStorageToWebProcessConnection(bool isServiceWorkerPro
 
 void StorageProcess::fetchWebsiteData(PAL::SessionID sessionID, OptionSet<WebsiteDataType> websiteDataTypes, uint64_t callbackID)
 {
-    auto completionHandler = [this, callbackID](const WebsiteData& websiteData) {
-        parentProcessConnection()->send(Messages::StorageProcessProxy::DidFetchWebsiteData(callbackID, websiteData), 0);
-    };
+    auto websiteData = std::make_unique<WebsiteData>();
+    WebsiteData* rawWebsiteData = websiteData.get();
+    auto callbackAggregator = CallbackAggregator::create([this, websiteData = WTFMove(websiteData), callbackID]() {
+        parentProcessConnection()->send(Messages::StorageProcessProxy::DidFetchWebsiteData(callbackID, *websiteData), 0);
+    });
 
+    String path;
 #if ENABLE(SERVICE_WORKER)
-    if (websiteDataTypes.contains(WebsiteDataType::ServiceWorkerRegistrations))
-        notImplemented();
-#endif
-
-#if ENABLE(INDEXED_DATABASE)
-    String path = m_idbDatabasePaths.get(sessionID);
-    if (!path.isEmpty() && websiteDataTypes.contains(WebsiteDataType::IndexedDBDatabases)) {
-        // FIXME: Pick the right database store based on the session ID.
-        postStorageTask(CrossThreadTask([this, completionHandler = WTFMove(completionHandler), path = WTFMove(path)]() mutable {
-            RunLoop::main().dispatch([completionHandler = WTFMove(completionHandler), securityOrigins = indexedDatabaseOrigins(path)] {
-                WebsiteData websiteData;
-                for (const auto& securityOrigin : securityOrigins)
-                    websiteData.entries.append({ securityOrigin, WebsiteDataType::IndexedDBDatabases, 0 });
-
-                completionHandler(websiteData);
-            });
-        }));
-        return;
+    path = m_swDatabasePaths.get(sessionID);
+    if (!path.isEmpty() && websiteDataTypes.contains(WebsiteDataType::ServiceWorkerRegistrations)) {
+        swServerForSession(sessionID).getOriginsWithRegistrations([rawWebsiteData, callbackAggregator = callbackAggregator.copyRef()](const HashSet<SecurityOriginData>& origins) mutable {
+            for (auto& origin : origins)
+                rawWebsiteData->entries.append({ origin, WebsiteDataType::ServiceWorkerRegistrations, 0 });
+        });
     }
 #endif
 
-    completionHandler({ });
+#if ENABLE(INDEXED_DATABASE)
+    path = m_idbDatabasePaths.get(sessionID);
+    if (!path.isEmpty() && websiteDataTypes.contains(WebsiteDataType::IndexedDBDatabases)) {
+        // FIXME: Pick the right database store based on the session ID.
+        postStorageTask(CrossThreadTask([this, callbackAggregator = callbackAggregator.copyRef(), path = WTFMove(path), rawWebsiteData]() mutable {
+            RunLoop::main().dispatch([callbackAggregator = WTFMove(callbackAggregator), rawWebsiteData, securityOrigins = indexedDatabaseOrigins(path)] {
+                for (const auto& securityOrigin : securityOrigins)
+                    rawWebsiteData->entries.append({ securityOrigin, WebsiteDataType::IndexedDBDatabases, 0 });
+            });
+        }));
+    }
+#endif
 }
 
-void StorageProcess::deleteWebsiteData(PAL::SessionID sessionID, OptionSet<WebsiteDataType> websiteDataTypes, std::chrono::system_clock::time_point modifiedSince, uint64_t callbackID)
+void StorageProcess::deleteWebsiteData(PAL::SessionID sessionID, OptionSet<WebsiteDataType> websiteDataTypes, WallTime modifiedSince, uint64_t callbackID)
 {
     auto callbackAggregator = CallbackAggregator::create([this, callbackID] {
         parentProcessConnection()->send(Messages::StorageProcessProxy::DidDeleteWebsiteData(callbackID), 0);
     });
 
 #if ENABLE(SERVICE_WORKER)
-    if (websiteDataTypes.contains(WebsiteDataType::ServiceWorkerRegistrations)) {
-        if (auto* server = m_swServers.get(sessionID))
-            server->clearAll([callbackAggregator = callbackAggregator.copyRef()] { });
-    }
+    if (websiteDataTypes.contains(WebsiteDataType::ServiceWorkerRegistrations))
+        swServerForSession(sessionID).clearAll([callbackAggregator = callbackAggregator.copyRef()] { });
 #endif
 
 #if ENABLE(INDEXED_DATABASE)
@@ -321,10 +337,9 @@ void StorageProcess::deleteWebsiteDataForOrigins(PAL::SessionID sessionID, Optio
 
 #if ENABLE(SERVICE_WORKER)
     if (websiteDataTypes.contains(WebsiteDataType::ServiceWorkerRegistrations)) {
-        if (auto* server = m_swServers.get(sessionID)) {
-            for (auto& originData : securityOriginDatas)
-                server->clear(originData.securityOrigin(), [callbackAggregator = callbackAggregator.copyRef()] { });
-        }
+        auto& server = swServerForSession(sessionID);
+        for (auto& originData : securityOriginDatas)
+            server.clear(originData.securityOrigin(), [callbackAggregator = callbackAggregator.copyRef()] { });
     }
 #endif
 
@@ -335,12 +350,12 @@ void StorageProcess::deleteWebsiteDataForOrigins(PAL::SessionID sessionID, Optio
 }
 
 #if ENABLE(SANDBOX_EXTENSIONS)
-void StorageProcess::grantSandboxExtensionsForBlobs(const Vector<String>& paths, const SandboxExtension::HandleArray& handles)
+void StorageProcess::grantSandboxExtensionsForBlobs(const Vector<String>& paths, SandboxExtension::HandleArray&& handles)
 {
     ASSERT(paths.size() == handles.size());
 
     for (size_t i = 0; i < paths.size(); ++i) {
-        auto result = m_blobTemporaryFileSandboxExtensions.add(paths[i], SandboxExtension::create(handles[i]));
+        auto result = m_blobTemporaryFileSandboxExtensions.add(paths[i], SandboxExtension::create(WTFMove(handles[i])));
         ASSERT_UNUSED(result, result.isNewEntry);
     }
 }
@@ -402,6 +417,7 @@ void StorageProcess::didGetSandboxExtensionsForBlobFiles(uint64_t requestID, San
 #if ENABLE(SERVICE_WORKER)
 SWServer& StorageProcess::swServerForSession(PAL::SessionID sessionID)
 {
+    ASSERT(sessionID.isValid());
     auto result = m_swServers.add(sessionID, nullptr);
     if (!result.isNewEntry) {
         ASSERT(result.iterator->value);
@@ -427,13 +443,16 @@ WebSWServerToContextConnection* StorageProcess::globalServerToContextConnection(
     return m_serverToContextConnection.get();
 }
 
-void StorageProcess::createServerToContextConnection()
+void StorageProcess::createServerToContextConnection(std::optional<PAL::SessionID> sessionID)
 {
     if (m_waitingForServerToContextProcessConnection)
         return;
     
     m_waitingForServerToContextProcessConnection = true;
-    parentProcessConnection()->send(Messages::StorageProcessProxy::EstablishWorkerContextConnectionToStorageProcess(), 0);
+    if (sessionID)
+        parentProcessConnection()->send(Messages::StorageProcessProxy::EstablishWorkerContextConnectionToStorageProcessForExplicitSession(*sessionID), 0);
+    else
+        parentProcessConnection()->send(Messages::StorageProcessProxy::EstablishWorkerContextConnectionToStorageProcess(), 0);
 }
 
 void StorageProcess::didFailFetch(SWServerConnectionIdentifier serverConnectionIdentifier, uint64_t fetchIdentifier)
@@ -472,14 +491,21 @@ void StorageProcess::didFinishFetch(SWServerConnectionIdentifier serverConnectio
         connection->didFinishFetch(fetchIdentifier);
 }
 
-void StorageProcess::postMessageToServiceWorkerClient(const ServiceWorkerClientIdentifier& destinationIdentifier, const IPC::DataReference& message, ServiceWorkerIdentifier sourceIdentifier, const String& sourceOrigin)
+void StorageProcess::postMessageToServiceWorkerClient(const ServiceWorkerClientIdentifier& destinationIdentifier, MessageWithMessagePorts&& message, ServiceWorkerIdentifier sourceIdentifier, const String& sourceOrigin)
 {
     if (auto* connection = m_swServerConnections.get(destinationIdentifier.serverConnectionIdentifier))
-        connection->postMessageToServiceWorkerClient(destinationIdentifier.contextIdentifier, message, sourceIdentifier, sourceOrigin);
+        connection->postMessageToServiceWorkerClient(destinationIdentifier.contextIdentifier, WTFMove(message), sourceIdentifier, sourceOrigin);
+}
+
+void StorageProcess::postMessageToServiceWorker(WebCore::ServiceWorkerIdentifier destination, WebCore::MessageWithMessagePorts&& message, const WebCore::ServiceWorkerOrClientIdentifier& source, SWServerConnectionIdentifier connectionIdentifier)
+{
+    if (auto* connection = m_swServerConnections.get(connectionIdentifier))
+        connection->postMessageToServiceWorker(destination, WTFMove(message), source);
 }
 
 void StorageProcess::registerSWServerConnection(WebSWServerConnection& connection)
 {
+    ASSERT(parentProcessHasServiceWorkerEntitlement());
     ASSERT(!m_swServerConnections.contains(connection.identifier()));
     m_swServerConnections.add(connection.identifier(), &connection);
     swOriginStoreForSession(connection.sessionID()).registerSWServerConnection(connection);

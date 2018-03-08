@@ -54,10 +54,10 @@ private:
     void parseAttribute(const QualifiedName&, const AtomicString&) final;
     bool supportsFocus() const final;
     String target() const final;
-    bool isKeyboardFocusable(KeyboardEvent&) const final;
+    bool isKeyboardFocusable(KeyboardEvent*) const final;
     bool isMouseFocusable() const final;
     bool isFocusable() const final;
-    void updateFocusAppearance(SelectionRestorationMode, SelectionRevealMode) final;
+    RefPtr<Element> focusAppearanceUpdateTarget() final;
     void setFocus(bool) final;
 
     enum Shape { Default, Poly, Rect, Circle, Unknown };

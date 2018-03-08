@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 Sony Interactive Entertainment Inc.
+ * Copyright (C) 2018 Sony Interactive Entertainment Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -25,11 +25,13 @@
 
 #pragma once
 
+#include "CurlFormDataStream.h"
+#include "CurlMultipartHandle.h"
+#include "CurlMultipartHandleClient.h"
 #include "CurlRequestSchedulerClient.h"
 #include "CurlResponse.h"
 #include "CurlSSLVerifier.h"
 #include "FileSystem.h"
-#include "FormDataStreamCurl.h"
 #include "NetworkLoadMetrics.h"
 #include "ResourceRequest.h"
 #include <wtf/Noncopyable.h>
@@ -40,18 +42,28 @@ class CurlRequestClient;
 class ResourceError;
 class SharedBuffer;
 
-class CurlRequest : public ThreadSafeRefCounted<CurlRequest>, public CurlRequestSchedulerClient {
+class CurlRequest : public ThreadSafeRefCounted<CurlRequest>, public CurlRequestSchedulerClient, public CurlMultipartHandleClient {
     WTF_MAKE_NONCOPYABLE(CurlRequest);
 
 public:
-    static Ref<CurlRequest> create(const ResourceRequest& request, CurlRequestClient* client, bool shouldSuspend = false)
+    enum class ShouldSuspend : bool {
+        No = false,
+        Yes = true
+    };
+
+    enum class EnableMultipart : bool {
+        No = false,
+        Yes = true
+    };
+
+    static Ref<CurlRequest> create(const ResourceRequest& request, CurlRequestClient& client, ShouldSuspend shouldSuspend = ShouldSuspend::No, EnableMultipart enableMultipart = EnableMultipart::No)
     {
-        return adoptRef(*new CurlRequest(request, client, shouldSuspend));
+        return adoptRef(*new CurlRequest(request, &client, shouldSuspend == ShouldSuspend::Yes, enableMultipart == EnableMultipart::Yes));
     }
 
     virtual ~CurlRequest() = default;
 
-    void setClient(CurlRequestClient* client) { m_client = client;  }
+    void invalidateClient() { m_client = nullptr;  }
     void setUserPass(const String&, const String&);
 
     void start(bool isSyncRequest = false);
@@ -59,6 +71,7 @@ public:
     void suspend();
     void resume();
 
+    const ResourceRequest& resourceRequest() const { return m_request; }
     bool isSyncRequest() const { return m_isSyncRequest; }
     bool isCompleted() const { return !m_curlHandle; }
     bool isCancelled() const { return m_cancelled; }
@@ -82,7 +95,7 @@ private:
         FinishTransfer
     };
 
-    CurlRequest(const ResourceRequest&, CurlRequestClient*, bool shouldSuspend);
+    CurlRequest(const ResourceRequest&, CurlRequestClient*, bool shouldSuspend, bool enableMultipart);
 
     void retain() override { ref(); }
     void release() override { deref(); }
@@ -90,7 +103,7 @@ private:
 
     void startWithJobManager();
 
-    void callClient(WTF::Function<void(CurlRequestClient*)>);
+    void callClient(WTF::Function<void(CurlRequest&, CurlRequestClient&)>);
 
     // Transfer processing of Request body, Response header/body
     // Called by worker thread in case of async, main thread in case of sync.
@@ -99,21 +112,22 @@ private:
     size_t willSendData(char*, size_t, size_t);
     size_t didReceiveHeader(String&&);
     size_t didReceiveData(Ref<SharedBuffer>&&);
+    void didReceiveHeaderFromMultipart(const Vector<String>&) override;
+    void didReceiveDataFromMultipart(Ref<SharedBuffer>&&) override;
     void didCompleteTransfer(CURLcode) override;
     void didCancelTransfer() override;
     void finalizeTransfer();
 
     // For POST and PUT method 
-    void resolveBlobReferences(ResourceRequest&);
     void setupPOST(ResourceRequest&);
     void setupPUT(ResourceRequest&);
-    void setupFormData(ResourceRequest&, bool);
+    void setupSendData(bool forPutMethod);
 
     // Processing for DidReceiveResponse
     bool needToInvokeDidReceiveResponse() const { return !m_didNotifyResponse || !m_didReturnFromNotify; }
     bool needToInvokeDidCancelTransfer() const { return m_didNotifyResponse && !m_didReturnFromNotify && m_actionAfterInvoke == Action::FinishTransfer; }
     void invokeDidReceiveResponseForFile(URL&);
-    void invokeDidReceiveResponse(Action);
+    void invokeDidReceiveResponse(const CurlResponse&, Action);
     void setRequestPaused(bool);
     void setCallbackPaused(bool);
     void pausedStatusChanged();
@@ -140,11 +154,12 @@ private:
     String m_user;
     String m_password;
     bool m_shouldSuspend { false };
+    bool m_enableMultipart { false };
 
     std::unique_ptr<CurlHandle> m_curlHandle;
-    std::unique_ptr<FormDataStream> m_formDataStream;
-    Vector<char> m_postBuffer;
-    CurlSSLVerifier m_sslVerifier;
+    CurlFormDataStream m_formDataStream;
+    std::unique_ptr<CurlSSLVerifier> m_sslVerifier;
+    std::unique_ptr<CurlMultipartHandle> m_multipartHandle;
 
     CurlResponse m_response;
     bool m_didReceiveResponse { false };

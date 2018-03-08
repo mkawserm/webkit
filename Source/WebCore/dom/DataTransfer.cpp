@@ -30,7 +30,6 @@
 #include "CachedImageClient.h"
 #include "DataTransferItem.h"
 #include "DataTransferItemList.h"
-#include "DeprecatedGlobalSettings.h"
 #include "DocumentFragment.h"
 #include "DragData.h"
 #include "Editor.h"
@@ -41,6 +40,7 @@
 #include "HTMLParserIdioms.h"
 #include "Image.h"
 #include "Pasteboard.h"
+#include "RuntimeEnabledFeatures.h"
 #include "Settings.h"
 #include "StaticPasteboard.h"
 #include "URLParser.h"
@@ -154,10 +154,24 @@ String DataTransfer::getDataForItem(Document& document, const String& type) cons
             if (Pasteboard::canExposeURLToDOMWhenPasteboardContainsFiles(urlString))
                 return urlString;
         }
+
+        if (lowercaseType == "text/html" && RuntimeEnabledFeatures::sharedFeatures().customPasteboardDataEnabled()) {
+            // If the pasteboard contains files and the page requests 'text/html', we only read from rich text types to prevent file
+            // paths from leaking (e.g. from plain text data on the pasteboard) since we sanitize cross-origin markup. However, if
+            // custom pasteboard data is disabled, then we can't ensure that the markup we deliver is sanitized, so we fall back to
+            // current behavior and return an empty string.
+            return readStringFromPasteboard(document, lowercaseType, WebContentReadingPolicy::OnlyRichTextTypes);
+        }
+
         return { };
     }
 
-    if (!DeprecatedGlobalSettings::customPasteboardDataEnabled())
+    return readStringFromPasteboard(document, lowercaseType, WebContentReadingPolicy::AnyType);
+}
+
+String DataTransfer::readStringFromPasteboard(Document& document, const String& lowercaseType, WebContentReadingPolicy policy) const
+{
+    if (!RuntimeEnabledFeatures::sharedFeatures().customPasteboardDataEnabled())
         return m_pasteboard->readString(lowercaseType);
 
     // StaticPasteboard is only used to stage data written by websites before being committed to the system pasteboard.
@@ -170,15 +184,15 @@ String DataTransfer::getDataForItem(Document& document, const String& type) cons
     if (!Pasteboard::isSafeTypeForDOMToReadAndWrite(lowercaseType))
         return { };
 
-    if (!is<StaticPasteboard>(*m_pasteboard) && type == "text/html") {
+    if (!is<StaticPasteboard>(*m_pasteboard) && lowercaseType == "text/html") {
         if (!document.frame())
             return { };
         WebContentMarkupReader reader { *document.frame() };
-        m_pasteboard->read(reader);
+        m_pasteboard->read(reader, policy);
         return reader.markup;
     }
 
-    return m_pasteboard->readString(type);
+    return m_pasteboard->readString(lowercaseType);
 }
 
 String DataTransfer::getData(Document& document, const String& type) const
@@ -188,7 +202,7 @@ String DataTransfer::getData(Document& document, const String& type) const
 
 bool DataTransfer::shouldSuppressGetAndSetDataToAvoidExposingFilePaths() const
 {
-    if (!forFileDrag() && !DeprecatedGlobalSettings::customPasteboardDataEnabled())
+    if (!forFileDrag() && !RuntimeEnabledFeatures::sharedFeatures().customPasteboardDataEnabled())
         return false;
     return m_pasteboard->containsFiles();
 }
@@ -212,7 +226,7 @@ void DataTransfer::setDataFromItemList(const String& type, const String& data)
     ASSERT(canWriteData());
     RELEASE_ASSERT(is<StaticPasteboard>(*m_pasteboard));
 
-    if (!DeprecatedGlobalSettings::customPasteboardDataEnabled()) {
+    if (!RuntimeEnabledFeatures::sharedFeatures().customPasteboardDataEnabled()) {
         m_pasteboard->writeString(type, data);
         return;
     }
@@ -274,7 +288,7 @@ Vector<String> DataTransfer::types(AddFilesType addFilesType) const
     if (!canReadTypes())
         return { };
     
-    if (!DeprecatedGlobalSettings::customPasteboardDataEnabled()) {
+    if (!RuntimeEnabledFeatures::sharedFeatures().customPasteboardDataEnabled()) {
         auto types = m_pasteboard->typesForLegacyUnsafeBindings();
         ASSERT(!types.contains("Files"));
         if (m_pasteboard->containsFiles() && addFilesType == AddFilesType::Yes)
@@ -293,6 +307,8 @@ Vector<String> DataTransfer::types(AddFilesType addFilesType) const
             types.append(ASCIILiteral("Files"));
         if (safeTypes.contains("text/uri-list"))
             types.append(ASCIILiteral("text/uri-list"));
+        if (safeTypes.contains("text/html") && RuntimeEnabledFeatures::sharedFeatures().customPasteboardDataEnabled())
+            types.append(ASCIILiteral("text/html"));
         return types;
     }
 
@@ -382,7 +398,7 @@ void DataTransfer::commitToPasteboard(Pasteboard& nativePasteboard)
 {
     ASSERT(is<StaticPasteboard>(*m_pasteboard) && !is<StaticPasteboard>(nativePasteboard));
     PasteboardCustomData customData = downcast<StaticPasteboard>(*m_pasteboard).takeCustomData();
-    if (DeprecatedGlobalSettings::customPasteboardDataEnabled()) {
+    if (RuntimeEnabledFeatures::sharedFeatures().customPasteboardDataEnabled()) {
         customData.origin = m_originIdentifier;
         nativePasteboard.writeCustomData(customData);
         return;

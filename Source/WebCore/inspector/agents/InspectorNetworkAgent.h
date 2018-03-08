@@ -34,12 +34,12 @@
 #include "InspectorInstrumentation.h"
 #include "InspectorPageAgent.h"
 #include "InspectorWebAgentBase.h"
-#include <inspector/InspectorBackendDispatchers.h>
-#include <inspector/InspectorFrontendDispatchers.h>
+#include <JavaScriptCore/InspectorBackendDispatchers.h>
+#include <JavaScriptCore/InspectorFrontendDispatchers.h>
+#include <JavaScriptCore/RegularExpression.h>
 #include <wtf/HashSet.h>
 #include <wtf/JSONValues.h>
 #include <wtf/text/WTFString.h>
-#include <yarr/RegularExpression.h>
 
 namespace Inspector {
 class InjectedScriptManager;
@@ -116,7 +116,7 @@ public:
     void getResponseBody(ErrorString&, const String& requestId, String* content, bool* base64Encoded) final;
     void setResourceCachingDisabled(ErrorString&, bool disabled) final;
     void loadResource(ErrorString&, const String& frameId, const String& url, Ref<LoadResourceCallback>&&) final;
-    void resolveWebSocket(ErrorString&, const String& requestId, const String* const objectGroup, RefPtr<Inspector::Protocol::Runtime::RemoteObject>&) final;
+    void resolveWebSocket(ErrorString&, const String& requestId, const String* objectGroup, RefPtr<Inspector::Protocol::Runtime::RemoteObject>&) final;
 
     virtual String loaderIdentifier(DocumentLoader*) = 0;
     virtual String frameIdentifier(DocumentLoader*) = 0;

@@ -25,12 +25,12 @@
 #include "MatchResult.h"
 #include "RegExpKey.h"
 #include "Structure.h"
-#include "yarr/Yarr.h"
+#include "Yarr.h"
 #include <wtf/Forward.h>
 #include <wtf/text/WTFString.h>
 
 #if ENABLE(YARR_JIT)
-#include "yarr/YarrJIT.h"
+#include "YarrJIT.h"
 #endif
 
 namespace JSC {
@@ -60,8 +60,8 @@ public:
 
     const String& pattern() const { return m_patternString; }
 
-    bool isValid() const { return !m_constructionError && m_flags != InvalidFlags; }
-    const char* errorMessage() const { return m_constructionError; }
+    bool isValid() const { return !Yarr::hasError(m_constructionErrorCode) && m_flags != InvalidFlags; }
+    const char* errorMessage() const { return Yarr::errorMessage(m_constructionErrorCode); }
 
     JS_EXPORT_PRIVATE int match(VM&, const String&, unsigned startOffset, Vector<int>& ovector);
 
@@ -138,7 +138,7 @@ private:
         NotCompiled
     };
 
-    RegExpState m_state;
+    void byteCodeCompileIfNecessary(VM*);
 
     void compile(VM*, Yarr::YarrCharSize);
     void compileIfNecessary(VM&, Yarr::YarrCharSize);
@@ -150,19 +150,20 @@ private:
     void matchCompareWithInterpreter(const String&, int startOffset, int* offsetVector, int jitResult);
 #endif
 
+    RegExpState m_state { NotCompiled };
     String m_patternString;
     RegExpFlags m_flags;
-    const char* m_constructionError;
-    unsigned m_numSubpatterns;
+    Yarr::ErrorCode m_constructionErrorCode { Yarr::ErrorCode::NoError };
+    unsigned m_numSubpatterns { 0 };
     Vector<String> m_captureGroupNames;
     HashMap<String, unsigned> m_namedGroupToParenIndex;
 #if ENABLE(REGEXP_TRACING)
-    double m_rtMatchOnlyTotalSubjectStringLen;
-    double m_rtMatchTotalSubjectStringLen;
-    unsigned m_rtMatchOnlyCallCount;
-    unsigned m_rtMatchOnlyFoundCount;
-    unsigned m_rtMatchCallCount;
-    unsigned m_rtMatchFoundCount;
+    double m_rtMatchOnlyTotalSubjectStringLen { 0.0 };
+    double m_rtMatchTotalSubjectStringLen { 0.0 };
+    unsigned m_rtMatchOnlyCallCount { 0 };
+    unsigned m_rtMatchOnlyFoundCount { 0 };
+    unsigned m_rtMatchCallCount { 0 };
+    unsigned m_rtMatchFoundCount { 0 };
 #endif
     ConcurrentJSLock m_lock;
 

@@ -58,10 +58,10 @@ void WebViewTest::initializeWebView()
     platformInitializeWebView();
     assertObjectIsDeletedWhenTestFinishes(G_OBJECT(m_webView));
 
-    g_signal_connect(m_webView, "web-process-crashed", G_CALLBACK(WebViewTest::webProcessCrashed), this);
+    g_signal_connect(m_webView, "web-process-terminated", G_CALLBACK(WebViewTest::webProcessTerminated), this);
 }
 
-gboolean WebViewTest::webProcessCrashed(WebKitWebView*, WebViewTest* test)
+gboolean WebViewTest::webProcessTerminated(WebKitWebView*, WebKitWebProcessTerminationReason, WebViewTest* test)
 {
     if (test->m_expectedWebProcessCrash) {
         test->m_expectedWebProcessCrash = false;
@@ -397,11 +397,22 @@ cairo_surface_t* WebViewTest::getSnapshotAndWaitUntilReady(WebKitSnapshotRegion 
 }
 #endif
 
-bool WebViewTest::runWebProcessTest(const char* suiteName, const char* testName)
+bool WebViewTest::runWebProcessTest(const char* suiteName, const char* testName, const char* contents, const char* contentType)
 {
+    if (!contentType) {
+        static const char* emptyHTML = "<html><body></body></html>";
+        loadHtml(contents ? contents : emptyHTML, "webprocess://test");
+    } else {
+        GRefPtr<GBytes> bytes = adoptGRef(g_bytes_new_static(contents, strlen(contents)));
+        loadBytes(bytes.get(), contentType, nullptr, "webprocess://test");
+    }
+    waitUntilLoadFinished();
+
     GUniquePtr<char> script(g_strdup_printf("WebProcessTestRunner.runTest('%s/%s');", suiteName, testName));
     GUniqueOutPtr<GError> error;
     WebKitJavascriptResult* javascriptResult = runJavaScriptAndWaitUntilFinished(script.get(), &error.outPtr());
     g_assert(!error);
+    loadURI("about:blank");
+    waitUntilLoadFinished();
     return javascriptResultToBoolean(javascriptResult);
 }

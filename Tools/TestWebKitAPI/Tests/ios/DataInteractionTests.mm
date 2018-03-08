@@ -40,6 +40,7 @@
 #import <WebKit/WKWebViewConfigurationPrivate.h>
 #import <WebKit/WebItemProviderPasteboard.h>
 #import <WebKit/_WKProcessPoolConfiguration.h>
+#import <wtf/Seconds.h>
 
 typedef void (^FileLoadCompletionBlock)(NSURL *, BOOL, NSError *);
 typedef void (^DataLoadCompletionBlock)(NSData *, NSError *);
@@ -184,6 +185,11 @@ static void checkJSONWithLogging(NSString *jsonString, NSDictionary *expected)
         NSLog(@"Expected JSON: %@ to match values: %@", jsonString, expected);
 }
 
+static NSData *testIconImageData()
+{
+    return [NSData dataWithContentsOfURL:[[NSBundle mainBundle] URLForResource:@"icon" withExtension:@"png" subdirectory:@"TestWebKitAPI.resources"]];
+}
+
 static void runTestWithTemporaryTextFile(void(^runTest)(NSURL *fileURL))
 {
     NSString *fileName = [NSString stringWithFormat:@"drag-drop-text-file-%@.txt", [NSUUID UUID].UUIDString];
@@ -212,7 +218,7 @@ static void runTestWithTemporaryFolder(void(^runTest)(NSURL *folderURL))
     NSError *error = nil;
     NSFileManager *defaultManager = [NSFileManager defaultManager];
     [defaultManager createDirectoryAtURL:temporaryFolder.get() withIntermediateDirectories:NO attributes:nil error:&error];
-    [UIImagePNGRepresentation(testIconImage()) writeToURL:[temporaryFolder.get() URLByAppendingPathComponent:@"icon.png" isDirectory:NO] atomically:YES];
+    [testIconImageData() writeToURL:[temporaryFolder.get() URLByAppendingPathComponent:@"icon.png" isDirectory:NO] atomically:YES];
     [testZIPArchive() writeToURL:[temporaryFolder.get() URLByAppendingPathComponent:@"archive.zip" isDirectory:NO] atomically:YES];
 
     NSURL *firstSubdirectory = [temporaryFolder.get() URLByAppendingPathComponent:@"subdirectory1" isDirectory:YES];
@@ -344,7 +350,12 @@ TEST(DataInteractionTests, ContentEditableToContentEditable)
     EXPECT_TRUE([observedEventNames containsObject:DataInteractionOverEventName]);
     EXPECT_TRUE([observedEventNames containsObject:DataInteractionPerformOperationEventName]);
     checkSelectionRectsWithLogging(@[ makeCGRectValue(1, 201, 961, 227) ], [dataInteractionSimulator finalSelectionRects]);
-    checkTypeIdentifierPrecedesOtherTypeIdentifier(dataInteractionSimulator.get(), (NSString *)kUTTypeRTFD, (NSString *)kUTTypeUTF8PlainText);
+#if __IPHONE_OS_VERSION_MIN_REQUIRED >= 120000
+    NSString *richTextTypeIdentifier = (NSString *)kUTTypeRTF;
+#else
+    NSString *richTextTypeIdentifier = (NSString *)kUTTypeRTFD;
+#endif
+    checkTypeIdentifierPrecedesOtherTypeIdentifier(dataInteractionSimulator.get(), richTextTypeIdentifier, (NSString *)kUTTypeUTF8PlainText);
 }
 
 TEST(DataInteractionTests, ContentEditableToTextarea)
@@ -364,7 +375,12 @@ TEST(DataInteractionTests, ContentEditableToTextarea)
     EXPECT_TRUE([observedEventNames containsObject:DataInteractionOverEventName]);
     EXPECT_TRUE([observedEventNames containsObject:DataInteractionPerformOperationEventName]);
     checkSelectionRectsWithLogging(@[ makeCGRectValue(6, 203, 990, 232) ], [dataInteractionSimulator finalSelectionRects]);
-    checkTypeIdentifierPrecedesOtherTypeIdentifier(dataInteractionSimulator.get(), (NSString *)kUTTypeRTFD, (NSString *)kUTTypeUTF8PlainText);
+#if __IPHONE_OS_VERSION_MIN_REQUIRED >= 120000
+    NSString *richTextTypeIdentifier = (NSString *)kUTTypeRTF;
+#else
+    NSString *richTextTypeIdentifier = (NSString *)kUTTypeRTFD;
+#endif
+    checkTypeIdentifierPrecedesOtherTypeIdentifier(dataInteractionSimulator.get(), richTextTypeIdentifier, (NSString *)kUTTypeUTF8PlainText);
 }
 
 TEST(DataInteractionTests, ContentEditableMoveParagraphs)
@@ -1006,8 +1022,8 @@ TEST(DataInteractionTests, ExternalSourceDataTransferItemGetFolderAsEntry)
         @"DIR: /somedirectory",
         @"DIR: /somedirectory/subdirectory1",
         @"DIR: /somedirectory/subdirectory2",
-        @"FILE: /somedirectory/archive.zip ('application/zip', 988 bytes)",
-        @"FILE: /somedirectory/icon.png ('image/png', 42130 bytes)",
+        [NSString stringWithFormat:@"FILE: /somedirectory/archive.zip ('application/zip', %tu bytes)", testZIPArchive().length],
+        [NSString stringWithFormat:@"FILE: /somedirectory/icon.png ('image/png', %tu bytes)", testIconImageData().length],
         @"FILE: /somedirectory/subdirectory1/text-file-1.txt ('text/plain', 43 bytes)",
         @"FILE: /somedirectory/subdirectory2/text-file-2.txt ('text/plain', 44 bytes)"
     ];
@@ -1109,7 +1125,7 @@ TEST(DataInteractionTests, OverrideDataInteractionOperation)
     [dataInteractionSimulator setOverrideDataInteractionOperationBlock:^NSUInteger(NSUInteger operation, id session)
     {
         EXPECT_EQ(0U, operation);
-        return 1;
+        return UIDropOperationCopy;
     }];
     [dataInteractionSimulator setDataInteractionOperationCompletionBlock:^(BOOL handled, NSArray *itemProviders) {
         EXPECT_FALSE(handled);
@@ -1384,7 +1400,7 @@ TEST(DataInteractionTests, WebItemProviderPasteboardLoading)
     auto slowItem = adoptNS([[UIItemProvider alloc] init]);
     [slowItem registerDataRepresentationForTypeIdentifier:(NSString *)kUTTypeUTF8PlainText options:nil loadHandler:^NSProgress *(UIItemProviderDataLoadCompletionBlock completionBlock)
     {
-        sleep(2);
+        sleep(2_s);
         completionBlock([slowString dataUsingEncoding:NSUTF8StringEncoding], nil);
         return nil;
     }];
@@ -1484,6 +1500,35 @@ TEST(DataInteractionTests, DragLiftPreviewDataTransferSetDragImage)
 
 #if __IPHONE_OS_VERSION_MIN_REQUIRED >= 110300
 
+static NSData *testIconImageData()
+{
+    return [NSData dataWithContentsOfFile:[[NSBundle mainBundle] pathForResource:@"icon" ofType:@"png" inDirectory:@"TestWebKitAPI.resources"]];
+}
+
+TEST(DataInteractionTests, DataTransferGetDataWhenDroppingImageAndMarkup)
+{
+    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    WKPreferencesSetCustomPasteboardDataEnabled((WKPreferencesRef)[webView configuration].preferences, true);
+    [webView synchronouslyLoadTestPageNamed:@"DataTransfer"];
+
+    auto simulator = adoptNS([[DataInteractionSimulator alloc] initWithWebView:webView.get()]);
+    auto itemProvider = adoptNS([[UIItemProvider alloc] init]);
+    [itemProvider registerDataRepresentationForTypeIdentifier:(NSString *)kUTTypePNG withData:testIconImageData()];
+    NSString *markupString = @"<script>bar()</script><strong onmousedown=javascript:void(0)>HELLO WORLD</strong>";
+    [itemProvider registerDataRepresentationForTypeIdentifier:(NSString *)kUTTypeHTML withData:[markupString dataUsingEncoding:NSUTF8StringEncoding]];
+    [itemProvider setSuggestedName:@"icon"];
+    [simulator setExternalItemProviders:@[ itemProvider.get() ]];
+    [simulator runFrom:CGPointZero to:CGPointMake(50, 100)];
+
+    EXPECT_WK_STREQ("Files, text/html", [webView stringByEvaluatingJavaScript:@"types.textContent"]);
+    EXPECT_WK_STREQ("(STRING, text/html), (FILE, image/png)", [webView stringByEvaluatingJavaScript:@"items.textContent"]);
+    EXPECT_WK_STREQ("('icon.png', image/png)", [webView stringByEvaluatingJavaScript:@"files.textContent"]);
+    EXPECT_WK_STREQ("", [webView stringByEvaluatingJavaScript:@"urlData.textContent"]);
+    EXPECT_WK_STREQ("", [webView stringByEvaluatingJavaScript:@"textData.textContent"]);
+    EXPECT_WK_STREQ("HELLO WORLD", [webView stringByEvaluatingJavaScript:@"htmlData.textContent"]);
+    EXPECT_FALSE([[webView stringByEvaluatingJavaScript:@"rawHTMLData.textContent"] containsString:@"script"]);
+}
+
 TEST(DataInteractionTests, DataTransferGetDataWhenDroppingPlainText)
 {
     auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
@@ -1536,8 +1581,14 @@ TEST(DataInteractionTests, DataTransferGetDataWhenDroppingURL)
     [webView stringByEvaluatingJavaScript:@"rich.innerHTML = '<a href=\"https://www.apple.com/\">This is a link.</a>'"];
     [simulator runFrom:CGPointMake(50, 225) to:CGPointMake(50, 375)];
     checkJSONWithLogging([webView stringByEvaluatingJavaScript:@"output.value"], @{
-        @"dragover": @{ @"text/uri-list" : @"" },
-        @"drop": @{ @"text/uri-list" : @"https://www.apple.com/" }
+        @"dragover": @{
+            @"text/uri-list" : @"",
+            @"text/plain" : @""
+        },
+        @"drop": @{
+            @"text/uri-list" : @"https://www.apple.com/",
+            @"text/plain" : @"https://www.apple.com/"
+        }
     });
 }
 

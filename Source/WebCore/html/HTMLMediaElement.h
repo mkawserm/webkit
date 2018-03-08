@@ -28,6 +28,7 @@
 #if ENABLE(VIDEO)
 
 #include "ActiveDOMObject.h"
+#include "ApplicationStateChangeListener.h"
 #include "AutoplayEvent.h"
 #include "GenericEventQueue.h"
 #include "GenericTaskQueue.h"
@@ -122,12 +123,12 @@ class HTMLMediaElement
     : public HTMLElement
     , public ActiveDOMObject
     , public MediaControllerInterface
-    , public MediaPlayerSupportsTypeClient
     , public PlatformMediaSessionClient
     , private MediaCanStartListener
     , private MediaPlayerClient
     , private MediaProducer
     , private VisibilityChangeClient
+    , private ApplicationStateChangeListener
 #if ENABLE(VIDEO_TRACK)
     , private AudioTrackClient
     , private TextTrackClient
@@ -155,7 +156,7 @@ public:
 
     static HTMLMediaElement* bestMediaElementForShowingPlaybackControlsManager(MediaElementSession::PlaybackControlsPurpose);
 
-    void rewind(double timeDelta);
+    WEBCORE_EXPORT void rewind(double timeDelta);
     WEBCORE_EXPORT void returnToRealtime() override;
 
     // Eventually overloaded in HTMLVideoElement
@@ -183,10 +184,12 @@ public:
     using HTMLMediaElementEnums::DelayedActionType;
     void scheduleDelayedAction(DelayedActionType);
     void scheduleResolvePendingPlayPromises();
-    void rejectPendingPlayPromises(DOMException&);
-    void resolvePendingPlayPromises();
+    void scheduleRejectPendingPlayPromises(Ref<DOMException>&&);
+    using PlayPromiseVector = Vector<DOMPromiseDeferred<void>>;
+    void rejectPendingPlayPromises(PlayPromiseVector&&, Ref<DOMException>&&);
+    void resolvePendingPlayPromises(PlayPromiseVector&&);
     void scheduleNotifyAboutPlaying();
-    void notifyAboutPlaying();
+    void notifyAboutPlaying(PlayPromiseVector&&);
     
     MediaPlayerEnums::MovieLoadType movieLoadType() const;
     
@@ -224,7 +227,7 @@ public:
 
 // playback state
     WEBCORE_EXPORT double currentTime() const override;
-    void setCurrentTime(double) override;
+    WEBCORE_EXPORT void setCurrentTime(double) override;
     void setCurrentTimeWithTolerance(double, double toleranceBefore, double toleranceAfter);
     double currentTimeForBindings() const { return currentTime(); }
     WEBCORE_EXPORT ExceptionOr<void> setCurrentTimeForBindings(double);
@@ -303,7 +306,7 @@ public:
     WEBCORE_EXPORT bool controls() const;
     WEBCORE_EXPORT void setControls(bool);
     WEBCORE_EXPORT double volume() const override;
-    ExceptionOr<void> setVolume(double) override;
+    WEBCORE_EXPORT ExceptionOr<void> setVolume(double) override;
     WEBCORE_EXPORT bool muted() const override;
     WEBCORE_EXPORT void setMuted(bool) override;
 
@@ -420,6 +423,7 @@ public:
     void enterFullscreen(VideoFullscreenMode);
     void enterFullscreen() override;
     WEBCORE_EXPORT void exitFullscreen();
+    WEBCORE_EXPORT void setVideoFullscreenStandby(bool);
 
     bool hasClosedCaptions() const override;
     bool closedCaptionsVisible() const override;
@@ -436,7 +440,7 @@ public:
     WEBCORE_EXPORT static void setMediaCacheDirectory(const String&);
     WEBCORE_EXPORT static const String& mediaCacheDirectory();
     WEBCORE_EXPORT static HashSet<RefPtr<SecurityOrigin>> originsInMediaCache(const String&);
-    WEBCORE_EXPORT static void clearMediaCache(const String&, std::chrono::system_clock::time_point modifiedSince = { });
+    WEBCORE_EXPORT static void clearMediaCache(const String&, WallTime modifiedSince = { });
     WEBCORE_EXPORT static void clearMediaCacheForOrigins(const String&, const HashSet<RefPtr<SecurityOrigin>>&);
     static void resetMediaEngines();
 
@@ -545,6 +549,8 @@ public:
 #endif
 
     bool willLog(WTFLogLevel) const;
+
+    bool isSuspended() const final;
 
 protected:
     HTMLMediaElement(const QualifiedName&, Document&, bool createdByParser);
@@ -672,9 +678,6 @@ private:
     String mediaPlayerReferrer() const override;
     String mediaPlayerUserAgent() const override;
 
-    bool mediaPlayerNeedsSiteSpecificHacks() const override;
-    String mediaPlayerDocumentHost() const override;
-
     void mediaPlayerEnterFullscreen() override;
     void mediaPlayerExitFullscreen() override;
     bool mediaPlayerIsFullscreen() const override;
@@ -699,7 +702,6 @@ private:
 
     void mediaPlayerActiveSourceBuffersChanged(const MediaPlayer*) override;
 
-    bool mediaPlayerShouldWaitForResponseToAuthenticationChallenge(const AuthenticationChallenge&) override;
     void mediaPlayerHandlePlaybackCommand(PlatformMediaSession::RemoteControlCommandType command) override { didReceiveRemoteControlCommand(command, nullptr); }
     String sourceApplicationIdentifier() const override;
     String mediaPlayerSourceApplicationIdentifier() const override { return sourceApplicationIdentifier(); }
@@ -770,7 +772,7 @@ private:
 #endif
 
     // These "internal" functions do not check user gesture restrictions.
-    bool playInternal();
+    void playInternal();
     void pauseInternal();
 
     void prepareForLoad();
@@ -859,7 +861,6 @@ private:
     bool shouldOverrideBackgroundLoadingRestriction() const override;
     bool canProduceAudio() const final;
     bool processingUserGestureForMedia() const final;
-    bool isSuspended() const final;
 
     void pageMutedStateDidChange() override;
 
@@ -901,6 +902,9 @@ private:
     void handleSeekToPlaybackPosition(double);
     void seekToPlaybackPositionEndedTimerFired();
 
+    void applicationWillResignActive() final;
+    void applicationDidBecomeActive() final;
+
 #if !RELEASE_LOG_DISABLED
     const char* logClassName() const final { return "HTMLMediaElement"; }
 
@@ -926,7 +930,7 @@ private:
     RefPtr<TimeRanges> m_playedTimeRanges;
     GenericEventQueue m_asyncEventQueue;
 
-    Vector<DOMPromiseDeferred<void>> m_pendingPlayPromises;
+    PlayPromiseVector m_pendingPlayPromises;
 
     double m_requestedPlaybackRate { 1 };
     double m_reportedPlaybackRate { 1 };
@@ -959,7 +963,7 @@ private:
     bool m_volumeInitialized { false };
     MediaTime m_lastSeekTime;
     
-    double m_previousProgressTime { std::numeric_limits<double>::max() };
+    MonotonicTime m_previousProgressTime { MonotonicTime::infinity() };
     double m_playbackStartedTime { 0 };
 
     // The last time a timeupdate event was sent (based on monotonic clock).
@@ -975,6 +979,7 @@ private:
     RefPtr<HTMLSourceElement> m_nextChildNodeToConsider;
 
     VideoFullscreenMode m_videoFullscreenMode { VideoFullscreenModeNone };
+    bool m_videoFullscreenStandby { false };
     bool m_preparedForInline;
     WTF::Function<void()> m_preparedForInlineCompletionHandler;
 
@@ -1009,8 +1014,8 @@ private:
 #endif
 
     mutable MediaTime m_cachedTime;
-    mutable double m_clockTimeAtLastCachedTimeUpdate { 0 };
-    mutable double m_minimumClockTimeToUpdateCachedTime { 0 };
+    mutable MonotonicTime m_clockTimeAtLastCachedTimeUpdate;
+    mutable MonotonicTime m_minimumClockTimeToUpdateCachedTime;
 
     MediaTime m_fragmentStartTime;
     MediaTime m_fragmentEndTime;

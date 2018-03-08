@@ -40,6 +40,7 @@ extern "C" {
 #endif
 
 #define WEBKIT2_LOG_CHANNELS(M) \
+    M(CacheStorage) \
     M(ContextMenu) \
     M(DragAndDrop) \
     M(Fullscreen) \
@@ -58,10 +59,12 @@ extern "C" {
     M(PerformanceLogging) \
     M(Plugins) \
     M(Printing) \
+    M(Process) \
     M(ProcessSuspension) \
     M(RemoteLayerTree) \
     M(Resize) \
     M(ResourceLoadStatistics) \
+    M(ResourceLoadStatisticsDebug) \
     M(Selection) \
     M(ServiceWorker) \
     M(SessionState) \

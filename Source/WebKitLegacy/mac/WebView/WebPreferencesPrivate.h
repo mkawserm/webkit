@@ -144,6 +144,9 @@ extern NSString *WebPreferencesCacheModelChangedInternalNotification;
 - (BOOL)allowFileAccessFromFileURLs;
 - (void)setAllowFileAccessFromFileURLs:(BOOL)flag;
 
+- (BOOL)allowCrossOriginSubresourcesToAskForCredentials;
+- (void)setAllowCrossOriginSubresourcesToAskForCredentials:(BOOL)flag;
+
 - (BOOL)needsStorageAccessFromFileURLsQuirk;
 - (void)setNeedsStorageAccessFromFileURLsQuirk:(BOOL)flag;
 
@@ -423,9 +426,6 @@ extern NSString *WebPreferencesCacheModelChangedInternalNotification;
 - (void)setAVFoundationNSURLSessionEnabled:(BOOL)flag;
 - (BOOL)isAVFoundationNSURLSessionEnabled;
 
-- (void)setQTKitEnabled:(BOOL)flag;
-- (BOOL)isQTKitEnabled;
-
 // Deprecated, has no effect.
 - (void)setVideoPluginProxyEnabled:(BOOL)flag;
 - (BOOL)isVideoPluginProxyEnabled;
@@ -564,11 +564,14 @@ extern NSString *WebPreferencesCacheModelChangedInternalNotification;
 - (void)setWebAnimationsEnabled:(BOOL)flag;
 - (BOOL)webAnimationsEnabled;
 
+- (void)setFetchAPIKeepAliveEnabled:(BOOL)flag;
+- (BOOL)fetchAPIKeepAliveEnabled;
+
 - (void)setModernMediaControlsEnabled:(BOOL)flag;
 - (BOOL)modernMediaControlsEnabled;
 
-- (void)setCredentialManagementEnabled:(BOOL)flag;
-- (BOOL)credentialManagementEnabled;
+- (void)setWebAuthenticationEnabled:(BOOL)flag;
+- (BOOL)webAuthenticationEnabled;
 
 - (void)setIsSecureContextAttributeEnabled:(BOOL)flag;
 - (BOOL)isSecureContextAttributeEnabled;
@@ -587,7 +590,7 @@ extern NSString *WebPreferencesCacheModelChangedInternalNotification;
 @property (nonatomic) BOOL userTimingEnabled;
 @property (nonatomic) BOOL resourceTimingEnabled;
 @property (nonatomic) BOOL linkPreloadEnabled;
-@property (nonatomic) BOOL credentialManagementEnabled;
+@property (nonatomic) BOOL webAuthenticationEnabled;
 @property (nonatomic) BOOL mediaUserGestureInheritsFromDocument;
 @property (nonatomic) BOOL isSecureContextAttributeEnabled;
 @property (nonatomic) BOOL legacyEncryptedMediaAPIEnabled;
@@ -597,6 +600,8 @@ extern NSString *WebPreferencesCacheModelChangedInternalNotification;
 @property (nonatomic) BOOL inspectorAdditionsEnabled;
 @property (nonatomic) BOOL allowMediaContentTypesRequiringHardwareSupportAsFallback;
 @property (nonatomic) BOOL accessibilityObjectModelEnabled;
+@property (nonatomic) BOOL mediaCapabilitiesEnabled;
+@property (nonatomic) BOOL allowCrossOriginSubresourcesToAskForCredentials;
 
 #if TARGET_OS_IPHONE
 @property (nonatomic) BOOL quickLookDocumentSavingEnabled;

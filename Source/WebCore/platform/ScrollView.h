@@ -87,8 +87,8 @@ public:
 
     // Functions for child manipulation and inspection.
     const HashSet<Ref<Widget>>& children() const { return m_children; }
-    WEBCORE_EXPORT void addChild(Widget&);
-    virtual void removeChild(Widget&);
+    WEBCORE_EXPORT virtual void addChild(Widget&);
+    WEBCORE_EXPORT virtual void removeChild(Widget&);
 
     // If the scroll view does not use a native widget, then it will have cross-platform Scrollbars. These functions
     // can be used to obtain those scrollbars.
@@ -103,7 +103,7 @@ public:
     // Auto means show a scrollbar only when one is needed.
     // Note that for platforms with native widgets, these modes are considered advisory. In other words the underlying native
     // widget may choose not to honor the requested modes.
-    void setScrollbarModes(ScrollbarMode horizontalMode, ScrollbarMode verticalMode, bool horizontalLock = false, bool verticalLock = false);
+    WEBCORE_EXPORT void setScrollbarModes(ScrollbarMode horizontalMode, ScrollbarMode verticalMode, bool horizontalLock = false, bool verticalLock = false);
     void setHorizontalScrollbarMode(ScrollbarMode mode, bool lock = false) { setScrollbarModes(mode, verticalScrollbarMode(), lock, verticalScrollbarLock()); }
     void setVerticalScrollbarMode(ScrollbarMode mode, bool lock = false) { setScrollbarModes(horizontalScrollbarMode(), mode, horizontalScrollbarLock(), lock); };
     WEBCORE_EXPORT void scrollbarModes(ScrollbarMode& horizontalMode, ScrollbarMode& verticalMode) const;

@@ -30,6 +30,7 @@
 #include "LayoutRepainter.h"
 #include "RenderIterator.h"
 #include "RenderSVGResourceFilter.h"
+#include "RenderTreeBuilder.h"
 #include "RenderView.h"
 #include "SVGRenderingContext.h"
 #include "SVGResources.h"
@@ -87,19 +88,6 @@ void RenderSVGContainer::layout()
 
     repainter.repaintAfterLayout();
     clearNeedsLayout();
-}
-
-void RenderSVGContainer::addChild(RenderPtr<RenderObject> newChild, RenderObject* beforeChild)
-{
-    auto& child = *newChild;
-    RenderSVGModelObject::addChild(WTFMove(newChild), beforeChild);
-    SVGResourcesCache::clientWasAddedToTree(child);
-}
-
-RenderPtr<RenderObject> RenderSVGContainer::takeChild(RenderObject& child)
-{
-    SVGResourcesCache::clientWillBeRemovedFromTree(child);
-    return RenderSVGModelObject::takeChild(child);
 }
 
 bool RenderSVGContainer::selfWillPaint()

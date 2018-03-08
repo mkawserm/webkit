@@ -36,8 +36,8 @@
 #include "RenderListMarker.h"
 #include "RenderText.h"
 #include "RenderTextFragment.h"
-#include "RenderTreeUpdaterFirstLetter.h"
-#include "RenderTreeUpdaterListItem.h"
+#include "RenderTreeBuilder.h"
+#include "Settings.h"
 #include "StyleResolver.h"
 
 namespace WebCore {
@@ -69,8 +69,6 @@ void TextAutoSizingValue::addTextNode(Text& node, float size)
     m_autoSizedNodes.add(&node);
 }
 
-static const float maxScaleIncrease = 1.7f;
-
 auto TextAutoSizingValue::adjustTextNodeSizes() -> StillHasNodes
 {
     // Remove stale nodes. Nodes may have had their renderers detached. We'll also need to remove the style from the documents m_textAutoSizedNodes
@@ -98,6 +96,9 @@ auto TextAutoSizingValue::adjustTextNodeSizes() -> StillHasNodes
 
     float averageSize = std::round(cumulativeSize / m_autoSizedNodes.size());
 
+    // FIXME: Figure out how to make this code use RenderTreeUpdater/Builder properly.
+    RenderTreeBuilder builder((*m_autoSizedNodes.begin())->renderer()->view());
+
     // Adjust sizes.
     bool firstPass = true;
     for (auto& node : m_autoSizedNodes) {
@@ -106,6 +107,7 @@ auto TextAutoSizingValue::adjustTextNodeSizes() -> StillHasNodes
             continue;
 
         float specifiedSize = renderer.style().fontDescription().specifiedSize();
+        float maxScaleIncrease = renderer.settings().maxTextAutosizingScaleIncrease();
         float scaleChange = averageSize / specifiedSize;
         if (scaleChange > maxScaleIncrease && firstPass) {
             firstPass = false;
@@ -158,8 +160,7 @@ auto TextAutoSizingValue::adjustTextNodeSizes() -> StillHasNodes
         newParentStyle.fontCascade().update(&node->document().fontSelector());
         parentRenderer->setStyle(WTFMove(newParentStyle));
 
-        if (is<RenderListItem>(*parentRenderer))
-            RenderTreeUpdater::ListItem::updateMarker(downcast<RenderListItem>(*parentRenderer));
+        builder.updateAfterDescendants(*parentRenderer);
     }
 
     for (auto& node : m_autoSizedNodes) {
@@ -169,8 +170,7 @@ auto TextAutoSizingValue::adjustTextNodeSizes() -> StillHasNodes
         auto* block = downcast<RenderTextFragment>(textRenderer).blockForAccompanyingFirstLetter();
         if (!block)
             continue;
-        // FIXME: All render tree mutations should be done by RenderTreeUpdater commit.
-        RenderTreeUpdater::FirstLetter::update(*block);
+        builder.updateAfterDescendants(*block);
     }
 
     return stillHasNodes;

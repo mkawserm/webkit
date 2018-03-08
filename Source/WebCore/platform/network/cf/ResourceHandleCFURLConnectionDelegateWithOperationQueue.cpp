@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013 Apple Inc.  All rights reserved.
+ * Copyright (C) 2013-2018 Apple Inc.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -145,7 +145,8 @@ CFURLRequestRef ResourceHandleCFURLConnectionDelegateWithOperationQueue::willSen
     }
 
     ASSERT(!isMainThread());
-    
+
+    auto protectedThis = makeRef(*this);
     auto work = [this, protectedThis = makeRef(*this), cfRequest = RetainPtr<CFURLRequestRef>(cfRequest), originalRedirectResponse = RetainPtr<CFURLResponseRef>(originalRedirectResponse)] () mutable {
         auto& handle = protectedThis->m_handle;
         auto completionHandler = [this, protectedThis = WTFMove(protectedThis)] (ResourceRequest&& request) {
@@ -178,30 +179,31 @@ CFURLRequestRef ResourceHandleCFURLConnectionDelegateWithOperationQueue::willSen
 
 void ResourceHandleCFURLConnectionDelegateWithOperationQueue::didReceiveResponse(CFURLConnectionRef connection, CFURLResponseRef cfResponse)
 {
-    auto work = [protectedThis = makeRef(*this), cfResponse = RetainPtr<CFURLResponseRef>(cfResponse), connection = RetainPtr<CFURLConnectionRef>(connection)] () {
-        auto& handle = protectedThis->m_handle;
-        
-        if (!protectedThis->hasHandle() || !handle->client() || !handle->connection()) {
-            protectedThis->continueDidReceiveResponse();
+    auto protectedThis = makeRef(*this);
+    auto work = [this, protectedThis = makeRef(*this), cfResponse = RetainPtr<CFURLResponseRef>(cfResponse), connection = RetainPtr<CFURLConnectionRef>(connection)] () mutable {
+        if (!hasHandle() || !m_handle->client() || !m_handle->connection()) {
+            m_semaphore.signal();
             return;
         }
 
-        LOG(Network, "CFNet - ResourceHandleCFURLConnectionDelegateWithOperationQueue::didReceiveResponse(handle=%p) (%s)", handle, handle->firstRequest().url().string().utf8().data());
+        LOG(Network, "CFNet - ResourceHandleCFURLConnectionDelegateWithOperationQueue::didReceiveResponse(handle=%p) (%s)", m_handle, m_handle->firstRequest().url().string().utf8().data());
 
         // Avoid MIME type sniffing if the response comes back as 304 Not Modified.
         auto msg = CFURLResponseGetHTTPResponse(cfResponse.get());
         int statusCode = msg ? CFHTTPMessageGetResponseStatusCode(msg) : 0;
 
         if (statusCode != 304) {
-            bool isMainResourceLoad = handle->firstRequest().requester() == ResourceRequest::Requester::Main;
+            bool isMainResourceLoad = m_handle->firstRequest().requester() == ResourceRequest::Requester::Main;
         }
 
-        if (_CFURLRequestCopyProtocolPropertyForKey(handle->firstRequest().cfURLRequest(DoNotUpdateHTTPBody), CFSTR("ForceHTMLMIMEType")))
+        if (_CFURLRequestCopyProtocolPropertyForKey(m_handle->firstRequest().cfURLRequest(DoNotUpdateHTTPBody), CFSTR("ForceHTMLMIMEType")))
             CFURLResponseSetMIMEType(cfResponse.get(), CFSTR("text/html"));
 
         ResourceResponse resourceResponse(cfResponse.get());
         resourceResponse.setSource(ResourceResponse::Source::Network);
-        handle->didReceiveResponse(WTFMove(resourceResponse));
+        m_handle->didReceiveResponse(WTFMove(resourceResponse), [this, protectedThis = WTFMove(protectedThis)] {
+            m_semaphore.signal();
+        });
     };
 
     if (m_messageQueue)
@@ -291,6 +293,7 @@ CFCachedURLResponseRef ResourceHandleCFURLConnectionDelegateWithOperationQueue::
             return nullptr;
     }
 
+    auto protectedThis = makeRef(*this);
     auto work = [protectedThis = makeRef(*this), cachedResponse = RetainPtr<CFCachedURLResponseRef>(cachedResponse)] () {
         auto& handle = protectedThis->m_handle;
         
@@ -356,6 +359,7 @@ Boolean ResourceHandleCFURLConnectionDelegateWithOperationQueue::shouldUseCreden
 #if USE(PROTECTION_SPACE_AUTH_CALLBACK)
 Boolean ResourceHandleCFURLConnectionDelegateWithOperationQueue::canRespondToProtectionSpace(CFURLProtectionSpaceRef protectionSpace)
 {
+    auto protectedThis = makeRef(*this);
     auto work = [protectedThis = makeRef(*this), protectionSpace = RetainPtr<CFURLProtectionSpaceRef>(protectionSpace)] () mutable {
         auto& handle = protectedThis->m_handle;
         
@@ -384,11 +388,6 @@ void ResourceHandleCFURLConnectionDelegateWithOperationQueue::continueCanAuthent
     m_semaphore.signal();
 }
 #endif // USE(PROTECTION_SPACE_AUTH_CALLBACK)
-
-void ResourceHandleCFURLConnectionDelegateWithOperationQueue::continueDidReceiveResponse()
-{
-    m_semaphore.signal();
-}
 
 void ResourceHandleCFURLConnectionDelegateWithOperationQueue::continueWillCacheResponse(CFCachedURLResponseRef response)
 {

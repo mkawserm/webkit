@@ -24,17 +24,16 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. 
  */
 
-#include "config.h"
 #include "PluginStream.h"
 
-#include "DocumentLoader.h"
-#include "Frame.h"
-#include "FrameLoader.h"
-#include "HTTPHeaderNames.h"
 #include "PluginDebug.h"
-#include "SharedBuffer.h"
-#include "SubresourceLoader.h"
 #include "WebResourceLoadScheduler.h"
+#include <WebCore/DocumentLoader.h>
+#include <WebCore/Frame.h>
+#include <WebCore/FrameLoader.h>
+#include <WebCore/HTTPHeaderNames.h>
+#include <WebCore/SharedBuffer.h>
+#include <WebCore/SubresourceLoader.h>
 #include <wtf/CompletionHandler.h>
 #include <wtf/StringExtras.h>
 #include <wtf/text/CString.h>
@@ -133,7 +132,7 @@ static uint32_t lastModifiedDateMS(const ResourceResponse& response)
     if (!lastModified)
         return 0;
 
-    return std::chrono::duration_cast<std::chrono::milliseconds>(lastModified.value().time_since_epoch()).count();
+    return lastModified.value().secondsSinceEpoch().millisecondsAs<uint32_t>();
 }
 
 void PluginStream::startStream()

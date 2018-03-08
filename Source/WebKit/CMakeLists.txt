@@ -86,6 +86,7 @@ set(WebKit_INCLUDE_DIRECTORIES
     "${WEBKIT_DIR}/WebProcess/WebStorage"
     "${DERIVED_SOURCES_WEBKIT_DIR}"
     "${DERIVED_SOURCES_WEBKIT_DIR}/include"
+    "${CMAKE_SOURCE_DIR}/Source"
     "${CMAKE_SOURCE_DIR}/WebKitLibraries"
 )
 
@@ -96,7 +97,6 @@ set(WebKit_SYSTEM_INCLUDE_DIRECTORIES
 )
 
 set(WebKit_SOURCES
-    NetworkProcess/Downloads/BlobDownloadClient.cpp
     NetworkProcess/Downloads/Download.cpp
     NetworkProcess/Downloads/DownloadManager.cpp
     NetworkProcess/Downloads/PendingDownload.cpp
@@ -182,6 +182,8 @@ set(WebKit_SOURCES
     Shared/SharedStringHashTableReadOnly.cpp
     Shared/SharedStringHashTable.cpp
     Shared/StatisticsData.cpp
+    Shared/TouchBarMenuData.cpp
+    Shared/TouchBarMenuItemData.cpp
     Shared/URLSchemeTaskParameters.cpp
     Shared/UpdateInfo.cpp
     Shared/UserData.cpp
@@ -208,6 +210,7 @@ set(WebKit_SOURCES
     Shared/WebPageGroupData.cpp
     Shared/WebPlatformTouchPoint.cpp
     Shared/WebPopupItem.cpp
+    Shared/WebPreferencesDefaultValues.cpp
     Shared/WebPreferencesStore.cpp
     Shared/WebProcessCreationParameters.cpp
     Shared/WebRenderLayer.cpp
@@ -216,6 +219,7 @@ set(WebKit_SOURCES
     Shared/WebUserContentControllerDataTypes.cpp
     Shared/WebWheelEvent.cpp
     Shared/WebsiteDataStoreParameters.cpp
+    Shared/WebsitePoliciesData.cpp
 
     Shared/API/APIArray.cpp
     Shared/API/APIData.cpp
@@ -283,6 +287,7 @@ set(WebKit_SOURCES
 
     StorageProcess/ServiceWorker/WebSWOriginStore.cpp
     StorageProcess/ServiceWorker/WebSWServerConnection.cpp
+    StorageProcess/ServiceWorker/WebSWServerToContextConnection.cpp
 
     UIProcess/BackgroundProcessResponsivenessTimer.cpp
     UIProcess/ChildProcessProxy.cpp
@@ -296,8 +301,11 @@ set(WebKit_SOURCES
     UIProcess/RemoteWebInspectorProxy.cpp
     UIProcess/ResourceLoadStatisticsPersistentStorage.cpp
     UIProcess/ResponsivenessTimer.cpp
+    UIProcess/ServiceWorkerProcessProxy.cpp
     UIProcess/StatisticsRequest.cpp
+    UIProcess/SystemPreviewController.cpp
     UIProcess/TextCheckerCompletion.cpp
+    UIProcess/UIMessagePortChannelProvider.cpp
     UIProcess/UserMediaPermissionCheckProxy.cpp
     UIProcess/UserMediaPermissionRequestManagerProxy.cpp
     UIProcess/UserMediaPermissionRequestProxy.cpp
@@ -309,6 +317,7 @@ set(WebKit_SOURCES
     UIProcess/WebContextClient.cpp
     UIProcess/WebContextConnectionClient.cpp
     UIProcess/WebContextInjectedBundleClient.cpp
+    UIProcess/WebContextMenuListenerProxy.cpp
     UIProcess/WebContextMenuProxy.cpp
     UIProcess/WebCookieManagerProxy.cpp
     UIProcess/WebCookieManagerProxyClient.cpp
@@ -556,6 +565,7 @@ set(WebKit_SOURCES
     WebProcess/WebCoreSupport/WebFrameLoaderClient.cpp
     WebProcess/WebCoreSupport/WebGeolocationClient.cpp
     WebProcess/WebCoreSupport/WebInspectorClient.cpp
+    WebProcess/WebCoreSupport/WebMessagePortChannelProvider.cpp
     WebProcess/WebCoreSupport/WebNotificationClient.cpp
     WebProcess/WebCoreSupport/WebPerformanceLoggingClient.cpp
     WebProcess/WebCoreSupport/WebPlatformStrategies.cpp
@@ -623,6 +633,7 @@ set(WebKit_MESSAGES_IN_FILES
     StorageProcess/IndexedDB/WebIDBConnectionToClient.messages.in
 
     StorageProcess/ServiceWorker/WebSWServerConnection.messages.in
+    StorageProcess/ServiceWorker/WebSWServerToContextConnection.messages.in
 
     UIProcess/DrawingAreaProxy.messages.in
     UIProcess/RemoteWebInspectorProxy.messages.in
@@ -697,6 +708,10 @@ set(WebKit_MESSAGES_IN_FILES
     WebProcess/WebStorage/StorageAreaMap.messages.in
 )
 
+set(WebKit_LIBRARIES
+    WebCore
+)
+
 set(WebProcess_LIBRARIES
     WebKit
 )
@@ -708,18 +723,6 @@ set(NetworkProcess_LIBRARIES
 set(StorageProcess_LIBRARIES
     WebKit
 )
-
-if (APPLE)
-    set(WebKit_LIBRARIES
-        PRIVATE WebCore
-        PUBLIC JavaScriptCore
-    )
-else ()
-    set(WebKit_LIBRARIES
-        WebCore
-        JavaScriptCore
-    )
-endif ()
 
 set(PluginProcess_LIBRARIES
     WebKit
@@ -746,7 +749,7 @@ if (ENABLE_GRAPHICS_CONTEXT_3D)
                 ${OPENGL_LIBRARIES}
             )
             add_definitions(${OPENGL_DEFINITIONS})
-        elseif (USE_OPENGL_ES_2)
+        elseif (USE_OPENGL_ES)
             list(APPEND WebKit_SYSTEM_INCLUDE_DIRECTORIES
                 ${OPENGLES2_INCLUDE_DIRS}
             )
@@ -805,6 +808,7 @@ if (UNIX)
         if (SHM_OPEN_REQUIRES_LIBRT)
             list(APPEND WebKit_LIBRARIES rt)
         endif ()
+        unset(CMAKE_REQUIRED_LIBRARIES)
     endif ()
 endif ()
 
@@ -929,17 +933,13 @@ list(APPEND WebKit_SOURCES
 
 list(APPEND WebKit_SOURCES ${WebKit_DERIVED_SOURCES})
 
+if ("${PORT}" STREQUAL "GTK" OR "${PORT}" STREQUAL "WPE")
+    WEBKIT_COMPUTE_SOURCES(WebKit)
+endif ()
+
 WEBKIT_FRAMEWORK(WebKit)
 add_dependencies(WebKit WebCore ${WEBKIT_EXTRA_DEPENDENCIES})
 ADD_WEBKIT_PREFIX_HEADER(WebKit)
-
-if (COMPILER_IS_GCC_OR_CLANG AND NOT APPLE)
-    target_link_libraries(WebKit -Wl,--start-group WebCore WebCoreDerivedSources -Wl,--end-group)
-endif ()
-
-if (WebKit_VERSION_SCRIPT)
-    WEBKIT_ADD_TARGET_PROPERTIES(WebKit LINK_FLAGS "${WebKit_VERSION_SCRIPT}")
-endif ()
 
 add_executable(WebProcess ${WebProcess_SOURCES})
 ADD_WEBKIT_PREFIX_HEADER(WebProcess)

@@ -29,6 +29,9 @@
 
 namespace JSC {
 
+class Heap;
+class SlotVisitor;
+
 class MarkStackMergingConstraint : public MarkingConstraint {
 public:
     MarkStackMergingConstraint(Heap&);
@@ -38,7 +41,7 @@ public:
     
 protected:
     void prepareToExecuteImpl(const AbstractLocker& constraintSolvingLocker, SlotVisitor&) override;
-    ConstraintParallelism executeImpl(SlotVisitor&) override;
+    void executeImpl(SlotVisitor&) override;
     
 private:
     Heap& m_heap;

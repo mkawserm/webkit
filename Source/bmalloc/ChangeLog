@@ -1,3 +1,274 @@
+2018-02-16  Filip Pizlo  <fpizlo@apple.com>
+
+        Unreviewed, roll out r228306 (custom memcpy/memset) because the bots say that it was not a
+        progression.
+
+        * bmalloc/Algorithm.h:
+        (bmalloc::fastCopy): Deleted.
+        (bmalloc::fastZeroFill): Deleted.
+        * bmalloc/Allocator.cpp:
+        (bmalloc::Allocator::reallocate):
+        * bmalloc/Bits.h:
+        (bmalloc::BitsWordOwner::operator=):
+        (bmalloc::BitsWordOwner::clearAll):
+        (bmalloc::BitsWordOwner::set):
+        * bmalloc/IsoPageInlines.h:
+        (bmalloc::IsoPage<Config>::IsoPage):
+        * bmalloc/Vector.h:
+        (bmalloc::Vector<T>::reallocateBuffer):
+
+2018-02-09  Carlos Alberto Lopez Perez  <clopez@igalia.com>
+
+        Improve of string.h include after r228317.
+        https://bugs.webkit.org/show_bug.cgi?id=182642
+
+        Reviewed by Mark Lam.
+
+        * bmalloc/Algorithm.h: Avoid an architecture-specific #include.
+
+2018-02-09  Carlos Alberto Lopez Perez  <clopez@igalia.com>
+
+        Fix build for !BCPU(X86_64) after r228306
+        https://bugs.webkit.org/show_bug.cgi?id=182563
+
+        Unreviewed build fix.
+
+        * bmalloc/Algorithm.h:
+
+2018-02-08  Filip Pizlo  <fpizlo@apple.com>
+
+        Experiment with alternative implementation of memcpy/memset
+        https://bugs.webkit.org/show_bug.cgi?id=182563
+
+        Reviewed by Michael Saboff and Mark Lam.
+        
+        Add a faster x86_64-specific implementation of memcpy and memset. Ideally, this would just be
+        implemented in WTF, but we have to copy it into bmalloc since bmalloc sits below WTF on the
+        stack.
+
+        * bmalloc/Algorithm.h:
+        (bmalloc::fastCopy):
+        (bmalloc::fastZeroFill):
+        * bmalloc/Allocator.cpp:
+        (bmalloc::Allocator::reallocate):
+        * bmalloc/Bits.h:
+        (bmalloc::BitsWordOwner::operator=):
+        (bmalloc::BitsWordOwner::clearAll):
+        (bmalloc::BitsWordOwner::set):
+        * bmalloc/IsoPageInlines.h:
+        (bmalloc::IsoPage<Config>::IsoPage):
+        * bmalloc/Vector.h:
+        (bmalloc::Vector<T>::reallocateBuffer):
+
+2018-02-05  JF Bastien  <jfbastien@apple.com>
+
+        Gigacage: enable only for WebContent process and token executables
+        https://bugs.webkit.org/show_bug.cgi?id=182457
+        <rdar://problem/35875011>
+
+        Reviewed by Keith Miller.
+
+        Gigacage is a solid security improvement, but it's probably best
+        to roll it out incrementally to the most valuable targets first
+        and progressively try out more and more over time rather than
+        outright enabling it everywhere. We've gotten some reports that it
+        has some side-effects that weren't expected, so for now let's
+        enable it for the WebContent process, JSC, and other executables
+        we know, and then later we'll enable more gigacage uses.
+
+        For now I've chosen the following bundles:
+
+          - com.apple.WebKit.WebContent.Development
+          - com.apple.WebKit.WebContent
+          - com.apple.WebProcess
+
+        And the following processes:
+
+          - jsc
+          - wasm
+          - anything starting with "test", to match the JSC tests
+
+        I tried a different approach first, where I add a function to turn
+        gigacage on or off and crash if gigacage is initialized without
+        having been told what to do. Doing this in ChildProcess and a
+        bunch of the process initialization methods isn't sufficient. I
+        got MiniBrowser working, but some other builds use static globals
+        which themselves use hash and string which are allocate with
+        bmalloc and therefore which initialize gigacage before main is
+        called and before the process gets a chance to opt in our out. It
+        gets tricky with API calls too, because we have to do the right
+        thing in any entry an API user could plausibly use, even the
+        private ones, so I endend up having to initialize gigacage in e.g.
+        WebPreferencesExperimentalFeatures.cpp.erb.
+
+        Another approach could be to create a free-for-all gigacage
+        entitlement, and opt-in the processes we want..
+
+        As a follow-up we can also check that gigacage allocation always
+        succeeds if it was allowed for that process. With my change I
+        expect it to always succeed.
+
+        * CMakeLists.txt:
+        * bmalloc.xcodeproj/project.pbxproj:
+        * bmalloc/BPlatform.h:
+        * bmalloc/Gigacage.cpp:
+        (Gigacage::shouldBeEnabled):
+        * bmalloc/ProcessCheck.h: Added.
+        (bmalloc::gigacageEnabledForProcess):
+        * bmalloc/ProcessCheck.mm: Added.
+        (bmalloc::gigacageEnabledForProcess):
+
+2018-02-05  Joseph Pecoraro  <pecoraro@apple.com>
+
+        Multiple bmalloc scavenger threads is unexpected
+        https://bugs.webkit.org/show_bug.cgi?id=182474
+        <rdar://problem/37175526>
+
+        Reviewed by Filip Pizlo.
+
+        * bmalloc/Heap.cpp:
+        (bmalloc::Heap::Heap):
+        * bmalloc/IsoDirectoryInlines.h:
+        (bmalloc::passedNumPages>::takeFirstEligible):
+        (bmalloc::passedNumPages>::didBecome):
+        * bmalloc/bmalloc.cpp:
+        (bmalloc::api::scavenge):
+        (bmalloc::api::setScavengerThreadQOSClass):
+        Switch to SafePerProcess for Scavenger to ensure one instance
+        for the entire process.
+
+        * bmalloc/PerProcess.h:
+        (bmalloc::PerProcess::get):
+        (bmalloc::PerProcess::getFastCase):
+        (bmalloc::PerProcess::getSlowCase):
+        (bmalloc::SafePerProcess::get):
+        (bmalloc::SafePerProcess::getFastCase):
+        (bmalloc::SafePerProcess::getSlowCase):
+        Duplicate the class with a version that can ensure
+        single instances by requiring exporting symbols that
+        can be created with macros.
+
+        * bmalloc/Scavenger.cpp:
+        * bmalloc/Scavenger.h:
+        Export symbols to ensure all images get the same instance.
+
+2018-01-31  Saam Barati  <sbarati@apple.com>
+
+        Replace tryLargeMemalignVirtual with tryLargeZeroedMemalignVirtual and use it to allocate large zeroed memory in Wasm
+        https://bugs.webkit.org/show_bug.cgi?id=182064
+        <rdar://problem/36840132>
+
+        Reviewed by Geoffrey Garen.
+
+        This patch replaces the tryLargeMemalignVirtual API with tryLargeZeroedMemalignVirtual.
+        By doing that, we're able to remove the AllocationKind enum. To zero the memory,
+        tryLargeZeroedMemalignVirtual uses mmap(... MAP_ANON ...) over previously mmapped
+        memory. This both purges the any resident memory for the virtual range and ensures
+        that the pages in the range are zeroed. Most OSs should implement this by taking a
+        page fault and zero filling on first access. Therefore, this API is returning pages
+        that will result in page faults on first access. Hence, the name 'virtual' in the API.
+        This API differs from the old API in that users of it need not call madvise themselves.
+        The memory is ready to go.
+
+        * bmalloc.xcodeproj/project.pbxproj:
+        * bmalloc/AllocationKind.h: Removed.
+        * bmalloc/DebugHeap.cpp:
+        (bmalloc::DebugHeap::memalignLarge):
+        (bmalloc::DebugHeap::freeLarge):
+        * bmalloc/DebugHeap.h:
+        * bmalloc/Heap.cpp:
+        (bmalloc::Heap::splitAndAllocate):
+        (bmalloc::Heap::tryAllocateLarge):
+        (bmalloc::Heap::allocateLarge):
+        (bmalloc::Heap::shrinkLarge):
+        (bmalloc::Heap::deallocateLarge):
+        * bmalloc/Heap.h:
+        * bmalloc/IsoPage.cpp:
+        (bmalloc::IsoPageBase::allocatePageMemory):
+        * bmalloc/VMAllocate.h:
+        (bmalloc::vmZeroAndPurge):
+        * bmalloc/VMHeap.cpp:
+        (bmalloc::VMHeap::tryAllocateLargeChunk):
+        * bmalloc/VMHeap.h:
+        * bmalloc/bmalloc.cpp:
+        (bmalloc::api::tryLargeZeroedMemalignVirtual):
+        (bmalloc::api::freeLargeVirtual):
+        (bmalloc::api::tryLargeMemalignVirtual): Deleted.
+        * bmalloc/bmalloc.h:
+
+2018-01-19  Keith Miller  <keith_miller@apple.com>
+
+        HaveInternalSDK includes should be "#include?"
+        https://bugs.webkit.org/show_bug.cgi?id=179670
+
+        Reviewed by Dan Bernstein.
+
+        * Configurations/Base.xcconfig:
+
+2018-01-18  Dan Bernstein  <mitz@apple.com>
+
+        [Xcode] Streamline and future-proof target-macOS-version-dependent build setting definitions
+        https://bugs.webkit.org/show_bug.cgi?id=181803
+
+        Reviewed by Tim Horton.
+
+        * Configurations/Base.xcconfig: Updated.
+        * Configurations/DebugRelease.xcconfig: Ditto.
+
+2018-01-16  Michael Catanzaro  <mcatanzaro@igalia.com>
+
+        mbmalloc should only be built in developer mode
+        https://bugs.webkit.org/show_bug.cgi?id=181654
+
+        Reviewed by Carlos Garcia Campos.
+
+        * CMakeLists.txt:
+
+2018-01-15  Michael Catanzaro  <mcatanzaro@igalia.com>
+
+        Improve use of ExportMacros
+        https://bugs.webkit.org/show_bug.cgi?id=181652
+
+        Reviewed by Konstantin Tokarev.
+
+        Disable BEXPORT on Linux ports.
+
+        * bmalloc/BExport.h: Check for BUSE(EXPORT_MACROS).
+        * bmalloc/BPlatform.h: Add BUSE(EXPORT_MACROS) and define it on macOS and iOS.
+
+2017-12-20  Ting-Wei Lan  <lantw44@gmail.com>
+
+        Include stdio.h before using stderr and _IONBF
+        https://bugs.webkit.org/show_bug.cgi?id=181046
+
+        Reviewed by Alex Christensen.
+
+        * bmalloc/IsoTLS.cpp:
+
+2017-12-14  David Kilzer  <ddkilzer@apple.com>
+
+        Enable -Wstrict-prototypes for WebKit
+        <https://webkit.org/b/180757>
+        <rdar://problem/36024132>
+
+        Rubber-stamped by Joseph Pecoraro.
+
+        * Configurations/Base.xcconfig:
+        (CLANG_WARN_STRICT_PROTOTYPES): Add. Set to YES.
+
+2017-12-14  Saam Barati  <sbarati@apple.com>
+
+        logVMFailure should not simulate crash on iOS
+        https://bugs.webkit.org/show_bug.cgi?id=180790
+
+        Reviewed by JF Bastien.
+
+        The Gigacage allocation on iOS is expected to fail in certain circumstances. 
+        Let's not simulate a crash on failure because since this is expected behavior.
+
+        * bmalloc/VMAllocate.h:
+        (bmalloc::tryVMAllocate):
+
 2017-12-11  Tim Horton  <timothy_horton@apple.com>
 
         Stop using deprecated target conditional for simulator builds

@@ -43,7 +43,6 @@
 #include "JSDOMWindowBase.h"
 #include "LibWebRTCProvider.h"
 #include "MainFrame.h"
-#include "NoEventDispatchAssertion.h"
 #include "Page.h"
 #include "PageConfiguration.h"
 #include "RenderSVGRoot.h"
@@ -54,10 +53,11 @@
 #include "SVGImageClients.h"
 #include "SVGImageElement.h"
 #include "SVGSVGElement.h"
+#include "ScriptDisallowedScope.h"
 #include "Settings.h"
 #include "SocketProvider.h"
-#include <runtime/JSCInlines.h>
-#include <runtime/JSLock.h>
+#include <JavaScriptCore/JSCInlines.h>
+#include <JavaScriptCore/JSLock.h>
 #include <wtf/text/TextStream.h>
 
 #if USE(DIRECT2D)
@@ -69,12 +69,14 @@ namespace WebCore {
 
 SVGImage::SVGImage(ImageObserver& observer)
     : Image(&observer)
+    , m_startAnimationTimer(*this, &SVGImage::startAnimationTimerFired)
 {
 }
 
 SVGImage::~SVGImage()
 {
     if (m_page) {
+        ScriptDisallowedScope::DisableAssertionsInScope disabledScope;
         // Store m_page in a local variable, clearing m_page, so that SVGImageChromeClient knows we're destructed.
         std::unique_ptr<Page> currentPage = WTFMove(m_page);
         currentPage->mainFrame().loader().frameDetached(); // Break both the loader and view references to the frame
@@ -266,7 +268,7 @@ void SVGImage::drawPatternForContainer(GraphicsContext& context, const FloatSize
     if (context.drawLuminanceMask())
         buffer->convertToLuminanceMask();
 
-    RefPtr<Image> image = ImageBuffer::sinkIntoImage(WTFMove(buffer), Unscaled);
+    RefPtr<Image> image = ImageBuffer::sinkIntoImage(WTFMove(buffer), PreserveResolution::Yes);
     if (!image)
         return;
 
@@ -312,7 +314,7 @@ ImageDrawResult SVGImage::draw(GraphicsContext& context, const FloatRect& dstRec
     view->resize(containerSize());
 
     {
-        NoEventDispatchAssertion::DisableAssertionsInScope disabledScope;
+        ScriptDisallowedScope::DisableAssertionsInScope disabledScope;
         if (view->needsLayout())
             view->layoutContext().layout();
     }
@@ -377,6 +379,19 @@ void SVGImage::computeIntrinsicDimensions(Length& intrinsicWidth, Length& intrin
         intrinsicRatio = FloatSize(floatValueForLength(intrinsicWidth, 0), floatValueForLength(intrinsicHeight, 0));
 }
 
+void SVGImage::startAnimationTimerFired()
+{
+    startAnimation();
+}
+
+void SVGImage::scheduleStartAnimation()
+{
+    auto rootElement = this->rootElement();
+    if (!rootElement || !rootElement->animationsPaused())
+        return;
+    m_startAnimationTimer.startOneShot(0_s);
+}
+
 void SVGImage::startAnimation()
 {
     auto rootElement = this->rootElement();
@@ -388,6 +403,7 @@ void SVGImage::startAnimation()
 
 void SVGImage::stopAnimation()
 {
+    m_startAnimationTimer.stop();
     auto rootElement = this->rootElement();
     if (!rootElement)
         return;

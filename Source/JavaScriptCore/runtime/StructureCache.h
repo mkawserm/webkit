@@ -33,6 +33,7 @@
 
 namespace JSC {
 
+class FunctionExecutable;
 class JSGlobalObject;
 class JSObject;
 class Structure;
@@ -45,6 +46,8 @@ public:
         : m_structures(vm)
     {
     }
+
+    void clear() { m_structures.clear(); }
 
     JS_EXPORT_PRIVATE Structure* emptyObjectStructureForPrototype(JSGlobalObject*, JSObject*, unsigned inlineCapacity, bool makePolyProtoStructure = false, FunctionExecutable* = nullptr);
     JS_EXPORT_PRIVATE Structure* emptyStructureForPrototypeFromBaseStructure(JSGlobalObject*, JSObject*, Structure*);

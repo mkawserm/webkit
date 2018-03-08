@@ -28,11 +28,11 @@
 
 #include "DOMWindow.h"
 #include "JSDOMWindow.h"
-#include <builtins/BuiltinNames.h>
-#include <runtime/CatchScope.h>
-#include <runtime/Exception.h>
-#include <runtime/JSNativeStdFunction.h>
-#include <runtime/JSPromiseConstructor.h>
+#include <JavaScriptCore/BuiltinNames.h>
+#include <JavaScriptCore/CatchScope.h>
+#include <JavaScriptCore/Exception.h>
+#include <JavaScriptCore/JSNativeStdFunction.h>
+#include <JavaScriptCore/JSPromiseConstructor.h>
 
 using namespace JSC;
 
@@ -55,6 +55,7 @@ void DOMPromise::whenSettled(std::function<void()>&& callback)
 {
     auto& state = *globalObject()->globalExec();
     auto& vm = state.vm();
+    JSLockHolder lock(vm);
     auto* handler = JSC::JSNativeStdFunction::create(vm, globalObject(), 1, String { }, [callback = WTFMove(callback)] (ExecState*) mutable {
         callback();
         return JSC::JSValue::encode(JSC::jsUndefined());

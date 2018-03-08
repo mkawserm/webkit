@@ -45,7 +45,8 @@ namespace WebKit {
 
 void NetworkProcess::platformInitializeNetworkProcess(const NetworkProcessCreationParameters& parameters)
 {
-    notImplemented();
+    if (!parameters.cookiePersistentStorageFile.isEmpty())
+        supplement<WebCookieManager>()->setCookiePersistentStorage(parameters.cookiePersistentStorageFile);
 }
 
 void NetworkProcess::platformSetURLCacheSize(unsigned, uint64_t)
@@ -63,7 +64,7 @@ void NetworkProcess::clearCacheForAllOrigins(uint32_t cachesToClear)
     notImplemented();
 }
 
-void NetworkProcess::clearDiskCache(std::chrono::system_clock::time_point, Function<void()>&&)
+void NetworkProcess::clearDiskCache(WallTime, Function<void()>&&)
 {
     notImplemented();
 }

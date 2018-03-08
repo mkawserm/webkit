@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2017 Apple Inc. All rights reserved.
+ * Copyright (C) 2016-2018 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -27,6 +27,7 @@
 
 #if ENABLE(WEBASSEMBLY)
 
+#include "JSCPoison.h"
 #include "JSDestructibleObject.h"
 #include "JSObject.h"
 #include "UnconditionalFinalizer.h"
@@ -34,6 +35,7 @@
 #include <wtf/Bag.h>
 #include <wtf/Expected.h>
 #include <wtf/Forward.h>
+#include <wtf/Ref.h>
 #include <wtf/text/WTFString.h>
 
 namespace JSC {
@@ -79,10 +81,14 @@ private:
     static void destroy(JSCell*);
     static void visitChildren(JSCell*, SlotVisitor&);
 
-    Ref<Wasm::Module> m_module;
-    WriteBarrier<SymbolTable> m_exportSymbolTable;
-    WriteBarrier<JSWebAssemblyCodeBlock> m_codeBlocks[Wasm::NumberOfMemoryModes];
-    WriteBarrier<WebAssemblyToJSCallee> m_callee;
+    PoisonedRef<JSWebAssemblyModulePoison, Wasm::Module> m_module;
+
+    template<typename T>
+    using PoisonedBarrier = PoisonedWriteBarrier<JSWebAssemblyModulePoison, T>;
+
+    PoisonedBarrier<SymbolTable> m_exportSymbolTable;
+    PoisonedBarrier<JSWebAssemblyCodeBlock> m_codeBlocks[Wasm::NumberOfMemoryModes];
+    PoisonedBarrier<WebAssemblyToJSCallee> m_callee;
 };
 
 } // namespace JSC

@@ -59,11 +59,13 @@
 #import <WebCore/BitmapImage.h>
 #import <WebCore/Cursor.h>
 #import <WebCore/DictionaryLookup.h>
+#import <WebCore/DragItem.h>
 #import <WebCore/FloatRect.h>
 #import <WebCore/GraphicsContext.h>
 #import <WebCore/Image.h>
 #import <WebCore/KeyboardEvent.h>
 #import <WebCore/NotImplemented.h>
+#import <WebCore/PromisedBlobInfo.h>
 #import <WebCore/SharedBuffer.h>
 #import <WebCore/TextIndicator.h>
 #import <WebCore/TextIndicatorWindow.h>
@@ -172,6 +174,11 @@ bool PageClientImpl::isViewFocused()
     return m_impl->isFocused();
 }
 
+void PageClientImpl::assistiveTechnologyMakeFirstResponder()
+{
+    [[m_view window] makeFirstResponder:m_view];
+}
+    
 void PageClientImpl::makeFirstResponder()
 {
     if (m_shouldSuppressFirstResponderChanges)
@@ -346,15 +353,9 @@ void PageClientImpl::executeUndoRedo(WebPageProxy::UndoOrRedo undoOrRedo)
     return (undoOrRedo == WebPageProxy::Undo) ? [[m_view undoManager] undo] : [[m_view undoManager] redo];
 }
 
-void PageClientImpl::setDragImage(const IntPoint& clientPosition, Ref<ShareableBitmap>&& dragImage, DragSourceAction action)
+void PageClientImpl::startDrag(const WebCore::DragItem& item, const ShareableBitmap::Handle& image)
 {
-    RetainPtr<CGImageRef> dragCGImage = dragImage->makeCGImage();
-    RetainPtr<NSImage> dragNSImage = adoptNS([[NSImage alloc] initWithCGImage:dragCGImage.get() size:dragImage->size()]);
-    IntSize size([dragNSImage size]);
-    size.scale(1.0 / m_impl->page().deviceScaleFactor());
-    [dragNSImage setSize:size];
-
-    m_impl->dragImageForView(m_view, dragNSImage.get(), clientPosition, action == DragSourceActionLink);
+    m_impl->startDrag(item, image);
 }
 
 void PageClientImpl::setPromisedDataForImage(const String& pasteboardName, Ref<SharedBuffer>&& imageBuffer, const String& filename, const String& extension, const String& title, const String& url, const String& visibleURL, RefPtr<SharedBuffer>&& archiveBuffer)
@@ -363,13 +364,6 @@ void PageClientImpl::setPromisedDataForImage(const String& pasteboardName, Ref<S
     image->setData(WTFMove(imageBuffer), true);
     m_impl->setPromisedDataForImage(image.get(), filename, extension, title, url, visibleURL, archiveBuffer.get(), pasteboardName);
 }
-
-#if ENABLE(ATTACHMENT_ELEMENT)
-void PageClientImpl::setPromisedDataForAttachment(const String& pasteboardName, const String& filename, const String& extension, const String& title, const String& url, const String& visibleURL)
-{
-    m_impl->setPromisedDataForAttachment(filename, extension, title, url, visibleURL, pasteboardName);
-}
-#endif
 
 void PageClientImpl::updateSecureInputState()
 {
@@ -448,9 +442,9 @@ RefPtr<WebPopupMenuProxy> PageClientImpl::createPopupMenuProxy(WebPageProxy& pag
 }
 
 #if ENABLE(CONTEXT_MENUS)
-RefPtr<WebContextMenuProxy> PageClientImpl::createContextMenuProxy(WebPageProxy& page, const ContextMenuContextData& context, const UserData& userData)
+Ref<WebContextMenuProxy> PageClientImpl::createContextMenuProxy(WebPageProxy& page, ContextMenuContextData&& context, const UserData& userData)
 {
-    return WebContextMenuProxyMac::create(m_view, page, context, userData);
+    return WebContextMenuProxyMac::create(m_view, page, WTFMove(context), userData);
 }
 #endif
 
@@ -601,7 +595,7 @@ static inline NSCorrectionResponse toCorrectionResponse(AutocorrectionResponse r
 
 void PageClientImpl::recordAutocorrectionResponse(AutocorrectionResponse response, const String& replacedString, const String& replacementString)
 {
-    CorrectionPanel::recordAutocorrectionResponse(m_impl->spellCheckerDocumentTag(), toCorrectionResponse(response), replacedString, replacementString);
+    CorrectionPanel::recordAutocorrectionResponse(*m_impl, m_impl->spellCheckerDocumentTag(), toCorrectionResponse(response), replacedString, replacementString);
 }
 
 void PageClientImpl::recommendedScrollbarStyleDidChange(ScrollbarStyle newStyle)

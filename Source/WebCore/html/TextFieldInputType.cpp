@@ -73,7 +73,7 @@ TextFieldInputType::~TextFieldInputType()
         m_innerSpinButton->removeSpinButtonOwner();
 }
 
-bool TextFieldInputType::isKeyboardFocusable(KeyboardEvent&) const
+bool TextFieldInputType::isKeyboardFocusable(KeyboardEvent*) const
 {
 #if PLATFORM(IOS)
     if (element().isReadOnly())
@@ -395,7 +395,7 @@ static String limitLength(const String& string, unsigned maxNumGraphemeClusters)
     if (stringView.is8Bit())
         limitedLength = std::min(firstNonTabControlCharacterIndex, maxNumGraphemeClusters);
     else
-        limitedLength = numCharactersInGraphemeClusters(stringView.substring(0, firstNonTabControlCharacterIndex), maxNumGraphemeClusters);
+        limitedLength = numCodeUnitsInGraphemeClusters(stringView.substring(0, firstNonTabControlCharacterIndex), maxNumGraphemeClusters);
     return string.left(limitedLength);
 }
 

@@ -158,7 +158,7 @@ void RemoteLayerTreeHost::layerWillBeRemoved(WebCore::GraphicsLayer::PlatformLay
     m_layers.remove(layerID);
 }
 
-void RemoteLayerTreeHost::animationDidStart(WebCore::GraphicsLayer::PlatformLayerID layerID, CAAnimation *animation, double startTime)
+void RemoteLayerTreeHost::animationDidStart(WebCore::GraphicsLayer::PlatformLayerID layerID, CAAnimation *animation, MonotonicTime startTime)
 {
     CALayer *layer = asLayer(getLayer(layerID));
     if (!layer)
@@ -289,7 +289,7 @@ void RemoteLayerTreeHost::detachRootLayer()
     m_rootLayer = nullptr;
 }
 
-#if USE(IOSURFACE)
+#if HAVE(IOSURFACE)
 static void recursivelyMapIOSurfaceBackingStore(CALayer *layer)
 {
     if (layer.contents && CFGetTypeID(layer.contents) == CAMachPortGetTypeID()) {
@@ -305,7 +305,7 @@ static void recursivelyMapIOSurfaceBackingStore(CALayer *layer)
 
 void RemoteLayerTreeHost::mapAllIOSurfaceBackingStore()
 {
-#if USE(IOSURFACE)
+#if HAVE(IOSURFACE)
     recursivelyMapIOSurfaceBackingStore(asLayer(m_rootLayer));
 #endif
 }

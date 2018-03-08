@@ -33,7 +33,6 @@
 #include "NicosiaPaintingEngine.h"
 #include "ScrollableArea.h"
 #include "TextureMapperPlatformLayerProxyProvider.h"
-#include <wtf/CurrentTime.h>
 #ifndef NDEBUG
 #include <wtf/SetForScope.h>
 #endif
@@ -142,7 +141,6 @@ CoordinatedGraphicsLayer::CoordinatedGraphicsLayer(Type layerType, GraphicsLayer
     , m_compositedNativeImagePtr(0)
     , m_platformLayer(0)
     , m_animationStartedTimer(*this, &CoordinatedGraphicsLayer::animationStartedTimerFired)
-    , m_scrollableArea(0)
 {
     static CoordinatedLayerID nextLayerID = 1;
     m_id = nextLayerID++;
@@ -549,29 +547,6 @@ void CoordinatedGraphicsLayer::setNeedsDisplayInRect(const FloatRect& rect, Shou
     addRepaintRect(rect);
 }
 
-void CoordinatedGraphicsLayer::setScrollableArea(ScrollableArea* scrollableArea)
-{
-    bool oldScrollable = isScrollable();
-    m_scrollableArea = scrollableArea;
-    if (oldScrollable == isScrollable())
-        return;
-
-    m_layerState.isScrollable = isScrollable();
-    m_layerState.flagsChanged = true;
-    didChangeLayerState();
-}
-
-void CoordinatedGraphicsLayer::commitScrollOffset(const IntSize& offset)
-{
-    if (!isScrollable() || offset.isZero())
-        return;
-
-    m_scrollableArea->notifyScrollPositionChanged(m_scrollableArea->scrollPosition() + offset);
-    m_layerState.committedScrollOffset += offset;
-    m_layerState.committedScrollOffsetChanged = true;
-    didChangeLayerState();
-}
-
 void CoordinatedGraphicsLayer::setFixedToViewport(bool isFixed)
 {
     if (m_fixedToViewport == isFixed)
@@ -629,13 +604,13 @@ void CoordinatedGraphicsLayer::syncImageBacking()
         ASSERT(!shouldHaveBackingStore());
         ASSERT(m_compositedImage);
 
-        bool imageInstanceReplaced = m_coordinatedImageBacking && (m_coordinatedImageBacking->id() != CoordinatedImageBacking::getCoordinatedImageBackingID(m_compositedImage.get()));
+        bool imageInstanceReplaced = m_coordinatedImageBacking && (m_coordinatedImageBacking->id() != CoordinatedImageBacking::getCoordinatedImageBackingID(*m_compositedImage));
         if (imageInstanceReplaced)
             releaseImageBackingIfNeeded();
 
         if (!m_coordinatedImageBacking) {
             m_coordinatedImageBacking = m_coordinator->createImageBackingIfNeeded(*m_compositedImage);
-            m_coordinatedImageBacking->addHost(this);
+            m_coordinatedImageBacking->addHost(*this);
             m_layerState.imageID = m_coordinatedImageBacking->id();
         }
 
@@ -670,7 +645,6 @@ void CoordinatedGraphicsLayer::syncLayerState()
         m_layerState.masksToBounds = masksToBounds();
         m_layerState.preserves3D = preserves3D();
         m_layerState.fixedToViewport = fixedToViewport();
-        m_layerState.isScrollable = isScrollable();
     }
 
     if (m_layerState.debugVisualsChanged) {
@@ -776,7 +750,6 @@ void CoordinatedGraphicsLayer::resetLayerState()
     m_layerState.tilesToCreate.clear();
     m_layerState.tilesToRemove.clear();
     m_layerState.tilesToUpdate.clear();
-    m_layerState.committedScrollOffset = IntSize();
 }
 
 bool CoordinatedGraphicsLayer::imageBackingVisible()
@@ -791,7 +764,7 @@ void CoordinatedGraphicsLayer::releaseImageBackingIfNeeded()
         return;
 
     ASSERT(m_coordinator);
-    m_coordinatedImageBacking->removeHost(this);
+    m_coordinatedImageBacking->removeHost(*this);
     m_coordinatedImageBacking = nullptr;
     m_layerState.imageID = InvalidCoordinatedImageBackingID;
     m_layerState.imageChanged = true;
@@ -1124,9 +1097,6 @@ bool CoordinatedGraphicsLayer::selfOrAncestorHasActiveTransformAnimation() const
 
 bool CoordinatedGraphicsLayer::selfOrAncestorHaveNonAffineTransforms()
 {
-    if (m_animations.hasActiveAnimationsOfType(AnimatedPropertyTransform))
-        return true;
-
     if (!m_layerTransform.combined().isAffine())
         return true;
 
@@ -1159,8 +1129,8 @@ bool CoordinatedGraphicsLayer::addAnimation(const KeyframeValueList& valueList, 
     if (valueList.property() == AnimatedPropertyTransform)
         listsMatch = validateTransformOperations(valueList, ignoredHasBigRotation) >= 0;
 
-    m_lastAnimationStartTime = monotonicallyIncreasingTime() - delayAsNegativeTimeOffset;
-    m_animations.add(TextureMapperAnimation(keyframesName, valueList, boxSize, *anim, listsMatch, m_lastAnimationStartTime, 0, TextureMapperAnimation::AnimationState::Playing));
+    m_lastAnimationStartTime = MonotonicTime::now() - Seconds(delayAsNegativeTimeOffset);
+    m_animations.add(TextureMapperAnimation(keyframesName, valueList, boxSize, *anim, listsMatch, m_lastAnimationStartTime, 0_s, TextureMapperAnimation::AnimationState::Playing));
     m_animationStartedTimer.startOneShot(0_s);
     didChangeAnimations();
     return true;
@@ -1168,7 +1138,7 @@ bool CoordinatedGraphicsLayer::addAnimation(const KeyframeValueList& valueList, 
 
 void CoordinatedGraphicsLayer::pauseAnimation(const String& animationName, double time)
 {
-    m_animations.pause(animationName, time);
+    m_animations.pause(animationName, Seconds(time));
     didChangeAnimations();
 }
 
@@ -1178,7 +1148,7 @@ void CoordinatedGraphicsLayer::removeAnimation(const String& animationName)
     didChangeAnimations();
 }
 
-void CoordinatedGraphicsLayer::suspendAnimations(double time)
+void CoordinatedGraphicsLayer::suspendAnimations(MonotonicTime time)
 {
     m_animations.suspend(time);
     didChangeAnimations();

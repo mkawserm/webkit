@@ -1,31 +1,8 @@
 add_definitions(/bigobj -D__STDC_CONSTANT_MACROS)
 
 list(APPEND WebCore_INCLUDE_DIRECTORIES
-    "${WEBCORE_DIR}/ForwardingHeaders"
     "${CMAKE_BINARY_DIR}/../include/private"
     "${CMAKE_BINARY_DIR}/../include/private/JavaScriptCore"
-    "${FORWARDING_HEADERS_DIR}/ANGLE"
-    "${FORWARDING_HEADERS_DIR}/ANGLE/include/KHR"
-    "${FORWARDING_HEADERS_DIR}/JavaScriptCore"
-    "${FORWARDING_HEADERS_DIR}/JavaScriptCore/ForwardingHeaders"
-    "${FORWARDING_HEADERS_DIR}/JavaScriptCore/API"
-    "${FORWARDING_HEADERS_DIR}/JavaScriptCore/assembler"
-    "${FORWARDING_HEADERS_DIR}/JavaScriptCore/builtins"
-    "${FORWARDING_HEADERS_DIR}/JavaScriptCore/bytecode"
-    "${FORWARDING_HEADERS_DIR}/JavaScriptCore/bytecompiler"
-    "${FORWARDING_HEADERS_DIR}/JavaScriptCore/dfg"
-    "${FORWARDING_HEADERS_DIR}/JavaScriptCore/disassembler"
-    "${FORWARDING_HEADERS_DIR}/JavaScriptCore/domjit"
-    "${FORWARDING_HEADERS_DIR}/JavaScriptCore/heap"
-    "${FORWARDING_HEADERS_DIR}/JavaScriptCore/debugger"
-    "${FORWARDING_HEADERS_DIR}/JavaScriptCore/interpreter"
-    "${FORWARDING_HEADERS_DIR}/JavaScriptCore/jit"
-    "${FORWARDING_HEADERS_DIR}/JavaScriptCore/llint"
-    "${FORWARDING_HEADERS_DIR}/JavaScriptCore/parser"
-    "${FORWARDING_HEADERS_DIR}/JavaScriptCore/profiler"
-    "${FORWARDING_HEADERS_DIR}/JavaScriptCore/runtime"
-    "${FORWARDING_HEADERS_DIR}/JavaScriptCore/yarr"
-    "${FORWARDING_HEADERS_DIR}/WTF"
     "${WEBCORE_DIR}/accessibility/win"
     "${WEBCORE_DIR}/page/win"
     "${WEBCORE_DIR}/platform/graphics/egl"
@@ -190,6 +167,7 @@ set(WebCore_FORWARDING_HEADERS_DIRECTORIES
 
     css/parser
 
+    html/canvas
     html/forms
     html/parser
     html/shadow
@@ -240,6 +218,21 @@ set(WebCore_FORWARDING_HEADERS_DIRECTORIES
     workers/service
 )
 
+if (ENABLE_WEBKIT)
+    list(APPEND WebCore_FORWARDING_HEADERS_DIRECTORIES
+        Modules/applicationmanifest
+
+        dom/messageports
+
+        inspector/agents
+
+        platform/mediastream
+
+        workers/service/context
+        workers/service/server
+    )
+endif ()
+
 if (USE_CF)
     list(APPEND WebCore_INCLUDE_DIRECTORIES
         "${WEBCORE_DIR}/platform/cf"
@@ -273,7 +266,7 @@ if (USE_CF)
 endif ()
 
 if (CMAKE_SIZEOF_VOID_P EQUAL 4)
-    list(APPEND WebCore_DERIVED_SOURCES ${DERIVED_SOURCES_WEBCORE_DIR}/makesafeseh.obj)
+    list(APPEND WebCore_SOURCES ${DERIVED_SOURCES_WEBCORE_DIR}/makesafeseh.obj)
     add_custom_command(
         OUTPUT ${DERIVED_SOURCES_WEBCORE_DIR}/makesafeseh.obj
         DEPENDS ${WEBCORE_DIR}/platform/win/makesafeseh.asm
@@ -313,17 +306,11 @@ if (WTF_PLATFORM_WIN_CAIRO AND EXISTS ${WEBKIT_LIBRARIES_DIR}/etc/ssl/cert.pem)
     )
 endif ()
 
-file(MAKE_DIRECTORY ${FORWARDING_HEADERS_DIR}/WebCore)
-
-set(WebCore_DERIVED_SOURCES_PRE_BUILD_COMMAND "${CMAKE_BINARY_DIR}/DerivedSources/WebCore/preBuild.cmd")
-file(WRITE "${WebCore_DERIVED_SOURCES_PRE_BUILD_COMMAND}" "@xcopy /y /s /d /f \"${WEBCORE_DIR}/ForwardingHeaders/*.h\" \"${FORWARDING_HEADERS_DIR}/WebCore\" >nul 2>nul\n")
-foreach (_directory ${WebCore_FORWARDING_HEADERS_DIRECTORIES})
-    file(APPEND "${WebCore_DERIVED_SOURCES_PRE_BUILD_COMMAND}" "@xcopy /y /d /f \"${WEBCORE_DIR}/${_directory}/*.h\" \"${FORWARDING_HEADERS_DIR}/WebCore\" >nul 2>nul\n")
-endforeach ()
-
-set(WebCore_POST_BUILD_COMMAND "${CMAKE_BINARY_DIR}/DerivedSources/WebCore/postBuild.cmd")
-file(WRITE "${WebCore_POST_BUILD_COMMAND}" "@xcopy /y /s /d /f \"${DERIVED_SOURCES_WEBCORE_DIR}/*.h\" \"${FORWARDING_HEADERS_DIR}/WebCore\" >nul 2>nul\n")
-file(APPEND "${WebCore_POST_BUILD_COMMAND}" "@xcopy /y /s /d /f \"${DERIVED_SOURCES_PAL_DIR}/*.h\" \"${FORWARDING_HEADERS_DIR}/WebCore\" >nul 2>nul\n")
+WEBKIT_MAKE_FORWARDING_HEADERS(WebCore
+    DIRECTORIES ${WebCore_FORWARDING_HEADERS_DIRECTORIES}
+    DERIVED_SOURCE_DIRECTORIES ${DERIVED_SOURCES_WEBCORE_DIR} ${DERIVED_SOURCES_PAL_DIR}
+    FLATTENED
+)
 
 set(WebCore_OUTPUT_NAME
     WebCore${DEBUG_SUFFIX}

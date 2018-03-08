@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2015 Apple Inc. All rights reserved.
+ * Copyright (C) 2012-2018 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -38,6 +38,7 @@
 #include "WebCoreArgumentCoders.h"
 #include "WebErrors.h"
 #include "WebResourceLoaderMessages.h"
+#include "WebsiteDataStoreParameters.h"
 #include <WebCore/BlobDataFileReference.h>
 #include <WebCore/CertificateInfo.h>
 #include <WebCore/DiagnosticLoggingKeys.h>
@@ -46,8 +47,12 @@
 #include <WebCore/ProtectionSpace.h>
 #include <WebCore/SharedBuffer.h>
 #include <WebCore/SynchronousLoaderClient.h>
-#include <wtf/CurrentTime.h>
 #include <wtf/RunLoop.h>
+
+#if HAVE(CFNETWORK_STORAGE_PARTITIONING) && !RELEASE_LOG_DISABLED
+#include <WebCore/NetworkStorageSession.h>
+#include <WebCore/PlatformCookieJar.h>
+#endif
 
 using namespace WebCore;
 
@@ -100,14 +105,6 @@ NetworkResourceLoader::NetworkResourceLoader(const NetworkResourceLoadParameters
                 m_fileReferences.appendVector(NetworkBlobRegistry::singleton().filesInBlob(connection, element.m_url));
         }
     }
-
-#if !USE(NETWORK_SESSION)
-    if (originalRequest().url().protocolIsBlob()) {
-        ASSERT(!m_parameters.resourceSandboxExtension);
-        m_fileReferences.appendVector(NetworkBlobRegistry::singleton().filesInBlob(connection, originalRequest().url()));
-    }
-#endif
-
 
     if (synchronousReply)
         m_synchronousLoadData = std::make_unique<SynchronousLoadData>(WTFMove(synchronousReply));
@@ -224,11 +221,14 @@ void NetworkResourceLoader::startNetworkLoad(const ResourceRequest& request)
     parameters.defersLoading = m_defersLoading;
     parameters.request = request;
 
-#if USE(NETWORK_SESSION)
     if (request.url().protocolIsBlob())
         parameters.blobFileReferences = NetworkBlobRegistry::singleton().filesInBlob(m_connection, originalRequest().url());
 
     auto* networkSession = SessionTracker::networkSession(parameters.sessionID);
+    if (!networkSession && parameters.sessionID.isEphemeral()) {
+        NetworkProcess::singleton().addWebsiteDataStore(WebsiteDataStoreParameters::privateSessionParameters(parameters.sessionID));
+        networkSession = SessionTracker::networkSession(parameters.sessionID);
+    }
     if (!networkSession) {
         WTFLogAlways("Attempted to create a NetworkLoad with a session (id=%" PRIu64 ") that does not exist.", parameters.sessionID.sessionID());
         RELEASE_LOG_ERROR_IF_ALLOWED("startNetworkLoad: Attempted to create a NetworkLoad with a session that does not exist (pageID = %" PRIu64 ", frameID = %" PRIu64 ", resourceID = %" PRIu64 ", sessionID=%" PRIu64 ")", m_parameters.webPageID, m_parameters.webFrameID, m_parameters.identifier, parameters.sessionID.sessionID());
@@ -237,9 +237,6 @@ void NetworkResourceLoader::startNetworkLoad(const ResourceRequest& request)
         return;
     }
     m_networkLoad = std::make_unique<NetworkLoad>(*this, WTFMove(parameters), *networkSession);
-#else
-    m_networkLoad = std::make_unique<NetworkLoad>(*this, WTFMove(parameters));
-#endif
 
     if (m_defersLoading) {
         RELEASE_LOG_IF_ALLOWED("startNetworkLoad: Created, but deferred (pageID = %" PRIu64 ", frameID = %" PRIu64 ", resourceID = %" PRIu64 ")",
@@ -395,6 +392,11 @@ void NetworkResourceLoader::didFinishLoading(const NetworkLoadMetrics& networkLo
         return;
     }
 
+#if HAVE(CFNETWORK_STORAGE_PARTITIONING) && !RELEASE_LOG_DISABLED
+    if (shouldLogCookieInformation())
+        logCookieInformation();
+#endif
+
     if (isSynchronous())
         sendReplyToSynchronousRequest(*m_synchronousLoadData, m_bufferedData.get());
     else {
@@ -425,6 +427,11 @@ void NetworkResourceLoader::didFailLoading(const ResourceError& error)
         connection->send(Messages::WebResourceLoader::DidFailResourceLoad(error), messageSenderDestinationID());
 
     cleanup();
+}
+
+void NetworkResourceLoader::didBlockAuthenticationChallenge()
+{
+    send(Messages::WebResourceLoader::DidBlockAuthenticationChallenge());
 }
 
 void NetworkResourceLoader::willSendRedirectedRequest(ResourceRequest&& request, WebCore::ResourceRequest&& redirectRequest, ResourceResponse&& redirectResponse)
@@ -596,6 +603,11 @@ void NetworkResourceLoader::sendResultForCacheEntry(std::unique_ptr<NetworkCache
     }
 #endif
 
+#if HAVE(CFNETWORK_STORAGE_PARTITIONING) && !RELEASE_LOG_DISABLED
+    if (shouldLogCookieInformation())
+        logCookieInformation();
+#endif
+
     WebCore::NetworkLoadMetrics networkLoadMetrics;
     networkLoadMetrics.markComplete();
     networkLoadMetrics.requestHeaderBytesSent = 0;
@@ -693,6 +705,9 @@ void NetworkResourceLoader::continueCanAuthenticateAgainstProtectionSpace(bool r
 
 bool NetworkResourceLoader::isAlwaysOnLoggingAllowed() const
 {
+    if (NetworkProcess::singleton().sessionIsControlledByAutomation(sessionID()))
+        return true;
+
     return sessionID().isAlwaysOnLoggingAllowed();
 }
 
@@ -700,5 +715,107 @@ bool NetworkResourceLoader::shouldCaptureExtraNetworkLoadMetrics() const
 {
     return m_connection->captureExtraNetworkLoadMetricsEnabled();
 }
+
+#if HAVE(CFNETWORK_STORAGE_PARTITIONING) && !RELEASE_LOG_DISABLED
+bool NetworkResourceLoader::shouldLogCookieInformation()
+{
+    return NetworkProcess::singleton().shouldLogCookieInformation();
+}
+
+static String escapeForJSON(String s)
+{
+    return s.replace('\\', "\\\\").replace('"', "\\\"");
+}
+
+void NetworkResourceLoader::logCookieInformation() const
+{
+    ASSERT(shouldLogCookieInformation());
+
+    auto networkStorageSession = WebCore::NetworkStorageSession::storageSession(sessionID());
+    ASSERT(networkStorageSession);
+
+#define LOCAL_LOG(str, ...) \
+    RELEASE_LOG_IF_ALLOWED("logCookieInformation: pageID = %" PRIu64 ", frameID = %" PRIu64 ", resourceID = %" PRIu64 ": " str, pageID(), frameID(), identifier(), ##__VA_ARGS__)
+
+    auto url = originalRequest().url();
+    if (networkStorageSession->shouldBlockCookies(originalRequest())) {
+        auto escapedURL = escapeForJSON(url.string());
+        auto escapedReferrer = escapeForJSON(originalRequest().httpReferrer());
+
+        LOCAL_LOG(R"({ "url": "%{public}s",)", escapedURL.utf8().data());
+        LOCAL_LOG(R"(  "partition": "%{public}s",)", "BLOCKED");
+        LOCAL_LOG(R"(  "hasStorageAccess": %{public}s,)", "false");
+        LOCAL_LOG(R"(  "referer": "%{public}s",)", escapedReferrer.utf8().data());
+        LOCAL_LOG(R"(  "cookies": []})");
+        return;
+    }
+#undef LOCAL_LOG
+
+    auto partition = WebCore::URL(ParsedURLString, networkStorageSession->cookieStoragePartition(originalRequest(), frameID(), pageID()));
+    NetworkResourceLoader::logCookieInformation("NetworkResourceLoader", reinterpret_cast<const void*>(this), *networkStorageSession, partition, url, originalRequest().httpReferrer(), frameID(), pageID(), identifier());
+}
+
+void NetworkResourceLoader::logCookieInformation(const String& label, const void* loggedObject, const WebCore::NetworkStorageSession& networkStorageSession, const WebCore::URL& partition, const WebCore::URL& url, const String& referrer, std::optional<uint64_t> frameID, std::optional<uint64_t> pageID, std::optional<uint64_t> identifier)
+{
+    ASSERT(shouldLogCookieInformation());
+
+    Vector<WebCore::Cookie> cookies;
+    if (!WebCore::getRawCookies(networkStorageSession, partition, url, frameID, pageID, cookies))
+        return;
+
+    auto escapeIDForJSON = [](std::optional<uint64_t> value) {
+        return value ? String::number(value.value()) : String("None");
+    };
+
+    auto escapedURL = escapeForJSON(url.string());
+    auto escapedPartition = escapeForJSON(partition.string());
+    auto escapedReferrer = escapeForJSON(referrer);
+    auto escapedFrameID = escapeIDForJSON(frameID);
+    auto escapedPageID = escapeIDForJSON(pageID);
+    auto escapedIdentifier = escapeIDForJSON(identifier);
+    bool hasStorageAccessForFrame = (frameID && pageID) ? networkStorageSession.hasStorageAccessForFrame(url.string(), partition.string(), frameID.value(), pageID.value()) : false;
+
+#define LOCAL_LOG_IF_ALLOWED(fmt, ...) RELEASE_LOG_IF(networkStorageSession.sessionID().isAlwaysOnLoggingAllowed(), Network, "%p - %s::" fmt, loggedObject, label.utf8().data(), ##__VA_ARGS__)
+#define LOCAL_LOG(str, ...) \
+    LOCAL_LOG_IF_ALLOWED("logCookieInformation: pageID = %s, frameID = %s, resourceID = %s: " str, escapedPageID.utf8().data(), escapedFrameID.utf8().data(), escapedIdentifier.utf8().data(), ##__VA_ARGS__)
+
+    LOCAL_LOG(R"({ "url": "%{public}s",)", escapedURL.utf8().data());
+    LOCAL_LOG(R"(  "partition": "%{public}s",)", escapedPartition.utf8().data());
+    LOCAL_LOG(R"(  "hasStorageAccess": %{public}s,)", hasStorageAccessForFrame ? "true" : "false");
+    LOCAL_LOG(R"(  "referer": "%{public}s",)", escapedReferrer.utf8().data());
+    LOCAL_LOG(R"(  "cookies": [)");
+
+    auto size = cookies.size();
+    decltype(size) count = 0;
+    for (const auto& cookie : cookies) {
+        const char* trailingComma = ",";
+        if (++count == size)
+            trailingComma = "";
+
+        auto escapedName = escapeForJSON(cookie.name);
+        auto escapedValue = escapeForJSON(cookie.value);
+        auto escapedDomain = escapeForJSON(cookie.domain);
+        auto escapedPath = escapeForJSON(cookie.path);
+        auto escapedComment = escapeForJSON(cookie.comment);
+        auto escapedCommentURL = escapeForJSON(cookie.commentURL.string());
+
+        LOCAL_LOG(R"(  { "name": "%{public}s",)", escapedName.utf8().data());
+        LOCAL_LOG(R"(    "value": "%{public}s",)", escapedValue.utf8().data());
+        LOCAL_LOG(R"(    "domain": "%{public}s",)", escapedDomain.utf8().data());
+        LOCAL_LOG(R"(    "path": "%{public}s",)", escapedPath.utf8().data());
+        LOCAL_LOG(R"(    "created": %f,)", cookie.created);
+        LOCAL_LOG(R"(    "expires": %f,)", cookie.expires);
+        LOCAL_LOG(R"(    "httpOnly": %{public}s,)", cookie.httpOnly ? "true" : "false");
+        LOCAL_LOG(R"(    "secure": %{public}s,)", cookie.secure ? "true" : "false");
+        LOCAL_LOG(R"(    "session": %{public}s,)", cookie.session ? "true" : "false");
+        LOCAL_LOG(R"(    "comment": "%{public}s",)", escapedComment.utf8().data());
+        LOCAL_LOG(R"(    "commentURL": "%{public}s")", escapedCommentURL.utf8().data());
+        LOCAL_LOG(R"(  }%{public}s)", trailingComma);
+    }
+    LOCAL_LOG(R"(]})");
+#undef LOCAL_LOG
+#undef LOCAL_LOG_IF_ALLOWED
+}
+#endif
 
 } // namespace WebKit

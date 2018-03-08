@@ -27,11 +27,11 @@
 #include "ISOVTTCue.h"
 
 #include "Logging.h"
-#include <runtime/ArrayBuffer.h>
-#include <runtime/DataView.h>
-#include <runtime/Int8Array.h>
-#include <runtime/JSCInlines.h>
-#include <runtime/TypedArrayInlines.h>
+#include <JavaScriptCore/ArrayBuffer.h>
+#include <JavaScriptCore/DataView.h>
+#include <JavaScriptCore/Int8Array.h>
+#include <JavaScriptCore/JSCInlines.h>
+#include <JavaScriptCore/TypedArrayInlines.h>
 #include <wtf/JSONValues.h>
 #include <wtf/NeverDestroyed.h>
 #include <wtf/text/CString.h>
@@ -58,7 +58,7 @@ protected:
             return true;
         }
 
-        StringVector<LChar> characters;
+        Vector<LChar> characters;
         characters.reserveInitialCapacity((size_t)characterCount);
         while (characterCount--) {
             int8_t character = 0;
@@ -67,7 +67,7 @@ protected:
             characters.uncheckedAppend(character);
         }
 
-        m_contents.adopt(WTFMove(characters));
+        m_contents = String::fromUTF8(characters);
         offset = localOffset;
         return true;
     }
@@ -88,6 +88,9 @@ ISOWebVTTCue::ISOWebVTTCue(const MediaTime& presentationTime, const MediaTime& d
 
 bool ISOWebVTTCue::parse(DataView& view, unsigned& offset)
 {
+    if (!ISOBox::parse(view, offset))
+        return false;
+
     ISOStringBox stringBox;
 
     while (stringBox.read(view, offset)) {

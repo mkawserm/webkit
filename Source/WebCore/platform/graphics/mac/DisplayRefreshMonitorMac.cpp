@@ -26,10 +26,9 @@
 #include "config.h"
 #include "DisplayRefreshMonitorMac.h"
 
-#if USE(REQUEST_ANIMATION_FRAME_DISPLAY_MONITOR)
+#if USE(REQUEST_ANIMATION_FRAME_DISPLAY_MONITOR) && PLATFORM(MAC)
 
 #include <QuartzCore/QuartzCore.h>
-#include <wtf/CurrentTime.h>
 #include <wtf/RunLoop.h>
 
 namespace WebCore {
@@ -98,4 +97,4 @@ void DisplayRefreshMonitorMac::displayLinkFired()
 
 }
 
-#endif // USE(REQUEST_ANIMATION_FRAME_DISPLAY_MONITOR)
+#endif // USE(REQUEST_ANIMATION_FRAME_DISPLAY_MONITOR) && PLATFORM(MAC)

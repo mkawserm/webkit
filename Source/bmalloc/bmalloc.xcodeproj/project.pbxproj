@@ -21,7 +21,6 @@
 /* End PBXAggregateTarget section */
 
 /* Begin PBXBuildFile section */
-		0F3DA0141F267AB800342C08 /* AllocationKind.h in Headers */ = {isa = PBXBuildFile; fileRef = 0F3DA0131F267AB800342C08 /* AllocationKind.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		0F5167741FAD685C008236A8 /* bmalloc.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 0F5167731FAD6852008236A8 /* bmalloc.cpp */; };
 		0F5549EF1FB54704007FF75A /* IsoPage.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 0F5549EE1FB54701007FF75A /* IsoPage.cpp */; };
 		0F5BF1471F22A8B10029D91D /* HeapKind.h in Headers */ = {isa = PBXBuildFile; fileRef = 0F5BF1461F22A8B10029D91D /* HeapKind.h */; settings = {ATTRIBUTES = (Private, ); }; };
@@ -134,6 +133,8 @@
 		6599C5CC1EC3F15900A2F7BB /* AvailableMemory.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 6599C5CA1EC3F15900A2F7BB /* AvailableMemory.cpp */; };
 		6599C5CD1EC3F15900A2F7BB /* AvailableMemory.h in Headers */ = {isa = PBXBuildFile; fileRef = 6599C5CB1EC3F15900A2F7BB /* AvailableMemory.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		AD0934331FCF406D00E85EB5 /* BCompiler.h in Headers */ = {isa = PBXBuildFile; fileRef = AD0934321FCF405000E85EB5 /* BCompiler.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		AD14AD29202529C400890E3B /* ProcessCheck.h in Headers */ = {isa = PBXBuildFile; fileRef = AD14AD27202529A600890E3B /* ProcessCheck.h */; };
+		AD14AD2A202529C700890E3B /* ProcessCheck.mm in Sources */ = {isa = PBXBuildFile; fileRef = AD14AD28202529B000890E3B /* ProcessCheck.mm */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -173,7 +174,6 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		0F3DA0131F267AB800342C08 /* AllocationKind.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = AllocationKind.h; path = bmalloc/AllocationKind.h; sourceTree = "<group>"; };
 		0F5167731FAD6852008236A8 /* bmalloc.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = bmalloc.cpp; path = bmalloc/bmalloc.cpp; sourceTree = "<group>"; };
 		0F5549EE1FB54701007FF75A /* IsoPage.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = IsoPage.cpp; path = bmalloc/IsoPage.cpp; sourceTree = "<group>"; };
 		0F5BF1461F22A8B10029D91D /* HeapKind.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = HeapKind.h; path = bmalloc/HeapKind.h; sourceTree = "<group>"; };
@@ -185,7 +185,7 @@
 		0F5BF1721F23C5710029D91D /* BExport.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = BExport.h; path = bmalloc/BExport.h; sourceTree = "<group>"; };
 		0F74B93C1F89713E00B935D3 /* CryptoRandom.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = CryptoRandom.h; path = bmalloc/CryptoRandom.h; sourceTree = "<group>"; };
 		0F74B93D1F89713E00B935D3 /* CryptoRandom.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = CryptoRandom.cpp; path = bmalloc/CryptoRandom.cpp; sourceTree = "<group>"; };
-		0F7EB7EF1F95285300F1ABCB /* libtestbmalloc */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; name = libtestbmalloc; path = testbmalloc; sourceTree = BUILT_PRODUCTS_DIR; };
+		0F7EB7EF1F95285300F1ABCB /* testbmalloc */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = testbmalloc; sourceTree = BUILT_PRODUCTS_DIR; };
 		0F7EB7F11F95285300F1ABCB /* testbmalloc.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = testbmalloc.cpp; sourceTree = "<group>"; };
 		0F7EB7FC1F9541AD00F1ABCB /* EligibilityResult.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = EligibilityResult.h; path = bmalloc/EligibilityResult.h; sourceTree = SOURCE_ROOT; };
 		0F7EB7FD1F9541AD00F1ABCB /* IsoHeapImplInlines.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = IsoHeapImplInlines.h; path = bmalloc/IsoHeapImplInlines.h; sourceTree = SOURCE_ROOT; };
@@ -291,6 +291,8 @@
 		6599C5CA1EC3F15900A2F7BB /* AvailableMemory.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = AvailableMemory.cpp; path = bmalloc/AvailableMemory.cpp; sourceTree = "<group>"; };
 		6599C5CB1EC3F15900A2F7BB /* AvailableMemory.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = AvailableMemory.h; path = bmalloc/AvailableMemory.h; sourceTree = "<group>"; };
 		AD0934321FCF405000E85EB5 /* BCompiler.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = BCompiler.h; path = bmalloc/BCompiler.h; sourceTree = "<group>"; };
+		AD14AD27202529A600890E3B /* ProcessCheck.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = ProcessCheck.h; path = bmalloc/ProcessCheck.h; sourceTree = "<group>"; };
+		AD14AD28202529B000890E3B /* ProcessCheck.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; name = ProcessCheck.mm; path = bmalloc/ProcessCheck.mm; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -416,7 +418,7 @@
 			children = (
 				14F271BE18EA3963008C152F /* libbmalloc.a */,
 				14CC394418EA8743004AFE34 /* libmbmalloc.dylib */,
-				0F7EB7EF1F95285300F1ABCB /* libtestbmalloc */,
+				0F7EB7EF1F95285300F1ABCB /* testbmalloc */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -468,7 +470,6 @@
 		14D9DB4E17F2866E00EAAB79 /* heap */ = {
 			isa = PBXGroup;
 			children = (
-				0F3DA0131F267AB800342C08 /* AllocationKind.h */,
 				140FA00219CE429C00FFD3C8 /* BumpRange.h */,
 				147DC6E21CA5B70B00724E8D /* Chunk.h */,
 				142B44341E2839E7001DA6E9 /* DebugHeap.cpp */,
@@ -483,6 +484,8 @@
 				144BE11E1CA346520099C8C0 /* Object.h */,
 				14105E8318E14374003A106E /* ObjectType.cpp */,
 				1485656018A43DBA00ED6942 /* ObjectType.h */,
+				AD14AD27202529A600890E3B /* ProcessCheck.h */,
+				AD14AD28202529B000890E3B /* ProcessCheck.mm */,
 				0F5BF1501F22E1570029D91D /* Scavenger.cpp */,
 				0F5BF1511F22E1570029D91D /* Scavenger.h */,
 				145F6874179DF84100D65598 /* Sizes.h */,
@@ -614,7 +617,6 @@
 				14DD789318F48D0F00950702 /* ObjectType.h in Headers */,
 				14DD78CB18F48D7500950702 /* PerProcess.h in Headers */,
 				0F7EB8261F9541B000F1ABCB /* IsoAllocatorInlines.h in Headers */,
-				0F3DA0141F267AB800342C08 /* AllocationKind.h in Headers */,
 				14DD78CC18F48D7500950702 /* PerThread.h in Headers */,
 				14DD78CD18F48D7500950702 /* Range.h in Headers */,
 				0F7EB8441F9541B000F1ABCB /* FreeList.h in Headers */,
@@ -636,6 +638,7 @@
 				14DD78CF18F48D7500950702 /* Vector.h in Headers */,
 				14DD78D018F48D7500950702 /* VMAllocate.h in Headers */,
 				0F7EB83A1F9541B000F1ABCB /* IsoDeallocatorInlines.h in Headers */,
+				AD14AD29202529C400890E3B /* ProcessCheck.h in Headers */,
 				1400274A18F89C2300115C97 /* VMHeap.h in Headers */,
 				1440AFCB1A95261100837FAA /* Zone.h in Headers */,
 			);
@@ -659,7 +662,7 @@
 			);
 			name = testbmalloc;
 			productName = testbmalloc;
-			productReference = 0F7EB7EF1F95285300F1ABCB /* libtestbmalloc */;
+			productReference = 0F7EB7EF1F95285300F1ABCB /* testbmalloc */;
 			productType = "com.apple.product-type.tool";
 		};
 		14CC394318EA8743004AFE34 /* mbmalloc */ = {
@@ -769,6 +772,7 @@
 				142B44361E2839E7001DA6E9 /* DebugHeap.cpp in Sources */,
 				14895D911A3A319C0006235D /* Environment.cpp in Sources */,
 				0F7EB83F1F9541B000F1ABCB /* IsoTLSLayout.cpp in Sources */,
+				AD14AD2A202529C700890E3B /* ProcessCheck.mm in Sources */,
 				14F271C718EA3990008C152F /* Heap.cpp in Sources */,
 				0F7EB8321F9541B000F1ABCB /* IsoTLSEntry.cpp in Sources */,
 				0F74B93F1F89713E00B935D3 /* CryptoRandom.cpp in Sources */,

@@ -20,6 +20,7 @@
 #pragma once
 
 
+#include "FloatSize.h"
 #include <gst/gst.h>
 #include <gst/video/video-format.h>
 #include <gst/video/video-info.h>
@@ -50,17 +51,26 @@ inline bool webkitGstCheckVersion(guint major, guint minor, guint micro)
     return true;
 }
 
+#define GST_VIDEO_CAPS_TYPE_PREFIX  "video/"
+#define GST_AUDIO_CAPS_TYPE_PREFIX  "audio/"
+#define GST_TEXT_CAPS_TYPE_PREFIX   "text/"
+
 GstPad* webkitGstGhostPadFromStaticTemplate(GstStaticPadTemplate*, const gchar* name, GstPad* target);
 #if ENABLE(VIDEO)
 bool getVideoSizeAndFormatFromCaps(GstCaps*, WebCore::IntSize&, GstVideoFormat&, int& pixelAspectRatioNumerator, int& pixelAspectRatioDenominator, int& stride);
+std::optional<FloatSize> getVideoResolutionFromCaps(const GstCaps*);
 bool getSampleVideoInfo(GstSample*, GstVideoInfo&);
 #endif
 GstBuffer* createGstBuffer(GstBuffer*);
 GstBuffer* createGstBufferForData(const char* data, int length);
 char* getGstBufferDataPointer(GstBuffer*);
+const char* capsMediaType(const GstCaps*);
+bool doCapsHaveType(const GstCaps*, const char*);
+bool areEncryptedCaps(const GstCaps*);
 void mapGstBuffer(GstBuffer*, uint32_t);
 void unmapGstBuffer(GstBuffer*);
-bool initializeGStreamer();
+Vector<String> extractGStreamerOptionsFromCommandLine();
+bool initializeGStreamer(std::optional<Vector<String>>&& = std::nullopt);
 unsigned getGstPlayFlag(const char* nick);
 uint64_t toGstUnsigned64Time(const MediaTime&);
 
@@ -71,3 +81,7 @@ inline GstClockTime toGstClockTime(const MediaTime &mediaTime)
 
 bool gstRegistryHasElementForMediaType(GList* elementFactories, const char* capsString);
 }
+
+#ifndef GST_BUFFER_DTS_OR_PTS
+#define GST_BUFFER_DTS_OR_PTS(buffer) (GST_BUFFER_DTS_IS_VALID(buffer) ? GST_BUFFER_DTS(buffer) : GST_BUFFER_PTS(buffer))
+#endif

@@ -44,6 +44,7 @@ StyleRareNonInheritedData::StyleRareNonInheritedData()
     , perspectiveOriginX(RenderStyle::initialPerspectiveOriginX())
     , perspectiveOriginY(RenderStyle::initialPerspectiveOriginY())
     , lineClamp(RenderStyle::initialLineClamp())
+    , linesClamp(RenderStyle::initialLinesClamp())
     , initialLetter(RenderStyle::initialInitialLetter())
     , deprecatedFlexibleBox(StyleDeprecatedFlexibleBoxData::create())
     , flexibleBox(StyleFlexibleBoxData::create())
@@ -73,7 +74,7 @@ StyleRareNonInheritedData::StyleRareNonInheritedData()
     , alignItems(RenderStyle::initialDefaultAlignment())
     , alignSelf(RenderStyle::initialSelfAlignment())
     , justifyContent(RenderStyle::initialContentAlignment())
-    , justifyItems(RenderStyle::initialSelfAlignment())
+    , justifyItems(RenderStyle::initialJustifyItems())
     , justifySelf(RenderStyle::initialSelfAlignment())
 #if ENABLE(TOUCH_EVENTS)
     , touchAction(static_cast<unsigned>(RenderStyle::initialTouchAction()))
@@ -105,6 +106,8 @@ StyleRareNonInheritedData::StyleRareNonInheritedData()
     , resize(RenderStyle::initialResize())
     , hasAttrContent(false)
     , isNotFinal(false)
+    , columnGap(RenderStyle::initialColumnGap())
+    , rowGap(RenderStyle::initialRowGap())
 {
     maskBoxImage.setMaskDefaults();
 }
@@ -118,6 +121,7 @@ inline StyleRareNonInheritedData::StyleRareNonInheritedData(const StyleRareNonIn
     , perspectiveOriginX(o.perspectiveOriginX)
     , perspectiveOriginY(o.perspectiveOriginY)
     , lineClamp(o.lineClamp)
+    , linesClamp(o.linesClamp)
     , initialLetter(o.initialLetter)
     , deprecatedFlexibleBox(o.deprecatedFlexibleBox)
     , flexibleBox(o.flexibleBox)
@@ -135,7 +139,7 @@ inline StyleRareNonInheritedData::StyleRareNonInheritedData(const StyleRareNonIn
     , scrollSnapArea(o.scrollSnapArea)
 #endif
     , content(o.content ? o.content->clone() : nullptr)
-    , counterDirectives(o.counterDirectives ? clone(*o.counterDirectives) : nullptr)
+    , counterDirectives(o.counterDirectives ? std::make_unique<CounterDirectiveMap>(*o.counterDirectives) : nullptr)
     , altText(o.altText)
     , boxShadow(o.boxShadow ? std::make_unique<ShadowData>(*o.boxShadow) : nullptr)
     , willChange(o.willChange)
@@ -195,6 +199,8 @@ inline StyleRareNonInheritedData::StyleRareNonInheritedData(const StyleRareNonIn
     , resize(o.resize)
     , hasAttrContent(o.hasAttrContent)
     , isNotFinal(o.isNotFinal)
+    , columnGap(o.columnGap)
+    , rowGap(o.rowGap)
 {
 }
 
@@ -214,6 +220,7 @@ bool StyleRareNonInheritedData::operator==(const StyleRareNonInheritedData& o) c
         && perspectiveOriginX == o.perspectiveOriginX
         && perspectiveOriginY == o.perspectiveOriginY
         && lineClamp == o.lineClamp
+        && linesClamp == o.linesClamp
         && initialLetter == o.initialLetter
 #if ENABLE(DASHBOARD_SUPPORT)
         && dashboardRegions == o.dashboardRegions
@@ -293,7 +300,9 @@ bool StyleRareNonInheritedData::operator==(const StyleRareNonInheritedData& o) c
         && breakInside == o.breakInside
         && resize == o.resize
         && hasAttrContent == o.hasAttrContent
-        && isNotFinal == o.isNotFinal;
+        && isNotFinal == o.isNotFinal
+        && columnGap == o.columnGap
+        && rowGap == o.rowGap;
 }
 
 bool StyleRareNonInheritedData::contentDataEquivalent(const StyleRareNonInheritedData& other) const

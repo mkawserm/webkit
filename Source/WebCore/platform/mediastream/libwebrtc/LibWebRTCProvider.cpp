@@ -26,35 +26,29 @@
 #include "config.h"
 #include "LibWebRTCProvider.h"
 
-#if PLATFORM(COCOA)
-#include "LibWebRTCProviderCocoa.h"
-#endif
-
 #if USE(LIBWEBRTC)
 #include "LibWebRTCAudioModule.h"
 #include "Logging.h"
-#include "VideoToolBoxDecoderFactory.h"
-#include "VideoToolBoxEncoderFactory.h"
 #include <dlfcn.h>
+#include <webrtc/api/audio_codecs/builtin_audio_decoder_factory.h>
+#include <webrtc/api/audio_codecs/builtin_audio_encoder_factory.h>
 #include <webrtc/api/peerconnectionfactoryproxy.h>
-#include <webrtc/base/physicalsocketserver.h>
+#include <webrtc/modules/audio_processing/include/audio_processing.h>
 #include <webrtc/p2p/client/basicportallocator.h>
 #include <webrtc/pc/peerconnectionfactory.h>
+#include <webrtc/rtc_base/physicalsocketserver.h>
 #include <wtf/Function.h>
 #include <wtf/NeverDestroyed.h>
-#include <wtf/darwin/WeakLinking.h>
 #endif
 
 namespace WebCore {
 
+#if !PLATFORM(COCOA) && !PLATFORM(GTK) && !PLATFORM(WPE)
 UniqueRef<LibWebRTCProvider> LibWebRTCProvider::create()
 {
-#if USE(LIBWEBRTC) && PLATFORM(COCOA)
-    return makeUniqueRef<LibWebRTCProviderCocoa>();
-#else
     return makeUniqueRef<LibWebRTCProvider>();
-#endif
 }
+#endif
 
 #if USE(LIBWEBRTC)
 struct PeerConnectionFactoryAndThreads : public rtc::MessageHandler {
@@ -158,7 +152,7 @@ webrtc::PeerConnectionFactoryInterface* LibWebRTCProvider::factory()
 
 rtc::scoped_refptr<webrtc::PeerConnectionFactoryInterface> LibWebRTCProvider::createPeerConnectionFactory(rtc::Thread* networkThread, rtc::Thread* signalingThread, LibWebRTCAudioModule* audioModule)
 {
-    return webrtc::CreatePeerConnectionFactory(networkThread, networkThread, signalingThread, audioModule, createEncoderFactory().release(), createDecoderFactory().release());
+    return webrtc::CreatePeerConnectionFactory(networkThread, networkThread, signalingThread, audioModule, webrtc::CreateBuiltinAudioEncoderFactory(), webrtc::CreateBuiltinAudioDecoderFactory(), createEncoderFactory(), createDecoderFactory(), nullptr, nullptr);
 }
 
 void LibWebRTCProvider::setPeerConnectionFactory(rtc::scoped_refptr<webrtc::PeerConnectionFactoryInterface>&& factory)
@@ -199,14 +193,5 @@ rtc::scoped_refptr<webrtc::PeerConnectionInterface> LibWebRTCProvider::createPee
 }
 
 #endif // USE(LIBWEBRTC)
-
-bool LibWebRTCProvider::webRTCAvailable()
-{
-#if USE(LIBWEBRTC)
-    return !isNullFunctionPointer(rtc::LogMessage::LogToDebug);
-#else
-    return true;
-#endif
-}
 
 } // namespace WebCore

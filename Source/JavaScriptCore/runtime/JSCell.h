@@ -50,6 +50,7 @@ class PropertyDescriptor;
 class PropertyName;
 class PropertyNameArray;
 class Structure;
+class JSCellLock;
 
 enum class GCDeferralContextArgPresense {
     HasArg,
@@ -120,10 +121,11 @@ public:
     // Each cell has a built-in lock. Currently it's simply available for use if you need it. It's
     // a full-blown WTF::Lock. Note that this lock is currently used in JSArray and that lock's
     // ordering with the Structure lock is that the Structure lock must be acquired first.
-    void lock();
-    bool tryLock();
-    void unlock();
-    bool isLocked() const;
+
+    // We use this abstraction to make it easier to grep for places where we lock cells.
+    // to lock a cell you can just do:
+    // auto locker = holdLock(cell->cellLocker());
+    JSCellLock& cellLock() { return *reinterpret_cast<JSCellLock*>(this); }
     
     JSType type() const;
     IndexingType indexingTypeAndMisc() const;
@@ -272,10 +274,9 @@ protected:
 
 private:
     friend class LLIntOffsetsExtractor;
+    friend class JSCellLock;
 
     JS_EXPORT_PRIVATE JSObject* toObjectSlow(ExecState*, JSGlobalObject*) const;
-    JS_EXPORT_PRIVATE void lockSlow();
-    JS_EXPORT_PRIVATE void unlockSlow();
 
     StructureID m_structureID;
     IndexingType m_indexingTypeAndMisc; // DO NOT store to this field. Always CAS.
@@ -284,35 +285,16 @@ private:
     CellState m_cellState;
 };
 
-template<typename To, typename From>
-inline To jsCast(From* from)
-{
-    ASSERT_WITH_SECURITY_IMPLICATION(!from || from->JSCell::inherits(*from->JSCell::vm(), std::remove_pointer<To>::type::info()));
-    return static_cast<To>(from);
-}
-    
-template<typename To>
-inline To jsCast(JSValue from)
-{
-    ASSERT_WITH_SECURITY_IMPLICATION(from.isCell() && from.asCell()->JSCell::inherits(*from.asCell()->vm(), std::remove_pointer<To>::type::info()));
-    return static_cast<To>(from.asCell());
-}
-
-template<typename To, typename From>
-inline To jsDynamicCast(VM& vm, From* from)
-{
-    if (LIKELY(from->JSCell::inherits(vm, std::remove_pointer<To>::type::info())))
-        return static_cast<To>(from);
-    return nullptr;
-}
-
-template<typename To>
-inline To jsDynamicCast(VM& vm, JSValue from)
-{
-    if (LIKELY(from.isCell() && from.asCell()->inherits(vm, std::remove_pointer<To>::type::info())))
-        return static_cast<To>(from.asCell());
-    return nullptr;
-}
+class JSCellLock : public JSCell {
+public:
+    void lock();
+    bool tryLock();
+    void unlock();
+    bool isLocked() const;
+private:
+    JS_EXPORT_PRIVATE void lockSlow();
+    JS_EXPORT_PRIVATE void unlockSlow();
+};
 
 // FIXME: Refer to Subspace by reference.
 // https://bugs.webkit.org/show_bug.cgi?id=166988

@@ -35,6 +35,7 @@
 #include "RenderSVGResource.h"
 #include "RenderSVGResourceContainer.h"
 #include "RenderSVGResourceFilter.h"
+#include "RenderTreeBuilder.h"
 #include "RenderView.h"
 #include "SVGImage.h"
 #include "SVGRenderingContext.h"
@@ -300,19 +301,6 @@ void RenderSVGRoot::styleDidChange(StyleDifference diff, const RenderStyle* oldS
 
     RenderReplaced::styleDidChange(diff, oldStyle);
     SVGResourcesCache::clientStyleChanged(*this, diff, style());
-}
-
-void RenderSVGRoot::addChild(RenderPtr<RenderObject> newChild, RenderObject* beforeChild)
-{
-    auto& child = *newChild;
-    RenderReplaced::addChild(WTFMove(newChild), beforeChild);
-    SVGResourcesCache::clientWasAddedToTree(child);
-}
-
-RenderPtr<RenderObject> RenderSVGRoot::takeChild(RenderObject& child)
-{
-    SVGResourcesCache::clientWillBeRemovedFromTree(child);
-    return RenderReplaced::takeChild(child);
 }
 
 // RenderBox methods will expect coordinates w/o any transforms in coordinates

@@ -1,3 +1,0 @@
-
-FAIL play() throws when seeking an infinite-duration animation played in reverse undefined is not a function (near '...div.animate...')
-

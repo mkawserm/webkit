@@ -555,7 +555,7 @@ bool InputType::hasCustomFocusLogic() const
     return true;
 }
 
-bool InputType::isKeyboardFocusable(KeyboardEvent& event) const
+bool InputType::isKeyboardFocusable(KeyboardEvent* event) const
 {
     return !element().isReadOnly() && element().isTextFormControlKeyboardFocusable(event);
 }
@@ -587,12 +587,7 @@ void InputType::addSearchResult()
 {
 }
 
-bool InputType::needsPostStyleResolutionCallback()
-{
-    return false;
-}
-
-void InputType::updateAfterStyleResolution()
+void InputType::attach()
 {
 }
 

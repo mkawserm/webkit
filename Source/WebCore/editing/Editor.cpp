@@ -38,7 +38,6 @@
 #include "CreateLinkCommand.h"
 #include "DataTransfer.h"
 #include "DeleteSelectionCommand.h"
-#include "DeprecatedGlobalSettings.h"
 #include "DictationAlternative.h"
 #include "DictationCommand.h"
 #include "DocumentFragment.h"
@@ -83,6 +82,7 @@
 #include "RenderedPosition.h"
 #include "ReplaceRangeWithTextCommand.h"
 #include "ReplaceSelectionCommand.h"
+#include "RuntimeEnabledFeatures.h"
 #include "Settings.h"
 #include "ShadowRoot.h"
 #include "SimplifyMarkupCommand.h"
@@ -107,11 +107,6 @@
 
 #if PLATFORM(MAC)
 #include "ServicesOverlayController.h"
-#endif
-
-#if ENABLE(ALTERNATIVE_PRESENTATION_BUTTON_ELEMENT)
-#include "AlternativePresentationButtonElement.h"
-#include "AlternativePresentationButtonSubstitution.h"
 #endif
 
 namespace WebCore {
@@ -365,7 +360,7 @@ static Ref<DataTransfer> createDataTransferForClipboardEvent(Document& document,
     case ClipboardEventKind::Cut:
         return DataTransfer::createForCopyAndPaste(document, DataTransfer::StoreMode::ReadWrite, std::make_unique<StaticPasteboard>());
     case ClipboardEventKind::PasteAsPlainText:
-        if (DeprecatedGlobalSettings::customPasteboardDataEnabled()) {
+        if (RuntimeEnabledFeatures::sharedFeatures().customPasteboardDataEnabled()) {
             auto plainTextType = ASCIILiteral("text/plain");
             auto plainText = Pasteboard::createForCopyAndPaste()->readString(plainTextType);
             auto pasteboard = std::make_unique<StaticPasteboard>();
@@ -1179,11 +1174,6 @@ void Editor::clear()
     m_customCompositionUnderlines.clear();
     m_shouldStyleWithCSS = false;
     m_defaultParagraphSeparator = EditorParagraphSeparatorIsDiv;
-#if ENABLE(ALTERNATIVE_PRESENTATION_BUTTON_ELEMENT)
-    m_alternativePresentationButtonElementToSubstitutionMap.clear();
-    m_alternativePresentationButtonIdentifierToElementMap.clear();
-    m_lastAlternativePresentationButtonSubstitution = nullptr;
-#endif
 }
 
 bool Editor::insertText(const String& text, Event* triggeringEvent, TextEventInputType inputType)
@@ -3780,15 +3770,24 @@ void Editor::didRemoveAttachmentElement(HTMLAttachmentElement& attachment)
 
 void Editor::notifyClientOfAttachmentUpdates()
 {
-    if (auto* editorClient = client()) {
-        for (auto& identifier : m_removedAttachmentIdentifiers)
-            editorClient->didRemoveAttachment(identifier);
-        for (auto& identifier : m_insertedAttachmentIdentifiers)
-            editorClient->didInsertAttachment(identifier);
-    }
+    auto removedAttachmentIdentifiers = WTFMove(m_removedAttachmentIdentifiers);
+    auto insertedAttachmentIdentifiers = WTFMove(m_insertedAttachmentIdentifiers);
+    if (!client())
+        return;
 
-    m_removedAttachmentIdentifiers.clear();
-    m_insertedAttachmentIdentifiers.clear();
+    for (auto& identifier : removedAttachmentIdentifiers)
+        client()->didRemoveAttachment(identifier);
+
+    auto* document = m_frame.document();
+    if (!document)
+        return;
+
+    for (auto& identifier : insertedAttachmentIdentifiers) {
+        if (auto attachment = document->attachmentForIdentifier(identifier))
+            client()->didInsertAttachment(identifier, attachment->attributeWithoutSynchronization(HTMLNames::srcAttr));
+        else
+            ASSERT_NOT_REACHED();
+    }
 }
 
 void Editor::insertAttachment(const String& identifier, const AttachmentDisplayOptions& options, const String& filename, const String& filepath, std::optional<String> contentType)
@@ -3822,66 +3821,6 @@ void Editor::insertAttachmentFromFile(const String& identifier, const Attachment
 }
 
 #endif // ENABLE(ATTACHMENT_ELEMENT)
-
-#if ENABLE(ALTERNATIVE_PRESENTATION_BUTTON_ELEMENT)
-
-void Editor::substituteWithAlternativePresentationButton(Vector<Ref<Element>>&& elements, const String& identifier)
-{
-    if (elements.isEmpty())
-        return;
-
-    // The implementation of the first element is exchanged for the alternative presentation button.
-    // All other elements are hidden.
-    Ref<Element> elementForAlternativePresentation = WTFMove(elements[0]);
-    elements.remove(0);
-
-    m_lastAlternativePresentationButtonIdentifier = identifier;
-    if (is<HTMLInputElement>(elementForAlternativePresentation))
-        m_lastAlternativePresentationButtonSubstitution = std::make_unique<AlternativePresentationButtonSubstitution>(downcast<HTMLInputElement>(elementForAlternativePresentation.get()), WTFMove(elements));
-    else {
-        // FIXME: This substitution is only safe to do if and only if elementForAlternativePresentation can support a user-
-        // agent shadow root and does not support an author shadow root. Not all elements meet this criterion (e.g. <details>).
-        // See <https://bugs.webkit.org/show_bug.cgi?id=180086> for more details.
-        m_lastAlternativePresentationButtonSubstitution = std::make_unique<AlternativePresentationButtonSubstitution>(elementForAlternativePresentation.get(), WTFMove(elements));
-    }
-    m_lastAlternativePresentationButtonSubstitution->apply();
-}
-
-void Editor::removeAlternativePresentationButton(const String& identifier)
-{
-    if (!m_alternativePresentationButtonIdentifierToElementMap.contains(identifier))
-        return;
-    auto* button = m_alternativePresentationButtonIdentifierToElementMap.take(identifier);
-    ASSERT(m_alternativePresentationButtonElementToSubstitutionMap.contains(button));
-    auto substitution = m_alternativePresentationButtonElementToSubstitutionMap.take(button);
-    substitution->unapply();
-}
-
-Vector<Ref<Element>> Editor::elementsReplacedByAlternativePresentationButton(const String& identifier)
-{
-    if (!m_alternativePresentationButtonIdentifierToElementMap.contains(identifier))
-        return { };
-    auto* button = m_alternativePresentationButtonIdentifierToElementMap.get(identifier);
-    ASSERT(m_alternativePresentationButtonElementToSubstitutionMap.contains(button));
-    auto substitution = m_alternativePresentationButtonElementToSubstitutionMap.get(button);
-    return substitution->replacedElements();
-}
-
-void Editor::didInsertAlternativePresentationButtonElement(AlternativePresentationButtonElement& button)
-{
-    ASSERT(!m_alternativePresentationButtonElementToSubstitutionMap.contains(&button));
-    ASSERT(!m_alternativePresentationButtonIdentifierToElementMap.contains(m_lastAlternativePresentationButtonIdentifier));
-    m_alternativePresentationButtonElementToSubstitutionMap.set(&button, WTFMove(m_lastAlternativePresentationButtonSubstitution));
-    m_alternativePresentationButtonIdentifierToElementMap.set(m_lastAlternativePresentationButtonIdentifier, &button);
-    button.setUniqueIdentifier(m_lastAlternativePresentationButtonIdentifier);
-}
-
-void Editor::didRemoveAlternativePresentationButtonElement(AlternativePresentationButtonElement& button)
-{
-    removeAlternativePresentationButton(button.uniqueIdentifier());
-}
-
-#endif // ENABLE(ALTERNATIVE_PRESENTATION_BUTTON_ELEMENT)
 
 void Editor::handleAcceptedCandidate(TextCheckingResult acceptedCandidate)
 {
@@ -4020,6 +3959,14 @@ const Font* Editor::fontForSelection(bool& hasMultipleFonts) const
     }
 
     return font;
+}
+
+String Editor::clientReplacementURLForResource(Ref<SharedBuffer>&& resourceData, const String& mimeType)
+{
+    if (auto* editorClient = client())
+        return editorClient->replacementURLForResource(WTFMove(resourceData), mimeType);
+
+    return { };
 }
 
 } // namespace WebCore

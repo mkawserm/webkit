@@ -29,10 +29,11 @@
 
 #include "ContextDestructionObserver.h"
 #include "CryptoKeyFormat.h"
-#include <heap/Strong.h>
+#include <JavaScriptCore/Strong.h>
 #include <wtf/Ref.h>
 #include <wtf/RefCounted.h>
 #include <wtf/Variant.h>
+#include <wtf/WeakPtr.h>
 #include <wtf/WorkQueue.h>
 
 namespace JSC {
@@ -75,9 +76,13 @@ public:
     void unwrapKey(JSC::ExecState&, KeyFormat, BufferSource&& wrappedKey, CryptoKey& unwrappingKey, AlgorithmIdentifier&& unwrapAlgorithm, AlgorithmIdentifier&& unwrappedKeyAlgorithm, bool extractable, Vector<CryptoKeyUsage>&&, Ref<DeferredPromise>&&);
 
 private:
-    SubtleCrypto(ScriptExecutionContext&);
+    explicit SubtleCrypto(ScriptExecutionContext&);
+
+    inline friend RefPtr<DeferredPromise> getPromise(DeferredPromise*, WeakPtr<SubtleCrypto>);
 
     Ref<WorkQueue> m_workQueue;
+    HashMap<DeferredPromise*, Ref<DeferredPromise>> m_pendingPromises;
+    WeakPtrFactory<SubtleCrypto> m_weakPtrFactory;
 };
 
 }

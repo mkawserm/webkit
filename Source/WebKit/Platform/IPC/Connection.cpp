@@ -28,7 +28,6 @@
 
 #include "Logging.h"
 #include <memory>
-#include <wtf/CurrentTime.h>
 #include <wtf/HashSet.h>
 #include <wtf/NeverDestroyed.h>
 #include <wtf/RunLoop.h>
@@ -379,7 +378,7 @@ bool Connection::sendMessage(std::unique_ptr<Encoder> encoder, OptionSet<SendOpt
     if (!isValid())
         return false;
 
-    if (RunLoop::isMain() && m_inDispatchMessageMarkedToUseFullySynchronousModeForTesting && !encoder->isSyncMessage() && !(encoder->messageReceiverName() == "IPC")) {
+    if (isMainThread() && m_inDispatchMessageMarkedToUseFullySynchronousModeForTesting && !encoder->isSyncMessage() && !(encoder->messageReceiverName() == "IPC")) {
         uint64_t syncRequestID;
         auto wrappedMessage = createSyncMessageEncoder("IPC", "WrappedAsyncMessageForTesting", encoder->destinationID(), syncRequestID);
         wrappedMessage->setFullySynchronousModeForTesting();
@@ -523,6 +522,11 @@ std::unique_ptr<Decoder> Connection::sendSyncMessage(uint64_t syncRequestID, std
 
     ++m_inSendSyncCount;
 
+    // If the caller has set the DoNotProcessIncomingMessagesWhenWaitingForSyncReply then we need to make sure the destination process
+    // dispatches this message even when waiting for a sync reply. It could cause deadlocks otherwise.
+    if (sendSyncOptions.contains(SendSyncOption::DoNotProcessIncomingMessagesWhenWaitingForSyncReply))
+        encoder->setShouldDispatchMessageWhenWaitingForSyncReply(true);
+
     // First send the message.
     sendMessage(WTFMove(encoder), IPC::SendOption::DispatchMessageEvenWhenWaitingForSyncReply);
 
@@ -556,7 +560,8 @@ std::unique_ptr<Decoder> Connection::waitForSyncReply(uint64_t syncRequestID, Se
     bool timedOut = false;
     while (!timedOut) {
         // First, check if we have any messages that we need to process.
-        SyncMessageState::singleton().dispatchMessages(nullptr);
+        if (!sendSyncOptions.contains(SendSyncOption::DoNotProcessIncomingMessagesWhenWaitingForSyncReply))
+            SyncMessageState::singleton().dispatchMessages(nullptr);
         
         {
             LockHolder locker(m_syncReplyStateMutex);

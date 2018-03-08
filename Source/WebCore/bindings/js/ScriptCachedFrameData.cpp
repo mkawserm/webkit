@@ -40,10 +40,9 @@
 #include "PageConsoleClient.h"
 #include "PageGroup.h"
 #include "ScriptController.h"
-#include <heap/StrongInlines.h>
-#include <runtime/JSLock.h>
-#include <runtime/WeakGCMapInlines.h>
-
+#include <JavaScriptCore/JSLock.h>
+#include <JavaScriptCore/StrongInlines.h>
+#include <JavaScriptCore/WeakGCMapInlines.h>
 
 namespace WebCore {
 using namespace JSC;
@@ -79,10 +78,11 @@ void ScriptCachedFrameData::restore(Frame& frame)
         auto* world = &windowProxy->world();
 
         if (auto* window = m_windows.get(world).get())
-            windowProxy->setWindow(window->vm(), window);
+            windowProxy->setWindow(window->vm(), *window);
         else {
-            auto* domWindow = frame.document()->domWindow();
-            if (&windowProxy->window()->wrapped() == domWindow)
+            ASSERT(frame.document()->domWindow());
+            auto& domWindow = *frame.document()->domWindow();
+            if (&windowProxy->window()->wrapped() == &domWindow)
                 continue;
 
             windowProxy->setWindow(domWindow);

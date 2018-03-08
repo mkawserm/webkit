@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2003-2017 Apple Inc. All rights reserved.
+ *  Copyright (C) 2003-2018 Apple Inc. All rights reserved.
  *  Copyright (C) 2007 Eric Seidel <eric@webkit.org>
  *
  *  This library is free software; you can redistribute it and/or
@@ -21,6 +21,7 @@
 #include "config.h"
 #include "Heap.h"
 
+#include "BlockDirectoryInlines.h"
 #include "CodeBlock.h"
 #include "CodeBlockSetInlines.h"
 #include "CollectingScope.h"
@@ -50,10 +51,11 @@
 #include "JSGlobalObject.h"
 #include "JSLock.h"
 #include "JSVirtualMachineInternal.h"
+#include "JSWeakMap.h"
+#include "JSWeakSet.h"
 #include "JSWebAssemblyCodeBlock.h"
 #include "MachineStackMarker.h"
 #include "MarkStackMergingConstraint.h"
-#include "MarkedAllocatorInlines.h"
 #include "MarkedSpaceInlines.h"
 #include "MarkingConstraintSet.h"
 #include "PreventCollectionScope.h"
@@ -66,18 +68,19 @@
 #include "StopIfNecessaryTimer.h"
 #include "SweepingScope.h"
 #include "SynchronousStopTheWorldMutatorScheduler.h"
+#include "ThreadLocalCacheLayout.h"
 #include "TypeProfiler.h"
 #include "TypeProfilerLog.h"
 #include "UnlinkedCodeBlock.h"
 #include "VM.h"
 #include "VisitCounter.h"
 #include "WasmMemory.h"
+#include "WeakMapImplInlines.h"
 #include "WeakSetInlines.h"
 #include <algorithm>
 #if PLATFORM(IOS)
 #include <bmalloc/bmalloc.h>
 #endif
-#include <wtf/CurrentTime.h>
 #include <wtf/ListDump.h>
 #include <wtf/MainThread.h>
 #include <wtf/ParallelVectorIterator.h>
@@ -192,7 +195,7 @@ public:
         , m_name(name)
     {
         if (measurePhaseTiming())
-            m_before = monotonicallyIncreasingTimeMS();
+            m_before = MonotonicTime::now();
     }
     
     TimingScope(Heap& heap, const char* name)
@@ -213,16 +216,16 @@ public:
     ~TimingScope()
     {
         if (measurePhaseTiming()) {
-            double after = monotonicallyIncreasingTimeMS();
-            double timing = after - m_before;
+            MonotonicTime after = MonotonicTime::now();
+            Seconds timing = after - m_before;
             SimpleStats& stats = timingStats(m_name, *m_scope);
-            stats.add(timing);
-            dataLog("[GC:", *m_scope, "] ", m_name, " took: ", timing, "ms (average ", stats.mean(), "ms).\n");
+            stats.add(timing.milliseconds());
+            dataLog("[GC:", *m_scope, "] ", m_name, " took: ", timing.milliseconds(), "ms (average ", stats.mean(), "ms).\n");
         }
     }
 private:
     std::optional<CollectionScope> m_scope;
-    double m_before;
+    MonotonicTime m_before;
     const char* m_name;
 };
 
@@ -309,8 +312,17 @@ Heap::Heap(VM* vm, HeapType heapType)
     , m_helperClient(&heapHelperPool())
     , m_threadLock(Box<Lock>::create())
     , m_threadCondition(AutomaticThreadCondition::create())
+    , m_threadLocalCacheLayout(std::make_unique<ThreadLocalCacheLayout>())
 {
     m_worldState.store(0);
+
+    for (unsigned i = 0, numberOfParallelThreads = heapHelperPool().numberOfThreads(); i < numberOfParallelThreads; ++i) {
+        std::unique_ptr<SlotVisitor> visitor = std::make_unique<SlotVisitor>(*this, toCString("P", i + 1));
+        if (Options::optimizeParallelSlotVisitorsForStoppedMutator())
+            visitor->optimizeForStoppedMutator();
+        m_availableParallelSlotVisitors.append(visitor.get());
+        m_parallelSlotVisitors.append(WTFMove(visitor));
+    }
     
     if (Options::useConcurrentGC()) {
         if (Options::useStochasticMutatorScheduler())
@@ -349,7 +361,7 @@ Heap::~Heap()
         WeakBlock::destroy(*this, block);
 }
 
-bool Heap::isPagedOut(double deadline)
+bool Heap::isPagedOut(MonotonicTime deadline)
 {
     return m_objectSpace.isPagedOut(deadline);
 }
@@ -363,6 +375,8 @@ void Heap::lastChanceToFinalize()
         before = MonotonicTime::now();
         dataLog("[GC<", RawPointer(this), ">: shutdown ");
     }
+    
+    m_isShuttingDown = true;
     
     RELEASE_ASSERT(!m_vm->entryScope);
     RELEASE_ASSERT(m_mutatorState == MutatorState::Running);
@@ -433,8 +447,7 @@ void Heap::lastChanceToFinalize()
         dataLog("5 ");
     
     m_arrayBuffers.lastChanceToFinalize();
-    m_codeBlocks->lastChanceToFinalize(*m_vm);
-    m_objectSpace.stopAllocating();
+    m_objectSpace.stopAllocatingForGood();
     m_objectSpace.lastChanceToFinalize();
     releaseDelayedReleasedObjects();
 
@@ -555,7 +568,7 @@ void Heap::addReference(JSCell* cell, ArrayBuffer* buffer)
 }
 
 template<typename CellType, typename CellSet>
-void Heap::finalizeUnconditionalFinalizers(CellSet& cellSet)
+void Heap::finalizeMarkedUnconditionalFinalizers(CellSet& cellSet)
 {
     cellSet.forEachMarkedCell(
         [&] (HeapCell* cell, HeapCell::Kind) {
@@ -565,8 +578,15 @@ void Heap::finalizeUnconditionalFinalizers(CellSet& cellSet)
 
 void Heap::finalizeUnconditionalFinalizers()
 {
-    finalizeUnconditionalFinalizers<InferredType>(vm()->inferredTypesWithFinalizers);
-    finalizeUnconditionalFinalizers<InferredValue>(vm()->inferredValuesWithFinalizers);
+    finalizeMarkedUnconditionalFinalizers<InferredType>(vm()->inferredTypesWithFinalizers);
+    finalizeMarkedUnconditionalFinalizers<InferredValue>(vm()->inferredValuesWithFinalizers);
+    vm()->forEachCodeBlockSpace(
+        [&] (auto& space) {
+            this->finalizeMarkedUnconditionalFinalizers<CodeBlock>(space.finalizerSet);
+        });
+    finalizeMarkedUnconditionalFinalizers<ExecutableToCodeBlockEdge>(vm()->executableToCodeBlockEdgesWithFinalizers);
+    finalizeMarkedUnconditionalFinalizers<JSWeakSet>(vm()->weakSetSpace);
+    finalizeMarkedUnconditionalFinalizers<JSWeakMap>(vm()->weakMapSpace);
     
     while (m_unconditionalFinalizers.hasNext()) {
         UnconditionalFinalizer* finalizer = m_unconditionalFinalizers.removeNext();
@@ -663,8 +683,6 @@ void Heap::gatherScratchBufferRoots(ConservativeRoots& roots)
 void Heap::beginMarking()
 {
     TimingScope timingScope(*this, "Heap::beginMarking");
-    if (m_collectionScope == CollectionScope::Full)
-        m_codeBlocks->clearMarksForFullCollection();
     m_jitStubRoutines->clearMarks();
     m_objectSpace.beginMarking();
     setMutatorShouldBeFenced(true);
@@ -925,7 +943,7 @@ void Heap::clearUnmarkedExecutables()
 void Heap::deleteUnmarkedCompiledCode()
 {
     clearUnmarkedExecutables();
-    m_codeBlocks->deleteUnmarkedAndUnreferenced(*m_vm, *m_lastCollectionScope);
+    vm()->forEachCodeBlockSpace([] (auto& space) { space.space.sweep(); }); // Sweeping must occur before deleting stubs, otherwise the stubs might still think they're alive as they get deleted.
     m_jitStubRoutines->deleteUnmarkedJettisonedStubRoutines();
 }
 
@@ -986,16 +1004,16 @@ void Heap::addToRememberedSet(const JSCell* constCell)
 
 void Heap::sweepSynchronously()
 {
-    double before = 0;
+    MonotonicTime before { };
     if (Options::logGC()) {
         dataLog("Full sweep: ", capacity() / 1024, "kb ");
-        before = currentTimeMS();
+        before = MonotonicTime::now();
     }
     m_objectSpace.sweep();
     m_objectSpace.shrink();
     if (Options::logGC()) {
-        double after = currentTimeMS();
-        dataLog("=> ", capacity() / 1024, "kb, ", after - before, "ms");
+        MonotonicTime after = MonotonicTime::now();
+        dataLog("=> ", capacity() / 1024, "kb, ", (after - before).milliseconds(), "ms");
     }
 }
 
@@ -1231,19 +1249,8 @@ NEVER_INLINE bool Heap::runBeginPhase(GCConductor conn)
             SlotVisitor* slotVisitor;
             {
                 LockHolder locker(m_parallelSlotVisitorLock);
-                if (m_availableParallelSlotVisitors.isEmpty()) {
-                    std::unique_ptr<SlotVisitor> newVisitor = std::make_unique<SlotVisitor>(
-                        *this, toCString("P", m_parallelSlotVisitors.size() + 1));
-                    
-                    if (Options::optimizeParallelSlotVisitorsForStoppedMutator())
-                        newVisitor->optimizeForStoppedMutator();
-                    
-                    newVisitor->didStartMarking();
-                    
-                    slotVisitor = newVisitor.get();
-                    m_parallelSlotVisitors.append(WTFMove(newVisitor));
-                } else
-                    slotVisitor = m_availableParallelSlotVisitors.takeLast();
+                RELEASE_ASSERT_WITH_MESSAGE(!m_availableParallelSlotVisitors.isEmpty(), "Parallel SlotVisitors are allocated apriori");
+                slotVisitor = m_availableParallelSlotVisitors.takeLast();
             }
 
             WTF::registerGCThread(GCThreadType::Helper);
@@ -2074,12 +2081,7 @@ void Heap::waitForCollection(Ticket ticket)
 void Heap::sweepInFinalize()
 {
     m_objectSpace.sweepLargeAllocations();
-    
-    auto sweepBlock = [&] (MarkedBlock::Handle* handle) {
-        handle->sweep(nullptr);
-    };
-    
-    vm()->eagerlySweptDestructibleObjectSpace.forEachMarkedBlock(sweepBlock);
+    vm()->eagerlySweptDestructibleObjectSpace.sweep();
 }
 
 void Heap::suspendCompilerThreads()
@@ -2196,7 +2198,7 @@ void Heap::updateAllocationLimits()
     size_t currentHeapSize = 0;
 
     // For marked space, we use the total number of bytes visited. This matches the logic for
-    // MarkedAllocator's calls to didAllocate(), which effectively accounts for the total size of
+    // BlockDirectory's calls to didAllocate(), which effectively accounts for the total size of
     // objects allocated rather than blocks used. This will underestimate capacity(), and in case
     // of fragmentation, this may be substantial. Fortunately, marked space rarely fragments because
     // cells usually have a narrow range of sizes. So, the underestimation is probably OK.
@@ -2454,7 +2456,7 @@ size_t Heap::bytesVisited()
     return result;
 }
 
-void Heap::forEachCodeBlockImpl(const ScopedLambda<bool(CodeBlock*)>& func)
+void Heap::forEachCodeBlockImpl(const ScopedLambda<void(CodeBlock*)>& func)
 {
     // We don't know the full set of CodeBlocks until compilation has terminated.
     completeAllJITPlans();
@@ -2462,7 +2464,7 @@ void Heap::forEachCodeBlockImpl(const ScopedLambda<bool(CodeBlock*)>& func)
     return m_codeBlocks->iterate(func);
 }
 
-void Heap::forEachCodeBlockIgnoringJITPlansImpl(const AbstractLocker& locker, const ScopedLambda<bool(CodeBlock*)>& func)
+void Heap::forEachCodeBlockIgnoringJITPlansImpl(const AbstractLocker& locker, const ScopedLambda<void(CodeBlock*)>& func)
 {
     return m_codeBlocks->iterate(locker, func);
 }
@@ -2654,7 +2656,6 @@ void Heap::addCoreConstraints()
         "Sh", "Strong Handles",
         [this] (SlotVisitor& slotVisitor) {
             m_handleSet.visitStrongHandles(slotVisitor);
-            m_handleStack.visit(slotVisitor);
         },
         ConstraintVolatility::GreyedByExecution);
     
@@ -2699,6 +2700,26 @@ void Heap::addCoreConstraints()
                 current->visitWeakReferences(slotVisitor);
         },
         ConstraintVolatility::GreyedByMarking);
+    
+    m_constraintSet->add(
+        "O", "Output",
+        [] (SlotVisitor& slotVisitor) {
+            VM& vm = slotVisitor.vm();
+            
+            auto callOutputConstraint = [] (SlotVisitor& slotVisitor, HeapCell* heapCell, HeapCell::Kind) {
+                VM& vm = slotVisitor.vm();
+                JSCell* cell = static_cast<JSCell*>(heapCell);
+                cell->methodTable(vm)->visitOutputConstraints(cell, slotVisitor);
+            };
+            
+            auto add = [&] (auto& set) {
+                slotVisitor.addParallelConstraintTask(set.forEachMarkedCellInParallel(callOutputConstraint));
+            };
+            
+            add(vm.executableToCodeBlockEdgesWithConstraints);
+        },
+        ConstraintVolatility::GreyedByMarking,
+        ConstraintParallelism::Parallel);
     
 #if ENABLE(DFG_JIT)
     m_constraintSet->add(

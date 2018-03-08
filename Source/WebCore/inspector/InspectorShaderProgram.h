@@ -25,7 +25,7 @@
 
 #pragma once
 
-#include <inspector/InspectorProtocolObjects.h>
+#include <JavaScriptCore/InspectorProtocolObjects.h>
 
 namespace WebCore {
 
@@ -42,7 +42,7 @@ public:
 
     const String& identifier() const { return m_identifier; }
     InspectorCanvas& canvas() const { return m_canvas; }
-    WebGLRenderingContextBase* context() const;
+    WebGLRenderingContextBase& context() const;
     WebGLProgram& program() const { return m_program; }
     WebGLShader* shaderForType(const String&);
 

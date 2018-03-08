@@ -32,7 +32,7 @@ import json
 import cStringIO
 import urllib
 
-APPLE_WEBKIT_AWS_PROXY = "http://54.190.50.182:873"
+APPLE_WEBKIT_AWS_PROXY = "http://proxy01.webkit.org:3128"
 S3URL = "https://s3-us-west-2.amazonaws.com/"
 WithProperties = properties.WithProperties
 
@@ -206,10 +206,12 @@ class CompileWebKit(shell.Compile):
             self.setCommand(self.command + ['ARCHS=' + architecture])
             if platform == 'ios':
                 self.setCommand(self.command + ['ONLY_ACTIVE_ARCH=NO'])
-        # Generating dSYM files is slow, but these are needed to have line numbers in crash reports on testers.
-        # Debug builds on Yosemite can't use dSYMs, because crash logs end up unsymbolicated.
-        if platform in ('mac', 'ios') and buildOnly and (self.getProperty('fullPlatform') != "mac-yosemite" or self.getProperty('configuration') != "debug"):
+        if platform in ('mac', 'ios') and buildOnly:
+            # For build-only bots, the expectation is that tests will be run on separate machines,
+            # so we need to package debug info as dSYMs. Only generating line tables makes
+            # this much faster than full debug info, and crash logs still have line numbers.
             self.setCommand(self.command + ['DEBUG_INFORMATION_FORMAT=dwarf-with-dsym'])
+            self.setCommand(self.command + ['CLANG_DEBUG_INFORMATION_LEVEL=line-tables-only'])
 
         appendCustomBuildFlags(self, platform, self.getProperty('fullPlatform'))
 
@@ -344,7 +346,7 @@ class RunTest262Tests(TestWithFailureCount):
     description = ["test262-tests running"]
     descriptionDone = ["test262-tests"]
     failedTestsFormatString = "%d Test262 test%s failed"
-    command = ["perl", "./Tools/Scripts/run-jsc-stress-tests", WithProperties("--%(configuration)s"), "JSTests/test262.yaml"]
+    command = ["ruby", "./Tools/Scripts/run-jsc-stress-tests", WithProperties("--%(configuration)s"), "JSTests/test262.yaml"]
 
     def start(self):
         appendCustomBuildFlags(self, self.getProperty('platform'), self.getProperty('fullPlatform'))
@@ -628,28 +630,35 @@ class RunGLibAPITests(shell.Test):
 
         logText = cmd.logs['stdio'].getText()
 
-        self.incorrectTests = 0
-        self.crashedTests = 0
-        self.timedOutTests = 0
-        self.skippedTests = 0
+        failedTests = 0
+        crashedTests = 0
+        timedOutTests = 0
+        messages = []
         self.statusLine = []
 
         foundItems = re.findall("Unexpected failures \((\d+)\)", logText)
-        if (foundItems):
-            self.incorrectTests = int(foundItems[0])
+        if foundItems:
+            failedTests = int(foundItems[0])
+            messages.append("%d failures" % failedTests)
 
         foundItems = re.findall("Unexpected crashes \((\d+)\)", logText)
-        if (foundItems):
-            self.crashedTests = int(foundItems[0])
+        if foundItems:
+            crashedTests = int(foundItems[0])
+            messages.append("%d crashes" % crashedTests)
 
         foundItems = re.findall("Unexpected timeouts \((\d+)\)", logText)
-        if (foundItems):
-            self.timedOutTests = int(foundItems[0])
+        if foundItems:
+            timedOutTests = int(foundItems[0])
+            messages.append("%d timeouts" % timedOutTests)
 
-        self.totalFailedTests = self.incorrectTests + self.crashedTests + self.timedOutTests
+        foundItems = re.findall("Unexpected passes \((\d+)\)", logText)
+        if foundItems:
+            newPassTests = int(foundItems[0])
+            messages.append("%d new passes" % newPassTests)
 
-        if self.totalFailedTests > 0:
-            self.statusLine = ["%d API tests failed, %d crashed, %d timed out" % (self.incorrectTests, self.crashedTests, self.timedOutTests)]
+        self.totalFailedTests = failedTests + crashedTests + timedOutTests
+        if messages:
+            self.statusLine = ["API tests: %s" % ", ".join(messages)]
 
     def evaluateCommand(self, cmd):
         if self.totalFailedTests > 0:
@@ -671,11 +680,67 @@ class RunGLibAPITests(shell.Test):
 
 
 class RunGtkAPITests(RunGLibAPITests):
-    command = ["python", "./Tools/Scripts/run-gtk-tests", "--verbose", WithProperties("--%(configuration)s")]
+    command = ["python", "./Tools/Scripts/run-gtk-tests", WithProperties("--%(configuration)s")]
 
 
 class RunWPEAPITests(RunGLibAPITests):
-    command = ["python", "./Tools/Scripts/run-wpe-tests", "--verbose", WithProperties("--%(configuration)s")]
+    command = ["python", "./Tools/Scripts/run-wpe-tests", WithProperties("--%(configuration)s")]
+
+
+class RunWebDriverTests(shell.Test):
+    name = "webdriver-test"
+    description = ["webdriver-tests running"]
+    descriptionDone = ["webdriver-tests"]
+    jsonFileName = "webdriver_tests.json"
+    command = ["python", "./Tools/Scripts/run-webdriver-tests", "--json-output={0}".format(jsonFileName), WithProperties("--%(configuration)s")]
+    logfiles = {"json": jsonFileName}
+
+    def start(self):
+        additionalArguments = self.getProperty('additionalArguments')
+        if additionalArguments:
+            self.setCommand(self.command + additionalArguments)
+
+        appendCustomBuildFlags(self, self.getProperty('platform'), self.getProperty('fullPlatform'))
+        return shell.Test.start(self)
+
+    def commandComplete(self, cmd):
+        shell.Test.commandComplete(self, cmd)
+        logText = cmd.logs['stdio'].getText()
+
+        self.failuresCount = 0
+        self.newPassesCount = 0
+        foundItems = re.findall("Unexpected.+\((\d+)\)", logText)
+        if foundItems:
+            self.failuresCount = int(foundItems[0])
+        foundItems = re.findall("Expected to .+, but passed \((\d+)\)", logText)
+        if foundItems:
+            self.newPassesCount = int(foundItems[0])
+
+    def evaluateCommand(self, cmd):
+        if self.failuresCount:
+            return FAILURE
+
+        if self.newPassesCount:
+            return WARNINGS
+
+        if cmd.rc != 0:
+            return FAILURE
+
+        return SUCCESS
+
+    def getText(self, cmd, results):
+        return self.getText2(cmd, results)
+
+    def getText2(self, cmd, results):
+        if results != SUCCESS and (self.failuresCount or self.newPassesCount):
+            lines = []
+            if self.failuresCount:
+                lines.append("%d failures" % self.failuresCount)
+            if self.newPassesCount:
+                lines.append("%d new passes" % self.newPassesCount)
+            return ["%s %s" % (self.name, ", ".join(lines))]
+
+        return [self.name]
 
 
 class RunWebKit1Tests(RunWebKitTests):

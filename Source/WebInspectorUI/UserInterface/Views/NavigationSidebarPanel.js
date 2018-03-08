@@ -25,7 +25,7 @@
 
 WI.NavigationSidebarPanel = class NavigationSidebarPanel extends WI.SidebarPanel
 {
-    constructor(identifier, displayName, shouldAutoPruneStaleTopLevelResourceTreeElements)
+    constructor(identifier, displayName, shouldAutoPruneStaleTopLevelResourceTreeElements, wantsTopOverflowShadow)
     {
         super(identifier, displayName);
 
@@ -43,6 +43,11 @@ WI.NavigationSidebarPanel = class NavigationSidebarPanel extends WI.SidebarPanel
         this._bottomOverflowShadowElement = document.createElement("div");
         this._bottomOverflowShadowElement.className = WI.NavigationSidebarPanel.OverflowShadowElementStyleClassName;
         this.element.appendChild(this._bottomOverflowShadowElement);
+
+        if (wantsTopOverflowShadow) {
+            this._topOverflowShadowElement = this.element.appendChild(document.createElement("div"));
+            this._topOverflowShadowElement.classList.add(WI.NavigationSidebarPanel.OverflowShadowElementStyleClassName, "top");
+        }
 
         this._boundUpdateContentOverflowShadowVisibility = this.soon._updateContentOverflowShadowVisibility;
         window.addEventListener("resize", this._boundUpdateContentOverflowShadowVisibility);
@@ -194,6 +199,13 @@ WI.NavigationSidebarPanel = class NavigationSidebarPanel extends WI.SidebarPanel
 
         treeElement.revealAndSelect(true, false, true, true);
         return true;
+    }
+
+    canShowRepresentedObject(representedObject)
+    {
+        let selectedTabContentView = WI.tabBrowser.selectedTabContentView;
+        console.assert(selectedTabContentView instanceof WI.TabContentView, "Missing TabContentView for NavigationSidebarPanel.");
+        return selectedTabContentView && selectedTabContentView.canShowRepresentedObject(representedObject);
     }
 
     saveStateToCookie(cookie)

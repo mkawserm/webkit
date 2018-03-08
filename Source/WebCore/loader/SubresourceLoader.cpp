@@ -38,6 +38,7 @@
 #include "DocumentLoader.h"
 #include "Frame.h"
 #include "FrameLoader.h"
+#include "LinkLoader.h"
 #include "Logging.h"
 #include "MainFrame.h"
 #include "MemoryCache.h"
@@ -45,6 +46,7 @@
 #include "ResourceLoadObserver.h"
 #include "ResourceTiming.h"
 #include "RuntimeEnabledFeatures.h"
+#include "Settings.h"
 #include <wtf/CompletionHandler.h>
 #include <wtf/Ref.h>
 #include <wtf/RefCountedLeakCounter.h>
@@ -92,6 +94,7 @@ SubresourceLoader::SubresourceLoader(Frame& frame, CachedResource& resource, con
 #if ENABLE(CONTENT_EXTENSIONS)
     m_resourceType = toResourceType(resource.type());
 #endif
+    m_canCrossOriginRequestsAskUserForCredentials = resource.type() == CachedResource::MainResource || frame.settings().allowCrossOriginSubresourcesToAskForCredentials();
 }
 
 SubresourceLoader::~SubresourceLoader()
@@ -162,7 +165,7 @@ void SubresourceLoader::init(ResourceRequest&& request, CompletionHandler<void(b
     });
 }
 
-bool SubresourceLoader::isSubresourceLoader()
+bool SubresourceLoader::isSubresourceLoader() const
 {
     return true;
 }
@@ -206,7 +209,7 @@ void SubresourceLoader::willSendRequestInternal(ResourceRequest&& newRequest, co
     if (!redirectResponse.isNull()) {
         if (options().redirect != FetchOptions::Redirect::Follow) {
             if (options().redirect == FetchOptions::Redirect::Error) {
-                cancel();
+                cancel(ResourceError { errorDomainWebKitInternal, 0, redirectResponse.url(), "Redirections are not allowed", ResourceError::Type::AccessControl });
                 return completionHandler(WTFMove(newRequest));
             }
 
@@ -286,15 +289,27 @@ bool SubresourceLoader::shouldCreatePreviewLoaderForResponse(const ResourceRespo
 
 #endif
 
-void SubresourceLoader::didReceiveResponse(const ResourceResponse& response)
+void SubresourceLoader::didReceiveResponse(const ResourceResponse& response, CompletionHandler<void()>&& policyCompletionHandler)
 {
     ASSERT(!response.isNull());
     ASSERT(m_state == Initialized);
+
+    CompletionHandlerCallingScope completionHandlerCaller(WTFMove(policyCompletionHandler));
 
 #if USE(QUICK_LOOK)
     if (shouldCreatePreviewLoaderForResponse(response)) {
         m_previewLoader = PreviewLoader::create(*this, response);
         return;
+    }
+#endif
+#if ENABLE(SERVICE_WORKER)
+    // Implementing step 10 of https://fetch.spec.whatwg.org/#main-fetch for service worker responses.
+    if (response.source() == ResourceResponse::Source::ServiceWorker && response.url() != request().url()) {
+        auto& loader = m_documentLoader->cachedResourceLoader();
+        if (!loader.allowedByContentSecurityPolicy(m_resource->type(), response.url(), options(), ContentSecurityPolicy::RedirectResponseReceived::Yes)) {
+            cancel(ResourceError({ }, 0, response.url(), { }, ResourceError::Type::General));
+            return;
+        }
     }
 #endif
 
@@ -323,7 +338,7 @@ void SubresourceLoader::didReceiveResponse(const ResourceResponse& response)
             if (m_frame && m_frame->page())
                 m_frame->page()->diagnosticLoggingClient().logDiagnosticMessageWithResult(DiagnosticLoggingKeys::cachedResourceRevalidationKey(), emptyString(), DiagnosticLoggingResultPass, ShouldSample::Yes);
             if (!reachedTerminalState())
-                ResourceLoader::didReceiveResponse(revalidationResponse);
+                ResourceLoader::didReceiveResponse(revalidationResponse, [completionHandlerCaller = WTFMove(completionHandlerCaller)] { });
             return;
         }
         // Did not get 304 response, continue as a regular resource load.
@@ -344,36 +359,51 @@ void SubresourceLoader::didReceiveResponse(const ResourceResponse& response)
     if (reachedTerminalState())
         return;
 
-    ResourceLoader::didReceiveResponse(response);
-    if (reachedTerminalState())
-        return;
-
-    // FIXME: Main resources have a different set of rules for multipart than images do.
-    // Hopefully we can merge those 2 paths.
-    if (response.isMultipart() && m_resource->type() != CachedResource::MainResource) {
-        m_loadingMultipartContent = true;
-
-        // We don't count multiParts in a CachedResourceLoader's request count
-        m_requestCountTracker = std::nullopt;
-        if (!m_resource->isImage()) {
-            cancel();
+    bool isResponseMultipart = response.isMultipart();
+    if (options().mode != FetchOptions::Mode::Navigate)
+        LinkLoader::loadLinksFromHeader(response.httpHeaderField(HTTPHeaderName::Link), m_documentLoader->url(), *m_frame->document(), LinkLoader::MediaAttributeCheck::SkipMediaAttributeCheck);
+    ResourceLoader::didReceiveResponse(response, [this, protectedThis = WTFMove(protectedThis), isResponseMultipart, completionHandlerCaller = WTFMove(completionHandlerCaller)]() mutable {
+        if (reachedTerminalState())
             return;
+
+        // FIXME: Main resources have a different set of rules for multipart than images do.
+        // Hopefully we can merge those 2 paths.
+        if (isResponseMultipart && m_resource->type() != CachedResource::MainResource) {
+            m_loadingMultipartContent = true;
+
+            // We don't count multiParts in a CachedResourceLoader's request count
+            m_requestCountTracker = std::nullopt;
+            if (!m_resource->isImage()) {
+                cancel();
+                return;
+            }
         }
-    }
 
-    auto* buffer = resourceData();
-    if (m_loadingMultipartContent && buffer && buffer->size()) {
-        // The resource data will change as the next part is loaded, so we need to make a copy.
-        m_resource->finishLoading(buffer->copy().ptr());
-        clearResourceData();
-        // Since a subresource loader does not load multipart sections progressively, data was delivered to the loader all at once.
-        // After the first multipart section is complete, signal to delegates that this load is "finished"
-        NetworkLoadMetrics emptyMetrics;
-        m_documentLoader->subresourceLoaderFinishedLoadingOnePart(this);
-        didFinishLoadingOnePart(emptyMetrics);
-    }
+        auto* buffer = resourceData();
+        if (m_loadingMultipartContent && buffer && buffer->size()) {
+            // The resource data will change as the next part is loaded, so we need to make a copy.
+            m_resource->finishLoading(buffer->copy().ptr());
+            clearResourceData();
+            // Since a subresource loader does not load multipart sections progressively, data was delivered to the loader all at once.
+            // After the first multipart section is complete, signal to delegates that this load is "finished"
+            NetworkLoadMetrics emptyMetrics;
+            m_documentLoader->subresourceLoaderFinishedLoadingOnePart(this);
+            didFinishLoadingOnePart(emptyMetrics);
+        }
 
-    checkForHTTPStatusCodeError();
+        checkForHTTPStatusCodeError();
+
+        if (m_inAsyncResponsePolicyCheck)
+            m_policyForResponseCompletionHandler = completionHandlerCaller.release();
+    });
+}
+
+void SubresourceLoader::didReceiveResponsePolicy()
+{
+    ASSERT(m_inAsyncResponsePolicyCheck);
+    m_inAsyncResponsePolicyCheck = false;
+    if (auto completionHandler = WTFMove(m_policyForResponseCompletionHandler))
+        completionHandler();
 }
 
 void SubresourceLoader::didReceiveData(const char* data, unsigned length, long long encodedDataLength, DataPayloadType dataPayloadType)
@@ -542,7 +572,7 @@ bool SubresourceLoader::checkRedirectionCrossOriginAccessControl(const ResourceR
         m_origin = SecurityOrigin::createUnique();
 
     if (redirectingToNewOrigin) {
-        cleanRedirectedRequestForAccessControl(newRequest);
+        cleanHTTPRequestHeadersForAccessControl(newRequest);
         updateRequestForAccessControl(newRequest, *m_origin, options().storedCredentialsPolicy);
     }
 

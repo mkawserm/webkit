@@ -27,6 +27,8 @@
 #include "SchemeRegistry.h"
 
 #include "URLParser.h"
+#include <wtf/Lock.h>
+#include <wtf/Locker.h>
 #include <wtf/MainThread.h>
 #include <wtf/NeverDestroyed.h>
 
@@ -111,8 +113,15 @@ static const URLSchemesMap& builtinLocalURLSchemes()
     return schemes;
 }
 
+static Lock& localURLSchemesLock()
+{
+    static NeverDestroyed<Lock> lock;
+    return lock;
+}
+
 static URLSchemesMap& localURLSchemes()
 {
+    ASSERT(localURLSchemesLock().isHeld());
     static NeverDestroyed<URLSchemesMap> localSchemes = builtinLocalURLSchemes();
     return localSchemes;
 }
@@ -137,8 +146,15 @@ const Vector<String>& builtinSecureSchemes()
     return schemes;
 }
 
+static Lock& secureSchemesLock()
+{
+    static NeverDestroyed<Lock> lock;
+    return lock;
+}
+
 static URLSchemesMap& secureSchemes()
 {
+    ASSERT(secureSchemesLock().isHeld());
     static auto secureSchemes = makeNeverDestroyedSchemeSet(builtinSecureSchemes);
     return secureSchemes;
 }
@@ -199,20 +215,20 @@ static URLSchemesMap& notAllowingJavascriptURLsSchemes()
 
 void SchemeRegistry::registerURLSchemeAsLocal(const String& scheme)
 {
+    if (scheme.isNull())
+        return;
+
+    Locker<Lock> locker(localURLSchemesLock());
     localURLSchemes().add(scheme);
 }
 
 void SchemeRegistry::removeURLSchemeRegisteredAsLocal(const String& scheme)
 {
+    Locker<Lock> locker(localURLSchemesLock());
     if (builtinLocalURLSchemes().contains(scheme))
         return;
 
     localURLSchemes().remove(scheme);
-}
-
-const URLSchemesMap& SchemeRegistry::localSchemes()
-{
-    return localURLSchemes();
 }
 
 static URLSchemesMap& schemesAllowingLocalStorageAccessInPrivateBrowsing()
@@ -252,6 +268,19 @@ static URLSchemesMap& cachePartitioningSchemes()
     return schemes;
 }
 
+static Lock& serviceWorkerSchemesLock()
+{
+    static NeverDestroyed<Lock> lock;
+    return lock;
+}
+
+static URLSchemesMap& serviceWorkerSchemes()
+{
+    ASSERT(serviceWorkerSchemesLock().isHeld());
+    static NeverDestroyed<URLSchemesMap> schemes;
+    return schemes;
+}
+
 static URLSchemesMap& alwaysRevalidatedSchemes()
 {
     static NeverDestroyed<URLSchemesMap> schemes;
@@ -260,7 +289,11 @@ static URLSchemesMap& alwaysRevalidatedSchemes()
 
 bool SchemeRegistry::shouldTreatURLSchemeAsLocal(const String& scheme)
 {
-    return !scheme.isNull() && localURLSchemes().contains(scheme);
+    if (scheme.isNull())
+        return false;
+
+    Locker<Lock> locker(localURLSchemesLock());
+    return localURLSchemes().contains(scheme);
 }
 
 void SchemeRegistry::registerURLSchemeAsNoAccess(const String& scheme)
@@ -291,12 +324,18 @@ void SchemeRegistry::registerURLSchemeAsSecure(const String& scheme)
 {
     if (scheme.isNull())
         return;
+
+    Locker<Lock> locker(secureSchemesLock());
     secureSchemes().add(scheme);
 }
 
 bool SchemeRegistry::shouldTreatURLSchemeAsSecure(const String& scheme)
 {
-    return !scheme.isNull() && secureSchemes().contains(scheme);
+    if (scheme.isNull())
+        return false;
+
+    Locker<Lock> locker(secureSchemesLock());
+    return secureSchemes().contains(scheme);
 }
 
 void SchemeRegistry::registerURLSchemeAsEmptyDocument(const String& scheme)
@@ -428,6 +467,37 @@ void SchemeRegistry::registerURLSchemeAsCachePartitioned(const String& scheme)
 bool SchemeRegistry::shouldPartitionCacheForURLScheme(const String& scheme)
 {
     return !scheme.isNull() && cachePartitioningSchemes().contains(scheme);
+}
+
+void SchemeRegistry::registerURLSchemeServiceWorkersCanHandle(const String& scheme)
+{
+    if (scheme.isNull())
+        return;
+
+    Locker<Lock> locker(serviceWorkerSchemesLock());
+    serviceWorkerSchemes().add(scheme);
+}
+
+bool SchemeRegistry::canServiceWorkersHandleURLScheme(const String& scheme)
+{
+    if (scheme.isNull())
+        return false;
+
+    if (scheme.startsWithIgnoringASCIICase(ASCIILiteral("http"))) {
+        if (scheme.length() == 4)
+            return true;
+        if (scheme.length() == 5 && isASCIIAlphaCaselessEqual(scheme[4], 's'))
+            return true;
+    }
+
+    Locker<Lock> locker(serviceWorkerSchemesLock());
+    return serviceWorkerSchemes().contains(scheme);
+}
+
+bool SchemeRegistry::isServiceWorkerContainerCustomScheme(const String& scheme)
+{
+    Locker<Lock> locker(serviceWorkerSchemesLock());
+    return !scheme.isNull() && serviceWorkerSchemes().contains(scheme);
 }
 
 bool SchemeRegistry::isUserExtensionScheme(const String& scheme)

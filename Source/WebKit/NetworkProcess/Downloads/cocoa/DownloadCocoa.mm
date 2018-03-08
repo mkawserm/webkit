@@ -26,8 +26,6 @@
 #import "config.h"
 #import "Download.h"
 
-#if USE(NETWORK_SESSION)
-
 #import "DataReference.h"
 #import "NetworkSessionCocoa.h"
 #import "SessionTracker.h"
@@ -35,9 +33,9 @@
 
 namespace WebKit {
 
-void Download::resume(const IPC::DataReference& resumeData, const String& path, const SandboxExtension::Handle& sandboxExtensionHandle)
+void Download::resume(const IPC::DataReference& resumeData, const String& path, SandboxExtension::Handle&& sandboxExtensionHandle)
 {
-    m_sandboxExtension = SandboxExtension::create(sandboxExtensionHandle);
+    m_sandboxExtension = SandboxExtension::create(WTFMove(sandboxExtensionHandle));
     if (m_sandboxExtension)
         m_sandboxExtension->consume();
 
@@ -74,5 +72,3 @@ void Download::platformCancelNetworkLoad()
 }
 
 }
-
-#endif // USE(NETWORK_SESSION)

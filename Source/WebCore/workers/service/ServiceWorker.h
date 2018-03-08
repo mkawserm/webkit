@@ -32,7 +32,7 @@
 #include "EventTarget.h"
 #include "ServiceWorkerData.h"
 #include "URL.h"
-#include <heap/Strong.h>
+#include <JavaScriptCore/Strong.h>
 #include <wtf/RefCounted.h>
 
 namespace JSC {
@@ -77,6 +77,8 @@ private:
     const char* activeDOMObjectName() const final;
     bool canSuspendForDocumentSuspension() const final;
     void stop() final;
+
+    bool isAlwaysOnLoggingAllowed() const;
 
     ServiceWorkerData m_data;
     bool m_isStopped { false };

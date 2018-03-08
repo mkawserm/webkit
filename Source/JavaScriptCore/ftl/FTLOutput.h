@@ -111,18 +111,22 @@ public:
     {
         ASSERT(graph.m_plan.weakReferences.contains(cell));
 
-        if (sizeof(void*) == 8)
-            return constInt64(bitwise_cast<intptr_t>(cell));
-        return constInt32(bitwise_cast<intptr_t>(cell));
+        return constIntPtr(bitwise_cast<intptr_t>(cell));
+    }
+
+    template<typename Key>
+    LValue weakPoisonedPointer(DFG::Graph& graph, JSCell* cell)
+    {
+        ASSERT(graph.m_plan.weakReferences.contains(cell));
+
+        return constIntPtr(bitwise_cast<intptr_t>(cell) ^ Key::key());
     }
 
     LValue weakPointer(DFG::FrozenValue* value)
     {
         RELEASE_ASSERT(value->value().isCell());
 
-        if (sizeof(void*) == 8)
-            return constInt64(bitwise_cast<intptr_t>(value->cell()));
-        return constInt32(bitwise_cast<intptr_t>(value->cell()));
+        return constIntPtr(bitwise_cast<intptr_t>(value->cell()));
     }
 
     template<typename T>
@@ -303,9 +307,9 @@ public:
     {
         return TypedPointer(heap, baseIndex(base, index, scale, offset));
     }
-    TypedPointer baseIndex(IndexedAbstractHeap& heap, LValue base, LValue index, JSValue indexAsConstant = JSValue(), ptrdiff_t offset = 0)
+    TypedPointer baseIndex(IndexedAbstractHeap& heap, LValue base, LValue index, JSValue indexAsConstant = JSValue(), ptrdiff_t offset = 0, LValue mask = nullptr)
     {
-        return heap.baseIndex(*this, base, index, indexAsConstant, offset);
+        return heap.baseIndex(*this, base, index, indexAsConstant, offset, mask);
     }
 
     TypedPointer absolute(const void* address);

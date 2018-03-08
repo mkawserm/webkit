@@ -52,6 +52,7 @@ bool doesGC(Graph& graph, Node* node)
     case IdentityWithProfile:
     case GetCallee:
     case GetArgumentCountIncludingThis:
+    case SetArgumentCountIncludingThis:
     case GetRestLength:
     case GetLocal:
     case SetLocal:
@@ -134,9 +135,12 @@ bool doesGC(Graph& graph, Node* node)
     case PutGlobalVariable:
     case CheckCell:
     case CheckNotEmpty:
+    case AssertNotEmpty:
     case CheckStringIdent:
     case RegExpExec:
+    case RegExpExecNonGlobalOrSticky:
     case RegExpTest:
+    case RegExpMatchFast:
     case CompareLess:
     case CompareLessEq:
     case CompareGreater:
@@ -170,6 +174,7 @@ bool doesGC(Graph& graph, Node* node)
     case IsUndefined:
     case IsBoolean:
     case IsNumber:
+    case NumberIsInteger:
     case IsObject:
     case IsObjectOrNull:
     case IsFunction:
@@ -201,7 +206,6 @@ bool doesGC(Graph& graph, Node* node)
     case CPUIntrinsic:
     case CheckTraps:
     case StringFromCharCode:
-    case MapHash:
     case NormalizeMapKey:
     case GetMapBucket:
     case GetMapBucketHead:
@@ -210,6 +214,8 @@ bool doesGC(Graph& graph, Node* node)
     case LoadValueFromMapBucket:
     case ExtractValueFromWeakMapGet:
     case WeakMapGet:
+    case WeakSetAdd:
+    case WeakMapSet:
     case Unreachable:
     case ExtractCatchLocal:
     case ExtractOSREntryLocal:
@@ -224,6 +230,7 @@ bool doesGC(Graph& graph, Node* node)
     case CheckInBounds:
     case ConstantStoragePointer:
     case Check:
+    case CheckVarargs:
     case CheckTypeInfoFlags:
     case MultiGetByOffset:
     case ValueRep:
@@ -235,6 +242,7 @@ bool doesGC(Graph& graph, Node* node)
     case GetByValWithThis:
     case GetIndexedPropertyStorage:
     case GetArrayLength:
+    case GetArrayMask:
     case GetVectorLength:
     case ArrayPush:
     case ArrayPop:
@@ -267,8 +275,10 @@ bool doesGC(Graph& graph, Node* node)
     case PhantomDirectArguments:
     case PhantomCreateRest:
     case PhantomNewArrayWithSpread:
+    case PhantomNewArrayBuffer:
     case PhantomSpread:
     case PhantomClonedArguments:
+    case PhantomNewRegexp:
     case GetMyArgumentByVal:
     case GetMyArgumentByValOutOfBounds:
     case ForwardVarargs:
@@ -347,6 +357,18 @@ bool doesGC(Graph& graph, Node* node)
     case SetAdd:
     case MapSet:
         return true;
+
+    case MapHash:
+        switch (node->child1().useKind()) {
+        case BooleanUse:
+        case Int32Use:
+        case SymbolUse:
+        case ObjectUse:
+            return false;
+        default:
+            // We might resolve a rope.
+            return true;
+        }
         
     case MultiPutByOffset:
         return node->multiPutByOffsetData().reallocatesStorage();

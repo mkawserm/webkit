@@ -71,9 +71,7 @@ WebAutomationSession::WebAutomationSession()
 WebAutomationSession::~WebAutomationSession()
 {
     ASSERT(!m_client);
-
-    if (m_processPool)
-        m_processPool->removeMessageReceiver(Messages::WebAutomationSession::messageReceiverName());
+    ASSERT(!m_processPool);
 }
 
 void WebAutomationSession::setClient(std::unique_ptr<API::AutomationSessionClient>&& client)
@@ -315,96 +313,57 @@ void WebAutomationSession::switchToBrowsingContext(Inspector::ErrorString& error
     page->process().send(Messages::WebAutomationSessionProxy::FocusFrame(page->pageID(), frameID.value()), 0);
 }
 
-void WebAutomationSession::resizeWindowOfBrowsingContext(Inspector::ErrorString& errorString, const String& handle, const JSON::Object& sizeObject, Ref<ResizeWindowOfBrowsingContextCallback>&& callback)
+void WebAutomationSession::setWindowFrameOfBrowsingContext(Inspector::ErrorString& errorString, const String& handle, const JSON::Object* optionalOriginObject, const JSON::Object* optionalSizeObject, Ref<SetWindowFrameOfBrowsingContextCallback>&& callback)
 {
 #if PLATFORM(IOS)
     FAIL_WITH_PREDEFINED_ERROR(NotImplemented);
 #else
-    float width;
-    if (!sizeObject.getDouble(WTF::ASCIILiteral("width"), width))
-        FAIL_WITH_PREDEFINED_ERROR_AND_DETAILS(MissingParameter, "The 'width' parameter was not found or invalid.");
+    std::optional<float> x;
+    std::optional<float> y;
+    if (optionalOriginObject) {
+        if (!(x = optionalOriginObject->getNumber<float>(WTF::ASCIILiteral("x"))))
+            FAIL_WITH_PREDEFINED_ERROR_AND_DETAILS(MissingParameter, "The 'x' parameter was not found or invalid.");
 
-    float height;
-    if (!sizeObject.getDouble(WTF::ASCIILiteral("height"), height))
-        FAIL_WITH_PREDEFINED_ERROR_AND_DETAILS(MissingParameter, "The 'height' parameter was not found or invalid.");
+        if (!(y = optionalOriginObject->getNumber<float>(WTF::ASCIILiteral("y"))))
+            FAIL_WITH_PREDEFINED_ERROR_AND_DETAILS(MissingParameter, "The 'y' parameter was not found or invalid.");
 
-    if (width < 0)
-        FAIL_WITH_PREDEFINED_ERROR_AND_DETAILS(InvalidParameter, "The 'width' parameter had an invalid value.");
+        if (x.value() < 0)
+            FAIL_WITH_PREDEFINED_ERROR_AND_DETAILS(InvalidParameter, "The 'x' parameter had an invalid value.");
 
-    if (height < 0)
-        FAIL_WITH_PREDEFINED_ERROR_AND_DETAILS(InvalidParameter, "The 'height' parameter had an invalid value.");
+        if (y.value() < 0)
+            FAIL_WITH_PREDEFINED_ERROR_AND_DETAILS(InvalidParameter, "The 'y' parameter had an invalid value.");
+    }
+
+    std::optional<float> width;
+    std::optional<float> height;
+    if (optionalSizeObject) {
+        if (!(width = optionalSizeObject->getNumber<float>(WTF::ASCIILiteral("width"))))
+            FAIL_WITH_PREDEFINED_ERROR_AND_DETAILS(MissingParameter, "The 'width' parameter was not found or invalid.");
+
+        if (!(height = optionalSizeObject->getNumber<float>(WTF::ASCIILiteral("height"))))
+            FAIL_WITH_PREDEFINED_ERROR_AND_DETAILS(MissingParameter, "The 'height' parameter was not found or invalid.");
+
+        if (width.value() < 0)
+            FAIL_WITH_PREDEFINED_ERROR_AND_DETAILS(InvalidParameter, "The 'width' parameter had an invalid value.");
+
+        if (height.value() < 0)
+            FAIL_WITH_PREDEFINED_ERROR_AND_DETAILS(InvalidParameter, "The 'height' parameter had an invalid value.");
+    }
 
     WebPageProxy* page = webPageProxyForHandle(handle);
     if (!page)
         FAIL_WITH_PREDEFINED_ERROR(WindowNotFound);
 
-    page->getWindowFrameWithCallback([callback = WTFMove(callback), page = makeRef(*page), width, height](WebCore::FloatRect originalFrame) mutable {
-        WebCore::FloatRect newFrame = WebCore::FloatRect(originalFrame.location(), WebCore::FloatSize(width, height));
+    // FIXME (§10.7.2 Step 10): We need to exit fullscreen before setting the frame.
+    // FIXME (§10.7.2 Step 11): We need to de-miniaturize the window before setting the frame.
+
+    page->getWindowFrameWithCallback([callback = WTFMove(callback), page = makeRef(*page), width, height, x, y](WebCore::FloatRect originalFrame) mutable {
+        WebCore::FloatRect newFrame = WebCore::FloatRect(WebCore::FloatPoint(x.value_or(originalFrame.location().x()), y.value_or(originalFrame.location().y())), WebCore::FloatSize(width.value_or(originalFrame.size().width()), height.value_or(originalFrame.size().height())));
         if (newFrame == originalFrame)
             return callback->sendSuccess();
 
         page->setWindowFrame(newFrame);
-
-#if PLATFORM(GTK)
         callback->sendSuccess();
-#else
-        // If nothing changed at all, it's probably fair to report that something went wrong.
-        // (We can't assume that the requested frame size will be honored exactly, however.)
-        page->getWindowFrameWithCallback([callback = WTFMove(callback), originalFrame](WebCore::FloatRect updatedFrame) {
-            if (originalFrame == updatedFrame)
-                callback->sendFailure(STRING_FOR_PREDEFINED_ERROR_NAME_AND_DETAILS(InternalError, "The window size was expected to have changed, but did not."));
-            else
-                callback->sendSuccess();
-        });
-#endif
-    });
-#endif
-}
-
-void WebAutomationSession::moveWindowOfBrowsingContext(Inspector::ErrorString& errorString, const String& handle, const JSON::Object& positionObject, Ref<MoveWindowOfBrowsingContextCallback>&& callback)
-{
-#if PLATFORM(IOS)
-    FAIL_WITH_PREDEFINED_ERROR(NotImplemented);
-#else
-    float x;
-    if (!positionObject.getDouble(WTF::ASCIILiteral("x"), x))
-        FAIL_WITH_PREDEFINED_ERROR_AND_DETAILS(MissingParameter, "The 'x' parameter was not found or invalid.");
-
-    float y;
-    if (!positionObject.getDouble(WTF::ASCIILiteral("y"), y))
-        FAIL_WITH_PREDEFINED_ERROR_AND_DETAILS(MissingParameter, "The 'y' parameter was not found or invalid.");
-
-    if (x < 0)
-        FAIL_WITH_PREDEFINED_ERROR_AND_DETAILS(InvalidParameter, "The 'x' parameter had an invalid value.");
-
-    if (y < 0)
-        FAIL_WITH_PREDEFINED_ERROR_AND_DETAILS(InvalidParameter, "The 'y' parameter had an invalid value.");
-
-    WebPageProxy* page = webPageProxyForHandle(handle);
-    if (!page)
-        FAIL_WITH_PREDEFINED_ERROR(WindowNotFound);
-
-    WebCore::FloatRect originalFrame;
-    page->getWindowFrameWithCallback([callback = WTFMove(callback), page = makeRef(*page), x, y](WebCore::FloatRect originalFrame) mutable {
-
-        WebCore::FloatRect newFrame = WebCore::FloatRect(WebCore::FloatPoint(x, y), originalFrame.size());
-        if (newFrame == originalFrame)
-            return callback->sendSuccess();
-
-        page->setWindowFrame(newFrame);
-
-#if PLATFORM(GTK)
-        callback->sendSuccess();
-#else
-        // If nothing changed at all, it's probably fair to report that something went wrong.
-        // (We can't assume that the requested frame size will be honored exactly, however.)
-        page->getWindowFrameWithCallback([callback = WTFMove(callback), originalFrame](WebCore::FloatRect updatedFrame) {
-            if (originalFrame == updatedFrame)
-                callback->sendFailure(STRING_FOR_PREDEFINED_ERROR_NAME_AND_DETAILS(InternalError, "The window position was expected to have changed, but did not."));
-            else
-                callback->sendSuccess();
-        });
-#endif
     });
 #endif
 }
@@ -508,7 +467,7 @@ void WebAutomationSession::waitForNavigationToCompleteOnFrame(WebFrameProxy& fra
 void WebAutomationSession::respondToPendingPageNavigationCallbacksWithTimeout(HashMap<uint64_t, RefPtr<Inspector::BackendDispatcher::CallbackBase>>& map)
 {
     Inspector::ErrorString timeoutError = STRING_FOR_PREDEFINED_ERROR_NAME(Timeout);
-    for (auto id : map.keys()) {
+    for (auto id : copyToVector(map.keys())) {
         auto page = WebProcessProxy::webPage(id);
         auto callback = map.take(id);
         if (page && m_client->isShowingJavaScriptDialogOnPage(*this, *page))
@@ -530,7 +489,7 @@ static WebPageProxy* findPageForFrameID(const WebProcessPool& processPool, uint6
 void WebAutomationSession::respondToPendingFrameNavigationCallbacksWithTimeout(HashMap<uint64_t, RefPtr<Inspector::BackendDispatcher::CallbackBase>>& map)
 {
     Inspector::ErrorString timeoutError = STRING_FOR_PREDEFINED_ERROR_NAME(Timeout);
-    for (auto id : map.keys()) {
+    for (auto id : copyToVector(map.keys())) {
         auto* page = findPageForFrameID(*m_processPool, id);
         auto callback = map.take(id);
         if (page && m_client->isShowingJavaScriptDialogOnPage(*this, *page))
@@ -560,13 +519,14 @@ void WebAutomationSession::willShowJavaScriptDialog(WebPageProxy& page)
             return;
 
         if (page->pageLoadState().isLoading()) {
+            m_loadTimer.stop();
             respondToPendingFrameNavigationCallbacksWithTimeout(m_pendingNormalNavigationInBrowsingContextCallbacksPerFrame);
             respondToPendingPageNavigationCallbacksWithTimeout(m_pendingNormalNavigationInBrowsingContextCallbacksPerPage);
         }
 
         if (!m_evaluateJavaScriptFunctionCallbacks.isEmpty()) {
             Inspector::ErrorString unexpectedAlertOpenError = STRING_FOR_PREDEFINED_ERROR_NAME(UnexpectedAlertOpen);
-            for (auto key : m_evaluateJavaScriptFunctionCallbacks.keys()) {
+            for (auto key : copyToVector(m_evaluateJavaScriptFunctionCallbacks.keys())) {
                 auto callback = m_evaluateJavaScriptFunctionCallbacks.take(key);
                 callback->sendFailure(unexpectedAlertOpenError);
             }
@@ -1121,7 +1081,7 @@ static Ref<Inspector::Protocol::Automation::Cookie> buildObjectForCookie(const W
         .setValue(cookie.value)
         .setDomain(cookie.domain)
         .setPath(cookie.path)
-        .setExpires(cookie.expires)
+        .setExpires(cookie.expires ? cookie.expires / 1000 : 0)
         .setSize((cookie.name.length() + cookie.value.length()))
         .setHttpOnly(cookie.httpOnly)
         .setSecure(cookie.secure)
@@ -1206,7 +1166,12 @@ void WebAutomationSession::addSingleCookie(ErrorString& errorString, const Strin
     // Inherit the domain/host from the main frame's URL if it is not explicitly set.
     if (domain.isEmpty())
         domain = activeURL.host();
-
+    else if (domain[0] != '.') {
+        // RFC 2965: If an explicitly specified value does not start with a dot, the user agent supplies a leading dot.
+        // Assume that any host that ends with a digit is trying to be an IP address.
+        if (!WebCore::URL::hostIsIPAddress(domain))
+            domain = makeString('.', domain);
+    }
     cookie.domain = domain;
 
     if (!cookieObject.getString(WTF::ASCIILiteral("path"), cookie.path))

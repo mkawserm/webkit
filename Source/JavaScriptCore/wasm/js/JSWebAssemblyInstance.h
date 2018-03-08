@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2017 Apple Inc. All rights reserved.
+ * Copyright (C) 2016-2018 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -27,12 +27,14 @@
 
 #if ENABLE(WEBASSEMBLY)
 
+#include "JSCPoison.h"
 #include "JSDestructibleObject.h"
 #include "JSObject.h"
 #include "JSWebAssemblyCodeBlock.h"
 #include "JSWebAssemblyMemory.h"
 #include "JSWebAssemblyTable.h"
 #include "WasmInstance.h"
+#include <wtf/Ref.h>
 
 namespace JSC {
 
@@ -74,8 +76,11 @@ public:
         instance().setTable(makeRef(*table()->table()));
     }
 
-    static size_t offsetOfInstance() { return OBJECT_OFFSETOF(JSWebAssemblyInstance, m_instance); }
-    static size_t offsetOfCallee() { return OBJECT_OFFSETOF(JSWebAssemblyInstance, m_callee); }
+    static size_t offsetOfPoisonedInstance() { return OBJECT_OFFSETOF(JSWebAssemblyInstance, m_instance); }
+    static size_t offsetOfPoisonedCallee() { return OBJECT_OFFSETOF(JSWebAssemblyInstance, m_callee); }
+
+    template<typename T>
+    using PoisonedBarrier = PoisonedWriteBarrier<JSWebAssemblyInstancePoison, T>;
 
 protected:
     JSWebAssemblyInstance(VM&, Structure*, Ref<Wasm::Instance>&&);
@@ -86,14 +91,14 @@ protected:
 private:
     JSWebAssemblyModule* module() const { return m_module.get(); }
 
-    Ref<Wasm::Instance> m_instance;
+    PoisonedRef<JSWebAssemblyInstancePoison, Wasm::Instance> m_instance;
 
-    WriteBarrier<JSWebAssemblyModule> m_module;
-    WriteBarrier<JSWebAssemblyCodeBlock> m_codeBlock;
-    WriteBarrier<JSModuleNamespaceObject> m_moduleNamespaceObject;
-    WriteBarrier<JSWebAssemblyMemory> m_memory;
-    WriteBarrier<JSWebAssemblyTable> m_table;
-    WriteBarrier<WebAssemblyToJSCallee> m_callee;
+    PoisonedBarrier<JSWebAssemblyModule> m_module;
+    PoisonedBarrier<JSWebAssemblyCodeBlock> m_codeBlock;
+    PoisonedBarrier<JSModuleNamespaceObject> m_moduleNamespaceObject;
+    PoisonedBarrier<JSWebAssemblyMemory> m_memory;
+    PoisonedBarrier<JSWebAssemblyTable> m_table;
+    PoisonedBarrier<WebAssemblyToJSCallee> m_callee;
 };
 
 } // namespace JSC

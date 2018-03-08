@@ -469,12 +469,12 @@ public:
     
     bool hasGlobalExitSite(const CodeOrigin& codeOrigin, ExitKind exitKind)
     {
-        return baselineCodeBlockFor(codeOrigin)->hasExitSite(FrequentExitSite(exitKind));
+        return baselineCodeBlockFor(codeOrigin)->unlinkedCodeBlock()->hasExitSite(FrequentExitSite(exitKind));
     }
     
     bool hasExitSite(const CodeOrigin& codeOrigin, ExitKind exitKind)
     {
-        return baselineCodeBlockFor(codeOrigin)->hasExitSite(FrequentExitSite(codeOrigin.bytecodeIndex, exitKind));
+        return baselineCodeBlockFor(codeOrigin)->unlinkedCodeBlock()->hasExitSite(FrequentExitSite(codeOrigin.bytecodeIndex, exitKind));
     }
     
     bool hasExitSite(Node* node, ExitKind exitKind)
@@ -524,6 +524,22 @@ public:
         if (node->flags() & NodeHasVarArgs)
             return varArgNumChildren(node);
         return AdjacencyList::Size;
+    }
+
+    template <typename Function = bool(*)(Edge)>
+    AdjacencyList copyVarargChildren(Node* node, Function filter = [] (Edge) { return true; })
+    {
+        ASSERT(node->flags() & NodeHasVarArgs);
+        unsigned firstChild = m_varArgChildren.size();
+        unsigned numChildren = 0;
+        doToChildren(node, [&] (Edge edge) {
+            if (filter(edge)) {
+                ++numChildren;
+                m_varArgChildren.append(edge);
+            }
+        });
+
+        return AdjacencyList(AdjacencyList::Variable, firstChild, numChildren);
     }
     
     Edge& varArgChild(Node* node, unsigned index)

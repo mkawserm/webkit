@@ -24,10 +24,12 @@
 #include "GStreamerUtilities.h"
 
 #include "GRefPtrGStreamer.h"
+#include "GstAllocatorFastMalloc.h"
 #include "IntSize.h"
-
 #include <gst/audio/audio-info.h>
 #include <gst/gst.h>
+#include <mutex>
+#include <wtf/glib/GLibUtilities.h>
 #include <wtf/glib/GUniquePtr.h>
 
 #if ENABLE(VIDEO_TRACK) && USE(GSTREAMER_MPEGTS)
@@ -58,20 +60,70 @@ GstPad* webkitGstGhostPadFromStaticTemplate(GstStaticPadTemplate* staticPadTempl
 #if ENABLE(VIDEO)
 bool getVideoSizeAndFormatFromCaps(GstCaps* caps, WebCore::IntSize& size, GstVideoFormat& format, int& pixelAspectRatioNumerator, int& pixelAspectRatioDenominator, int& stride)
 {
-    GstVideoInfo info;
-
-    gst_video_info_init(&info);
-    if (!gst_video_info_from_caps(&info, caps))
+    if (!doCapsHaveType(caps, GST_VIDEO_CAPS_TYPE_PREFIX)) {
+        GST_WARNING("Failed to get the video size and format, these are not a video caps");
         return false;
+    }
 
-    format = GST_VIDEO_INFO_FORMAT(&info);
-    size.setWidth(GST_VIDEO_INFO_WIDTH(&info));
-    size.setHeight(GST_VIDEO_INFO_HEIGHT(&info));
-    pixelAspectRatioNumerator = GST_VIDEO_INFO_PAR_N(&info);
-    pixelAspectRatioDenominator = GST_VIDEO_INFO_PAR_D(&info);
-    stride = GST_VIDEO_INFO_PLANE_STRIDE(&info, 0);
+    if (areEncryptedCaps(caps)) {
+        GstStructure* structure = gst_caps_get_structure(caps, 0);
+        format = GST_VIDEO_FORMAT_ENCODED;
+        stride = 0;
+        int width = 0, height = 0;
+        gst_structure_get_int(structure, "width", &width);
+        gst_structure_get_int(structure, "height", &height);
+        if (!gst_structure_get_fraction(structure, "pixel-aspect-ratio", &pixelAspectRatioNumerator, &pixelAspectRatioDenominator)) {
+            pixelAspectRatioNumerator = 1;
+            pixelAspectRatioDenominator = 1;
+        }
+
+        size.setWidth(width);
+        size.setHeight(height);
+    } else {
+        GstVideoInfo info;
+        gst_video_info_init(&info);
+        if (!gst_video_info_from_caps(&info, caps))
+            return false;
+
+        format = GST_VIDEO_INFO_FORMAT(&info);
+        size.setWidth(GST_VIDEO_INFO_WIDTH(&info));
+        size.setHeight(GST_VIDEO_INFO_HEIGHT(&info));
+        pixelAspectRatioNumerator = GST_VIDEO_INFO_PAR_N(&info);
+        pixelAspectRatioDenominator = GST_VIDEO_INFO_PAR_D(&info);
+        stride = GST_VIDEO_INFO_PLANE_STRIDE(&info, 0);
+    }
 
     return true;
+}
+
+std::optional<FloatSize> getVideoResolutionFromCaps(const GstCaps* caps)
+{
+    if (!doCapsHaveType(caps, GST_VIDEO_CAPS_TYPE_PREFIX)) {
+        GST_WARNING("Failed to get the video resolution, these are not a video caps");
+        return std::nullopt;
+    }
+
+    int width = 0, height = 0;
+    int pixelAspectRatioNumerator = 1, pixelAspectRatioDenominator = 1;
+
+    if (areEncryptedCaps(caps)) {
+        GstStructure* structure = gst_caps_get_structure(caps, 0);
+        gst_structure_get_int(structure, "width", &width);
+        gst_structure_get_int(structure, "height", &height);
+        gst_structure_get_fraction(structure, "pixel-aspect-ratio", &pixelAspectRatioNumerator, &pixelAspectRatioDenominator);
+    } else {
+        GstVideoInfo info;
+        gst_video_info_init(&info);
+        if (!gst_video_info_from_caps(&info, caps))
+            return std::nullopt;
+
+        width = GST_VIDEO_INFO_WIDTH(&info);
+        height = GST_VIDEO_INFO_HEIGHT(&info);
+        pixelAspectRatioNumerator = GST_VIDEO_INFO_PAR_N(&info);
+        pixelAspectRatioDenominator = GST_VIDEO_INFO_PAR_D(&info);
+    }
+
+    return std::make_optional(FloatSize(width, height * (static_cast<float>(pixelAspectRatioNumerator) / static_cast<float>(pixelAspectRatioDenominator))));
 }
 
 bool getSampleVideoInfo(GstSample* sample, GstVideoInfo& videoInfo)
@@ -112,6 +164,47 @@ GstBuffer* createGstBufferForData(const char* data, int length)
     return buffer;
 }
 
+const char* capsMediaType(const GstCaps* caps)
+{
+    ASSERT(caps);
+    GstStructure* structure = gst_caps_get_structure(caps, 0);
+    if (!structure) {
+        GST_WARNING("caps are empty");
+        return nullptr;
+    }
+#if ENABLE(ENCRYPTED_MEDIA)
+    if (gst_structure_has_name(structure, "application/x-cenc"))
+        return gst_structure_get_string(structure, "original-media-type");
+#endif
+    return gst_structure_get_name(structure);
+}
+
+bool doCapsHaveType(const GstCaps* caps, const char* type)
+{
+    const char* mediaType = capsMediaType(caps);
+    if (!mediaType) {
+        GST_WARNING("Failed to get MediaType");
+        return false;
+    }
+    return g_str_has_prefix(mediaType, type);
+}
+
+bool areEncryptedCaps(const GstCaps* caps)
+{
+    ASSERT(caps);
+#if ENABLE(ENCRYPTED_MEDIA)
+    GstStructure* structure = gst_caps_get_structure(caps, 0);
+    if (!structure) {
+        GST_WARNING("caps are empty");
+        return false;
+    }
+    return gst_structure_has_name(structure, "application/x-cenc");
+#else
+    UNUSED_PARAM(caps);
+    return false;
+#endif
+}
+
 char* getGstBufferDataPointer(GstBuffer* buffer)
 {
     GstMiniObject* miniObject = reinterpret_cast<GstMiniObject*>(buffer);
@@ -144,22 +237,55 @@ void unmapGstBuffer(GstBuffer* buffer)
     fastFree(mapInfo);
 }
 
-bool initializeGStreamer()
+Vector<String> extractGStreamerOptionsFromCommandLine()
 {
-    if (gst_is_initialized())
-        return true;
+    GUniqueOutPtr<char> contents;
+    gsize length;
+    if (!g_file_get_contents("/proc/self/cmdline", &contents.outPtr(), &length, nullptr))
+        return { };
 
-    GUniqueOutPtr<GError> error;
-    // FIXME: We should probably pass the arguments from the command line.
-    bool gstInitialized = gst_init_check(nullptr, nullptr, &error.outPtr());
-    ASSERT_WITH_MESSAGE(gstInitialized, "GStreamer initialization failed: %s", error ? error->message : "unknown error occurred");
+    Vector<String> options;
+    auto optionsString = String::fromUTF8(contents.get(), length);
+    optionsString.split('\0', false, [&options](StringView item) {
+        if (item.startsWith("--gst"))
+            options.append(item.toString());
+    });
+    return options;
+}
+
+bool initializeGStreamer(std::optional<Vector<String>>&& options)
+{
+    static std::once_flag onceFlag;
+    static bool isGStreamerInitialized;
+    std::call_once(onceFlag, [options = WTFMove(options)] {
+        isGStreamerInitialized = false;
+
+#if ENABLE(VIDEO) || ENABLE(WEB_AUDIO)
+        Vector<String> parameters = options.value_or(extractGStreamerOptionsFromCommandLine());
+        char** argv = g_new0(char*, parameters.size() + 2);
+        int argc = parameters.size() + 1;
+        argv[0] = g_strdup(getCurrentExecutableName().data());
+        for (unsigned i = 0; i < parameters.size(); i++)
+            argv[i + 1] = g_strdup(parameters[i].utf8().data());
+
+        GUniqueOutPtr<GError> error;
+        isGStreamerInitialized = gst_init_check(&argc, &argv, &error.outPtr());
+        ASSERT_WITH_MESSAGE(isGStreamerInitialized, "GStreamer initialization failed: %s", error ? error->message : "unknown error occurred");
+        g_strfreev(argv);
+
+        if (isFastMallocEnabled()) {
+            const char* disableFastMalloc = getenv("WEBKIT_GST_DISABLE_FAST_MALLOC");
+            if (!disableFastMalloc || !strcmp(disableFastMalloc, "0"))
+                gst_allocator_set_default(GST_ALLOCATOR(g_object_new(gst_allocator_fast_malloc_get_type(), nullptr)));
+        }
 
 #if ENABLE(VIDEO_TRACK) && USE(GSTREAMER_MPEGTS)
-    if (gstInitialized)
-        gst_mpegts_initialize();
+        if (isGStreamerInitialized)
+            gst_mpegts_initialize();
 #endif
-
-    return gstInitialized;
+#endif
+    });
+    return isGStreamerInitialized;
 }
 
 unsigned getGstPlayFlag(const char* nick)

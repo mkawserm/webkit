@@ -90,8 +90,6 @@ class ScrollableArea;
 class ScrollView;
 class Widget;
 
-enum class AXPropertyName;
-
 typedef unsigned AXID;
 
 enum class AccessibilityRole {
@@ -138,6 +136,9 @@ enum class AccessibilityRole {
     Footer,
     Footnote,
     Form,
+    GraphicsDocument,
+    GraphicsObject,
+    GraphicsSymbol,
     Grid,
     GridCell,
     Group,
@@ -252,6 +253,17 @@ enum class AccessibilityTextSource {
     Title,
     Subtitle,
     Action,
+};
+
+enum class AccessibilityEventType {
+    ContextMenu,
+    Click,
+    Decrement,
+    Dismiss,
+    Focus,
+    Increment,
+    ScrollIntoView,
+    Select,
 };
     
 struct AccessibilityText {
@@ -660,6 +672,7 @@ public:
     virtual float stepValueForRange() const { return 0.0f; }
     virtual AccessibilityObject* selectedRadioButton() { return nullptr; }
     virtual AccessibilityObject* selectedTabItem() { return nullptr; }
+    AccessibilityObject* selectedListItem();
     virtual int layoutCount() const { return 0; }
     virtual double estimatedLoadingProgress() const { return 0; }
     static bool isARIAControl(AccessibilityRole);
@@ -892,14 +905,10 @@ public:
     bool hasAttribute(const QualifiedName&) const;
     const AtomicString& getAttribute(const QualifiedName&) const;
     bool hasTagName(const QualifiedName&) const;
-
-    bool hasProperty(AXPropertyName) const;
-    const String stringValueForProperty(AXPropertyName) const;
-    std::optional<bool> boolValueForProperty(AXPropertyName) const;
-    int intValueForProperty(AXPropertyName) const;
-    unsigned unsignedValueForProperty(AXPropertyName) const;
-    double doubleValueForProperty(AXPropertyName) const;
-    Element* elementValueForProperty(AXPropertyName) const;
+    
+    bool dispatchAccessibilityEvent(Event&) const;
+    bool dispatchAccessibilityEventWithType(AccessibilityEventType) const;
+    bool dispatchAccessibleSetValueEvent(const String&) const;
 
     virtual VisiblePositionRange visiblePositionRange() const { return VisiblePositionRange(); }
     virtual VisiblePositionRange visiblePositionRangeForLine(unsigned) const { return VisiblePositionRange(); }
@@ -1004,7 +1013,7 @@ public:
     bool supportsARIAAttributes() const;
     
     // CSS3 Speech properties.
-    virtual ESpeak speakProperty() const { return SpeakNormal; }
+    virtual ESpeakAs speakAsProperty() const { return SpeakNormal; }
 
     // Make this object visible by scrolling as many nested scrollable views as needed.
     virtual void scrollToMakeVisible() const;
@@ -1169,8 +1178,6 @@ protected:
 
     void ariaElementsFromAttribute(AccessibilityChildrenVector&, const QualifiedName&) const;
     void ariaElementsReferencedByAttribute(AccessibilityChildrenVector&, const QualifiedName&) const;
-    void elementsFromProperty(AccessibilityChildrenVector&, AXPropertyName) const;
-    void elementsReferencedByProperty(AccessibilityChildrenVector&, AXPropertyName) const;
 
     AccessibilityObject* radioGroupAncestor() const;
 

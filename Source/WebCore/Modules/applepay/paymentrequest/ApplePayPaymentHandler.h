@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 Apple Inc. All rights reserved.
+ * Copyright (C) 2017-2018 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -49,8 +49,8 @@ private:
     friend class PaymentHandler;
     explicit ApplePayPaymentHandler(Document&, const PaymentRequest::MethodIdentifier&, PaymentRequest&);
 
-    Document& document();
-    PaymentCoordinator& paymentCoordinator();
+    Document& document() const;
+    PaymentCoordinator& paymentCoordinator() const;
 
     ExceptionOr<ApplePaySessionPaymentRequest::TotalAndLineItems> computeTotalAndLineItems();
 
@@ -63,10 +63,12 @@ private:
     ExceptionOr<void> show() final;
     void hide() final;
     void canMakePayment(WTF::Function<void(bool)>&& completionHandler) final;
-    ExceptionOr<void> detailsUpdated(const AtomicString& eventType, const String& error) final;
+    ExceptionOr<void> detailsUpdated(PaymentRequest::UpdateReason, const String& error) final;
+    ExceptionOr<void> merchantValidationCompleted(JSC::JSValue&&) final;
     void complete(std::optional<PaymentComplete>&&) final;
 
     // PaymentSession
+    unsigned version() const final;
     void validateMerchant(const URL&) final;
     void didAuthorizePayment(const Payment&) final;
     void didSelectShippingMethod(const ApplePaySessionPaymentRequest::ShippingMethod&) final;
@@ -78,6 +80,7 @@ private:
     Ref<PaymentRequest> m_paymentRequest;
     std::optional<ApplePayRequest> m_applePayRequest;
     std::optional<ApplePayPaymentMethodType> m_selectedPaymentMethodType;
+    bool m_isUpdating { false };
 };
 
 } // namespace WebCore

@@ -54,6 +54,10 @@ SWServerRegistration::SWServerRegistration(SWServer& server, const ServiceWorker
 
 SWServerRegistration::~SWServerRegistration()
 {
+    ASSERT(!m_preInstallationWorker || !m_preInstallationWorker->isRunning());
+    ASSERT(!m_installingWorker || !m_installingWorker->isRunning());
+    ASSERT(!m_waitingWorker || !m_waitingWorker->isRunning());
+    ASSERT(!m_activeWorker || !m_activeWorker->isRunning());
 }
 
 SWServerWorker* SWServerRegistration::getNewestWorker()
@@ -66,18 +70,26 @@ SWServerWorker* SWServerRegistration::getNewestWorker()
     return m_activeWorker.get();
 }
 
+void SWServerRegistration::setPreInstallationWorker(SWServerWorker* worker)
+{
+    m_preInstallationWorker = worker;
+}
+
 void SWServerRegistration::updateRegistrationState(ServiceWorkerRegistrationState state, SWServerWorker* worker)
 {
     LOG(ServiceWorker, "(%p) Updating registration state to %i with worker %p", this, (int)state, worker);
     
     switch (state) {
     case ServiceWorkerRegistrationState::Installing:
+        ASSERT(!m_installingWorker || !m_installingWorker->isRunning() || m_waitingWorker == m_installingWorker);
         m_installingWorker = worker;
         break;
     case ServiceWorkerRegistrationState::Waiting:
+        ASSERT(!m_waitingWorker || !m_waitingWorker->isRunning() || m_activeWorker == m_waitingWorker);
         m_waitingWorker = worker;
         break;
     case ServiceWorkerRegistrationState::Active:
+        ASSERT(!m_activeWorker || !m_activeWorker->isRunning());
         m_activeWorker = worker;
         break;
     };
@@ -87,7 +99,7 @@ void SWServerRegistration::updateRegistrationState(ServiceWorkerRegistrationStat
         serviceWorkerData = worker->data();
 
     forEachConnection([&](auto& connection) {
-        connection.updateRegistrationStateInClient(identifier(), state, serviceWorkerData);
+        connection.updateRegistrationStateInClient(this->identifier(), state, serviceWorkerData);
     });
 }
 
@@ -96,16 +108,28 @@ void SWServerRegistration::updateWorkerState(SWServerWorker& worker, ServiceWork
     LOG(ServiceWorker, "Updating worker %p state to %i (%p)", &worker, (int)state, this);
 
     worker.setState(state);
+}
 
+void SWServerRegistration::setUpdateViaCache(ServiceWorkerUpdateViaCache updateViaCache)
+{
+    m_updateViaCache = updateViaCache;
     forEachConnection([&](auto& connection) {
-        connection.updateWorkerStateInClient(worker.identifier(), state);
+        connection.setRegistrationUpdateViaCache(this->identifier(), updateViaCache);
+    });
+}
+
+void SWServerRegistration::setLastUpdateTime(WallTime time)
+{
+    m_lastUpdateTime = time;
+    forEachConnection([&](auto& connection) {
+        connection.setRegistrationLastUpdateTime(this->identifier(), time);
     });
 }
 
 void SWServerRegistration::fireUpdateFoundEvent()
 {
     forEachConnection([&](auto& connection) {
-        connection.fireUpdateFoundEvent(identifier());
+        connection.fireUpdateFoundEvent(this->identifier());
     });
 }
 
@@ -156,6 +180,9 @@ void SWServerRegistration::removeClientUsingRegistration(const ServiceWorkerClie
 {
     auto iterator = m_clientsUsingRegistration.find(clientIdentifier.serverConnectionIdentifier);
     ASSERT(iterator != m_clientsUsingRegistration.end());
+    if (iterator == m_clientsUsingRegistration.end())
+        return;
+
     bool wasRemoved = iterator->value.remove(clientIdentifier.contextIdentifier);
     ASSERT_UNUSED(wasRemoved, wasRemoved);
 
@@ -200,22 +227,36 @@ bool SWServerRegistration::tryClear()
 }
 
 // https://w3c.github.io/ServiceWorker/#clear-registration
-static void clearRegistrationWorker(SWServerRegistration& registration, SWServerWorker* worker, ServiceWorkerRegistrationState state)
-{
-    if (!worker)
-        return;
-
-    worker->terminate();
-    registration.updateWorkerState(*worker, ServiceWorkerState::Redundant);
-    registration.updateRegistrationState(state, nullptr);
-}
-
-// https://w3c.github.io/ServiceWorker/#clear-registration
 void SWServerRegistration::clear()
 {
-    clearRegistrationWorker(*this, installingWorker(), ServiceWorkerRegistrationState::Installing);
-    clearRegistrationWorker(*this, waitingWorker(), ServiceWorkerRegistrationState::Waiting);
-    clearRegistrationWorker(*this, activeWorker(), ServiceWorkerRegistrationState::Active);
+    if (m_preInstallationWorker) {
+        ASSERT(m_preInstallationWorker->state() == ServiceWorkerState::Redundant);
+        m_preInstallationWorker->terminate();
+        m_preInstallationWorker = nullptr;
+    }
+
+    RefPtr<SWServerWorker> installingWorker = this->installingWorker();
+    if (installingWorker) {
+        installingWorker->terminate();
+        updateRegistrationState(ServiceWorkerRegistrationState::Installing, nullptr);
+    }
+    RefPtr<SWServerWorker> waitingWorker = this->waitingWorker();
+    if (waitingWorker) {
+        waitingWorker->terminate();
+        updateRegistrationState(ServiceWorkerRegistrationState::Waiting, nullptr);
+    }
+    RefPtr<SWServerWorker> activeWorker = this->activeWorker();
+    if (activeWorker) {
+        activeWorker->terminate();
+        updateRegistrationState(ServiceWorkerRegistrationState::Active, nullptr);
+    }
+
+    if (installingWorker)
+        updateWorkerState(*installingWorker, ServiceWorkerState::Redundant);
+    if (waitingWorker)
+        updateWorkerState(*waitingWorker, ServiceWorkerState::Redundant);
+    if (activeWorker)
+        updateWorkerState(*activeWorker, ServiceWorkerState::Redundant);
 
     // Remove scope to registration map[scopeString].
     m_server.removeRegistration(key());
@@ -266,10 +307,7 @@ void SWServerRegistration::activate()
 
     // For each service worker client who is using registration:
     // - Set client's active worker to registration's active worker.
-    for (auto keyValue : m_clientsUsingRegistration) {
-        for (auto& clientIdentifier : keyValue.value)
-            m_server.setClientActiveWorker(ServiceWorkerClientIdentifier { keyValue.key, clientIdentifier }, activeWorker()->identifier());
-    }
+
     // - Invoke Notify Controller Change algorithm with client as the argument.
     notifyClientsOfControllerChange();
 

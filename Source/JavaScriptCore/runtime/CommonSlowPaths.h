@@ -27,8 +27,10 @@
 
 #include "CodeBlock.h"
 #include "CodeSpecializationKind.h"
+#include "DirectArguments.h"
 #include "ExceptionHelpers.h"
 #include "FunctionCodeBlock.h"
+#include "ScopedArguments.h"
 #include "SlowPathReturnType.h"
 #include "StackAlignment.h"
 #include "VMInlines.h"
@@ -138,8 +140,11 @@ inline void tryCachePutToScopeGlobal(
     }
     
     if (resolveType == GlobalProperty || resolveType == GlobalPropertyWithVarInjectionChecks) {
+        JSGlobalObject* globalObject = codeBlock->globalObject();
+        ASSERT(globalObject == scope || globalObject->varInjectionWatchpoint()->hasBeenInvalidated());
         if (!slot.isCacheablePut()
             || slot.base() != scope
+            || scope != globalObject
             || !scope->structure()->propertyAccessesAreCacheable())
             return;
         
@@ -183,9 +188,11 @@ inline void tryCacheGetFromScopeGlobal(
     }
 
     // Covers implicit globals. Since they don't exist until they first execute, we didn't know how to cache them at compile time.
-    if (slot.isCacheableValue() && slot.slotBase() == scope && scope->structure()->propertyAccessesAreCacheable()) {
-        if (resolveType == GlobalProperty || resolveType == GlobalPropertyWithVarInjectionChecks) {
-            CodeBlock* codeBlock = exec->codeBlock();
+    if (resolveType == GlobalProperty || resolveType == GlobalPropertyWithVarInjectionChecks) {
+        CodeBlock* codeBlock = exec->codeBlock();
+        JSGlobalObject* globalObject = codeBlock->globalObject();
+        ASSERT(scope == globalObject || globalObject->varInjectionWatchpoint()->hasBeenInvalidated());
+        if (slot.isCacheableValue() && slot.slotBase() == scope && scope == globalObject && scope->structure()->propertyAccessesAreCacheable()) {
             Structure* structure = scope->structure(vm);
             {
                 ConcurrentJSLocker locker(codeBlock->m_lock);
@@ -195,6 +202,27 @@ inline void tryCacheGetFromScopeGlobal(
             structure->startWatchingPropertyForReplacements(vm, slot.cachedOffset());
         }
     }
+}
+
+inline bool canAccessArgumentIndexQuickly(JSObject& object, uint32_t index)
+{
+    switch (object.structure()->typeInfo().type()) {
+    case DirectArgumentsType: {
+        DirectArguments* directArguments = jsCast<DirectArguments*>(&object);
+        if (directArguments->isMappedArgumentInDFG(index))
+            return true;
+        break;
+    }
+    case ScopedArgumentsType: {
+        ScopedArguments* scopedArguments = jsCast<ScopedArguments*>(&object);
+        if (scopedArguments->isMappedArgumentInDFG(index))
+            return true;
+        break;
+    }
+    default:
+        break;
+    }
+    return false;
 }
 
 } // namespace CommonSlowPaths
@@ -268,7 +296,6 @@ SLOW_PATH_HIDDEN_DECL(slow_path_next_structure_enumerator_pname);
 SLOW_PATH_HIDDEN_DECL(slow_path_next_generic_enumerator_pname);
 SLOW_PATH_HIDDEN_DECL(slow_path_to_index_string);
 SLOW_PATH_HIDDEN_DECL(slow_path_profile_type_clear_log);
-SLOW_PATH_HIDDEN_DECL(slow_path_assert);
 SLOW_PATH_HIDDEN_DECL(slow_path_unreachable);
 SLOW_PATH_HIDDEN_DECL(slow_path_create_lexical_environment);
 SLOW_PATH_HIDDEN_DECL(slow_path_push_with_scope);

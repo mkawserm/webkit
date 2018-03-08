@@ -400,8 +400,9 @@ static bool decodeNSError(Decoder& decoder, RetainPtr<NSError>& nsError)
         if (!decodeNSError(decoder, underlyingNSError))
             return false;
 
-        userInfo = adoptCF(CFDictionaryCreateMutableCopy(kCFAllocatorDefault, CFDictionaryGetCount(userInfo.get()) + 1, userInfo.get()));
-        CFDictionarySetValue((CFMutableDictionaryRef)userInfo.get(), NSUnderlyingErrorKey, underlyingNSError.get());
+        auto mutableUserInfo = adoptCF(CFDictionaryCreateMutableCopy(kCFAllocatorDefault, CFDictionaryGetCount(userInfo.get()) + 1, userInfo.get()));
+        CFDictionarySetValue(mutableUserInfo.get(), NSUnderlyingErrorKey, underlyingNSError.get());
+        userInfo = WTFMove(mutableUserInfo);
     }
 
     nsError = adoptNS([[NSError alloc] initWithDomain:domain code:code userInfo:(NSDictionary *)userInfo.get()]);
@@ -429,18 +430,9 @@ bool ArgumentCoder<ResourceError>::decodePlatformData(Decoder& decoder, Resource
 
 void ArgumentCoder<ProtectionSpace>::encodePlatformData(Encoder& encoder, const ProtectionSpace& space)
 {
-#if (PLATFORM(MAC) && __MAC_OS_X_VERSION_MIN_REQUIRED < 101200)
-    auto data = adoptNS([[NSMutableData alloc] init]);
-    auto archiver = adoptNS([[NSKeyedArchiver alloc] initForWritingWithMutableData:data.get()]);
-    [archiver setRequiresSecureCoding:YES];
-    [archiver encodeObject:space.nsSpace() forKey:@"protectionSpace"];
-    [archiver finishEncoding];
-    IPC::encode(encoder, reinterpret_cast<CFDataRef>(data.get()));
-#else
     auto archiver = secureArchiver();
     [archiver encodeObject:space.nsSpace() forKey:@"protectionSpace"];
     IPC::encode(encoder, reinterpret_cast<CFDataRef>(archiver.get().encodedData));
-#endif
 }
 
 bool ArgumentCoder<ProtectionSpace>::decodePlatformData(Decoder& decoder, ProtectionSpace& space)
@@ -482,18 +474,9 @@ void ArgumentCoder<Credential>::encodePlatformData(Encoder& encoder, const Crede
 
     encoder << false;
 
-#if (PLATFORM(MAC) && __MAC_OS_X_VERSION_MIN_REQUIRED < 101200)
-    auto data = adoptNS([[NSMutableData alloc] init]);
-    auto archiver = adoptNS([[NSKeyedArchiver alloc] initForWritingWithMutableData:data.get()]);
-    [archiver setRequiresSecureCoding:YES];
-    [archiver encodeObject:nsCredential forKey:@"credential"];
-    [archiver finishEncoding];
-    IPC::encode(encoder, reinterpret_cast<CFDataRef>(data.get()));
-#else
     auto archiver = secureArchiver();
     [archiver encodeObject:nsCredential forKey:@"credential"];
     IPC::encode(encoder, reinterpret_cast<CFDataRef>(archiver.get().encodedData));
-#endif
 }
 
 bool ArgumentCoder<Credential>::decodePlatformData(Decoder& decoder, Credential& credential)
@@ -590,18 +573,9 @@ std::optional<KeypressCommand> ArgumentCoder<KeypressCommand>::decode(Decoder& d
 #if ENABLE(CONTENT_FILTERING)
 void ArgumentCoder<ContentFilterUnblockHandler>::encode(Encoder& encoder, const ContentFilterUnblockHandler& contentFilterUnblockHandler)
 {
-#if (PLATFORM(MAC) && __MAC_OS_X_VERSION_MIN_REQUIRED < 101200)
-    auto data = adoptNS([[NSMutableData alloc] init]);
-    auto archiver = adoptNS([[NSKeyedArchiver alloc] initForWritingWithMutableData:data.get()]);
-    [archiver setRequiresSecureCoding:YES];
-    contentFilterUnblockHandler.encode(archiver.get());
-    [archiver finishEncoding];
-    IPC::encode(encoder, reinterpret_cast<CFDataRef>(data.get()));
-#else
     auto archiver = secureArchiver();
     contentFilterUnblockHandler.encode(archiver.get());
     IPC::encode(encoder, reinterpret_cast<CFDataRef>(archiver.get().encodedData));
-#endif
 }
 
 bool ArgumentCoder<ContentFilterUnblockHandler>::decode(Decoder& decoder, ContentFilterUnblockHandler& contentFilterUnblockHandler)
@@ -629,24 +603,12 @@ static NSString *deviceContextKey()
 
 void ArgumentCoder<MediaPlaybackTargetContext>::encodePlatformData(Encoder& encoder, const MediaPlaybackTargetContext& target)
 {
-#if (PLATFORM(MAC) && __MAC_OS_X_VERSION_MIN_REQUIRED < 101200)
-    auto data = adoptNS([[NSMutableData alloc] init]);
-    auto archiver = adoptNS([[NSKeyedArchiver alloc] initForWritingWithMutableData:data.get()]);
-    [archiver setRequiresSecureCoding:YES];
-
-    if ([getAVOutputContextClass() conformsToProtocol:@protocol(NSSecureCoding)])
-        [archiver encodeObject:target.avOutputContext() forKey:deviceContextKey()];
-
-    [archiver finishEncoding];
-    IPC::encode(encoder, reinterpret_cast<CFDataRef>(data.get()));
-#else
     auto archiver = secureArchiver();
 
     if ([getAVOutputContextClass() conformsToProtocol:@protocol(NSSecureCoding)])
         [archiver encodeObject:target.avOutputContext() forKey:deviceContextKey()];
 
     IPC::encode(encoder, reinterpret_cast<CFDataRef>(archiver.get().encodedData));
-#endif
 }
 
 bool ArgumentCoder<MediaPlaybackTargetContext>::decodePlatformData(Decoder& decoder, MediaPlaybackTargetContext& target)

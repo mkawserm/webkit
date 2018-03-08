@@ -100,15 +100,17 @@ bool Storage::ReadOperation::finish()
 struct Storage::WriteOperation {
     WTF_MAKE_FAST_ALLOCATED;
 public:
-    WriteOperation(Storage& storage, const Record& record, MappedBodyHandler&& mappedBodyHandler)
+    WriteOperation(Storage& storage, const Record& record, MappedBodyHandler&& mappedBodyHandler, CompletionHandler<void()>&& completionHandler)
         : storage(storage)
         , record(record)
         , mappedBodyHandler(WTFMove(mappedBodyHandler))
+        , completionHandler(WTFMove(completionHandler))
     { }
     Ref<Storage> storage;
 
     const Record record;
     const MappedBodyHandler mappedBodyHandler;
+    CompletionHandler<void()> completionHandler;
 
     std::atomic<unsigned> activeCount { 0 };
 };
@@ -379,7 +381,7 @@ struct RecordMetaData {
 
     unsigned cacheStorageVersion;
     Key key;
-    std::chrono::system_clock::time_point timeStamp;
+    WallTime timeStamp;
     SHA1::Digest headerHash;
     uint64_t headerSize { 0 };
     SHA1::Digest bodyHash;
@@ -453,7 +455,7 @@ void Storage::readRecord(ReadOperation& readOperation, const Data& recordData)
         return;
 
     // Sanity check against time stamps in future.
-    if (metaData.timeStamp > std::chrono::system_clock::now())
+    if (metaData.timeStamp > WallTime::now())
         return;
 
     Data bodyData;
@@ -800,6 +802,9 @@ void Storage::finishWriteOperation(WriteOperation& writeOperation)
 
     auto protectedThis = makeRef(*this);
 
+    if (writeOperation.completionHandler)
+        writeOperation.completionHandler();
+
     m_activeWriteOperations.remove(&writeOperation);
     dispatchPendingWriteOperations();
 
@@ -832,7 +837,7 @@ void Storage::retrieve(const Key& key, unsigned priority, RetrieveCompletionHand
     dispatchPendingReadOperations();
 }
 
-void Storage::store(const Record& record, MappedBodyHandler&& mappedBodyHandler)
+void Storage::store(const Record& record, MappedBodyHandler&& mappedBodyHandler, CompletionHandler<void()>&& completionHandler)
 {
     ASSERT(RunLoop::isMain());
     ASSERT(!record.key.isNull());
@@ -840,7 +845,7 @@ void Storage::store(const Record& record, MappedBodyHandler&& mappedBodyHandler)
     if (!m_capacity)
         return;
 
-    auto writeOperation = std::make_unique<WriteOperation>(*this, record, WTFMove(mappedBodyHandler));
+    auto writeOperation = std::make_unique<WriteOperation>(*this, record, WTFMove(mappedBodyHandler), WTFMove(completionHandler));
     m_pendingWriteOperations.prepend(WTFMove(writeOperation));
 
     // Add key to the filter already here as we do lookups from the pending operations too.
@@ -907,7 +912,7 @@ void Storage::traverse(const String& type, TraverseFlags flags, TraverseHandler&
                 traverseOperation.activeCondition.notifyOne();
             });
 
-            const unsigned maximumParallelReadCount = 5;
+            static const unsigned maximumParallelReadCount = 5;
             traverseOperation.activeCondition.wait(lock, [&traverseOperation] {
                 return traverseOperation.activeCount <= maximumParallelReadCount;
             });
@@ -947,7 +952,7 @@ void Storage::setCapacity(size_t capacity)
     shrinkIfNeeded();
 }
 
-void Storage::clear(const String& type, std::chrono::system_clock::time_point modifiedSinceTime, Function<void ()>&& completionHandler)
+void Storage::clear(const String& type, WallTime modifiedSinceTime, Function<void ()>&& completionHandler)
 {
     ASSERT(RunLoop::isMain());
     LOG(NetworkCacheStorage, "(NetworkProcess) clearing cache");
@@ -962,7 +967,7 @@ void Storage::clear(const String& type, std::chrono::system_clock::time_point mo
         auto recordsPath = this->recordsPath();
         traverseRecordsFiles(recordsPath, type, [modifiedSinceTime](const String& fileName, const String& hashString, const String& type, bool isBlob, const String& recordDirectoryPath) {
             auto filePath = WebCore::FileSystem::pathByAppendingComponent(recordDirectoryPath, fileName);
-            if (modifiedSinceTime > std::chrono::system_clock::time_point::min()) {
+            if (modifiedSinceTime > -WallTime::infinity()) {
                 auto times = fileTimes(filePath);
                 if (times.modification < modifiedSinceTime)
                     return;
@@ -984,19 +989,16 @@ void Storage::clear(const String& type, std::chrono::system_clock::time_point mo
 
 static double computeRecordWorth(FileTimes times)
 {
-    using namespace std::chrono;
-    using namespace std::literals::chrono_literals;
-
-    auto age = system_clock::now() - times.creation;
+    auto age = WallTime::now() - times.creation;
     // File modification time is updated manually on cache read. We don't use access time since OS may update it automatically.
     auto accessAge = times.modification - times.creation;
 
     // For sanity.
-    if (age <= 0s || accessAge < 0s || accessAge > age)
+    if (age <= 0_s || accessAge < 0_s || accessAge > age)
         return 0;
 
     // We like old entries that have been accessed recently.
-    return duration<double>(accessAge) / age;
+    return accessAge / age;
 }
 
 static double deletionProbability(FileTimes times, unsigned bodyShareCount)

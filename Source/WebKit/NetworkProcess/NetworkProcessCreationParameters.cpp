@@ -94,6 +94,11 @@ void NetworkProcessCreationParameters::encode(IPC::Encoder& encoder) const
     encoder << ignoreTLSErrors;
     encoder << languages;
     encoder << proxySettings;
+#elif USE(CURL)
+    encoder << cookiePersistentStorageFile;
+#endif
+#if HAVE(CFNETWORK_STORAGE_PARTITIONING) && !RELEASE_LOG_DISABLED
+    encoder << logCookieInformation;
 #endif
 #if OS(LINUX)
     encoder << memoryPressureMonitorHandle;
@@ -224,6 +229,14 @@ bool NetworkProcessCreationParameters::decode(IPC::Decoder& decoder, NetworkProc
     if (!decoder.decode(result.languages))
         return false;
     if (!decoder.decode(result.proxySettings))
+        return false;
+#elif USE(CURL)
+    if (!decoder.decode(result.cookiePersistentStorageFile))
+        return false;
+#endif
+
+#if HAVE(CFNETWORK_STORAGE_PARTITIONING) && !RELEASE_LOG_DISABLED
+    if (!decoder.decode(result.logCookieInformation))
         return false;
 #endif
 

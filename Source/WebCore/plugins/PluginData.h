@@ -20,8 +20,12 @@
 
 #pragma once
 
+#include "URL.h"
+#include <wtf/HashMap.h>
+#include <wtf/HashSet.h>
 #include <wtf/RefCounted.h>
 #include <wtf/Vector.h>
+#include <wtf/text/StringHash.h>
 #include <wtf/text/WTFString.h>
 
 namespace WebCore {
@@ -84,6 +88,14 @@ inline bool operator==(PluginInfo& a, PluginInfo& b)
     return result;
 }
 
+struct SupportedPluginName {
+    String matchingDomain;
+    String pluginName;
+
+    template<class Encoder> void encode(Encoder&) const;
+    template<class Decoder> static std::optional<SupportedPluginName> decode(Decoder&);
+};
+
 // FIXME: merge with PluginDatabase in the future
 class PluginData : public RefCounted<PluginData> {
 public:
@@ -114,6 +126,35 @@ private:
 protected:
     Page& m_page;
     Vector<PluginInfo> m_plugins;
+    std::optional<Vector<SupportedPluginName>> m_supportedPluginNames;
 };
+
+inline bool isSupportedPlugin(const Vector<SupportedPluginName>& pluginNames, const URL& pageURL, const String& pluginName)
+{
+    return pluginNames.findMatching([&] (auto&& plugin) {
+        return pageURL.isMatchingDomain(plugin.matchingDomain) && plugin.pluginName == pluginName;
+    }) != notFound;
+}
+
+template<class Decoder> inline std::optional<SupportedPluginName> SupportedPluginName::decode(Decoder& decoder)
+{
+    std::optional<String> matchingDomain;
+    decoder >> matchingDomain;
+    if (!matchingDomain)
+        return std::nullopt;
+
+    std::optional<String> pluginName;
+    decoder >> pluginName;
+    if (!pluginName)
+        return std::nullopt;
+
+    return SupportedPluginName { WTFMove(matchingDomain.value()), WTFMove(pluginName.value()) };
+}
+
+template<class Encoder> inline void SupportedPluginName::encode(Encoder& encoder) const
+{
+    encoder << matchingDomain;
+    encoder << pluginName;
+}
 
 } // namespace WebCore

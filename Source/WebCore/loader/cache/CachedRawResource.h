@@ -73,12 +73,9 @@ private:
     std::optional<SharedBufferDataView> calculateIncrementalDataChunk(const SharedBuffer*) const;
     void notifyClientsDataWasReceived(const char* data, unsigned length);
 
-#if USE(SOUP)
-    char* getOrCreateReadBuffer(size_t requestedSize, size_t& actualSize) override;
-#endif
-
     unsigned long m_identifier;
     bool m_allowEncodedDataReplacement;
+    bool m_inIncrementalDataNotify { false };
 
     struct RedirectPair {
     public:
@@ -93,6 +90,11 @@ private:
     };
 
     Vector<RedirectPair> m_redirectChain;
+
+    struct DelayedFinishLoading {
+        RefPtr<SharedBuffer> buffer;
+    };
+    std::optional<DelayedFinishLoading> m_delayedFinishLoading;
 };
 
 } // namespace WebCore

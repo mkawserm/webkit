@@ -90,6 +90,10 @@ endif ()
 
 WEBKIT_OPTION_END()
 
+if (DEFINED ENV{WEBKIT_IGNORE_PATH})
+    set(CMAKE_IGNORE_PATH $ENV{WEBKIT_IGNORE_PATH})
+endif ()
+
 if (NOT WEBKIT_LIBRARIES_DIR)
     if (DEFINED ENV{WEBKIT_LIBRARIES})
         set(WEBKIT_LIBRARIES_DIR "$ENV{WEBKIT_LIBRARIES}")
@@ -138,7 +142,11 @@ set(PORT Win)
 set(JavaScriptCore_LIBRARY_TYPE SHARED)
 set(WTF_LIBRARY_TYPE SHARED)
 set(PAL_LIBRARY_TYPE STATIC)
-set(WebKit_LIBRARY_TYPE SHARED)
 set(WebKitLegacy_LIBRARY_TYPE SHARED)
 
 find_package(ICU REQUIRED)
+add_definitions(-DUCHAR_TYPE=wchar_t)
+
+# If <winsock2.h> is not included before <windows.h> redefinition errors occur
+# unless _WINSOCKAPI_ is defined before <windows.h> is included
+add_definitions(-D_WINSOCKAPI_=)

@@ -346,6 +346,11 @@ public:
                     }
                     break;
                 }
+                case GetArgumentCountIncludingThis: {
+                    if (InlineCallFrame* inlineCallFrame = node->argumentsInlineCallFrame())
+                        VALIDATE((node), inlineCallFrame->isVarargs());
+                    break;
+                }
                 default:
                     break;
                 }
@@ -582,6 +587,7 @@ private:
                 case PhantomNewAsyncFunction:
                 case PhantomNewAsyncGeneratorFunction:
                 case PhantomCreateActivation:
+                case PhantomNewRegexp:
                 case GetMyArgumentByVal:
                 case GetMyArgumentByValOutOfBounds:
                 case PutHint:
@@ -738,6 +744,7 @@ private:
                 case PhantomDirectArguments:
                 case PhantomCreateRest:
                 case PhantomClonedArguments:
+                case PhantomNewRegexp:
                 case MovHint:
                 case Upsilon:
                 case ForwardVarargs:
@@ -750,6 +757,7 @@ private:
                     break;
 
                 case Check:
+                case CheckVarargs:
                     // FIXME: This is probably not correct.
                     break;
 
@@ -759,8 +767,8 @@ private:
 
                 case PhantomSpread:
                     VALIDATE((node), m_graph.m_form == SSA);
-                    // We currently only support PhantomSpread over PhantomCreateRest.
-                    VALIDATE((node), node->child1()->op() == PhantomCreateRest);
+                    // We currently support PhantomSpread over PhantomCreateRest and PhantomNewArrayBuffer.
+                    VALIDATE((node), node->child1()->op() == PhantomCreateRest || node->child1()->op() == PhantomNewArrayBuffer);
                     break;
 
                 case PhantomNewArrayWithSpread: {
@@ -769,13 +777,17 @@ private:
                     for (unsigned i = 0; i < node->numChildren(); i++) {
                         Node* child = m_graph.varArgChild(node, i).node();
                         if (bitVector->get(i)) {
-                            // We currently only support PhantomSpread over PhantomCreateRest.
+                            // We currently support PhantomSpread over PhantomCreateRest and PhantomNewArrayBuffer.
                             VALIDATE((node), child->op() == PhantomSpread);
                         } else
                             VALIDATE((node), !child->isPhantomAllocation());
                     }
                     break;
                 }
+
+                case PhantomNewArrayBuffer:
+                    VALIDATE((node), m_graph.m_form == SSA);
+                    break;
 
                 case NewArrayWithSpread: {
                     BitVector* bitVector = node->bitVector();
@@ -791,7 +803,7 @@ private:
                 }
 
                 case Spread:
-                    VALIDATE((node), !node->child1()->isPhantomAllocation() || node->child1()->op() == PhantomCreateRest);
+                    VALIDATE((node), !node->child1()->isPhantomAllocation() || node->child1()->op() == PhantomCreateRest || node->child1()->op() == PhantomNewArrayBuffer);
                     break;
 
                 case EntrySwitch:

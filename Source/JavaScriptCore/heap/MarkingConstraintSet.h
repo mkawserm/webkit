@@ -35,6 +35,8 @@ class Heap;
 class MarkingConstraintSolver;
 
 class MarkingConstraintSet {
+    WTF_MAKE_FAST_ALLOCATED;
+    WTF_MAKE_NONCOPYABLE(MarkingConstraintSet);
 public:
     MarkingConstraintSet(Heap&);
     ~MarkingConstraintSet();
@@ -46,7 +48,17 @@ public:
         CString name,
         ::Function<void(SlotVisitor&)>,
         ConstraintVolatility,
-        ConstraintConcurrency = ConstraintConcurrency::Concurrent);
+        ConstraintConcurrency = ConstraintConcurrency::Concurrent,
+        ConstraintParallelism = ConstraintParallelism::Sequential);
+    
+    void add(
+        CString abbreviatedName, CString name,
+        ::Function<void(SlotVisitor&)> func,
+        ConstraintVolatility volatility,
+        ConstraintParallelism parallelism)
+    {
+        add(abbreviatedName, name, WTFMove(func), volatility, ConstraintConcurrency::Concurrent, parallelism);
+    }
     
     void add(std::unique_ptr<MarkingConstraint>);
     
@@ -66,8 +78,6 @@ private:
     friend class MarkingConstraintSolver;
     
     bool executeConvergenceImpl(SlotVisitor&);
-    
-    bool drain(SlotVisitor&, BitVector& unexecuted, BitVector& executed, bool& didVisitSomething);
     
     Heap& m_heap;
     BitVector m_unexecutedRoots;

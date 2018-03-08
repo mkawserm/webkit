@@ -42,37 +42,32 @@
 
 namespace WebCore {
 
-static CString cookieJarPath()
-{
-    char* cookieJarPath = getenv("CURL_COOKIE_JAR_PATH");
-    if (cookieJarPath)
-        return cookieJarPath;
+class EnvironmentVariableReader {
+public:
+    const char* read(const char* name) { return ::getenv(name); }
+    bool defined(const char* name) { return read(name) != nullptr; }
 
-#if OS(WINDOWS)
-    char executablePath[MAX_PATH];
-    char appDataDirectory[MAX_PATH];
-    char cookieJarFullPath[MAX_PATH];
-    char cookieJarDirectory[MAX_PATH];
+    template<typename T> std::optional<T> readAs(const char* name)
+    {
+        if (const char* valueStr = read(name)) {
+            T value;
+            if (sscanf(valueStr, sscanTemplate<T>(), &value) == 1)
+                return value;
+        }
 
-    if (FAILED(::SHGetFolderPathA(0, CSIDL_LOCAL_APPDATA | CSIDL_FLAG_CREATE, 0, 0, appDataDirectory))
-        || FAILED(::GetModuleFileNameA(0, executablePath, MAX_PATH)))
-        return "cookies.dat";
+        return std::nullopt;
+    }
 
-    ::PathRemoveExtensionA(executablePath);
-    LPSTR executableName = ::PathFindFileNameA(executablePath);
-    sprintf_s(cookieJarDirectory, MAX_PATH, "%s/%s", appDataDirectory, executableName);
-    sprintf_s(cookieJarFullPath, MAX_PATH, "%s/cookies.dat", cookieJarDirectory);
+private:
+    template<typename T> const char* sscanTemplate()
+    {
+        ASSERT_NOT_REACHED();
+        return nullptr;
+    }
 
-    if (::SHCreateDirectoryExA(0, cookieJarDirectory, 0) != ERROR_SUCCESS
-        && ::GetLastError() != ERROR_FILE_EXISTS
-        && ::GetLastError() != ERROR_ALREADY_EXISTS)
-        return "cookies.dat";
-
-    return cookieJarFullPath;
-#else
-    return "cookies.dat";
-#endif
-}
+    // define specialized member function for specific type.
+    template<> constexpr const char* sscanTemplate<unsigned>() { return "%u"; }
+};
 
 // CurlContext -------------------------------------------------------------------
 
@@ -83,15 +78,21 @@ CurlContext& CurlContext::singleton()
 }
 
 CurlContext::CurlContext()
-: m_cookieJarFileName { cookieJarPath() }
-, m_cookieJar { std::make_unique<CookieJarCurlFileSystem>() }
 {
-    initCookieSession();
+    initShareHandle();
+
+    EnvironmentVariableReader envVar;
+
+    if (auto value = envVar.readAs<unsigned>("WEBKIT_CURL_DNS_CACHE_TIMEOUT"))
+        m_dnsCacheTimeout = Seconds(*value);
+
+    if (auto value = envVar.readAs<unsigned>("WEBKIT_CURL_CONNECT_TIMEOUT"))
+        m_connectTimeout = Seconds(*value);
 
 #ifndef NDEBUG
-    m_verbose = getenv("DEBUG_CURL");
+    m_verbose = envVar.defined("DEBUG_CURL");
 
-    char* logFile = getenv("CURL_LOG_FILE");
+    auto logFile = envVar.read("CURL_LOG_FILE");
     if (logFile)
         m_logFile = fopen(logFile, "a");
 #endif
@@ -105,26 +106,14 @@ CurlContext::~CurlContext()
 #endif
 }
 
-// Cookie =======================
-
-void CurlContext::initCookieSession()
+void CurlContext::initShareHandle()
 {
-    // Curl saves both persistent cookies, and session cookies to the cookie file.
-    // The session cookies should be deleted before starting a new session.
-
     CURL* curl = curl_easy_init();
 
     if (!curl)
         return;
 
     curl_easy_setopt(curl, CURLOPT_SHARE, m_shareHandle.handle());
-
-    if (!m_cookieJarFileName.isNull()) {
-        curl_easy_setopt(curl, CURLOPT_COOKIEFILE, m_cookieJarFileName.data());
-        curl_easy_setopt(curl, CURLOPT_COOKIEJAR, m_cookieJarFileName.data());
-    }
-
-    curl_easy_setopt(curl, CURLOPT_COOKIESESSION, 1);
 
     curl_easy_cleanup(curl);
 }
@@ -157,7 +146,11 @@ void CurlContext::setProxyInfo(const String& host,
     setProxyInfo(info);
 }
 
-
+bool CurlContext::isHttp2Enabled() const
+{
+    curl_version_info_data* data = curl_version_info(CURLVERSION_NOW);
+    return data->features & CURL_VERSION_HTTP2;
+}
 
 // CurlShareHandle --------------------------------------------
 
@@ -359,18 +352,32 @@ void CurlHandle::enableRequestHeaders()
     curl_easy_setopt(m_handle, CURLOPT_HTTPHEADER, headers);
 }
 
+void CurlHandle::enableHttp()
+{
+    if (CurlContext::singleton().isHttp2Enabled()) {
+        curl_easy_setopt(m_handle, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_2TLS);
+        curl_easy_setopt(m_handle, CURLOPT_PIPEWAIT, 1L);
+        curl_easy_setopt(m_handle, CURLOPT_SSL_ENABLE_ALPN, 1L);
+        curl_easy_setopt(m_handle, CURLOPT_SSL_ENABLE_NPN, 0L);
+    } else
+        curl_easy_setopt(m_handle, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
+}
+
 void CurlHandle::enableHttpGetRequest()
 {
+    enableHttp();
     curl_easy_setopt(m_handle, CURLOPT_HTTPGET, 1L);
 }
 
 void CurlHandle::enableHttpHeadRequest()
 {
+    enableHttp();
     curl_easy_setopt(m_handle, CURLOPT_NOBODY, 1L);
 }
 
 void CurlHandle::enableHttpPostRequest()
 {
+    enableHttp();
     curl_easy_setopt(m_handle, CURLOPT_POST, 1L);
     curl_easy_setopt(m_handle, CURLOPT_POSTFIELDSIZE, 0L);
 }
@@ -391,6 +398,7 @@ void CurlHandle::setPostFieldLarge(curl_off_t size)
 
 void CurlHandle::enableHttpPutRequest()
 {
+    enableHttp();
     curl_easy_setopt(m_handle, CURLOPT_UPLOAD, 1L);
     curl_easy_setopt(m_handle, CURLOPT_INFILESIZE, 0L);
 }
@@ -405,6 +413,7 @@ void CurlHandle::setInFileSizeLarge(curl_off_t size)
 
 void CurlHandle::setHttpCustomRequest(const String& method)
 {
+    enableHttp();
     curl_easy_setopt(m_handle, CURLOPT_CUSTOMREQUEST, method.ascii().data());
 }
 
@@ -463,26 +472,6 @@ void CurlHandle::setSslKeyPassword(const char* password)
     curl_easy_setopt(m_handle, CURLOPT_KEYPASSWD, password);
 }
 
-void CurlHandle::enableCookieJarIfExists()
-{
-    const char* cookieJar = CurlContext::singleton().getCookieJarFileName();
-    if (cookieJar)
-        curl_easy_setopt(m_handle, CURLOPT_COOKIEJAR, cookieJar);
-}
-
-void CurlHandle::setCookieList(const char* cookieList)
-{
-    if (!cookieList)
-        return;
-
-    curl_easy_setopt(m_handle, CURLOPT_COOKIELIST, cookieList);
-}
-
-void CurlHandle::fetchCookieList(CurlSList &cookies) const
-{
-    curl_easy_getinfo(m_handle, CURLINFO_COOKIELIST, static_cast<struct curl_slist**>(cookies));
-}
-
 void CurlHandle::enableProxyIfExists()
 {
     auto& proxy = CurlContext::singleton().proxyInfo();
@@ -493,11 +482,25 @@ void CurlHandle::enableProxyIfExists()
     }
 }
 
-void CurlHandle::enableTimeout()
+static CURLoption safeTimeValue(double time)
 {
-    static const long dnsCacheTimeout = 5 * 60; // [sec.]
+    auto value = static_cast<unsigned>(time >= 0.0 ? time : 0);
+    return static_cast<CURLoption>(value);
+}
 
-    curl_easy_setopt(m_handle, CURLOPT_DNS_CACHE_TIMEOUT, dnsCacheTimeout);
+void CurlHandle::setDnsCacheTimeout(Seconds timeout)
+{
+    curl_easy_setopt(m_handle, CURLOPT_DNS_CACHE_TIMEOUT, safeTimeValue(timeout.seconds()));
+}
+
+void CurlHandle::setConnectTimeout(Seconds timeout)
+{
+    curl_easy_setopt(m_handle, CURLOPT_CONNECTTIMEOUT, safeTimeValue(timeout.seconds()));
+}
+
+void CurlHandle::setTimeout(Seconds timeout)
+{
+    curl_easy_setopt(m_handle, CURLOPT_TIMEOUT_MS, safeTimeValue(timeout.milliseconds()));
 }
 
 void CurlHandle::setHeaderCallbackFunction(curl_write_callback callbackFunc, void* userData)
@@ -592,6 +595,19 @@ std::optional<long> CurlHandle::getHttpAuthAvail()
         return std::nullopt;
 
     return httpAuthAvailable;
+}
+
+std::optional<long> CurlHandle::getHttpVersion()
+{
+    if (!m_handle)
+        return std::nullopt;
+
+    long version;
+    CURLcode errorCode = curl_easy_getinfo(m_handle, CURLINFO_HTTP_VERSION, &version);
+    if (errorCode != CURLE_OK)
+        return std::nullopt;
+
+    return version;
 }
 
 std::optional<NetworkLoadMetrics> CurlHandle::getNetworkLoadMetrics()

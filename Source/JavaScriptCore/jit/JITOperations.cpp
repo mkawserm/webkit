@@ -58,7 +58,6 @@
 #include "JSGeneratorFunction.h"
 #include "JSGlobalObjectFunctions.h"
 #include "JSLexicalEnvironment.h"
-#include "JSPropertyNameEnumerator.h"
 #include "JSWithScope.h"
 #include "ModuleProgramCodeBlock.h"
 #include "ObjectConstructor.h"
@@ -939,14 +938,14 @@ SlowPathReturnType JIT_OPERATION operationLinkCall(ExecState* execCallee, CallLi
     JSValue calleeAsValue = execCallee->guaranteedJSValueCallee();
     JSCell* calleeAsFunctionCell = getJSFunction(calleeAsValue);
     if (!calleeAsFunctionCell) {
-        if (calleeAsValue.isCell() && calleeAsValue.asCell()->type() == InternalFunctionType) {
+        if (auto* internalFunction = jsDynamicCast<InternalFunction*>(*vm, calleeAsValue)) {
             MacroAssemblerCodePtr codePtr = vm->getCTIInternalFunctionTrampolineFor(kind);
             RELEASE_ASSERT(!!codePtr);
 
             if (!callLinkInfo->seenOnce())
                 callLinkInfo->setSeen();
             else
-                linkFor(execCallee, *callLinkInfo, nullptr, asObject(calleeAsValue), codePtr);
+                linkFor(execCallee, *callLinkInfo, nullptr, internalFunction, codePtr);
 
             return encodeResult(codePtr.executableAddress(), reinterpret_cast<void*>(callLinkInfo->callMode() == CallMode::Tail ? ReuseTheFrame : KeepTheFrame));
         }
@@ -1061,7 +1060,7 @@ inline SlowPathReturnType virtualForWithFunction(
     JSValue calleeAsValue = execCallee->guaranteedJSValueCallee();
     calleeAsFunctionCell = getJSFunction(calleeAsValue);
     if (UNLIKELY(!calleeAsFunctionCell)) {
-        if (calleeAsValue.isCell() && calleeAsValue.asCell()->type() == InternalFunctionType) {
+        if (jsDynamicCast<InternalFunction*>(*vm, calleeAsValue)) {
             MacroAssemblerCodePtr codePtr = vm->getCTIInternalFunctionTrampolineFor(kind);
             ASSERT(!!codePtr);
             return encodeResult(codePtr.executableAddress(), reinterpret_cast<void*>(callLinkInfo->callMode() == CallMode::Tail ? ReuseTheFrame : KeepTheFrame));
@@ -1259,20 +1258,15 @@ JSCell* JIT_OPERATION operationNewObject(ExecState* exec, Structure* structure)
     return constructEmptyObject(exec, structure);
 }
 
-EncodedJSValue JIT_OPERATION operationNewRegexp(ExecState* exec, void* regexpPtr)
+JSCell* JIT_OPERATION operationNewRegexp(ExecState* exec, JSCell* regexpPtr)
 {
     SuperSamplerScope superSamplerScope(false);
     VM& vm = exec->vm();
     NativeCallFrameTracer tracer(&vm, exec);
-    auto scope = DECLARE_THROW_SCOPE(vm);
 
     RegExp* regexp = static_cast<RegExp*>(regexpPtr);
-    if (!regexp->isValid()) {
-        throwException(exec, scope, createSyntaxError(exec, regexp->errorMessage()));
-        return JSValue::encode(jsUndefined());
-    }
-
-    return JSValue::encode(RegExpObject::create(vm, exec->lexicalGlobalObject()->regExpStructure(), regexp));
+    ASSERT(regexp->isValid());
+    return RegExpObject::create(vm, exec->lexicalGlobalObject()->regExpStructure(), regexp);
 }
 
 // The only reason for returning an UnusedPtr (instead of void) is so that we can reuse the
@@ -1303,7 +1297,7 @@ static void updateAllPredictionsAndOptimizeAfterWarmUp(CodeBlock* codeBlock)
     codeBlock->optimizeAfterWarmUp();
 }
 
-SlowPathReturnType JIT_OPERATION operationOptimize(ExecState* exec, int32_t bytecodeIndex)
+SlowPathReturnType JIT_OPERATION operationOptimize(ExecState* exec, uint32_t bytecodeIndex)
 {
     VM& vm = exec->vm();
     NativeCallFrameTracer tracer(&vm, exec);
@@ -1730,27 +1724,6 @@ int32_t JIT_OPERATION operationInstanceOfCustom(ExecState* exec, EncodedJSValue 
 
 }
 
-static bool canAccessArgumentIndexQuickly(JSObject& object, uint32_t index)
-{
-    switch (object.structure()->typeInfo().type()) {
-    case DirectArgumentsType: {
-        DirectArguments* directArguments = jsCast<DirectArguments*>(&object);
-        if (directArguments->isMappedArgumentInDFG(index))
-            return true;
-        break;
-    }
-    case ScopedArgumentsType: {
-        ScopedArguments* scopedArguments = jsCast<ScopedArguments*>(&object);
-        if (scopedArguments->isMappedArgumentInDFG(index))
-            return true;
-        break;
-    }
-    default:
-        break;
-    }
-    return false;
-}
-
 static JSValue getByVal(ExecState* exec, JSValue baseValue, JSValue subscript, ByValInfo* byValInfo, ReturnAddressPtr returnAddress)
 {
     VM& vm = exec->vm();
@@ -1787,7 +1760,16 @@ static JSValue getByVal(ExecState* exec, JSValue baseValue, JSValue subscript, B
             if (object->canGetIndexQuickly(i))
                 return object->getIndexQuickly(i);
 
-            if (!canAccessArgumentIndexQuickly(*object, i)) {
+            bool skipMarkingOutOfBounds = false;
+
+            if (object->indexingType() == ArrayWithContiguous && i < object->butterfly()->publicLength()) {
+                // FIXME: expand this to ArrayStorage, Int32, and maybe Double:
+                // https://bugs.webkit.org/show_bug.cgi?id=182940
+                auto* globalObject = object->globalObject();
+                skipMarkingOutOfBounds = globalObject->isOriginalArrayStructure(object->structure()) && globalObject->arrayPrototypeChainIsSane();
+            }
+
+            if (!skipMarkingOutOfBounds && !CommonSlowPaths::canAccessArgumentIndexQuickly(*object, i)) {
                 // FIXME: This will make us think that in-bounds typed array accesses are actually
                 // out-of-bounds.
                 // https://bugs.webkit.org/show_bug.cgi?id=149886
@@ -1956,7 +1938,7 @@ EncodedJSValue JIT_OPERATION operationHasIndexedPropertyDefault(ExecState* exec,
     if (object->canGetIndexQuickly(index))
         return JSValue::encode(JSValue(JSValue::JSTrue));
 
-    if (!canAccessArgumentIndexQuickly(*object, index)) {
+    if (!CommonSlowPaths::canAccessArgumentIndexQuickly(*object, index)) {
         // FIXME: This will make us think that in-bounds typed array accesses are actually
         // out-of-bounds.
         // https://bugs.webkit.org/show_bug.cgi?id=149886
@@ -1980,7 +1962,7 @@ EncodedJSValue JIT_OPERATION operationHasIndexedPropertyGeneric(ExecState* exec,
     if (object->canGetIndexQuickly(index))
         return JSValue::encode(JSValue(JSValue::JSTrue));
 
-    if (!canAccessArgumentIndexQuickly(*object, index)) {
+    if (!CommonSlowPaths::canAccessArgumentIndexQuickly(*object, index)) {
         // FIXME: This will make us think that in-bounds typed array accesses are actually
         // out-of-bounds.
         // https://bugs.webkit.org/show_bug.cgi?id=149886
@@ -2311,7 +2293,7 @@ char* JIT_OPERATION operationReallocateButterflyToHavePropertyStorageWithInitial
 
     ASSERT(!object->structure()->outOfLineCapacity());
     Butterfly* result = object->allocateMoreOutOfLineStorage(vm, 0, initialOutOfLineCapacity);
-    object->nukeStructureAndSetButterfly(vm, object->structureID(), result);
+    object->nukeStructureAndSetButterfly(vm, object->structureID(), result, object->indexingType());
     return reinterpret_cast<char*>(result);
 }
 
@@ -2321,7 +2303,7 @@ char* JIT_OPERATION operationReallocateButterflyToGrowPropertyStorage(ExecState*
     NativeCallFrameTracer tracer(&vm, exec);
 
     Butterfly* result = object->allocateMoreOutOfLineStorage(vm, object->structure()->outOfLineCapacity(), newSize);
-    object->nukeStructureAndSetButterfly(vm, object->structureID(), result);
+    object->nukeStructureAndSetButterfly(vm, object->structureID(), result, object->indexingType());
     return reinterpret_cast<char*>(result);
 }
 
@@ -2375,49 +2357,6 @@ void JIT_OPERATION operationExceptionFuzz(ExecState* exec)
     void* returnPC = __builtin_return_address(0);
     doExceptionFuzzing(exec, scope, "JITOperations", returnPC);
 #endif // COMPILER(GCC_OR_CLANG)
-}
-
-EncodedJSValue JIT_OPERATION operationHasGenericProperty(ExecState* exec, EncodedJSValue encodedBaseValue, JSCell* propertyName)
-{
-    VM& vm = exec->vm();
-    NativeCallFrameTracer tracer(&vm, exec);
-    JSValue baseValue = JSValue::decode(encodedBaseValue);
-    if (baseValue.isUndefinedOrNull())
-        return JSValue::encode(jsBoolean(false));
-
-    JSObject* base = baseValue.toObject(exec);
-    if (!base)
-        return JSValue::encode(JSValue());
-    return JSValue::encode(jsBoolean(base->hasPropertyGeneric(exec, asString(propertyName)->toIdentifier(exec), PropertySlot::InternalMethodType::GetOwnProperty)));
-}
-
-JSCell* JIT_OPERATION operationGetPropertyEnumerator(ExecState* exec, JSCell* cell)
-{
-    VM& vm = exec->vm();
-    NativeCallFrameTracer tracer(&vm, exec);
-    auto scope = DECLARE_THROW_SCOPE(vm);
-
-    JSObject* base = cell->toObject(exec, exec->lexicalGlobalObject());
-    RETURN_IF_EXCEPTION(scope, { });
-
-    scope.release();
-    return propertyNameEnumerator(exec, base);
-}
-
-EncodedJSValue JIT_OPERATION operationNextEnumeratorPname(ExecState* exec, JSCell* enumeratorCell, int32_t index)
-{
-    VM& vm = exec->vm();
-    NativeCallFrameTracer tracer(&vm, exec);
-    JSPropertyNameEnumerator* enumerator = jsCast<JSPropertyNameEnumerator*>(enumeratorCell);
-    JSString* propertyName = enumerator->propertyNameAtIndex(index);
-    return JSValue::encode(propertyName ? propertyName : jsNull());
-}
-
-JSCell* JIT_OPERATION operationToIndexString(ExecState* exec, int32_t index)
-{
-    VM& vm = exec->vm();
-    NativeCallFrameTracer tracer(&vm, exec);
-    return jsString(exec, Identifier::from(exec, index).string());
 }
 
 ALWAYS_INLINE static EncodedJSValue unprofiledAdd(ExecState* exec, EncodedJSValue encodedOp1, EncodedJSValue encodedOp2)

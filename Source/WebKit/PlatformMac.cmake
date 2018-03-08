@@ -10,7 +10,7 @@ add_definitions(-iframework ${APPLICATIONSERVICES_LIBRARY}/Versions/Current/Fram
 add_definitions(-DWK_XPC_SERVICE_SUFFIX=".Development")
 
 list(APPEND WebKit_LIBRARIES
-    PRIVATE WebKitLegacy
+    WebKitLegacy
     ${APPLICATIONSERVICES_LIBRARY}
 )
 
@@ -27,8 +27,6 @@ list(APPEND WebKit_SOURCES
 
     NetworkProcess/Downloads/cocoa/DownloadCocoa.mm
 
-    NetworkProcess/Downloads/mac/DownloadMac.mm
-
     NetworkProcess/cache/NetworkCacheCodersCocoa.cpp
     NetworkProcess/cache/NetworkCacheDataCocoa.mm
     NetworkProcess/cache/NetworkCacheIOChannelCocoa.mm
@@ -37,7 +35,6 @@ list(APPEND WebKit_SOURCES
     NetworkProcess/cocoa/NetworkProcessCocoa.mm
     NetworkProcess/cocoa/NetworkSessionCocoa.mm
 
-    NetworkProcess/mac/NetworkLoadMac.mm
     NetworkProcess/mac/NetworkProcessMac.mm
     NetworkProcess/mac/RemoteNetworkingContext.mm
 
@@ -71,8 +68,6 @@ list(APPEND WebKit_SOURCES
 
     Shared/APIWebArchive.mm
     Shared/APIWebArchiveResource.mm
-
-    Shared/Authentication/cocoa/AuthenticationManagerCocoa.mm
 
     Shared/API/Cocoa/RemoteObjectInvocation.mm
     Shared/API/Cocoa/RemoteObjectRegistry.mm
@@ -141,7 +136,6 @@ list(APPEND WebKit_SOURCES
     Shared/mac/ChildProcessMac.mm
     Shared/mac/CodeSigning.mm
     Shared/mac/ColorSpaceData.mm
-    Shared/mac/CookieStorageShim.mm
     Shared/mac/CookieStorageShimLibrary.cpp
     Shared/mac/HangDetectionDisablerMac.mm
     Shared/mac/NativeWebGestureEventMac.mm
@@ -168,7 +162,6 @@ list(APPEND WebKit_SOURCES
 
     UIProcess/HighPerformanceGraphicsUsageSampler.cpp
     UIProcess/PerActivityStateCPUUsageSampler.cpp
-    UIProcess/WebContextMenuListenerProxy.cpp
     UIProcess/WebResourceLoadStatisticsStore.cpp
     UIProcess/WebResourceLoadStatisticsTelemetry.cpp
 
@@ -225,6 +218,7 @@ list(APPEND WebKit_SOURCES
     UIProcess/API/Cocoa/WKWebsiteDataStore.mm
     UIProcess/API/Cocoa/WKWindowFeatures.mm
     UIProcess/API/Cocoa/_WKActivatedElementInfo.mm
+    UIProcess/API/Cocoa/_WKApplicationManifest.mm
     UIProcess/API/Cocoa/_WKAttachment.mm
     UIProcess/API/Cocoa/_WKAutomationSession.mm
     UIProcess/API/Cocoa/_WKAutomationSessionConfiguration.mm
@@ -308,6 +302,8 @@ list(APPEND WebKit_SOURCES
     UIProcess/mac/WKFullScreenWindowController.mm
     UIProcess/mac/WKImmediateActionController.mm
     UIProcess/mac/WKInspectorViewController.mm
+    UIProcess/mac/WKInspectorWKWebView.mm
+    UIProcess/mac/WKInspectorWindow.mm
     UIProcess/mac/WKPrintingView.mm
     UIProcess/mac/WKSharingServicePickerDelegate.mm
     UIProcess/mac/WKTextFinderClient.mm
@@ -393,7 +389,6 @@ list(APPEND WebKit_SOURCES
 )
 
 list(APPEND WebKit_INCLUDE_DIRECTORIES
-    "${PAL_DIR}"
     "${WEBKIT_DIR}/NetworkProcess/cocoa"
     "${WEBKIT_DIR}/NetworkProcess/mac"
     "${WEBKIT_DIR}/PluginProcess/mac"

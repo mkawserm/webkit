@@ -62,6 +62,8 @@ namespace WebKit {
 typedef NSBundle *PlatformBundle;
 #elif USE(GLIB)
 typedef ::GModule* PlatformBundle;
+#else
+typedef void* PlatformBundle;
 #endif
 
 class InjectedBundleScriptWorld;
@@ -74,7 +76,7 @@ struct WebProcessCreationParameters;
 
 class InjectedBundle : public API::ObjectImpl<API::Object::Type::Bundle> {
 public:
-    static RefPtr<InjectedBundle> create(const WebProcessCreationParameters&, API::Object* initializationUserData);
+    static RefPtr<InjectedBundle> create(WebProcessCreationParameters&, API::Object* initializationUserData);
 
     ~InjectedBundle();
 
@@ -87,6 +89,7 @@ public:
     void setClient(std::unique_ptr<API::InjectedBundle::Client>&&);
     void postMessage(const String&, API::Object*);
     void postSynchronousMessage(const String&, API::Object*, RefPtr<API::Object>& returnData);
+    void setServiceWorkerProxyCreationCallback(void (*)(uint64_t));
 
     WebConnection* webConnectionToUIProcess() const;
 
@@ -148,6 +151,7 @@ public:
     void setSerialLoadingEnabled(bool);
     void setCSSAnimationTriggersEnabled(bool);
     void setWebAnimationsEnabled(bool);
+    void setCSSAnimationsAndCSSTransitionsBackedByWebAnimationsEnabled(bool);
     void dispatchPendingLoadRequests();
 
 #if PLATFORM(COCOA) && WK_API_ENABLED

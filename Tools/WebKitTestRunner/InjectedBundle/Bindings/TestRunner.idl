@@ -90,6 +90,7 @@ interface TestRunner {
     void setAsynchronousSpellCheckingEnabled(boolean value);
     void setPrinting();
     void setShouldDecideNavigationPolicyAfterDelay(boolean value);
+    void setShouldDecideResponsePolicyAfterDelay(boolean value);
     void setNavigationGesturesEnabled(boolean value);
     void setIgnoresViewportScaleLimits(boolean value);
     void setShouldDownloadUndisplayableMIMETypes(boolean value);
@@ -162,6 +163,9 @@ interface TestRunner {
     void setDefersLoading(boolean flag);
     void setStopProvisionalFrameLoads();
 
+    readonly attribute boolean didReceiveServerRedirectForProvisionalNavigation;
+    void clearDidReceiveServerRedirectForProvisionalNavigation();
+
     // Focus testing.
     void addChromeInputField(object callback);
     void removeChromeInputField(object callback);
@@ -176,7 +180,6 @@ interface TestRunner {
     // Cookies testing
     void setAlwaysAcceptCookies(boolean accept);
     void setCookieStoragePartitioningEnabled(boolean enabled);
-    void setStorageAccessAPIEnabled(boolean enabled);
 
     void overridePreference(DOMString preference, DOMString value);
 
@@ -234,7 +237,8 @@ interface TestRunner {
     
     // Override plugin load policy.
     void setBlockAllPlugins(boolean shouldBlock);
-    
+    void setPluginSupportedMode(DOMString mode);
+
     // Hooks to the JSC compiler.
     object failNextNewCodeBlock();
     object numberOfDFGCompiles(object function);
@@ -268,7 +272,9 @@ interface TestRunner {
     void installStatisticsDidRunTelemetryCallback(object callback);
     void setStatisticsLastSeen(DOMString hostName, double seconds);
     void setStatisticsPrevalentResource(DOMString hostName, boolean value);
+    void setStatisticsVeryPrevalentResource(DOMString hostName, boolean value);
     boolean isStatisticsPrevalentResource(DOMString hostName);
+    boolean isStatisticsVeryPrevalentResource(DOMString hostName);
     boolean isStatisticsRegisteredAsSubFrameUnder(DOMString subFrameHost, DOMString topFrameHost);
     boolean isStatisticsRegisteredAsRedirectingTo(DOMString hostRedirectedFrom, DOMString hostRedirectedTo);
     void setStatisticsHasHadUserInteraction(DOMString hostName, boolean value);
@@ -279,12 +285,15 @@ interface TestRunner {
     void setStatisticsSubframeUnderTopFrameOrigin(DOMString hostName, DOMString topFrameHostName);
     void setStatisticsSubresourceUnderTopFrameOrigin(DOMString hostName, DOMString topFrameHostName);
     void setStatisticsSubresourceUniqueRedirectTo(DOMString hostName, DOMString hostNameRedirectedTo);
+    void setStatisticsSubresourceUniqueRedirectFrom(DOMString hostName, DOMString hostNameRedirectedTo);
+    void setStatisticsTopFrameUniqueRedirectTo(DOMString hostName, DOMString hostNameRedirectedTo);
+    void setStatisticsTopFrameUniqueRedirectFrom(DOMString hostName, DOMString hostNameRedirectedTo);
     void setStatisticsTimeToLiveUserInteraction(double seconds);
     void setStatisticsTimeToLiveCookiePartitionFree(double seconds);
     void statisticsNotifyObserver();
     void statisticsProcessStatisticsAndDataRecords();
-    void statisticsUpdateCookiePartitioning();
-    void statisticsSetShouldPartitionCookiesForHost(DOMString hostName, boolean value);
+    void statisticsUpdateCookiePartitioning(object callback);
+    void statisticsSetShouldPartitionCookiesForHost(DOMString hostName, boolean value, object callback);
     void statisticsSubmitTelemetry();
     void setStatisticsNotifyPagesWhenDataRecordsWereScanned(boolean value);
     void setStatisticsShouldClassifyResourcesBeforeDataRecordsRemoval(boolean value);
@@ -293,10 +302,14 @@ interface TestRunner {
     void setStatisticsGrandfatheringTime(double seconds);
     void setStatisticsMaxStatisticsEntries(unsigned long entries);
     void setStatisticsPruneEntriesDownTo(unsigned long entries);
-    void statisticsClearInMemoryAndPersistentStore();
-    void statisticsClearInMemoryAndPersistentStoreModifiedSinceHours(unsigned long hours);
+    void statisticsClearInMemoryAndPersistentStore(object callback);
+    void statisticsClearInMemoryAndPersistentStoreModifiedSinceHours(unsigned long hours, object callback);
     void statisticsClearThroughWebsiteDataRemoval(object callback);
     void statisticsResetToConsistentState();
+
+    // Storage Access API
+    void setStorageAccessAPIEnabled(boolean enabled);
+    void getAllStorageAccessEntries(object callback);
 
     // Open panel
     void setOpenPanelFiles(object filesArray);
@@ -305,6 +318,8 @@ interface TestRunner {
 
     void terminateNetworkProcess();
     void terminateServiceWorkerProcess();
+
+    readonly attribute boolean didCancelClientRedirect;
 
     void removeAllSessionCredentials(object callback);
 

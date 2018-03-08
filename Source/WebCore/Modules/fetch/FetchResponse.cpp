@@ -33,6 +33,7 @@
 #include "HTTPParsers.h"
 #include "JSBlob.h"
 #include "MIMETypeRegistry.h"
+#include "ReadableStreamSink.h"
 #include "ResourceError.h"
 #include "ScriptExecutionContext.h"
 
@@ -44,10 +45,17 @@ static inline bool isNullBodyStatus(int status)
     return status == 101 || status == 204 || status == 205 || status == 304;
 }
 
-Ref<FetchResponse> FetchResponse::create(ScriptExecutionContext& context, std::optional<FetchBody>&& body, Ref<FetchHeaders>&& headers, ResourceResponse&& response)
+Ref<FetchResponse> FetchResponse::create(ScriptExecutionContext& context, std::optional<FetchBody>&& body, FetchHeaders::Guard guard, ResourceResponse&& response)
 {
+    bool isSynthetic = response.type() == ResourceResponse::Type::Default || response.type() == ResourceResponse::Type::Error;
+    bool isOpaque = response.tainting() == ResourceResponse::Tainting::Opaque;
+    auto headers = isOpaque ? FetchHeaders::create(guard) : FetchHeaders::create(guard, HTTPHeaderMap { response.httpHeaderFields() });
+
     auto fetchResponse = adoptRef(*new FetchResponse(context, WTFMove(body), WTFMove(headers), WTFMove(response)));
-    fetchResponse->m_filteredResponse = ResourceResponseBase::filter(fetchResponse->m_internalResponse);
+    if (!isSynthetic)
+        fetchResponse->m_filteredResponse = ResourceResponseBase::filter(fetchResponse->m_internalResponse);
+    if (isOpaque)
+        fetchResponse->setBodyAsOpaque();
     return fetchResponse;
 }
 
@@ -116,6 +124,7 @@ ExceptionOr<Ref<FetchResponse>> FetchResponse::create(ScriptExecutionContext& co
     r->m_contentType = contentType;
     auto mimeType = extractMIMETypeFromMediaType(contentType);
     r->m_internalResponse.setMimeType(mimeType.isEmpty() ? defaultMIMEType() : mimeType);
+    r->m_internalResponse.setTextEncodingName(extractCharsetFromMediaType(contentType));
 
     r->m_internalResponse.setHTTPStatusCode(status);
     r->m_internalResponse.setHTTPStatusText(statusText);
@@ -159,13 +168,16 @@ ExceptionOr<Ref<FetchResponse>> FetchResponse::clone(ScriptExecutionContext& con
     ASSERT(scriptExecutionContext());
 
     // If loading, let's create a stream so that data is teed on both clones.
-    if (isLoading())
-        readableStream(*context.execState());
+    if (isLoading() && !m_readableStreamSource)
+        createReadableStream(*context.execState());
 
-    auto clone = adoptRef(*new FetchResponse(context, std::nullopt, FetchHeaders::create(headers()), ResourceResponse(m_internalResponse)));
+    // Synthetic responses do not store headers in m_internalResponse.
+    if (m_internalResponse.type() == ResourceResponse::Type::Default)
+        m_internalResponse.setHTTPHeaderFields(HTTPHeaderMap { headers().internalHeaders() });
+
+    auto clone = FetchResponse::create(context, std::nullopt, headers().guard(), ResourceResponse { m_internalResponse });
+    clone->m_loadingError = m_loadingError;
     clone->cloneBody(*this);
-    if (isBodyOpaque())
-        clone->setBodyAsOpaque();
     clone->m_opaqueLoadIdentifier = m_opaqueLoadIdentifier;
     clone->m_bodySizeWithPadding = m_bodySizeWithPadding;
     return WTFMove(clone);
@@ -214,7 +226,7 @@ void FetchResponse::BodyLoader::didSucceed()
         m_response.closeStream();
 #endif
     if (auto consumeDataCallback = WTFMove(m_consumeDataCallback))
-        consumeDataCallback(m_response.body().consumer().takeData());
+        consumeDataCallback(nullptr);
 
     if (m_loader->isStarted()) {
         Ref<FetchResponse> protector(m_response);
@@ -225,6 +237,9 @@ void FetchResponse::BodyLoader::didSucceed()
 void FetchResponse::BodyLoader::didFail(const ResourceError& error)
 {
     ASSERT(m_response.hasPendingActivity());
+
+    m_response.m_loadingError = error;
+
     if (auto responseCallback = WTFMove(m_responseCallback))
         responseCallback(Exception { TypeError, String(error.localizedDescription()) });
 
@@ -279,7 +294,18 @@ void FetchResponse::BodyLoader::didReceiveResponse(const ResourceResponse& resou
 void FetchResponse::BodyLoader::didReceiveData(const char* data, size_t size)
 {
 #if ENABLE(STREAMS_API)
-    ASSERT(m_response.m_readableStreamSource);
+    ASSERT(m_response.m_readableStreamSource || m_consumeDataCallback);
+#else
+    ASSERT(m_consumeDataCallback);
+#endif
+
+    if (m_consumeDataCallback) {
+        ReadableStreamChunk chunk { reinterpret_cast<const uint8_t*>(data), size };
+        m_consumeDataCallback(&chunk);
+        return;
+    }
+
+#if ENABLE(STREAMS_API)
     auto& source = *m_response.m_readableStreamSource;
 
     if (!source.isPulling()) {
@@ -316,9 +342,21 @@ void FetchResponse::BodyLoader::stop()
         m_loader->stop();
 }
 
+void FetchResponse::BodyLoader::consumeDataByChunk(ConsumeDataByChunkCallback&& consumeDataCallback)
+{
+    ASSERT(!m_consumeDataCallback);
+    m_consumeDataCallback = WTFMove(consumeDataCallback);
+    auto data = m_loader->startStreaming();
+    if (!data)
+        return;
+
+    ReadableStreamChunk chunk { reinterpret_cast<const uint8_t*>(data->data()), data->size() };
+    m_consumeDataCallback(&chunk);
+}
+
 FetchResponse::ResponseData FetchResponse::consumeBody()
 {
-    ASSERT(!isLoading());
+    ASSERT(!isBodyReceivedByChunk());
 
     if (isBodyNull())
         return nullptr;
@@ -329,25 +367,19 @@ FetchResponse::ResponseData FetchResponse::consumeBody()
     return body().take();
 }
 
-void FetchResponse::consumeBodyFromReadableStream(ConsumeDataCallback&& callback)
+void FetchResponse::consumeBodyReceivedByChunk(ConsumeDataByChunkCallback&& callback)
 {
-    ASSERT(m_body);
-    ASSERT(m_body->readableStream());
-
+    ASSERT(isBodyReceivedByChunk());
     ASSERT(!isDisturbed());
     m_isDisturbed = true;
 
-    m_body->consumer().extract(*m_body->readableStream(), WTFMove(callback));
-}
+    if (hasReadableStreamBody()) {
+        m_body->consumer().extract(*m_body->readableStream(), WTFMove(callback));
+        return;
+    }
 
-void FetchResponse::consumeBodyWhenLoaded(ConsumeDataCallback&& callback)
-{
     ASSERT(isLoading());
-
-    ASSERT(!isDisturbed());
-    m_isDisturbed = true;
-
-    m_bodyLoader->setConsumeDataCallback(WTFMove(callback));
+    m_bodyLoader->consumeDataByChunk(WTFMove(callback));
 }
 
 void FetchResponse::setBodyData(ResponseData&& data, uint64_t bodySizeWithPadding)

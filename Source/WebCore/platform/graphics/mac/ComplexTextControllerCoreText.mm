@@ -30,12 +30,7 @@
 #include <pal/spi/cocoa/CoreTextSPI.h>
 #include <wtf/SoftLinking.h>
 #include <wtf/WeakPtr.h>
-
-#if PLATFORM(IOS)
 #include <CoreText/CoreText.h>
-#else
-#include <ApplicationServices/ApplicationServices.h>
-#endif
 
 // Note: CTFontDescriptorRefs can live forever in caches inside CoreText, so this object can too.
 @interface WebCascadeList : NSArray {
@@ -248,7 +243,6 @@ void ComplexTextController::collectComplexTextRunsForCharacters(const UChar* cp,
             RetainPtr<CFTypeRef> runFontEqualityObject = FontPlatformData::objectForEqualityCheck(runCTFont);
             if (!safeCFEqual(runFontEqualityObject.get(), font->platformData().objectForEqualityCheck().get())) {
                 // Begin trying to see if runFont matches any of the fonts in the fallback list.
-
                 for (unsigned i = 0; !m_font.fallbackRangesAt(i).isNull(); ++i) {
                     runFont = m_font.fallbackRangesAt(i).fontForCharacter(baseCharacter);
                     if (!runFont)
@@ -257,24 +251,14 @@ void ComplexTextController::collectComplexTextRunsForCharacters(const UChar* cp,
                         break;
                     runFont = nullptr;
                 }
-                // If there is no matching font, look up by name in the font cache.
                 if (!runFont) {
-                    // Rather than using runFont as an NSFont and wrapping it in a FontPlatformData, go through
-                    // the font cache and ultimately through NSFontManager in order to get an NSFont with the right
-                    // NSFontRenderingMode.
                     RetainPtr<CFStringRef> fontName = adoptCF(CTFontCopyPostScriptName(runCTFont));
                     if (CFEqual(fontName.get(), CFSTR("LastResort"))) {
                         m_complexTextRuns.append(ComplexTextRun::create(m_font.primaryFont(), cp, stringLocation, length, runRange.location, runRange.location + runRange.length, m_run.ltr()));
                         continue;
                     }
-                    auto& fontCache = FontCache::singleton();
-                    runFont = fontCache.fontForFamily(m_font.fontDescription(), fontName.get()).get();
-                    // Core Text may have used a font that our font lookup path cannot find. In that case, fall back on
-                    // using the font as returned.
-                    if (!runFont) {
-                        FontPlatformData runFontPlatformData(runCTFont, CTFontGetSize(runCTFont));
-                        runFont = fontCache.fontForPlatformData(runFontPlatformData).ptr();
-                    }
+                    FontPlatformData runFontPlatformData(runCTFont, CTFontGetSize(runCTFont));
+                    runFont = FontCache::singleton().fontForPlatformData(runFontPlatformData).ptr();
                 }
                 if (m_fallbackFonts && runFont != &m_font.primaryFont())
                     m_fallbackFonts->add(runFont);

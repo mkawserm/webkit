@@ -4,7 +4,6 @@
 #
 
 css3/font-variant-small-caps-synthesis-coverage.html [ ImageOnlyFailure ]
-fast/frames/flattening/scrolling-in-object.html [ ImageOnlyFailure ]
 fast/frames/sandboxed-iframe-close-top-noclose.html [ Failure ]
 fast/multicol/flexbox-rows.html [ Skip ]
 workers/wasm-mem-post-message.html [ Failure ]
@@ -55,6 +54,12 @@ http/tests/security/contentSecurityPolicy/WebAssembly-blocked.html [ Failure ]
 wasm/iframe-postmessage.html [ Skip ]
 wasm/iframe-parent-postmessage.html [ Skip ]
 wasm/window-postmessage.html [ Skip ]
+
+# These tests seem to fail due pixel rounding errors in the absolute positioned elements used as reference.
+webkit.org/b/170176 fast/inline-block/baseline-vertical-01.html [ ImageOnlyFailure ]
+webkit.org/b/170176 fast/inline-block/baseline-vertical-02.html [ ImageOnlyFailure ]
+webkit.org/b/170176 fast/inline-block/baseline-vertical-03.html [ ImageOnlyFailure ]
+webkit.org/b/170176 fast/inline-block/baseline-vertical-04.html [ ImageOnlyFailure ]
 
 # WebGL tests which need triaging https://bugs.webkit.org/b/174100
 webgl/1.0.2/conformance/uniforms/uniform-default-values.html [ Failure ]

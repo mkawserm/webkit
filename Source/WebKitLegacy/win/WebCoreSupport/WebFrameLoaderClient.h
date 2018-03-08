@@ -51,8 +51,8 @@ public:
 
     void dispatchDidFailToStartPlugin(const WebCore::PluginView*) const;
 
-    uint64_t pageID() const final;
-    uint64_t frameID() const final;
+    std::optional<uint64_t> pageID() const final;
+    std::optional<uint64_t> frameID() const final;
     PAL::SessionID sessionID() const final;
 
     bool hasWebView() const override;
@@ -85,7 +85,7 @@ public:
     void dispatchDidDispatchOnloadEvents() override;
     void dispatchDidReceiveServerRedirectForProvisionalLoad() override;
     void dispatchDidCancelClientRedirect() override;
-    void dispatchWillPerformClientRedirect(const WebCore::URL&, double interval, double fireDate) override;
+    void dispatchWillPerformClientRedirect(const WebCore::URL&, double interval, WallTime fireDate) override;
     void dispatchDidChangeLocationWithinPage() override;
     void dispatchDidPushStateWithinPage() override;
     void dispatchDidReplaceStateWithinPage() override;

@@ -125,11 +125,6 @@ http/tests/globalhistory/history-delegate-basic-refresh-redirect.html
 # <https://bugs.webkit.org/show_bug.cgi?id=56531>
 transitions/default-timing-function.html
 
-# WebKitTestRunner needs testRunner.setCallCloseOnWebViews
-# http://webkit.org/b/46714
-plugins/geturlnotify-during-document-teardown.html
-plugins/open-and-close-window-with-plugin.html
-
 # Sometimes fails
 # http://webkit.org/b/58990
 editing/undo/undo-iframe-location-change.html
@@ -146,14 +141,6 @@ http/tests/cache/history-only-cached-subresource-loads-max-age-https.html
 # https://bugs.webkit.org/show_bug.cgi?id=40361
 editing/text-iterator/findString-selection-disabled.html
 
-# testRunner.setWindowIsKey() has no effect on the web process side in WebKit2
-# https://bugs.webkit.org/show_bug.cgi?id=81736 rdar://problem/11088268
-fast/events/blur-focus-window-should-blur-focus-element.html
-fast/selectors/querySelector-window-inactive.html
-fast/selectors/selection-window-inactive.html
-fast/dom/Window/window-focus-self.html
-scrollbars/corner-resizer-window-inactive.html
-
 # WebKitTestRunner needs to implement testRunner.closeIdleLocalStorageDatabases().
 # https://bugs.webkit.org/show_bug.cgi?id=103861
 storage/domstorage/localstorage/close-idle-localstorage-databases-immediately.html
@@ -168,14 +155,10 @@ plugins/npruntime/embed-property-iframe-equality.html
 
 webkit.org/b/105952 fast/loader/submit-form-while-parsing-2.html [ Pass Failure ]
 
-webkit.org/b/127683 http/tests/navigation/new-window-redirect-history.html [ Skip ]
-
 # Causes next test to crash only on WebKit2
 webkit.org/b/98345 fast/parser/document-open-in-unload.html [ Skip ]
 
 webkit.org/b/141122 editing/selection/programmatic-selection-on-mac-is-directionless.html [ Pass Failure ]
-
-webkit.org/b/90980 fast/forms/textarea/textarea-state-restore.html [ Pass Timeout ]
 
 webkit.org/b/149087 http/tests/cache/disk-cache/disk-cache-cancel.html [ Pass Failure ]
 
@@ -513,6 +496,17 @@ fast/preloader/document-write-2.html [ Pass Failure ]
 ########################################
 ### START OF (4) Features that are not supported in WebKit2 and likely never will be
 
+# Plug-ins are disallowed from evaluating JavaScript from NPP_Destroy().
+plugins/attach-during-destroy.html [ WontFix ]
+plugins/destroy-reentry.html [ WontFix ]
+plugins/document-open.html [ WontFix ]
+webkit.org/b/48929 plugins/evaluate-js-after-removing-plugin-element.html [ WontFix ]
+plugins/geturlnotify-during-document-teardown.html [ WontFix ]
+plugins/js-from-destroy.html [ WontFix ]
+plugins/nested-plugin-objects.html [ WontFix ]
+plugins/netscape-destroy-plugin-script-objects.html [ WontFix ]
+plugins/open-and-close-window-with-plugin.html [ WontFix ]
+
 # Internals.registerDefaultPortForProtocol() does not affect NetworkProcess. We should
 # look to remove it and write these test to make use of an HTTP server running on port 80.
 http/tests/security/contentSecurityPolicy/script-src-parsing-implicit-and-explicit-port-number.html
@@ -604,6 +598,7 @@ fast/forms/file/file-input-change-event.html
 fast/forms/file/file-input-reset.html
 fast/forms/file/get-file-upload.html
 fast/forms/file/input-file-re-render.html
+fast/forms/file/input-file-value.html
 fast/forms/file/input-file-write-files.html
 fast/forms/file/recover-file-input-in-unposted-form.html
 fast/forms/file/selected-files-from-history-state.html
@@ -671,8 +666,8 @@ http/tests/misc/will-send-request-with-client-provided-http-body.html [ Pass ]
 imported/w3c/web-platform-tests/fetch/api/request/request-cache-only-if-cached.html [ Failure ]
 
 # Resource Load Statistics are only supported in WebKit2.
-http/tests/resourceLoadStatistics/non-prevalent-resource-with-user-interaction.html [ Pass ]
 http/tests/resourceLoadStatistics/prevalent-resource-with-user-interaction.html [ Pass ]
+http/tests/resourceLoadStatistics/non-prevalent-resource-with-user-interaction.html [ Pass ]
 http/tests/resourceLoadStatistics/non-prevalent-resource-without-user-interaction.html [ Pass ]
 http/tests/resourceLoadStatistics/prevalent-resource-without-user-interaction.html [ Pass ]
 http/tests/resourceLoadStatistics/prevalent-resource-with-user-interaction-timeout.html [ Pass ]
@@ -681,22 +676,30 @@ http/tests/resourceLoadStatistics/classify-as-non-prevalent-based-on-sub-frame-u
 http/tests/resourceLoadStatistics/classify-as-non-prevalent-based-on-subresource-under-top-frame-origins.html [ Pass ]
 http/tests/resourceLoadStatistics/classify-as-non-prevalent-based-on-subresource-unique-redirects-to.html [ Pass ]
 http/tests/resourceLoadStatistics/classify-as-prevalent-based-on-mixed-statistics.html [ Pass ]
+http/tests/resourceLoadStatistics/classify-as-very-prevalent-based-on-mixed-statistics.html [ Pass ]
 http/tests/resourceLoadStatistics/classify-as-prevalent-based-on-sub-frame-under-top-frame-origins.html [ Pass ]
 http/tests/resourceLoadStatistics/classify-as-prevalent-based-on-subresource-under-top-frame-origins.html [ Pass ]
 http/tests/resourceLoadStatistics/classify-as-prevalent-based-on-subresource-unique-redirects-to.html [ Pass ]
+http/tests/resourceLoadStatistics/classify-as-prevalent-based-on-subresource-redirect-collusion.html [ Pass ]
+http/tests/resourceLoadStatistics/classify-as-prevalent-based-on-top-frame-redirect-collusion.html [ Pass Failure ]
+http/tests/resourceLoadStatistics/classify-as-prevalent-based-on-top-frame-unique-redirects-to.html [ Pass ]
 http/tests/resourceLoadStatistics/clear-in-memory-and-persistent-store.html [ Pass ]
 http/tests/resourceLoadStatistics/grandfathering.html [ Pass ]
-http/tests/resourceLoadStatistics/telemetry-generation.html [ Pass ]
+webkit.org/b/180703 http/tests/resourceLoadStatistics/telemetry-generation.html [ Pass Failure ]
 http/tests/resourceLoadStatistics/prune-statistics.html [ Pass ]
-http/tests/storageAccess/request-storage-access-top-frame.html [ Pass ]
 http/tests/resourceLoadStatistics [ Pass ]
 # Cookie partitioning is only supported in macOS High Sierra and iOS 11.
-http/tests/resourceLoadStatistics/add-partitioning-to-redirect.html [ Skip ]
-http/tests/resourceLoadStatistics/remove-partitioning-from-redirect.html [ Skip ]
 http/tests/resourceLoadStatistics/partitioned-and-unpartitioned-cookie-deletion.html [ Skip ]
 http/tests/resourceLoadStatistics/partitioned-and-unpartitioned-cookie-with-partitioning-timeout.html [ Skip ]
 http/tests/resourceLoadStatistics/partitioned-cookies-with-and-without-user-interaction.html [ Skip ]
 http/tests/resourceLoadStatistics/third-party-cookie-with-and-without-user-interaction.html [ Skip ]
+http/tests/resourceLoadStatistics/non-prevalent-resources-can-access-cookies-in-a-third-party-context.html [ Skip ]
+http/tests/resourceLoadStatistics/add-partitioning-to-redirect.html [ Skip ]
+http/tests/resourceLoadStatistics/add-blocking-to-redirect.html [ Skip ]
+http/tests/resourceLoadStatistics/remove-partitioning-in-redirect.html [ Skip ]
+http/tests/resourceLoadStatistics/remove-blocking-in-redirect.html [ Skip ]
+http/tests/resourceLoadStatistics/strip-referrer-to-origin-for-prevalent-subresource-redirects.html [ Skip ]
+http/tests/resourceLoadStatistics/strip-referrer-to-origin-for-prevalent-subresource-requests.html [ Skip ]
 
 ### END OF (5) Progressions, expected successes that are expected failures in WebKit1.
 ########################################
@@ -718,4 +721,7 @@ webkit.org/b/172662 [ Debug ] http/tests/cache/disk-cache/redirect-chain-limits.
 webkit.org/b/174471 webrtc/filtering-ice-candidate-after-reload.html [ Pass Timeout ]
 
 webkit.org/b/175678 media/W3C/video/events/event_progress.html [ Pass Failure ]
+
+webkit.org/b/183139 fast/events/blur-focus-window-should-blur-focus-element.html
+webkit.org/b/183140 fast/selectors/querySelector-window-inactive.html
 

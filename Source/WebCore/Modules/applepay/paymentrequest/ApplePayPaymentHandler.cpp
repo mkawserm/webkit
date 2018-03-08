@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 Apple Inc. All rights reserved.
+ * Copyright (C) 2017-2018 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -30,7 +30,6 @@
 
 #include "ApplePayContactField.h"
 #include "ApplePayMerchantCapability.h"
-#include "ApplePayMerchantValidationEvent.h"
 #include "ApplePayModifier.h"
 #include "ApplePayPayment.h"
 #include "ApplePaySessionPaymentRequest.h"
@@ -40,11 +39,13 @@
 #include "JSApplePayRequest.h"
 #include "LinkIconCollector.h"
 #include "MainFrame.h"
+#include "MerchantValidationEvent.h"
 #include "Page.h"
 #include "Payment.h"
 #include "PaymentAuthorizationStatus.h"
 #include "PaymentContact.h"
 #include "PaymentCoordinator.h"
+#include "PaymentMerchantSession.h"
 #include "PaymentMethod.h"
 #include "PaymentRequestValidator.h"
 #include "PaymentResponse.h"
@@ -79,12 +80,12 @@ ApplePayPaymentHandler::ApplePayPaymentHandler(Document& document, const Payment
     ASSERT(handlesIdentifier(m_identifier));
 }
 
-Document& ApplePayPaymentHandler::document()
+Document& ApplePayPaymentHandler::document() const
 {
     return downcast<Document>(*scriptExecutionContext());
 }
 
-PaymentCoordinator& ApplePayPaymentHandler::paymentCoordinator()
+PaymentCoordinator& ApplePayPaymentHandler::paymentCoordinator() const
 {
     return WebCore::paymentCoordinator(document());
 }
@@ -174,11 +175,12 @@ ExceptionOr<void> ApplePayPaymentHandler::convertData(JSC::JSValue&& data)
 
 ExceptionOr<void> ApplePayPaymentHandler::show()
 {
-    auto validatedRequest = convertAndValidate(m_applePayRequest->version, *m_applePayRequest);
+    auto validatedRequest = convertAndValidate(m_applePayRequest->version, *m_applePayRequest, paymentCoordinator());
     if (validatedRequest.hasException())
         return validatedRequest.releaseException();
 
     ApplePaySessionPaymentRequest request = validatedRequest.releaseReturnValue();
+    request.setRequester(ApplePaySessionPaymentRequest::Requester::PaymentRequest);
 
     String expectedCurrency = m_paymentRequest->paymentDetails().total.amount.currency;
     request.setCurrencyCode(expectedCurrency);
@@ -305,20 +307,46 @@ ExceptionOr<ApplePaySessionPaymentRequest::TotalAndLineItems> ApplePayPaymentHan
     return ApplePaySessionPaymentRequest::TotalAndLineItems { WTFMove(total), WTFMove(lineItems) };
 }
 
-ExceptionOr<void> ApplePayPaymentHandler::detailsUpdated(const AtomicString& eventType, const String& error)
+ExceptionOr<void> ApplePayPaymentHandler::detailsUpdated(PaymentRequest::UpdateReason reason, const String& error)
 {
-    if (eventType == eventNames().shippingaddresschangeEvent)
+    using Reason = PaymentRequest::UpdateReason;
+    switch (reason) {
+    case Reason::ShowDetailsResolved:
+        return { };
+    case Reason::ShippingAddressChanged:
         return shippingAddressUpdated(error);
-
-    if (eventType == eventNames().shippingoptionchangeEvent)
+    case Reason::ShippingOptionChanged:
         return shippingOptionUpdated();
+    case Reason::PaymentMethodChanged:
+        return paymentMethodUpdated();
+    }
 
     ASSERT_NOT_REACHED();
     return { };
 }
 
+ExceptionOr<void> ApplePayPaymentHandler::merchantValidationCompleted(JSC::JSValue&& merchantSessionValue)
+{
+    if (!paymentCoordinator().hasActiveSession())
+        return Exception { InvalidStateError };
+
+    if (!merchantSessionValue.isObject())
+        return Exception { TypeError };
+
+    String errorMessage;
+    auto merchantSession = PaymentMerchantSession::fromJS(*document().execState(), asObject(merchantSessionValue), errorMessage);
+    if (!merchantSession)
+        return Exception { TypeError, WTFMove(errorMessage) };
+
+    paymentCoordinator().completeMerchantValidation(*merchantSession);
+    return { };
+}
+
 ExceptionOr<void> ApplePayPaymentHandler::shippingAddressUpdated(const String& error)
 {
+    ASSERT(m_isUpdating);
+    m_isUpdating = false;
+
     ShippingContactUpdate update;
 
     if (m_paymentRequest->paymentOptions().requestShipping && m_paymentRequest->paymentDetails().shippingOptions.isEmpty()) {
@@ -339,6 +367,9 @@ ExceptionOr<void> ApplePayPaymentHandler::shippingAddressUpdated(const String& e
 
 ExceptionOr<void> ApplePayPaymentHandler::shippingOptionUpdated()
 {
+    ASSERT(m_isUpdating);
+    m_isUpdating = false;
+
     ShippingMethodUpdate update;
 
     auto newTotalAndLineItems = computeTotalAndLineItems();
@@ -352,6 +383,9 @@ ExceptionOr<void> ApplePayPaymentHandler::shippingOptionUpdated()
 
 ExceptionOr<void> ApplePayPaymentHandler::paymentMethodUpdated()
 {
+    ASSERT(m_isUpdating);
+    m_isUpdating = false;
+
     PaymentMethodUpdate update;
 
     auto newTotalAndLineItems = computeTotalAndLineItems();
@@ -375,7 +409,6 @@ void ApplePayPaymentHandler::complete(std::optional<PaymentComplete>&& result)
     case PaymentComplete::Fail:
     case PaymentComplete::Unknown:
         authorizationResult.status = PaymentAuthorizationStatus::Failure;
-        authorizationResult.errors.append({ PaymentError::Code::Unknown, { }, std::nullopt });
         break;
     case PaymentComplete::Success:
         authorizationResult.status = PaymentAuthorizationStatus::Success;
@@ -385,10 +418,20 @@ void ApplePayPaymentHandler::complete(std::optional<PaymentComplete>&& result)
     paymentCoordinator().completePaymentSession(WTFMove(authorizationResult));
 }
 
+unsigned ApplePayPaymentHandler::version() const
+{
+    if (!m_applePayRequest)
+        return 0;
+    
+    auto version = m_applePayRequest->version;
+    ASSERT(paymentCoordinator().supportsVersion(version));
+    return version;
+}
+
 void ApplePayPaymentHandler::validateMerchant(const URL& validationURL)
 {
     if (validationURL.isValid())
-        m_paymentRequest->dispatchEvent(ApplePayMerchantValidationEvent::create(eventNames().applepayvalidatemerchantEvent, validationURL).get());
+        m_paymentRequest->dispatchEvent(MerchantValidationEvent::create(eventNames().merchantvalidationEvent, validationURL, m_paymentRequest.get()).get());
 }
 
 static Ref<PaymentAddress> convert(const ApplePayPaymentContact& contact)
@@ -398,7 +441,9 @@ static Ref<PaymentAddress> convert(const ApplePayPaymentContact& contact)
 
 void ApplePayPaymentHandler::didAuthorizePayment(const Payment& payment)
 {
-    auto applePayPayment = payment.toApplePayPayment();
+    ASSERT(!m_isUpdating);
+
+    auto applePayPayment = payment.toApplePayPayment(version());
     auto& execState = *document().execState();
     auto lock = JSC::JSLockHolder { &execState };
     auto details = JSC::Strong<JSC::JSObject> { execState.vm(), asObject(toJS<IDLDictionary<ApplePayPayment>>(execState, *JSC::jsCast<JSDOMGlobalObject*>(execState.lexicalGlobalObject()), applePayPayment)) };
@@ -408,18 +453,27 @@ void ApplePayPaymentHandler::didAuthorizePayment(const Payment& payment)
 
 void ApplePayPaymentHandler::didSelectShippingMethod(const ApplePaySessionPaymentRequest::ShippingMethod& shippingMethod)
 {
+    ASSERT(!m_isUpdating);
+    m_isUpdating = true;
+
     m_paymentRequest->shippingOptionChanged(shippingMethod.identifier);
 }
 
 void ApplePayPaymentHandler::didSelectShippingContact(const PaymentContact& shippingContact)
 {
-    m_paymentRequest->shippingAddressChanged(convert(shippingContact.toApplePayPaymentContact()));
+    ASSERT(!m_isUpdating);
+    m_isUpdating = true;
+
+    m_paymentRequest->shippingAddressChanged(convert(shippingContact.toApplePayPaymentContact(version())));
 }
 
 void ApplePayPaymentHandler::didSelectPaymentMethod(const PaymentMethod& paymentMethod)
 {
+    ASSERT(!m_isUpdating);
+    m_isUpdating = true;
+
     m_selectedPaymentMethodType = paymentMethod.toApplePayPaymentMethod().type;
-    paymentMethodUpdated();
+    m_paymentRequest->paymentMethodChanged();
 }
 
 void ApplePayPaymentHandler::didCancelPaymentSession()

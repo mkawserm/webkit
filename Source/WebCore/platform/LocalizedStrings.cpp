@@ -85,7 +85,7 @@ static String truncatedStringForLookupMenuItem(const String& original)
     unsigned maxNumberOfGraphemeClustersInLookupMenuItem = 24;
 
     String trimmed = original.stripWhiteSpace();
-    unsigned numberOfCharacters = numCharactersInGraphemeClusters(trimmed, maxNumberOfGraphemeClustersInLookupMenuItem);
+    unsigned numberOfCharacters = numCodeUnitsInGraphemeClusters(trimmed, maxNumberOfGraphemeClustersInLookupMenuItem);
     return numberOfCharacters == trimmed.length() ? trimmed : makeString(trimmed.left(numberOfCharacters), horizontalEllipsis);
 }
 
@@ -625,21 +625,6 @@ String AXAutoFillContactsLabel()
     return WEB_UI_STRING("contact info auto fill", "Label for the auto fill contacts button inside a text field.");
 }
 
-String AXAlternativePresentationButtonLabel()
-{
-    return WEB_UI_STRING("alternative presentation button", "Label for the alternative presentation button.");
-}
-
-String alternativePresentationButtonTitle()
-{
-    return WEB_UI_STRING("alternative presentation button title", "Title text for alternative presentation button");
-}
-
-String alternativePresentationButtonSubtitle()
-{
-    return WEB_UI_STRING("alternative presentation button subtitle", "Subtitle text for alternative presentation button");
-}
-
 String AXAutoFillStrongPasswordLabel()
 {
     return WEB_UI_STRING("strong password auto fill", "Label for the strong password auto fill button inside a text field.");
@@ -673,6 +658,11 @@ String blockedPluginByContentSecurityPolicyText()
 String insecurePluginVersionText()
 {
     return WEB_UI_STRING_KEY("Blocked Plug-in", "Blocked Plug-In (Insecure plug-in)", "Label text to be used when an insecure plug-in version was blocked from loading");
+}
+
+String unsupportedPluginText()
+{
+    return WEB_UI_STRING_KEY("Unsupported Plug-in", "Unsupported Plug-In", "Label text to be used when an unsupported plug-in was blocked from loading");
 }
 
 String multipleFileUploadText(unsigned numberOfFiles)
@@ -1040,6 +1030,60 @@ String webCryptoMasterKeyKeychainLabel(const String& localizedApplicationName)
 String webCryptoMasterKeyKeychainComment()
 {
     return WEB_UI_STRING("Used to encrypt WebCrypto keys in persistent storage, such as IndexedDB", "Description of WebCrypto master keys in Keychain");
+}
+
+#endif
+
+#if ENABLE(EXTRA_ZOOM_MODE)
+
+String formControlDoneButtonTitle()
+{
+    return WEB_UI_STRING("Done (extra zoomed form controls)", "Title of the Done button for zoomed form controls.");
+}
+
+String formControlCancelButtonTitle()
+{
+    return WEB_UI_STRING("Cancel", "Title of the Cancel button for zoomed form controls.");
+}
+
+String formControlHideButtonTitle()
+{
+    return WEB_UI_STRING("Hide", "Title of the Hide button for zoomed form controls.");
+}
+
+String formControlGoButtonTitle()
+{
+    return WEB_UI_STRING("Go", "Title of the Go button for zoomed form controls.");
+}
+
+String formControlSearchButtonTitle()
+{
+    return WEB_UI_STRING("Search", "Title of the Search button for zoomed form controls.");
+}
+
+String textInputModeWriteButtonTitle()
+{
+    return WEB_UI_STRING("Write", "Title of the writing button for zoomed form controls.");
+}
+
+String textInputModeSpeechButtonTitle()
+{
+    return WEB_UI_STRING("Speak", "Title of the dictation button for zoomed form controls.");
+}
+
+String datePickerDayLabelTitle()
+{
+    return WEB_UI_STRING("Day label in date picker", "Day label in date picker");
+}
+
+String datePickerMonthLabelTitle()
+{
+    return WEB_UI_STRING("Month label in date picker", "Month label in date picker");
+}
+
+String datePickerYearLabelTitle()
+{
+    return WEB_UI_STRING("Year label in date picker", "Year label in date picker");
 }
 
 #endif

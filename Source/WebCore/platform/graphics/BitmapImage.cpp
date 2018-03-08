@@ -35,7 +35,6 @@
 #include "Logging.h"
 #include "Settings.h"
 #include "Timer.h"
-#include <wtf/CurrentTime.h>
 #include <wtf/Vector.h>
 #include <wtf/text/TextStream.h>
 #include <wtf/text/WTFString.h>
@@ -291,7 +290,12 @@ void BitmapImage::drawPattern(GraphicsContext& ctxt, const FloatRect& destRect, 
         return;
 
     if (!ctxt.drawLuminanceMask()) {
+        // If new data is received, the current incomplete decoded frame has to be destroyed.
+        if (m_currentFrameDecodingStatus == DecodingStatus::Invalid)
+            m_source->destroyIncompleteDecodedData();
+        
         Image::drawPattern(ctxt, destRect, tileRect, transform, phase, spacing, op, blendMode);
+        m_currentFrameDecodingStatus = frameDecodingStatusAtIndex(m_currentFrame);
         return;
     }
 
@@ -310,7 +314,7 @@ void BitmapImage::drawPattern(GraphicsContext& ctxt, const FloatRect& destRect, 
         setImageObserver(observer);
         buffer->convertToLuminanceMask();
 
-        m_cachedImage = buffer->copyImage(DontCopyBackingStore, Unscaled);
+        m_cachedImage = buffer->copyImage(DontCopyBackingStore, PreserveResolution::Yes);
         if (!m_cachedImage)
             return;
     }

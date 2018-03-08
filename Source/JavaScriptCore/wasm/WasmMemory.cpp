@@ -25,6 +25,7 @@
 
 #include "config.h"
 #include "WasmMemory.h"
+#include "WasmInstance.h"
 
 #if ENABLE(WEBASSEMBLY)
 
@@ -95,26 +96,26 @@ struct MemoryResult {
 class MemoryManager {
 public:
     MemoryManager()
-        : m_maxCount(Options::maxNumWebAssemblyFastMemories())
+        : m_maxFastMemoryCount(Options::maxNumWebAssemblyFastMemories())
     {
     }
     
-    MemoryResult tryAllocateVirtualPages()
+    MemoryResult tryAllocateFastMemory()
     {
         MemoryResult result = [&] {
             auto holder = holdLock(m_lock);
-            if (m_memories.size() >= m_maxCount)
+            if (m_fastMemories.size() >= m_maxFastMemoryCount)
                 return MemoryResult(nullptr, MemoryResult::SyncTryToReclaimMemory);
             
-            void* result = Gigacage::tryAllocateVirtualPages(Gigacage::Primitive, Memory::fastMappedBytes());
+            void* result = Gigacage::tryAllocateZeroedVirtualPages(Gigacage::Primitive, Memory::fastMappedBytes());
             if (!result)
                 return MemoryResult(nullptr, MemoryResult::SyncTryToReclaimMemory);
             
-            m_memories.append(result);
+            m_fastMemories.append(result);
             
             return MemoryResult(
                 result,
-                m_memories.size() >= m_maxCount / 2 ? MemoryResult::SuccessAndNotifyMemoryPressure : MemoryResult::Success);
+                m_fastMemories.size() >= m_maxFastMemoryCount / 2 ? MemoryResult::SuccessAndNotifyMemoryPressure : MemoryResult::Success);
         }();
         
         if (Options::logWebAssemblyMemory())
@@ -123,23 +124,23 @@ public:
         return result;
     }
     
-    void freeVirtualPages(void* basePtr)
+    void freeFastMemory(void* basePtr)
     {
         {
             auto holder = holdLock(m_lock);
             Gigacage::freeVirtualPages(Gigacage::Primitive, basePtr, Memory::fastMappedBytes());
-            m_memories.removeFirst(basePtr);
+            m_fastMemories.removeFirst(basePtr);
         }
         
         if (Options::logWebAssemblyMemory())
             dataLog("Freed virtual; state: ", *this, "\n");
     }
     
-    bool containsAddress(void* address)
+    bool isAddressInFastMemory(void* address)
     {
         // NOTE: This can be called from a signal handler, but only after we proved that we're in JIT code.
         auto holder = holdLock(m_lock);
-        for (void* memory : m_memories) {
+        for (void* memory : m_fastMemories) {
             char* start = static_cast<char*>(memory);
             if (start <= address && address <= start + Memory::fastMappedBytes())
                 return true;
@@ -188,13 +189,13 @@ public:
     
     void dump(PrintStream& out) const
     {
-        out.print("virtual memories =  ", m_memories.size(), "/", m_maxCount, ", bytes = ", m_physicalBytes, "/", memoryLimit());
+        out.print("fast memories =  ", m_fastMemories.size(), "/", m_maxFastMemoryCount, ", bytes = ", m_physicalBytes, "/", memoryLimit());
     }
     
 private:
     Lock m_lock;
-    unsigned m_maxCount { 0 };
-    Vector<void*> m_memories;
+    unsigned m_maxFastMemoryCount { 0 };
+    Vector<void*> m_fastMemories;
     size_t m_physicalBytes { 0 };
 };
 
@@ -257,6 +258,7 @@ Memory::Memory(PageCount initial, PageCount maximum, Function<void(NotifyPressur
 Memory::Memory(void* memory, PageCount initial, PageCount maximum, size_t mappedCapacity, MemoryMode mode, Function<void(NotifyPressure)>&& notifyMemoryPressure, Function<void(SyncTryToReclaim)>&& syncTryToReclaimMemory, WTF::Function<void(GrowSuccess, PageCount, PageCount)>&& growSuccessCallback)
     : m_memory(memory)
     , m_size(initial.bytes())
+    , m_indexingMask(WTF::computeIndexingMask(initial.bytes()))
     , m_initial(initial)
     , m_maximum(maximum)
     , m_mappedCapacity(mappedCapacity)
@@ -266,21 +268,6 @@ Memory::Memory(void* memory, PageCount initial, PageCount maximum, size_t mapped
     , m_growSuccessCallback(WTFMove(growSuccessCallback))
 {
     dataLogLnIf(verbose, "Memory::Memory allocating ", *this);
-}
-
-static void commitZeroPages(void* startAddress, size_t sizeInBytes)
-{
-    bool writable = true;
-    bool executable = false;
-#if OS(LINUX)
-    // In Linux, MADV_DONTNEED clears backing pages with zero. Be Careful that MADV_DONTNEED shows different semantics in different OSes.
-    // For example, FreeBSD does not clear backing pages immediately.
-    while (madvise(startAddress, sizeInBytes, MADV_DONTNEED) == -1 && errno == EAGAIN) { }
-    OSAllocator::commit(startAddress, sizeInBytes, writable, executable);
-#else
-    OSAllocator::commit(startAddress, sizeInBytes, writable, executable);
-    memset(startAddress, 0, sizeInBytes);
-#endif
 }
 
 RefPtr<Memory> Memory::create()
@@ -313,7 +300,7 @@ RefPtr<Memory> Memory::create(PageCount initial, PageCount maximum, WTF::Functio
     if (Options::useWebAssemblyFastMemory()) {
         tryAllocate(
             [&] () -> MemoryResult::Kind {
-                auto result = memoryManager().tryAllocateVirtualPages();
+                auto result = memoryManager().tryAllocateFastMemory();
                 fastMemory = bitwise_cast<char*>(result.basePtr);
                 return result.kind;
             }, notifyMemoryPressure, syncTryToReclaimMemory);
@@ -326,8 +313,6 @@ RefPtr<Memory> Memory::create(PageCount initial, PageCount maximum, WTF::Functio
             RELEASE_ASSERT_NOT_REACHED();
         }
 
-        commitZeroPages(fastMemory, initialBytes);
-
         return adoptRef(new Memory(fastMemory, initial, maximum, Memory::fastMappedBytes(), MemoryMode::Signaling, WTFMove(notifyMemoryPressure), WTFMove(syncTryToReclaimMemory), WTFMove(growSuccessCallback)));
     }
     
@@ -337,12 +322,11 @@ RefPtr<Memory> Memory::create(PageCount initial, PageCount maximum, WTF::Functio
     if (!initialBytes)
         return adoptRef(new Memory(initial, maximum, WTFMove(notifyMemoryPressure), WTFMove(syncTryToReclaimMemory), WTFMove(growSuccessCallback)));
     
-    void* slowMemory = Gigacage::tryAlignedMalloc(Gigacage::Primitive, WTF::pageSize(), initialBytes);
+    void* slowMemory = Gigacage::tryAllocateZeroedVirtualPages(Gigacage::Primitive, initialBytes);
     if (!slowMemory) {
         memoryManager().freePhysicalBytes(initialBytes);
         return nullptr;
     }
-    memset(slowMemory, 0, initialBytes);
     return adoptRef(new Memory(slowMemory, initial, maximum, initialBytes, MemoryMode::BoundsChecking, WTFMove(notifyMemoryPressure), WTFMove(syncTryToReclaimMemory), WTFMove(growSuccessCallback)));
 }
 
@@ -356,10 +340,10 @@ Memory::~Memory()
                 dataLog("mprotect failed: ", strerror(errno), "\n");
                 RELEASE_ASSERT_NOT_REACHED();
             }
-            memoryManager().freeVirtualPages(m_memory);
+            memoryManager().freeFastMemory(m_memory);
             break;
         case MemoryMode::BoundsChecking:
-            Gigacage::alignedFree(Gigacage::Primitive, m_memory);
+            Gigacage::freeVirtualPages(Gigacage::Primitive, m_memory, m_size);
             break;
         }
     }
@@ -378,7 +362,7 @@ size_t Memory::fastMappedBytes()
 
 bool Memory::addressIsInActiveFastMemory(void* address)
 {
-    return memoryManager().containsAddress(address);
+    return memoryManager().isAddressInFastMemory(address);
 }
 
 Expected<PageCount, Memory::GrowFailReason> Memory::grow(PageCount delta)
@@ -394,6 +378,11 @@ Expected<PageCount, Memory::GrowFailReason> Memory::grow(PageCount delta)
 
     auto success = [&] () {
         m_growSuccessCallback(GrowSuccessTag, oldPageCount, newPageCount);
+        // Update cache for instance
+        for (auto& instance : m_instances) {
+            if (instance.get() != nullptr)
+                instance.get()->updateCachedMemory();
+        }
         return oldPageCount;
     };
 
@@ -421,17 +410,17 @@ Expected<PageCount, Memory::GrowFailReason> Memory::grow(PageCount delta)
     case MemoryMode::BoundsChecking: {
         RELEASE_ASSERT(maximum().bytes() != 0);
 
-        void* newMemory = Gigacage::tryAlignedMalloc(Gigacage::Primitive, WTF::pageSize(), desiredSize);
+        void* newMemory = Gigacage::tryAllocateZeroedVirtualPages(Gigacage::Primitive, desiredSize);
         if (!newMemory)
             return makeUnexpected(GrowFailReason::OutOfMemory);
 
         memcpy(newMemory, m_memory, m_size);
-        memset(static_cast<char*>(newMemory) + m_size, 0, desiredSize - m_size);
         if (m_memory)
-            Gigacage::alignedFree(Gigacage::Primitive, m_memory);
+            Gigacage::freeVirtualPages(Gigacage::Primitive, m_memory, m_size);
         m_memory = newMemory;
         m_mappedCapacity = desiredSize;
         m_size = desiredSize;
+        m_indexingMask = WTF::computeIndexingMask(desiredSize);
         return success();
     }
     case MemoryMode::Signaling: {
@@ -444,14 +433,26 @@ Expected<PageCount, Memory::GrowFailReason> Memory::grow(PageCount delta)
             dataLog("mprotect failed: ", strerror(errno), "\n");
             RELEASE_ASSERT_NOT_REACHED();
         }
-        commitZeroPages(startAddress, extraBytes);
         m_size = desiredSize;
+        m_indexingMask = WTF::computeIndexingMask(desiredSize);
         return success();
     }
     }
 
     RELEASE_ASSERT_NOT_REACHED();
     return oldPageCount;
+}
+
+void Memory::registerInstance(Instance* instance)
+{
+    size_t count = m_instances.size();
+    for (size_t index = 0; index < count; index++) {
+        if (m_instances.at(index).get() == nullptr) {
+            m_instances.at(index) = instance->createWeakPtr();
+            return;
+        }
+    }
+    m_instances.append(instance->createWeakPtr());
 }
 
 void Memory::dump(PrintStream& out) const

@@ -28,24 +28,31 @@
 
 #if ENABLE(APPLE_PAY)
 
+#include "PaymentCoordinator.h"
+
 namespace WebCore {
 
-static ExceptionOr<void> validate(unsigned version, const Vector<String>& supportedNetworks)
+static ExceptionOr<Vector<String>> convertAndValidate(unsigned version, const Vector<String>& supportedNetworks, const PaymentCoordinator& paymentCoordinator)
 {
     if (supportedNetworks.isEmpty())
         return Exception { TypeError, "At least one supported network must be provided." };
 
+    Vector<String> result;
+    result.reserveInitialCapacity(supportedNetworks.size());
     for (auto& supportedNetwork : supportedNetworks) {
-        if (!ApplePaySessionPaymentRequest::isValidSupportedNetwork(version, supportedNetwork))
-            return Exception { TypeError, makeString("\"" + supportedNetwork, "\" is not a valid payment network.") };
+        auto validatedNetwork = paymentCoordinator.validatedPaymentNetwork(version, supportedNetwork);
+        if (!validatedNetwork)
+            return Exception { TypeError, makeString("\"", supportedNetwork, "\" is not a valid payment network.") };
+        result.uncheckedAppend(*validatedNetwork);
     }
 
-    return { };
+    return WTFMove(result);
 }
 
-ExceptionOr<ApplePaySessionPaymentRequest> convertAndValidate(unsigned version, ApplePayRequestBase& request)
+ExceptionOr<ApplePaySessionPaymentRequest> convertAndValidate(unsigned version, ApplePayRequestBase& request, const PaymentCoordinator& paymentCoordinator)
 {
     ApplePaySessionPaymentRequest result;
+    result.setVersion(version);
     result.setCountryCode(request.countryCode);
 
     auto merchantCapabilities = convertAndValidate(request.merchantCapabilities);
@@ -53,10 +60,10 @@ ExceptionOr<ApplePaySessionPaymentRequest> convertAndValidate(unsigned version, 
         return merchantCapabilities.releaseException();
     result.setMerchantCapabilities(merchantCapabilities.releaseReturnValue());
 
-    auto exception = validate(version, WTFMove(request.supportedNetworks));
-    if (exception.hasException())
-        return exception.releaseException();
-    result.setSupportedNetworks(request.supportedNetworks);
+    auto supportedNetworks = convertAndValidate(version, request.supportedNetworks, paymentCoordinator);
+    if (supportedNetworks.hasException())
+        return supportedNetworks.releaseException();
+    result.setSupportedNetworks(supportedNetworks.releaseReturnValue());
 
     if (request.requiredBillingContactFields) {
         auto requiredBillingContactFields = convertAndValidate(version, *request.requiredBillingContactFields);
@@ -67,6 +74,9 @@ ExceptionOr<ApplePaySessionPaymentRequest> convertAndValidate(unsigned version, 
 
     if (request.billingContact)
         result.setBillingContact(PaymentContact::fromApplePayPaymentContact(version, *request.billingContact));
+
+    if (request.shippingContact)
+        result.setShippingContact(PaymentContact::fromApplePayPaymentContact(version, *request.shippingContact));
 
     result.setApplicationData(request.applicationData);
 

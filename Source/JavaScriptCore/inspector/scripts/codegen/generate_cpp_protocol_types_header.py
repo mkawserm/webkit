@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Copyright (c) 2014, 2016 Apple Inc. All rights reserved.
+# Copyright (c) 2014-2018 Apple Inc. All rights reserved.
 # Copyright (c) 2014 University of Washington. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -50,13 +50,8 @@ class CppProtocolTypesHeaderGenerator(CppGenerator):
         domains = self.domains_to_generate()
         self.calculate_types_requiring_shape_assertions(domains)
 
-        headers = set([
-            '<inspector/InspectorProtocolTypes.h>',
-            '<wtf/Assertions.h>',
-        ])
-
         header_args = {
-            'includes': '\n'.join(['#include ' + header for header in sorted(headers)]),
+            'includes': self._generate_secondary_header_includes(),
             'typedefs': '',
         }
 
@@ -78,6 +73,14 @@ class CppProtocolTypesHeaderGenerator(CppGenerator):
     # Private methods.
 
     # FIXME: move builders out of classes, uncomment forward declaration
+
+    def _generate_secondary_header_includes(self):
+        header_includes = [
+            (["JavaScriptCore", "WebKit"], ("JavaScriptCore", "inspector/InspectorProtocolTypes.h")),
+            (["JavaScriptCore", "WebKit"], ("WTF", "wtf/Assertions.h"))
+        ]
+
+        return '\n'.join(self.generate_includes_from_entries(header_includes))
 
     def _generate_forward_declarations(self, domains):
         sections = []
@@ -362,9 +365,7 @@ class CppProtocolTypesHeaderGenerator(CppGenerator):
             lines.append('template<> %s BindingTraits<%s> {' % (' '.join(struct_keywords), argument[0]))
             if argument[1]:
                 lines.append('static RefPtr<%s> runtimeCast(RefPtr<JSON::Value>&& value);' % argument[0])
-            lines.append('#if !ASSERT_DISABLED')
             lines.append('%s assertValueHasExpectedType(JSON::Value*);' % ' '.join(function_keywords))
-            lines.append('#endif // !ASSERT_DISABLED')
             lines.append('};')
         return '\n'.join(lines)
 

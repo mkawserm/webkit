@@ -35,7 +35,6 @@
 #include <WebCore/ResourceError.h>
 #include <WebCore/ResourceLoader.h>
 #include <wtf/CompletionHandler.h>
-#include <wtf/CurrentTime.h>
 
 using namespace WebCore;
 
@@ -93,7 +92,7 @@ void WebURLSchemeTaskProxy::didReceiveResponse(const ResourceResponse& response)
     if (!hasLoader())
         return;
 
-    m_coreLoader->didReceiveResponse(response);
+    m_coreLoader->didReceiveResponse(response, nullptr);
 }
 
 void WebURLSchemeTaskProxy::didReceiveData(size_t size, const uint8_t* data)

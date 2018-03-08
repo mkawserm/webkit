@@ -45,6 +45,7 @@
 #import "Image.h"
 #import "ImageBuffer.h"
 #import "LocalCurrentGraphicsContext.h"
+#import "LocalDefaultSystemAppearance.h"
 #import "LocalizedStrings.h"
 #import "MediaControlElements.h"
 #import "Page.h"
@@ -291,19 +292,28 @@ String RenderThemeMac::imageControlsStyleSheet() const
 
 Color RenderThemeMac::platformActiveSelectionBackgroundColor() const
 {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
     NSColor* color = [[NSColor selectedTextBackgroundColor] colorUsingColorSpaceName:NSDeviceRGBColorSpace];
+#pragma clang diagnostic pop
     return Color(static_cast<int>(255.0 * [color redComponent]), static_cast<int>(255.0 * [color greenComponent]), static_cast<int>(255.0 * [color blueComponent]));
 }
 
 Color RenderThemeMac::platformInactiveSelectionBackgroundColor() const
 {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
     NSColor* color = [[NSColor secondarySelectedControlColor] colorUsingColorSpaceName:NSDeviceRGBColorSpace];
+#pragma clang diagnostic pop
     return Color(static_cast<int>(255.0 * [color redComponent]), static_cast<int>(255.0 * [color greenComponent]), static_cast<int>(255.0 * [color blueComponent]));
 }
 
 Color RenderThemeMac::platformActiveListBoxSelectionBackgroundColor() const
 {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
     NSColor* color = [[NSColor alternateSelectedControlColor] colorUsingColorSpaceName:NSDeviceRGBColorSpace];
+#pragma clang diagnostic pop
     return Color(static_cast<int>(255.0 * [color redComponent]), static_cast<int>(255.0 * [color greenComponent]), static_cast<int>(255.0 * [color blueComponent]));
 }
 
@@ -405,7 +415,10 @@ void RenderThemeMac::updateCachedSystemFontDescription(CSSValueID cssValueId, Fo
 
 static RGBA32 convertNSColorToColor(NSColor *color)
 {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
     NSColor *colorInColorSpace = [color colorUsingColorSpaceName:NSDeviceRGBColorSpace];
+#pragma clang diagnostic pop
     if (colorInColorSpace) {
         static const double scaleFactor = nextafter(256.0, 0.0);
         return makeRGB(static_cast<int>(scaleFactor * [colorInColorSpace redComponent]),
@@ -456,7 +469,10 @@ static RGBA32 menuBackgroundColor()
                                                                             bytesPerRow:4
                                                                            bitsPerPixel:32];
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
     CGContextRef context = static_cast<CGContextRef>([[NSGraphicsContext graphicsContextWithBitmapImageRep:offscreenRep] graphicsPort]);
+#pragma clang diagnostic pop
     CGRect rect = CGRectMake(0, 0, 1, 1);
     HIThemeMenuDrawInfo drawInfo;
     drawInfo.version =  0;
@@ -479,6 +495,7 @@ void RenderThemeMac::platformColorsDidChange()
 
 Color RenderThemeMac::systemColor(CSSValueID cssValueID) const
 {
+    LocalDefaultSystemAppearance localAppearence;
     return m_systemColorCache.ensure(cssValueID, [this, cssValueID] () -> Color {
         auto selectCocoaColor = [cssValueID] () -> SEL {
             switch (cssValueID) {
@@ -664,18 +681,18 @@ static FloatPoint convertToPaintingPosition(const RenderBox& inputRenderer, cons
 
 void RenderThemeMac::updateCheckedState(NSCell* cell, const RenderObject& o)
 {
-    bool oldIndeterminate = [cell state] == NSMixedState;
+    bool oldIndeterminate = [cell state] == NSControlStateValueMixed;
     bool indeterminate = isIndeterminate(o);
     bool checked = isChecked(o);
 
     if (oldIndeterminate != indeterminate) {
-        [cell setState:indeterminate ? NSMixedState : (checked ? NSOnState : NSOffState)];
+        [cell setState:indeterminate ? NSControlStateValueMixed : (checked ? NSControlStateValueOn : NSControlStateValueOff)];
         return;
     }
 
-    bool oldChecked = [cell state] == NSOnState;
+    bool oldChecked = [cell state] == NSControlStateValueOn;
     if (checked != oldChecked)
-        [cell setState:checked ? NSOnState : NSOffState];
+        [cell setState:checked ? NSControlStateValueOn : NSControlStateValueOff];
 }
 
 void RenderThemeMac::updateEnabledState(NSCell* cell, const RenderObject& o)
@@ -958,15 +975,15 @@ NSLevelIndicatorStyle RenderThemeMac::levelIndicatorStyleFor(ControlPart part) c
 {
     switch (part) {
     case RelevancyLevelIndicatorPart:
-        return NSRelevancyLevelIndicatorStyle;
+        return NSLevelIndicatorStyleRelevancy;
     case DiscreteCapacityLevelIndicatorPart:
-        return NSDiscreteCapacityLevelIndicatorStyle;
+        return NSLevelIndicatorStyleDiscreteCapacity;
     case RatingLevelIndicatorPart:
-        return NSRatingLevelIndicatorStyle;
+        return NSLevelIndicatorStyleRating;
     case MeterPart:
     case ContinuousCapacityLevelIndicatorPart:
     default:
-        return NSContinuousCapacityLevelIndicatorStyle;
+        return NSLevelIndicatorStyleContinuousCapacity;
     }
 
 }
@@ -977,7 +994,7 @@ NSLevelIndicatorCell* RenderThemeMac::levelIndicatorFor(const RenderMeter& rende
     ASSERT(style.appearance() != NoControlPart);
 
     if (!m_levelIndicator)
-        m_levelIndicator = adoptNS([[NSLevelIndicatorCell alloc] initWithLevelIndicatorStyle:NSContinuousCapacityLevelIndicatorStyle]);
+        m_levelIndicator = adoptNS([[NSLevelIndicatorCell alloc] initWithLevelIndicatorStyle:NSLevelIndicatorStyleContinuousCapacity]);
     NSLevelIndicatorCell* cell = m_levelIndicator.get();
 
     HTMLMeterElement* element = renderMeter.meterElement();
@@ -1063,9 +1080,9 @@ Seconds RenderThemeMac::animationRepeatIntervalForProgressBar(RenderProgress&) c
     return progressAnimationFrameRate;
 }
 
-double RenderThemeMac::animationDurationForProgressBar(RenderProgress&) const
+Seconds RenderThemeMac::animationDurationForProgressBar(RenderProgress&) const
 {
-    return progressAnimationNumFrames * progressAnimationFrameRate.value();
+    return progressAnimationFrameRate * progressAnimationNumFrames;
 }
 
 void RenderThemeMac::adjustProgressBarStyle(StyleResolver&, RenderStyle&, const Element*) const
@@ -2037,8 +2054,8 @@ NSServicesRolloverButtonCell* RenderThemeMac::servicesRolloverButtonCell() const
 #if HAVE(APPKIT_SERVICE_CONTROLS_SUPPORT)
     if (!m_servicesRolloverButton) {
         m_servicesRolloverButton = [NSServicesRolloverButtonCell serviceRolloverButtonCellForStyle:NSSharingServicePickerStyleRollover];
-        [m_servicesRolloverButton setBezelStyle:NSRoundedDisclosureBezelStyle];
-        [m_servicesRolloverButton setButtonType:NSPushOnPushOffButton];
+        [m_servicesRolloverButton setBezelStyle:NSBezelStyleRoundedDisclosure];
+        [m_servicesRolloverButton setButtonType:NSButtonTypePushOnPushOff];
         [m_servicesRolloverButton setImagePosition:NSImageOnly];
         [m_servicesRolloverButton setState:NO];
     }

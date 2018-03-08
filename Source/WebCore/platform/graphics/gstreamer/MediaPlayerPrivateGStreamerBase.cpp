@@ -42,6 +42,7 @@
 #include <wtf/text/AtomicString.h>
 #include <wtf/text/CString.h>
 #include <wtf/MathExtras.h>
+#include <wtf/StringPrintStream.h>
 
 #include <gst/audio/streamvolume.h>
 #include <gst/video/gstvideometa.h>
@@ -92,6 +93,7 @@
 
 #if PLATFORM(WAYLAND)
 #include "PlatformDisplayWayland.h"
+#include <gst/gl/wayland/gstgldisplay_wayland.h>
 #elif PLATFORM(WPE)
 #include "PlatformDisplayWPE.h"
 #endif
@@ -274,6 +276,18 @@ MediaPlayerPrivateGStreamerBase::~MediaPlayerPrivateGStreamerBase()
 void MediaPlayerPrivateGStreamerBase::setPipeline(GstElement* pipeline)
 {
     m_pipeline = pipeline;
+
+    GRefPtr<GstBus> bus = adoptGRef(gst_pipeline_get_bus(GST_PIPELINE(m_pipeline.get())));
+    gst_bus_set_sync_handler(bus.get(), [](GstBus*, GstMessage* message, gpointer userData) {
+        auto& player = *static_cast<MediaPlayerPrivateGStreamerBase*>(userData);
+
+        if (player.handleSyncMessage(message)) {
+            gst_message_unref(message);
+            return GST_BUS_DROP;
+        }
+
+        return GST_BUS_PASS;
+    }, this, nullptr);
 }
 
 #if ENABLE(ENCRYPTED_MEDIA)
@@ -309,9 +323,10 @@ bool MediaPlayerPrivateGStreamerBase::handleSyncMessage(GstMessage* message)
 
     const gchar* contextType;
     gst_message_parse_context_type(message, &contextType);
+    GST_DEBUG("Handling %s need-context message for %s", contextType, GST_MESSAGE_SRC_NAME(message));
 
 #if USE(GSTREAMER_GL)
-    GRefPtr<GstContext> elementContext = adoptGRef(requestGLContext(contextType, this));
+    GRefPtr<GstContext> elementContext = adoptGRef(requestGLContext(contextType));
     if (elementContext) {
         gst_element_set_context(GST_ELEMENT(message->src), elementContext.get());
         return true;
@@ -394,14 +409,14 @@ bool MediaPlayerPrivateGStreamerBase::handleSyncMessage(GstMessage* message)
 }
 
 #if USE(GSTREAMER_GL)
-GstContext* MediaPlayerPrivateGStreamerBase::requestGLContext(const gchar* contextType, MediaPlayerPrivateGStreamerBase* player)
+GstContext* MediaPlayerPrivateGStreamerBase::requestGLContext(const char* contextType)
 {
-    if (!player->ensureGstGLContext())
+    if (!ensureGstGLContext())
         return nullptr;
 
     if (!g_strcmp0(contextType, GST_GL_DISPLAY_CONTEXT_TYPE)) {
         GstContext* displayContext = gst_context_new(GST_GL_DISPLAY_CONTEXT_TYPE, TRUE);
-        gst_context_set_gl_display(displayContext, player->gstGLDisplay());
+        gst_context_set_gl_display(displayContext, gstGLDisplay());
         return displayContext;
     }
 
@@ -409,9 +424,9 @@ GstContext* MediaPlayerPrivateGStreamerBase::requestGLContext(const gchar* conte
         GstContext* appContext = gst_context_new("gst.gl.app_context", TRUE);
         GstStructure* structure = gst_context_writable_structure(appContext);
 #if GST_CHECK_VERSION(1, 11, 0)
-        gst_structure_set(structure, "context", GST_TYPE_GL_CONTEXT, player->gstGLContext(), nullptr);
+        gst_structure_set(structure, "context", GST_TYPE_GL_CONTEXT, gstGLContext(), nullptr);
 #else
-        gst_structure_set(structure, "context", GST_GL_TYPE_CONTEXT, player->gstGLContext(), nullptr);
+        gst_structure_set(structure, "context", GST_GL_TYPE_CONTEXT, gstGLContext(), nullptr);
 #endif
         return appContext;
     }
@@ -425,25 +440,47 @@ bool MediaPlayerPrivateGStreamerBase::ensureGstGLContext()
         return true;
 
     auto& sharedDisplay = PlatformDisplay::sharedDisplayForCompositing();
+
+    // The floating ref removal support was added in https://bugzilla.gnome.org/show_bug.cgi?id=743062.
+    bool shouldAdoptRef = webkitGstCheckVersion(1, 13, 1);
     if (!m_glDisplay) {
 #if PLATFORM(X11)
 #if USE(GLX)
-        if (is<PlatformDisplayX11>(sharedDisplay))
-            m_glDisplay = GST_GL_DISPLAY(gst_gl_display_x11_new_with_display(downcast<PlatformDisplayX11>(sharedDisplay).native()));
+        if (is<PlatformDisplayX11>(sharedDisplay)) {
+            GST_DEBUG("Creating X11 shared GL display");
+            if (shouldAdoptRef)
+                m_glDisplay = adoptGRef(GST_GL_DISPLAY(gst_gl_display_x11_new_with_display(downcast<PlatformDisplayX11>(sharedDisplay).native())));
+            else
+                m_glDisplay = GST_GL_DISPLAY(gst_gl_display_x11_new_with_display(downcast<PlatformDisplayX11>(sharedDisplay).native()));
+        }
 #elif USE(EGL)
-        if (is<PlatformDisplayX11>(sharedDisplay))
-            m_glDisplay = GST_GL_DISPLAY(gst_gl_display_egl_new_with_egl_display(downcast<PlatformDisplayX11>(sharedDisplay).eglDisplay()));
+        if (is<PlatformDisplayX11>(sharedDisplay)) {
+            GST_DEBUG("Creating X11 shared EGL display");
+            if (shouldAdoptRef)
+                m_glDisplay = adoptGRef(GST_GL_DISPLAY(gst_gl_display_egl_new_with_egl_display(downcast<PlatformDisplayX11>(sharedDisplay).eglDisplay())));
+            else
+                m_glDisplay = GST_GL_DISPLAY(gst_gl_display_egl_new_with_egl_display(downcast<PlatformDisplayX11>(sharedDisplay).eglDisplay()));
+        }
 #endif
 #endif
 
 #if PLATFORM(WAYLAND)
-        if (is<PlatformDisplayWayland>(sharedDisplay))
-            m_glDisplay = GST_GL_DISPLAY(gst_gl_display_egl_new_with_egl_display(downcast<PlatformDisplayWayland>(sharedDisplay).eglDisplay()));
+        if (is<PlatformDisplayWayland>(sharedDisplay)) {
+            GST_DEBUG("Creating Wayland shared display");
+            if (shouldAdoptRef)
+                m_glDisplay = adoptGRef(GST_GL_DISPLAY(gst_gl_display_egl_new_with_egl_display(downcast<PlatformDisplayWayland>(sharedDisplay).eglDisplay())));
+            else
+                m_glDisplay = GST_GL_DISPLAY(gst_gl_display_egl_new_with_egl_display(downcast<PlatformDisplayWayland>(sharedDisplay).eglDisplay()));
+        }
 #endif
 
 #if PLATFORM(WPE)
         ASSERT(is<PlatformDisplayWPE>(sharedDisplay));
-        m_glDisplay = GST_GL_DISPLAY(gst_gl_display_egl_new_with_egl_display(downcast<PlatformDisplayWPE>(sharedDisplay).eglDisplay()));
+        GST_DEBUG("Creating WPE shared EGL display");
+        if (shouldAdoptRef)
+            m_glDisplay = adoptGRef(GST_GL_DISPLAY(gst_gl_display_egl_new_with_egl_display(downcast<PlatformDisplayWPE>(sharedDisplay).eglDisplay())));
+        else
+            m_glDisplay = GST_GL_DISPLAY(gst_gl_display_egl_new_with_egl_display(downcast<PlatformDisplayWPE>(sharedDisplay).eglDisplay()));
 #endif
 
         ASSERT(m_glDisplay);
@@ -453,7 +490,7 @@ bool MediaPlayerPrivateGStreamerBase::ensureGstGLContext()
     // EGL and GLX are mutually exclusive, no need for ifdefs here.
     GstGLPlatform glPlatform = webkitContext->isEGLContext() ? GST_GL_PLATFORM_EGL : GST_GL_PLATFORM_GLX;
 
-#if USE(OPENGL_ES_2)
+#if USE(OPENGL_ES)
     GstGLAPI glAPI = GST_GL_API_GLES2;
 #elif USE(OPENGL)
     GstGLAPI glAPI = GST_GL_API_OPENGL;
@@ -465,7 +502,10 @@ bool MediaPlayerPrivateGStreamerBase::ensureGstGLContext()
     if (!contextHandle)
         return false;
 
-    m_glContext = gst_gl_context_new_wrapped(m_glDisplay.get(), reinterpret_cast<guintptr>(contextHandle), glPlatform, glAPI);
+    if (shouldAdoptRef)
+        m_glContext = adoptGRef(gst_gl_context_new_wrapped(m_glDisplay.get(), reinterpret_cast<guintptr>(contextHandle), glPlatform, glAPI));
+    else
+        m_glContext = gst_gl_context_new_wrapped(m_glDisplay.get(), reinterpret_cast<guintptr>(contextHandle), glPlatform, glAPI);
 
     return true;
 }
@@ -597,12 +637,17 @@ void MediaPlayerPrivateGStreamerBase::sizeChanged()
     notImplemented();
 }
 
-void MediaPlayerPrivateGStreamerBase::setMuted(bool muted)
+void MediaPlayerPrivateGStreamerBase::setMuted(bool mute)
 {
     if (!m_volumeElement)
         return;
 
-    g_object_set(m_volumeElement.get(), "mute", muted, nullptr);
+    bool currentValue = muted();
+    if (currentValue == mute)
+        return;
+
+    GST_INFO("Set muted to %s", toString(mute).utf8().data());
+    g_object_set(m_volumeElement.get(), "mute", mute, nullptr);
 }
 
 bool MediaPlayerPrivateGStreamerBase::muted() const
@@ -612,6 +657,7 @@ bool MediaPlayerPrivateGStreamerBase::muted() const
 
     gboolean muted;
     g_object_get(m_volumeElement.get(), "mute", &muted, nullptr);
+    GST_INFO("Player is muted: %s", toString(static_cast<bool>(muted)).utf8().data());
     return muted;
 }
 
@@ -759,6 +805,8 @@ void MediaPlayerPrivateGStreamerBase::triggerRepaint(GstSample* sample)
 
     if (!m_renderingCanBeAccelerated) {
         LockHolder locker(m_drawMutex);
+        if (m_drawCancelled)
+            return;
         m_drawTimer.startOneShot(0_s);
         m_drawCondition.wait(m_drawMutex);
         return;
@@ -770,6 +818,8 @@ void MediaPlayerPrivateGStreamerBase::triggerRepaint(GstSample* sample)
 #else
     {
         LockHolder lock(m_drawMutex);
+        if (m_drawCancelled)
+            return;
         if (!m_platformLayerProxy->scheduleUpdateOnCompositorThread([this] { this->pushTextureToCompositor(); }))
             return;
         m_drawCondition.wait(m_drawMutex);
@@ -785,11 +835,14 @@ void MediaPlayerPrivateGStreamerBase::repaintCallback(MediaPlayerPrivateGStreame
 
 void MediaPlayerPrivateGStreamerBase::cancelRepaint()
 {
+    LockHolder locker(m_drawMutex);
+
     if (!m_renderingCanBeAccelerated) {
         m_drawTimer.stop();
-        LockHolder locker(m_drawMutex);
-        m_drawCondition.notifyOne();
     }
+
+    m_drawCancelled = true;
+    m_drawCondition.notifyOne();
 }
 
 void MediaPlayerPrivateGStreamerBase::repaintCancelledCallback(MediaPlayerPrivateGStreamerBase* player)
@@ -814,6 +867,7 @@ GstFlowReturn MediaPlayerPrivateGStreamerBase::newPrerollCallback(GstElement* si
 
 void MediaPlayerPrivateGStreamerBase::flushCurrentBuffer()
 {
+    GST_DEBUG("Flushing video sample");
     WTF::GMutexLocker<GMutex> lock(m_sampleMutex);
     m_sample.clear();
 
@@ -991,10 +1045,6 @@ GstElement* MediaPlayerPrivateGStreamerBase::createGLAppSink()
 
 GstElement* MediaPlayerPrivateGStreamerBase::createVideoSinkGL()
 {
-    // FIXME: Currently it's not possible to get the video frames and caps using this approach until
-    // the pipeline gets into playing state. Due to this, trying to grab a frame and painting it by some
-    // other mean (canvas or webgl) before playing state can result in a crash.
-    // This is being handled in https://bugs.webkit.org/show_bug.cgi?id=159460.
     if (!webkitGstCheckVersion(1, 8, 0))
         return nullptr;
 
@@ -1034,6 +1084,21 @@ GstElement* MediaPlayerPrivateGStreamerBase::createVideoSinkGL()
         videoSink = nullptr;
     }
     return videoSink;
+}
+
+void MediaPlayerPrivateGStreamerBase::ensureGLVideoSinkContext()
+{
+    if (!m_glDisplayElementContext)
+        m_glDisplayElementContext = adoptGRef(requestGLContext(GST_GL_DISPLAY_CONTEXT_TYPE));
+
+    if (m_glDisplayElementContext)
+        gst_element_set_context(m_videoSink.get(), m_glDisplayElementContext.get());
+
+    if (!m_glAppElementContext)
+        m_glAppElementContext = adoptGRef(requestGLContext("gst.gl.app_context"));
+
+    if (m_glAppElementContext)
+        gst_element_set_context(m_videoSink.get(), m_glAppElementContext.get());
 }
 #endif // USE(GSTREAMER_GL)
 
@@ -1094,7 +1159,7 @@ void MediaPlayerPrivateGStreamerBase::setStreamVolumeElement(GstStreamVolume* vo
     } else
         GST_DEBUG("Not setting stream volume, trusting system one");
 
-    GST_DEBUG("Setting stream muted %d",  m_player->muted());
+    GST_DEBUG("Setting stream muted %s",  toString(m_player->muted()).utf8().data());
     g_object_set(m_volumeElement.get(), "mute", m_player->muted(), nullptr);
 
     g_signal_connect_swapped(m_volumeElement.get(), "notify::volume", G_CALLBACK(volumeChangedCallback), this);

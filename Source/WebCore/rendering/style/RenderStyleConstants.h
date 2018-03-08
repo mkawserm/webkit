@@ -239,8 +239,19 @@ enum EMaskSourceType { MaskAlpha, MaskLuminance };
 
 // CSS3 Marquee Properties
 
-enum EMarqueeBehavior { MNONE, MSCROLL, MSLIDE, MALTERNATE };
-enum EMarqueeDirection { MAUTO = 0, MLEFT = 1, MRIGHT = -1, MUP = 2, MDOWN = -2, MFORWARD = 3, MBACKWARD = -3 };
+enum class MarqueeBehavior {
+    None, Scroll, Slide, Alternate
+};
+
+enum class MarqueeDirection {
+    Auto,
+    Left,
+    Right,
+    Up,
+    Down,
+    Forward,
+    Backward
+};
 
 // Deprecated Flexible Box Properties
 
@@ -255,7 +266,7 @@ enum EBoxDirection { BNORMAL, BREVERSE };
 enum EAlignContent { AlignContentFlexStart, AlignContentFlexEnd, AlignContentCenter, AlignContentSpaceBetween, AlignContentSpaceAround, AlignContentStretch };
 enum EFlexDirection { FlowRow, FlowRowReverse, FlowColumn, FlowColumnReverse };
 enum EFlexWrap { FlexNoWrap, FlexWrap, FlexWrapReverse };
-enum ItemPosition { ItemPositionAuto, ItemPositionNormal, ItemPositionStretch, ItemPositionBaseline, ItemPositionLastBaseline, ItemPositionCenter, ItemPositionStart, ItemPositionEnd, ItemPositionSelfStart, ItemPositionSelfEnd, ItemPositionFlexStart, ItemPositionFlexEnd, ItemPositionLeft, ItemPositionRight };
+enum ItemPosition { ItemPositionLegacy, ItemPositionAuto, ItemPositionNormal, ItemPositionStretch, ItemPositionBaseline, ItemPositionLastBaseline, ItemPositionCenter, ItemPositionStart, ItemPositionEnd, ItemPositionSelfStart, ItemPositionSelfEnd, ItemPositionFlexStart, ItemPositionFlexEnd, ItemPositionLeft, ItemPositionRight };
 enum OverflowAlignment { OverflowAlignmentDefault, OverflowAlignmentUnsafe, OverflowAlignmentSafe };
 enum ItemPositionType { NonLegacyPosition, LegacyPosition };
 enum ContentPosition { ContentPositionNormal, ContentPositionBaseline, ContentPositionLastBaseline, ContentPositionCenter, ContentPositionStart, ContentPositionEnd, ContentPositionFlexStart, ContentPositionFlexEnd, ContentPositionLeft, ContentPositionRight };
@@ -596,7 +607,15 @@ enum ELineClampType { LineClampLineCount, LineClampPercentage };
 
 enum Hyphens { HyphensNone, HyphensManual, HyphensAuto };
 
-enum ESpeak { SpeakNone, SpeakNormal, SpeakSpellOut, SpeakDigits, SpeakLiteralPunctuation, SpeakNoPunctuation };
+enum ESpeakAs {
+    SpeakNormal = 0,
+    SpeakSpellOut = 1 << 0,
+    SpeakDigits = 1 << 1,
+    SpeakLiteralPunctuation = 1 << 2,
+    SpeakNoPunctuation = 1 << 3
+};
+inline ESpeakAs operator| (ESpeakAs a, ESpeakAs b) { return ESpeakAs(int(a) | int(b)); }
+inline ESpeakAs& operator|= (ESpeakAs& a, ESpeakAs b) { return a = a | b; }
 
 enum TextEmphasisFill { TextEmphasisFillFilled, TextEmphasisFillOpen };
 

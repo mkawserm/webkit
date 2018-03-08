@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2016 Apple Inc. All rights reserved.
+ * Copyright (C) 2012-2018 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -40,6 +40,7 @@
 #import "PluginView.h"
 #import "PrintInfo.h"
 #import "RemoteLayerTreeDrawingArea.h"
+#import "SandboxUtilities.h"
 #import "UserData.h"
 #import "VisibleContentRectUpdateInfo.h"
 #import "WKAccessibilityWebPageObjectIOS.h"
@@ -378,18 +379,21 @@ bool WebPage::allowsUserScaling() const
 
 bool WebPage::handleEditingKeyboardEvent(KeyboardEvent* event)
 {
-    const PlatformKeyboardEvent* platformEvent = event->keyEvent();
+    auto* platformEvent = event->underlyingPlatformEvent();
     if (!platformEvent)
         return false;
 
     // FIXME: Interpret the event immediately upon receiving it in UI process, without sending to WebProcess first.
     bool eventWasHandled = false;
     bool sendResult = WebProcess::singleton().parentProcessConnection()->sendSync(Messages::WebPageProxy::InterpretKeyEvent(editorState(), platformEvent->type() == PlatformKeyboardEvent::Char),
-                                                                               Messages::WebPageProxy::InterpretKeyEvent::Reply(eventWasHandled), m_pageID);
-    if (!sendResult)
-        return false;
+        Messages::WebPageProxy::InterpretKeyEvent::Reply(eventWasHandled), m_pageID);
+    return sendResult && eventWasHandled;
+}
 
-    return eventWasHandled;
+bool WebPage::parentProcessHasServiceWorkerEntitlement() const
+{
+    static bool hasEntitlement = connectedProcessHasEntitlement(WebProcess::singleton().parentProcessConnection()->xpcConnection(), "com.apple.developer.WebKit.ServiceWorkers");
+    return hasEntitlement;
 }
 
 void WebPage::sendComplexTextInputToPlugin(uint64_t, const String&)
@@ -652,6 +656,15 @@ void WebPage::handleTap(const IntPoint& point, uint64_t lastLayerTreeTransaction
         handleSyntheticClick(nodeRespondingToClick, adjustedPoint);
 }
 
+void WebPage::requestAssistedNodeInformation(WebKit::CallbackID callbackID)
+{
+    AssistedNodeInformation info;
+    if (m_assistedNode)
+        getAssistedNodeInformation(info);
+
+    send(Messages::WebPageProxy::AssistedNodeInformationCallback(info, callbackID));
+}
+
 #if ENABLE(DATA_INTERACTION)
 void WebPage::requestStartDataInteraction(const IntPoint& clientPosition, const IntPoint& globalPosition)
 {
@@ -755,7 +768,7 @@ void WebPage::handleTwoFingerTapAtPoint(const WebCore::IntPoint& point, uint64_t
 
 void WebPage::potentialTapAtPosition(uint64_t requestID, const WebCore::FloatPoint& position)
 {
-    m_potentialTapNode = m_page->mainFrame().nodeRespondingToClickEvents(position, m_potentialTapLocation);
+    m_potentialTapNode = m_page->mainFrame().nodeRespondingToClickEvents(position, m_potentialTapLocation, m_potentialTapSecurityOrigin.get());
     sendTapHighlightForNodeIfNecessary(requestID, m_potentialTapNode.get());
 #if ENABLE(TOUCH_EVENTS)
     if (m_potentialTapNode && !m_potentialTapNode->allowsDoubleTapGesture())
@@ -771,7 +784,7 @@ void WebPage::commitPotentialTap(uint64_t lastLayerTreeTransactionId)
     }
 
     FloatPoint adjustedPoint;
-    Node* nodeRespondingToClick = m_page->mainFrame().nodeRespondingToClickEvents(m_potentialTapLocation, adjustedPoint);
+    Node* nodeRespondingToClick = m_page->mainFrame().nodeRespondingToClickEvents(m_potentialTapLocation, adjustedPoint, m_potentialTapSecurityOrigin.get());
     Frame* frameRespondingToClick = nodeRespondingToClick ? nodeRespondingToClick->document().frame() : nullptr;
 
     if (!frameRespondingToClick || lastLayerTreeTransactionId < WebFrame::fromCoreFrame(*frameRespondingToClick)->firstLayerTreeTransactionIDAfterDidCommitLoad()) {
@@ -793,6 +806,7 @@ void WebPage::commitPotentialTap(uint64_t lastLayerTreeTransactionId)
 
     m_potentialTapNode = nullptr;
     m_potentialTapLocation = FloatPoint();
+    m_potentialTapSecurityOrigin = nullptr;
 }
 
 void WebPage::commitPotentialTapFailed()
@@ -816,6 +830,7 @@ void WebPage::cancelPotentialTapInFrame(WebFrame& frame)
 
     m_potentialTapNode = nullptr;
     m_potentialTapLocation = FloatPoint();
+    m_potentialTapSecurityOrigin = nullptr;
 }
 
 void WebPage::tapHighlightAtPosition(uint64_t requestID, const FloatPoint& position)
@@ -1055,6 +1070,364 @@ RefPtr<Range> WebPage::rangeForWebSelectionAtPosition(const IntPoint& point, con
     return range->collapsed() ? nullptr : range;
 }
 
+#if __IPHONE_OS_VERSION_MAX_ALLOWED < 120000
+static bool canShrinkToTextSelection(Range& range)
+{
+    if (range.startContainer().isTextNode() && range.endContainer().isTextNode())
+        return true;
+    return canShrinkToTextSelection(range.commonAncestorContainer());
+}
+static const int maxHitTests = 10;
+
+static inline float distanceBetweenRectsForPosition(IntRect& first, IntRect& second, SelectionHandlePosition handlePosition)
+{
+    switch (handlePosition) {
+    case SelectionHandlePosition::Top:
+        return abs(first.y() - second.y());
+    case SelectionHandlePosition::Right:
+        return abs(first.maxX() - second.maxX());
+    case SelectionHandlePosition::Bottom:
+        return abs(first.maxY() - second.maxY());
+    case SelectionHandlePosition::Left:
+        return abs(first.x() - second.x());
+    }
+}
+
+static inline bool rectsEssentiallyTheSame(IntRect& first, IntRect& second, float allowablePercentDifference)
+{
+    const float minMagnitudeRatio = 1.0 - allowablePercentDifference;
+    const float maxDisplacementRatio = allowablePercentDifference;
+    
+    float xOriginShiftRatio = abs(first.x() - second.x()) / std::min(first.width(), second.width());
+    float yOriginShiftRatio = abs(first.y() - second.y()) / std::min(first.height(), second.height());
+    
+    float widthRatio = std::min(first.width() / second.width(), second.width() / first.width());
+    float heightRatio = std::min(first.height() / second.height(), second.height() / first.height());
+    return ((widthRatio > minMagnitudeRatio && xOriginShiftRatio < maxDisplacementRatio) && (heightRatio > minMagnitudeRatio && yOriginShiftRatio < maxDisplacementRatio));
+}
+
+static inline RefPtr<Range> unionDOMRanges(Range* rangeA, Range* rangeB)
+{
+    if (!rangeB)
+        return rangeA;
+    if (!rangeA)
+        return rangeB;
+    
+    auto startToStartComparison = rangeA->compareBoundaryPoints(Range::START_TO_START, *rangeB);
+    if (startToStartComparison.hasException())
+        return nullptr;
+    
+    auto endToEndComparison = rangeA->compareBoundaryPoints(Range::END_TO_END, *rangeB);
+    if (endToEndComparison.hasException())
+        return nullptr;
+    
+    auto* start = startToStartComparison.releaseReturnValue() <= 0 ? rangeA : rangeB;
+    auto* end = endToEndComparison.releaseReturnValue() <= 0 ? rangeB : rangeA;
+    
+    return Range::create(rangeA->ownerDocument(), &start->startContainer(), start->startOffset(), &end->endContainer(), end->endOffset());
+}
+
+static inline IntPoint computeEdgeCenter(const IntRect& box, SelectionHandlePosition handlePosition)
+{
+    switch (handlePosition) {
+    case SelectionHandlePosition::Top:
+        return IntPoint(box.x() + box.width() / 2, box.y());
+    case SelectionHandlePosition::Right:
+        return IntPoint(box.maxX(), box.y() + box.height() / 2);
+    case SelectionHandlePosition::Bottom:
+        return IntPoint(box.x() + box.width() / 2, box.maxY());
+    case SelectionHandlePosition::Left:
+        return IntPoint(box.x(), box.y() + box.height() / 2);
+    }
+}
+
+Ref<Range> WebPage::expandedRangeFromHandle(Range& currentRange, SelectionHandlePosition handlePosition)
+{
+    IntRect currentBox = selectionBoxForRange(&currentRange);
+    IntPoint edgeCenter = computeEdgeCenter(currentBox, handlePosition);
+    static const float maxDistance = 1000;
+    const float multiple = powf(maxDistance, 1.0 / (maxHitTests - 1));
+    float distance = 1;
+    
+    RefPtr<Range> bestRange;
+    IntRect bestRect;
+    
+    while (distance < maxDistance) {
+        if (bestRange) {
+            if (distanceBetweenRectsForPosition(bestRect, currentBox, handlePosition) < distance) {
+                // Break early, we're unlikely to do any better.
+                break;
+            }
+        }
+        
+        IntPoint testPoint = edgeCenter;
+        switch (handlePosition) {
+        case SelectionHandlePosition::Top:
+            testPoint.move(0, -distance);
+            break;
+        case SelectionHandlePosition::Right:
+            testPoint.move(distance, 0);
+            break;
+        case SelectionHandlePosition::Bottom:
+            testPoint.move(0, distance);
+            break;
+        case SelectionHandlePosition::Left:
+            testPoint.move(-distance, 0);
+            break;
+        }
+        
+        distance = ceilf(distance * multiple);
+        
+        RefPtr<Range> newRange;
+        RefPtr<Range> rangeAtPosition = rangeForBlockAtPoint(testPoint);
+        if (!rangeAtPosition || &currentRange.ownerDocument() != &rangeAtPosition->ownerDocument())
+            continue;
+        
+        if (rangeAtPosition->contains(currentRange))
+            newRange = rangeAtPosition;
+        else if (currentRange.contains(*rangeAtPosition.get()))
+            newRange = &currentRange;
+        else
+            newRange = unionDOMRanges(&currentRange, rangeAtPosition.get());
+        
+        IntRect copyRect = selectionBoxForRange(newRange.get());
+        
+        // Is it different and bigger than the current?
+        bool isBetterChoice = !(rectsEssentiallyTheSame(copyRect, currentBox, .05));
+        if (isBetterChoice) {
+            switch (handlePosition) {
+            case SelectionHandlePosition::Top:
+            case SelectionHandlePosition::Bottom:
+                isBetterChoice = (copyRect.height() > currentBox.height());
+                break;
+            case SelectionHandlePosition::Right:
+            case SelectionHandlePosition::Left:
+                isBetterChoice = (copyRect.width() > currentBox.width());
+                break;
+            }
+            
+        }
+        
+        if (bestRange && isBetterChoice) {
+            // Furtherore, is it smaller than the best we've found so far?
+            switch (handlePosition) {
+            case SelectionHandlePosition::Top:
+            case SelectionHandlePosition::Bottom:
+                isBetterChoice = (copyRect.height() < bestRect.height());
+                break;
+            case SelectionHandlePosition::Right:
+            case SelectionHandlePosition::Left:
+                isBetterChoice = (copyRect.width() < bestRect.width());
+                break;
+            }
+        }
+        
+        if (isBetterChoice) {
+            bestRange = newRange;
+            bestRect = copyRect;
+        }
+    }
+    
+    if (bestRange)
+        return bestRange.releaseNonNull();
+    
+    return currentRange;
+}
+
+Ref<Range> WebPage::contractedRangeFromHandle(Range& currentRange, SelectionHandlePosition handlePosition, SelectionFlags& flags)
+{
+    // Shrinking with a base and extent will always give better results. If we only have a single element,
+    // see if we can break that down to a base and extent. Shrinking base and extent is comparatively straightforward.
+    // Shrinking down to another element is unlikely to move just one edge, but we can try that as a fallback.
+    
+    IntRect currentBox = selectionBoxForRange(&currentRange);
+    IntPoint edgeCenter = computeEdgeCenter(currentBox, handlePosition);
+    
+    float maxDistance;
+    
+    switch (handlePosition) {
+    case SelectionHandlePosition::Top:
+    case SelectionHandlePosition::Bottom:
+        maxDistance = currentBox.height();
+        break;
+    case SelectionHandlePosition::Right:
+    case SelectionHandlePosition::Left:
+        maxDistance = currentBox.width();
+        break;
+    }
+    
+    const float multiple = powf(maxDistance - 1, 1.0 / (maxHitTests - 1));
+    float distance = 1;
+    RefPtr<Range> bestRange;
+    IntRect bestRect;
+    
+    while (distance < maxDistance) {
+        if (bestRange) {
+            float shrankDistance;
+            switch (handlePosition) {
+            case SelectionHandlePosition::Top:
+            case SelectionHandlePosition::Bottom:
+                shrankDistance = abs(currentBox.height() - bestRect.height());
+                break;
+            case SelectionHandlePosition::Right:
+            case SelectionHandlePosition::Left:
+                shrankDistance = abs(currentBox.width() - bestRect.width());
+                break;
+            }
+            if (shrankDistance > distance) {
+                // Certainly not going to do any better than that.
+                break;
+            }
+        }
+        
+        IntPoint testPoint = edgeCenter;
+        switch (handlePosition) {
+        case SelectionHandlePosition::Top:
+            testPoint.move(0, distance);
+            break;
+        case SelectionHandlePosition::Right:
+            testPoint.move(-distance, 0);
+            break;
+        case SelectionHandlePosition::Bottom:
+            testPoint.move(0, -distance);
+            break;
+        case SelectionHandlePosition::Left:
+            testPoint.move(distance, 0);
+            break;
+        }
+        
+        distance *= multiple;
+        
+        RefPtr<Range> newRange = rangeForBlockAtPoint(testPoint);
+        if (!newRange || &newRange->ownerDocument() != &currentRange.ownerDocument())
+            continue;
+        
+        if (handlePosition == SelectionHandlePosition::Top || handlePosition == SelectionHandlePosition::Left)
+            newRange = Range::create(newRange->startContainer().document(), newRange->endPosition(), currentRange.endPosition());
+        else
+            newRange = Range::create(newRange->startContainer().document(), currentRange.startPosition(), newRange->startPosition());
+        
+        IntRect copyRect = selectionBoxForRange(newRange.get());
+        if (copyRect.isEmpty()) {
+            // If the new range is an empty rectangle, we try the block at the current point
+            // and see if that has a rectangle that is a better choice.
+            newRange = rangeForBlockAtPoint(testPoint);
+            copyRect = selectionBoxForRange(newRange.get());
+        }
+        bool isBetterChoice;
+        switch (handlePosition) {
+        case SelectionHandlePosition::Top:
+        case SelectionHandlePosition::Bottom:
+            isBetterChoice = (copyRect.height() < currentBox.height());
+            if (copyRect.height() == currentBox.height())
+                isBetterChoice = canShrinkToTextSelection(*newRange.get());
+            break;
+        case SelectionHandlePosition::Left:
+        case SelectionHandlePosition::Right:
+            isBetterChoice = (copyRect.width() > bestRect.width());
+            break;
+        }
+        
+        isBetterChoice = isBetterChoice && !areRangesEqual(newRange.get(), &currentRange);
+        if (bestRange && isBetterChoice) {
+            switch (handlePosition) {
+            case SelectionHandlePosition::Top:
+            case SelectionHandlePosition::Bottom:
+                isBetterChoice = (copyRect.height() > bestRect.height());
+                break;
+            case SelectionHandlePosition::Left:
+            case SelectionHandlePosition::Right:
+                isBetterChoice = (copyRect.width() > bestRect.width());
+                break;
+            }
+        }
+        if (isBetterChoice) {
+            bestRange = newRange;
+            bestRect = copyRect;
+        }
+        
+    }
+    
+    if (!bestRange)
+        bestRange = &currentRange;
+    
+    // If we can shrink down to text only, the only reason we wouldn't is that
+    // there are multiple sub-element blocks beneath us. If we didn't find
+    // multiple sub-element blocks, don't shrink to a sub-element block.
+    
+    if (canShrinkToTextSelection(*bestRange.get()))
+        flags = None;
+    
+    return bestRange.releaseNonNull();
+}
+
+void WebPage::computeExpandAndShrinkThresholdsForHandle(const IntPoint& point, SelectionHandlePosition handlePosition, float& growThreshold, float& shrinkThreshold)
+{
+    Frame& frame = m_page->focusController().focusedOrMainFrame();
+    RefPtr<Range> currentRange = m_currentBlockSelection ? m_currentBlockSelection.get() : frame.selection().selection().toNormalizedRange();
+    
+    if (!currentRange)
+        return;
+    
+    Ref<Range> expandedRange = expandedRangeFromHandle(*currentRange, handlePosition);
+    SelectionFlags flags;
+    RefPtr<Range> contractedRange = contractedRangeFromHandle(*currentRange, handlePosition, flags);
+    
+    IntRect currentBounds = selectionBoxForRange(currentRange.get());
+    IntRect expandedBounds = selectionBoxForRange(expandedRange.ptr());
+    IntRect contractedBounds = selectionBoxForRange(contractedRange.get());
+    
+    float current;
+    float expanded;
+    float contracted;
+    float maxThreshold;
+    float minThreshold;
+    
+    switch (handlePosition) {
+    case SelectionHandlePosition::Top: {
+        current = currentBounds.y();
+        expanded = expandedBounds.y();
+        contracted = contractedBounds.y();
+        maxThreshold = FLT_MIN;
+        minThreshold = FLT_MAX;
+        break;
+    }
+    case SelectionHandlePosition::Right: {
+        current = currentBounds.maxX();
+        expanded = expandedBounds.maxX();
+        contracted = contractedBounds.maxX();
+        maxThreshold = FLT_MAX;
+        minThreshold = FLT_MIN;
+        break;
+    }
+    case SelectionHandlePosition::Bottom: {
+        current = currentBounds.maxY();
+        expanded = expandedBounds.maxY();
+        contracted = contractedBounds.maxY();
+        maxThreshold = FLT_MAX;
+        minThreshold = FLT_MIN;
+        break;
+    }
+    case SelectionHandlePosition::Left: {
+        current = currentBounds.x();
+        expanded = expandedBounds.x();
+        contracted = contractedBounds.x();
+        maxThreshold = FLT_MIN;
+        minThreshold = FLT_MAX;
+        break;
+    }
+    }
+    
+    static const float fractionToGrow = 0.3;
+    
+    growThreshold = current + (expanded - current) * fractionToGrow;
+    shrinkThreshold = current + (contracted - current) * (1 - fractionToGrow);
+    if (areRangesEqual(expandedRange.ptr(), currentRange.get()))
+        growThreshold = maxThreshold;
+    
+}
+#endif
+
 void WebPage::selectWithGesture(const IntPoint& point, uint32_t granularity, uint32_t gestureType, uint32_t gestureState, bool isInteractingWithAssistedNode, CallbackID callbackID)
 {
     auto& frame = m_page->focusController().focusedOrMainFrame();
@@ -1269,9 +1642,91 @@ static RefPtr<Range> rangeAtWordBoundaryForPosition(Frame* frame, const VisibleP
 
     return (base < extent) ? Range::create(*frame->document(), base, extent) : Range::create(*frame->document(), extent, base);
 }
+    
+#if __IPHONE_OS_VERSION_MAX_ALLOWED < 120000
 
-void WebPage::clearSelection()
+RefPtr<Range> WebPage::rangeForBlockAtPoint(const IntPoint& point)
 {
+    HitTestResult result = m_page->mainFrame().eventHandler().hitTestResultAtPoint((point), HitTestRequest::ReadOnly | HitTestRequest::Active | HitTestRequest::DisallowUserAgentShadowContent | HitTestRequest::IgnoreClipping);
+
+    Node* currentNode = result.innerNode();
+    RefPtr<Range> range;
+
+    if (currentNode->isTextNode()) {
+        range = enclosingTextUnitOfGranularity(m_page->focusController().focusedOrMainFrame().visiblePositionForPoint(point), ParagraphGranularity, DirectionForward);
+        if (range && !range->collapsed())
+            return range;
+    }
+
+    if (!currentNode->isElementNode())
+        currentNode = currentNode->parentElement();
+
+    if (!currentNode)
+        return nullptr;
+
+    range = Range::create(currentNode->document());
+    range->selectNodeContents(*currentNode);
+    return range;
+}
+    
+static inline bool shouldExpand(SelectionHandlePosition handlePosition, const IntRect& rect, const IntPoint& point)
+{
+    switch (handlePosition) {
+    case SelectionHandlePosition::Top:
+        return (point.y() < rect.y());
+    case SelectionHandlePosition::Left:
+        return (point.x() < rect.x());
+    case SelectionHandlePosition::Right:
+        return (point.x() > rect.maxX());
+    case SelectionHandlePosition::Bottom:
+        return (point.y() > rect.maxY());
+    }
+}
+
+RefPtr<WebCore::Range> WebPage::changeBlockSelection(const IntPoint& point, SelectionHandlePosition handlePosition, float& growThreshold, float& shrinkThreshold, SelectionFlags& flags)
+{
+    Frame& frame = m_page->focusController().focusedOrMainFrame();
+    RefPtr<Range> currentRange = m_currentBlockSelection ? m_currentBlockSelection.get() : frame.selection().selection().toNormalizedRange();
+    if (!currentRange)
+        return nullptr;
+    RefPtr<Range> newRange = shouldExpand(handlePosition, selectionBoxForRange(currentRange.get()), point) ? expandedRangeFromHandle(*currentRange, handlePosition) : contractedRangeFromHandle(*currentRange, handlePosition, flags);
+    
+    if (newRange) {
+        m_currentBlockSelection = newRange;
+        frame.selection().setSelectedRange(newRange.get(), VP_DEFAULT_AFFINITY, true, UserTriggered);
+    }
+    
+    computeExpandAndShrinkThresholdsForHandle(point, handlePosition, growThreshold, shrinkThreshold);
+    return newRange;
+}
+
+void WebPage::updateBlockSelectionWithTouch(const IntPoint& point, uint32_t touch, uint32_t handlePosition)
+{
+    Frame& frame = m_page->focusController().focusedOrMainFrame();
+    IntPoint adjustedPoint = frame.view()->rootViewToContents(point);
+    
+    float growThreshold = 0;
+    float shrinkThreshold = 0;
+    SelectionFlags flags = None;
+    
+    switch (static_cast<SelectionTouch>(touch)) {
+    case SelectionTouch::Started:
+        computeExpandAndShrinkThresholdsForHandle(adjustedPoint, static_cast<SelectionHandlePosition>(handlePosition), growThreshold, shrinkThreshold);
+        break;
+    case SelectionTouch::Ended:
+        break;
+    case SelectionTouch::Moved:
+        changeBlockSelection(adjustedPoint, static_cast<SelectionHandlePosition>(handlePosition), growThreshold, shrinkThreshold, flags);
+        break;
+    default:
+        return;
+    }
+    
+    send(Messages::WebPageProxy::DidUpdateBlockSelectionWithTouch(touch, static_cast<uint32_t>(flags), growThreshold, shrinkThreshold));
+}
+#endif
+
+void WebPage::clearSelection(){
     m_currentBlockSelection = nullptr;
     m_page->focusController().focusedOrMainFrame().selection().clear();
 }
@@ -1380,6 +1835,28 @@ void WebPage::moveSelectionByOffset(int32_t offset, CallbackID callbackID)
     if (position.isNotNull() && startPosition != position)
         frame.selection().setSelectedRange(Range::create(*frame.document(), position, position).ptr(), position.affinity(), true, UserTriggered);
     send(Messages::WebPageProxy::VoidCallback(callbackID));
+}
+    
+void WebPage::startAutoscrollAtPosition(const WebCore::FloatPoint& positionInWindow)
+{
+    if (m_assistedNode && m_assistedNode->renderer())
+        m_page->mainFrame().eventHandler().startSelectionAutoscroll(m_assistedNode->renderer(), positionInWindow);
+    else {
+        Frame& frame = m_page->focusController().focusedOrMainFrame();
+        VisibleSelection selection = frame.selection().selection();
+        if (selection.isRange()) {
+            RefPtr<Range> range = frame.selection().toNormalizedRange();
+            Node& node = range->startContainer();
+            auto* renderer = node.renderer();
+            if (renderer)
+                m_page->mainFrame().eventHandler().startSelectionAutoscroll(renderer, positionInWindow);
+        }
+    }
+}
+    
+void WebPage::cancelAutoscroll()
+{
+    m_page->mainFrame().eventHandler().cancelSelectionAutoscroll();
 }
 
 void WebPage::getRectsForGranularityWithSelectionOffset(uint32_t granularity, int32_t offset, CallbackID callbackID)
@@ -2270,6 +2747,7 @@ void WebPage::getAssistedNodeInformation(AssistedNodeInformation& information)
     information.allowsUserScalingIgnoringAlwaysScalable = m_viewportConfiguration.allowsUserScalingIgnoringAlwaysScalable();
     information.hasNextNode = hasAssistableElement(m_assistedNode.get(), *m_page, true);
     information.hasPreviousNode = hasAssistableElement(m_assistedNode.get(), *m_page, false);
+    information.assistedNodeIdentifier = m_currentAssistedNodeIdentifier;
 
     if (is<HTMLSelectElement>(*m_assistedNode)) {
         HTMLSelectElement& element = downcast<HTMLSelectElement>(*m_assistedNode);
@@ -2373,10 +2851,10 @@ void WebPage::autofillLoginCredentials(const String& username, const String& pas
     }
 }
 
-void WebPage::setViewportConfigurationMinimumLayoutSize(const FloatSize& size)
+void WebPage::setViewportConfigurationMinimumLayoutSize(const FloatSize& size, const FloatSize& viewSize)
 {
-    LOG_WITH_STREAM(VisibleRects, stream << "WebPage " << m_pageID << " setViewportConfigurationMinimumLayoutSize " << size);
-    if (m_viewportConfiguration.setMinimumLayoutSize(size))
+    LOG_WITH_STREAM(VisibleRects, stream << "WebPage " << m_pageID << " setViewportConfigurationMinimumLayoutSize " << size << " viewSize " << viewSize);
+    if (m_viewportConfiguration.setMinimumLayoutSize(size, viewSize))
         viewportConfigurationChanged();
 }
 
@@ -2411,12 +2889,12 @@ void WebPage::resetTextAutosizing()
     }
 }
 
-void WebPage::dynamicViewportSizeUpdate(const FloatSize& minimumLayoutSize, const WebCore::FloatSize& maximumUnobscuredSize, const FloatRect& targetExposedContentRect, const FloatRect& targetUnobscuredRect, const WebCore::FloatRect& targetUnobscuredRectInScrollViewCoordinates, const WebCore::FloatBoxExtent& targetUnobscuredSafeAreaInsets, double targetScale, int32_t deviceOrientation, uint64_t dynamicViewportSizeUpdateID)
+void WebPage::dynamicViewportSizeUpdate(const FloatSize& minimumLayoutSize, const FloatSize& viewSize, const WebCore::FloatSize& maximumUnobscuredSize, const FloatRect& targetExposedContentRect, const FloatRect& targetUnobscuredRect, const WebCore::FloatRect& targetUnobscuredRectInScrollViewCoordinates, const WebCore::FloatBoxExtent& targetUnobscuredSafeAreaInsets, double targetScale, int32_t deviceOrientation, uint64_t dynamicViewportSizeUpdateID)
 {
     SetForScope<bool> dynamicSizeUpdateGuard(m_inDynamicSizeUpdate, true);
     // FIXME: this does not handle the cases where the content would change the content size or scroll position from JavaScript.
     // To handle those cases, we would need to redo this computation on every change until the next visible content rect update.
-    LOG_WITH_STREAM(VisibleRects, stream << "\nWebPage::dynamicViewportSizeUpdate - minimumLayoutSize " << minimumLayoutSize << " targetUnobscuredRect " << targetUnobscuredRect << " targetExposedContentRect " << targetExposedContentRect << " targetScale " << targetScale);
+    LOG_WITH_STREAM(VisibleRects, stream << "\nWebPage::dynamicViewportSizeUpdate - minimumLayoutSize " << minimumLayoutSize << " viewSize " << viewSize << " targetUnobscuredRect " << targetUnobscuredRect << " targetExposedContentRect " << targetExposedContentRect << " targetScale " << targetScale);
 
     FrameView& frameView = *m_page->mainFrame().view();
     IntSize oldContentSize = frameView.contentsSize();
@@ -2449,7 +2927,7 @@ void WebPage::dynamicViewportSizeUpdate(const FloatSize& minimumLayoutSize, cons
     }
 
     LOG_WITH_STREAM(VisibleRects, stream << "WebPage::dynamicViewportSizeUpdate setting minimum layout size to " << minimumLayoutSize);
-    m_viewportConfiguration.setMinimumLayoutSize(minimumLayoutSize);
+    m_viewportConfiguration.setMinimumLayoutSize(minimumLayoutSize, viewSize);
     IntSize newLayoutSize = m_viewportConfiguration.layoutSize();
 
     if (setFixedLayoutSize(newLayoutSize))
@@ -2678,6 +3156,7 @@ void WebPage::updateViewportSizeForCSSViewportUnits()
 void WebPage::applicationWillResignActive()
 {
     [[NSNotificationCenter defaultCenter] postNotificationName:WebUIApplicationWillResignActiveNotification object:nil];
+    m_page->applicationWillResignActive();
 }
 
 void WebPage::applicationDidEnterBackground(bool isSuspendedUnderLock)
@@ -2687,7 +3166,7 @@ void WebPage::applicationDidEnterBackground(bool isSuspendedUnderLock)
     m_isSuspendedUnderLock = isSuspendedUnderLock;
     setLayerTreeStateIsFrozen(true);
 
-    m_page->libWebRTCProvider().setActive(false);
+    m_page->applicationDidEnterBackground();
 }
 
 void WebPage::applicationDidFinishSnapshottingAfterEnteringBackground()
@@ -2703,12 +3182,13 @@ void WebPage::applicationWillEnterForeground(bool isSuspendedUnderLock)
 
     [[NSNotificationCenter defaultCenter] postNotificationName:WebUIApplicationWillEnterForegroundNotification object:nil userInfo:@{@"isSuspendedUnderLock": @(isSuspendedUnderLock)}];
 
-    m_page->libWebRTCProvider().setActive(true);
+    m_page->applicationWillEnterForeground();
 }
 
 void WebPage::applicationDidBecomeActive()
 {
     [[NSNotificationCenter defaultCenter] postNotificationName:WebUIApplicationDidBecomeActiveNotification object:nil];
+    m_page->applicationDidBecomeActive();
 }
 
 static inline void adjustVelocityDataForBoundedScale(double& horizontalVelocity, double& verticalVelocity, double& scaleChangeRate, double exposedRectScale, double minimumScale, double maximumScale)
@@ -2827,7 +3307,9 @@ void WebPage::updateVisibleContentRects(const VisibleContentRectUpdateInfo& visi
     if (scrollPosition != frameView.scrollPosition())
         m_dynamicSizeUpdateHistory.clear();
 
-    if (m_viewportConfiguration.setCanIgnoreScalingConstraints(m_ignoreViewportScalingConstraints && visibleContentRectUpdateInfo.allowShrinkToFit()))
+    bool didUpdateForceHorizontalShrinkToFit = m_viewportConfiguration.setForceHorizontalShrinkToFit(visibleContentRectUpdateInfo.forceHorizontalShrinkToFit());
+    bool didUpdateCanIgnoreViewportScalingConstraints = m_viewportConfiguration.setCanIgnoreScalingConstraints(m_ignoreViewportScalingConstraints && visibleContentRectUpdateInfo.allowShrinkToFit());
+    if (didUpdateForceHorizontalShrinkToFit || didUpdateCanIgnoreViewportScalingConstraints)
         viewportConfigurationChanged();
 
     frameView.setUnobscuredContentSize(visibleContentRectUpdateInfo.unobscuredContentRect().size());

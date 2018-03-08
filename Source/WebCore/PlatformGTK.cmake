@@ -71,7 +71,7 @@ list(APPEND WebCorePlatformGTK_SOURCES
 )
 
 if (ENABLE_GEOLOCATION)
-    list(APPEND WebCore_DERIVED_SOURCES
+    list(APPEND WebCore_SOURCES
         ${DERIVED_SOURCES_WEBCORE_DIR}/Geoclue2Interface.c
     )
     execute_process(COMMAND ${PKG_CONFIG_EXECUTABLE} --variable dbus_interface geoclue-2.0 OUTPUT_VARIABLE GEOCLUE_DBUS_INTERFACE)
@@ -113,10 +113,7 @@ list(APPEND WebCore_LIBRARIES
     ${X11_Xrender_LIB}
     ${X11_Xt_LIB}
     ${ZLIB_LIBRARIES}
-    WTF
 )
-
-list(APPEND WebCoreTestSupport_LIBRARIES WTF)
 
 list(APPEND WebCore_SYSTEM_INCLUDE_DIRECTORIES
     ${ATK_INCLUDE_DIRS}
@@ -131,7 +128,7 @@ list(APPEND WebCore_SYSTEM_INCLUDE_DIRECTORIES
     ${ZLIB_INCLUDE_DIRS}
 )
 
-if (USE_OPENGL_ES_2)
+if (USE_OPENGL_ES)
     list(APPEND WebCore_SOURCES
         platform/graphics/opengl/Extensions3DOpenGLES.cpp
         platform/graphics/opengl/GraphicsContext3DOpenGLES.cpp

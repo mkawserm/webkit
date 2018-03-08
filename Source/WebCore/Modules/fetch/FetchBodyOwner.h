@@ -34,6 +34,7 @@
 #include "FetchHeaders.h"
 #include "FetchLoader.h"
 #include "FetchLoaderClient.h"
+#include "ResourceError.h"
 
 namespace WebCore {
 
@@ -76,6 +77,7 @@ protected:
     void consumeOnceLoadingFinished(FetchBodyConsumer::Type, Ref<DeferredPromise>&&);
 
     void setBody(FetchBody&& body) { m_body = WTFMove(body); }
+    void createReadableStream(JSC::ExecState&);
 
     // ActiveDOMObject API
     void stop() override;
@@ -113,6 +115,7 @@ protected:
     RefPtr<FetchBodySource> m_readableStreamSource;
 #endif
     Ref<FetchHeaders> m_headers;
+    std::optional<ResourceError> m_loadingError;
 
 private:
     std::optional<BlobLoader> m_blobLoader;

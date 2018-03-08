@@ -53,6 +53,7 @@
 #include "RenderTableRow.h"
 #include "RenderText.h"
 #include "RenderTextFragment.h"
+#include "RenderTreeBuilder.h"
 #include "RenderView.h"
 #include "ScrollingConstraints.h"
 #include "Settings.h"
@@ -80,20 +81,6 @@ WTF_MAKE_ISO_ALLOCATED_IMPL(RenderBoxModelObject);
 // an anonymous block (that houses other blocks) or it will be an inline flow.
 // <b><i><p>Hello</p></i></b>. In this example the <i> will have a block as
 // its continuation but the <b> will just have an inline as its continuation.
-
-struct RenderBoxModelObject::ContinuationChainNode {
-    WeakPtr<RenderBoxModelObject> renderer;
-    ContinuationChainNode* previous { nullptr };
-    ContinuationChainNode* next { nullptr };
-
-    ContinuationChainNode(RenderBoxModelObject&);
-    ~ContinuationChainNode();
-
-    void insertAfter(ContinuationChainNode&);
-
-    WTF_MAKE_FAST_ALLOCATED;
-};
-
 RenderBoxModelObject::ContinuationChainNode::ContinuationChainNode(RenderBoxModelObject& renderer)
     : renderer(makeWeakPtr(renderer))
 {
@@ -214,7 +201,7 @@ void RenderBoxModelObject::animationFinished(const String& name)
     layer()->backing()->animationFinished(name);
 }
 
-void RenderBoxModelObject::suspendAnimations(double time)
+void RenderBoxModelObject::suspendAnimations(MonotonicTime time)
 {
     ASSERT(hasLayer());
     ASSERT(isComposited());
@@ -234,14 +221,11 @@ RenderBoxModelObject::RenderBoxModelObject(Document& document, RenderStyle&& sty
 RenderBoxModelObject::~RenderBoxModelObject()
 {
     // Do not add any code here. Add it to willBeDestroyed() instead.
+    ASSERT(!continuation());
 }
 
 void RenderBoxModelObject::willBeDestroyed()
 {
-    if (continuation() && !isContinuation()) {
-        removeAndDestroyAllContinuations();
-        ASSERT(!continuation());
-    }
     if (hasContinuationChainNode())
         removeFromContinuationChain();
 
@@ -2524,6 +2508,10 @@ RenderInline* RenderBoxModelObject::inlineContinuation() const
     return nullptr;
 }
 
+RenderBoxModelObject::ContinuationChainNode* RenderBoxModelObject::continuationChainNode() const
+{
+    return continuationChainNodeMap().get(this);
+}
 
 void RenderBoxModelObject::insertIntoContinuationChainAfter(RenderBoxModelObject& afterRenderer)
 {
@@ -2548,17 +2536,6 @@ auto RenderBoxModelObject::ensureContinuationChainNode() -> ContinuationChainNod
     return *continuationChainNodeMap().ensure(this, [&] {
         return std::make_unique<ContinuationChainNode>(*this);
     }).iterator->value;
-}
-
-void RenderBoxModelObject::removeAndDestroyAllContinuations()
-{
-    ASSERT(!isContinuation());
-    ASSERT(hasContinuationChainNode());
-    ASSERT(continuationChainNodeMap().contains(this));
-    auto& continuationChainNode = *continuationChainNodeMap().get(this);
-    while (continuationChainNode.next)
-        continuationChainNode.next->renderer->removeFromParentAndDestroy();
-    removeFromContinuationChain();
 }
 
 RenderTextFragment* RenderBoxModelObject::firstLetterRemainingText() const
@@ -2682,63 +2659,6 @@ void RenderBoxModelObject::mapAbsoluteToLocalPoint(MapCoordinatesFlags mode, Tra
         transformState.applyTransform(t, preserve3D ? TransformState::AccumulateTransform : TransformState::FlattenTransform);
     } else
         transformState.move(containerOffset.width(), containerOffset.height(), preserve3D ? TransformState::AccumulateTransform : TransformState::FlattenTransform);
-}
-
-void RenderBoxModelObject::moveChildTo(RenderBoxModelObject* toBoxModelObject, RenderObject* child, RenderObject* beforeChild, NormalizeAfterInsertion normalizeAfterInsertion)
-{
-    // We assume that callers have cleared their positioned objects list for child moves so the
-    // positioned renderer maps don't become stale. It would be too slow to do the map lookup on each call.
-    ASSERT(normalizeAfterInsertion == NormalizeAfterInsertion::No || !is<RenderBlock>(*this) || !downcast<RenderBlock>(*this).hasPositionedObjects());
-
-    ASSERT(this == child->parent());
-    ASSERT(!beforeChild || toBoxModelObject == beforeChild->parent());
-    if (normalizeAfterInsertion == NormalizeAfterInsertion::Yes && (toBoxModelObject->isRenderBlock() || toBoxModelObject->isRenderInline())) {
-        // Takes care of adding the new child correctly if toBlock and fromBlock
-        // have different kind of children (block vs inline).
-        auto childToMove = takeChildInternal(*child);
-        toBoxModelObject->addChild(WTFMove(childToMove), beforeChild);
-    } else {
-        auto childToMove = takeChildInternal(*child);
-        toBoxModelObject->insertChildInternal(WTFMove(childToMove), beforeChild);
-    }
-}
-
-void RenderBoxModelObject::moveChildrenTo(RenderBoxModelObject* toBoxModelObject, RenderObject* startChild, RenderObject* endChild, RenderObject* beforeChild, NormalizeAfterInsertion normalizeAfterInsertion)
-{
-    // This condition is rarely hit since this function is usually called on
-    // anonymous blocks which can no longer carry positioned objects (see r120761)
-    // or when fullRemoveInsert is false.
-    if (normalizeAfterInsertion == NormalizeAfterInsertion::Yes && is<RenderBlock>(*this)) {
-        downcast<RenderBlock>(*this).removePositionedObjects(nullptr);
-        if (is<RenderBlockFlow>(*this))
-            downcast<RenderBlockFlow>(*this).removeFloatingObjects();
-    }
-
-    ASSERT(!beforeChild || toBoxModelObject == beforeChild->parent());
-    for (RenderObject* child = startChild; child && child != endChild; ) {
-        // Save our next sibling as moveChildTo will clear it.
-        RenderObject* nextSibling = child->nextSibling();
-        
-        // FIXME: This logic here fails to detect the first letter in certain cases
-        // and skips a valid sibling renderer (see webkit.org/b/163737).
-        // Check to make sure we're not saving the firstLetter as the nextSibling.
-        // When the |child| object will be moved, its firstLetter will be recreated,
-        // so saving it now in nextSibling would leave us with a stale object.
-        if (is<RenderTextFragment>(*child) && is<RenderText>(nextSibling)) {
-            RenderObject* firstLetterObj = nullptr;
-            if (RenderBlock* block = downcast<RenderTextFragment>(*child).blockForAccompanyingFirstLetter()) {
-                RenderElement* firstLetterContainer = nullptr;
-                block->getFirstLetter(firstLetterObj, firstLetterContainer, child);
-            }
-            
-            // This is the first letter, skip it.
-            if (firstLetterObj == nextSibling)
-                nextSibling = nextSibling->nextSibling();
-        }
-
-        moveChildTo(toBoxModelObject, child, beforeChild, normalizeAfterInsertion);
-        child = nextSibling;
-    }
 }
 
 } // namespace WebCore

@@ -36,6 +36,7 @@
 #if USE(CG)
 #include "ImageSourceCG.h"
 #include "UTIRegistry.h"
+#include <ImageIO/ImageIO.h>
 #include <wtf/RetainPtr.h>
 #endif
 
@@ -43,19 +44,11 @@
 #include "UTIUtilities.h"
 #endif
 
-#if USE(CG) && !PLATFORM(IOS)
-#include <ApplicationServices/ApplicationServices.h>
-#endif
-
-#if PLATFORM(IOS)
-#include <ImageIO/CGImageDestination.h>
-#endif
-
 #if ENABLE(WEB_ARCHIVE) || ENABLE(MHTML)
 #include "ArchiveFactory.h"
 #endif
 
-#if HAVE(AVSAMPLEBUFFERGENERATOR)
+#if HAVE(AVASSETREADER)
 #include "ContentType.h"
 #include "ImageDecoderAVFObjC.h"
 #endif
@@ -460,7 +453,7 @@ bool MIMETypeRegistry::isSupportedImageVideoOrSVGMIMEType(const String& mimeType
     if (isSupportedImageMIMEType(mimeType) || equalLettersIgnoringASCIICase(mimeType, "image/svg+xml"))
         return true;
 
-#if HAVE(AVSAMPLEBUFFERGENERATOR)
+#if HAVE(AVASSETREADER)
     if (ImageDecoderAVFObjC::supportsContentType(ContentType(mimeType)))
         return true;
 #endif
@@ -492,6 +485,15 @@ bool MIMETypeRegistry::isSupportedJavaScriptMIMEType(const String& mimeType)
 {
     if (mimeType.isEmpty())
         return false;
+
+    if (!isMainThread()) {
+        bool isSupported = false;
+        callOnMainThreadAndWait([&isSupported, mimeType = mimeType.isolatedCopy()] {
+            isSupported = isSupportedJavaScriptMIMEType(mimeType);
+        });
+        return isSupported;
+    }
+
     if (!supportedJavaScriptMIMETypes)
         initializeSupportedNonImageMimeTypes();
     return supportedJavaScriptMIMETypes->contains(mimeType);

@@ -99,6 +99,10 @@ allowUniversalAccessFromFileURLs:
   initial: true
 allowFileAccessFromFileURLs:
   initial: true
+allowSettingAnyXHRHeaderFromFileURLs:
+  initial: false
+allowCrossOriginSubresourcesToAskForCredentials:
+  initial: false
 needsStorageAccessFromFileURLsQuirk:
   initial: true
 javaScriptCanOpenWindowsAutomatically:
@@ -200,7 +204,7 @@ javaScriptRuntimeFlags:
 # FIXME: This should really be disabled by default as it makes platforms that don't support the feature download files
 # they can't use by. Leaving enabled for now to not change existing behavior.
 downloadableBinaryFontsEnabled:
-  initial: true
+  initial: defaultDownloadableBinaryFontsEnabled()
 
 xssAuditorEnabled:
   initial: false
@@ -352,8 +356,10 @@ maximumPlugInSnapshotAttempts:
 frameFlattening:
   type: FrameFlattening
   initial: FrameFlattening::Disabled
+  onChange: setNeedsRelayoutAllFrames
 asyncFrameScrollingEnabled:
   initial: false
+  onChange: setNeedsRelayoutAllFrames
 
 webSecurityEnabled:
   initial: true
@@ -475,6 +481,9 @@ serviceControlsEnabled:
 appleMailPaginationQuirkEnabled:
   initial: false
 
+appleMailLinesClampEnabled:
+  initial: false
+
 deferredCSSParserEnabled:
   initial: false
 
@@ -579,7 +588,7 @@ allowMediaContentTypesRequiringHardwareSupportAsFallback:
   initial: false
 
 storageAccessAPIEnabled:
-  initial: false
+  initial: true
 
 timeWithoutMouseMovementBeforeHidingControls:
   type: Seconds
@@ -661,8 +670,8 @@ storageBlockingPolicy:
   initial: SecurityOrigin::AllowAllStorage
   onChange: storageBlockingPolicyChanged
 
-shouldDisallowUserInstalledFonts:
-  initial: false
+shouldAllowUserInstalledFonts:
+  initial: true
   onChange: setNeedsRecalcStyleInAllFrames
 
 # Only set by Layout Tests.
@@ -696,7 +705,35 @@ needsAdobeFrameReloadingQuirk:
   initial: false
   getter: needsAcrobatFrameReloadingQuirk
 
+passiveTouchListenersAsDefaultOnDocument:
+  initial: true
+
 touchEventEmulationEnabled:
   initial: false
   getter: isTouchEventEmulationEnabled
   conditional: TOUCH_EVENTS
+
+oneLineTextMultiplierCoefficient:
+  type: float
+  initial: defaultOneLineTextMultiplierCoefficient()
+  conditional: TEXT_AUTOSIZING
+
+multiLineTextMultiplierCoefficient:
+  type: float
+  initial: defaultMultiLineTextMultiplierCoefficient()
+  conditional: TEXT_AUTOSIZING
+
+maxTextAutosizingScaleIncrease:
+  type: float
+  initial: defaultMaxTextAutosizingScaleIncrease()
+  conditional: TEXT_AUTOSIZING
+
+mediaCapabilitiesEnabled:
+  initial: false
+
+resourceLoadStatisticsDebugMode:
+  initial: false
+
+clientCoordinatesRelativeToLayoutViewport:
+  initial: false
+  onChange: setNeedsRecalcStyleInAllFrames

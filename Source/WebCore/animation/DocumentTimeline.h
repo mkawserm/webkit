@@ -49,10 +49,12 @@ public:
     static Ref<DocumentTimeline> create(Document&, PlatformDisplayID);
     ~DocumentTimeline();
 
+    Document* document() const { return m_document.get(); }
+
     std::optional<Seconds> currentTime() override;
     void pause() override;
 
-    void animationTimingModelDidChange() override;
+    void timingModelDidChange() override;
     void windowScreenDidChange(PlatformDisplayID);
 
     std::unique_ptr<RenderStyle> animatedStyleForRenderer(RenderElement& renderer);

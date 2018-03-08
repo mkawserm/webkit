@@ -53,11 +53,6 @@ public:
         return adoptRef(*new Self(initialValue));
     }
 
-    static Ref<Self> create(const PropertyType* initialValue)
-    {
-        return adoptRef(*new Self(initialValue));
-    }
-
     template<typename U> static ExceptionOr<Ref<Self>> create(ExceptionOr<U>&& initialValue)
     {
         if (initialValue.hasException())
@@ -130,6 +125,11 @@ public:
         return false;
     }
 
+    WeakPtr<SVGPropertyTearOff> createWeakPtr() const
+    {
+        return m_weakPtrFactory.createWeakPtr(*const_cast<SVGPropertyTearOff*>(this));
+    }
+
 protected:
     SVGPropertyTearOff(SVGAnimatedProperty* animatedProperty, SVGPropertyRole role, PropertyType& value)
         : m_animatedProperty(animatedProperty)
@@ -158,9 +158,6 @@ protected:
             detachChildren();
             delete m_value;
         }
-
-        if (m_animatedProperty)
-            m_animatedProperty->propertyWillBeDeleted(*this);
     }
 
     void detachChildren()
@@ -176,7 +173,8 @@ protected:
     SVGPropertyRole m_role;
     PropertyType* m_value;
     Vector<WeakPtr<SVGPropertyTearOffBase>> m_childTearOffs;
-    bool m_valueIsCopy : 1;
+    WeakPtrFactory<SVGPropertyTearOff> m_weakPtrFactory;
+    bool m_valueIsCopy;
 };
 
 }

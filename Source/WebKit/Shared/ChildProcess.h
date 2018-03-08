@@ -29,6 +29,7 @@
 #include "Connection.h"
 #include "MessageReceiverMap.h"
 #include "MessageSender.h"
+#include <WebCore/Process.h>
 #include <WebCore/UserActivity.h>
 #include <wtf/HashMap.h>
 #include <wtf/RunLoop.h>
@@ -42,6 +43,7 @@ class SandboxInitializationParameters;
 struct ChildProcessInitializationParameters {
     String uiProcessName;
     String clientIdentifier;
+    std::optional<WebCore::ProcessIdentifier> processIdentifier;
     IPC::Connection::Identifier connectionIdentifier;
     HashMap<String, String> extraInitializationData;
 #if PLATFORM(COCOA)
@@ -101,8 +103,14 @@ protected:
 #if USE(APPKIT)
     static void stopNSAppRunLoop();
 #endif
+    
+#if PLATFORM(MAC) && __MAC_OS_X_VERSION_MIN_REQUIRED >= 101400
+    static void stopNSRunLoop();
+#endif
 
     void didReceiveMessage(IPC::Connection&, IPC::Decoder&) override;
+
+    void registerURLSchemeServiceWorkersCanHandle(const String&) const;
 
 private:
     // IPC::MessageSender

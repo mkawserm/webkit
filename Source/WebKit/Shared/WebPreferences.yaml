@@ -99,6 +99,11 @@ CSSAnimationTriggersEnabled:
   webcoreName: animationTriggersEnabled
   condition: ENABLE(CSS_ANIMATIONS_LEVEL_2)
 
+CSSAnimationsAndCSSTransitionsBackedByWebAnimationsEnabled:
+  type: bool
+  defaultValue: false
+  webcoreBinding: RuntimeEnabledFeatures
+
 ForceFTPDirectoryListings:
   type: bool
   defaultValue: false
@@ -176,6 +181,14 @@ AllowUniversalAccessFromFileURLs:
   defaultValue: false
 
 AllowFileAccessFromFileURLs:
+  type: bool
+  defaultValue: false
+
+AllowSettingAnyXHRHeaderFromFileURLs:
+  type: bool
+  defaultValue: false
+
+AllowCrossOriginSubresourcesToAskForCredentials:
   type: bool
   defaultValue: false
 
@@ -411,13 +424,6 @@ TemporaryTileCohortRetentionEnabled:
   type: bool
   defaultValue: DEFAULT_TEMPORARY_TILE_COHORT_RETENTION_ENABLED
 
-QTKitEnabled:
-  type: bool
-  defaultValue: WebCore::DeprecatedGlobalSettings::isQTKitEnabled()
-  getter: isQTKitEnabled
-  webcoreBinding: DeprecatedGlobalSettings
-  condition: PLATFORM(COCOA)
-
 PageVisibilityBasedProcessSuppressionEnabled:
   type: bool
   defaultValue: true
@@ -483,6 +489,12 @@ MediaDevicesEnabled:
 MediaStreamEnabled:
   type: bool
   defaultValue: true
+  webcoreBinding: RuntimeEnabledFeatures
+  condition: ENABLE(MEDIA_STREAM)
+
+ScreenCaptureEnabled:
+  type: bool
+  defaultValue: false
   webcoreBinding: RuntimeEnabledFeatures
   condition: ENABLE(MEDIA_STREAM)
 
@@ -697,11 +709,11 @@ InputEventsEnabled:
   humanReadableDescription: "Enable InputEvents support"
   webcoreBinding: RuntimeEnabledFeatures
 
-CredentialManagementEnabled:
+WebAuthenticationEnabled:
   type: bool
   defaultValue: false
-  humanReadableName: "Credential Management"
-  humanReadableDescription: "Enable Credential Management support"
+  humanReadableName: "Web Authentication"
+  humanReadableDescription: "Enable Web Authentication support"
   webcoreBinding: RuntimeEnabledFeatures
 
 ModernMediaControlsEnabled:
@@ -713,7 +725,7 @@ ModernMediaControlsEnabled:
 
 ResourceTimingEnabled:
   type: bool
-  defaultValue: DEFAULT_RESOURCE_TIMING_ENABLED
+  defaultValue: true
   humanReadableName: "Resource Timing"
   humanReadableDescription: "Enable ResourceTiming API"
   webcoreBinding: RuntimeEnabledFeatures
@@ -730,7 +742,6 @@ BeaconAPIEnabled:
   defaultValue: true
   humanReadableName: "Beacon API"
   humanReadableDescription: "Beacon API"
-  condition: ENABLE(BEACON_API)
 
 LegacyEncryptedMediaAPIEnabled:
   type: bool
@@ -769,16 +780,9 @@ DataTransferItemsEnabled:
 
 CustomPasteboardDataEnabled:
   type: bool
-  defaultValue: WebCore::DeprecatedGlobalSettings::defaultCustomPasteboardDataEnabled()
+  defaultValue: defaultCustomPasteboardDataEnabled()
   humanReadableName: "Custom pateboard data"
   humanReadableDescription: "Enable custom clipboard types and better security model for clipboard API."
-  webcoreBinding: DeprecatedGlobalSettings
-
-WebVREnabled:
-  type: bool
-  defaultValue: false
-  humanReadableName: "WebVR"
-  humanReadableDescription: "WebVR Module support"
   webcoreBinding: RuntimeEnabledFeatures
 
 ViewportFitEnabled:
@@ -958,6 +962,10 @@ LongRunningMediaCaptureStreamRepromptIntervalInHours:
   defaultValue: 24
   webcoreBinding: none
 
+PassiveTouchListenersAsDefaultOnDocument:
+  type: bool
+  defaultValue: defaultPassiveTouchListenersAsDefaultOnDocument()
+  webcoreName: passiveTouchListenersAsDefaultOnDocument
 
 # Debug Preferences
 
@@ -1034,10 +1042,14 @@ VisibleDebugOverlayRegions:
   defaultValue: 0
   category: debug
 
-ShouldDisallowUserInstalledFonts:
+ShouldAllowUserInstalledFonts:
   type: bool
-  defaultValue: false
+  defaultValue: true
 
+MediaCapabilitiesEnabled:
+    type: bool
+    defaultValue: false
+    webcoreBinding: RuntimeEnabledFeatures
 
 # For experimental features:
 # The type should be boolean.
@@ -1093,13 +1105,12 @@ LinkPreloadEnabled:
   category: experimental
   webcoreBinding: RuntimeEnabledFeatures
 
-WebRTCLegacyAPIDisabled:
+WebRTCLegacyAPIEnabled:
   type: bool
-  defaultValue: DEFAULT_EXPERIMENTAL_FEATURES_ENABLED
-  humanReadableName: "Remove Legacy WebRTC API"
-  humanReadableDescription: "Remove Legacy WebRTC API"
-  category: experimental
-  webcoreBinding: custom
+  defaultValue: false
+  humanReadableName: "Enable Legacy WebRTC API"
+  humanReadableDescription: "Enable Legacy WebRTC API"
+  webcoreBinding: RuntimeEnabledFeatures
   condition: ENABLE(WEB_RTC)
 
 IsSecureContextAttributeEnabled:
@@ -1109,6 +1120,15 @@ IsSecureContextAttributeEnabled:
   humanReadableDescription: "Enable Secure Contexts API"
   category: experimental
   webcoreBinding: RuntimeEnabledFeatures
+
+FetchAPIKeepAliveEnabled:
+  type: bool
+  defaultValue: false
+  humanReadableName: "Fetch API Request KeepAlive"
+  humanReadableDescription: "Enable Fetch API Request KeepAlive"
+  category: experimental
+  webcoreBinding: RuntimeEnabledFeatures
+  webcoreName: fetchAPIKeepAliveEnabled
 
 ServiceWorkersEnabled:
   type: bool
@@ -1122,7 +1142,7 @@ ServiceWorkersEnabled:
 
 StorageAccessAPIEnabled:
   type: bool
-  defaultValue: false
+  defaultValue: true
   humanReadableName: "Storage Access API"
   humanReadableDescription: "Enable Storage Access API"
   category: experimental
@@ -1136,7 +1156,7 @@ SubresourceIntegrityEnabled:
 
 VisualViewportAPIEnabled:
   type: bool
-  defaultValue: false
+  defaultValue: DEFAULT_EXPERIMENTAL_FEATURES_ENABLED
   humanReadableName: "VisualViewportAPI"
   humanReadableDescription: "Enable Visual Viewport API"
   category: experimental
@@ -1174,3 +1194,20 @@ AccessibilityObjectModelEnabled:
     humanReadableDescription: "Accessibility Object Model support"
     category: experimental
     webcoreBinding: RuntimeEnabledFeatures
+
+WebVREnabled:
+  type: bool
+  defaultValue: DEFAULT_EXPERIMENTAL_FEATURES_ENABLED
+  humanReadableName: "WebVR"
+  humanReadableDescription: "WebVR Module support"
+  webcoreBinding: RuntimeEnabledFeatures
+  category: experimental
+  condition: PLATFORM(GTK) || PLATFORM(WPE)
+
+ResourceLoadStatisticsDebugMode:
+  type: bool
+  defaultValue: false
+  humanReadableName: "ITP Debug Mode"
+  humanReadableDescription: "Intelligent Tracking Prevention Debug Mode"
+  category: experimental
+  webcoreBinding: RuntimeEnabledFeatures

@@ -91,14 +91,15 @@
 #include "WebGLShaderPrecisionFormat.h"
 #include "WebGLTexture.h"
 #include "WebGLUniformLocation.h"
-#include <inspector/ConsoleMessage.h>
-#include <inspector/ScriptCallStack.h>
-#include <inspector/ScriptCallStackFactory.h>
-#include <runtime/JSCInlines.h>
-#include <runtime/TypedArrayInlines.h>
-#include <runtime/Uint32Array.h>
+#include <JavaScriptCore/ConsoleMessage.h>
+#include <JavaScriptCore/JSCInlines.h>
+#include <JavaScriptCore/ScriptCallStack.h>
+#include <JavaScriptCore/ScriptCallStackFactory.h>
+#include <JavaScriptCore/TypedArrayInlines.h>
+#include <JavaScriptCore/Uint32Array.h>
 #include <wtf/CheckedArithmetic.h>
 #include <wtf/StdLibExtras.h>
+#include <wtf/UniqueArray.h>
 #include <wtf/text/CString.h>
 #include <wtf/text/StringBuilder.h>
 
@@ -331,6 +332,41 @@ namespace {
     }
 } // namespace anonymous
 
+// Returns false if no clipping is necessary, i.e., x, y, width, height stay the same.
+static bool clip2D(GC3Dint x, GC3Dint y, GC3Dsizei width, GC3Dsizei height,
+    GC3Dsizei sourceWidth, GC3Dsizei sourceHeight,
+    GC3Dint* clippedX, GC3Dint* clippedY, GC3Dsizei* clippedWidth, GC3Dsizei*clippedHeight)
+{
+    ASSERT(clippedX && clippedY && clippedWidth && clippedHeight);
+
+    GC3Dint left = std::max(x, 0);
+    GC3Dint top = std::max(y, 0);
+    GC3Dint right = 0;
+    GC3Dint bottom = 0;
+
+    Checked<GC3Dint, RecordOverflow> checkedInputRight = Checked<GC3Dint>(x) + Checked<GC3Dsizei>(width);
+    Checked<GC3Dint, RecordOverflow> checkedInputBottom = Checked<GC3Dint>(y) + Checked<GC3Dsizei>(height);
+    if (!checkedInputRight.hasOverflowed() && !checkedInputBottom.hasOverflowed()) {
+        right = std::min(checkedInputRight.unsafeGet(), sourceWidth);
+        bottom = std::min(checkedInputBottom.unsafeGet(), sourceHeight);
+    }
+
+    if (left >= right || top >= bottom) {
+        *clippedX = 0;
+        *clippedY = 0;
+        *clippedWidth = 0;
+        *clippedHeight = 0;
+        return true;
+    }
+
+    *clippedX = left;
+    *clippedY = top;
+    *clippedWidth = right - left;
+    *clippedHeight = bottom - top;
+
+    return (*clippedX != x || *clippedY != y || *clippedWidth != width || *clippedHeight != height);
+}
+
 class WebGLRenderingContextLostCallback : public GraphicsContext3D::ContextLostCallback {
     WTF_MAKE_FAST_ALLOCATED;
 public:
@@ -438,10 +474,10 @@ std::unique_ptr<WebGLRenderingContextBase> WebGLRenderingContextBase::create(Can
         std::unique_ptr<WebGLRenderingContextBase> renderingContext = nullptr;
 #if ENABLE(WEBGL2)
         if (type == "webgl2")
-            renderingContext = std::make_unique<WebGL2RenderingContext>(canvas, attributes);
+            renderingContext = WebGL2RenderingContext::create(canvas, attributes);
         else
 #endif
-            renderingContext = std::make_unique<WebGLRenderingContext>(canvas, attributes);
+            renderingContext = WebGLRenderingContext::create(canvas, attributes);
         renderingContext->suspendIfNeeded();
         return renderingContext;
     }
@@ -467,10 +503,10 @@ std::unique_ptr<WebGLRenderingContextBase> WebGLRenderingContextBase::create(Can
     std::unique_ptr<WebGLRenderingContextBase> renderingContext;
 #if ENABLE(WEBGL2)
     if (type == "webgl2")
-        renderingContext = std::make_unique<WebGL2RenderingContext>(canvas, context.releaseNonNull(), attributes);
+        renderingContext = WebGL2RenderingContext::create(canvas, context.releaseNonNull(), attributes);
     else
 #endif
-        renderingContext = std::make_unique<WebGLRenderingContext>(canvas, context.releaseNonNull(), attributes);
+        renderingContext = WebGLRenderingContext::create(canvas, context.releaseNonNull(), attributes);
     renderingContext->suspendIfNeeded();
 
     return renderingContext;
@@ -1518,7 +1554,7 @@ void WebGLRenderingContextBase::copyTexSubImage2D(GC3Denum target, GC3Dint level
             synthesizeGLError(GraphicsContext3D::INVALID_ENUM, "copyTexSubImage2D", "Texture has unknown internal format");
             return;
         }
-        std::unique_ptr<unsigned char[]> zero;
+        UniqueArray<unsigned char> zero;
         if (width && height) {
             unsigned size;
             GC3Denum error = m_context->computeImageSizeInBytes(format, type, width, height, m_unpackAlignment, &size, nullptr);
@@ -1526,7 +1562,7 @@ void WebGLRenderingContextBase::copyTexSubImage2D(GC3Denum target, GC3Dint level
                 synthesizeGLError(error, "copyTexSubImage2D", "bad dimensions");
                 return;
             }
-            zero = std::make_unique<unsigned char[]>(size);
+            zero = makeUniqueArray<unsigned char>(size);
             if (!zero) {
                 synthesizeGLError(GraphicsContext3D::INVALID_VALUE, "copyTexSubImage2D", "out of memory");
                 return;
@@ -1857,8 +1893,11 @@ bool WebGLRenderingContextBase::validateIndexArrayPrecise(GC3Dsizei count, GC3De
     }
 
     // Then set the last index in the index array and make sure it is valid.
-    numElementsRequired = lastIndex + 1;
-    return numElementsRequired > 0;
+    auto checkedNumElementsRequired = checkedAddAndMultiply<unsigned>(lastIndex, 1, 1);
+    if (!checkedNumElementsRequired)
+        return false;
+    numElementsRequired = checkedNumElementsRequired.value();
+    return true;
 }
 
 bool WebGLRenderingContextBase::validateVertexAttributes(unsigned elementCount, unsigned primitiveCount)
@@ -1889,6 +1928,8 @@ bool WebGLRenderingContextBase::validateVertexAttributes(unsigned elementCount, 
                 // For the last element, we will only touch the data for the
                 // element and nothing beyond it.
                 int bytesRemaining = static_cast<int>(state.bufferBinding->byteLength() - state.offset);
+                if (bytesRemaining <= 0)
+                    return false;
                 unsigned numElements = 0;
                 ASSERT(state.stride > 0);
                 if (bytesRemaining >= state.bytesPerElement)
@@ -1969,9 +2010,7 @@ bool WebGLRenderingContextBase::validateDrawArrays(const char* functionName, GC3
     }
 
     // Ensure we have a valid rendering state.
-    Checked<GC3Dint, RecordOverflow> checkedFirst(first);
-    Checked<GC3Dint, RecordOverflow> checkedCount(count);
-    Checked<GC3Dint, RecordOverflow> checkedSum = checkedFirst + checkedCount;
+    Checked<GC3Dint, RecordOverflow> checkedSum = Checked<GC3Dint, RecordOverflow>(first) + Checked<GC3Dint, RecordOverflow>(count);
     Checked<GC3Dint, RecordOverflow> checkedPrimitiveCount(primitiveCount);
     if (checkedSum.hasOverflowed() || checkedPrimitiveCount.hasOverflowed() || !validateVertexAttributes(checkedSum.unsafeGet(), checkedPrimitiveCount.unsafeGet())) {
         synthesizeGLError(GraphicsContext3D::INVALID_OPERATION, functionName, "attempt to access out of bounds arrays");
@@ -2080,8 +2119,15 @@ void WebGLRenderingContextBase::drawArrays(GC3Denum mode, GC3Dint first, GC3Dsiz
     clearIfComposited();
 
     bool vertexAttrib0Simulated = false;
-    if (!isGLES2Compliant())
-        vertexAttrib0Simulated = simulateVertexAttrib0(first + count - 1);
+    if (!isGLES2Compliant()) {
+        auto simulateVertexAttrib0Status = simulateVertexAttrib0(first + count - 1);
+        if (!simulateVertexAttrib0Status) {
+            // We were unable to simulate the attribute buffer.
+            synthesizeGLError(GraphicsContext3D::INVALID_OPERATION, "drawArrays", "unable to simulate vertexAttrib0 array");
+            return;
+        }
+        vertexAttrib0Simulated = simulateVertexAttrib0Status.value();
+    }
     bool usesFallbackTexture = false;
     if (!isGLES2NPOTStrict())
         usesFallbackTexture = checkTextureCompleteness("drawArrays", true);
@@ -2110,7 +2156,13 @@ void WebGLRenderingContextBase::drawElements(GC3Denum mode, GC3Dsizei count, GC3
     if (!isGLES2Compliant()) {
         if (!numElements)
             validateIndexArrayPrecise(count, type, static_cast<GC3Dintptr>(offset), numElements);
-        vertexAttrib0Simulated = simulateVertexAttrib0(numElements);
+        auto simulateVertexAttrib0Status = simulateVertexAttrib0(numElements);
+        if (!simulateVertexAttrib0Status) {
+            // We were unable to simulate the attribute buffer.
+            synthesizeGLError(GraphicsContext3D::INVALID_OPERATION, "drawElements", "unable to simulate vertexAttrib0 array");
+            return;
+        }
+        vertexAttrib0Simulated = simulateVertexAttrib0Status.value();
     }
 
     bool usesFallbackTexture = false;
@@ -5647,11 +5699,8 @@ void WebGLRenderingContextBase::initVertexAttrib0()
     m_vertexAttrib0UsedBefore = false;
 }
 
-bool WebGLRenderingContextBase::validateSimulatedVertexAttrib0(GC3Dsizei numVertex)
+bool WebGLRenderingContextBase::validateSimulatedVertexAttrib0(GC3Duint numVertex)
 {
-    if (numVertex < 0)
-        return false;
-
     if (!m_currentProgram)
         return true;
 
@@ -5663,15 +5712,16 @@ bool WebGLRenderingContextBase::validateSimulatedVertexAttrib0(GC3Dsizei numVert
     if (state.enabled)
         return true;
 
-    Checked<GC3Dsizei, RecordOverflow> bufferSize(numVertex);
-    bufferSize += 1;
-    bufferSize *= Checked<GC3Dsizei>(4);
-    Checked<GC3Dsizeiptr, RecordOverflow> bufferDataSize(bufferSize);
+    auto bufferSize = checkedAddAndMultiply<GC3Duint>(numVertex, 1, 4);
+    if (!bufferSize)
+        return false;
+
+    Checked<GC3Dsizeiptr, RecordOverflow> bufferDataSize(bufferSize.value());
     bufferDataSize *= Checked<GC3Dsizeiptr>(sizeof(GC3Dfloat));
-    return !bufferDataSize.hasOverflowed();
+    return !bufferDataSize.hasOverflowed() && bufferDataSize.unsafeGet() > 0;
 }
 
-bool WebGLRenderingContextBase::simulateVertexAttrib0(GC3Dsizei numVertex)
+std::optional<bool> WebGLRenderingContextBase::simulateVertexAttrib0(GC3Duint numVertex)
 {
     if (!m_currentProgram)
         return false;
@@ -5687,16 +5737,19 @@ bool WebGLRenderingContextBase::simulateVertexAttrib0(GC3Dsizei numVertex)
     m_vertexAttrib0UsedBefore = true;
     m_context->bindBuffer(GraphicsContext3D::ARRAY_BUFFER, m_vertexAttrib0Buffer->object());
 
-    Checked<GC3Dsizei> bufferSize(numVertex);
-    bufferSize += 1;
-    bufferSize *= Checked<GC3Dsizei>(4);
+    // We know bufferSize and bufferDataSize won't overflow or go negative, thanks to validateSimulatedVertexAttrib0
+    GC3Duint bufferSize = (numVertex + 1) * 4;
+    GC3Dsizeiptr bufferDataSize = bufferSize * sizeof(GC3Dfloat);
 
-    Checked<GC3Dsizeiptr> bufferDataSize(bufferSize);
-    bufferDataSize *= Checked<GC3Dsizeiptr>(sizeof(GC3Dfloat));
-
-    if (bufferDataSize.unsafeGet() > m_vertexAttrib0BufferSize) {
-        m_context->bufferData(GraphicsContext3D::ARRAY_BUFFER, bufferDataSize.unsafeGet(), 0, GraphicsContext3D::DYNAMIC_DRAW);
-        m_vertexAttrib0BufferSize = bufferDataSize.unsafeGet();
+    if (bufferDataSize > m_vertexAttrib0BufferSize) {
+        m_context->moveErrorsToSyntheticErrorList();
+        m_context->bufferData(GraphicsContext3D::ARRAY_BUFFER, bufferDataSize, 0, GraphicsContext3D::DYNAMIC_DRAW);
+        if (m_context->getError() != GraphicsContext3D::NO_ERROR) {
+            // We were unable to create a buffer.
+            m_vertexAttrib0UsedBefore = false;
+            return std::nullopt;
+        }
+        m_vertexAttrib0BufferSize = bufferDataSize;
         m_forceAttrib0BufferRefill = true;
     }
 
@@ -5709,8 +5762,8 @@ bool WebGLRenderingContextBase::simulateVertexAttrib0(GC3Dsizei numVertex)
             || attribValue.value[2] != m_vertexAttrib0BufferValue[2]
             || attribValue.value[3] != m_vertexAttrib0BufferValue[3])) {
 
-        auto bufferData = std::make_unique<GC3Dfloat[]>(bufferSize.unsafeGet());
-        for (GC3Dsizei ii = 0; ii < numVertex + 1; ++ii) {
+        auto bufferData = makeUniqueArray<GC3Dfloat>(bufferSize);
+        for (GC3Duint ii = 0; ii < numVertex + 1; ++ii) {
             bufferData[ii * 4] = attribValue.value[0];
             bufferData[ii * 4 + 1] = attribValue.value[1];
             bufferData[ii * 4 + 2] = attribValue.value[2];
@@ -5721,7 +5774,7 @@ bool WebGLRenderingContextBase::simulateVertexAttrib0(GC3Dsizei numVertex)
         m_vertexAttrib0BufferValue[2] = attribValue.value[2];
         m_vertexAttrib0BufferValue[3] = attribValue.value[3];
         m_forceAttrib0BufferRefill = false;
-        m_context->bufferSubData(GraphicsContext3D::ARRAY_BUFFER, 0, bufferDataSize.unsafeGet(), bufferData.get());
+        m_context->bufferSubData(GraphicsContext3D::ARRAY_BUFFER, 0, bufferDataSize, bufferData.get());
     }
     m_context->vertexAttribPointer(0, 4, GraphicsContext3D::FLOAT, 0, 0, 0);
     return true;
@@ -5855,21 +5908,21 @@ String WebGLRenderingContextBase::ensureNotNull(const String& text) const
 }
 
 WebGLRenderingContextBase::LRUImageBufferCache::LRUImageBufferCache(int capacity)
-    : m_buffers(std::make_unique<std::unique_ptr<ImageBuffer>[]>(capacity))
-    , m_capacity(capacity)
+    : m_buffers(capacity)
 {
 }
 
 ImageBuffer* WebGLRenderingContextBase::LRUImageBufferCache::imageBuffer(const IntSize& size)
 {
-    int i;
-    for (i = 0; i < m_capacity; ++i) {
+    size_t i;
+    for (i = 0; i < m_buffers.size(); ++i) {
         ImageBuffer* buf = m_buffers[i].get();
         if (!buf)
             break;
         if (buf->logicalSize() != size)
             continue;
         bubbleToFront(i);
+        buf->context().clearRect(FloatRect({ }, FloatSize(size)));
         return buf;
     }
 
@@ -5877,7 +5930,8 @@ ImageBuffer* WebGLRenderingContextBase::LRUImageBufferCache::imageBuffer(const I
     std::unique_ptr<ImageBuffer> temp = ImageBuffer::create(size, Unaccelerated);
     if (!temp)
         return nullptr;
-    i = std::min(m_capacity - 1, i);
+    ASSERT(m_buffers.size() > 0);
+    i = std::min(m_buffers.size() - 1, i);
     m_buffers[i] = WTFMove(temp);
 
     ImageBuffer* buf = m_buffers[i].get();
@@ -5885,9 +5939,9 @@ ImageBuffer* WebGLRenderingContextBase::LRUImageBufferCache::imageBuffer(const I
     return buf;
 }
 
-void WebGLRenderingContextBase::LRUImageBufferCache::bubbleToFront(int idx)
+void WebGLRenderingContextBase::LRUImageBufferCache::bubbleToFront(size_t idx)
 {
-    for (int i = idx; i > 0; --i)
+    for (size_t i = idx; i > 0; --i)
         m_buffers[i].swap(m_buffers[i-1]);
 }
 
@@ -6013,8 +6067,15 @@ void WebGLRenderingContextBase::drawArraysInstanced(GC3Denum mode, GC3Dint first
     clearIfComposited();
 
     bool vertexAttrib0Simulated = false;
-    if (!isGLES2Compliant())
-        vertexAttrib0Simulated = simulateVertexAttrib0(first + count - 1);
+    if (!isGLES2Compliant()) {
+        auto simulateVertexAttrib0Status = simulateVertexAttrib0(first + count - 1);
+        if (!simulateVertexAttrib0Status) {
+            // We were unable to simulate the attribute buffer.
+            synthesizeGLError(GraphicsContext3D::INVALID_OPERATION, "drawArraysInstanced", "unable to simulate vertexAttrib0 array");
+            return;
+        }
+        vertexAttrib0Simulated = simulateVertexAttrib0Status.value();
+    }
     if (!isGLES2NPOTStrict())
         checkTextureCompleteness("drawArraysInstanced", true);
 
@@ -6044,7 +6105,13 @@ void WebGLRenderingContextBase::drawElementsInstanced(GC3Denum mode, GC3Dsizei c
     if (!isGLES2Compliant()) {
         if (!numElements)
             validateIndexArrayPrecise(count, type, static_cast<GC3Dintptr>(offset), numElements);
-        vertexAttrib0Simulated = simulateVertexAttrib0(numElements);
+        auto simulateVertexAttrib0Status = simulateVertexAttrib0(numElements);
+        if (!simulateVertexAttrib0Status) {
+            // We were unable to simulate the attribute buffer.
+            synthesizeGLError(GraphicsContext3D::INVALID_OPERATION, "drawArraysInstanced", "unable to simulate vertexAttrib0 array");
+            return;
+        }
+        vertexAttrib0Simulated = simulateVertexAttrib0Status.value();
     }
     if (!isGLES2NPOTStrict())
         checkTextureCompleteness("drawElementsInstanced", true);

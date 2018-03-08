@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2017 Apple Inc. All rights reserved.
+ * Copyright (C) 2012-2018 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -28,6 +28,7 @@
 #include "LLIntCommon.h"
 #include <wtf/Assertions.h>
 #include <wtf/Gigacage.h>
+#include <wtf/Poisoned.h>
 
 #if !ENABLE(JIT)
 #define OFFLINE_ASM_C_LOOP 1
@@ -117,6 +118,8 @@
 
 #if CPU(ARM64E)
 #define OFFLINE_ASM_ARM64E 1
+#undef OFFLINE_ASM_ARM64
+#define OFFLINE_ASM_ARM64 0 // Pretend that ARM64 and ARM64E are mutually exclusive to please the offlineasm.
 #else
 #define OFFLINE_ASM_ARM64E 0
 #endif
@@ -142,6 +145,12 @@
 #define OFFLINE_ASM_JSVALUE64 0
 #endif
 
+#if ENABLE(POISON)
+#define OFFLINE_ASM_POISON 1
+#else
+#define OFFLINE_ASM_POISON 0
+#endif
+
 #if !ASSERT_DISABLED
 #define OFFLINE_ASM_ASSERT_ENABLED 1
 #else
@@ -164,6 +173,12 @@
 #define OFFLINE_ASM_EXECUTION_TRACING 1
 #else
 #define OFFLINE_ASM_EXECUTION_TRACING 0
+#endif
+
+#if USE(POINTER_PROFILING)
+#define OFFLINE_ASM_POINTER_PROFILING 1
+#else
+#define OFFLINE_ASM_POINTER_PROFILING 0
 #endif
 
 #define OFFLINE_ASM_GIGACAGE_ENABLED GIGACAGE_ENABLED

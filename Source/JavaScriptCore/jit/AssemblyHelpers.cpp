@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2017 Apple Inc. All rights reserved.
+ * Copyright (C) 2011-2018 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -406,7 +406,7 @@ AssemblyHelpers::Jump AssemblyHelpers::emitNonPatchableExceptionCheck(VM& vm)
 
 void AssemblyHelpers::emitStoreStructureWithTypeInfo(AssemblyHelpers& jit, TrustedImmPtr structure, RegisterID dest)
 {
-    const Structure* structurePtr = static_cast<const Structure*>(structure.m_value);
+    const Structure* structurePtr = reinterpret_cast<const Structure*>(structure.m_value);
 #if USE(JSVALUE64)
     jit.store64(TrustedImm64(structurePtr->idBlob()), MacroAssembler::Address(dest, JSCell::structureIDOffset()));
     if (!ASSERT_DISABLED) {
@@ -581,6 +581,90 @@ void AssemblyHelpers::emitRandomThunk(VM& vm, GPRReg scratch0, GPRReg scratch1, 
     emitRandomThunkImpl(*this, scratch0, scratch1, scratch2, result, loadFromHigh, storeToHigh, loadFromLow, storeToLow);
 }
 #endif
+
+void AssemblyHelpers::emitAllocateWithNonNullAllocator(GPRReg resultGPR, const JITAllocator& allocator, GPRReg allocatorGPR, GPRReg scratchGPR, JumpList& slowPath)
+{
+    if (Options::forceGCSlowPaths()) {
+        slowPath.append(jump());
+        return;
+    }
+
+    // NOTE, some invariants of this function:
+    // - When going to the slow path, we must leave resultGPR with zero in it.
+    // - We *can not* use RegisterSet::macroScratchRegisters on x86.
+    // - We *can* use RegisterSet::macroScratchRegisters on ARM.
+
+    Jump popPath;
+    Jump done;
+    
+#if USE(FAST_TLS_FOR_TLC)
+    loadFromTLSPtr(fastTLSOffsetForKey(WTF_GC_TLC_KEY), scratchGPR);
+#else
+    loadPtr(&vm().threadLocalCacheData, scratchGPR);
+#endif
+    if (allocator.isConstant()) {
+        slowPath.append(branch32(BelowOrEqual, Address(scratchGPR, ThreadLocalCache::offsetOfSizeInData()), TrustedImm32(allocator.allocator().offset())));
+        addPtr(TrustedImm32(ThreadLocalCache::offsetOfFirstAllocatorInData() + allocator.allocator().offset()), scratchGPR, allocatorGPR);
+    } else {
+        slowPath.append(branch32(BelowOrEqual, Address(scratchGPR, ThreadLocalCache::offsetOfSizeInData()), allocatorGPR));
+        addPtr(TrustedImm32(ThreadLocalCache::offsetOfFirstAllocatorInData()), allocatorGPR);
+        addPtr(scratchGPR, allocatorGPR);
+    }
+
+    load32(Address(allocatorGPR, LocalAllocator::offsetOfFreeList() + FreeList::offsetOfRemaining()), resultGPR);
+    popPath = branchTest32(Zero, resultGPR);
+    if (allocator.isConstant())
+        add32(TrustedImm32(-allocator.allocator().cellSize(vm().heap)), resultGPR, scratchGPR);
+    else {
+        move(resultGPR, scratchGPR);
+        sub32(Address(allocatorGPR, LocalAllocator::offsetOfCellSize()), scratchGPR);
+    }
+    negPtr(resultGPR);
+    store32(scratchGPR, Address(allocatorGPR, LocalAllocator::offsetOfFreeList() + FreeList::offsetOfRemaining()));
+    Address payloadEndAddr = Address(allocatorGPR, LocalAllocator::offsetOfFreeList() + FreeList::offsetOfPayloadEnd());
+    addPtr(payloadEndAddr, resultGPR);
+
+    done = jump();
+        
+    popPath.link(this);
+        
+    loadPtr(Address(allocatorGPR, LocalAllocator::offsetOfFreeList() + FreeList::offsetOfScrambledHead()), resultGPR);
+    xorPtr(Address(allocatorGPR, LocalAllocator::offsetOfFreeList() + FreeList::offsetOfSecret()), resultGPR);
+    slowPath.append(branchTestPtr(Zero, resultGPR));
+        
+    // The object is half-allocated: we have what we know is a fresh object, but
+    // it's still on the GC's free list.
+    loadPtr(Address(resultGPR), scratchGPR);
+    storePtr(scratchGPR, Address(allocatorGPR, LocalAllocator::offsetOfFreeList() + FreeList::offsetOfScrambledHead()));
+        
+    done.link(this);
+}
+
+void AssemblyHelpers::emitAllocate(GPRReg resultGPR, const JITAllocator& allocator, GPRReg allocatorGPR, GPRReg scratchGPR, JumpList& slowPath)
+{
+    if (allocator.isConstant()) {
+        if (!allocator.allocator()) {
+            slowPath.append(jump());
+            return;
+        }
+    }
+    emitAllocateWithNonNullAllocator(resultGPR, allocator, allocatorGPR, scratchGPR, slowPath);
+}
+
+void AssemblyHelpers::emitAllocateVariableSized(GPRReg resultGPR, CompleteSubspace& subspace, GPRReg allocationSize, GPRReg scratchGPR1, GPRReg scratchGPR2, JumpList& slowPath)
+{
+    static_assert(!(MarkedSpace::sizeStep & (MarkedSpace::sizeStep - 1)), "MarkedSpace::sizeStep must be a power of two.");
+    
+    unsigned stepShift = getLSBSet(MarkedSpace::sizeStep);
+    
+    add32(TrustedImm32(MarkedSpace::sizeStep - 1), allocationSize, scratchGPR1);
+    urshift32(TrustedImm32(stepShift), scratchGPR1);
+    slowPath.append(branch32(Above, scratchGPR1, TrustedImm32(MarkedSpace::largeCutoff >> stepShift)));
+    move(TrustedImmPtr(subspace.allocatorForSizeStep() - 1), scratchGPR2);
+    load32(BaseIndex(scratchGPR2, scratchGPR1, TimesFour), scratchGPR1);
+    
+    emitAllocate(resultGPR, JITAllocator::variable(), scratchGPR1, scratchGPR2, slowPath);
+}
 
 void AssemblyHelpers::restoreCalleeSavesFromEntryFrameCalleeSavesBuffer(EntryFrame*& topEntryFrame)
 {
@@ -860,7 +944,7 @@ void AssemblyHelpers::debugCall(VM& vm, V_DebugOperation_EPP function, void* arg
     call(scratch);
 
     move(TrustedImmPtr(scratchBuffer->addressOfActiveLength()), GPRInfo::regT0);
-    storePtr(TrustedImmPtr(0), GPRInfo::regT0);
+    storePtr(TrustedImmPtr(nullptr), GPRInfo::regT0);
 
     for (unsigned i = 0; i < FPRInfo::numberOfRegisters; ++i) {
         move(TrustedImmPtr(buffer + GPRInfo::numberOfRegisters + i), GPRInfo::regT0);
@@ -903,12 +987,59 @@ void AssemblyHelpers::sanitizeStackInline(VM& vm, GPRReg scratch)
     loadPtr(vm.addressOfLastStackTop(), scratch);
     Jump done = branchPtr(BelowOrEqual, stackPointerRegister, scratch);
     Label loop = label();
-    storePtr(TrustedImmPtr(0), scratch);
+    storePtr(TrustedImmPtr(nullptr), scratch);
     addPtr(TrustedImmPtr(sizeof(void*)), scratch);
     branchPtr(Above, stackPointerRegister, scratch).linkTo(loop, this);
     done.link(this);
     move(stackPointerRegister, scratch);
     storePtr(scratch, vm.addressOfLastStackTop());
+}
+
+void AssemblyHelpers::emitPreparePreciseIndexMask32(GPRReg index, GPRReg length, GPRReg result)
+{
+    if (length == result) {
+        negPtr(length);
+        addPtr(index, length);
+    } else {
+        move(index, result);
+        subPtr(length, result);
+    }
+    rshiftPtr(TrustedImm32(preciseIndexMaskShift<void*>()), result);
+}
+
+void AssemblyHelpers::emitDynamicPoison(GPRReg base, GPRReg poisonValue)
+{
+#if CPU(X86_64) || (CPU(ARM64) && !defined(__ILP32__))
+    lshiftPtr(TrustedImm32(40), poisonValue);
+    addPtr(poisonValue, base);
+#else
+    UNUSED_PARAM(base);
+    UNUSED_PARAM(poisonValue);
+#endif
+}
+
+void AssemblyHelpers::emitDynamicPoisonOnLoadedType(GPRReg base, GPRReg actualType, JSType expectedType)
+{
+#if CPU(X86_64) || (CPU(ARM64) && !defined(__ILP32__))
+    xor32(TrustedImm32(expectedType), actualType);
+    emitDynamicPoison(base, actualType);
+#else
+    UNUSED_PARAM(base);
+    UNUSED_PARAM(actualType);
+    UNUSED_PARAM(expectedType);
+#endif
+}
+
+void AssemblyHelpers::emitDynamicPoisonOnType(GPRReg base, GPRReg scratch, JSType expectedType)
+{
+#if CPU(X86_64) || (CPU(ARM64) && !defined(__ILP32__))
+    load8(Address(base, JSCell::typeInfoTypeOffset()), scratch);
+    emitDynamicPoisonOnLoadedType(base, scratch, expectedType);
+#else
+    UNUSED_PARAM(base);
+    UNUSED_PARAM(scratch);
+    UNUSED_PARAM(expectedType);
+#endif
 }
 
 } // namespace JSC

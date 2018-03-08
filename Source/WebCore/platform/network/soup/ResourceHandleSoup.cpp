@@ -57,7 +57,6 @@
 #include <unistd.h>
 #endif
 #include <wtf/CompletionHandler.h>
-#include <wtf/CurrentTime.h>
 #include <wtf/glib/GRefPtr.h>
 #include <wtf/glib/RunLoopSourcePriority.h>
 #include <wtf/text/CString.h>
@@ -135,17 +134,9 @@ void ResourceHandle::ensureReadBuffer()
     if (d->m_soupBuffer)
         return;
 
-    // Non-NetworkProcess clients are able to give a buffer to the ResourceHandle to avoid expensive copies. If
-    // we do get a buffer from the client, we want the client to free it, so we create the soup buffer with
-    // SOUP_MEMORY_TEMPORARY.
-    size_t bufferSize;
-    char* bufferFromClient = client()->getOrCreateReadBuffer(gDefaultReadBufferSize, bufferSize);
-    if (bufferFromClient)
-        d->m_soupBuffer.reset(soup_buffer_new(SOUP_MEMORY_TEMPORARY, bufferFromClient, bufferSize));
-    else {
-        auto* buffer = static_cast<uint8_t*>(fastMalloc(gDefaultReadBufferSize));
-        d->m_soupBuffer.reset(soup_buffer_new_with_owner(buffer, gDefaultReadBufferSize, buffer, fastFree));
-    }
+
+    auto* buffer = static_cast<uint8_t*>(fastMalloc(gDefaultReadBufferSize));
+    d->m_soupBuffer.reset(soup_buffer_new_with_owner(buffer, gDefaultReadBufferSize, buffer, fastFree));
 
     ASSERT(d->m_soupBuffer);
 }
@@ -471,7 +462,9 @@ static void nextMultipartResponsePartCallback(GObject* /*source*/, GAsyncResult*
 
     d->m_previousPosition = 0;
 
-    handle->didReceiveResponse(ResourceResponse(d->m_response));
+    handle->didReceiveResponse(ResourceResponse(d->m_response), [handle = makeRef(*handle)] {
+        continueAfterDidReceiveResponse(handle.ptr());
+    });
 }
 
 static void sendRequestCallback(GObject*, GAsyncResult* result, gpointer data)
@@ -528,7 +521,9 @@ static void sendRequestCallback(GObject*, GAsyncResult* result, gpointer data)
     else
         d->m_inputStream = inputStream;
 
-    handle->didReceiveResponse(ResourceResponse(d->m_response));
+    handle->didReceiveResponse(ResourceResponse(d->m_response), [handle = makeRef(*handle)] {
+        continueAfterDidReceiveResponse(handle.ptr());
+    });
 }
 
 void ResourceHandle::platformContinueSynchronousDidReceiveResponse()
@@ -1025,11 +1020,6 @@ static void readCallback(GObject*, GAsyncResult* asyncResult, gpointer data)
     handle->ensureReadBuffer();
     g_input_stream_read_async(d->m_inputStream.get(), const_cast<char*>(d->m_soupBuffer->data), d->m_soupBuffer->length, RunLoopSourcePriority::AsyncIONetwork,
         d->m_cancellable.get(), readCallback, handle.get());
-}
-
-void ResourceHandle::continueDidReceiveResponse()
-{
-    continueAfterDidReceiveResponse(this);
 }
 
 }

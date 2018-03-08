@@ -26,6 +26,9 @@
 #include "config.h"
 #include "MarkStackMergingConstraint.h"
 
+#include "GCSegmentedArrayInlines.h"
+#include "JSCInlines.h"
+
 namespace JSC {
 
 MarkStackMergingConstraint::MarkStackMergingConstraint(Heap& heap)
@@ -54,11 +57,10 @@ void MarkStackMergingConstraint::prepareToExecuteImpl(const AbstractLocker&, Slo
         dataLog("(", size, ")");
 }
 
-ConstraintParallelism MarkStackMergingConstraint::executeImpl(SlotVisitor& visitor)
+void MarkStackMergingConstraint::executeImpl(SlotVisitor& visitor)
 {
     m_heap.m_mutatorMarkStack->transferTo(visitor.mutatorMarkStack());
     m_heap.m_raceMarkStack->transferTo(visitor.mutatorMarkStack());
-    return ConstraintParallelism::Sequential;
 }
 
 } // namespace JSC

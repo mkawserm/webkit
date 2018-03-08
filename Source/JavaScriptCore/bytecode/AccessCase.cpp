@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 Apple Inc. All rights reserved.
+ * Copyright (C) 2017-2018 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -692,7 +692,7 @@ void AccessCase::generateImpl(AccessGenerationState& state)
         if (m_type == Getter || m_type == Setter) {
             auto& access = this->as<GetterSetterAccessCase>();
             ASSERT(baseGPR != loadedValueGPR);
-            ASSERT(m_type != Setter || (baseGPR != valueRegsPayloadGPR && loadedValueGPR != valueRegsPayloadGPR));
+            ASSERT(m_type != Setter || valueRegsPayloadGPR != loadedValueGPR);
 
             // Create a JS call using a JS call inline cache. Assume that:
             //
@@ -782,7 +782,7 @@ void AccessCase::generateImpl(AccessGenerationState& state)
 
             CCallHelpers::Jump slowCase = jit.branchPtrWithPatch(
                 CCallHelpers::NotEqual, loadedValueGPR, addressOfLinkFunctionCheck,
-                CCallHelpers::TrustedImmPtr(0));
+                CCallHelpers::TrustedImmPtr(nullptr));
 
             fastPathCall = jit.nearCall();
             if (m_type == Getter)
@@ -841,22 +841,20 @@ void AccessCase::generateImpl(AccessGenerationState& state)
             GPRReg baseForCustom = m_type == CustomValueGetter || m_type == CustomValueSetter ? baseForAccessGPR : baseForCustomGetGPR; 
 #if USE(JSVALUE64)
             if (m_type == CustomValueGetter || m_type == CustomAccessorGetter) {
-                jit.setupArgumentsWithExecState(
+                jit.setupArguments<PropertySlot::GetValueFunc>(
                     baseForCustom,
                     CCallHelpers::TrustedImmPtr(ident.impl()));
             } else
-                jit.setupArgumentsWithExecState(baseForCustom, valueRegs.gpr());
+                jit.setupArguments<PutPropertySlot::PutValueFunc>(baseForCustom, valueRegs.gpr());
 #else
             if (m_type == CustomValueGetter || m_type == CustomAccessorGetter) {
-                jit.setupArgumentsWithExecState(
-                    EABI_32BIT_DUMMY_ARG baseForCustom,
-                    CCallHelpers::TrustedImm32(JSValue::CellTag),
+                jit.setupArguments<PropertySlot::GetValueFunc>(
+                    JSValue::JSCellType, baseForCustom,
                     CCallHelpers::TrustedImmPtr(ident.impl()));
             } else {
-                jit.setupArgumentsWithExecState(
-                    EABI_32BIT_DUMMY_ARG baseForCustom,
-                    CCallHelpers::TrustedImm32(JSValue::CellTag),
-                    valueRegs.payloadGPR(), valueRegs.tagGPR());
+                jit.setupArguments<PutPropertySlot::PutValueFunc>(
+                    JSValue::JSCellType, baseForCustom,
+                    valueRegs);
             }
 #endif
             jit.storePtr(GPRInfo::callFrameRegister, &vm.topCallFrame);
@@ -955,15 +953,9 @@ void AccessCase::generateImpl(AccessGenerationState& state)
             size_t newSize = newStructure()->outOfLineCapacity() * sizeof(JSValue);
 
             if (allocatingInline) {
-                MarkedAllocator* allocator = vm.jsValueGigacageAuxiliarySpace.allocatorFor(newSize, AllocatorForMode::AllocatorIfExists);
+                Allocator allocator = vm.jsValueGigacageAuxiliarySpace.allocatorFor(newSize, AllocatorForMode::AllocatorIfExists);
 
-                if (!allocator) {
-                    // Yuck, this case would suck!
-                    slowPath.append(jit.jump());
-                }
-
-                jit.move(CCallHelpers::TrustedImmPtr(allocator), scratchGPR2);
-                jit.emitAllocate(scratchGPR, allocator, scratchGPR2, scratchGPR3, slowPath);
+                jit.emitAllocate(scratchGPR, JITAllocator::constant(allocator), scratchGPR2, scratchGPR3, slowPath);
                 jit.addPtr(CCallHelpers::TrustedImm32(newSize + sizeof(IndexingHeader)), scratchGPR);
 
                 size_t oldSize = structure()->outOfLineCapacity() * sizeof(JSValue);
@@ -993,7 +985,7 @@ void AccessCase::generateImpl(AccessGenerationState& state)
                 }
 
                 for (size_t offset = oldSize; offset < newSize; offset += sizeof(void*))
-                    jit.storePtr(CCallHelpers::TrustedImmPtr(0), CCallHelpers::Address(scratchGPR, -static_cast<ptrdiff_t>(offset + sizeof(JSValue) + sizeof(void*))));
+                    jit.storePtr(CCallHelpers::TrustedImmPtr(nullptr), CCallHelpers::Address(scratchGPR, -static_cast<ptrdiff_t>(offset + sizeof(JSValue) + sizeof(void*))));
             } else {
                 // Handle the case where we are allocating out-of-line using an operation.
                 RegisterSet extraRegistersToPreserve;
@@ -1009,7 +1001,7 @@ void AccessCase::generateImpl(AccessGenerationState& state)
                 jit.makeSpaceOnStackForCCall();
                 
                 if (!reallocating) {
-                    jit.setupArgumentsWithExecState(baseGPR);
+                    jit.setupArguments<decltype(operationReallocateButterflyToHavePropertyStorageWithInitialCapacity)>(baseGPR);
                     
                     CCallHelpers::Call operationCall = jit.call();
                     jit.addLinkTask([=] (LinkBuffer& linkBuffer) {
@@ -1020,7 +1012,7 @@ void AccessCase::generateImpl(AccessGenerationState& state)
                 } else {
                     // Handle the case where we are reallocating (i.e. the old structure/butterfly
                     // already had out-of-line property storage).
-                    jit.setupArgumentsWithExecState(
+                    jit.setupArguments<decltype(operationReallocateButterflyToGrowPropertyStorage)>(
                         baseGPR, CCallHelpers::TrustedImm32(newSize / sizeof(JSValue)));
                     
                     CCallHelpers::Call operationCall = jit.call();
@@ -1062,6 +1054,8 @@ void AccessCase::generateImpl(AccessGenerationState& state)
         }
         
         if (allocatingInline) {
+            // If we were to have any indexed properties, then we would need to update the indexing mask on the base object.
+            RELEASE_ASSERT(!newStructure()->couldHaveIndexingHeader());
             // We set the new butterfly and the structure last. Doing it this way ensures that
             // whatever we had done up to this point is forgotten if we choose to branch to slow
             // path.

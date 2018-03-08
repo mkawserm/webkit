@@ -10,6 +10,7 @@
       <dep package="gst-plugins-good"/>
       <dep package="gst-plugins-bad"/>
       <dep package="gst-libav"/>
+      <dep package="gstreamer-vaapi"/>
     </dependencies>
   </metamodule>
 
@@ -76,6 +77,7 @@
     <branch module="gst-plugins-good/gst-plugins-good-${version}.tar.xz" version="1.12.4"
             repo="gstreamer"
             hash="sha256:649f49bec60892d47ee6731b92266974c723554da1c6649f21296097715eb957">
+      <patch file="gst-plugins-good-0001-gstgdkpixbufdec-stop-pretending-to-decode-gifs.patch" strip="1"/>
       <patch file="gst-plugins-good-0005-souphttpsrc-cookie-jar-and-context-query-support.patch" strip="1"/>
       <patch file="gst-plugins-good-0006-qtdemux-add-context-for-a-preferred-protection.patch" strip="1"/>
       <patch file="gst-plugins-good-0008-qtdemux-also-push-buffers-without-encryption-info-in.patch" strip="1"/>
@@ -102,5 +104,24 @@
             repo="gstreamer"
             hash="sha256:2a56aa5d2d8cd912f2bce17f174713d2c417ca298f1f9c28ee66d4aa1e1d9e62"/>
   </autotools>
+
+  <autotools id="gstreamer-vaapi">
+    <branch module="gstreamer-vaapi/gstreamer-vaapi-${version}.tar.xz" version="1.12.4"
+            repo="gstreamer"
+            hash="sha256:1c2d77242e1f30c4d1394636cae9f6877228a017960fca96881e0080d8b6e9c9"/>
+    <dependencies>
+      <dep package="gstreamer"/>
+      <dep package="gst-plugins-base"/>
+      <dep package="gst-plugins-bad"/>
+      <dep package="libva"/>
+    </dependencies>
+   </autotools>
+
+   <autotools id="libva" autogenargs="--enable-va-messaging=no">
+     <branch module="intel/libva/releases/download/${version}/libva-${version}.tar.bz2" version="2.0.0"
+             hash="sha1:762a49f8925ca1d0531c5071afbd629ffea93b90"
+            checkoutdir="libva-${version}" repo="github-tarball"/>
+   </autotools>
+
 
 </moduleset>

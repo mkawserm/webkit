@@ -30,12 +30,17 @@
 
 #include "GraphicsContext.h"
 #include "RefPtrCairo.h"
-#include "ShadowBlur.h"
 
 namespace WebCore {
 
 class GraphicsContextPlatformPrivate;
 struct GraphicsContextState;
+
+namespace Cairo {
+struct FillSource;
+struct StrokeSource;
+struct ShadowState;
+}
 
 // Much like PlatformContextSkia in the Skia port, this class holds information that
 // would normally be private to GraphicsContext, except that we want to allow access
@@ -54,29 +59,14 @@ public:
     GraphicsContextPlatformPrivate* graphicsContextPrivate() { return m_graphicsContextPrivate; }
     void setGraphicsContextPrivate(GraphicsContextPlatformPrivate* graphicsContextPrivate) { m_graphicsContextPrivate = graphicsContextPrivate; }
 
-    ShadowBlur& shadowBlur() { return m_shadowBlur; }
     Vector<float>& layers() { return m_layers; }
 
     void save();
     void restore();
-    void setGlobalAlpha(float);
-    float globalAlpha() const;
 
     void pushImageMask(cairo_surface_t*, const FloatRect&);
-    void drawSurfaceToContext(cairo_surface_t*, const FloatRect& destRect, const FloatRect& srcRect, GraphicsContext&);
-
-    void setImageInterpolationQuality(InterpolationQuality);
-    InterpolationQuality imageInterpolationQuality() const;
-
-    enum PatternAdjustment { NoAdjustment, AdjustPatternForGlobalAlpha };
-    void prepareForFilling(const GraphicsContextState&, PatternAdjustment);
-
-    enum AlphaPreservation { DoNotPreserveAlpha, PreserveAlpha };
-    void prepareForStroking(const GraphicsContextState&, AlphaPreservation = PreserveAlpha);
 
 private:
-    void clipForPatternFilling(const GraphicsContextState&);
-
     RefPtr<cairo_t> m_cr;
 
     // Keeping a pointer to GraphicsContextPlatformPrivate here enables calling
@@ -88,9 +78,6 @@ private:
     State* m_state;
     WTF::Vector<State> m_stateStack;
 
-    // GraphicsContext is responsible for managing the state of the ShadowBlur,
-    // so it does not need to be on the state stack.
-    ShadowBlur m_shadowBlur;
     // Transparency layers.
     Vector<float> m_layers;
 };

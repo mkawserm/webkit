@@ -36,7 +36,7 @@
 #include "Timer.h"
 #include "URL.h"
 #include "WritingMode.h"
-#include <runtime/RuntimeFlags.h>
+#include <JavaScriptCore/RuntimeFlags.h>
 #include <unicode/uscript.h>
 #include <wtf/HashMap.h>
 #include <wtf/RefCounted.h>
@@ -114,6 +114,10 @@ public:
 
     WEBCORE_EXPORT static bool defaultTextAutosizingEnabled();
     WEBCORE_EXPORT static float defaultMinimumZoomFontSize();
+    WEBCORE_EXPORT static float defaultOneLineTextMultiplierCoefficient();
+    WEBCORE_EXPORT static float defaultMultiLineTextMultiplierCoefficient();
+    WEBCORE_EXPORT static float defaultMaxTextAutosizingScaleIncrease();
+    WEBCORE_EXPORT static bool defaultDownloadableBinaryFontsEnabled();
 
     static const unsigned defaultMaximumHTMLParserDOMTreeDepth = 512;
     static const unsigned defaultMaximumRenderTreeDepth = 512;
@@ -160,6 +164,7 @@ protected:
 
     // Helpers used by generated Settings.cpp.
     void setNeedsRecalcStyleInAllFrames();
+    void setNeedsRelayoutAllFrames();
     void mediaTypeOverrideChanged();
     void imagesEnabledChanged();
     void scriptEnabledChanged();

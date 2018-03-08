@@ -27,26 +27,59 @@
 #include "LibWebRTCProviderCocoa.h"
 
 #if USE(LIBWEBRTC)
-
-#include "VideoToolBoxDecoderFactory.h"
-#include "VideoToolBoxEncoderFactory.h"
+#include <webrtc/media/engine/webrtcvideodecoderfactory.h>
+#include <webrtc/media/engine/webrtcvideoencoderfactory.h>
+#include <wtf/darwin/WeakLinking.h>
+#endif
 
 namespace WebCore {
 
-std::unique_ptr<cricket::WebRtcVideoDecoderFactory> LibWebRTCProviderCocoa::createDecoderFactory()
+UniqueRef<LibWebRTCProvider> LibWebRTCProvider::create()
+{
+#if USE(LIBWEBRTC) && PLATFORM(COCOA)
+    return makeUniqueRef<LibWebRTCProviderCocoa>();
+#else
+    return makeUniqueRef<LibWebRTCProvider>();
+#endif
+}
+
+#if USE(LIBWEBRTC)
+
+LibWebRTCProviderCocoa::~LibWebRTCProviderCocoa()
+{
+    if (m_encoderFactory)
+        m_encoderFactory->ClearDestructorObserver();
+    if (m_decoderFactory)
+        m_decoderFactory->ClearDestructorObserver();
+}
+
+void LibWebRTCProviderCocoa::setH264HardwareEncoderAllowed(bool allowed)
+{
+    m_h264HardwareEncoderAllowed = allowed;
+#if PLATFORM(MAC)
+    if (m_encoderFactory)
+        m_encoderFactory->setH264HardwareEncoderAllowed(allowed);
+#endif
+}
+
+std::unique_ptr<webrtc::VideoDecoderFactory> LibWebRTCProviderCocoa::createDecoderFactory()
 {
     ASSERT(!m_decoderFactory);
-    auto decoderFactory = std::make_unique<VideoToolboxVideoDecoderFactory>();
+    auto decoderFactory = std::make_unique<webrtc::VideoToolboxVideoDecoderFactory>(this);
     m_decoderFactory = decoderFactory.get();
 
     return WTFMove(decoderFactory);
 }
 
-std::unique_ptr<cricket::WebRtcVideoEncoderFactory> LibWebRTCProviderCocoa::createEncoderFactory()
+std::unique_ptr<webrtc::VideoEncoderFactory> LibWebRTCProviderCocoa::createEncoderFactory()
 {
     ASSERT(!m_encoderFactory);
-    auto encoderFactory = std::make_unique<VideoToolboxVideoEncoderFactory>();
+    auto encoderFactory = std::make_unique<webrtc::VideoToolboxVideoEncoderFactory>(this);
     m_encoderFactory = encoderFactory.get();
+
+#if PLATFORM(MAC)
+    m_encoderFactory->setH264HardwareEncoderAllowed(m_h264HardwareEncoderAllowed);
+#endif
 
     return WTFMove(encoderFactory);
 }
@@ -54,11 +87,20 @@ std::unique_ptr<cricket::WebRtcVideoEncoderFactory> LibWebRTCProviderCocoa::crea
 void LibWebRTCProviderCocoa::setActive(bool value)
 {
     if (m_decoderFactory)
-        m_decoderFactory->setActive(value);
+        m_decoderFactory->SetActive(value);
     if (m_encoderFactory)
-        m_encoderFactory->setActive(value);
+        m_encoderFactory->SetActive(value);
+}
+
+#endif // USE(LIBWEBRTC)
+
+bool LibWebRTCProvider::webRTCAvailable()
+{
+#if USE(LIBWEBRTC)
+    return !isNullFunctionPointer(rtc::LogMessage::LogToDebug);
+#else
+    return true;
+#endif
 }
 
 } // namespace WebCore
-
-#endif

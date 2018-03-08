@@ -34,6 +34,7 @@
 #include "LinkIcon.h"
 #include <functional>
 #include <wtf/Forward.h>
+#include <wtf/WallTime.h>
 #include <wtf/text/WTFString.h>
 
 #if ENABLE(APPLICATION_MANIFEST)
@@ -121,8 +122,8 @@ public:
 
     virtual void makeRepresentation(DocumentLoader*) = 0;
 
-    virtual uint64_t pageID() const = 0;
-    virtual uint64_t frameID() const = 0;
+    virtual std::optional<uint64_t> pageID() const = 0;
+    virtual std::optional<uint64_t> frameID() const = 0;
     virtual PAL::SessionID sessionID() const = 0;
 
 #if PLATFORM(IOS)
@@ -159,8 +160,9 @@ public:
     virtual void dispatchDidReceiveServerRedirectForProvisionalLoad() = 0;
     virtual void dispatchDidChangeProvisionalURL() { }
     virtual void dispatchDidCancelClientRedirect() = 0;
-    virtual void dispatchWillPerformClientRedirect(const URL&, double interval, double fireDate) = 0;
+    virtual void dispatchWillPerformClientRedirect(const URL&, double interval, WallTime fireDate) = 0;
     virtual void dispatchDidChangeMainDocument() { }
+    virtual void dispatchWillChangeDocument() { }
     virtual void dispatchDidNavigateWithinPage() { }
     virtual void dispatchDidChangeLocationWithinPage() = 0;
     virtual void dispatchDidPushStateWithinPage() = 0;
@@ -363,6 +365,11 @@ public:
 
 #if ENABLE(APPLICATION_MANIFEST)
     virtual void finishedLoadingApplicationManifest(uint64_t, const std::optional<ApplicationManifest>&) { }
+#endif
+
+#if HAVE(CFNETWORK_STORAGE_PARTITIONING)
+    virtual bool hasFrameSpecificStorageAccess() { return false; }
+    virtual void setHasFrameSpecificStorageAccess(bool) { }
 #endif
 };
 

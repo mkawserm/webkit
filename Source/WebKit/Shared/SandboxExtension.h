@@ -29,6 +29,7 @@
 #include <wtf/Noncopyable.h>
 #include <wtf/RefCounted.h>
 #include <wtf/RefPtr.h>
+#include <wtf/Vector.h>
 #include <wtf/text/WTFString.h>
 
 namespace IPC {
@@ -86,14 +87,13 @@ public:
        
     private:
 #if ENABLE(SANDBOX_EXTENSIONS)
-        std::unique_ptr<Handle[]> m_data;
-        size_t m_size { 0 };
+        Vector<Handle> m_data;
 #else
         Handle m_emptyHandle;
 #endif
     };
     
-    static RefPtr<SandboxExtension> create(const Handle&);
+    static RefPtr<SandboxExtension> create(Handle&&);
     static bool createHandle(const String& path, Type, Handle&);
     static bool createHandleWithoutResolvingPath(const String& path, Type, Handle&);
     static bool createHandleForReadWriteDirectory(const String& path, Handle&); // Will attempt to create the directory.
@@ -129,7 +129,7 @@ inline const SandboxExtension::Handle& SandboxExtension::HandleArray::operator[]
 inline SandboxExtension::Handle& SandboxExtension::HandleArray::operator[](size_t) { return m_emptyHandle; }
 inline void SandboxExtension::HandleArray::encode(IPC::Encoder&) const { }
 inline bool SandboxExtension::HandleArray::decode(IPC::Decoder&, HandleArray&) { return true; }
-inline RefPtr<SandboxExtension> SandboxExtension::create(const Handle&) { return nullptr; }
+inline RefPtr<SandboxExtension> SandboxExtension::create(Handle&&) { return nullptr; }
 inline bool SandboxExtension::createHandle(const String&, Type, Handle&) { return true; }
 inline bool SandboxExtension::createHandleWithoutResolvingPath(const String&, Type, Handle&) { return true; }
 inline bool SandboxExtension::createHandleForReadWriteDirectory(const String&, Handle&) { return true; }

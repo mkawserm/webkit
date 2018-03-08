@@ -75,7 +75,7 @@ void ApplicationCacheHost::selectCacheWithManifest(const URL& manifestURL)
     ApplicationCacheGroup::selectCache(*m_documentLoader.frame(), manifestURL);
 }
 
-void ApplicationCacheHost::maybeLoadMainResource(ResourceRequest& request, SubstituteData& substituteData)
+void ApplicationCacheHost::maybeLoadMainResource(const ResourceRequest& request, SubstituteData& substituteData)
 {
     // Check if this request should be loaded from the application cache
     if (!substituteData.isValid() && isApplicationCacheEnabled() && !isApplicationCacheBlockedForRequest(request)) {
@@ -104,7 +104,7 @@ void ApplicationCacheHost::maybeLoadMainResource(ResourceRequest& request, Subst
     }
 }
 
-void ApplicationCacheHost::maybeLoadMainResourceForRedirect(ResourceRequest& request, SubstituteData& substituteData)
+void ApplicationCacheHost::maybeLoadMainResourceForRedirect(const ResourceRequest& request, SubstituteData& substituteData)
 {
     ASSERT(status() == UNCACHED);
     maybeLoadMainResource(request, substituteData);
@@ -169,22 +169,36 @@ void ApplicationCacheHost::finishedLoadingMainResource()
 
 bool ApplicationCacheHost::maybeLoadResource(ResourceLoader& loader, const ResourceRequest& request, const URL& originalURL)
 {
+    if (loader.options().applicationCacheMode != ApplicationCacheMode::Use)
+        return false;
+
     if (!isApplicationCacheEnabled() && !isApplicationCacheBlockedForRequest(request))
         return false;
     
     if (request.url() != originalURL)
         return false;
 
+#if ENABLE(SERVICE_WORKER)
+    if (loader.options().serviceWorkerRegistrationIdentifier)
+        return false;
+#endif
+
     ApplicationCacheResource* resource;
     if (!shouldLoadResourceFromApplicationCache(request, resource))
         return false;
 
-    m_documentLoader.scheduleSubstituteResourceLoad(loader, *resource);
+    if (resource)
+        m_documentLoader.scheduleSubstituteResourceLoad(loader, *resource);
+    else
+        m_documentLoader.scheduleCannotShowURLError(loader);
     return true;
 }
 
 bool ApplicationCacheHost::maybeLoadFallbackForRedirect(ResourceLoader* resourceLoader, ResourceRequest& request, const ResourceResponse& redirectResponse)
 {
+    if (resourceLoader && resourceLoader->options().applicationCacheMode != ApplicationCacheMode::Use)
+        return false;
+
     if (!redirectResponse.isNull() && !protocolHostAndPortAreEqual(request.url(), redirectResponse.url())) {
         if (scheduleLoadFallbackResourceFromApplicationCache(resourceLoader))
             return true;
@@ -194,6 +208,9 @@ bool ApplicationCacheHost::maybeLoadFallbackForRedirect(ResourceLoader* resource
 
 bool ApplicationCacheHost::maybeLoadFallbackForResponse(ResourceLoader* resourceLoader, const ResourceResponse& response)
 {
+    if (resourceLoader && resourceLoader->options().applicationCacheMode != ApplicationCacheMode::Use)
+        return false;
+
     if (response.httpStatusCode() / 100 == 4 || response.httpStatusCode() / 100 == 5) {
         if (scheduleLoadFallbackResourceFromApplicationCache(resourceLoader))
             return true;
@@ -203,6 +220,9 @@ bool ApplicationCacheHost::maybeLoadFallbackForResponse(ResourceLoader* resource
 
 bool ApplicationCacheHost::maybeLoadFallbackForError(ResourceLoader* resourceLoader, const ResourceError& error)
 {
+    if (resourceLoader && resourceLoader->options().applicationCacheMode != ApplicationCacheMode::Use)
+        return false;
+
     if (!error.isCancellation()) {
         if (resourceLoader == m_documentLoader.mainResourceLoader())
             return maybeLoadFallbackForMainError(resourceLoader->request(), error);
@@ -438,8 +458,16 @@ bool ApplicationCacheHost::getApplicationCacheFallbackResource(const ResourceReq
 
 bool ApplicationCacheHost::scheduleLoadFallbackResourceFromApplicationCache(ResourceLoader* loader, ApplicationCache* cache)
 {
+    if (!loader)
+        return false;
+
     if (!isApplicationCacheEnabled() && !isApplicationCacheBlockedForRequest(loader->request()))
         return false;
+
+#if ENABLE(SERVICE_WORKER)
+    if (loader->options().serviceWorkerRegistrationIdentifier)
+        return false;
+#endif
 
     ApplicationCacheResource* resource;
     if (!getApplicationCacheFallbackResource(loader->request(), resource, cache))

@@ -26,8 +26,6 @@
 #import "config.h"
 #import "NetworkSessionCocoa.h"
 
-#if USE(NETWORK_SESSION)
-
 #import "AuthenticationManager.h"
 #import "DataReference.h"
 #import "Download.h"
@@ -170,7 +168,7 @@ static NSURLRequest* downgradeRequest(NSURLRequest *request)
 {
     NSMutableURLRequest *nsMutableRequest = [[request mutableCopy] autorelease];
     if ([nsMutableRequest.URL.scheme isEqualToString:@"https"]) {
-        NSURLComponents *components = [[NSURLComponents componentsWithURL:nsMutableRequest.URL resolvingAgainstBaseURL:NO] autorelease];
+        NSURLComponents *components = [NSURLComponents componentsWithURL:nsMutableRequest.URL resolvingAgainstBaseURL:NO];
         components.scheme = @"http";
         [nsMutableRequest setURL:components.URL];
         ASSERT([nsMutableRequest.URL.scheme isEqualToString:@"http"]);
@@ -215,7 +213,7 @@ static NSURLRequest* updateIgnoreStrictTransportSecuritySettingIfNecessary(NSURL
 
         bool shouldIgnoreHSTS = false;
 #if USE(CFNETWORK_IGNORE_HSTS)
-        shouldIgnoreHSTS = schemeWasUpgradedDueToDynamicHSTS(request) && !(WebCore::NetworkStorageSession::storageSession(_session->sessionID())->cookieStoragePartition(request, networkDataTask->frameID(), networkDataTask->pageID())).isEmpty();
+        shouldIgnoreHSTS = schemeWasUpgradedDueToDynamicHSTS(request) && WebCore::NetworkStorageSession::storageSession(_session->sessionID())->shouldBlockCookies(request);
         if (shouldIgnoreHSTS) {
             request = downgradeRequest(request);
             ASSERT([request.URL.scheme isEqualToString:@"http"]);
@@ -248,7 +246,7 @@ static NSURLRequest* updateIgnoreStrictTransportSecuritySettingIfNecessary(NSURL
     if (auto* networkDataTask = [self existingTask:task]) {
         bool shouldIgnoreHSTS = false;
 #if USE(CFNETWORK_IGNORE_HSTS)
-        shouldIgnoreHSTS = schemeWasUpgradedDueToDynamicHSTS(request) && !(WebCore::NetworkStorageSession::storageSession(_session->sessionID())->cookieStoragePartition(request, networkDataTask->frameID(), networkDataTask->pageID())).isEmpty();
+        shouldIgnoreHSTS = schemeWasUpgradedDueToDynamicHSTS(request) && WebCore::NetworkStorageSession::storageSession(_session->sessionID())->shouldBlockCookies(request);
         if (shouldIgnoreHSTS) {
             request = downgradeRequest(request);
             ASSERT([request.URL.scheme isEqualToString:@"http"]);
@@ -291,6 +289,11 @@ static NSURLRequest* updateIgnoreStrictTransportSecuritySettingIfNecessary(NSURL
 
 - (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task didReceiveChallenge:(NSURLAuthenticationChallenge *)challenge completionHandler:(void (^)(NSURLSessionAuthChallengeDisposition disposition, NSURLCredential *credential))completionHandler
 {
+    if (!_session) {
+        completionHandler(NSURLSessionAuthChallengeCancelAuthenticationChallenge, nil);
+        return;
+    }
+
     auto taskIdentifier = task.taskIdentifier;
     LOG(NetworkSession, "%llu didReceiveChallenge", taskIdentifier);
     
@@ -344,7 +347,7 @@ static NSURLRequest* updateIgnoreStrictTransportSecuritySettingIfNecessary(NSURL
         };
         networkDataTask->didReceiveChallenge(challenge, WTFMove(challengeCompletionHandler));
     } else {
-        auto downloadID = _session->downloadID(task.taskIdentifier);
+        auto downloadID = _session->downloadID(taskIdentifier);
         if (downloadID.downloadID()) {
             if (auto* download = WebKit::NetworkProcess::singleton().downloadManager().download(downloadID)) {
                 // Received an authentication challenge for a download being resumed.
@@ -800,5 +803,3 @@ bool NetworkSessionCocoa::allowsSpecificHTTPSCertificateForHost(const WebCore::A
 }
 
 }
-
-#endif

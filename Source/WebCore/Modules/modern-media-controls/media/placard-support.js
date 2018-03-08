@@ -36,12 +36,23 @@ class PlacardSupport extends MediaControllerSupport
 
     get mediaEvents()
     {
+        if (this.mediaController.layoutTraits & LayoutTraits.Compact)
+            return ["error"];
+
         return ["loadstart", "error", "webkitpresentationmodechanged", "webkitcurrentplaybacktargetiswirelesschanged"];
     }
 
     handleEvent(event)
     {
         this._updatePlacard();
+    }
+
+    disable()
+    {
+        // We should not allow disabling Placard support when playing inline as it would prevent the
+        // PiP placard from being shown if the controls are disabled.
+        if (this.mediaController.isFullscreen)
+            super.disable();
     }
 
     // Private

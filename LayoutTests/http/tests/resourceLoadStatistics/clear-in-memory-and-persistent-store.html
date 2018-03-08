@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>Test Cleared Store</title>
-    <script src="../../resources/js-test-pre.js"></script>
+    <script src="/js-test-resources/js-test.js"></script>
 </head>
 <body>
 <script>
@@ -19,11 +19,7 @@
         else
             testFailed("Host did not get classified as prevalent resource.");
 
-        testRunner.clearTestRunnerCallbacks();
-        testRunner.installStatisticsDidModifyDataRecordsCallback(completeTest);
-        testRunner.installStatisticsDidScanDataRecordsCallback(completeTest);
-
-        testRunner.statisticsClearInMemoryAndPersistentStore();
+        testRunner.statisticsClearInMemoryAndPersistentStore(completeTest);
     }
 
     function completeTest() {
@@ -53,7 +49,6 @@
         testRunner.setStatisticsSubresourceUnderTopFrameOrigin(statisticsUrl, topFrameOrigin3);
 
         testRunner.installStatisticsDidScanDataRecordsCallback(testStep2);
-        testRunner.installStatisticsDidModifyDataRecordsCallback(testStep2);
 
         testRunner.statisticsProcessStatisticsAndDataRecords();
     }

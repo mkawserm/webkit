@@ -34,6 +34,7 @@
 #include "HostWindow.h"
 #include "NotImplemented.h"
 #if USE(CAIRO)
+#include "CairoOperations.h"
 #include "PlatformContextCairo.h"
 #include <cairo.h>
 #endif
@@ -2972,8 +2973,9 @@ void MediaPlayerPrivateMediaFoundation::Direct3DPresenter::paintCurrentFrame(Web
 
         FloatRect srcRect(0, 0, width, height);
         if (image) {
-            WebCore::PlatformContextCairo* ctxt = context.platformContext();
-            ctxt->drawSurfaceToContext(image, destRect, srcRect, context);
+            ASSERT(context.hasPlatformContext());
+            auto& state = context.state();
+            Cairo::drawSurface(*context.platformContext(), image, destRect, srcRect, state.imageInterpolationQuality, state.alpha, Cairo::ShadowState(state));
             cairo_surface_destroy(image);
         }
 #else

@@ -33,12 +33,14 @@
 #include "FTLJITCode.h"
 #include "FTLLazySlowPath.h"
 #include "InlineCallFrame.h"
+#include "Interpreter.h"
 #include "JSAsyncFunction.h"
 #include "JSAsyncGeneratorFunction.h"
 #include "JSCInlines.h"
 #include "JSFixedArray.h"
 #include "JSGeneratorFunction.h"
 #include "JSLexicalEnvironment.h"
+#include "RegExpObject.h"
 
 namespace JSC { namespace FTL {
 
@@ -90,6 +92,7 @@ extern "C" void JIT_OPERATION operationPopulateObjectInOSR(
     case PhantomCreateRest:
     case PhantomSpread:
     case PhantomNewArrayWithSpread:
+    case PhantomNewArrayBuffer:
         // Those are completely handled by operationMaterializeObjectInOSR
         break;
 
@@ -108,6 +111,19 @@ extern "C" void JIT_OPERATION operationPopulateObjectInOSR(
         break;
     }
 
+    case PhantomNewRegexp: {
+        RegExpObject* regExpObject = jsCast<RegExpObject*>(JSValue::decode(*encodedValue));
+
+        for (unsigned i = materialization->properties().size(); i--;) {
+            const ExitPropertyValue& property = materialization->properties()[i];
+            if (property.location().kind() != RegExpObjectLastIndexPLoc)
+                continue;
+
+            regExpObject->setLastIndex(exec, JSValue::decode(values[i]), false /* shouldThrow */);
+            break;
+        }
+        break;
+    }
 
     default:
         RELEASE_ASSERT_NOT_REACHED();
@@ -441,6 +457,25 @@ extern "C" JSCell* JIT_OPERATION operationMaterializeObjectInOSR(
         return fixedArray;
     }
 
+    case PhantomNewArrayBuffer: {
+        JSFixedArray* array = nullptr;
+        for (unsigned i = materialization->properties().size(); i--;) {
+            const ExitPropertyValue& property = materialization->properties()[i];
+            if (property.location().kind() == NewArrayBufferPLoc) {
+                array = jsCast<JSFixedArray*>(JSValue::decode(values[i]));
+                break;
+            }
+        }
+        RELEASE_ASSERT(array);
+
+        // For now, we use array allocation profile in the actual CodeBlock. It is OK since current NewArrayBuffer
+        // and PhantomNewArrayBuffer are always bound to a specific op_new_array_buffer.
+        CodeBlock* codeBlock = baselineCodeBlockForOriginAndBaselineCodeBlock(materialization->origin(), exec->codeBlock());
+        Instruction* currentInstruction = &codeBlock->instructions()[materialization->origin().bytecodeIndex];
+        RELEASE_ASSERT(Interpreter::getOpcodeID(currentInstruction[0].u.opcode) == op_new_array_buffer);
+        return constructArray(exec, currentInstruction[3].u.arrayAllocationProfile, array->values(), array->length());
+    }
+
     case PhantomNewArrayWithSpread: {
         CodeBlock* codeBlock = baselineCodeBlockForOriginAndBaselineCodeBlock(
             materialization->origin(), exec->codeBlock());
@@ -512,7 +547,21 @@ extern "C" JSCell* JIT_OPERATION operationMaterializeObjectInOSR(
         return result;
     }
 
-        
+    case PhantomNewRegexp: {
+        RegExp* regExp = nullptr;
+        for (unsigned i = materialization->properties().size(); i--;) {
+            const ExitPropertyValue& property = materialization->properties()[i];
+            if (property.location() == PromotedLocationDescriptor(RegExpObjectRegExpPLoc)) {
+                RELEASE_ASSERT(JSValue::decode(values[i]).asCell()->inherits(vm, RegExp::info()));
+                regExp = jsCast<RegExp*>(JSValue::decode(values[i]));
+            }
+        }
+        RELEASE_ASSERT(regExp);
+        CodeBlock* codeBlock = baselineCodeBlockForOriginAndBaselineCodeBlock(materialization->origin(), exec->codeBlock());
+        Structure* structure = codeBlock->globalObject()->regExpStructure();
+        return RegExpObject::create(vm, structure, regExp);
+    }
+
     default:
         RELEASE_ASSERT_NOT_REACHED();
         return nullptr;

@@ -25,11 +25,12 @@
 #include "FilterEffect.h"
 
 #include "Filter.h"
+#include "GeometryUtilities.h"
 #include "ImageBuffer.h"
 #include "Logging.h"
-#include <runtime/JSCInlines.h>
-#include <runtime/TypedArrayInlines.h>
-#include <runtime/Uint8ClampedArray.h>
+#include <JavaScriptCore/JSCInlines.h>
+#include <JavaScriptCore/TypedArrayInlines.h>
+#include <JavaScriptCore/Uint8ClampedArray.h>
 #include <wtf/text/TextStream.h>
 
 #if HAVE(ARM_NEON_INTRINSICS)
@@ -64,6 +65,13 @@ void FilterEffect::clipAbsolutePaintRect()
         m_absolutePaintRect.intersect(enclosingIntRect(m_maxEffectRect));
     else
         m_absolutePaintRect.unite(enclosingIntRect(m_maxEffectRect));
+}
+
+FloatPoint FilterEffect::mapPointFromUserSpaceToBuffer(FloatPoint userSpacePoint) const
+{
+    FloatPoint absolutePoint = mapPoint(userSpacePoint, m_filterPrimitiveSubregion, m_absoluteUnclippedSubregion);
+    absolutePoint.moveBy(-m_absolutePaintRect.location());
+    return absolutePoint;
 }
 
 IntRect FilterEffect::requestedRegionOfInputImageData(const IntRect& effectRect) const
@@ -434,7 +442,7 @@ void FilterEffect::copyPremultipliedResult(Uint8ClampedArray& destination, const
 
 ImageBuffer* FilterEffect::createImageBufferResult()
 {
-    LOG(Filters, "FilterEffect %s %p createImageBufferResult", filterName(), this);
+    LOG(Filters, "FilterEffect %s %p createImageBufferResult %dx%d", filterName(), this, m_absolutePaintRect.size().width(), m_absolutePaintRect.size().height());
 
     // Only one result type is allowed.
     ASSERT(!hasResult());

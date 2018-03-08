@@ -36,10 +36,6 @@
 #include <MobileCoreServices/MobileCoreServices.h>
 #endif
 
-@interface WKWebView ()
-- (void)paste:(id)sender;
-@end
-
 #if PLATFORM(MAC)
 void writeImageDataToPasteboard(NSString *type, NSData *data)
 {
@@ -67,6 +63,7 @@ TEST(PasteImage, PasteGIFImage)
     EXPECT_WK_STREQ("true", [webView stringByEvaluatingJavaScript:@"gifItem = dataTransfer.items.find((item) => item.type == 'image/gif'); (!!gifItem).toString()"]);
     EXPECT_WK_STREQ("file", [webView stringByEvaluatingJavaScript:@"gifItem.kind"]);
     EXPECT_WK_STREQ("image/gif", [webView stringByEvaluatingJavaScript:@"gifItem.file.type"]);
+    EXPECT_WK_STREQ("image.gif", [webView stringByEvaluatingJavaScript:@"gifItem.file.name"]);
     EXPECT_WK_STREQ("true", [webView stringByEvaluatingJavaScript:@"dataTransfer.files.includes(gifItem.file).toString()"]);
 
     [webView stringByEvaluatingJavaScript:@"insertFileAsImage(gifItem.file)"];
@@ -88,6 +85,7 @@ TEST(PasteImage, PasteJPEGImage)
     EXPECT_WK_STREQ("true", [webView stringByEvaluatingJavaScript:@"jpegItem = dataTransfer.items.find((item) => item.type == 'image/jpeg'); (!!jpegItem).toString()"]);
     EXPECT_WK_STREQ("file", [webView stringByEvaluatingJavaScript:@"jpegItem.kind"]);
     EXPECT_WK_STREQ("image/jpeg", [webView stringByEvaluatingJavaScript:@"jpegItem.file.type"]);
+    EXPECT_WK_STREQ("image.jpeg", [webView stringByEvaluatingJavaScript:@"jpegItem.file.name"]);
     EXPECT_WK_STREQ("true", [webView stringByEvaluatingJavaScript:@"dataTransfer.files.includes(jpegItem.file).toString()"]);
 
     [webView stringByEvaluatingJavaScript:@"insertFileAsImage(jpegItem.file)"];
@@ -109,6 +107,7 @@ TEST(PasteImage, PastePNGImage)
     EXPECT_WK_STREQ("true", [webView stringByEvaluatingJavaScript:@"pngItem = dataTransfer.items.find((item) => item.type == 'image/png'); (!!pngItem).toString()"]);
     EXPECT_WK_STREQ("file", [webView stringByEvaluatingJavaScript:@"pngItem.kind"]);
     EXPECT_WK_STREQ("image/png", [webView stringByEvaluatingJavaScript:@"pngItem.file.type"]);
+    EXPECT_WK_STREQ("image.png", [webView stringByEvaluatingJavaScript:@"pngItem.file.name"]);
     EXPECT_WK_STREQ("true", [webView stringByEvaluatingJavaScript:@"dataTransfer.files.includes(pngItem.file).toString()"]);
 
     [webView stringByEvaluatingJavaScript:@"insertFileAsImage(pngItem.file)"];
@@ -136,6 +135,8 @@ TEST(PasteImage, PasteGIFFile)
     EXPECT_WK_STREQ("1", [webView stringByEvaluatingJavaScript:@"dataTransfer.items.filter((item) => item.kind == 'file').length"]);
     EXPECT_WK_STREQ("1", [webView stringByEvaluatingJavaScript:@"dataTransfer.files.length"]);
     EXPECT_WK_STREQ("image/gif", [webView stringByEvaluatingJavaScript:@"file = dataTransfer.files[0]; file.type"]);
+    EXPECT_WK_STREQ("sunset-in-cupertino-400px.gif", [webView stringByEvaluatingJavaScript:@"file.name"]);
+    EXPECT_WK_STREQ("", [webView stringByEvaluatingJavaScript:@"editor.textContent"]);
 
     [webView stringByEvaluatingJavaScript:@"insertFileAsImage(file)"];
     [webView waitForMessage:@"loaded"];
@@ -156,6 +157,8 @@ TEST(PasteImage, PasteJPEGFile)
     EXPECT_WK_STREQ("1", [webView stringByEvaluatingJavaScript:@"dataTransfer.items.filter((item) => item.kind == 'file').length"]);
     EXPECT_WK_STREQ("1", [webView stringByEvaluatingJavaScript:@"dataTransfer.files.length"]);
     EXPECT_WK_STREQ("image/jpeg", [webView stringByEvaluatingJavaScript:@"file = dataTransfer.files[0]; file.type"]);
+    EXPECT_WK_STREQ("sunset-in-cupertino-600px.jpg", [webView stringByEvaluatingJavaScript:@"file.name"]);
+    EXPECT_WK_STREQ("", [webView stringByEvaluatingJavaScript:@"editor.textContent"]);
 
     [webView stringByEvaluatingJavaScript:@"insertFileAsImage(file)"];
     [webView waitForMessage:@"loaded"];
@@ -176,6 +179,8 @@ TEST(PasteImage, PastePNGFile)
     EXPECT_WK_STREQ("1", [webView stringByEvaluatingJavaScript:@"dataTransfer.items.filter((item) => item.kind == 'file').length"]);
     EXPECT_WK_STREQ("1", [webView stringByEvaluatingJavaScript:@"dataTransfer.files.length"]);
     EXPECT_WK_STREQ("image/png", [webView stringByEvaluatingJavaScript:@"file = dataTransfer.files[0]; file.type"]);
+    EXPECT_WK_STREQ("sunset-in-cupertino-200px.png", [webView stringByEvaluatingJavaScript:@"file.name"]);
+    EXPECT_WK_STREQ("", [webView stringByEvaluatingJavaScript:@"editor.textContent"]);
 
     [webView stringByEvaluatingJavaScript:@"insertFileAsImage(file)"];
     [webView waitForMessage:@"loaded"];
@@ -196,6 +201,8 @@ TEST(PasteImage, PasteTIFFFile)
     EXPECT_WK_STREQ("1", [webView stringByEvaluatingJavaScript:@"dataTransfer.items.filter((item) => item.kind == 'file').length"]);
     EXPECT_WK_STREQ("1", [webView stringByEvaluatingJavaScript:@"dataTransfer.files.length"]);
     EXPECT_WK_STREQ("image/tiff", [webView stringByEvaluatingJavaScript:@"file = dataTransfer.files[0]; file.type"]);
+    EXPECT_WK_STREQ("sunset-in-cupertino-100px.tiff", [webView stringByEvaluatingJavaScript:@"file.name"]);
+    EXPECT_WK_STREQ("", [webView stringByEvaluatingJavaScript:@"editor.textContent"]);
 
     [webView stringByEvaluatingJavaScript:@"insertFileAsImage(file)"];
     [webView waitForMessage:@"loaded"];
@@ -217,6 +224,7 @@ TEST(PasteImage, PasteLegacyTIFFImage)
     EXPECT_WK_STREQ("1", [webView stringByEvaluatingJavaScript:@"dataTransfer.items.filter((item) => item.kind == 'file').length"]);
     EXPECT_WK_STREQ("1", [webView stringByEvaluatingJavaScript:@"dataTransfer.files.length"]);
     EXPECT_WK_STREQ("image/png", [webView stringByEvaluatingJavaScript:@"file = dataTransfer.files[0]; file.type"]);
+    EXPECT_WK_STREQ("image.png", [webView stringByEvaluatingJavaScript:@"file.name"]);
 
     [webView stringByEvaluatingJavaScript:@"insertFileAsImage(file)"];
     EXPECT_WK_STREQ("blob:", [webView stringByEvaluatingJavaScript:@"url = new URL(imageElement.src); url.protocol"]);
@@ -237,6 +245,7 @@ TEST(PasteImage, PasteTIFFImage)
     EXPECT_WK_STREQ("true", [webView stringByEvaluatingJavaScript:@"pngItem = dataTransfer.items.find((item) => item.type == 'image/png'); (!!pngItem).toString()"]);
     EXPECT_WK_STREQ("file", [webView stringByEvaluatingJavaScript:@"pngItem.kind"]);
     EXPECT_WK_STREQ("image/png", [webView stringByEvaluatingJavaScript:@"pngItem.file.type"]);
+    EXPECT_WK_STREQ("image.png", [webView stringByEvaluatingJavaScript:@"pngItem.file.name"]);
     EXPECT_WK_STREQ("true", [webView stringByEvaluatingJavaScript:@"dataTransfer.files.includes(pngItem.file).toString()"]);
 
     [webView stringByEvaluatingJavaScript:@"insertFileAsImage(pngItem.file)"];

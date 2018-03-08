@@ -448,7 +448,7 @@ WI.LogContentView = class LogContentView extends WI.ContentView
 
         // In the case that there are selected messages, only clear that selection if the right-click
         // is not on the element or descendants of the selected messages.
-        if (this._selectedMessages.length && !this._selectedMessages.some(element => event.target.isSelfOrDescendant(element))) {
+        if (this._selectedMessages.length && !this._selectedMessages.some(element => element.contains(event.target))) {
             this._clearMessagesSelection();
             this._mousedown(event);
         }
@@ -1074,6 +1074,11 @@ WI.LogContentView = class LogContentView extends WI.ContentView
             this._selectedSearchMatch.highlight.classList.remove(WI.LogContentView.SelectedStyleClassName);
             this._selectedSearchMatch = null;
         }
+    }
+
+    searchHidden()
+    {
+        this.searchCleared();
     }
 
     searchCleared()

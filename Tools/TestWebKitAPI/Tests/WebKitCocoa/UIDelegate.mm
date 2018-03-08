@@ -77,6 +77,30 @@ TEST(WebKit, WKWebViewIsPlayingAudio)
     TestWebKitAPI::Util::run(&done);
 }
 
+@interface NoUIDelegate : NSObject <WKNavigationDelegate>
+@end
+
+@implementation NoUIDelegate
+
+- (void)webView:(WKWebView *)webView decidePolicyForNavigationAction:(WKNavigationAction *)navigationAction decisionHandler:(void (^)(WKNavigationActionPolicy))decisionHandler
+{
+    if ([navigationAction.request.URL.absoluteString isEqualToString:[[[NSBundle mainBundle] URLForResource:@"simple" withExtension:@"html" subdirectory:@"TestWebKitAPI.resources"] absoluteString]])
+        done = true;
+    decisionHandler(WKNavigationActionPolicyAllow);
+}
+
+@end
+
+TEST(WebKit, WindowOpenWithoutUIDelegate)
+{
+    done = false;
+    auto webView = adoptNS([[WKWebView alloc] init]);
+    auto delegate = adoptNS([[NoUIDelegate alloc] init]);
+    [webView setNavigationDelegate:delegate.get()];
+    [webView loadHTMLString:@"<script>window.open('simple2.html');window.location='simple.html'</script>" baseURL:[[NSBundle mainBundle] URLForResource:@"simple2" withExtension:@"html" subdirectory:@"TestWebKitAPI.resources"]];
+    TestWebKitAPI::Util::run(&done);
+}
+
 @interface GeolocationDelegate : NSObject <WKUIDelegatePrivate> {
     bool _allowGeolocation;
 }
@@ -474,6 +498,7 @@ TEST(WebKit, ToolbarVisible)
     EXPECT_STREQ(hitTestResult.linkLabel.UTF8String, "link label");
     EXPECT_STREQ(hitTestResult.linkTitle.UTF8String, "link title");
     EXPECT_EQ(flags, NSEventModifierFlagShift);
+    EXPECT_STREQ(NSStringFromClass([(NSObject *)userInfo class]).UTF8String, "_WKFrameHandle");
     done = true;
 }
 
@@ -481,7 +506,8 @@ TEST(WebKit, ToolbarVisible)
 
 TEST(WebKit, MouseMoveOverElement)
 {
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600)]);
+    WKWebViewConfiguration *configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"FrameHandleSerialization"];
+    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration]);
     [webView setUIDelegate:[[[MouseMoveOverElementDelegate alloc] init] autorelease]];
     [webView synchronouslyLoadHTMLString:@"<a href='http://example.com/path' title='link title'>link label</a>"];
     [webView mouseMoveToPoint:NSMakePoint(20, 600 - 20) withFlags:NSEventModifierFlagShift];
@@ -523,43 +549,6 @@ TEST(WebKit, ClickAutoFillButton)
     [webView mouseDownAtPoint:buttonLocation simulatePressure:NO];
     [webView mouseUpAtPoint:buttonLocation];
     TestWebKitAPI::Util::run(&done);
-    readyForClick = false;
-}
-
-@interface AlternativePresentationButtonDelegate : NSObject <WKUIDelegatePrivate>
-@end
-
-@implementation AlternativePresentationButtonDelegate
-
-- (void)_webView:(WKWebView *)webView didClickAlternativePresentationButtonWithUserInfo:(id <NSSecureCoding>)userInfo
-{
-    ASSERT_TRUE([(id<NSObject>)userInfo isKindOfClass:[NSString class]]);
-    ASSERT_STREQ([(NSString*)userInfo UTF8String], "user data string");
-    done = true;
-}
-
-- (void)webView:(WKWebView *)webView runJavaScriptAlertPanelWithMessage:(NSString *)message initiatedByFrame:(WKFrameInfo *)frame completionHandler:(void (^)(void))completionHandler
-{
-    completionHandler();
-    ASSERT_STREQ(message.UTF8String, "ready for click!");
-    readyForClick = true;
-}
-
-@end
-
-TEST(WebKit, ClickAlternativePresentationButton)
-{
-    WKWebViewConfiguration *configuration = [WKWebViewConfiguration _test_configurationWithTestPlugInClassName:@"ClickAlternativePresentationButton"];
-
-    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 800, 600) configuration:configuration]);
-    auto delegate = adoptNS([[AlternativePresentationButtonDelegate alloc] init]);
-    [webView setUIDelegate:delegate.get()];
-    TestWebKitAPI::Util::run(&readyForClick);
-    NSPoint buttonLocation = NSMakePoint(130, 575);
-    [webView mouseDownAtPoint:buttonLocation simulatePressure:NO];
-    [webView mouseUpAtPoint:buttonLocation];
-    TestWebKitAPI::Util::run(&done);
-    readyForClick = false;
 }
 
 @interface AutoFillAvailableDelegate : NSObject <WKUIDelegatePrivate>
@@ -596,7 +585,7 @@ TEST(WebKit, AutoFillAvailable)
     EXPECT_TRUE([keyPath isEqualToString:NSStringFromSelector(@selector(_pinnedState))]);
     EXPECT_TRUE([[object class] isEqual:[TestWKWebView class]]);
     EXPECT_EQ([[change objectForKey:NSKeyValueChangeOldKey] integerValue], _WKRectEdgeAll);
-    EXPECT_EQ([[change objectForKey:NSKeyValueChangeNewKey] integerValue], _WKRectEdgeLeft | _WKRectEdgeRight);
+    EXPECT_EQ([[change objectForKey:NSKeyValueChangeNewKey] unsignedIntegerValue], _WKRectEdgeLeft | _WKRectEdgeRight);
     EXPECT_TRUE(context == nullptr);
     done = true;
 }

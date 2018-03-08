@@ -47,7 +47,6 @@
 #include "ScriptController.h"
 #include "Settings.h"
 #include "SourceBuffer.h"
-#include <wtf/CurrentTime.h>
 #include <wtf/text/StringBuilder.h>
 
 #if PLATFORM(IOS)
@@ -140,7 +139,7 @@ void MediaElementSession::addBehaviorRestriction(BehaviorRestrictions restrictio
 void MediaElementSession::removeBehaviorRestriction(BehaviorRestrictions restriction)
 {
     if (restriction & RequireUserGestureToControlControlsManager) {
-        m_mostRecentUserInteractionTime = monotonicallyIncreasingTime();
+        m_mostRecentUserInteractionTime = MonotonicTime::now();
         if (auto page = m_element.document().page())
             page->setAllowsPlaybackControlsForAutoplayingAudio(true);
     }
@@ -162,6 +161,9 @@ static bool needsArbitraryUserGestureAutoplayQuirk(const Document& document)
 
 SuccessOr<MediaPlaybackDenialReason> MediaElementSession::playbackPermitted(const HTMLMediaElement& element) const
 {
+    if (m_element.isSuspended())
+        return { };
+
     if (element.document().isMediaDocument() && !element.document().ownerElement())
         return { };
 
@@ -295,6 +297,11 @@ bool MediaElementSession::pageAllowsPlaybackAfterResuming(const HTMLMediaElement
 
 bool MediaElementSession::canShowControlsManager(PlaybackControlsPurpose purpose) const
 {
+    if (m_element.isSuspended() || !m_element.inActiveDocument()) {
+        LOG(Media, "MediaElementSession::canShowControlsManager - returning FALSE: isSuspended()");
+        return false;
+    }
+
     if (m_element.isFullscreen()) {
         LOG(Media, "MediaElementSession::canShowControlsManager - returning TRUE: Is fullscreen");
         return true;
@@ -332,11 +339,6 @@ bool MediaElementSession::canShowControlsManager(PlaybackControlsPurpose purpose
 
     if (!m_element.hasAudio() && !m_element.hasEverHadAudio()) {
         LOG(Media, "MediaElementSession::canShowControlsManager - returning FALSE: No audio");
-        return false;
-    }
-
-    if (m_element.document().activeDOMObjectsAreSuspended()) {
-        LOG(Media, "MediaElementSession::canShowControlsManager - returning FALSE: activeDOMObjectsAreSuspended()");
         return false;
     }
 
@@ -392,7 +394,7 @@ bool MediaElementSession::isLargeEnoughForMainContent(MediaSessionMainContentPur
     return isElementLargeEnoughForMainContent(m_element, purpose);
 }
 
-double MediaElementSession::mostRecentUserInteractionTime() const
+MonotonicTime MediaElementSession::mostRecentUserInteractionTime() const
 {
     return m_mostRecentUserInteractionTime;
 }
@@ -649,7 +651,7 @@ void MediaElementSession::mediaEngineUpdated(const HTMLMediaElement& element)
 
 void MediaElementSession::resetPlaybackSessionState()
 {
-    m_mostRecentUserInteractionTime = 0;
+    m_mostRecentUserInteractionTime = MonotonicTime();
     addBehaviorRestriction(RequireUserGestureToControlControlsManager | RequirePlaybackToControlControlsManager);
 }
 
@@ -691,7 +693,8 @@ size_t MediaElementSession::maximumMediaSourceBufferSize(const SourceBuffer& buf
 
 static bool isMainContentForPurposesOfAutoplay(const HTMLMediaElement& element)
 {
-    if (!element.hasAudio() || !element.hasVideo())
+    Document& document = element.document();
+    if (!document.hasLivingRenderTree() || document.activeDOMObjectsAreStopped() || element.isSuspended() || !element.hasAudio() || !element.hasVideo())
         return false;
 
     // Elements which have not yet been laid out, or which are not yet in the DOM, cannot be main content.
@@ -711,7 +714,6 @@ static bool isMainContentForPurposesOfAutoplay(const HTMLMediaElement& element)
         return false;
 
     // Main content elements must be in the main frame.
-    Document& document = element.document();
     if (!document.frame() || !document.frame()->isMainFrame())
         return false;
 
@@ -818,6 +820,9 @@ void MediaElementSession::mainContentCheckTimerFired()
 
 bool MediaElementSession::updateIsMainContent() const
 {
+    if (m_element.isSuspended())
+        return false;
+
     bool wasMainContent = m_isMainContent;
     m_isMainContent = isMainContentForPurposesOfAutoplay(m_element);
 

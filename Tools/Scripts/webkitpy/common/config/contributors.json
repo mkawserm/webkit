@@ -361,6 +361,15 @@
       ],
       "status" : "reviewer"
    },
+   "Ali Juma" : {
+      "emails" : [
+         "ajuma@chromium.org"
+      ],
+      "nicks" : [
+         "ajuma"
+      ],
+      "status" : "committer"
+   },
    "Alice Boxhall" : {
       "emails" : [
          "aboxhall@chromium.org"
@@ -389,7 +398,8 @@
       "nicks" : [
          "ntrrgc",
          "aboya"
-      ]
+      ],
+      "status" : "committer"
    },
    "Allan Sandfeld Jensen" : {
       "emails" : [
@@ -1239,6 +1249,14 @@
       ],
       "status" : "reviewer"
    },
+   "Chris Nardi" : {
+      "emails" : [
+         "cnardi@chromium.org"
+      ],
+      "nicks" : [
+         "cnardi"
+      ]
+   },
    "Chris Petersen" : {
       "emails" : [
          "c.petersen87@yahoo.com",
@@ -1535,6 +1553,12 @@
       ],
       "nicks" : [
          "barrbrain"
+      ],
+      "status" : "committer"
+   },
+   "David Quesada" : {
+      "emails" : [
+         "david_quesada@apple.com"
       ],
       "status" : "committer"
    },
@@ -2697,7 +2721,7 @@
       "nicks" : [
          "lajava"
       ],
-      "status" : "committer"
+      "status" : "reviewer"
    },
    "Jay Civelli" : {
       "emails" : [
@@ -3162,7 +3186,6 @@
    },
    "Julien Brianceau" : {
       "emails" : [
-         "jbriance@cisco.com",
          "julien.brianceau@gmail.com"
       ],
       "nicks" : [
@@ -3672,6 +3695,14 @@
       "emails" : [
          "liachen@blackberry.com",
          "liachen@rim.com"
+      ]
+   },
+   "Lorenzo Tilve" : {
+      "emails" : [
+         "ltilve@igalia.com"
+      ],
+      "nicks" : [
+         "ltilve"
       ]
    },
    "Lucas De Marchi" : {
@@ -5319,6 +5350,16 @@
          "lacerda"
       ],
       "status" : "committer"
+   },
+   "Thibault Saunier" : {
+      "emails" : [
+         "tsaunier@igalia.com",
+         "tsaunier@gnome.org"
+      ],
+      "expertise" : "WebRTC",
+      "nicks" : [
+         "thiblahute"
+      ]
    },
    "Thomas Sepez" : {
       "emails" : [

@@ -28,12 +28,15 @@
 
 #include "Logging.h"
 #include <WebCore/FileSystem.h>
-#include <dirent.h>
-#include <sys/stat.h>
-#include <sys/time.h>
 #include <wtf/Assertions.h>
 #include <wtf/Function.h>
 #include <wtf/text/CString.h>
+
+#if !OS(WINDOWS)
+#include <dirent.h>
+#include <sys/stat.h>
+#include <sys/time.h>
+#endif
 
 #if PLATFORM(IOS) && !PLATFORM(IOS_SIMULATOR)
 #include <sys/attr.h>
@@ -50,6 +53,7 @@ namespace NetworkCache {
 
 static DirectoryEntryType directoryEntryType(uint8_t dtype)
 {
+#if !OS(WINDOWS)
     switch (dtype) {
     case DT_DIR:
         return DirectoryEntryType::Directory;
@@ -59,10 +63,14 @@ static DirectoryEntryType directoryEntryType(uint8_t dtype)
         ASSERT_NOT_REACHED();
         return DirectoryEntryType::File;
     }
+#else
+    return DirectoryEntryType::File;
+#endif
 }
 
 void traverseDirectory(const String& path, const Function<void (const String&, DirectoryEntryType)>& function)
 {
+#if !OS(WINDOWS)
     DIR* dir = opendir(WebCore::FileSystem::fileSystemRepresentation(path).data());
     if (!dir)
         return;
@@ -79,6 +87,9 @@ void traverseDirectory(const String& path, const Function<void (const String&, D
         function(nameString, directoryEntryType(dp->d_type));
     }
     closedir(dir);
+#else
+    function(String(), DirectoryEntryType::File);
+#endif
 }
 
 void deleteDirectoryRecursively(const String& path)
@@ -104,7 +115,7 @@ FileTimes fileTimes(const String& path)
     struct stat fileInfo;
     if (stat(WebCore::FileSystem::fileSystemRepresentation(path).data(), &fileInfo))
         return { };
-    return { std::chrono::system_clock::from_time_t(fileInfo.st_birthtime), std::chrono::system_clock::from_time_t(fileInfo.st_mtime) };
+    return { WallTime::fromRawSeconds(fileInfo.st_birthtime), WallTime::fromRawSeconds(fileInfo.st_mtime) };
 #elif USE(SOUP)
     // There's no st_birthtime in some operating systems like Linux, so we use xattrs to set/get the creation time.
     GRefPtr<GFile> file = adoptGRef(g_file_new_for_path(WebCore::FileSystem::fileSystemRepresentation(path).data()));
@@ -114,8 +125,10 @@ FileTimes fileTimes(const String& path)
     const char* birthtimeString = g_file_info_get_attribute_string(fileInfo.get(), "xattr::birthtime");
     if (!birthtimeString)
         return { };
-    return { std::chrono::system_clock::from_time_t(g_ascii_strtoull(birthtimeString, nullptr, 10)),
-        std::chrono::system_clock::from_time_t(g_file_info_get_attribute_uint64(fileInfo.get(), "time::modified")) };
+    return { WallTime::fromRawSeconds(g_ascii_strtoull(birthtimeString, nullptr, 10)),
+        WallTime::fromRawSeconds(g_file_info_get_attribute_uint64(fileInfo.get(), "time::modified")) };
+#elif OS(WINDOWS)
+    return FileTimes();
 #endif
 }
 
@@ -124,11 +137,13 @@ void updateFileModificationTimeIfNeeded(const String& path)
     auto times = fileTimes(path);
     if (times.creation != times.modification) {
         // Don't update more than once per hour.
-        if (std::chrono::system_clock::now() - times.modification < std::chrono::hours(1))
+        if (WallTime::now() - times.modification < 1_h)
             return;
     }
+#if !OS(WINDOWS)
     // This really updates both the access time and the modification time.
     utimes(WebCore::FileSystem::fileSystemRepresentation(path).data(), nullptr);
+#endif
 }
 
 bool canUseSharedMemoryForPath(const String& path)

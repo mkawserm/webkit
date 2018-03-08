@@ -1,6 +1,6 @@
 /*
  *  Copyright (C) 1999-2000 Harri Porten (porten@kde.org)
- *  Copyright (C) 2003, 2006-2009, 2015-2016 Apple Inc. All rights reserved.
+ *  Copyright (C) 2003-2018 Apple Inc. All rights reserved.
  *  Copyright (C) 2007 Cameron Zwarich (cwzwarich@uwaterloo.ca)
  *  Copyright (C) 2007 Maks Orlovich
  *
@@ -61,6 +61,13 @@ class JSFunction : public JSCallee {
     friend class InternalFunction;
 
 public:
+    
+    template<typename CellType>
+    static IsoSubspace* subspaceFor(VM& vm)
+    {
+        return &vm.functionSpace;
+    }
+    
     typedef JSCallee Base;
     const static unsigned StructureFlags = Base::StructureFlags | OverridesGetOwnPropertySlot | OverridesGetPropertyNames;
 
@@ -123,14 +130,7 @@ public:
         return m_rareData.get();
     }
 
-    FunctionRareData* rareData(ExecState* exec, unsigned inlineCapacity)
-    {
-        if (UNLIKELY(!m_rareData))
-            return allocateAndInitializeRareData(exec, inlineCapacity);
-        if (UNLIKELY(!m_rareData->isObjectAllocationProfileInitialized()))
-            return initializeRareData(exec, inlineCapacity);
-        return m_rareData.get();
-    }
+    FunctionRareData* ensureRareDataAndAllocationProfile(ExecState*, unsigned inlineCapacity);
 
     FunctionRareData* rareData()
     {
@@ -153,16 +153,15 @@ public:
     // Returns the __proto__ for the |this| value if this JSFunction were to be constructed.
     JSObject* prototypeForConstruction(VM&, ExecState*);
 
+    bool canUseAllocationProfile();
+    bool canUseAllocationProfileNonInline();
+
 protected:
     JS_EXPORT_PRIVATE JSFunction(VM&, JSGlobalObject*, Structure*);
     JSFunction(VM&, FunctionExecutable*, JSScope*, Structure*);
 
     void finishCreation(VM&, NativeExecutable*, int length, const String& name);
     void finishCreation(VM&);
-
-    FunctionRareData* allocateRareData(VM&);
-    FunctionRareData* allocateAndInitializeRareData(ExecState*, size_t inlineCapacity);
-    FunctionRareData* initializeRareData(ExecState*, size_t inlineCapacity);
 
     static bool getOwnPropertySlot(JSObject*, ExecState*, PropertyName, PropertySlot&);
     static void getOwnNonIndexPropertyNames(JSObject*, ExecState*, PropertyNameArray&, EnumerationMode = EnumerationMode());
@@ -184,6 +183,10 @@ private:
         function->finishCreation(vm);
         return function;
     }
+
+    FunctionRareData* allocateRareData(VM&);
+    FunctionRareData* allocateAndInitializeRareData(ExecState*, size_t inlineCapacity);
+    FunctionRareData* initializeRareData(ExecState*, size_t inlineCapacity);
 
     bool hasReifiedLength() const;
     bool hasReifiedName() const;
@@ -212,8 +215,11 @@ private:
     static EncodedJSValue lengthGetter(ExecState*, EncodedJSValue, PropertyName);
     static EncodedJSValue nameGetter(ExecState*, EncodedJSValue, PropertyName);
 
-    WriteBarrier<ExecutableBase> m_executable;
-    WriteBarrier<FunctionRareData> m_rareData;
+    template<typename T>
+    using PoisonedBarrier = PoisonedWriteBarrier<JSFunctionPoison, T>;
+    
+    PoisonedBarrier<ExecutableBase> m_executable;
+    PoisonedBarrier<FunctionRareData> m_rareData;
 };
 
 } // namespace JSC

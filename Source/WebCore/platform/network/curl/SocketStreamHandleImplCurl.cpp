@@ -44,9 +44,9 @@
 
 namespace WebCore {
 
-static std::unique_ptr<char[]> createCopy(const char* data, int length)
+static UniqueArray<char> createCopy(const char* data, int length)
 {
-    std::unique_ptr<char[]> copy(new char[length]);
+    auto copy = makeUniqueArray<char>(length);
     memcpy(copy.get(), data, length);
 
     return copy;
@@ -98,7 +98,7 @@ bool SocketStreamHandleImpl::readData(CURL* curlHandle)
     ASSERT(!isMainThread());
 
     const size_t bufferSize = 1024;
-    std::unique_ptr<char[]> data(new char[bufferSize]);
+    auto data = makeUniqueArray<char>(bufferSize);
     size_t bytesRead = 0;
 
     CURLcode ret = curl_easy_recv(curlHandle, data.get(), bufferSize, &bytesRead);
@@ -164,19 +164,19 @@ bool SocketStreamHandleImpl::sendData(CURL* curlHandle)
     return true;
 }
 
-bool SocketStreamHandleImpl::waitForAvailableData(CURL* curlHandle, std::chrono::milliseconds selectTimeout)
+bool SocketStreamHandleImpl::waitForAvailableData(CURL* curlHandle, Seconds selectTimeout)
 {
     ASSERT(!isMainThread());
 
-    std::chrono::microseconds usec = std::chrono::duration_cast<std::chrono::microseconds>(selectTimeout);
+    int64_t usec = selectTimeout.microsecondsAs<int64_t>();
 
     struct timeval timeout;
-    if (usec <= std::chrono::microseconds(0)) {
+    if (usec <= 0) {
         timeout.tv_sec = 0;
         timeout.tv_usec = 0;
     } else {
-        timeout.tv_sec = usec.count() / 1000000;
-        timeout.tv_usec = usec.count() % 1000000;
+        timeout.tv_sec = usec / 1000000;
+        timeout.tv_usec = usec % 1000000;
     }
 
     long socket;
@@ -233,7 +233,7 @@ void SocketStreamHandleImpl::startThread()
             sendData(curlHandle);
 
             // Wait until socket has available data
-            if (waitForAvailableData(curlHandle, std::chrono::milliseconds(20)))
+            if (waitForAvailableData(curlHandle, 20_ms))
                 readData(curlHandle);
         }
 

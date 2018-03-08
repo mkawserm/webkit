@@ -34,6 +34,12 @@
 @class _WKActivatedElementInfo;
 #endif
 
+@interface WKWebView (AdditionalDeclarations)
+#if PLATFORM(MAC)
+- (void)paste:(id)sender;
+#endif
+@end
+
 @interface TestMessageHandler : NSObject <WKScriptMessageHandler>
 - (void)addMessage:(NSString *)message withHandler:(dispatch_block_t)handler;
 @end
@@ -45,6 +51,7 @@
 - (void)loadTestPageNamed:(NSString *)pageName;
 - (void)synchronouslyLoadHTMLString:(NSString *)html;
 - (void)synchronouslyLoadTestPageNamed:(NSString *)pageName;
+- (id)objectByEvaluatingJavaScript:(NSString *)script;
 - (NSString *)stringByEvaluatingJavaScript:(NSString *)script;
 - (void)waitForMessage:(NSString *)message;
 - (void)performAfterLoading:(dispatch_block_t)actions;

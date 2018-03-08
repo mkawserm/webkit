@@ -99,7 +99,6 @@
 #include "WheelEventDeltaFilter.h"
 #include "WindowsKeyboardCodes.h"
 #include <wtf/Assertions.h>
-#include <wtf/CurrentTime.h>
 #include <wtf/NeverDestroyed.h>
 #include <wtf/StdLibExtras.h>
 
@@ -184,18 +183,18 @@ class MaximumDurationTracker {
 public:
     explicit MaximumDurationTracker(double *maxDuration)
         : m_maxDuration(maxDuration)
-        , m_start(monotonicallyIncreasingTime())
+        , m_start(MonotonicTime::now())
     {
     }
 
     ~MaximumDurationTracker()
     {
-        *m_maxDuration = std::max(*m_maxDuration, monotonicallyIncreasingTime() - m_start);
+        *m_maxDuration = std::max(*m_maxDuration, (MonotonicTime::now() - m_start).seconds());
     }
 
 private:
     double* m_maxDuration;
-    double m_start;
+    MonotonicTime m_start;
 };
 
 #if ENABLE(TOUCH_EVENTS) && !ENABLE(IOS_TOUCH_EVENTS)
@@ -311,9 +310,9 @@ static inline bool handleWheelEventInAppropriateEnclosingBox(Node* startNode, Wh
     RenderBox* currentEnclosingBox = &initialEnclosingBox;
     while (currentEnclosingBox) {
         if (RenderLayer* boxLayer = currentEnclosingBox->layer()) {
-            const PlatformWheelEvent* platformEvent = wheelEvent.wheelEvent();
+            auto platformEvent = wheelEvent.underlyingPlatformEvent();
             bool scrollingWasHandled;
-            if (platformEvent != nullptr) {
+            if (platformEvent) {
                 auto copiedEvent = platformEvent->copyWithDeltasAndVelocity(filteredPlatformDelta.width(), filteredPlatformDelta.height(), filteredVelocity);
                 scrollingWasHandled = boxLayer->handleWheelEvent(copiedEvent);
             } else
@@ -1589,9 +1588,6 @@ void EventHandler::cancelAutoHideCursorTimer()
 {
     if (m_autoHideCursorTimer.isActive())
         m_autoHideCursorTimer.stop();
-
-    if (auto page = m_frame.page())
-        page->chrome().setCursorHiddenUntilMouseMoves(false);
 }
 
 void EventHandler::autoHideCursorTimerFired()
@@ -2642,7 +2638,7 @@ bool EventHandler::isInsideScrollbar(const IntPoint& windowPoint) const
 
 #if !PLATFORM(GTK) && !PLATFORM(WPE)
 
-bool EventHandler::shouldTurnVerticalTicksIntoHorizontal(const HitTestResult&, const PlatformWheelEvent&) const
+bool EventHandler::shouldSwapScrollDirection(const HitTestResult&, const PlatformWheelEvent&) const
 {
     return false;
 }
@@ -2681,16 +2677,30 @@ void EventHandler::platformNotifyIfEndGesture(const PlatformWheelEvent&, const W
 {
 }
 
-IntPoint EventHandler::effectiveMousePositionForSelectionAutoscroll() const
-{
-    return m_lastKnownMousePosition;
-}
-
 void EventHandler::clearOrScheduleClearingLatchedStateIfNeeded(const PlatformWheelEvent&)
 {
     clearLatchedState();
 }
-#endif
+    
+#if !PLATFORM(IOS)
+    
+IntPoint EventHandler::targetPositionInWindowForSelectionAutoscroll() const
+{
+    return m_lastKnownMousePosition;
+}
+    
+#endif // !PLATFORM(IOS)
+    
+#endif // !PLATFORM(MAC)
+    
+#if !PLATFORM(IOS)
+    
+bool EventHandler::shouldUpdateAutoscroll()
+{
+    return mousePressed();
+}
+    
+#endif // !PLATFORM(IOS)
 
 Widget* EventHandler::widgetForEventTarget(Element* eventTarget)
 {
@@ -2772,10 +2782,7 @@ bool EventHandler::handleWheelEvent(const PlatformWheelEvent& event)
 
     // FIXME: It should not be necessary to do this mutation here.
     // Instead, the handlers should know convert vertical scrolls appropriately.
-    PlatformWheelEvent adjustedEvent = event;
-    if (shouldTurnVerticalTicksIntoHorizontal(result, event))
-        adjustedEvent = event.copyTurningVerticalTicksIntoHorizontalTicks();
-
+    PlatformWheelEvent adjustedEvent = shouldSwapScrollDirection(result, event) ? event.copySwappingDirection() : event;
     platformRecordWheelEvent(adjustedEvent);
 
     if (element) {
@@ -2821,15 +2828,15 @@ void EventHandler::defaultWheelEventHandler(Node* startNode, WheelEvent& wheelEv
     if (!startNode)
         return;
     
-    Ref<Frame> protectedFrame(m_frame);
+    auto protectedFrame = makeRef(m_frame);
 
     FloatSize filteredPlatformDelta(wheelEvent.deltaX(), wheelEvent.deltaY());
     FloatSize filteredVelocity;
-    if (const PlatformWheelEvent* platformWheelEvent = wheelEvent.wheelEvent()) {
+    if (auto platformWheelEvent = wheelEvent.underlyingPlatformEvent()) {
         filteredPlatformDelta.setWidth(platformWheelEvent->deltaX());
         filteredPlatformDelta.setHeight(platformWheelEvent->deltaY());
     }
-    
+
 #if PLATFORM(MAC)
     ScrollLatchingState* latchedState = m_frame.mainFrame().latchingState();
     Element* stopElement = latchedState ? latchedState->previousWheelScrolledElement() : nullptr;
@@ -2841,11 +2848,10 @@ void EventHandler::defaultWheelEventHandler(Node* startNode, WheelEvent& wheelEv
 #else
     Element* stopElement = nullptr;
 #endif
-    
-    
+
     if (handleWheelEventInAppropriateEnclosingBox(startNode, wheelEvent, &stopElement, filteredPlatformDelta, filteredVelocity))
         wheelEvent.setDefaultHandled();
-    
+
 #if PLATFORM(MAC)
     if (latchedState && !latchedState->wheelEventElement())
         latchedState->setPreviousWheelScrolledElement(stopElement);
@@ -3234,9 +3240,9 @@ bool EventHandler::internalKeyEvent(const PlatformKeyboardEvent& initialKeyEvent
     PlatformKeyboardEvent keyDownEvent = initialKeyEvent;    
     if (keyDownEvent.type() != PlatformEvent::RawKeyDown)
         keyDownEvent.disambiguateKeyDownEvent(PlatformEvent::RawKeyDown, backwardCompatibilityMode);
-    Ref<KeyboardEvent> keydown = KeyboardEvent::create(keyDownEvent, m_frame.document()->defaultView());
+    auto keydown = KeyboardEvent::create(keyDownEvent, m_frame.document()->defaultView());
     if (matchedAnAccessKey)
-        keydown->setDefaultPrevented(true);
+        keydown->preventDefault();
     keydown->setTarget(element);
 
     if (initialKeyEvent.type() == PlatformEvent::RawKeyDown) {
@@ -3266,6 +3272,7 @@ bool EventHandler::internalKeyEvent(const PlatformKeyboardEvent& initialKeyEvent
         keydown->stopPropagation();
 
     element->dispatchEvent(keydown);
+
     // If frame changed as a result of keydown dispatch, then return early to avoid sending a subsequent keypress message to the new frame.
     bool changedFocusedFrame = m_frame.page() && &m_frame != &m_frame.page()->focusController().focusedOrMainFrame();
     bool keydownResult = keydown->defaultHandled() || keydown->defaultPrevented() || changedFocusedFrame;
@@ -3284,10 +3291,10 @@ bool EventHandler::internalKeyEvent(const PlatformKeyboardEvent& initialKeyEvent
     keyPressEvent.disambiguateKeyDownEvent(PlatformEvent::Char, backwardCompatibilityMode);
     if (keyPressEvent.text().isEmpty())
         return keydownResult;
-    Ref<KeyboardEvent> keypress = KeyboardEvent::create(keyPressEvent, m_frame.document()->defaultView());
+    auto keypress = KeyboardEvent::create(keyPressEvent, m_frame.document()->defaultView());
     keypress->setTarget(element);
     if (keydownResult)
-        keypress->setDefaultPrevented(true);
+        keypress->preventDefault();
 #if PLATFORM(COCOA)
     keypress->keypressCommands() = keydown->keypressCommands();
 #endif
@@ -3809,7 +3816,7 @@ bool EventHandler::eventInvertsTabsToLinksClientCallResult(KeyboardEvent& event)
 #endif
 }
 
-bool EventHandler::tabsToLinks(KeyboardEvent& event) const
+bool EventHandler::tabsToLinks(KeyboardEvent* event) const
 {
     // FIXME: This function needs a better name. It can be called for keypresses other than Tab when spatial navigation is enabled.
 
@@ -3818,7 +3825,7 @@ bool EventHandler::tabsToLinks(KeyboardEvent& event) const
         return false;
 
     bool tabsToLinksClientCallResult = page->chrome().client().keyboardUIMode() & KeyboardAccessTabsToLinks;
-    return eventInvertsTabsToLinksClientCallResult(event) ? !tabsToLinksClientCallResult : tabsToLinksClientCallResult;
+    return (event && eventInvertsTabsToLinksClientCallResult(*event)) ? !tabsToLinksClientCallResult : tabsToLinksClientCallResult;
 }
 
 void EventHandler::defaultTextInputEventHandler(TextEvent& event)
@@ -3899,7 +3906,7 @@ void EventHandler::defaultArrowEventHandler(FocusDirection focusDirection, Keybo
     if (m_frame.document()->inDesignMode())
         return;
 
-    if (page->focusController().advanceFocus(focusDirection, event))
+    if (page->focusController().advanceFocus(focusDirection, &event))
         event.setDefaultHandled();
 }
 
@@ -3925,7 +3932,7 @@ void EventHandler::defaultTabEventHandler(KeyboardEvent& event)
     if (m_frame.document()->inDesignMode())
         return;
 
-    if (page->focusController().advanceFocus(focusDirection, event))
+    if (page->focusController().advanceFocus(focusDirection, &event))
         event.setDefaultHandled();
 }
 

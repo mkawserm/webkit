@@ -309,7 +309,7 @@ void HTMLLinkElement::process()
         options.sameOriginDataURLFlag = SameOriginDataURLFlag::Set;
         if (document().contentSecurityPolicy()->allowStyleWithNonce(attributeWithoutSynchronization(HTMLNames::nonceAttr)))
             options.contentSecurityPolicyImposition = ContentSecurityPolicyImposition::SkipPolicyCheck;
-
+        options.integrity = m_integrityMetadataForPendingSheetRequest;
         CachedResourceRequest request(url, options, priority, WTFMove(charset));
         request.setInitiator(*this);
         request.setAsPotentiallyCrossOrigin(crossOrigin(), document());
@@ -365,10 +365,12 @@ void HTMLLinkElement::removedFromAncestor(RemovalType removalType, ContainerNode
 
     m_linkLoader.cancelLoad();
 
+    bool wasLoading = styleSheetIsLoading();
+
     if (m_sheet)
         clearSheet();
 
-    if (styleSheetIsLoading())
+    if (wasLoading)
         removePendingSheet();
     
     if (m_styleScope) {

@@ -39,12 +39,13 @@
 #include "JSDOMWindow.h"
 #include "MessagePort.h"
 #include "Navigator.h"
-#include "NoEventDispatchAssertion.h"
 #include "PublicURLManager.h"
 #include "RejectedPromiseTracker.h"
 #include "ResourceRequest.h"
 #include "SWClientConnection.h"
 #include "SWContextManager.h"
+#include "SchemeRegistry.h"
+#include "ScriptDisallowedScope.h"
 #include "ScriptState.h"
 #include "ServiceWorker.h"
 #include "ServiceWorkerGlobalScope.h"
@@ -53,14 +54,13 @@
 #include "WorkerGlobalScope.h"
 #include "WorkerNavigator.h"
 #include "WorkerThread.h"
-#include <heap/StrongInlines.h>
-#include <inspector/ScriptCallStack.h>
-#include <runtime/CatchScope.h>
-#include <runtime/Exception.h>
-#include <runtime/JSPromise.h>
+#include <JavaScriptCore/CatchScope.h>
+#include <JavaScriptCore/Exception.h>
+#include <JavaScriptCore/JSPromise.h>
+#include <JavaScriptCore/ScriptCallStack.h>
+#include <JavaScriptCore/StrongInlines.h>
 #include <wtf/MainThread.h>
 #include <wtf/Ref.h>
-
 
 namespace WebCore {
 using namespace Inspector;
@@ -126,20 +126,17 @@ ScriptExecutionContext::~ScriptExecutionContext()
     while (auto* destructionObserver = m_destructionObservers.takeAny())
         destructionObserver->contextDestroyed();
 
-    for (auto* messagePort : m_messagePorts)
-        messagePort->contextDestroyed();
-
 #if !ASSERT_DISABLED
     m_inScriptExecutionContextDestructor = false;
 #endif
 }
 
-void ScriptExecutionContext::processMessagePortMessagesSoon()
+void ScriptExecutionContext::processMessageWithMessagePortsSoon()
 {
-    if (m_willProcessMessagePortMessagesSoon)
+    if (m_willprocessMessageWithMessagePortsSoon)
         return;
 
-    m_willProcessMessagePortMessagesSoon = true;
+    m_willprocessMessageWithMessagePortsSoon = true;
     postTask([] (ScriptExecutionContext& context) {
         context.dispatchMessagePortEvents();
     });
@@ -150,8 +147,8 @@ void ScriptExecutionContext::dispatchMessagePortEvents()
     checkConsistency();
 
     Ref<ScriptExecutionContext> protectedThis(*this);
-    ASSERT(m_willProcessMessagePortMessagesSoon);
-    m_willProcessMessagePortMessagesSoon = false;
+    ASSERT(m_willprocessMessageWithMessagePortsSoon);
+    m_willprocessMessageWithMessagePortsSoon = false;
 
     // Make a frozen copy of the ports so we can iterate while new ones might be added or destroyed.
     for (auto* messagePort : copyToVector(m_messagePorts)) {
@@ -198,7 +195,7 @@ bool ScriptExecutionContext::canSuspendActiveDOMObjectsForDocumentSuspension(Vec
     // functions should not add new active DOM objects, nor execute arbitrary JavaScript.
     // An ASSERT_WITH_SECURITY_IMPLICATION or RELEASE_ASSERT will fire if this happens, but it's important to code
     // canSuspend functions so it will not happen!
-    NoEventDispatchAssertion::InMainThread assertNoEventDispatch;
+    ScriptDisallowedScope::InMainThread scriptDisallowedScope;
     for (auto* activeDOMObject : m_activeDOMObjects) {
         if (!activeDOMObject->canSuspendForDocumentSuspension()) {
             canSuspend = false;
@@ -240,7 +237,7 @@ void ScriptExecutionContext::suspendActiveDOMObjects(ActiveDOMObject::ReasonForS
     // functions should not add new active DOM objects, nor execute arbitrary JavaScript.
     // An ASSERT_WITH_SECURITY_IMPLICATION or RELEASE_ASSERT will fire if this happens, but it's important to code
     // suspend functions so it will not happen!
-    NoEventDispatchAssertion::InMainThread assertNoEventDispatch;
+    ScriptDisallowedScope::InMainThread scriptDisallowedScope;
     for (auto* activeDOMObject : m_activeDOMObjects)
         activeDOMObject->suspend(why);
 
@@ -269,7 +266,7 @@ void ScriptExecutionContext::resumeActiveDOMObjects(ActiveDOMObject::ReasonForSu
     // functions should not add new active DOM objects, nor execute arbitrary JavaScript.
     // An ASSERT_WITH_SECURITY_IMPLICATION or RELEASE_ASSERT will fire if this happens, but it's important to code
     // resume functions so it will not happen!
-    NoEventDispatchAssertion::InMainThread assertNoEventDispatch;
+    ScriptDisallowedScope::InMainThread scriptDisallowedScope;
     for (auto* activeDOMObject : m_activeDOMObjects)
         activeDOMObject->resume();
 
@@ -296,7 +293,7 @@ void ScriptExecutionContext::stopActiveDOMObjects()
     // stop functions should not add new active DOM objects, nor execute arbitrary JavaScript.
     // An ASSERT_WITH_SECURITY_IMPLICATION or RELEASE_ASSERT will fire if this happens, but it's important to code stop functions
     // so it will not happen!
-    NoEventDispatchAssertion assertNoEventDispatch;
+    ScriptDisallowedScope scriptDisallowedScope;
     for (auto* activeDOMObject : possibleActiveDOMObjects) {
         // Check if this object was deleted already. If so, just skip it.
         // Calling contains on a possibly-already-deleted object is OK because we guarantee
@@ -308,11 +305,6 @@ void ScriptExecutionContext::stopActiveDOMObjects()
     }
 
     m_activeDOMObjectAdditionForbidden = false;
-
-    // FIXME: Make message ports be active DOM objects and let them implement stop instead
-    // of having this separate mechanism just for them.
-    for (auto* messagePort : m_messagePorts)
-        messagePort->close();
 }
 
 void ScriptExecutionContext::suspendActiveDOMObjectIfNeeded(ActiveDOMObject& activeDOMObject)
@@ -352,23 +344,16 @@ void ScriptExecutionContext::willDestroyDestructionObserver(ContextDestructionOb
     m_destructionObservers.remove(&observer);
 }
 
-bool ScriptExecutionContext::sanitizeScriptError(String& errorMessage, int& lineNumber, int& columnNumber, String& sourceURL, JSC::Strong<JSC::Unknown>& error, CachedScript* cachedScript)
+// FIXME: Should this function be in SecurityContext or SecurityOrigin instead?
+bool ScriptExecutionContext::canIncludeErrorDetails(CachedScript* script, const String& sourceURL)
 {
     ASSERT(securityOrigin());
-    if (cachedScript) {
-        ASSERT(cachedScript->origin());
-        ASSERT(securityOrigin()->toString() == cachedScript->origin()->toString());
-        if (cachedScript->isCORSSameOrigin())
-            return false;
-    } else if (securityOrigin()->canRequest(completeURL(sourceURL)))
-        return false;
-
-    errorMessage = ASCIILiteral { "Script error." };
-    sourceURL = { };
-    lineNumber = 0;
-    columnNumber = 0;
-    error = { };
-    return true;
+    if (script) {
+        ASSERT(script->origin());
+        ASSERT(securityOrigin()->toString() == script->origin()->toString());
+        return script->isCORSSameOrigin();
+    }
+    return securityOrigin()->canRequest(completeURL(sourceURL));
 }
 
 void ScriptExecutionContext::reportException(const String& errorMessage, int lineNumber, int columnNumber, const String& sourceURL, JSC::Exception* exception, RefPtr<ScriptCallStack>&& callStack, CachedScript* cachedScript)
@@ -422,21 +407,19 @@ void ScriptExecutionContext::addConsoleMessage(MessageSource source, MessageLeve
 
 bool ScriptExecutionContext::dispatchErrorEvent(const String& errorMessage, int lineNumber, int columnNumber, const String& sourceURL, JSC::Exception* exception, CachedScript* cachedScript)
 {
-    EventTarget* target = errorEventTarget();
+    auto* target = errorEventTarget();
     if (!target)
         return false;
 
-    String message = errorMessage;
-    int line = lineNumber;
-    int column = columnNumber;
-    String sourceName = sourceURL;
-    JSC::Strong<JSC::Unknown> error = exception && exception->value() ? JSC::Strong<JSC::Unknown>(vm(), exception->value()) : JSC::Strong<JSC::Unknown>();
-    sanitizeScriptError(message, line, column, sourceName, error, cachedScript);
+    RefPtr<ErrorEvent> errorEvent;
+    if (canIncludeErrorDetails(cachedScript, sourceURL))
+        errorEvent = ErrorEvent::create(errorMessage, sourceURL, lineNumber, columnNumber, { vm(), exception ? exception->value() : JSC::jsNull() });
+    else
+        errorEvent = ErrorEvent::create(ASCIILiteral { "Script error." }, { }, 0, 0, { });
 
     ASSERT(!m_inDispatchErrorEvent);
     m_inDispatchErrorEvent = true;
-    Ref<ErrorEvent> errorEvent = ErrorEvent::create(message, sourceName, line, column, error);
-    target->dispatchEvent(errorEvent);
+    target->dispatchEvent(*errorEvent);
     m_inDispatchErrorEvent = false;
     return errorEvent->defaultPrevented();
 }
@@ -517,11 +500,6 @@ bool ScriptExecutionContext::hasPendingActivity() const
             return true;
     }
 
-    for (auto* messagePort : m_messagePorts) {
-        if (messagePort->hasPendingActivity())
-            return true;
-    }
-
     return false;
 }
 
@@ -536,7 +514,18 @@ JSC::ExecState* ScriptExecutionContext::execState()
     return execStateFromWorkerGlobalScope(workerGlobalScope);
 }
 
+String ScriptExecutionContext::domainForCachePartition() const
+{
+    return m_domainForCachePartition.isNull() ? topOrigin().domainForCachePartition() : m_domainForCachePartition;
+}
+
 #if ENABLE(SERVICE_WORKER)
+
+bool ScriptExecutionContext::hasServiceWorkerScheme()
+{
+    ASSERT(securityOrigin());
+    return SchemeRegistry::isServiceWorkerContainerCustomScheme(securityOrigin()->protocol());
+}
 
 ServiceWorker* ScriptExecutionContext::activeServiceWorker() const
 {
@@ -571,10 +560,11 @@ ServiceWorkerContainer* ScriptExecutionContext::serviceWorkerContainer()
     return navigator ? &navigator->serviceWorker() : nullptr;
 }
 
-void ScriptExecutionContext::postTaskTo(const DocumentOrWorkerIdentifier& contextIdentifier, WTF::Function<void(ScriptExecutionContext&)>&& task)
+bool ScriptExecutionContext::postTaskTo(const DocumentOrWorkerIdentifier& contextIdentifier, WTF::Function<void(ScriptExecutionContext&)>&& task)
 {
     ASSERT(isMainThread());
 
+    bool wasPosted = false;
     switchOn(contextIdentifier, [&] (DocumentIdentifier identifier) {
         auto* document = Document::allDocumentsMap().get(identifier);
         if (!document)
@@ -582,11 +572,13 @@ void ScriptExecutionContext::postTaskTo(const DocumentOrWorkerIdentifier& contex
         document->postTask([task = WTFMove(task)](auto& scope) {
             task(scope);
         });
+        wasPosted= true;
     }, [&](ServiceWorkerIdentifier identifier) {
-        SWContextManager::singleton().postTaskToServiceWorker(identifier, [task = WTFMove(task)](auto& scope) {
+        wasPosted = SWContextManager::singleton().postTaskToServiceWorker(identifier, [task = WTFMove(task)](auto& scope) {
             task(scope);
         });
     });
+    return wasPosted;
 }
 #endif
 

@@ -36,6 +36,8 @@
 #include "InjectedBundleDOMWindowExtension.h"
 #include "InjectedBundleNavigationAction.h"
 #include "NavigationActionData.h"
+#include "NetworkConnectionToWebProcessMessages.h"
+#include "NetworkProcessConnection.h"
 #include "PluginView.h"
 #include "UserData.h"
 #include "WKBundleAPICast.h"
@@ -54,7 +56,7 @@
 #include "WebPageProxyMessages.h"
 #include "WebProcess.h"
 #include "WebProcessPoolMessages.h"
-#include "WebsitePolicies.h"
+#include "WebsitePoliciesData.h"
 #include <JavaScriptCore/APICast.h>
 #include <JavaScriptCore/JSObject.h>
 #include <WebCore/CachedFrame.h>
@@ -106,14 +108,20 @@ WebFrameLoaderClient::~WebFrameLoaderClient()
 {
 }
 
-uint64_t WebFrameLoaderClient::pageID() const
+std::optional<uint64_t> WebFrameLoaderClient::pageID() const
 {
-    return m_frame && m_frame->page() ? m_frame->page()->pageID() : 0;
+    if (m_frame && m_frame->page())
+        return m_frame->page()->pageID();
+
+    return std::nullopt;
 }
 
-uint64_t WebFrameLoaderClient::frameID() const
+std::optional<uint64_t> WebFrameLoaderClient::frameID() const
 {
-    return m_frame ? m_frame->frameID() : 0;
+    if (m_frame)
+        return m_frame->frameID();
+
+    return std::nullopt;
 }
 
 PAL::SessionID WebFrameLoaderClient::sessionID() const
@@ -160,6 +168,13 @@ void WebFrameLoaderClient::detachedFromParent2()
     if (!webPage)
         return;
 
+#if HAVE(CFNETWORK_STORAGE_PARTITIONING)
+    if (m_hasFrameSpecificStorageAccess) {
+        WebProcess::singleton().ensureNetworkProcessConnection().connection().send(Messages::NetworkConnectionToWebProcess::RemoveStorageAccessForFrame(sessionID(), frameID().value(), pageID().value()), 0);
+        m_hasFrameSpecificStorageAccess = false;
+    }
+#endif
+
     RefPtr<API::Object> userData;
 
     // Notify the bundle client.
@@ -203,16 +218,9 @@ bool WebFrameLoaderClient::shouldUseCredentialStorage(DocumentLoader*, unsigned 
     return webPage->injectedBundleResourceLoadClient().shouldUseCredentialStorage(*webPage, *m_frame, identifier);
 }
 
-void WebFrameLoaderClient::dispatchDidReceiveAuthenticationChallenge(DocumentLoader*, unsigned long, const AuthenticationChallenge& challenge)
+void WebFrameLoaderClient::dispatchDidReceiveAuthenticationChallenge(DocumentLoader*, unsigned long, const AuthenticationChallenge&)
 {
-    // FIXME: Authentication is a per-resource concept, but we don't do per-resource handling in the UIProcess at the API level quite yet.
-    // Once we do, we might need to make sure authentication fits with our solution.
-
-    WebPage* webPage = m_frame->page();
-    if (!webPage)
-        return;
-
-    WebProcess::singleton().supplement<AuthenticationManager>()->didReceiveAuthenticationChallenge(m_frame, challenge);
+    ASSERT_NOT_REACHED();
 }
 
 #if USE(PROTECTION_SPACE_AUTH_CALLBACK)
@@ -327,7 +335,7 @@ void WebFrameLoaderClient::dispatchDidCancelClientRedirect()
     webPage->send(Messages::WebPageProxy::DidCancelClientRedirectForFrame(m_frame->frameID()));
 }
 
-void WebFrameLoaderClient::dispatchWillPerformClientRedirect(const URL& url, double interval, double fireDate)
+void WebFrameLoaderClient::dispatchWillPerformClientRedirect(const URL& url, double interval, WallTime fireDate)
 {
     WebPage* webPage = m_frame->page();
     if (!webPage)
@@ -364,6 +372,23 @@ void WebFrameLoaderClient::dispatchDidChangeMainDocument()
         return;
 
     webPage->send(Messages::WebPageProxy::DidChangeMainDocument(m_frame->frameID()));
+}
+
+void WebFrameLoaderClient::dispatchWillChangeDocument()
+{
+#if HAVE(CFNETWORK_STORAGE_PARTITIONING)
+    if (m_frame->isMainFrame())
+        return;
+
+    WebPage* webPage = m_frame->page();
+    if (!webPage)
+        return;
+
+    if (m_hasFrameSpecificStorageAccess) {
+        WebProcess::singleton().ensureNetworkProcessConnection().connection().send(Messages::NetworkConnectionToWebProcess::RemoveStorageAccessForFrame(sessionID(), frameID().value(), pageID().value()), 0);
+        m_hasFrameSpecificStorageAccess = false;
+    }
+#endif
 }
 
 void WebFrameLoaderClient::dispatchDidPushStateWithinPage()
@@ -714,16 +739,20 @@ void WebFrameLoaderClient::dispatchDecidePolicyForResponse(const ResourceRespons
 
     bool canShowMIMEType = webPage->canShowMIMEType(response.mimeType());
 
+    WebCore::Frame* coreFrame = m_frame->coreFrame();
+    auto* policyDocumentLoader = coreFrame ? coreFrame->loader().provisionalDocumentLoader() : nullptr;
+    if (!policyDocumentLoader) {
+        function(PolicyAction::Ignore);
+        return;
+    }
+
+    Ref<WebFrame> protector(*m_frame);
     uint64_t listenerID = m_frame->setUpPolicyListener(WTFMove(function), WebFrame::ForNavigationAction::No);
     bool receivedPolicyAction;
     PolicyAction policyAction;
     DownloadID downloadID;
 
-    Ref<WebFrame> protect(*m_frame);
-    WebCore::Frame* coreFrame = m_frame->coreFrame();
-    if (!coreFrame)
-        return function(PolicyAction::Ignore);
-    auto navigationID = static_cast<WebDocumentLoader&>(*coreFrame->loader().provisionalDocumentLoader()).navigationID();
+    auto navigationID = static_cast<WebDocumentLoader&>(*policyDocumentLoader).navigationID();
     if (!webPage->sendSync(Messages::WebPageProxy::DecidePolicyForResponseSync(m_frame->frameID(), SecurityOriginData::fromFrame(coreFrame), navigationID, response, request, canShowMIMEType, listenerID, UserData(WebProcess::singleton().transformObjectsToHandles(userData.get()).get())), Messages::WebPageProxy::DecidePolicyForResponseSync::Reply(receivedPolicyAction, policyAction, downloadID), Seconds::infinity(), IPC::SendSyncOption::InformPlatformProcessWillSuspend)) {
         m_frame->didReceivePolicyDecision(listenerID, PolicyAction::Ignore, 0, { }, { });
         return;
@@ -770,7 +799,7 @@ void WebFrameLoaderClient::dispatchDecidePolicyForNewWindowAction(const Navigati
     webPage->send(Messages::WebPageProxy::DecidePolicyForNewWindowAction(m_frame->frameID(), SecurityOriginData::fromFrame(coreFrame), navigationActionData, request, frameName, listenerID, UserData(WebProcess::singleton().transformObjectsToHandles(userData.get()).get())));
 }
 
-void WebFrameLoaderClient::applyToDocumentLoader(WebsitePolicies&& websitePolicies)
+void WebFrameLoaderClient::applyToDocumentLoader(WebsitePoliciesData&& websitePolicies)
 {
     if (!m_frame)
         return;
@@ -785,40 +814,7 @@ void WebFrameLoaderClient::applyToDocumentLoader(WebsitePolicies&& websitePolici
     if (!documentLoader)
         return;
 
-    documentLoader->setCustomHeaderFields(WTFMove(websitePolicies.customHeaderFields));
-
-    // Only setUserContentExtensionsEnabled if it hasn't already been disabled by reloading without content blockers.
-    if (documentLoader->userContentExtensionsEnabled())
-        documentLoader->setUserContentExtensionsEnabled(websitePolicies.contentBlockersEnabled);
-
-    OptionSet<AutoplayQuirk> quirks;
-    auto allowedQuirks = websitePolicies.allowedAutoplayQuirks;
-
-    if (allowedQuirks.contains(WebsiteAutoplayQuirk::InheritedUserGestures))
-        quirks |= AutoplayQuirk::InheritedUserGestures;
-
-    if (allowedQuirks.contains(WebsiteAutoplayQuirk::SynthesizedPauseEvents))
-        quirks |= AutoplayQuirk::SynthesizedPauseEvents;
-
-    if (allowedQuirks.contains(WebsiteAutoplayQuirk::ArbitraryUserGestures))
-        quirks |= AutoplayQuirk::ArbitraryUserGestures;
-
-    documentLoader->setAllowedAutoplayQuirks(quirks);
-
-    switch (websitePolicies.autoplayPolicy) {
-    case WebsiteAutoplayPolicy::Default:
-        documentLoader->setAutoplayPolicy(AutoplayPolicy::Default);
-        break;
-    case WebsiteAutoplayPolicy::Allow:
-        documentLoader->setAutoplayPolicy(AutoplayPolicy::Allow);
-        break;
-    case WebsiteAutoplayPolicy::AllowWithoutSound:
-        documentLoader->setAutoplayPolicy(AutoplayPolicy::AllowWithoutSound);
-        break;
-    case WebsiteAutoplayPolicy::Deny:
-        documentLoader->setAutoplayPolicy(AutoplayPolicy::Deny);
-        break;
-    }
+    WebsitePoliciesData::applyToDocumentLoader(WTFMove(websitePolicies), *documentLoader);
 }
 
 void WebFrameLoaderClient::dispatchDecidePolicyForNavigationAction(const NavigationAction& navigationAction, const ResourceRequest& request, bool didReceiveRedirectResponse, FormState* formState, FramePolicyFunction&& function)
@@ -889,7 +885,7 @@ void WebFrameLoaderClient::dispatchDecidePolicyForNavigationAction(const Navigat
 
     // Notify the UIProcess.
     Ref<WebFrame> protect(*m_frame);
-    std::optional<WebsitePolicies> websitePolicies;
+    std::optional<WebsitePoliciesData> websitePolicies;
     if (!webPage->sendSync(Messages::WebPageProxy::DecidePolicyForNavigationAction(m_frame->frameID(), SecurityOriginData::fromFrame(coreFrame), documentLoader->navigationID(), navigationActionData, originatingFrameInfoData, originatingFrame && originatingFrame->page() ? originatingFrame->page()->pageID() : 0, navigationAction.resourceRequest(), request, listenerID, UserData(WebProcess::singleton().transformObjectsToHandles(userData.get()).get())), Messages::WebPageProxy::DecidePolicyForNavigationAction::Reply(receivedPolicyAction, newNavigationID, policyAction, downloadID, websitePolicies))) {
         m_frame->didReceivePolicyDecision(listenerID, PolicyAction::Ignore, 0, { }, { });
         return;
@@ -1376,7 +1372,7 @@ void WebFrameLoaderClient::savePlatformDataToCachedFrame(CachedFrame* cachedFram
         return;
 
     HasInsecureContent hasInsecureContent;
-    if (webPage->sendSync(Messages::WebPageProxy::HasInsecureContent(), Messages::WebPageProxy::HasInsecureContent::Reply(hasInsecureContent)))
+    if (webPage->sendSync(Messages::WebPageProxy::HasInsecureContent(), Messages::WebPageProxy::HasInsecureContent::Reply(hasInsecureContent), Seconds::infinity(), IPC::SendSyncOption::DoNotProcessIncomingMessagesWhenWaitingForSyncReply))
         cachedFrame->setHasInsecureContent(hasInsecureContent);
 }
 
@@ -1412,9 +1408,15 @@ void WebFrameLoaderClient::transitionToCommittedForNewPage()
 
     ScrollbarMode defaultScrollbarMode = shouldHideScrollbars ? ScrollbarAlwaysOff : ScrollbarAuto;
 
+    ScrollbarMode horizontalScrollbarMode = webPage->alwaysShowsHorizontalScroller() ? ScrollbarAlwaysOn : defaultScrollbarMode;
+    ScrollbarMode verticalScrollbarMode = webPage->alwaysShowsVerticalScroller() ? ScrollbarAlwaysOn : defaultScrollbarMode;
+
+    bool horizontalLock = shouldHideScrollbars || webPage->alwaysShowsHorizontalScroller();
+    bool verticalLock = shouldHideScrollbars || webPage->alwaysShowsVerticalScroller();
+
     m_frame->coreFrame()->createView(webPage->size(), backgroundColor, isTransparent,
         webPage->fixedLayoutSize(), fixedVisibleContentRect, shouldUseFixedLayout,
-        defaultScrollbarMode, /* lock */ shouldHideScrollbars, defaultScrollbarMode, /* lock */ shouldHideScrollbars);
+        horizontalScrollbarMode, horizontalLock, verticalScrollbarMode, verticalLock);
 
     if (int minimumLayoutWidth = webPage->minimumLayoutSize().width()) {
         int minimumLayoutHeight = std::max(webPage->minimumLayoutSize().height(), 1);

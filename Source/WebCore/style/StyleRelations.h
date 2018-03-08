@@ -44,8 +44,10 @@ struct Relation {
         AffectedByFocusWithin,
         AffectedByHover,
         AffectedByPreviousSibling,
+        DescendantsAffectedByPreviousSibling,
         // For AffectsNextSibling 'value' tells how many element siblings to mark starting with 'element'.
         AffectsNextSibling,
+        ChildrenAffectedByForwardPositionalRules, 
         ChildrenAffectedByBackwardPositionalRules,
         ChildrenAffectedByFirstChildRules,
         ChildrenAffectedByPropertyBasedBackwardPositionalRules,

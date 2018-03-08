@@ -36,6 +36,10 @@
 #include <wtf/RetainPtr.h>
 #endif
 
+#if USE(CURL)
+#include "CurlResourceHandleDelegate.h"
+#endif
+
 #if USE(SOUP)
 typedef struct _GTlsCertificate GTlsCertificate;
 typedef struct _SoupSession SoupSession;
@@ -92,6 +96,11 @@ class SoupNetworkSession;
 class SharedBuffer;
 class Timer;
 
+#if USE(CURL)
+class CurlRequest;
+class CurlResourceHandleDelegate;
+#endif
+
 class ResourceHandle : public RefCounted<ResourceHandle>, public AuthenticationClient {
 public:
     WEBCORE_EXPORT static RefPtr<ResourceHandle> create(NetworkingContext*, const ResourceRequest&, ResourceHandleClient*, bool defersLoading, bool shouldContentSniff, bool shouldContentEncodingSniff);
@@ -107,7 +116,7 @@ public:
     void willSendRequest(ResourceRequest&&, ResourceResponse&&, CompletionHandler<void(ResourceRequest&&)>&&);
 #endif
 
-    void didReceiveResponse(ResourceResponse&&);
+    void didReceiveResponse(ResourceResponse&&, CompletionHandler<void()>&&);
 
     bool shouldUseCredentialStorage();
     void didReceiveAuthenticationChallenge(const AuthenticationChallenge&);
@@ -185,6 +194,15 @@ public:
     MonotonicTime m_requestTime;
 #endif
 
+#if USE(CURL)
+    bool cancelledOrClientless();
+    CurlResourceHandleDelegate* delegate();
+
+    void continueAfterDidReceiveResponse();
+    void willSendRequest();
+    void continueAfterWillSendRequest(ResourceRequest&&);
+#endif
+
     bool hasAuthenticationChallenge() const;
     void clearAuthentication();
     WEBCORE_EXPORT virtual void cancel();
@@ -192,9 +210,6 @@ public:
     // The client may be 0, in which case no callbacks will be made.
     WEBCORE_EXPORT ResourceHandleClient* client() const;
     WEBCORE_EXPORT void clearClient();
-
-    // Called in response to ResourceHandleClient::didReceiveResponseAsync().
-    WEBCORE_EXPORT virtual void continueDidReceiveResponse();
 
 #if USE(PROTECTION_SPACE_AUTH_CALLBACK)
     // Called in response to ResourceHandleClient::canAuthenticateAgainstProtectionSpaceAsync().
@@ -279,6 +294,23 @@ private:
 
 #if USE(SOUP)
     void timeoutFired();
+#endif
+
+#if USE(CURL)
+    enum class RequestStatus {
+        NewRequest,
+        ReusedRequest
+    };
+
+    void addCacheValidationHeaders(ResourceRequest&);
+    Ref<CurlRequest> createCurlRequest(ResourceRequest&, RequestStatus = RequestStatus::NewRequest);
+
+    bool shouldRedirectAsGET(const ResourceRequest&, bool crossOrigin);
+
+    std::optional<std::pair<String, String>> getCredential(ResourceRequest&, bool);
+    void restartRequestWithCredential(const String& user, const String& password);
+
+    void handleDataURL();
 #endif
 
     friend class ResourceHandleInternal;

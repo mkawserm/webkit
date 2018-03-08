@@ -957,7 +957,7 @@ void StyleResolver::adjustRenderStyle(RenderStyle& style, const RenderStyle& par
             style.setOverflowX(OHIDDEN);
             style.setOverflowY(OHIDDEN);
 
-            bool isVertical = style.marqueeDirection() == MUP || style.marqueeDirection() == MDOWN;
+            bool isVertical = style.marqueeDirection() == MarqueeDirection::Up || style.marqueeDirection() == MarqueeDirection::Down;
             // Make horizontal marquees not wrap.
             if (!isVertical) {
                 style.setWhiteSpace(NOWRAP);
@@ -1063,13 +1063,10 @@ void StyleResolver::adjustRenderStyle(RenderStyle& style, const RenderStyle& par
             style.setDisplay(BLOCK);
     }
 
-    // If the inherited value of justify-items includes the 'legacy' keyword,
-    // 'auto' computes to the inherited value. Otherwise, 'auto' computes to
-    // 'normal'.
-    if (style.justifyItems().position() == ItemPositionAuto) {
-        if (parentBoxStyle->justifyItems().positionType() == LegacyPosition)
-            style.setJustifyItems(parentBoxStyle->justifyItems());
-    }
+    // If the inherited value of justify-items includes the 'legacy' keyword (plus 'left', 'right' or
+    // 'center'), 'legacy' computes to the the inherited value. Otherwise, 'auto' computes to 'normal'.
+    if (parentBoxStyle->justifyItems().positionType() == LegacyPosition && style.justifyItems().position() == ItemPositionLegacy)
+        style.setJustifyItems(parentBoxStyle->justifyItems());
 }
 
 static void checkForOrientationChange(RenderStyle* style)
@@ -1529,8 +1526,8 @@ static inline bool isValidCueStyleProperty(CSSPropertyID id)
     case CSSPropertyPaintOrder:
     case CSSPropertyStrokeLinejoin:
     case CSSPropertyStrokeLinecap:
-    case CSSPropertyWebkitTextStrokeColor:
-    case CSSPropertyWebkitTextStrokeWidth:
+    case CSSPropertyStrokeColor:
+    case CSSPropertyStrokeWidth:
         return true;
     default:
         break;
@@ -1788,7 +1785,7 @@ void StyleResolver::initializeFontStyle()
     fontDescription.setOneFamily(standardFamily);
     fontDescription.setKeywordSizeFromIdentifier(CSSValueMedium);
     setFontSize(fontDescription, Style::fontSizeForKeyword(CSSValueMedium, false, document()));
-    fontDescription.setMayRepresentUserInstalledFont(!settings().shouldDisallowUserInstalledFonts());
+    fontDescription.setShouldAllowUserInstalledFonts(settings().shouldAllowUserInstalledFonts() ? AllowUserInstalledFonts::Yes : AllowUserInstalledFonts::No);
     setFontDescription(fontDescription);
 }
 

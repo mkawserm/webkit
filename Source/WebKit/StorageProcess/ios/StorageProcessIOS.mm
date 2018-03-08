@@ -30,6 +30,7 @@
 #import "StorageProcess.h"
 
 #import "SandboxInitializationParameters.h"
+#import "SandboxUtilities.h"
 #import <WebCore/FileSystem.h>
 #import <WebCore/LocalizedStrings.h>
 #import <WebCore/NotImplemented.h>
@@ -53,9 +54,15 @@ void StorageProcess::initializeSandbox(const ChildProcessInitializationParameter
 #if ENABLE_MANUAL_DATABASE_SANDBOXING
     // Need to override the default, because service has a different bundle ID.
     NSBundle *webkit2Bundle = [NSBundle bundleForClass:NSClassFromString(@"WKWebView")];
-    sandboxParameters.setOverrideSandboxProfilePath([webkit2Bundle pathForResource:@"com.apple.WebKit.Databases" ofType:@"sb"]);
+    sandboxParameters.setOverrideSandboxProfilePath([webkit2Bundle pathForResource:@"com.apple.WebKit.Storage" ofType:@"sb"]);
     ChildProcess::initializeSandbox(parameters, sandboxParameters);
 #endif
+}
+
+bool StorageProcess::parentProcessHasServiceWorkerEntitlement() const
+{
+    static bool hasEntitlement = connectedProcessHasEntitlement(parentProcessConnection()->xpcConnection(), "com.apple.developer.WebKit.ServiceWorkers");
+    return hasEntitlement;
 }
 
 } // namespace WebKit

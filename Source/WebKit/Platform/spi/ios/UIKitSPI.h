@@ -168,8 +168,6 @@ typedef NS_ENUM(NSInteger, UIDatePickerPrivateMode)  {
 @property (nonatomic, readonly, getter=_contentWidth) CGFloat contentWidth;
 @end
 
-#define UICurrentUserInterfaceIdiomIsPad() ([[UIDevice currentDevice] userInterfaceIdiom] == UIUserInterfaceIdiomPad)
-
 @interface UIDevice ()
 @property (nonatomic, readonly, retain) NSString *buildVersion;
 @end
@@ -309,11 +307,12 @@ typedef enum {
 
 @interface UIResponder ()
 - (void)_handleKeyUIEvent:(UIEvent *)event;
+- (void)_wheelChangedWithEvent:(UIEvent *)event;
 @end
 
-@class CADisplay;
+@class FBSDisplayConfiguration;
 @interface UIScreen ()
-- (CADisplay *)_display;
+@property (nonatomic, readonly, retain) FBSDisplayConfiguration *displayConfiguration;
 @end
 
 @interface UIScrollView ()
@@ -326,6 +325,7 @@ typedef enum {
 @property (nonatomic) CGFloat horizontalScrollDecelerationFactor;
 @property (nonatomic) CGFloat verticalScrollDecelerationFactor;
 @property (nonatomic, readonly) BOOL _isInterruptingDeceleration;
+@property (nonatomic, getter=_contentScrollInset, setter=_setContentScrollInset:) UIEdgeInsets contentScrollInset;
 #if __IPHONE_OS_VERSION_MAX_ALLOWED >= 110000
 @property (nonatomic, readonly) UIEdgeInsets _systemContentInset;
 #endif
@@ -538,6 +538,9 @@ typedef NS_ENUM(NSInteger, UIWKGestureType) {
 @end
 
 @interface UIWKSelectionAssistant ()
+#if __IPHONE_OS_VERSION_MAX_ALLOWED < 120000
+- (void)blockSelectionChangedWithTouch:(UIWKSelectionTouch)touch withFlags:(UIWKSelectionFlags)flags growThreshold:(CGFloat)grow shrinkThreshold:(CGFloat)shrink;
+#endif
 - (BOOL)shouldHandleSingleTapAtPoint:(CGPoint)point;
 - (void)selectionChangedWithGestureAt:(CGPoint)point withGesture:(UIWKGestureType)gestureType withState:(UIGestureRecognizerState)gestureState withFlags:(UIWKSelectionFlags)flags;
 - (void)selectionChangedWithTouchAt:(CGPoint)point withSelectionTouch:(UIWKSelectionTouch)touch withFlags:(UIWKSelectionFlags)flags;
@@ -586,6 +589,15 @@ typedef NS_ENUM(NSInteger, UIWKGestureType) {
 @property (nonatomic, readonly, assign) UITapGestureRecognizer *singleTapGesture;
 @end
 
+#if __IPHONE_OS_VERSION_MAX_ALLOWED < 120000
+typedef NS_ENUM(NSInteger, UIWKHandlePosition) {
+    UIWKHandleTop = 0,
+    UIWKHandleRight = 1,
+    UIWKHandleBottom = 2,
+    UIWKHandleLeft = 3,
+};
+#endif
+
 @protocol UIWKInteractionViewProtocol
 - (void)changeSelectionWithGestureAt:(CGPoint)point withGesture:(UIWKGestureType)gestureType withState:(UIGestureRecognizerState)state;
 - (void)changeSelectionWithTouchAt:(CGPoint)point withSelectionTouch:(UIWKSelectionTouch)touch baseIsStart:(BOOL)baseIsStart withFlags:(UIWKSelectionFlags)flags;
@@ -610,6 +622,9 @@ typedef NS_ENUM(NSInteger, UIWKGestureType) {
 - (void)_cancelLongPressGestureRecognizer;
 
 @optional
+#if __IPHONE_OS_VERSION_MAX_ALLOWED < 120000
+- (void)changeBlockSelectionWithTouchAt:(CGPoint)point withSelectionTouch:(UIWKSelectionTouch)touch forHandle:(UIWKHandlePosition)handle;
+#endif
 
 - (void)clearSelection;
 - (void)replaceDictatedText:(NSString *)oldText withText:(NSString *)newText;
@@ -624,6 +639,13 @@ typedef NS_ENUM(NSInteger, UIWKGestureType) {
 - (CGFloat)inverseScale;
 - (CGRect)unobscuredContentRect;
 @end
+
+@protocol UITextAutoscrolling
+- (void)startAutoscroll:(CGPoint)point;
+- (void)cancelAutoscroll;
+- (void)scrollSelectionToVisible:(BOOL)animated;
+@end
+
 
 @protocol UIWebFormAccessoryDelegate;
 
@@ -767,6 +789,7 @@ typedef NS_ENUM(NSInteger, _UIBackdropViewStylePrivate) {
 
 @interface _UINavigationInteractiveTransitionBase ()
 - (id)initWithGestureRecognizerView:(UIView *)gestureRecognizerView animator:(id<UIViewControllerAnimatedTransitioning>)animator delegate:(id<_UINavigationInteractiveTransitionBaseDelegate>)delegate;
+- (void)_completeStoppedInteractiveTransition;
 @property (nonatomic, weak) UIPanGestureRecognizer *gestureRecognizer;
 @property (nonatomic, assign) BOOL shouldReverseTranslation;
 @property (nonatomic, retain) _UINavigationParallaxTransition *animationController;
@@ -874,7 +897,7 @@ typedef enum {
 
 WTF_EXTERN_C_BEGIN
 
-NSTimeInterval _UIDragInteractionDefaultLiftDelay();
+NSTimeInterval _UIDragInteractionDefaultLiftDelay(void);
 CGFloat UIRoundToScreenScale(CGFloat value, UIScreen *);
 
 WTF_EXTERN_C_END
@@ -953,6 +976,7 @@ typedef NS_OPTIONS(NSUInteger, UIDragOperation)
 - (UIScrollView *)_scroller;
 - (CGPoint)accessibilityConvertPointFromSceneReferenceCoordinates:(CGPoint)point;
 - (CGRect)accessibilityConvertRectToSceneReferenceCoordinates:(CGRect)rect;
+- (UIRectEdge)_edgesApplyingSafeAreaInsetsToContentInset;
 @end
 
 @interface UIPeripheralHost (IPI)
@@ -961,8 +985,22 @@ typedef NS_OPTIONS(NSUInteger, UIDragOperation)
 - (void)forceReloadInputViews;
 @end
 
+#if __has_include(<UIKit/UITextInputMultiDocument.h>)
+#import <UIKit/UITextInputMultiDocument.h>
+#else
+@protocol UITextInputMultiDocument <NSObject>
+@optional
+- (void)_restoreFocusWithToken:(id <NSCopying, NSSecureCoding>)token completion:(void (^)(BOOL didRestore))completion;
+- (void)_preserveFocusWithToken:(id <NSCopying, NSSecureCoding>)token destructively:(BOOL)destructively;
+@end
+#endif
+
 @interface UIResponder ()
 - (UIResponder *)firstResponder;
+@end
+
+@interface _UINavigationInteractiveTransitionBase ()
+- (void)_stopInteractiveTransition;
 @end
 
 #if __has_include(<UIKit/UITextAutofillSuggestion.h>)
@@ -974,9 +1012,21 @@ typedef NS_OPTIONS(NSUInteger, UIDragOperation)
 @end
 #endif
 
+static inline bool currentUserInterfaceIdiomIsPad()
+{
+    // This inline function exists to thwart unreachable code
+    // detection on platforms where UICurrentUserInterfaceIdiomIsPad
+    // is defined directly to false.
+#if USE(APPLE_INTERNAL_SDK)
+    return UICurrentUserInterfaceIdiomIsPad();
+#else
+    return [[UIDevice currentDevice] userInterfaceIdiom] == UIUserInterfaceIdiomPad;
+#endif
+}
+
 WTF_EXTERN_C_BEGIN
 
-BOOL UIKeyboardEnabledInputModesAllowOneToManyShortcuts();
+BOOL UIKeyboardEnabledInputModesAllowOneToManyShortcuts(void);
 BOOL UIKeyboardEnabledInputModesAllowChineseTransliterationForText(NSString *);
 BOOL UIKeyboardCurrentInputModeAllowsChineseOrJapaneseReanalysisForText(NSString *);
 

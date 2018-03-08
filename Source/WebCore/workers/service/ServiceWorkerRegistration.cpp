@@ -37,6 +37,9 @@
 #include "ServiceWorkerTypes.h"
 #include "WorkerGlobalScope.h"
 
+#define REGISTRATION_RELEASE_LOG_IF_ALLOWED(fmt, ...) RELEASE_LOG_IF(m_container->isAlwaysOnLoggingAllowed(), ServiceWorker, "%p - ServiceWorkerRegistration::" fmt, this, ##__VA_ARGS__)
+#define REGISTRATION_RELEASE_LOG_ERROR_IF_ALLOWED(fmt, ...) RELEASE_LOG_ERROR_IF(m_container->isAlwaysOnLoggingAllowed(), ServiceWorker, "%p - ServiceWorkerRegistration::" fmt, this, ##__VA_ARGS__)
+
 namespace WebCore {
 
 Ref<ServiceWorkerRegistration> ServiceWorkerRegistration::getOrCreate(ScriptExecutionContext& context, Ref<ServiceWorkerContainer>&& container, ServiceWorkerRegistrationData&& data)
@@ -63,6 +66,8 @@ ServiceWorkerRegistration::ServiceWorkerRegistration(ScriptExecutionContext& con
         m_waitingWorker = ServiceWorker::getOrCreate(context, WTFMove(*m_registrationData.waitingWorker));
     if (m_registrationData.activeWorker)
         m_activeWorker = ServiceWorker::getOrCreate(context, WTFMove(*m_registrationData.activeWorker));
+
+    REGISTRATION_RELEASE_LOG_IF_ALLOWED("ServiceWorkerRegistration: ID %llu, installing: %llu, waiting: %llu, active: %llu", identifier().toUInt64(), m_installingWorker ? m_installingWorker->identifier().toUInt64() : 0, m_waitingWorker ? m_waitingWorker->identifier().toUInt64() : 0, m_activeWorker ? m_activeWorker->identifier().toUInt64() : 0);
 
     m_container->addRegistration(*this);
 
@@ -112,6 +117,21 @@ ServiceWorkerUpdateViaCache ServiceWorkerRegistration::updateViaCache() const
     return m_registrationData.updateViaCache;
 }
 
+WallTime ServiceWorkerRegistration::lastUpdateTime() const
+{
+    return m_registrationData.lastUpdateTime;
+}
+
+void ServiceWorkerRegistration::setLastUpdateTime(WallTime lastUpdateTime)
+{
+    m_registrationData.lastUpdateTime = lastUpdateTime;
+}
+
+void ServiceWorkerRegistration::setUpdateViaCache(ServiceWorkerUpdateViaCache updateViaCache)
+{
+    m_registrationData.updateViaCache = updateViaCache;
+}
+
 void ServiceWorkerRegistration::update(Ref<DeferredPromise>&& promise)
 {
     if (m_isStopped) {
@@ -129,6 +149,19 @@ void ServiceWorkerRegistration::update(Ref<DeferredPromise>&& promise)
     m_container->updateRegistration(m_registrationData.scopeURL, newestWorker->scriptURL(), WorkerType::Classic, WTFMove(promise));
 }
 
+void ServiceWorkerRegistration::softUpdate()
+{
+    if (m_isStopped)
+        return;
+
+    auto* newestWorker = getNewestWorker();
+    if (!newestWorker)
+        return;
+
+    // FIXME: Support worker types.
+    m_container->updateRegistration(m_registrationData.scopeURL, newestWorker->scriptURL(), WorkerType::Classic, nullptr);
+}
+
 void ServiceWorkerRegistration::unregister(Ref<DeferredPromise>&& promise)
 {
     if (m_isStopped) {
@@ -143,12 +176,15 @@ void ServiceWorkerRegistration::updateStateFromServer(ServiceWorkerRegistrationS
 {
     switch (state) {
     case ServiceWorkerRegistrationState::Installing:
+        REGISTRATION_RELEASE_LOG_IF_ALLOWED("updateStateFromServer: Setting registration %llu installing worker to %llu", identifier().toUInt64(), serviceWorker ? serviceWorker->identifier().toUInt64() : 0);
         m_installingWorker = WTFMove(serviceWorker);
         break;
     case ServiceWorkerRegistrationState::Waiting:
+        REGISTRATION_RELEASE_LOG_IF_ALLOWED("updateStateFromServer: Setting registration %llu waiting worker to %llu", identifier().toUInt64(), serviceWorker ? serviceWorker->identifier().toUInt64() : 0);
         m_waitingWorker = WTFMove(serviceWorker);
         break;
     case ServiceWorkerRegistrationState::Active:
+        REGISTRATION_RELEASE_LOG_IF_ALLOWED("updateStateFromServer: Setting registration %llu active worker to %llu", identifier().toUInt64(), serviceWorker ? serviceWorker->identifier().toUInt64() : 0);
         m_activeWorker = WTFMove(serviceWorker);
         break;
     }
@@ -163,6 +199,8 @@ void ServiceWorkerRegistration::scheduleTaskToFireUpdateFoundEvent()
     scriptExecutionContext()->postTask([this, protectedThis = makeRef(*this)](ScriptExecutionContext&) {
         if (m_isStopped)
             return;
+
+        REGISTRATION_RELEASE_LOG_IF_ALLOWED("scheduleTaskToFireUpdateFoundEvent: Firing updatefound event for registration %llu", identifier().toUInt64());
 
         ASSERT(m_pendingActivityForEventDispatch);
         dispatchEvent(Event::create(eventNames().updatefoundEvent, false, false));

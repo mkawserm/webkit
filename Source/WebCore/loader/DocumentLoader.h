@@ -99,6 +99,12 @@ enum class AutoplayQuirk {
     ArbitraryUserGestures = 1 << 2,
 };
 
+enum class PopUpPolicy {
+    Default, // Uses policies specified in frame settings.
+    Allow,
+    Block,
+};
+
 class DocumentLoader : public RefCounted<DocumentLoader>, public FrameDestructionObserver, private CachedRawResourceClient {
     WTF_MAKE_FAST_ALLOCATED;
     friend class ContentFilter;
@@ -178,6 +184,7 @@ public:
 #endif
 
     void scheduleSubstituteResourceLoad(ResourceLoader&, SubstituteResource&);
+    void scheduleCannotShowURLError(ResourceLoader&);
 
     // Return the ArchiveResource for the URL only when loading an Archive
     WEBCORE_EXPORT ArchiveResource* archiveResourceForURL(const URL&) const;
@@ -248,6 +255,9 @@ public:
 
     OptionSet<AutoplayQuirk> allowedAutoplayQuirks() const { return m_allowedAutoplayQuirks; }
     void setAllowedAutoplayQuirks(OptionSet<AutoplayQuirk> allowedQuirks) { m_allowedAutoplayQuirks = allowedQuirks; }
+
+    PopUpPolicy popUpPolicy() const { return m_popUpPolicy; }
+    void setPopUpPolicy(PopUpPolicy popUpPolicy) { m_popUpPolicy = popUpPolicy; }
 
     void addSubresourceLoader(ResourceLoader*);
     void removeSubresourceLoader(ResourceLoader*);
@@ -320,6 +330,10 @@ protected:
 private:
     Document* document() const;
 
+#if ENABLE(SERVICE_WORKER)
+    void matchRegistration(const URL&, CompletionHandler<void(std::optional<ServiceWorkerRegistrationData>&&)>&&);
+#endif
+
     void loadMainResource(ResourceRequest&&);
 
     void setRequest(const ResourceRequest&);
@@ -353,7 +367,11 @@ private:
     bool isMultipartReplacingLoad() const;
     bool isPostOrRedirectAfterPost(const ResourceRequest&, const ResourceResponse&);
 
-    void continueAfterNavigationPolicy(const ResourceRequest&, bool shouldContinue);
+    bool tryLoadingRequestFromApplicationCache();
+    bool tryLoadingRedirectRequestFromApplicationCache(const ResourceRequest&);
+#if ENABLE(SERVICE_WORKER)
+    void restartLoadingDueToServiceWorkerRegistrationChange(ResourceRequest&&, std::optional<ServiceWorkerRegistrationData>&&);
+#endif
     void continueAfterContentPolicy(PolicyAction);
 
     void stopLoadingForPolicyChange();
@@ -499,6 +517,7 @@ private:
     bool m_userContentExtensionsEnabled { true };
     AutoplayPolicy m_autoplayPolicy { AutoplayPolicy::Default };
     OptionSet<AutoplayQuirk> m_allowedAutoplayQuirks;
+    PopUpPolicy m_popUpPolicy { PopUpPolicy::Default };
 
 #if ENABLE(SERVICE_WORKER)
     std::optional<ServiceWorkerRegistrationData> m_serviceWorkerRegistrationData;

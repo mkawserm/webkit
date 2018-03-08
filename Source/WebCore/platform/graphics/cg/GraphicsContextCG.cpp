@@ -43,7 +43,6 @@
 #include "Timer.h"
 #include "URL.h"
 #include <pal/spi/cg/CoreGraphicsSPI.h>
-#include <wtf/CurrentTime.h>
 #include <wtf/MathExtras.h>
 #include <wtf/RetainPtr.h>
 #include <wtf/text/TextStream.h>
@@ -74,53 +73,69 @@ static void setCGStrokeColor(CGContextRef context, const Color& color)
 
 CGColorSpaceRef sRGBColorSpaceRef()
 {
-    static CGColorSpaceRef sRGBSpace = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
+    static CGColorSpaceRef sRGBColorSpace;
+    static std::once_flag onceFlag;
+    std::call_once(onceFlag, [] {
 #if PLATFORM(WIN)
-    // Out-of-date CG installations will not honor kCGColorSpaceSRGB. This logic avoids
-    // causing a crash under those conditions. Since the default color space in Windows
-    // is sRGB, this all works out nicely.
-    if (!sRGBSpace)
-        sRGBSpace = CGColorSpaceCreateDeviceRGB();
+        // Out-of-date CG installations will not honor kCGColorSpaceSRGB. This logic avoids
+        // causing a crash under those conditions. Since the default color space in Windows
+        // is sRGB, this all works out nicely.
+        // FIXME: Is this still needed? rdar://problem/15213515 was fixed.
+        sRGBColorSpace = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
+        if (!sRGBColorSpace)
+            sRGBColorSpace = CGColorSpaceCreateDeviceRGB();
+#else
+        sRGBColorSpace = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
 #endif // PLATFORM(WIN)
-    return sRGBSpace;
+    });
+    return sRGBColorSpace;
 }
 
-#if PLATFORM(WIN) || PLATFORM(IOS) || (PLATFORM(MAC) && __MAC_OS_X_VERSION_MIN_REQUIRED >= 101200)
-// See GraphicsContextCocoa for the pre-10.12 implementation.
 CGColorSpaceRef linearRGBColorSpaceRef()
 {
+    static CGColorSpaceRef linearRGBColorSpace;
+    static std::once_flag onceFlag;
+    std::call_once(onceFlag, [] {
 #if PLATFORM(WIN)
-    // FIXME: Windows should be able to use linear sRGB, this is tracked by http://webkit.org/b/80000.
-    return CGColorSpaceCreateDeviceRGB();
+        // FIXME: Windows should be able to use linear sRGB, this is tracked by http://webkit.org/b/80000.
+        linearRGBColorSpace = sRGBColorSpaceRef();
 #else
-    static CGColorSpaceRef linearRGBSpace;
-    linearRGBSpace = CGColorSpaceCreateWithName(kCGColorSpaceLinearSRGB);
-    return linearRGBSpace;
+        linearRGBColorSpace = CGColorSpaceCreateWithName(kCGColorSpaceLinearSRGB);
 #endif
+    });
+    return linearRGBColorSpace;
 }
-#endif
 
 CGColorSpaceRef extendedSRGBColorSpaceRef()
 {
-    static CGColorSpaceRef extendedSRGBSpace;
-#if PLATFORM(IOS) || (PLATFORM(MAC) && __MAC_OS_X_VERSION_MIN_REQUIRED >= 101200)
-    extendedSRGBSpace = CGColorSpaceCreateWithName(kCGColorSpaceExtendedSRGB);
+    static CGColorSpaceRef extendedSRGBColorSpace;
+    static std::once_flag onceFlag;
+    std::call_once(onceFlag, [] {
+        CGColorSpaceRef colorSpace = NULL;
+#if PLATFORM(COCOA)
+        colorSpace = CGColorSpaceCreateWithName(kCGColorSpaceExtendedSRGB);
 #endif
-    // If there is no support for exteneded sRGB, fall back to sRGB.
-    if (!extendedSRGBSpace)
-        extendedSRGBSpace = CGColorSpaceCreateDeviceRGB();
-    return extendedSRGBSpace;
+        // If there is no support for extended sRGB, fall back to sRGB.
+        if (!colorSpace)
+            colorSpace = sRGBColorSpaceRef();
+
+        extendedSRGBColorSpace = colorSpace;
+    });
+    return extendedSRGBColorSpace;
 }
 
 CGColorSpaceRef displayP3ColorSpaceRef()
 {
-    static CGColorSpaceRef displayP3Space;
+    static CGColorSpaceRef displayP3ColorSpace;
+    static std::once_flag onceFlag;
+    std::call_once(onceFlag, [] {
 #if PLATFORM(IOS) || (PLATFORM(MAC) && __MAC_OS_X_VERSION_MIN_REQUIRED > 101100)
-    displayP3Space = CGColorSpaceCreateWithName(kCGColorSpaceDisplayP3);
+        displayP3ColorSpace = CGColorSpaceCreateWithName(kCGColorSpaceDisplayP3);
 #else
-    displayP3Space = sRGBColorSpaceRef();
+        displayP3ColorSpace = sRGBColorSpaceRef();
 #endif
-    return displayP3Space;
+    });
+    return displayP3ColorSpace;
 }
 
 static InterpolationQuality convertInterpolationQuality(CGInterpolationQuality quality)
@@ -273,7 +288,7 @@ void GraphicsContext::drawNativeImage(const RetainPtr<CGImageRef>& image, const 
     }
 
 #if !LOG_DISABLED
-    double startTime = currentTime();
+    MonotonicTime startTime = MonotonicTime::now();
 #endif
     RetainPtr<CGImageRef> subImage(image);
 
@@ -376,7 +391,7 @@ void GraphicsContext::drawNativeImage(const RetainPtr<CGImageRef>& image, const 
 #endif
     }
 
-    LOG_WITH_STREAM(Images, stream << "GraphicsContext::drawNativeImage " << image.get() << " size " << imageSize << " into " << destRect << " took " << 1000.0 * (currentTime() - startTime) << "ms");
+    LOG_WITH_STREAM(Images, stream << "GraphicsContext::drawNativeImage " << image.get() << " size " << imageSize << " into " << destRect << " took " << (MonotonicTime::now() - startTime).milliseconds() << "ms");
 }
 
 static void drawPatternCallback(void* info, CGContextRef context)
@@ -1126,10 +1141,8 @@ IntRect GraphicsContext::clipBounds() const
     if (paintingDisabled())
         return IntRect();
 
-    if (m_impl) {
-        WTFLogAlways("Getting the clip bounds not yet supported with display lists");
-        return IntRect(-2048, -2048, 4096, 4096); // FIXME: display lists.
-    }
+    if (m_impl)
+        return m_impl->clipBounds();
 
     return enclosingIntRect(CGContextGetClipBoundingBox(platformContext()));
 }
@@ -1481,7 +1494,7 @@ void GraphicsContext::setCTM(const AffineTransform& transform)
         return;
 
     if (m_impl) {
-        WTFLogAlways("GraphicsContext::setCTM() is not compatible with recording contexts.");
+        m_impl->setCTM(transform);
         return;
     }
 
@@ -1495,10 +1508,8 @@ AffineTransform GraphicsContext::getCTM(IncludeDeviceScale includeScale) const
     if (paintingDisabled())
         return AffineTransform();
 
-    if (m_impl) {
-        WTFLogAlways("GraphicsContext::getCTM() is not yet compatible with recording contexts.");
-        return AffineTransform();
-    }
+    if (m_impl)
+        return m_impl->getCTM(includeScale);
 
     // The CTM usually includes the deviceScaleFactor except in WebKit 1 when the
     // content is non-composited, since the scale factor is integrated at a lower
@@ -1514,10 +1525,8 @@ FloatRect GraphicsContext::roundToDevicePixels(const FloatRect& rect, RoundingMo
     if (paintingDisabled())
         return rect;
 
-    if (m_impl) {
-        WTFLogAlways("GraphicsContext::roundToDevicePixels() is not yet compatible with recording contexts.");
-        return rect;
-    }
+    if (m_impl)
+        return m_impl->roundToDevicePixels(rect, roundingMode);
 
     // It is not enough just to round to pixels in device space. The rotation part of the
     // affine transform matrix to device space can mess with this conversion if we have a

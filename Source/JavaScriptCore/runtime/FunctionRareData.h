@@ -26,7 +26,7 @@
 #pragma once
 
 #include "InternalFunctionAllocationProfile.h"
-#include "JSCell.h"
+#include "JSCast.h"
 #include "ObjectAllocationProfile.h"
 #include "Watchpoint.h"
 
@@ -87,6 +87,10 @@ public:
     Structure* createInternalFunctionAllocationStructureFromBase(VM& vm, JSGlobalObject* globalObject, JSObject* prototype, Structure* baseStructure)
     {
         return m_internalFunctionAllocationProfile.createAllocationStructureFromBase(vm, globalObject, this, prototype, baseStructure);
+    }
+    void clearInternalFunctionAllocationProfile()
+    {
+        m_internalFunctionAllocationProfile.clear();
     }
 
     Structure* getBoundFunctionStructure() { return m_boundFunctionStructure.get(); }

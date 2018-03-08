@@ -26,33 +26,37 @@
 
 #pragma once
 
-#include <builtins/BuiltinUtils.h>
+#include <JavaScriptCore/BuiltinUtils.h>
 
 namespace WebCore {
 
 #define WEBCORE_COMMON_PRIVATE_IDENTIFIERS_EACH_PROPERTY_NAME(macro) \
-    macro(AccessibleNode) \
     macro(Animation) \
-    macro(AnimationEffect) \
+    macro(AnimationEffectReadOnly) \
     macro(AnimationEffectTiming) \
+    macro(AnimationEffectTimingReadOnly) \
     macro(AnimationPlaybackEvent) \
     macro(AnimationTimeline) \
     macro(ApplePaySession) \
     macro(AttachmentElement) \
     macro(Audio) \
+    macro(AuthenticatorAssertionResponse) \
+    macro(AuthenticatorAttestationResponse) \
+    macro(AuthenticatorResponse) \
     macro(Cache) \
     macro(CacheStorage) \
     macro(Client) \
     macro(Clients) \
     macro(Credential) \
     macro(CredentialsContainer) \
+    macro(CSSAnimation) \
+    macro(CSSTransition) \
     macro(CustomElementRegistry) \
     macro(DataTransferItem) \
     macro(DataTransferItemList) \
     macro(DocumentTimeline) \
     macro(ExtendableEvent) \
     macro(ExtendableMessageEvent) \
-    macro(FederatedCredential) \
     macro(FetchEvent) \
     macro(FileSystem) \
     macro(FileSystemDirectoryEntry) \
@@ -79,10 +83,14 @@ namespace WebCore {
     macro(IDBTransaction) \
     macro(IDBVersionChangeEvent) \
     macro(ImageBitmap) \
+    macro(ImageBitmapRenderingContext) \
     macro(InputEvent) \
     macro(IntersectionObserver) \
     macro(IntersectionObserverEntry) \
     macro(KeyframeEffect) \
+    macro(KeyframeEffectReadOnly) \
+    macro(MediaCapabilities) \
+    macro(MediaCapabilitiesInfo) \
     macro(MediaEncryptedEvent) \
     macro(MediaKeyMessageEvent) \
     macro(MediaKeySession) \
@@ -99,7 +107,6 @@ namespace WebCore {
     macro(NavigatorUserMedia) \
     macro(OffscreenCanvas) \
     macro(OffscreenCanvasRenderingContext2D) \
-    macro(PasswordCredential) \
     macro(PaymentAddress) \
     macro(PaymentRequest) \
     macro(PaymentRequestUpdateEvent) \
@@ -111,6 +118,7 @@ namespace WebCore {
     macro(PerformanceObserver) \
     macro(PerformanceObserverEntryList) \
     macro(PerformanceResourceTiming) \
+    macro(PublicKeyCredential) \
     macro(RTCDTMFSender) \
     macro(RTCDTMFToneChangeEvent) \
     macro(RTCDataChannel) \
@@ -132,11 +140,13 @@ namespace WebCore {
     macro(ReadableStreamDefaultReader) \
     macro(Request) \
     macro(Response) \
+    macro(ScreenLuminance) \
     macro(ServiceWorker) \
     macro(ServiceWorkerContainer) \
     macro(ServiceWorkerGlobalScope) \
     macro(ServiceWorkerRegistration) \
     macro(ShadowRoot) \
+    macro(SpectreGadget) \
     macro(StaticRange) \
     macro(VRDisplay) \
     macro(VRDisplayCapabilities) \

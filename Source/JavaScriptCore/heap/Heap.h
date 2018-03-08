@@ -30,7 +30,6 @@
 #include "GCIncomingRefCountedSet.h"
 #include "GCRequest.h"
 #include "HandleSet.h"
-#include "HandleStack.h"
 #include "HeapFinalizerCallback.h"
 #include "HeapObserver.h"
 #include "ListableHandler.h"
@@ -75,7 +74,7 @@ class LLIntOffsetsExtractor;
 class MachineThreads;
 class MarkStackArray;
 class MarkStackMergingConstraint;
-class MarkedAllocator;
+class BlockDirectory;
 class MarkedArgumentBuffer;
 class MarkingConstraint;
 class MarkingConstraintSet;
@@ -85,6 +84,7 @@ class SlotVisitor;
 class SpaceTimeMutatorScheduler;
 class StopIfNecessaryTimer;
 class SweepingScope;
+class ThreadLocalCacheLayout;
 class VM;
 class WeakGCMapBase;
 struct CurrentThreadState;
@@ -168,6 +168,8 @@ public:
 
     void notifyIsSafeToCollect();
     bool isSafeToCollect() const { return m_isSafeToCollect; }
+    
+    bool isShuttingDown() const { return m_isShuttingDown; }
 
     JS_EXPORT_PRIVATE bool isHeapSnapshotting() const;
 
@@ -238,7 +240,6 @@ public:
     template<typename Functor> void forEachCodeBlockIgnoringJITPlans(const AbstractLocker& codeBlockSetLocker, const Functor&);
 
     HandleSet* handleSet() { return &m_handleSet; }
-    HandleStack* handleStack() { return &m_handleStack; }
 
     void willStartIterating();
     void didFinishIterating();
@@ -256,7 +257,7 @@ public:
     void deleteAllUnlinkedCodeBlocks(DeleteAllCodeEffort);
 
     void didAllocate(size_t);
-    bool isPagedOut(double deadline);
+    bool isPagedOut(MonotonicTime deadline);
     
     const JITStubRoutineSet& jitStubRoutines() { return *m_jitStubRoutines; }
     
@@ -372,6 +373,8 @@ public:
 
     template<typename Func>
     void forEachSlotVisitor(const Func&);
+    
+    ThreadLocalCacheLayout& threadLocalCacheLayout() { return *m_threadLocalCacheLayout; }
 
 private:
     friend class AllocatingScope;
@@ -389,7 +392,7 @@ private:
     friend class LLIntOffsetsExtractor;
     friend class MarkStackMergingConstraint;
     friend class MarkedSpace;
-    friend class MarkedAllocator;
+    friend class BlockDirectory;
     friend class MarkedBlock;
     friend class RunningScope;
     friend class SlotVisitor;
@@ -497,8 +500,8 @@ private:
     void harvestWeakReferences();
 
     template<typename CellType, typename CellSet>
-    void finalizeUnconditionalFinalizers(CellSet&);
-    
+    void finalizeMarkedUnconditionalFinalizers(CellSet&);
+
     void finalizeUnconditionalFinalizers();
     
     void clearUnmarkedExecutables();
@@ -525,8 +528,8 @@ private:
     size_t visitCount();
     size_t bytesVisited();
     
-    void forEachCodeBlockImpl(const ScopedLambda<bool(CodeBlock*)>&);
-    void forEachCodeBlockIgnoringJITPlansImpl(const AbstractLocker& codeBlockSetLocker, const ScopedLambda<bool(CodeBlock*)>&);
+    void forEachCodeBlockImpl(const ScopedLambda<void(CodeBlock*)>&);
+    void forEachCodeBlockIgnoringJITPlansImpl(const AbstractLocker& codeBlockSetLocker, const ScopedLambda<void(CodeBlock*)>&);
     
     void setMutatorShouldBeFenced(bool value);
     
@@ -602,12 +605,12 @@ private:
     Lock m_parallelSlotVisitorLock;
     
     HandleSet m_handleSet;
-    HandleStack m_handleStack;
     std::unique_ptr<CodeBlockSet> m_codeBlocks;
     std::unique_ptr<JITStubRoutineSet> m_jitStubRoutines;
     FinalizerOwner m_finalizerOwner;
     
     bool m_isSafeToCollect;
+    bool m_isShuttingDown { false };
 
     bool m_mutatorShouldBeFenced { Options::forceFencedBarrier() };
     unsigned m_barrierThreshold { Options::forceFencedBarrier() ? tautologicalThreshold : blackThreshold };
@@ -714,6 +717,8 @@ private:
     
     CurrentThreadState* m_currentThreadState { nullptr };
     WTF::Thread* m_currentThread { nullptr }; // It's OK if this becomes a dangling pointer.
+    
+    std::unique_ptr<ThreadLocalCacheLayout> m_threadLocalCacheLayout;
 };
 
 } // namespace JSC

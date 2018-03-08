@@ -126,7 +126,7 @@ public:
             // This is guaranteed because we expect the CFG not to have unreachable code. Therefore, a
             // loop header must have a predecessor. (Also, we don't allow the root block to be a loop,
             // which cuts out the one other way of having a loop header with only one predecessor.)
-            DFG_ASSERT(m_graph, header->at(0), header->predecessors.size() > 1);
+            DFG_ASSERT(m_graph, header->at(0), header->predecessors.size() > 1, header->predecessors.size());
             
             for (unsigned i = header->predecessors.size(); i--;) {
                 BasicBlock* predecessor = header->predecessors[i];
@@ -155,7 +155,7 @@ public:
             // This is guaranteed because the header has multiple predecessors and critical edges are
             // broken. Therefore the predecessors must all have one successor, which implies that they
             // must end in a Jump.
-            DFG_ASSERT(m_graph, preHeader->terminal(), preHeader->terminal()->op() == Jump);
+            DFG_ASSERT(m_graph, preHeader->terminal(), preHeader->terminal()->op() == Jump, preHeader->terminal()->op());
 
             if (!preHeader->terminal()->origin.exitOK)
                 continue;
@@ -220,7 +220,7 @@ public:
                     changed |= attemptHoist(block, nodeRef, loopStack[stackIndex]);
             }
         }
-        
+
         return changed;
     }
 
@@ -281,7 +281,7 @@ private:
             && !m_graph.m_controlEquivalenceAnalysis->dominatesEquivalently(data.preHeader, fromBlock);
         
         if (addsBlindSpeculation
-            && m_graph.baselineCodeBlockFor(originalOrigin.semantic)->hasExitSite(FrequentExitSite(HoistingFailed))) {
+            && m_graph.hasExitSite(originalOrigin.semantic, HoistingFailed)) {
             if (verbose) {
                 dataLog(
                     "    Not hoisting ", node, " because it may exit and the pre-header (",
@@ -297,15 +297,28 @@ private:
                 "\n");
         }
 
-        // FIXME: We should adjust the Check: flags on the edges of node. There are phases that assume
-        // that those flags are correct even if AI is stale.
-        // https://bugs.webkit.org/show_bug.cgi?id=148544
         data.preHeader->insertBeforeTerminal(node);
         node->owner = data.preHeader;
         NodeOrigin terminalOrigin = data.preHeader->terminal()->origin;
         node->origin = terminalOrigin.withSemantic(node->origin.semantic);
         node->origin.wasHoisted |= addsBlindSpeculation;
         
+        // We can trust what AI proves about edge proof statuses when hoisting to the preheader.
+        m_state.trustEdgeProofs();
+        m_state.initializeTo(data.preHeader);
+        m_interpreter.execute(node);
+        // However, when walking various inner loops below, the proof status of
+        // an edge may be trivially true, even if it's not true in the preheader
+        // we hoist to. We don't allow the below node executions to change the
+        // state of edge proofs. An example of where a proof is trivially true
+        // is if we have two loops, L1 and L2, where L2 is nested inside L1. The
+        // header for L1 dominates L2. We hoist a Check from L1's header into L1's
+        // preheader. However, inside L2's preheader, we can't trust that AI will
+        // tell us this edge is proven. It's proven in L2's preheader because L2
+        // is dominated by L1's header. However, the edge is not guaranteed to be
+        // proven inside L1's preheader.
+        m_state.dontTrustEdgeProofs();
+
         // Modify the states at the end of the preHeader of the loop we hoisted to,
         // and all pre-headers inside the loop. This isn't a stability bottleneck right now
         // because most loops are small and most blocks belong to few loops.
@@ -323,16 +336,17 @@ private:
             // The pre-header's tail may be unreachable, in which case we have nothing to do.
             if (!subPreHeader->cfaDidFinish)
                 continue;
+            // We handled this above.
+            if (subPreHeader == data.preHeader)
+                continue;
             m_state.initializeTo(subPreHeader);
             m_interpreter.execute(node);
         }
-        
-        // It just so happens that all of the nodes we currently know how to hoist
-        // don't have var-arg children. That may change and then we can fix this
-        // code. But for now we just assert that's the case.
-        DFG_ASSERT(m_graph, node, !(node->flags() & NodeHasVarArgs));
-        
-        nodeRef = m_graph.addNode(Check, originalOrigin, node->children);
+
+        if (node->flags() & NodeHasVarArgs)
+            nodeRef = m_graph.addNode(CheckVarargs, originalOrigin, m_graph.copyVarargChildren(node));
+        else
+            nodeRef = m_graph.addNode(Check, originalOrigin, node->children);
         
         return true;
     }

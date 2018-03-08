@@ -122,6 +122,14 @@
         "ScrollingCoordinator": {
             "filename": r"Source/WebCore/page/scrolling/",
         },
+        "WPEDependencies": {
+            "filename": r"Tools/wpe/install-dependencies"
+                        r"|Tools/wpe/jhbuild*",
+        },
+        "WebKitGTKDependencies": {
+            "filename": r"Tools/gtk/install-dependencies"
+                        r"|Tools/gtk/jhbuild*",
+        },
         "WebKitGTKTranslations": {
             "filename": r"Source/WebCore/platform/gtk/po/",
         },
@@ -193,9 +201,6 @@
                         r"|Source/WebCore/html/canvas/Canvas.*\.idl"
                         r"|Source/WebCore/html/canvas/WebGLRenderingContext\.idl"
                         r"|Source/WebCore/html/canvas/WebGLRenderingContextBase\.idl",
-        },
-        "WebInspectorUIImages": {
-            "filename": r"Source/WebInspectorUI/UserInterface/Images",
         },
         "WebSocket": {
             "filename": r"Source/WebCore/Modules/websockets"
@@ -380,8 +385,8 @@
         "FrameLoader": [ "japhet@chromium.org", "cdumez@apple.com", "dbates@webkit.org" ],
         "Geolocation": [ "benjamin@webkit.org" ],
         "GraphicsLayer": [ "simon.fraser@apple.com", "kondapallykalyan@gmail.com", "sergio.correia@openbossa.org" ],
-        "GStreamerGraphics": [ "alexis@webkit.org", "pnormand@igalia.com", "gns@gnome.org", "cgarcia@igalia.com", "calvaris@igalia.com", "vjaquez@igalia.com", "agomez@igalia.com" ],
-        "GStreamerAudio": [ "pnormand@igalia.com", "sergio.correia@openbossa.org", "calvaris@igalia.com", "vjaquez@igalia.com", "agomez@igalia.com" ],
+        "GStreamerGraphics": [ "alexis@webkit.org", "pnormand@igalia.com", "gns@gnome.org", "cgarcia@igalia.com", "calvaris@igalia.com", "vjaquez@igalia.com" ],
+        "GStreamerAudio": [ "pnormand@igalia.com", "sergio.correia@openbossa.org", "calvaris@igalia.com", "vjaquez@igalia.com" ],
         "GtkWebKit2PublicAPI": [ "cgarcia@igalia.com", "gns@gnome.org", "berto@igalia.com", "mcatanzaro@igalia.com" ],
         "HTML": [ "esprehn+autocc@chromium.org", "gyuyoung.kim@webkit.org", "cdumez@apple.com" ],
         "History": [ "cdumez@apple.com" ],
@@ -400,10 +405,10 @@
         "PerformanceTests": [ "rniwa@webkit.org", "cdumez@apple.com" ],
         "RegionsDevelopment|RegionsExpectationsMore|RegionsExpectationsLess|RegionsUsage": [ "WebkitBugTracker@adobe.com" ],
         "Rendering": [ "esprehn+autocc@chromium.org", "glenn@skynav.com", "kondapallykalyan@gmail.com", "pdr+autocc@chromium.org" ],
-        "RenderLayers" : [ "simon.fraser@apple.com", "kondapallykalyan@gmail.com" ],
+        "RenderLayers" : [ "simon.fraser@apple.com", "kondapallykalyan@gmail.com", "fred.wang@free.fr" ],
         "SVG": ["schenney@chromium.org", "pdr+autocc@chromium.org", "fmalita@chromium.org", "gyuyoung.kim@webkit.org", "sergio.correia@openbossa.org", "sabouhallawa@apple.com", "dino@apple.com" ],
         "SVNScripts": [ "dbates@webkit.org" ],
-        "ScrollingCoordinator": [ "jamesr@chromium.org", "tonikitoo@webkit.org", "cmarcelo@webkit.org", "luiz@webkit.org" ],
+        "ScrollingCoordinator": [ "jamesr@chromium.org", "tonikitoo@webkit.org", "cmarcelo@webkit.org", "luiz@webkit.org", "fred.wang@free.fr" ],
         "Selectors": [ "allan.jensen@digia.com" ],
         "SoupNetwork": [ "gns@gnome.org", "cgarcia@igalia.com", "berto@igalia.com", "mcatanzaro@igalia.com" ],
         "TextureMapper" : [ "noam@webkit.org", "cmarcelo@webkit.org", "luiz@webkit.org", "kondapallykalyan@gmail.com" ],
@@ -414,9 +419,10 @@
         "WebInspectorBackend": [ "joepeck@webkit.org" ],
         "WebInspectorGenerator": [ "bburg@apple.com", "joepeck@webkit.org" ],
         "WebInspectorRecording": [ "webkit@devinrousso.com" ],
-        "WebInspectorUIImages": [ "agomez@igalia.com" ],
         "JSBuiltins": [ "joepeck@webkit.org" ],
         "JSBuiltinsGenerator": [ "bburg@apple.com" ],
+        "WPEDependencies": [ "aperez@igalia.com", "clopez@igalia.com" ],
+        "WebKitGTKDependencies": [ "agomez@igalia.com", "ltilve@igalia.com", "clopez@igalia.com" ],
         "WebKitGTKTranslations": [ "gns@gnome.org", "berto@igalia.com", "cgarcia@igalia.com", "mcatanzaro@igalia.com" ],
         "WebSocket": [ "yutak@chromium.org", "toyoshim+watchlist@chromium.org" ],
         "XSS": [ "dbates@webkit.org" ],

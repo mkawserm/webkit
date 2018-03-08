@@ -29,14 +29,14 @@
 
 #import "NetscapePluginHostProxy.h"
 #import "ProxyRuntimeObject.h"
+#import <JavaScriptCore/Error.h>
+#import <JavaScriptCore/FunctionPrototype.h>
+#import <JavaScriptCore/PropertyNameArray.h>
 #import <WebCore/CommonVM.h>
 #import <WebCore/IdentifierRep.h>
 #import <WebCore/JSDOMWindow.h>
 #import <WebCore/npruntime_impl.h>
 #import <WebCore/runtime_method.h>
-#import <runtime/Error.h>
-#import <runtime/FunctionPrototype.h>
-#import <runtime/PropertyNameArray.h>
 #import <wtf/NeverDestroyed.h>
 
 extern "C" {
@@ -153,8 +153,7 @@ JSValue ProxyInstance::invoke(JSC::ExecState* exec, InvokeType type, uint64_t id
     for (unsigned i = 0; i < args.size(); i++)
         m_instanceProxy->retainLocalObject(args.at(i));
 
-    if (_WKPHNPObjectInvoke(m_instanceProxy->hostProxy()->port(), m_instanceProxy->pluginID(), requestID, m_objectID,
-                            type, identifier, (char*)[arguments.get() bytes], [arguments.get() length]) != KERN_SUCCESS) {
+    if (_WKPHNPObjectInvoke(m_instanceProxy->hostProxy()->port(), m_instanceProxy->pluginID(), requestID, m_objectID, type, identifier, static_cast<char*>(const_cast<void*>([arguments.get() bytes])), [arguments.get() length]) != KERN_SUCCESS) {
         if (m_instanceProxy) {
             for (unsigned i = 0; i < args.size(); i++)
                 m_instanceProxy->releaseLocalObject(args.at(i));
@@ -173,7 +172,7 @@ JSValue ProxyInstance::invoke(JSC::ExecState* exec, InvokeType type, uint64_t id
     if (!reply || !reply->m_returnValue)
         return jsUndefined();
     
-    return m_instanceProxy->demarshalValue(exec, (char*)CFDataGetBytePtr(reply->m_result.get()), CFDataGetLength(reply->m_result.get()));
+    return m_instanceProxy->demarshalValue(exec, reinterpret_cast<char*>(const_cast<unsigned char*>(CFDataGetBytePtr(reply->m_result.get()))), CFDataGetLength(reply->m_result.get()));
 }
 
 class ProxyRuntimeMethod : public RuntimeMethod {
@@ -418,7 +417,7 @@ JSC::JSValue ProxyInstance::fieldValue(ExecState* exec, const Field* field) cons
     if (!reply || !reply->m_returnValue)
         return jsUndefined();
     
-    return m_instanceProxy->demarshalValue(exec, (char*)CFDataGetBytePtr(reply->m_result.get()), CFDataGetLength(reply->m_result.get()));
+    return m_instanceProxy->demarshalValue(exec, reinterpret_cast<char*>(const_cast<unsigned char*>(CFDataGetBytePtr(reply->m_result.get()))), CFDataGetLength(reply->m_result.get()));
 }
     
 bool ProxyInstance::setFieldValue(ExecState* exec, const Field* field, JSValue value) const

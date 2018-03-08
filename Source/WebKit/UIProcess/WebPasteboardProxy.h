@@ -35,6 +35,7 @@ namespace WebCore {
 class Color;
 struct PasteboardCustomData;
 struct PasteboardImage;
+struct PasteboardItemInfo;
 struct PasteboardURL;
 struct PasteboardWebContent;
 }
@@ -47,7 +48,7 @@ struct WebSelectionData;
 
 class WebPasteboardProxy : public IPC::MessageReceiver {
     WTF_MAKE_NONCOPYABLE(WebPasteboardProxy);
-    friend class LazyNeverDestroyed<WebPasteboardProxy>;
+    friend LazyNeverDestroyed<WebPasteboardProxy>;
 public:
     static WebPasteboardProxy& singleton();
 
@@ -77,7 +78,7 @@ private:
     void readURLFromPasteboard(uint64_t index, const String& pasteboardType, const String& pasteboardName, String& url, String& title);
     void readBufferFromPasteboard(uint64_t index, const String& pasteboardType, const String& pasteboardName, SharedMemory::Handle&, uint64_t& size);
     void getPasteboardItemsCount(const String& pasteboardName, uint64_t& itemsCount);
-    void getFilenamesForDataInteraction(const String& pasteboardName, Vector<String>& filenames);
+    void informationForItemAtIndex(int index, const String& pasteboardName, WebCore::PasteboardItemInfo& filename);
     void updateSupportedTypeIdentifiers(const Vector<String>& identifiers, const String& pasteboardName);
 #endif
 #if PLATFORM(COCOA)

@@ -29,8 +29,9 @@
 #if ENABLE(NETSCAPE_PLUGIN_API)
 
 #include "PluginModuleInfo.h"
-#include <WebCore/URL.h>
 #include <WebCore/MIMETypeRegistry.h>
+#include <WebCore/SecurityOrigin.h>
+#include <WebCore/URL.h>
 #include <algorithm>
 #include <wtf/ListHashSet.h>
 #include <wtf/StdLibExtras.h>
@@ -202,6 +203,43 @@ PluginModuleInfo PluginInfoStore::findPlugin(String& mimeType, const URL& url, P
     }
     
     return PluginModuleInfo();
+}
+
+bool PluginInfoStore::isSupportedPlugin(const PluginInfoStore::SupportedPlugin& plugin, const String& mimeType, const URL& pluginURL)
+{
+    if (plugin.mimeTypes.contains(mimeType))
+        return true;
+    auto extension = pathExtension(pluginURL);
+    return extension.isEmpty() ? false : plugin.extensions.contains(extension);
+}
+
+bool PluginInfoStore::isSupportedPlugin(const String& mimeType, const URL& pluginURL, const String&, const URL& pageURL)
+{
+    // We check only pageURL for consistency with WebProcess visible plugins.
+    if (!m_supportedPlugins)
+        return true;
+
+    return m_supportedPlugins->findMatching([&] (auto&& plugin) {
+        return pageURL.isMatchingDomain(plugin.matchingDomain) && isSupportedPlugin(plugin, mimeType, pluginURL);
+    }) != notFound;
+}
+
+std::optional<Vector<SupportedPluginName>> PluginInfoStore::supportedPluginNames()
+{
+    if (!m_supportedPlugins)
+        return std::nullopt;
+
+    return WTF::map(*m_supportedPlugins, [] (auto&& item) {
+        return SupportedPluginName { item.matchingDomain, item.name };
+    });
+}
+
+void PluginInfoStore::addSupportedPlugin(String&& domainName, String&& name, HashSet<String>&& mimeTypes, HashSet<String> extensions)
+{
+    if (!m_supportedPlugins)
+        m_supportedPlugins = Vector<SupportedPlugin> { };
+
+    m_supportedPlugins->append(SupportedPlugin { WTFMove(domainName), WTFMove(name), WTFMove(mimeTypes), WTFMove(extensions) });
 }
 
 PluginModuleInfo PluginInfoStore::infoForPluginWithPath(const String& pluginPath) const

@@ -1049,6 +1049,13 @@ static EncodedJSValue JSC_HOST_CALL functionDFGTrue(ExecState*)
     return JSValue::encode(jsBoolean(false));
 }
 
+// Returns true if the current frame is a FTL frame.
+// Usage: isFTL = $vm.ftlTrue()
+static EncodedJSValue JSC_HOST_CALL functionFTLTrue(ExecState*)
+{
+    return JSValue::encode(jsBoolean(false));
+}
+
 static EncodedJSValue JSC_HOST_CALL functionCpuMfence(ExecState*)
 {
 #if CPU(X86_64) && !OS(WINDOWS)
@@ -1118,7 +1125,6 @@ static EncodedJSValue JSC_HOST_CALL functionCpuClflush(ExecState* exec)
         case ALL_INT32_INDEXING_TYPES:
         case ALL_CONTIGUOUS_INDEXING_TYPES:
         case ALL_DOUBLE_INDEXING_TYPES:
-            toFlush.append(bitwise_cast<char*>(object) + JSObject::butterflyOffset());
             toFlush.append(bitwise_cast<char*>(object->butterfly()) + Butterfly::offsetOfVectorLength());
             toFlush.append(bitwise_cast<char*>(object->butterfly()) + Butterfly::offsetOfPublicLength());
         }
@@ -1160,6 +1166,22 @@ private:
     mutable JITCode::JITType m_jitType;
 };
 
+static FunctionExecutable* getExecutableForFunction(JSValue theFunctionValue)
+{
+    if (!theFunctionValue.isCell())
+        return nullptr;
+    
+    VM& vm = *theFunctionValue.asCell()->vm();
+    JSFunction* theFunction = jsDynamicCast<JSFunction*>(vm, theFunctionValue);
+    if (!theFunction)
+        return nullptr;
+    
+    FunctionExecutable* executable = jsDynamicCast<FunctionExecutable*>(vm,
+        theFunction->executable());
+
+    return executable;
+}
+
 // Returns true if the current frame is a LLInt frame.
 // Usage: isLLInt = $vm.llintTrue()
 static EncodedJSValue JSC_HOST_CALL functionLLintTrue(ExecState* exec)
@@ -1180,6 +1202,23 @@ static EncodedJSValue JSC_HOST_CALL functionJITTrue(ExecState* exec)
     CallerFrameJITTypeFunctor functor;
     exec->iterate(functor);
     return JSValue::encode(jsBoolean(functor.jitType() == JITCode::BaselineJIT));
+}
+
+// Set that the argument function should not be inlined.
+// Usage:
+// function f() { };
+// $vm.noInline(f);
+static EncodedJSValue JSC_HOST_CALL functionNoInline(ExecState* exec)
+{
+    if (exec->argumentCount() < 1)
+        return JSValue::encode(jsUndefined());
+    
+    JSValue theFunctionValue = exec->uncheckedArgument(0);
+
+    if (FunctionExecutable* executable = getExecutableForFunction(theFunctionValue))
+        executable->setNeverInline(true);
+    
+    return JSValue::encode(jsUndefined());
 }
 
 // Runs a full GC synchronously.
@@ -1727,6 +1766,7 @@ void JSDollarVM::finishCreation(VM& vm)
     addFunction(vm, "crash", functionCrash, 0);
 
     putDirectNativeFunction(vm, globalObject, Identifier::fromString(&vm, "dfgTrue"), 0, functionDFGTrue, DFGTrueIntrinsic, static_cast<unsigned>(PropertyAttribute::DontEnum));
+    putDirectNativeFunction(vm, globalObject, Identifier::fromString(&vm, "ftlTrue"), 0, functionFTLTrue, FTLTrueIntrinsic, static_cast<unsigned>(PropertyAttribute::DontEnum));
 
     putDirectNativeFunction(vm, globalObject, Identifier::fromString(&vm, "cpuMfence"), 0, functionCpuMfence, CPUMfenceIntrinsic, 0);
     putDirectNativeFunction(vm, globalObject, Identifier::fromString(&vm, "cpuRdtsc"), 0, functionCpuRdtsc, CPURdtscIntrinsic, 0);
@@ -1736,6 +1776,8 @@ void JSDollarVM::finishCreation(VM& vm)
 
     addFunction(vm, "llintTrue", functionLLintTrue, 0);
     addFunction(vm, "jitTrue", functionJITTrue, 0);
+
+    addFunction(vm, "noInline", functionNoInline, 1);
 
     addFunction(vm, "gc", functionGC, 0);
     addFunction(vm, "edenGC", functionEdenGC, 0);

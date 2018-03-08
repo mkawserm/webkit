@@ -242,7 +242,7 @@ bool RenderStyle::isCSSGridLayoutEnabled()
 
 static StyleSelfAlignmentData resolvedSelfAlignment(const StyleSelfAlignmentData& value, ItemPosition normalValueBehavior)
 {
-    if (value.position() == ItemPositionNormal || value.position() == ItemPositionAuto)
+    if (value.position() == ItemPositionLegacy || value.position() == ItemPositionNormal || value.position() == ItemPositionAuto)
         return { normalValueBehavior, OverflowAlignmentDefault };
     return value;
 }
@@ -263,11 +263,6 @@ StyleSelfAlignmentData RenderStyle::resolvedAlignSelf(const RenderStyle* parentS
 
 StyleSelfAlignmentData RenderStyle::resolvedJustifyItems(ItemPosition normalValueBehaviour) const
 {
-    // FIXME: justify-items 'auto' value is allowed only to provide the 'legacy' keyword's behavior, which it's still not implemented for layout.
-    // "If the inherited value of justify-items includes the legacy keyword, auto computes to the inherited value."
-    // https://drafts.csswg.org/css-align/#justify-items-property
-    if (justifyItems().position() == ItemPositionAuto)
-        return { normalValueBehaviour, OverflowAlignmentDefault };
     return resolvedSelfAlignment(justifyItems(), normalValueBehaviour);
 }
 
@@ -1354,13 +1349,6 @@ CounterDirectiveMap& RenderStyle::accessCounterDirectives()
     if (!map)
         map = std::make_unique<CounterDirectiveMap>();
     return *map;
-}
-
-const CounterDirectives RenderStyle::getCounterDirectives(const AtomicString& identifier) const
-{
-    if (const CounterDirectiveMap* directives = counterDirectives())
-        return directives->get(identifier);
-    return CounterDirectives();
 }
 
 const AtomicString& RenderStyle::hyphenString() const

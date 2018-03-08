@@ -48,7 +48,7 @@ struct ServiceWorkerRegistrationData;
 
 class ServiceWorkerJob : public ThreadSafeRefCounted<ServiceWorkerJob>, public WorkerScriptLoaderClient {
 public:
-    static Ref<ServiceWorkerJob> create(ServiceWorkerJobClient& client, Ref<DeferredPromise>&& promise, ServiceWorkerJobData&& jobData)
+    static Ref<ServiceWorkerJob> create(ServiceWorkerJobClient& client, RefPtr<DeferredPromise>&& promise, ServiceWorkerJobData&& jobData)
     {
         return adoptRef(*new ServiceWorkerJob(client, WTFMove(promise), WTFMove(jobData)));
     }
@@ -58,20 +58,22 @@ public:
     void failedWithException(const Exception&);
     void resolvedWithRegistration(ServiceWorkerRegistrationData&&, ShouldNotifyWhenResolved);
     void resolvedWithUnregistrationResult(bool);
-    void startScriptFetch();
+    void startScriptFetch(FetchOptions::Cache);
 
     using Identifier = ServiceWorkerJobIdentifier;
     Identifier identifier() const { return m_jobData.identifier().jobIdentifier; }
 
-    ServiceWorkerJobData data() const { return m_jobData; }
-    DeferredPromise& promise() { return m_promise.get(); }
+    const ServiceWorkerJobData& data() const { return m_jobData; }
+    DeferredPromise* promise() { return m_promise.get(); }
 
-    void fetchScriptWithContext(ScriptExecutionContext&);
+    void fetchScriptWithContext(ScriptExecutionContext&, FetchOptions::Cache);
 
     const DocumentOrWorkerIdentifier& contextIdentifier() { return m_contextIdentifier; }
 
+    void cancelPendingLoad();
+
 private:
-    ServiceWorkerJob(ServiceWorkerJobClient&, Ref<DeferredPromise>&&, ServiceWorkerJobData&&);
+    ServiceWorkerJob(ServiceWorkerJobClient&, RefPtr<DeferredPromise>&&, ServiceWorkerJobData&&);
 
     // WorkerScriptLoaderClient
     void didReceiveResponse(unsigned long identifier, const ResourceResponse&) final;
@@ -81,13 +83,12 @@ private:
 
     Ref<ServiceWorkerJobClient> m_client;
     ServiceWorkerJobData m_jobData;
-    Ref<DeferredPromise> m_promise;
+    RefPtr<DeferredPromise> m_promise;
 
     bool m_completed { false };
 
     DocumentOrWorkerIdentifier m_contextIdentifier;
     RefPtr<WorkerScriptLoader> m_scriptLoader;
-    ResourceResponse m_lastResponse;
 
 #if !ASSERT_DISABLED
     Ref<Thread> m_creationThread { Thread::current() };

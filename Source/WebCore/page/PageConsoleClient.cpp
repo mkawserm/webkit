@@ -40,16 +40,17 @@
 #include "JSCanvasRenderingContext2D.h"
 #include "JSHTMLCanvasElement.h"
 #include "JSMainThreadExecState.h"
+#include "JSOffscreenCanvas.h"
 #include "MainFrame.h"
+#include "OffscreenCanvas.h"
 #include "Page.h"
 #include "ScriptableDocumentParser.h"
 #include "Settings.h"
-#include <bindings/ScriptValue.h>
-#include <inspector/ConsoleMessage.h>
-#include <inspector/ScriptArguments.h>
-#include <inspector/ScriptCallStack.h>
-#include <inspector/ScriptCallStackFactory.h>
-#include <runtime/JSCInlines.h>
+#include <JavaScriptCore/ConsoleMessage.h>
+#include <JavaScriptCore/JSCInlines.h>
+#include <JavaScriptCore/ScriptArguments.h>
+#include <JavaScriptCore/ScriptCallStack.h>
+#include <JavaScriptCore/ScriptCallStackFactory.h>
 #include <wtf/text/WTFString.h>
 
 #if ENABLE(WEBGL)
@@ -218,52 +219,40 @@ void PageConsoleClient::timeStamp(JSC::ExecState*, Ref<ScriptArguments>&& argume
     InspectorInstrumentation::consoleTimeStamp(m_page.mainFrame(), WTFMove(arguments));
 }
 
-void PageConsoleClient::record(JSC::ExecState* exec, Ref<ScriptArguments>&& arguments)
+static JSC::JSObject* objectArgumentAt(ScriptArguments& arguments, unsigned index)
 {
-    if (arguments->argumentCount() < 1)
-        return;
-
-    JSC::JSObject* target = arguments->argumentAt(0).jsValue().getObject();
-    if (!target)
-        return;
-
-    JSC::JSObject* options = nullptr;
-    if (arguments->argumentCount() >= 2)
-        options = arguments->argumentAt(1).jsValue().getObject();
-
-    if (HTMLCanvasElement* canvasElement = JSHTMLCanvasElement::toWrapped(*target->vm(), target))
-        InspectorInstrumentation::consoleStartRecordingCanvas(*canvasElement, *exec, options);
-    else if (CanvasRenderingContext2D* context2d = JSCanvasRenderingContext2D::toWrapped(*target->vm(), target))
-        InspectorInstrumentation::consoleStartRecordingCanvas(context2d->canvas(), *exec, options);
-#if ENABLE(WEBGL)
-    else if (WebGLRenderingContext* contextWebGL = JSWebGLRenderingContext::toWrapped(*target->vm(), target)) {
-        auto canvas = contextWebGL->canvas();
-        if (WTF::holds_alternative<RefPtr<HTMLCanvasElement>>(canvas))
-            InspectorInstrumentation::consoleStartRecordingCanvas(*WTF::get<RefPtr<HTMLCanvasElement>>(canvas), *exec, options);
-    }
-#endif
+    return arguments.argumentCount() > index ? arguments.argumentAt(index).getObject() : nullptr;
 }
 
-void PageConsoleClient::recordEnd(JSC::ExecState*, Ref<ScriptArguments>&& arguments)
+static CanvasRenderingContext* canvasRenderingContext(JSC::VM& vm, ScriptArguments& arguments)
 {
-    if (arguments->argumentCount() < 1)
-        return;
-
-    JSC::JSObject* target = arguments->argumentAt(0).jsValue().getObject();
+    auto* target = objectArgumentAt(arguments, 0);
     if (!target)
-        return;
+        return nullptr;
 
-    if (HTMLCanvasElement* canvasElement = JSHTMLCanvasElement::toWrapped(*target->vm(), target))
-        InspectorInstrumentation::didFinishRecordingCanvasFrame(*canvasElement, true);
-    else if (CanvasRenderingContext2D* context2d = JSCanvasRenderingContext2D::toWrapped(*target->vm(), target))
-        InspectorInstrumentation::didFinishRecordingCanvasFrame(context2d->canvas(), true);
+    if (auto* canvas = JSHTMLCanvasElement::toWrapped(vm, target))
+        return canvas->renderingContext();
+    if (auto* canvas = JSOffscreenCanvas::toWrapped(vm, target))
+        return canvas->renderingContext();
+    if (auto* context = JSCanvasRenderingContext2D::toWrapped(vm, target))
+        return context;
 #if ENABLE(WEBGL)
-    else if (WebGLRenderingContext* contextWebGL = JSWebGLRenderingContext::toWrapped(*target->vm(), target)) {
-        auto canvas = contextWebGL->canvas();
-        if (WTF::holds_alternative<RefPtr<HTMLCanvasElement>>(canvas))
-            InspectorInstrumentation::didFinishRecordingCanvasFrame(*WTF::get<RefPtr<HTMLCanvasElement>>(canvas), true);
-    }
+    if (auto* context = JSWebGLRenderingContext::toWrapped(vm, target))
+        return context;
 #endif
+    return nullptr;
+}
+
+void PageConsoleClient::record(JSC::ExecState* state, Ref<ScriptArguments>&& arguments)
+{
+    if (auto* context = canvasRenderingContext(state->vm(), arguments))
+        InspectorInstrumentation::consoleStartRecordingCanvas(*context, *state, objectArgumentAt(arguments, 1));
+}
+
+void PageConsoleClient::recordEnd(JSC::ExecState* state, Ref<ScriptArguments>&& arguments)
+{
+    if (auto* context = canvasRenderingContext(state->vm(), arguments))
+        InspectorInstrumentation::didFinishRecordingCanvasFrame(*context, true);
 }
 
 } // namespace WebCore

@@ -32,6 +32,8 @@
 #include "WebPageProxy.h"
 #include "WebPasteboardProxy.h"
 #include "WebProcessPool.h"
+#include "WebsiteDataStore.h"
+#include "WebsitePoliciesData.h"
 #include <WebCore/Image.h>
 #include <WebCore/MIMETypeRegistry.h>
 #include <stdio.h>
@@ -175,14 +177,14 @@ void WebFrameProxy::didChangeTitle(const String& title)
     m_title = title;
 }
 
-void WebFrameProxy::receivedPolicyDecision(PolicyAction action, uint64_t listenerID, API::Navigation* navigation, std::optional<WebsitePolicies>&& websitePolicies)
+void WebFrameProxy::receivedPolicyDecision(PolicyAction action, uint64_t listenerID, API::Navigation* navigation, std::optional<WebsitePoliciesData>&& data)
 {
     if (!m_page)
         return;
 
     ASSERT(m_activeListener);
     ASSERT(m_activeListener->listenerID() == listenerID);
-    m_page->receivedPolicyDecision(action, *this, listenerID, navigation, WTFMove(websitePolicies));
+    m_page->receivedPolicyDecision(action, *this, listenerID, navigation, WTFMove(data));
 }
 
 WebFramePolicyListenerProxy& WebFrameProxy::setUpPolicyListenerProxy(uint64_t listenerID)
@@ -191,6 +193,14 @@ WebFramePolicyListenerProxy& WebFrameProxy::setUpPolicyListenerProxy(uint64_t li
         m_activeListener->invalidate();
     m_activeListener = WebFramePolicyListenerProxy::create(this, listenerID);
     return *static_cast<WebFramePolicyListenerProxy*>(m_activeListener.get());
+}
+
+void WebFrameProxy::changeWebsiteDataStore(WebsiteDataStore& websiteDataStore)
+{
+    if (!m_page)
+        return;
+
+    m_page->changeWebsiteDataStore(websiteDataStore);
 }
 
 void WebFrameProxy::getWebArchive(Function<void (API::Data*, CallbackBase::Error)>&& callbackFunction)

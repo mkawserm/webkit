@@ -50,6 +50,7 @@
 #import <WebCore/DictionaryLookup.h>
 #import <WebCore/DragItem.h>
 #import <WebCore/GraphicsLayer.h>
+#import <WebCore/LegacyNSPasteboardTypes.h>
 #import <WebCore/RuntimeApplicationChecks.h>
 #import <WebCore/SharedBuffer.h>
 #import <WebCore/TextAlternativeWithRange.h>
@@ -119,8 +120,8 @@ void WebPageProxy::searchWithSpotlight(const String& string)
 void WebPageProxy::searchTheWeb(const String& string)
 {
     NSPasteboard *pasteboard = [NSPasteboard pasteboardWithUniqueName];
-    [pasteboard declareTypes:[NSArray arrayWithObject:NSStringPboardType] owner:nil];
-    [pasteboard setString:string forType:NSStringPboardType];
+    [pasteboard declareTypes:[NSArray arrayWithObject:legacyStringPasteboardType()] owner:nil];
+    [pasteboard setString:string forType:legacyStringPasteboardType()];
     
     NSPerformService(@"Search With %WebSearchProvider@", pasteboard);
 }
@@ -265,13 +266,6 @@ void WebPageProxy::replaceSelectionWithPasteboardData(const Vector<String>& type
 #endif
 
 #if ENABLE(DRAG_SUPPORT)
-void WebPageProxy::startDrag(const DragItem& dragItem, const ShareableBitmap::Handle& dragImageHandle)
-{
-    if (auto dragImage = ShareableBitmap::create(dragImageHandle))
-        m_pageClient.setDragImage(dragItem.dragLocationInWindowCoordinates, dragImage.releaseNonNull(), static_cast<DragSourceAction>(dragItem.sourceAction));
-
-    didStartDrag();
-}
 
 void WebPageProxy::setPromisedDataForImage(const String& pasteboardName, const SharedMemory::Handle& imageHandle, uint64_t imageSize, const String& filename, const String& extension,
                                    const String& title, const String& url, const String& visibleURL, const SharedMemory::Handle& archiveHandle, uint64_t archiveSize)
@@ -289,14 +283,6 @@ void WebPageProxy::setPromisedDataForImage(const String& pasteboardName, const S
     m_pageClient.setPromisedDataForImage(pasteboardName, WTFMove(imageBuffer), filename, extension, title, url, visibleURL, WTFMove(archiveBuffer));
 }
 
-#if ENABLE(ATTACHMENT_ELEMENT)
-void WebPageProxy::setPromisedDataForAttachment(const String& pasteboardName, const String& filename, const String& extension, const String& title, const String& url, const String& visibleURL)
-{
-    MESSAGE_CHECK_URL(url);
-    MESSAGE_CHECK_URL(visibleURL);
-    m_pageClient.setPromisedDataForAttachment(pasteboardName, filename, extension, title, url, visibleURL);
-}
-#endif
 #endif
 
 void WebPageProxy::performDictionaryLookupAtLocation(const WebCore::FloatPoint& point)
@@ -365,6 +351,11 @@ void WebPageProxy::registerWebProcessAccessibilityToken(const IPC::DataReference
 void WebPageProxy::makeFirstResponder()
 {
     m_pageClient.makeFirstResponder();
+}
+
+void WebPageProxy::assistiveTechnologyMakeFirstResponder()
+{
+    m_pageClient.assistiveTechnologyMakeFirstResponder();
 }
 
 ColorSpaceData WebPageProxy::colorSpace()
@@ -552,6 +543,11 @@ bool WebPageProxy::appleMailPaginationQuirkEnabled()
     return MacApplication::isAppleMail();
 }
 
+bool WebPageProxy::appleMailLinesClampEnabled()
+{
+    return MacApplication::isAppleMail();
+}
+    
 void WebPageProxy::setFont(const String& fontFamily, double fontSize, uint64_t fontTraits)
 {
     if (!isValid())

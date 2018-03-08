@@ -66,7 +66,7 @@
 #include "ScriptController.h"
 #include "ScriptProcessorNode.h"
 #include "WaveShaperNode.h"
-#include <inspector/ScriptCallStack.h>
+#include <JavaScriptCore/ScriptCallStack.h>
 
 #if ENABLE(MEDIA_STREAM)
 #include "MediaStream.h"
@@ -93,7 +93,7 @@
 #include "Settings.h"
 #endif
 
-#include <runtime/ArrayBuffer.h>
+#include <JavaScriptCore/ArrayBuffer.h>
 #include <wtf/Atomics.h>
 #include <wtf/MainThread.h>
 #include <wtf/Ref.h>
@@ -161,10 +161,6 @@ void AudioContext::constructCommon()
     // According to spec AudioContext must die only after page navigate.
     // Lets mark it as ActiveDOMObject with pending activity and unmark it in clear method.
     setPendingActivity(this);
-
-#if USE(GSTREAMER)
-    initializeGStreamer();
-#endif
 
     FFTFrame::initialize();
     

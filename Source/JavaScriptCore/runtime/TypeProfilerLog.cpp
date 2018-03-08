@@ -32,7 +32,6 @@
 #include "JSCInlines.h"
 #include "SlotVisitor.h"
 #include "TypeLocation.h"
-#include <wtf/CurrentTime.h>
 
 
 namespace JSC {
@@ -41,13 +40,13 @@ namespace TypeProfilerLogInternal {
 static const bool verbose = false;
 }
 
-void TypeProfilerLog::initializeLog()
+TypeProfilerLog::TypeProfilerLog()
+    : m_logSize(50000)
+    , m_logStartPtr(new LogEntry[m_logSize])
+    , m_currentLogEntryPtr(m_logStartPtr)
+    , m_logEndPtr(m_logStartPtr + m_logSize)
 {
-    ASSERT(!m_logStartPtr);
-    m_logSize = 50000;
-    m_logStartPtr = new LogEntry[m_logSize];
-    m_currentLogEntryPtr = m_logStartPtr;
-    m_logEndPtr = m_logStartPtr + m_logSize;
+    ASSERT(m_logStartPtr);
 }
 
 TypeProfilerLog::~TypeProfilerLog()
@@ -57,10 +56,10 @@ TypeProfilerLog::~TypeProfilerLog()
 
 void TypeProfilerLog::processLogEntries(const String& reason)
 {
-    double before = 0;
+    MonotonicTime before { };
     if (TypeProfilerLogInternal::verbose) {
         dataLog("Process caller:'", reason, "'");
-        before = currentTimeMS();
+        before = MonotonicTime::now();
     }
 
     HashMap<Structure*, RefPtr<StructureShape>> cachedMonoProtoShapes;
@@ -114,8 +113,8 @@ void TypeProfilerLog::processLogEntries(const String& reason)
     m_currentLogEntryPtr = m_logStartPtr;
 
     if (TypeProfilerLogInternal::verbose) {
-        double after = currentTimeMS();
-        dataLogF(" Processing the log took: '%f' ms\n", after - before);
+        MonotonicTime after = MonotonicTime::now();
+        dataLogF(" Processing the log took: '%f' ms\n", (after - before).milliseconds());
     }
 }
 

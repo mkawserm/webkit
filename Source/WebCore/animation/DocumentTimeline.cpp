@@ -69,7 +69,7 @@ void DocumentTimeline::detachFromDocument()
 
 std::optional<Seconds> DocumentTimeline::currentTime()
 {
-    if (m_paused || !m_document)
+    if (m_paused || !m_document || !m_document->domWindow())
         return AnimationTimeline::currentTime();
 
     if (!m_cachedCurrentTime) {
@@ -84,7 +84,7 @@ void DocumentTimeline::pause()
     m_paused = true;
 }
 
-void DocumentTimeline::animationTimingModelDidChange()
+void DocumentTimeline::timingModelDidChange()
 {
     if (m_needsUpdateAnimationSchedule)
         return;
@@ -176,7 +176,7 @@ void DocumentTimeline::updateAnimations()
         animation->updateFinishedState(WebAnimation::DidSeek::No, WebAnimation::SynchronouslyNotify::No);
 
     // Time has advanced, the timing model requires invalidation now.
-    animationTimingModelDidChange();
+    timingModelDidChange();
 }
 
 std::unique_ptr<RenderStyle> DocumentTimeline::animatedStyleForRenderer(RenderElement& renderer)

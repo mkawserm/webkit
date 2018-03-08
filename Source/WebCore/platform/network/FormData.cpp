@@ -143,7 +143,7 @@ uint64_t FormDataElement::lengthInBytes() const
         return 0;
     }
     case Type::EncodedBlob:
-        return blobRegistry().blobSize(m_url);
+        return ThreadableBlobRegistry::blobSize(m_url);
     }
     ASSERT_NOT_REACHED();
     return 0;
@@ -438,6 +438,15 @@ RefPtr<SharedBuffer> FormData::asSharedBuffer() const
             return nullptr;
     }
     return SharedBuffer::create(flatten());
+}
+
+URL FormData::asBlobURL() const
+{
+    if (m_elements.size() != 1)
+        return { };
+
+    ASSERT(m_elements.first().m_type == FormDataElement::Type::EncodedBlob || m_elements.first().m_url.isNull());
+    return m_elements.first().m_url;
 }
 
 } // namespace WebCore

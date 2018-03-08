@@ -28,7 +28,7 @@
 #include <CoreFoundation/CoreFoundation.h>
 #include <CoreGraphics/CoreGraphics.h>
 
-#if USE(IOSURFACE)
+#if HAVE(IOSURFACE)
 #include <pal/spi/cocoa/IOSurfaceSPI.h>
 #endif
 
@@ -249,16 +249,7 @@ bool CGContextGetAllowsFontSubpixelPositioning(CGContextRef);
 bool CGContextDrawsWithCorrectShadowOffsets(CGContextRef);
 CGPatternRef CGPatternCreateWithImage2(CGImageRef, CGAffineTransform, CGPatternTiling);
 
-#if (PLATFORM(MAC) && __MAC_OS_X_VERSION_MIN_REQUIRED >= 101200) || PLATFORM(IOS)
-bool CGColorSpaceUsesExtendedRange(CGColorSpaceRef);
-
-typedef struct CGPDFAnnotation *CGPDFAnnotationRef;
-typedef bool (^CGPDFAnnotationDrawCallbackType)(CGContextRef context, CGPDFPageRef page, CGPDFAnnotationRef annotation);
-void CGContextDrawPDFPageWithAnnotations(CGContextRef, CGPDFPageRef, CGPDFAnnotationDrawCallbackType);
-void CGContextDrawPathDirect(CGContextRef, CGPathDrawingMode, CGPathRef, const CGRect* boundingBox);
-#endif
-
-#if USE(IOSURFACE)
+#if HAVE(IOSURFACE)
 CGContextRef CGIOSurfaceContextCreate(IOSurfaceRef, size_t, size_t, size_t, size_t, CGColorSpaceRef, CGBitmapInfo);
 CGImageRef CGIOSurfaceContextCreateImage(CGContextRef);
 CGImageRef CGIOSurfaceContextCreateImageReference(CGContextRef);
@@ -266,7 +257,15 @@ CGColorSpaceRef CGIOSurfaceContextGetColorSpace(CGContextRef);
 #endif
 
 #if PLATFORM(COCOA)
+bool CGColorSpaceUsesExtendedRange(CGColorSpaceRef);
+
+typedef struct CGPDFAnnotation *CGPDFAnnotationRef;
+typedef bool (^CGPDFAnnotationDrawCallbackType)(CGContextRef context, CGPDFPageRef page, CGPDFAnnotationRef annotation);
+void CGContextDrawPDFPageWithAnnotations(CGContextRef, CGPDFPageRef, CGPDFAnnotationDrawCallbackType);
+void CGContextDrawPathDirect(CGContextRef, CGPathDrawingMode, CGPathRef, const CGRect* boundingBox);
+
 CGColorSpaceRef CGContextCopyDeviceColorSpace(CGContextRef);
+CFPropertyListRef CGColorSpaceCopyPropertyList(CGColorSpaceRef);
 CGError CGSNewRegionWithRect(const CGRect*, CGRegionRef*);
 CGError CGSPackagesEnableConnectionOcclusionNotifications(CGSConnectionID, bool flag, bool* outCurrentVisibilityState);
 CGError CGSPackagesEnableConnectionWindowModificationNotifications(CGSConnectionID, bool flag, bool* outConnectionIsCurrentlyIdle);
@@ -296,6 +295,10 @@ CGError CGSGetScreenRectForWindow(CGSConnectionID, CGSWindowID, CGRect *);
 CGError CGSRegisterConnectionNotifyProc(CGSConnectionID, CGSNotifyConnectionProcPtr, CGSNotificationType, void* arg);
 CGError CGSRegisterNotifyProc(CGSNotifyProcPtr, CGSNotificationType, void* arg);
 bool ColorSyncProfileIsWideGamut(ColorSyncProfileRef);
+
+size_t CGDisplayModeGetPixelsWide(CGDisplayModeRef);
+size_t CGDisplayModeGetPixelsHigh(CGDisplayModeRef);
+
 #endif
 
 WTF_EXTERN_C_END

@@ -876,9 +876,6 @@ fast/transforms/transformed-focused-text-input.html [ Failure ]
 fast/writing-mode/Kusa-Makura-background-canvas.html [ Failure ]
 http/tests/navigation/page-cache-iframe-no-current-historyItem.html [ Failure ]
 
-# XMLHttpRequest tests that fail
-webkit.org/b/82672 http/tests/xmlhttprequest/range-test.html [ Failure ]
-
 # JavaScripts tests that fail:
 js/dom/deep-recursion-test.html [ Failure ]
 
@@ -1096,6 +1093,13 @@ http/tests/security/redirect-BLOCKED-to-localURL.html [ Failure ]
 http/tests/security/video-cross-origin-accessfailure.html [ Failure ]
 http/tests/security/video-cross-origin-readback.html [ Failure ]
 http/tests/security/xssAuditor/link-opens-new-window.html [ Failure ]
+
+http/tests/plugins/nounsupported-plugin.html [ Skip ]
+http/tests/plugins/supported-plugin-all-origin-visibility.html [ Skip ]
+http/tests/plugins/supported-plugin-origin-specific-visibility.html [ Skip ]
+http/tests/plugins/supported-plugin-on-specific-origin.html [ Skip ]
+http/tests/plugins/unsupported-plugin-on-specific-origin.html [ Skip ]
+plugins/unsupported-plugin.html [ Skip ]
 
 # HTTP tests that assert:
 http/tests/navigation/metaredirect-basic.html
@@ -1330,6 +1334,7 @@ webkit.org/b/156069 http/tests/download/anchor-download-no-value.html [ Skip ]
 
 # testRunner.setShouldDownloadUndisplayableMIMETypes() is not supported on WK1.
 fast/dom/HTMLAnchorElement/anchor-file-blob-convert-to-download.html [ Skip ]
+fast/dom/HTMLAnchorElement/anchor-file-blob-convert-to-download-async-delegate.html [ Skip ]
 
 webkit.org/b/137572 scrollbars/scrollbar-iframe-click-does-not-blur-content.html [ Failure ]
 
@@ -1441,7 +1446,7 @@ imported/blink/svg/custom/svg-root-with-opacity.html [ Pass ImageOnlyFailure ]
 imported/mozilla/svg/filters/feImage-1.svg [ Pass ImageOnlyFailure ]
 imported/mozilla/svg/text-scale-02.svg [ Pass ImageOnlyFailure ]
 imported/mozilla/svg/text/clipPath-applied.svg [ Pass ImageOnlyFailure ]
-imported/w3c/css/css-multicol-1/multicol-rule-large-001.xht [ Pass ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-multicol/multicol-rule-large-001.xht [ Pass ImageOnlyFailure ]
 perf/mouse-event.html [ Pass Failure ]
 platform/ios/ios/fast/fixed/auto-position-fixed.html [ Pass Failure ]
 svg/transforms/transformed-text-fill-pattern.html [ Pass ImageOnlyFailure ]
@@ -1588,7 +1593,7 @@ imported/mozilla/svg/filters/filter-marked-line-06.svg [ Pass ImageOnlyFailure ]
 imported/mozilla/svg/filters/filter-marked-line-07.svg [ Pass ImageOnlyFailure ]
 imported/mozilla/svg/filters/filter-marked-line-08.svg [ Pass ImageOnlyFailure ]
 imported/mozilla/svg/filters/filter-marked-line-09.svg [ Pass ImageOnlyFailure ]
-imported/w3c/css/css-multicol-1/multicol-nested-column-rule-001.xht [ Pass ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-multicol/multicol-nested-column-rule-001.xht [ Pass ImageOnlyFailure ]
 js/large-expressions.html [ Failure Pass ]
 perf/append-text-nodes-without-renderers.html [ Pass Failure ]
 perf/show-hide-table-rows.html [ Pass Failure ]
@@ -1754,8 +1759,8 @@ imported/blink/compositing/squashing/attempting-to-squash-into-compositing-conta
 imported/blink/compositing/squashing/attempting-to-squash-into-stacking-ancestor.html [ Pass ImageOnlyFailure ]
 imported/blink/compositing/squashing/squashed-clip-parent.html [ Pass ImageOnlyFailure ]
 imported/blink/editing/style/justify-left-crash.html [ Pass ImageOnlyFailure ]
-imported/w3c/css/css-multicol-1/multicol-fill-auto-block-children-002.xht [ Pass ImageOnlyFailure ]
-imported/w3c/css/css-multicol-1/multicol-nested-margin-002.xht [ Pass ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-multicol/multicol-fill-auto-block-children-002.xht [ Pass ImageOnlyFailure ]
+imported/w3c/web-platform-tests/css/css-multicol/multicol-nested-margin-002.xht [ Pass ImageOnlyFailure ]
 imported/w3c/web-platform-tests/html/browsers/offline/browser-state/navigator_online_online.html [ Failure Pass ]
 svg/animations/reset-animation-crash.html [ Pass ImageOnlyFailure ]
 svg/css/use-window-inactive-crash.html [ Pass ImageOnlyFailure ]
@@ -1906,3 +1911,12 @@ webkit.org/b/178490 fast/text/scroll-text-overflow-ellipsis.html [ Skip ]
 
 # User-installed fonts test infrastructure is not present in WK1
 webkit.org/b/180062 fast/text/user-installed-fonts [ ImageOnlyFailure ]
+
+# rdar://problem/34716163 Breaks subsequent tests using response.xml
+http/tests/xmlhttprequest/range-test.html [ Skip ]
+
+# Skip anything related to WebAuthN
+http/tests/webauthn/ [ Skip ]
+http/wpt/credential-management/ [ Skip ]
+http/wpt/webauthn/ [ Skip ]
+imported/w3c/web-platform-tests/credential-management/ [ Skip ]

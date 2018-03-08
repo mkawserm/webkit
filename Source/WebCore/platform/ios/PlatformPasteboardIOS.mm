@@ -26,12 +26,15 @@
 #import "config.h"
 #import "PlatformPasteboard.h"
 
+#if PLATFORM(IOS)
+
 #import "Color.h"
 #import "Image.h"
 #import "Pasteboard.h"
 #import "SharedBuffer.h"
 #import "URL.h"
 #import "UTIUtilities.h"
+#import "WebCoreNSURLExtras.h"
 #import "WebItemProviderPasteboard.h"
 #import <MobileCoreServices/MobileCoreServices.h>
 #import <UIKit/UIImage.h>
@@ -102,17 +105,48 @@ int PlatformPasteboard::numberOfFiles() const
     return [m_pasteboard respondsToSelector:@selector(numberOfFiles)] ? [m_pasteboard numberOfFiles] : 0;
 }
 
-Vector<String> PlatformPasteboard::filenamesForDataInteraction()
+#if PASTEBOARD_SUPPORTS_ITEM_PROVIDERS
+
+static PasteboardItemPresentationStyle pasteboardItemPresentationStyle(UIPreferredPresentationStyle style)
 {
-    if (![m_pasteboard respondsToSelector:@selector(droppedFileURLs)])
+    switch (style) {
+    case UIPreferredPresentationStyleUnspecified:
+        return PasteboardItemPresentationStyle::Unspecified;
+    case UIPreferredPresentationStyleInline:
+        return PasteboardItemPresentationStyle::Inline;
+    case UIPreferredPresentationStyleAttachment:
+        return PasteboardItemPresentationStyle::Attachment;
+    default:
+        ASSERT_NOT_REACHED();
+        return PasteboardItemPresentationStyle::Unspecified;
+    }
+}
+
+PasteboardItemInfo PlatformPasteboard::informationForItemAtIndex(int index)
+{
+    if (index >= [m_pasteboard numberOfItems])
         return { };
 
-    Vector<String> filenames;
-    for (NSURL *fileURL in [m_pasteboard droppedFileURLs])
-        filenames.append(fileURL.path);
+    PasteboardItemInfo info;
+    if ([m_pasteboard respondsToSelector:@selector(preferredFileUploadURLAtIndex:fileType:)]) {
+        NSString *fileType = nil;
+        info.pathForFileUpload = [m_pasteboard preferredFileUploadURLAtIndex:index fileType:&fileType].path;
+        info.contentTypeForFileUpload = fileType;
+    }
 
-    return filenames;
+    NSItemProvider *itemProvider = [[m_pasteboard itemProviders] objectAtIndex:index];
+    info.preferredPresentationStyle = pasteboardItemPresentationStyle(itemProvider.preferredPresentationStyle);
+    return info;
 }
+
+#else
+
+PasteboardItemInfo PlatformPasteboard::informationForItemAtIndex(int)
+{
+    return { };
+}
+
+#endif
 
 static bool pasteboardMayContainFilePaths(id<AbstractPasteboard> pasteboard)
 {
@@ -265,7 +299,7 @@ void PlatformPasteboard::write(const PasteboardWebContent& content)
         [representationsToRegister addData:content.dataInWebArchiveFormat->createNSData().get() forType:WebArchivePboardType];
 
     if (content.dataInAttributedStringFormat) {
-        NSAttributedString *attributedString = insecurelyUnarchiveObjectOfClassFromData(content.dataInAttributedStringFormat->createNSData().get());
+        NSAttributedString *attributedString = unarchivedObjectOfClassesFromData([NSSet setWithObject:[NSAttributedString class]], content.dataInAttributedStringFormat->createNSData().get());
         if (attributedString)
             [representationsToRegister addRepresentingObject:attributedString];
     }
@@ -315,9 +349,10 @@ void PlatformPasteboard::write(const PasteboardImage& pasteboardImage)
     // FIXME: When writing a PasteboardImage, we currently always place the image data at a higer fidelity than the
     // associated image URL. However, in the case of an image enclosed by an anchor, we might want to consider the
     // the URL (i.e. the anchor's href attribute) to be a higher fidelity representation.
-    if (!pasteboardImage.url.url.isEmpty()) {
-        if (NSURL *nsURL = pasteboardImage.url.url)
-            [representationsToRegister addRepresentingObject:nsURL];
+    auto& pasteboardURL = pasteboardImage.url;
+    if (NSURL *nsURL = pasteboardURL.url) {
+        nsURL._title = pasteboardURL.title.isEmpty() ? userVisibleString(pasteboardURL.url) : (NSString *)pasteboardURL.title;
+        [representationsToRegister addRepresentingObject:nsURL];
     }
 
     registerItemToPasteboard(representationsToRegister.get(), m_pasteboard.get());
@@ -349,6 +384,7 @@ void PlatformPasteboard::write(const PasteboardURL& url)
         if (!url.title.isEmpty())
             nsURL._title = url.title;
         [representationsToRegister addRepresentingObject:nsURL];
+        [representationsToRegister addRepresentingObject:(NSString *)url.url.string()];
     }
 
     registerItemToPasteboard(representationsToRegister.get(), m_pasteboard.get());
@@ -380,7 +416,7 @@ Vector<String> PlatformPasteboard::typesSafeForDOMToReadAndWrite(const String& o
         if (!provider.teamData.length)
             continue;
 
-        NSDictionary *teamDataObject = insecurelyUnarchiveObjectOfClassFromData(provider.teamData);
+        NSDictionary *teamDataObject = unarchivedObjectOfClassesFromData([NSSet setWithObjects:[NSDictionary class], [NSString class], [NSArray class], nil], provider.teamData);
         if (!teamDataObject)
             continue;
 
@@ -445,7 +481,7 @@ long PlatformPasteboard::write(const PasteboardCustomData& data)
             NSMutableArray<NSString *> *typesAsNSArray = [NSMutableArray array];
             for (auto& type : data.orderedTypes)
                 [typesAsNSArray addObject:type];
-            [representationsToRegister setTeamData:insecurelyArchivedDataWithRootObject(@{ @(originKeyForTeamData) : data.origin, @(customTypesKeyForTeamData) : typesAsNSArray })];
+            [representationsToRegister setTeamData:securelyArchivedDataWithRootObject(@{ @(originKeyForTeamData) : data.origin, @(customTypesKeyForTeamData) : typesAsNSArray })];
             [representationsToRegister addData:serializedSharedBuffer.get() forType:@(PasteboardCustomData::cocoaType())];
         }
     }
@@ -609,3 +645,5 @@ void PlatformPasteboard::updateSupportedTypeIdentifiers(const Vector<String>& ty
 }
 
 }
+
+#endif // PLATFORM(IOS)

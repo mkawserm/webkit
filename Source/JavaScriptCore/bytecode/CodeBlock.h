@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2017 Apple Inc. All rights reserved.
+ * Copyright (C) 2008-2018 Apple Inc. All rights reserved.
  * Copyright (C) 2008 Cameron Zwarich <cwzwarich@uwaterloo.ca>
  *
  * Redistribution and use in source and binary forms, with or without
@@ -40,7 +40,6 @@
 #include "CompilationResult.h"
 #include "ConcurrentJSLock.h"
 #include "DFGCommon.h"
-#include "DFGExitProfile.h"
 #include "DirectEvalCodeCache.h"
 #include "EvalExecutable.h"
 #include "ExecutionCounter.h"
@@ -50,7 +49,8 @@
 #include "Instruction.h"
 #include "JITCode.h"
 #include "JITMathICForwards.h"
-#include "JSCell.h"
+#include "JSCPoison.h"
+#include "JSCast.h"
 #include "JSGlobalObject.h"
 #include "JumpTable.h"
 #include "LLIntCallLinkInfo.h"
@@ -86,6 +86,7 @@ struct OSRExitState;
 class BytecodeLivenessAnalysis;
 class CodeBlockSet;
 class ExecState;
+class ExecutableToCodeBlockEdge;
 class JSModuleEnvironment;
 class LLIntOffsetsExtractor;
 class PCToCodeOriginMap;
@@ -106,19 +107,15 @@ class CodeBlock : public JSCell {
     friend class JIT;
     friend class LLIntOffsetsExtractor;
 
-    class UnconditionalFinalizer : public JSC::UnconditionalFinalizer { 
-        void finalizeUnconditionally() override;
-    };
-
-    class WeakReferenceHarvester : public JSC::WeakReferenceHarvester {
-        void visitWeakReferences(SlotVisitor&) override;
-    };
-
 public:
 
     enum CopyParsedBlockTag { CopyParsedBlock };
 
     static const unsigned StructureFlags = Base::StructureFlags | StructureIsImmortal;
+    static const bool needsDestruction = true;
+
+    template<typename>
+    static void subspaceFor(VM&) { }
 
     DECLARE_INFO;
 
@@ -128,6 +125,8 @@ protected:
 
     void finishCreation(VM&, CopyParsedBlockTag, CodeBlock& other);
     bool finishCreation(VM&, ScriptExecutable* ownerExecutable, UnlinkedCodeBlock*, JSScope*);
+    
+    void finishCreationCommon(VM&);
 
     WriteBarrier<JSGlobalObject> m_globalObject;
 
@@ -191,8 +190,7 @@ public:
     static size_t estimatedSize(JSCell*);
     static void visitChildren(JSCell*, SlotVisitor&);
     void visitChildren(SlotVisitor&);
-    void visitWeakly(SlotVisitor&);
-    void clearVisitWeaklyHasBeenCalled();
+    void finalizeUnconditionally(VM&);
 
     void dumpSource();
     void dumpSource(PrintStream&);
@@ -250,14 +248,27 @@ public:
     void getByValInfoMap(ByValInfoMap& result);
     
 #if ENABLE(JIT)
-    StructureStubInfo* addStubInfo(AccessType);
     JITAddIC* addJITAddIC(ArithProfile*);
     JITMulIC* addJITMulIC(ArithProfile*);
     JITNegIC* addJITNegIC(ArithProfile*);
     JITSubIC* addJITSubIC(ArithProfile*);
-    Bag<StructureStubInfo>::iterator stubInfoBegin() { return m_stubInfos.begin(); }
-    Bag<StructureStubInfo>::iterator stubInfoEnd() { return m_stubInfos.end(); }
-    
+
+    template <typename Generator, typename = typename std::enable_if<std::is_same<Generator, JITAddGenerator>::value>::type>
+    JITAddIC* addMathIC(ArithProfile* profile) { return addJITAddIC(profile); }
+
+    template <typename Generator, typename = typename std::enable_if<std::is_same<Generator, JITMulGenerator>::value>::type>
+    JITMulIC* addMathIC(ArithProfile* profile) { return addJITMulIC(profile); }
+
+    template <typename Generator, typename = typename std::enable_if<std::is_same<Generator, JITNegGenerator>::value>::type>
+    JITNegIC* addMathIC(ArithProfile* profile) { return addJITNegIC(profile); }
+
+    template <typename Generator, typename = typename std::enable_if<std::is_same<Generator, JITSubGenerator>::value>::type>
+    JITSubIC* addMathIC(ArithProfile* profile) { return addJITSubIC(profile); }
+
+    StructureStubInfo* addStubInfo(AccessType);
+    auto stubInfoBegin() { return m_stubInfos.begin(); }
+    auto stubInfoEnd() { return m_stubInfos.end(); }
+
     // O(n) operation. Use getStubInfoMap() unless you really only intend to get one
     // stub info.
     StructureStubInfo* findStubInfo(CodeOrigin);
@@ -265,8 +276,8 @@ public:
     ByValInfo* addByValInfo();
 
     CallLinkInfo* addCallLinkInfo();
-    Bag<CallLinkInfo>::iterator callLinkInfosBegin() { return m_callLinkInfos.begin(); }
-    Bag<CallLinkInfo>::iterator callLinkInfosEnd() { return m_callLinkInfos.end(); }
+    auto callLinkInfosBegin() { return m_callLinkInfos.begin(); }
+    auto callLinkInfosEnd() { return m_callLinkInfos.end(); }
 
     // This is a slow function call used primarily for compiling OSR exits in the case
     // that there had been inlining. Chances are if you want to use this, you're really
@@ -308,11 +319,11 @@ public:
     }
 
     typedef JSC::Instruction Instruction;
-    typedef RefCountedArray<Instruction>& UnpackedInstructions;
+    typedef PoisonedRefCountedArray<CodeBlockPoison, Instruction>& UnpackedInstructions;
 
     unsigned numberOfInstructions() const { return m_instructions.size(); }
-    RefCountedArray<Instruction>& instructions() { return m_instructions; }
-    const RefCountedArray<Instruction>& instructions() const { return m_instructions; }
+    PoisonedRefCountedArray<CodeBlockPoison, Instruction>& instructions() { return m_instructions; }
+    const PoisonedRefCountedArray<CodeBlockPoison, Instruction>& instructions() const { return m_instructions; }
 
     size_t predictedMachineCodeSize();
 
@@ -360,8 +371,10 @@ public:
     
     ExecutableBase* ownerExecutable() const { return m_ownerExecutable.get(); }
     ScriptExecutable* ownerScriptExecutable() const { return jsCast<ScriptExecutable*>(m_ownerExecutable.get()); }
+    
+    ExecutableToCodeBlockEdge* ownerEdge() const { return m_ownerEdge.get(); }
 
-    VM* vm() const { return m_vm; }
+    VM* vm() const { return m_poisonedVM.unpoisoned(); }
 
     void setThisRegister(VirtualRegister thisRegister) { m_thisRegister = thisRegister; }
     VirtualRegister thisRegister() const { return m_thisRegister; }
@@ -498,25 +511,6 @@ public:
         return codeOrigins()[index.bits()];
     }
 
-    bool addFrequentExitSite(const DFG::FrequentExitSite& site)
-    {
-        ASSERT(JITCode::isBaselineCode(jitType()));
-        ConcurrentJSLocker locker(m_lock);
-        return m_exitProfile.add(locker, this, site);
-    }
-
-    bool hasExitSite(const ConcurrentJSLocker& locker, const DFG::FrequentExitSite& site) const
-    {
-        return m_exitProfile.hasExitSite(locker, site);
-    }
-    bool hasExitSite(const DFG::FrequentExitSite& site) const
-    {
-        ConcurrentJSLocker locker(m_lock);
-        return hasExitSite(locker, site);
-    }
-
-    DFG::ExitProfile& exitProfile() { return m_exitProfile; }
-
     CompressedLazyOperandValueProfileHolder& lazyOperandValueProfiles()
     {
         return m_lazyOperandValueProfiles;
@@ -539,7 +533,7 @@ public:
     {
         unsigned result = m_constantRegisters.size();
         m_constantRegisters.append(WriteBarrier<Unknown>());
-        m_constantRegisters.last().set(*m_vm, this, v);
+        m_constantRegisters.last().set(*m_poisonedVM, this, v);
         m_constantsSourceCodeRepresentation.append(SourceCodeRepresentation::Other);
         return result;
     }
@@ -568,7 +562,7 @@ public:
     const Vector<BitVector>& bitVectors() const { return m_unlinkedCode->bitVectors(); }
     const BitVector& bitVector(size_t i) { return m_unlinkedCode->bitVector(i); }
 
-    Heap* heap() const { return &m_vm->heap; }
+    Heap* heap() const { return &m_poisonedVM->heap; }
     JSGlobalObject* globalObject() { return m_globalObject.get(); }
 
     JSGlobalObject* globalObjectFor(CodeOrigin);
@@ -820,8 +814,6 @@ public:
     // concurrent compilation threads finish what they're doing.
     mutable ConcurrentJSLock m_lock;
 
-    bool m_visitWeaklyHasBeenCalled;
-
     bool m_shouldAlwaysBeInlined; // Not a bitfield because the JIT wants to store to it.
 
 #if ENABLE(JIT)
@@ -907,6 +899,7 @@ protected:
 
 private:
     friend class CodeBlockSet;
+    friend class ExecutableToCodeBlockEdge;
 
     BytecodeLivenessAnalysis& livenessAnalysisSlow();
     
@@ -925,7 +918,7 @@ private:
     void replaceConstant(int index, JSValue value)
     {
         ASSERT(isConstantRegisterIndex(index) && static_cast<size_t>(index - FirstConstantRegisterIndex) < m_constantRegisters.size());
-        m_constantRegisters[index - FirstConstantRegisterIndex].set(*m_vm, this, value);
+        m_constantRegisters[index - FirstConstantRegisterIndex].set(*m_poisonedVM, this, value);
     }
 
     bool shouldVisitStrongly(const ConcurrentJSLocker&);
@@ -939,10 +932,9 @@ private:
     void stronglyVisitWeakReferences(const ConcurrentJSLocker&, SlotVisitor&);
     void visitOSRExitTargets(const ConcurrentJSLocker&, SlotVisitor&);
 
-    std::chrono::milliseconds timeSinceCreation()
+    Seconds timeSinceCreation()
     {
-        return std::chrono::duration_cast<std::chrono::milliseconds>(
-            std::chrono::steady_clock::now() - m_creationTime);
+        return MonotonicTime::now() - m_creationTime;
     }
 
     void createRareDataIfNecessary()
@@ -966,30 +958,31 @@ private:
         };
     };
     WriteBarrier<ExecutableBase> m_ownerExecutable;
-    VM* m_vm;
+    WriteBarrier<ExecutableToCodeBlockEdge> m_ownerEdge;
+    Poisoned<CodeBlockPoison, VM*> m_poisonedVM;
 
-    RefCountedArray<Instruction> m_instructions;
+    PoisonedRefCountedArray<CodeBlockPoison, Instruction> m_instructions;
     VirtualRegister m_thisRegister;
     VirtualRegister m_scopeRegister;
     mutable CodeBlockHash m_hash;
 
-    RefPtr<SourceProvider> m_source;
+    PoisonedRefPtr<CodeBlockPoison, SourceProvider> m_source;
     unsigned m_sourceOffset;
     unsigned m_firstLineColumnOffset;
 
     RefCountedArray<LLIntCallLinkInfo> m_llintCallLinkInfos;
     SentinelLinkedList<LLIntCallLinkInfo, BasicRawSentinelNode<LLIntCallLinkInfo>> m_incomingLLIntCalls;
     StructureWatchpointMap m_llintGetByIdWatchpointMap;
-    RefPtr<JITCode> m_jitCode;
+    PoisonedRefPtr<CodeBlockPoison, JITCode> m_jitCode;
 #if ENABLE(JIT)
     std::unique_ptr<RegisterAtOffsetList> m_calleeSaveRegisters;
-    Bag<StructureStubInfo> m_stubInfos;
-    Bag<JITAddIC> m_addICs;
-    Bag<JITMulIC> m_mulICs;
-    Bag<JITNegIC> m_negICs;
-    Bag<JITSubIC> m_subICs;
-    Bag<ByValInfo> m_byValInfos;
-    Bag<CallLinkInfo> m_callLinkInfos;
+    PoisonedBag<CodeBlockPoison, StructureStubInfo> m_stubInfos;
+    PoisonedBag<CodeBlockPoison, JITAddIC> m_addICs;
+    PoisonedBag<CodeBlockPoison, JITMulIC> m_mulICs;
+    PoisonedBag<CodeBlockPoison, JITNegIC> m_negICs;
+    PoisonedBag<CodeBlockPoison, JITSubIC> m_subICs;
+    PoisonedBag<CodeBlockPoison, ByValInfo> m_byValInfos;
+    PoisonedBag<CodeBlockPoison, CallLinkInfo> m_callLinkInfos;
     SentinelLinkedList<CallLinkInfo, BasicRawSentinelNode<CallLinkInfo>> m_incomingCalls;
     SentinelLinkedList<PolymorphicCallNode, BasicRawSentinelNode<PolymorphicCallNode>> m_incomingPolymorphicCalls;
     std::unique_ptr<PCToCodeOriginMap> m_pcToCodeOriginMap;
@@ -998,7 +991,6 @@ private:
 #if ENABLE(DFG_JIT)
     // This is relevant to non-DFG code blocks that serve as the profiled code block
     // for DFG code blocks.
-    DFG::ExitProfile m_exitProfile;
     CompressedLazyOperandValueProfileHolder m_lazyOperandValueProfiles;
 #endif
     RefCountedArray<ValueProfile> m_argumentValueProfiles;
@@ -1027,12 +1019,9 @@ private:
     uint16_t m_optimizationDelayCounter;
     uint16_t m_reoptimizationRetryCounter;
 
-    std::chrono::steady_clock::time_point m_creationTime;
+    MonotonicTime m_creationTime;
 
     std::unique_ptr<RareData> m_rareData;
-
-    UnconditionalFinalizer m_unconditionalFinalizer;
-    WeakReferenceHarvester m_weakReferenceHarvester;
 };
 
 inline Register& ExecState::r(int index)
@@ -1057,11 +1046,6 @@ inline Register& ExecState::uncheckedR(int index)
 inline Register& ExecState::uncheckedR(VirtualRegister reg)
 {
     return uncheckedR(reg.offset());
-}
-
-inline void CodeBlock::clearVisitWeaklyHasBeenCalled()
-{
-    m_visitWeaklyHasBeenCalled = false;
 }
 
 template <typename ExecutableType>

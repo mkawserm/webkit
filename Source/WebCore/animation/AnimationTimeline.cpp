@@ -28,6 +28,7 @@
 #include "AnimationTimeline.h"
 
 #include "DocumentTimeline.h"
+#include "WebAnimationUtilities.h"
 #include <wtf/text/TextStream.h>
 #include <wtf/text/WTFString.h>
 
@@ -45,13 +46,13 @@ AnimationTimeline::~AnimationTimeline()
 void AnimationTimeline::addAnimation(Ref<WebAnimation>&& animation)
 {
     m_animations.add(WTFMove(animation));
-    animationTimingModelDidChange();
+    timingModelDidChange();
 }
 
 void AnimationTimeline::removeAnimation(Ref<WebAnimation>&& animation)
 {
     m_animations.remove(WTFMove(animation));
-    animationTimingModelDidChange();
+    timingModelDidChange();
 }
 
 std::optional<double> AnimationTimeline::bindingsCurrentTime()
@@ -59,13 +60,13 @@ std::optional<double> AnimationTimeline::bindingsCurrentTime()
     auto time = currentTime();
     if (!time)
         return std::nullopt;
-    return time->milliseconds();
+    return secondsToWebAnimationsAPITime(*time);
 }
 
 void AnimationTimeline::setCurrentTime(Seconds currentTime)
 {
     m_currentTime = currentTime;
-    animationTimingModelDidChange();
+    timingModelDidChange();
 }
 
 void AnimationTimeline::animationWasAddedToElement(WebAnimation& animation, Element& element)

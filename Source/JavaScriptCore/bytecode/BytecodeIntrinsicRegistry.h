@@ -40,7 +40,6 @@ class Identifier;
 #define JSC_COMMON_BYTECODE_INTRINSIC_FUNCTIONS_EACH_NAME(macro) \
     macro(argument) \
     macro(argumentCount) \
-    macro(assert) \
     macro(idWithProfile) \
     macro(isObject) \
     macro(isJSArray) \
@@ -98,6 +97,7 @@ class Identifier;
     macro(AsyncGeneratorSuspendReasonNone) \
 
 class BytecodeIntrinsicRegistry {
+    WTF_MAKE_FAST_ALLOCATED;
     WTF_MAKE_NONCOPYABLE(BytecodeIntrinsicRegistry);
 public:
     explicit BytecodeIntrinsicRegistry(VM&);

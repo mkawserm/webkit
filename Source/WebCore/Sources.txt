@@ -43,11 +43,10 @@ Modules/cache/DOMWindowCaches.cpp
 Modules/cache/WorkerCacheStorageConnection.cpp
 Modules/cache/WorkerGlobalScopeCaches.cpp
 
-Modules/credentials/BasicCredential.cpp
-Modules/credentials/CredentialsContainer.cpp
-Modules/credentials/FederatedCredential.cpp
-Modules/credentials/NavigatorCredentials.cpp
-Modules/credentials/PasswordCredential.cpp
+Modules/credentialmanagement/BasicCredential.cpp
+Modules/credentialmanagement/CredentialsContainer.cpp
+Modules/credentialmanagement/CredentialsMessenger.cpp
+Modules/credentialmanagement/NavigatorCredentials.cpp
 
 Modules/entriesapi/ErrorCallback.cpp
 Modules/entriesapi/DOMFileSystem.cpp
@@ -137,6 +136,9 @@ Modules/indexeddb/shared/IDBTransactionInfo.cpp
 Modules/indexeddb/shared/InProcessIDBServer.cpp
 Modules/indexeddb/shared/IndexKey.cpp
 
+Modules/mediacapabilities/MediaCapabilities.cpp
+Modules/mediacapabilities/NavigatorMediaCapabilities.cpp
+
 Modules/mediacontrols/MediaControlsHost.cpp
 
 Modules/mediasession/HTMLMediaElementMediaSession.cpp
@@ -185,6 +187,8 @@ Modules/navigatorcontentutils/NavigatorContentUtils.cpp
 Modules/notifications/Notification.cpp
 Modules/notifications/NotificationController.cpp
 
+Modules/paymentrequest/MerchantValidationEvent.cpp
+Modules/paymentrequest/PaymentAddress.cpp
 Modules/paymentrequest/PaymentHandler.cpp
 Modules/paymentrequest/PaymentRequest.cpp
 Modules/paymentrequest/PaymentRequestUpdateEvent.cpp
@@ -243,6 +247,15 @@ Modules/webaudio/WaveShaperDSPKernel.cpp
 Modules/webaudio/WaveShaperNode.cpp
 Modules/webaudio/WaveShaperProcessor.cpp
 
+Modules/webauthn/AuthenticatorAssertionResponse.cpp
+Modules/webauthn/AuthenticatorAttestationResponse.cpp
+Modules/webauthn/AuthenticatorManager.cpp
+Modules/webauthn/AuthenticatorResponse.cpp
+Modules/webauthn/PublicKeyCredential.cpp
+Modules/webauthn/cbor/CBORReader.cpp
+Modules/webauthn/cbor/CBORValue.cpp
+Modules/webauthn/cbor/CBORWriter.cpp
+
 Modules/webdatabase/ChangeVersionWrapper.cpp
 Modules/webdatabase/DOMWindowWebDatabase.cpp
 Modules/webdatabase/Database.cpp
@@ -277,10 +290,8 @@ Modules/websockets/WorkerThreadableWebSocketChannel.cpp
 
 Modules/webvr/NavigatorWebVR.cpp
 Modules/webvr/VRDisplay.cpp
-Modules/webvr/VRDisplayCapabilities.cpp
 Modules/webvr/VRDisplayEvent.cpp
 Modules/webvr/VREyeParameters.cpp
-Modules/webvr/VRFieldOfView.cpp
 Modules/webvr/VRFrameData.cpp
 Modules/webvr/VRPose.cpp
 Modules/webvr/VRStageParameters.cpp
@@ -318,14 +329,18 @@ accessibility/AccessibilityTableHeaderContainer.cpp
 accessibility/AccessibilityTableRow.cpp
 accessibility/AccessibilityTree.cpp
 accessibility/AccessibilityTreeItem.cpp
-accessibility/AccessibleNode.cpp
+accessibility/AccessibleSetValueEvent.cpp
 
-animation/AnimationEffect.cpp
+animation/AnimationEffectReadOnly.cpp
 animation/AnimationEffectTiming.cpp
+animation/AnimationEffectTimingReadOnly.cpp
 animation/AnimationPlaybackEvent.cpp
 animation/AnimationTimeline.cpp
+animation/CSSAnimation.cpp
+animation/CSSTransition.cpp
 animation/DocumentTimeline.cpp
 animation/KeyframeEffect.cpp
+animation/KeyframeEffectReadOnly.cpp
 animation/WebAnimation.cpp
 
 bindings/js/CachedModuleScriptLoader.cpp
@@ -336,11 +351,14 @@ bindings/js/DOMGCOutputConstraint.cpp
 bindings/js/DOMWrapperWorld.cpp
 bindings/js/GCController.cpp
 bindings/js/IDBBindingUtilities.cpp
-bindings/js/JSAnimationEffectCustom.cpp
+bindings/js/JSAuthenticatorResponseCustom.cpp
+bindings/js/JSAnimationEffectReadOnlyCustom.cpp
+bindings/js/JSAnimationEffectTimingReadOnlyCustom.cpp
 bindings/js/JSAnimationTimelineCustom.cpp
 bindings/js/JSAttrCustom.cpp
 bindings/js/JSAudioTrackCustom.cpp
 bindings/js/JSAudioTrackListCustom.cpp
+bindings/js/JSBasicCredentialCustom.cpp
 bindings/js/JSBlobCustom.cpp
 bindings/js/JSCSSRuleCustom.cpp
 bindings/js/JSCSSRuleListCustom.cpp
@@ -426,6 +444,7 @@ bindings/js/JSTrackCustom.cpp
 bindings/js/JSTreeWalkerCustom.cpp
 bindings/js/JSVideoTrackCustom.cpp
 bindings/js/JSVideoTrackListCustom.cpp
+bindings/js/JSWebAnimationCustom.cpp
 bindings/js/JSWebGL2RenderingContextCustom.cpp
 bindings/js/JSWebGLRenderingContextCustom.cpp
 bindings/js/JSWebGPURenderPassAttachmentDescriptorCustom.cpp
@@ -782,6 +801,7 @@ dom/ShadowRoot.cpp
 dom/SimulatedClick.cpp
 dom/SlotAssignment.cpp
 dom/SpaceSplitString.cpp
+dom/SpectreGadget.cpp
 dom/StaticNodeList.cpp
 dom/StaticRange.cpp
 dom/StringCallback.cpp
@@ -811,7 +831,11 @@ dom/WebKitAnimationEvent.cpp
 dom/WebKitTransitionEvent.cpp
 dom/WheelEvent.cpp
 
-dom/default/PlatformMessagePortChannel.cpp
+dom/messageports/MessagePortChannel.cpp
+dom/messageports/MessagePortChannelProvider.cpp
+dom/messageports/MessagePortChannelProviderImpl.cpp
+dom/messageports/MessagePortChannelRegistry.cpp
+dom/messageports/MessageWithMessagePorts.cpp
 
 domjit/DOMJITHelpers.cpp
 domjit/JSDocumentDOMJIT.cpp
@@ -1138,6 +1162,7 @@ inspector/InspectorInstrumentation.cpp
 inspector/InspectorInstrumentationCookie.cpp
 inspector/InspectorNodeFinder.cpp
 inspector/InspectorOverlay.cpp
+inspector/InspectorShaderProgram.cpp
 inspector/InspectorStyleSheet.cpp
 inspector/InstrumentingAgents.cpp
 inspector/NetworkResourcesData.cpp
@@ -1229,6 +1254,7 @@ loader/appcache/ApplicationCache.cpp
 loader/appcache/ApplicationCacheGroup.cpp
 loader/appcache/ApplicationCacheHost.cpp
 loader/appcache/ApplicationCacheResource.cpp
+loader/appcache/ApplicationCacheResourceLoader.cpp
 loader/appcache/ApplicationCacheStorage.cpp
 loader/appcache/DOMApplicationCache.cpp
 loader/appcache/ManifestParser.cpp
@@ -1315,6 +1341,7 @@ page/MouseEventWithHitTestResults.cpp
 page/Navigator.cpp
 page/NavigatorBase.cpp
 page/OriginAccessEntry.cpp
+page/OriginThreadLocalCache.cpp
 page/Page.cpp
 page/PageConfiguration.cpp
 page/PageConsoleClient.cpp
@@ -1430,6 +1457,7 @@ platform/PlatformSpeechSynthesisUtterance.cpp
 platform/PlatformSpeechSynthesisVoice.cpp
 platform/PlatformSpeechSynthesizer.cpp
 platform/PlatformStrategies.cpp
+platform/Process.cpp
 platform/RemoteCommandListener.cpp
 platform/RuntimeApplicationChecks.cpp
 platform/SchemeRegistry.cpp
@@ -1584,7 +1612,7 @@ platform/graphics/filters/FEFlood.cpp
 platform/graphics/filters/FEGaussianBlur.cpp
 platform/graphics/filters/FELighting.cpp
 platform/graphics/filters/FEMerge.cpp
-platform/graphics/filters/FEMorphology.cpp @no-unify // FIXME: Unified sources for FEMorphology.cpp seems to break the windows build. https://bugs.webkit.org/show_bug.cgi?id=178847
+platform/graphics/filters/FEMorphology.cpp
 platform/graphics/filters/FEOffset.cpp
 platform/graphics/filters/FESpecularLighting.cpp
 platform/graphics/filters/FETile.cpp
@@ -1681,6 +1709,7 @@ platform/network/CacheValidation.cpp
 platform/network/Cookie.cpp
 platform/network/CredentialBase.cpp
 platform/network/CredentialStorage.cpp
+platform/network/DNS.cpp
 platform/network/DNSResolveQueue.cpp
 platform/network/DataURLDecoder.cpp
 platform/network/FormData.cpp
@@ -1729,6 +1758,10 @@ platform/text/TextEncoding.cpp
 platform/text/TextEncodingDetectorICU.cpp
 platform/text/TextEncodingRegistry.cpp
 
+platform/vr/VRManager.cpp
+platform/vr/openvr/VRPlatformDisplayOpenVR.cpp
+platform/vr/openvr/VRPlatformManagerOpenVR.cpp
+
 plugins/DOMMimeType.cpp
 plugins/DOMMimeTypeArray.cpp
 plugins/DOMPlugin.cpp
@@ -1762,7 +1795,7 @@ rendering/InlineTextBox.cpp
 rendering/LayoutDisallowedScope.cpp
 rendering/LayoutRepainter.cpp
 rendering/LayoutState.cpp
-rendering/MarkerSubrange.cpp
+rendering/MarkedText.cpp
 rendering/OrderIterator.cpp
 rendering/PointerEventsHitRules.cpp
 rendering/RenderAttachment.cpp
@@ -1802,6 +1835,8 @@ rendering/RenderLayerFilterInfo.cpp
 rendering/RenderLayerModelObject.cpp
 rendering/RenderLineBoxList.cpp
 rendering/RenderLineBreak.cpp
+rendering/RenderLinesClampFlow.cpp
+rendering/RenderLinesClampSet.cpp
 rendering/RenderListBox.cpp
 rendering/RenderListItem.cpp
 rendering/RenderListMarker.cpp
@@ -1894,8 +1929,8 @@ rendering/shapes/ShapeOutsideInfo.cpp
 
 rendering/style/BasicShapes.cpp
 rendering/style/ContentData.cpp
-rendering/style/CounterDirectives.cpp
 rendering/style/FillLayer.cpp
+rendering/style/GapLength.cpp
 rendering/style/GridPosition.cpp
 rendering/style/GridPositionsResolver.cpp
 rendering/style/KeyframeList.cpp
@@ -1979,6 +2014,24 @@ rendering/svg/SVGTextMetrics.cpp
 rendering/svg/SVGTextMetricsBuilder.cpp
 rendering/svg/SVGTextQuery.cpp
 
+rendering/updating/RenderTreeBuilder.cpp
+rendering/updating/RenderTreeBuilderBlock.cpp
+rendering/updating/RenderTreeBuilderBlockFlow.cpp
+rendering/updating/RenderTreeBuilderContinuation.cpp
+rendering/updating/RenderTreeBuilderFirstLetter.cpp
+rendering/updating/RenderTreeBuilderFormControls.cpp
+rendering/updating/RenderTreeBuilderFullScreen.cpp
+rendering/updating/RenderTreeBuilderInline.cpp
+rendering/updating/RenderTreeBuilderList.cpp
+rendering/updating/RenderTreeBuilderMathML.cpp
+rendering/updating/RenderTreeBuilderMultiColumn.cpp
+rendering/updating/RenderTreeBuilderRuby.cpp
+rendering/updating/RenderTreeBuilderSVG.cpp
+rendering/updating/RenderTreeBuilderTable.cpp
+rendering/updating/RenderTreePosition.cpp
+rendering/updating/RenderTreeUpdater.cpp
+rendering/updating/RenderTreeUpdaterGeneratedContent.cpp
+
 replay/UserInputBridge.cpp
 
 storage/Storage.cpp
@@ -1991,12 +2044,6 @@ style/AttributeChangeInvalidation.cpp
 style/ClassChangeInvalidation.cpp
 style/IdChangeInvalidation.cpp
 style/InlineTextBoxStyle.cpp
-style/RenderTreePosition.cpp
-style/RenderTreeUpdater.cpp
-style/RenderTreeUpdaterFirstLetter.cpp
-style/RenderTreeUpdaterGeneratedContent.cpp
-style/RenderTreeUpdaterListItem.cpp
-style/RenderTreeUpdaterMultiColumn.cpp
 style/StyleChange.cpp
 style/StyleFontSizeFunctions.cpp
 style/StyleInvalidator.cpp
@@ -2284,15 +2331,17 @@ JSHTMLElementWrapperFactory.cpp
 JSAbortController.cpp
 JSAbortSignal.cpp
 JSAbstractWorker.cpp
-JSAccessibleNode.cpp
+JSAccessibleSetValueEvent.cpp
 JSAesCbcCfbParams.cpp
 JSAesCtrParams.cpp
 JSAesGcmParams.cpp
 JSAesKeyParams.cpp
 JSAnalyserNode.cpp
 JSAnimationEvent.cpp
-JSAnimationEffect.cpp
+JSAnimationEffectReadOnly.cpp
 JSAnimationEffectTiming.cpp
+JSAnimationEffectTimingProperties.cpp
+JSAnimationEffectTimingReadOnly.cpp
 JSAnimationPlaybackEvent.cpp
 JSAnimationPlaybackEventInit.cpp
 JSAnimationTimeline.cpp
@@ -2300,12 +2349,16 @@ JSAttr.cpp
 JSAudioBuffer.cpp
 JSAudioBufferCallback.cpp
 JSAudioBufferSourceNode.cpp
+JSAudioConfiguration.cpp
 JSAudioContext.cpp
 JSAudioDestinationNode.cpp
 JSAudioListener.cpp
 JSAudioNode.cpp
 JSAudioParam.cpp
 JSAudioProcessingEvent.cpp
+JSAuthenticatorAssertionResponse.cpp
+JSAuthenticatorAttestationResponse.cpp
+JSAuthenticatorResponse.cpp
 JSBarProp.cpp
 JSBasicCredential.cpp
 JSBeforeLoadEvent.cpp
@@ -2367,13 +2420,13 @@ JSCloseEvent.cpp
 JSCommandLineAPIHost.cpp
 JSComment.cpp
 JSCompositionEvent.cpp
+JSCompositeOperation.cpp
+JSComputedTimingProperties.cpp
 JSConvolverNode.cpp
 JSCoordinates.cpp
 JSCountQueuingStrategy.cpp
 JSCredentialCreationOptions.cpp
-JSCredentialData.cpp
 JSCredentialRequestOptions.cpp
-JSCredentialUserData.cpp
 JSCredentialsContainer.cpp
 JSCrypto.cpp
 JSCryptoAesKeyAlgorithm.cpp
@@ -2386,6 +2439,8 @@ JSCryptoKeyPair.cpp
 JSCryptoKeyUsage.cpp
 JSCryptoRsaHashedKeyAlgorithm.cpp
 JSCryptoRsaKeyAlgorithm.cpp
+JSCSSAnimation.cpp
+JSCSSTransition.cpp
 JSCustomElementRegistry.cpp
 JSCustomEvent.cpp
 JSDocumentTimeline.cpp
@@ -2465,9 +2520,6 @@ JSEventTarget.cpp
 JSExtendableEvent.cpp
 JSExtendableEventInit.cpp
 JSExtendableMessageEvent.cpp
-JSFederatedCredential.cpp
-JSFederatedCredentialInit.cpp
-JSFederatedCredentialRequestOptions.cpp
 JSFetchBody.cpp
 JSFetchEvent.cpp
 JSFetchHeaders.cpp
@@ -2491,6 +2543,7 @@ JSFileSystemEntriesCallback.cpp
 JSFileSystemEntry.cpp
 JSFileSystemEntryCallback.cpp
 JSFileSystemFileEntry.cpp
+JSFillMode.cpp
 JSFocusEvent.cpp
 JSFontFace.cpp
 JSFontFaceSet.cpp
@@ -2610,16 +2663,26 @@ JSInspectorFrontendHost.cpp
 JSIntersectionObserver.cpp
 JSIntersectionObserverCallback.cpp
 JSIntersectionObserverEntry.cpp
+JSIterationCompositeOperation.cpp
 JSJsonWebKey.cpp
 JSKeyboardEvent.cpp
+JSKeyframeAnimationOptions.cpp
 JSKeyframeEffect.cpp
+JSKeyframeEffectOptions.cpp
+JSKeyframeEffectReadOnly.cpp
 JSLocation.cpp
 JSLongRange.cpp
+JSMediaCapabilities.cpp
+JSMediaCapabilitiesInfo.cpp
 JSMediaController.cpp
 JSMediaControlsHost.cpp
+JSMediaDecodingConfiguration.cpp
+JSMediaDecodingType.cpp
 JSMediaDeviceInfo.cpp
 JSMediaDevices.cpp
 JSMediaElementAudioSourceNode.cpp
+JSMediaEncodingConfiguration.cpp
+JSMediaEncodingType.cpp
 JSMediaError.cpp
 JSMediaList.cpp
 JSMediaQueryList.cpp
@@ -2635,6 +2698,7 @@ JSMediaStreamTrack.cpp
 JSMediaStreamTrackEvent.cpp
 JSMediaTrackConstraints.cpp
 JSMediaTrackSupportedConstraints.cpp
+JSMerchantValidationEvent.cpp
 JSMessageChannel.cpp
 JSMessageEvent.cpp
 JSMessagePort.cpp
@@ -2652,6 +2716,7 @@ JSNavigatorCredentials.cpp
 JSNavigatorGeolocation.cpp
 JSNavigatorID.cpp
 JSNavigatorLanguage.cpp
+JSNavigatorMediaCapabilities.cpp
 JSNavigatorMediaDevices.cpp
 JSNavigatorOnLine.cpp
 JSNavigatorServiceWorker.cpp
@@ -2678,8 +2743,6 @@ JSOverflowEvent.cpp
 JSPageTransitionEvent.cpp
 JSPannerNode.cpp
 JSParentNode.cpp
-JSPasswordCredential.cpp
-JSPasswordCredentialData.cpp
 JSPath2D.cpp
 JSPaymentAddress.cpp
 JSPaymentComplete.cpp
@@ -2709,6 +2772,7 @@ JSPerformanceObserverEntryList.cpp
 JSPerformanceResourceTiming.cpp
 JSPerformanceTiming.cpp
 JSPeriodicWave.cpp
+JSPlaybackDirection.cpp
 JSPopStateEvent.cpp
 JSPositionCallback.cpp
 JSPositionError.cpp
@@ -2717,6 +2781,11 @@ JSPositionOptions.cpp
 JSProcessingInstruction.cpp
 JSProgressEvent.cpp
 JSPromiseRejectionEvent.cpp
+JSPublicKeyCredential.cpp
+JSPublicKeyCredentialCreationOptions.cpp
+JSPublicKeyCredentialDescriptor.cpp
+JSPublicKeyCredentialRequestOptions.cpp
+JSPublicKeyCredentialType.cpp
 JSRTCAnswerOptions.cpp
 JSRTCConfiguration.cpp
 JSRTCDTMFSender.cpp
@@ -2913,6 +2982,7 @@ JSSVGViewSpec.cpp
 JSSVGZoomAndPan.cpp
 JSSVGZoomEvent.cpp
 JSScreen.cpp
+JSScreenLuminance.cpp
 JSScriptProcessorNode.cpp
 JSScrollToOptions.cpp
 JSSecurityPolicyViolationEvent.cpp
@@ -2930,6 +3000,7 @@ JSShadowRootMode.cpp
 JSSlotable.cpp
 JSSourceBuffer.cpp
 JSSourceBufferList.cpp
+JSSpectreGadget.cpp
 JSSpeechSynthesis.cpp
 JSSpeechSynthesisEvent.cpp
 JSSpeechSynthesisUtterance.cpp
@@ -2965,6 +3036,7 @@ JSVRLayerInit.cpp
 JSVRPose.cpp
 JSVRStageParameters.cpp
 JSValidityState.cpp
+JSVideoConfiguration.cpp
 JSVideoPlaybackQuality.cpp
 JSVisibilityState.cpp
 JSVisualViewport.cpp

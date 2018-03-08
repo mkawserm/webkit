@@ -103,26 +103,19 @@ void WebPageProxy::createSandboxExtensionsIfNeeded(const Vector<String>& files, 
     }
 }
 
-#if PLATFORM(IOS) && ENABLE(DRAG_SUPPORT)
+#if ENABLE(DRAG_SUPPORT)
 
 void WebPageProxy::startDrag(const DragItem& dragItem, const ShareableBitmap::Handle& dragImageHandle)
 {
     m_pageClient.startDrag(dragItem, dragImageHandle);
 }
 
+#if PLATFORM(IOS)
+
 void WebPageProxy::setPromisedDataForImage(const String&, const SharedMemory::Handle&, uint64_t, const String&, const String&, const String&, const String&, const String&, const SharedMemory::Handle&, uint64_t)
 {
     notImplemented();
 }
-
-#if ENABLE(ATTACHMENT_ELEMENT)
-
-void WebPageProxy::setPromisedDataForAttachment(const String&, const String&, const String&, const String&, const String&, const String&)
-{
-    notImplemented();
-}
-
-#endif
 
 void WebPageProxy::setDragCaretRect(const IntRect& dragCaretRect)
 {
@@ -134,6 +127,8 @@ void WebPageProxy::setDragCaretRect(const IntRect& dragCaretRect)
     m_pageClient.didChangeDataInteractionCaretRect(previousRect, dragCaretRect);
 }
 
-#endif // PLATFORM(IOS) && ENABLE(DRAG_SUPPORT)
+#endif // PLATFORM(IOS)
+
+#endif // ENABLE(DRAG_SUPPORT)
 
 }

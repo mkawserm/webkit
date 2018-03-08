@@ -103,8 +103,6 @@
     // Non standard API (https://www.w3.org/Bugs/Public/show_bug.cgi?id=17152).
     void scrollIntoViewIfNeeded(optional boolean centerIfNeeded = true);
 
-    [EnabledAtRuntime=AccessibilityObjectModel, SameObject] readonly attribute AccessibleNode? accessibleNode;
-
     // Event handler from Selection API (http://w3c.github.io/selection-api/#extensions-to-globaleventhandlers).
     // FIXME: Should be moved to GlobalEventHandlers.
     [NotEnumerable] attribute EventHandler onselectstart; // FIXME: Should be enumerable.
@@ -142,6 +140,17 @@
 
     // Non standard event handler (https://developer.apple.com/reference/webkitjs/element/1629580-onwebkitplaybacktargetavailabili).
     [NotEnumerable, Conditional=WIRELESS_PLAYBACK_TARGET] attribute EventHandler onwebkitplaybacktargetavailabilitychanged;
+
+    // Accessibility events.
+    [EnabledAtRuntime=AccessibilityObjectModel] attribute EventHandler onaccessiblecontextmenu;
+    [EnabledAtRuntime=AccessibilityObjectModel] attribute EventHandler onaccessibleclick;
+    [EnabledAtRuntime=AccessibilityObjectModel] attribute EventHandler onaccessibledecrement;
+    [EnabledAtRuntime=AccessibilityObjectModel] attribute EventHandler onaccessibledismiss;
+    [EnabledAtRuntime=AccessibilityObjectModel] attribute EventHandler onaccessiblefocus;
+    [EnabledAtRuntime=AccessibilityObjectModel] attribute EventHandler onaccessibleincrement;
+    [EnabledAtRuntime=AccessibilityObjectModel] attribute EventHandler onaccessiblescrollintoview;
+    [EnabledAtRuntime=AccessibilityObjectModel] attribute EventHandler onaccessiblesetvalue;
+    [EnabledAtRuntime=AccessibilityObjectModel] attribute EventHandler onaccessibleselect;
 };
 
 dictionary ShadowRootInit {

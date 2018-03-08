@@ -23,8 +23,7 @@
  * THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef PluginInfoStore_h
-#define PluginInfoStore_h
+#pragma once
 
 #if ENABLE(NETSCAPE_PLUGIN_API)
 
@@ -33,7 +32,7 @@
 #include <WebCore/PluginData.h>
 
 namespace WebCore {
-    class URL;
+class URL;
 }
 
 namespace WebKit {
@@ -64,6 +63,11 @@ public:
 
     static PluginModuleLoadPolicy defaultLoadPolicyForPlugin(const PluginModuleInfo&);
 
+    bool isSupportedPlugin(const String& mimeType, const WebCore::URL& pluginURL, const String& frameURLString, const WebCore::URL& pageURL);
+    std::optional<Vector<WebCore::SupportedPluginName>> supportedPluginNames();
+    void addSupportedPlugin(String&& matchingDomain, String&& name, HashSet<String>&& mimeTypes, HashSet<String> extensions);
+    void clearSupportedPlugins() { m_supportedPlugins = std::nullopt; }
+
 private:
     PluginModuleInfo findPluginForMIMEType(const String& mimeType, WebCore::PluginData::AllowedPluginTypes) const;
     PluginModuleInfo findPluginForExtension(const String& extension, String& mimeType, WebCore::PluginData::AllowedPluginTypes) const;
@@ -91,10 +95,18 @@ private:
     Vector<String> m_additionalPluginsDirectories;
     Vector<PluginModuleInfo> m_plugins;
     bool m_pluginListIsUpToDate;
+
+    struct SupportedPlugin {
+        String matchingDomain;
+        String name;
+        HashSet<String> mimeTypes;
+        HashSet<String> extensions;
+    };
+    static bool isSupportedPlugin(const SupportedPlugin&, const String& mimeType, const WebCore::URL& pluginURL);
+
+    std::optional<Vector<SupportedPlugin>> m_supportedPlugins;
 };
     
 } // namespace WebKit
 
 #endif // ENABLE(NETSCAPE_PLUGIN_API)
-
-#endif // PluginInfoStore_h

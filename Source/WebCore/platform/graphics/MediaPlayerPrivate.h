@@ -219,7 +219,7 @@ public:
     virtual unsigned videoDecodedByteCount() const { return 0; }
 
     HashSet<RefPtr<SecurityOrigin>> originsInMediaCache(const String&) { return { }; }
-    void clearMediaCache(const String&, std::chrono::system_clock::time_point) { }
+    void clearMediaCache(const String&, WallTime) { }
     void clearMediaCacheForOrigins(const String&, const HashSet<RefPtr<SecurityOrigin>>&) { }
 
     virtual void setPrivateBrowsingMode(bool) { }
@@ -253,6 +253,9 @@ public:
     virtual void simulateAudioInterruption() { }
 #endif
 
+    virtual void beginSimulatedHDCPError() { }
+    virtual void endSimulatedHDCPError() { }
+
     virtual String languageOfPrimaryAudioTrack() const { return emptyString(); }
 
     virtual size_t extraMemoryCost() const
@@ -280,6 +283,9 @@ public:
     virtual void notifyActiveSourceBuffersChanged() { }
 
     virtual void setShouldDisableSleep(bool) { }
+
+    virtual void applicationWillResignActive() { }
+    virtual void applicationDidBecomeActive() { }
 };
 
 }

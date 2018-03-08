@@ -294,7 +294,7 @@ void PlatformWebView::changeWindowScaleIfNeeded(float)
     // Retina only surface.
 }
 
-#if !USE(IOSURFACE)
+#if !HAVE(IOSURFACE)
 static void releaseDataProviderData(void* info, const void*, size_t)
 {
     CARenderServerDestroyBuffer(static_cast<CARenderServerBufferRef>(info));
@@ -304,7 +304,7 @@ static void releaseDataProviderData(void* info, const void*, size_t)
 RetainPtr<CGImageRef> PlatformWebView::windowSnapshotImage()
 {
     BEGIN_BLOCK_OBJC_EXCEPTIONS;
-#if USE(IOSURFACE)
+#if HAVE(IOSURFACE)
     __block bool isDone = false;
     __block RetainPtr<CGImageRef> result;
     
@@ -356,6 +356,9 @@ RetainPtr<CGImageRef> PlatformWebView::windowSnapshotImage()
 
 void PlatformWebView::setNavigationGesturesEnabled(bool enabled)
 {
+#if WK_API_ENABLED
+    [platformView() setAllowsBackForwardNavigationGestures:enabled];
+#endif
 }
 
 } // namespace WTR

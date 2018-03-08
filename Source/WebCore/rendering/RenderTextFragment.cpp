@@ -26,6 +26,7 @@
 #include "RenderBlock.h"
 #include "RenderIterator.h"
 #include "RenderMultiColumnFlow.h"
+#include "RenderTreeBuilder.h"
 #include "Text.h"
 #include <wtf/IsoMallocInlines.h>
 
@@ -58,7 +59,10 @@ RenderTextFragment::RenderTextFragment(Document& textNode, const String& text)
 {
 }
 
-RenderTextFragment::~RenderTextFragment() = default;
+RenderTextFragment::~RenderTextFragment()
+{
+    ASSERT(!m_firstLetter);
+}
 
 bool RenderTextFragment::canBeSelectionLeaf() const
 {
@@ -73,13 +77,6 @@ void RenderTextFragment::styleDidChange(StyleDifference diff, const RenderStyle*
         block->mutableStyle().removeCachedPseudoStyle(FIRST_LETTER);
 }
 
-void RenderTextFragment::willBeDestroyed()
-{
-    if (m_firstLetter)
-        m_firstLetter->removeFromParentAndDestroy();
-    RenderText::willBeDestroyed();
-}
-
 void RenderTextFragment::setText(const String& newText, bool force)
 {
     RenderText::setText(newText, force);
@@ -87,7 +84,10 @@ void RenderTextFragment::setText(const String& newText, bool force)
     m_end = text().length();
     if (!m_firstLetter)
         return;
-    m_firstLetter->removeFromParentAndDestroy();
+    if (RenderTreeBuilder::current())
+        RenderTreeBuilder::current()->destroy(*m_firstLetter);
+    else
+        RenderTreeBuilder(*document().renderView()).destroy(*m_firstLetter);
     ASSERT(!m_firstLetter);
     ASSERT(!textNode() || textNode()->renderer() == this);
 }

@@ -97,6 +97,11 @@ public:
     void decrement();
     void showMenu();
     void press();
+#if PLATFORM(MAC)
+    void syncPress();
+#else
+    void syncPress() { press(); }
+#endif
 
     // Attributes - platform-independent implementations
     JSRetainPtr<JSStringRef> stringAttributeValue(JSStringRef attribute);
@@ -168,7 +173,7 @@ public:
     JSRetainPtr<JSStringRef> classList() const;
 
     // CSS3-speech properties.
-    JSRetainPtr<JSStringRef> speak();
+    JSRetainPtr<JSStringRef> speakAs();
     
     // Table-specific attributes
     JSRetainPtr<JSStringRef> attributesOfColumnHeaders();
@@ -275,6 +280,8 @@ public:
     RefPtr<AccessibilityTextMarker> nextTextMarker(AccessibilityTextMarker*);
     RefPtr<AccessibilityUIElement> accessibilityElementForTextMarker(AccessibilityTextMarker*);
     JSRetainPtr<JSStringRef> stringForTextMarkerRange(AccessibilityTextMarkerRange*);
+    JSRetainPtr<JSStringRef> attributedStringForTextMarkerRange(AccessibilityTextMarkerRange*);
+    JSRetainPtr<JSStringRef> attributedStringForTextMarkerRangeWithOptions(AccessibilityTextMarkerRange*, bool);
     int textMarkerRangeLength(AccessibilityTextMarkerRange*);
     bool attributedStringForTextMarkerRangeContainsAttribute(JSStringRef, AccessibilityTextMarkerRange*);
     int indexForTextMarker(AccessibilityTextMarker*);

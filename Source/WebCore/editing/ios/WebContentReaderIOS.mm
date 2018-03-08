@@ -26,6 +26,8 @@
 #import "config.h"
 #import "WebContentReader.h"
 
+#if PLATFORM(IOS)
+
 #import "ArchiveResource.h"
 #import "Document.h"
 #import "DocumentFragment.h"
@@ -46,11 +48,6 @@
 #import <wtf/unicode/CharacterNames.h>
 
 namespace WebCore {
-
-bool WebContentReader::readFilenames(const Vector<String>&)
-{
-    return false;
-}
 
 bool WebContentReader::readURL(const URL& url, const String& title)
 {
@@ -81,3 +78,5 @@ bool WebContentReader::readURL(const URL& url, const String& title)
 }
 
 }
+
+#endif // PLATFORM(IOS)

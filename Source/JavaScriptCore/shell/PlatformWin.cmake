@@ -1,4 +1,4 @@
-include_directories(./ ${JavaScriptCore_INCLUDE_DIRECTORIES})
+include_directories(./ PRIVATE ${JavaScriptCore_INCLUDE_DIRECTORIES} ${JavaScriptCore_PRIVATE_INCLUDE_DIRECTORIES})
 include_directories(SYSTEM ${JavaScriptCore_SYSTEM_INCLUDE_DIRECTORIES})
 add_library(jscLib SHARED ${JSC_SOURCES})
 
@@ -26,8 +26,8 @@ add_dependencies(testRegExp testRegExpLib)
 target_link_libraries(testRegExpLib JavaScriptCore)
 
 add_library(testapiLib SHARED ${TESTAPI_SOURCES})
-set_source_files_properties(../API/tests/CustomGlobalObjectClassTest.c PROPERTIES COMPILE_FLAGS "/TP ${MSVC_RUNTIME_COMPILE_FLAG}")
-set_source_files_properties(../API/tests/testapi.c PROPERTIES COMPILE_FLAGS "/TP ${MSVC_RUNTIME_COMPILE_FLAG}")
+set_source_files_properties(../API/tests/CustomGlobalObjectClassTest.c PROPERTIES COMPILE_FLAGS "/TP")
+set_source_files_properties(../API/tests/testapi.c PROPERTIES COMPILE_FLAGS "/TP")
 add_executable(testapi ${JSC_SOURCES})
 set_target_properties(testapi PROPERTIES OUTPUT_NAME "testapi${DEBUG_SUFFIX}")
 target_link_libraries(testapi shlwapi)

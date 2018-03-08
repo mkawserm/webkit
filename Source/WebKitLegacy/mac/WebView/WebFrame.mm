@@ -53,7 +53,10 @@
 #import "WebScriptWorldInternal.h"
 #import "WebViewInternal.h"
 #import <JavaScriptCore/APICast.h>
+#import <JavaScriptCore/JSCJSValue.h>
 #import <JavaScriptCore/JSContextInternal.h>
+#import <JavaScriptCore/JSLock.h>
+#import <JavaScriptCore/JSObject.h>
 #import <WebCore/AXObjectCache.h>
 #import <WebCore/AccessibilityObject.h>
 #import <WebCore/CSSAnimationController.h>
@@ -99,11 +102,6 @@
 #import <WebCore/ThreadCheck.h>
 #import <WebCore/VisibleUnits.h>
 #import <WebCore/markup.h>
-#import <bindings/ScriptValue.h>
-#import <runtime/JSCJSValue.h>
-#import <runtime/JSLock.h>
-#import <runtime/JSObject.h>
-#import <wtf/CurrentTime.h>
 
 #if PLATFORM(IOS)
 #import "WebMailDelegate.h"
@@ -445,7 +443,10 @@ static NSURL *createUniqueWebDataURL();
         if (FrameView* view = frame->view()) {
             view->setTransparent(!drawsBackground);
 #if !PLATFORM(IOS)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
             Color color = colorFromNSColor([backgroundColor colorUsingColorSpaceName:NSDeviceRGBColorSpace]);
+#pragma clang diagnostic pop
 #else
             Color color = Color(backgroundColor);
 #endif
@@ -621,7 +622,10 @@ static inline WebDataSource *dataSource(DocumentLoader* loader)
 #if !PLATFORM(IOS)
     ASSERT([[NSGraphicsContext currentContext] isFlipped]);
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
     CGContextRef ctx = static_cast<CGContextRef>([[NSGraphicsContext currentContext] graphicsPort]);
+#pragma clang diagnostic pop
 #else
     CGContextRef ctx = WKGetCurrentGraphicsContext();
 #endif

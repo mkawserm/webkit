@@ -62,6 +62,7 @@ template<typename T> inline T forwardInheritedValue(T&& value) { return std::for
 inline Length forwardInheritedValue(const Length& value) { auto copy = value; return copy; }
 inline LengthSize forwardInheritedValue(const LengthSize& value) { auto copy = value; return copy; }
 inline LengthBox forwardInheritedValue(const LengthBox& value) { auto copy = value; return copy; }
+inline GapLength forwardInheritedValue(const GapLength& value) { auto copy = value; return copy; }
 
 // Note that we assume the CSS parser only allows valid CSSValue types.
 class StyleBuilderCustom {
@@ -73,7 +74,6 @@ public:
     DECLARE_PROPERTY_CUSTOM_HANDLERS(BorderImageWidth);
     DECLARE_PROPERTY_CUSTOM_HANDLERS(BoxShadow);
     DECLARE_PROPERTY_CUSTOM_HANDLERS(Clip);
-    DECLARE_PROPERTY_CUSTOM_HANDLERS(ColumnGap);
     DECLARE_PROPERTY_CUSTOM_HANDLERS(Content);
     DECLARE_PROPERTY_CUSTOM_HANDLERS(CounterIncrement);
     DECLARE_PROPERTY_CUSTOM_HANDLERS(CounterReset);
@@ -144,6 +144,8 @@ public:
 
     static void applyValueStrokeWidth(StyleResolver&, CSSValue&);
     static void applyValueStrokeColor(StyleResolver&, CSSValue&);
+    
+    static void applyValueWebkitLinesClamp(StyleResolver&, CSSValue&);
 
 private:
     static void resetEffectiveZoom(StyleResolver&);
@@ -1136,13 +1138,13 @@ inline void StyleBuilderCustom::applyValueWebkitTextEmphasisStyle(StyleResolver&
 template <StyleBuilderCustom::CounterBehavior counterBehavior>
 inline void StyleBuilderCustom::applyInheritCounter(StyleResolver& styleResolver)
 {
-    CounterDirectiveMap& map = styleResolver.style()->accessCounterDirectives();
+    auto& map = styleResolver.style()->accessCounterDirectives();
     for (auto& keyValue : const_cast<RenderStyle*>(styleResolver.parentStyle())->accessCounterDirectives()) {
-        CounterDirectives& directives = map.add(keyValue.key, CounterDirectives()).iterator->value;
+        auto& directives = map.add(keyValue.key, CounterDirectives { }).iterator->value;
         if (counterBehavior == Reset)
-            directives.inheritReset(keyValue.value);
+            directives.resetValue = keyValue.value.resetValue;
         else
-            directives.inheritIncrement(keyValue.value);
+            directives.incrementValue = keyValue.value.incrementValue;
     }
 }
 
@@ -1157,9 +1159,9 @@ inline void StyleBuilderCustom::applyValueCounter(StyleResolver& styleResolver, 
     CounterDirectiveMap& map = styleResolver.style()->accessCounterDirectives();
     for (auto& keyValue : map) {
         if (counterBehavior == Reset)
-            keyValue.value.clearReset();
+            keyValue.value.resetValue = std::nullopt;
         else
-            keyValue.value.clearIncrement();
+            keyValue.value.incrementValue = std::nullopt;
     }
 
     if (setCounterIncrementToNone)
@@ -1167,16 +1169,13 @@ inline void StyleBuilderCustom::applyValueCounter(StyleResolver& styleResolver, 
 
     for (auto& item : downcast<CSSValueList>(value)) {
         Pair* pair = downcast<CSSPrimitiveValue>(item.get()).pairValue();
-        if (!pair || !pair->first() || !pair->second())
-            continue;
-
         AtomicString identifier = pair->first()->stringValue();
         int value = pair->second()->intValue();
-        CounterDirectives& directives = map.add(identifier, CounterDirectives()).iterator->value;
+        auto& directives = map.add(identifier, CounterDirectives { }).iterator->value;
         if (counterBehavior == Reset)
-            directives.setResetValue(value);
+            directives.resetValue = value;
         else
-            directives.addIncrementValue(value);
+            directives.incrementValue = saturatedAddition(directives.incrementValue.value_or(0), value);
     }
 }
 
@@ -1367,27 +1366,6 @@ inline void StyleBuilderCustom::applyValueWebkitSvgShadow(StyleResolver& styleRe
     svgStyle.setShadow(std::make_unique<ShadowData>(location, blur, 0, Normal, false, color.isValid() ? color : Color::transparent));
 }
 
-inline void StyleBuilderCustom::applyInitialColumnGap(StyleResolver& styleResolver)
-{
-    styleResolver.style()->setHasNormalColumnGap();
-}
-
-inline void StyleBuilderCustom::applyInheritColumnGap(StyleResolver& styleResolver)
-{
-    if (styleResolver.parentStyle()->hasNormalColumnGap())
-        styleResolver.style()->setHasNormalColumnGap();
-    else
-        styleResolver.style()->setColumnGap(styleResolver.parentStyle()->columnGap());
-}
-
-inline void StyleBuilderCustom::applyValueColumnGap(StyleResolver& styleResolver, CSSValue& value)
-{
-    if (downcast<CSSPrimitiveValue>(value).valueID() == CSSValueNormal)
-        styleResolver.style()->setHasNormalColumnGap();
-    else
-        styleResolver.style()->setColumnGap(StyleBuilderConverter::convertComputedLength<float>(styleResolver, value));
-}
-
 inline void StyleBuilderCustom::applyInitialContent(StyleResolver& styleResolver)
 {
     styleResolver.style()->clearContent();
@@ -1445,8 +1423,7 @@ inline void StyleBuilderCustom::applyValueContent(StyleResolver& styleResolver, 
             styleResolver.style()->setContent(value.isNull() ? emptyAtom() : value.impl(), didSet);
             didSet = true;
             // Register the fact that the attribute value affects the style.
-            styleResolver.ruleSets().mutableFeatures().attributeCanonicalLocalNamesInRules.add(attr.localName().impl());
-            styleResolver.ruleSets().mutableFeatures().attributeLocalNamesInRules.add(attr.localName().impl());
+            styleResolver.ruleSets().mutableFeatures().registerContentAttribute(attr.localName());
         } else if (contentValue.isCounter()) {
             auto* counterValue = contentValue.counterValue();
             EListStyleType listStyleType = NoneListStyle;
@@ -1843,8 +1820,7 @@ void StyleBuilderCustom::applyValueAlt(StyleResolver& styleResolver, CSSValue& v
         styleResolver.style()->setContentAltText(value.isNull() ? emptyAtom() : value);
 
         // Register the fact that the attribute value affects the style.
-        styleResolver.ruleSets().mutableFeatures().attributeCanonicalLocalNamesInRules.add(attr.localName().impl());
-        styleResolver.ruleSets().mutableFeatures().attributeLocalNamesInRules.add(attr.localName().impl());
+        styleResolver.ruleSets().mutableFeatures().registerContentAttribute(attr.localName());
     } else
         styleResolver.style()->setContentAltText(emptyAtom());
 }
@@ -1892,6 +1868,20 @@ inline void StyleBuilderCustom::applyValueStrokeColor(StyleResolver& styleResolv
     if (styleResolver.applyPropertyToVisitedLinkStyle())
         styleResolver.style()->setVisitedLinkStrokeColor(styleResolver.colorFromPrimitiveValue(primitiveValue, /* forVisitedLink */ true));
     styleResolver.style()->setHasExplicitlySetStrokeColor(true);
+}
+
+inline void StyleBuilderCustom::applyValueWebkitLinesClamp(StyleResolver& styleResolver, CSSValue& value)
+{
+    if (is<CSSValueList>(value)) {
+        auto& list = downcast<CSSValueList>(value);
+        if (list.length() != 3)
+            return;
+        LineClampValue start = downcast<CSSPrimitiveValue>(*list.itemWithoutBoundsCheck(0));
+        LineClampValue end = downcast<CSSPrimitiveValue>(*list.itemWithoutBoundsCheck(1));
+        AtomicString center = downcast<CSSPrimitiveValue>(*list.itemWithoutBoundsCheck(2)).stringValue();
+        styleResolver.style()->setLinesClamp(LinesClampValue(start, end, center));
+    } else
+        styleResolver.style()->setLinesClamp(RenderStyle::initialLinesClamp());
 }
 
 } // namespace WebCore

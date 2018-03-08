@@ -34,11 +34,31 @@ WI.SpreadsheetCSSStyleDeclarationEditor = class SpreadsheetCSSStyleDeclarationEd
         this._delegate = delegate;
         this.style = style;
         this._propertyViews = [];
+
+        this._inlineSwatchActive = false;
+        this._focused = false;
+
         this._propertyPendingStartEditing = null;
+        this._pendingAddBlankPropertyIndexOffset = NaN;
         this._filterText = null;
     }
 
     // Public
+
+    initialLayout()
+    {
+        if (!this.style.editable)
+            return;
+
+        this.element.addEventListener("focus", () => { this.focused = true; }, true);
+        this.element.addEventListener("blur", (event) => {
+            let focusedElement = event.relatedTarget;
+            if (focusedElement && this.element.contains(focusedElement))
+                return;
+
+            this.focused = false;
+        }, true);
+    }
 
     layout()
     {
@@ -55,7 +75,8 @@ WI.SpreadsheetCSSStyleDeclarationEditor = class SpreadsheetCSSStyleDeclarationEd
         let propertyViewPendingStartEditing = null;
         for (let index = 0; index < properties.length; index++) {
             let property = properties[index];
-            let propertyView = new WI.SpreadsheetStyleProperty(this, property, index);
+            let propertyView = new WI.SpreadsheetStyleProperty(this, property);
+            propertyView.index = index;
             this.element.append(propertyView.element);
             this._propertyViews.push(propertyView);
 
@@ -70,12 +91,24 @@ WI.SpreadsheetCSSStyleDeclarationEditor = class SpreadsheetCSSStyleDeclarationEd
 
         if (this._filterText)
             this.applyFilter(this._filterText);
+
+        if (!isNaN(this._pendingAddBlankPropertyIndexOffset))
+            this.addBlankProperty(this._propertyViews.length - 1 - this._pendingAddBlankPropertyIndexOffset);
     }
 
     detached()
     {
+        this._inlineSwatchActive = false;
+        this.focused = false;
+
         for (let propertyView of this._propertyViews)
             propertyView.detached();
+    }
+
+    hidden()
+    {
+        for (let propertyView of this._propertyViews)
+            propertyView.hidden();
     }
 
     get style()
@@ -99,24 +132,42 @@ WI.SpreadsheetCSSStyleDeclarationEditor = class SpreadsheetCSSStyleDeclarationEd
         this.needsLayout();
     }
 
+    get editing()
+    {
+        return this._focused || this._inlineSwatchActive;
+    }
+
+    set focused(value)
+    {
+        this._focused = value;
+        this._updateStyleLock();
+    }
+
+    set inlineSwatchActive(value)
+    {
+        this._inlineSwatchActive = value;
+        this._updateStyleLock();
+    }
+
     startEditingFirstProperty()
     {
-        if (this._propertyViews.length)
-            this._propertyViews[0].nameTextField.startEditing();
+        let firstEditableProperty = this._editablePropertyAfter(-1);
+        if (firstEditableProperty)
+            firstEditableProperty.nameTextField.startEditing();
         else {
-            let index = 0;
-            this.addBlankProperty(index);
+            const appendAfterLast = -1;
+            this.addBlankProperty(appendAfterLast);
         }
     }
 
     startEditingLastProperty()
     {
-        let lastProperty = this._propertyViews.lastValue;
-        if (lastProperty)
-            lastProperty.valueTextField.startEditing();
+        let lastEditableProperty = this._editablePropertyBefore(this._propertyViews.length);
+        if (lastEditableProperty)
+            lastEditableProperty.valueTextField.startEditing();
         else {
-            let index = 0;
-            this.addBlankProperty(index);
+            const appendAfterLast = -1;
+            this.addBlankProperty(appendAfterLast);
         }
     }
 
@@ -161,18 +212,10 @@ WI.SpreadsheetCSSStyleDeclarationEditor = class SpreadsheetCSSStyleDeclarationEd
         return false;
     }
 
-    isFocused()
-    {
-        let focusedElement = document.activeElement;
-
-        if (!focusedElement || focusedElement.tagName === "BODY")
-            return false;
-
-        return focusedElement.isSelfOrDescendant(this.element);
-    }
-
     addBlankProperty(index)
     {
+        this._pendingAddBlankPropertyIndexOffset = NaN;
+
         if (index === -1) {
             // Append to the end.
             index = this._propertyViews.length;
@@ -182,9 +225,9 @@ WI.SpreadsheetCSSStyleDeclarationEditor = class SpreadsheetCSSStyleDeclarationEd
         this.needsLayout();
     }
 
-    spreadsheetCSSStyleDeclarationEditorFocusMoved({direction, movedFromProperty, willRemoveProperty})
+    spreadsheetStylePropertyFocusMoved(propertyView, {direction, willRemoveProperty})
     {
-        let movedFromIndex = this._propertyViews.indexOf(movedFromProperty);
+        let movedFromIndex = this._propertyViews.indexOf(propertyView);
         console.assert(movedFromIndex !== -1, "Property doesn't exist, focusing on a selector as a fallback.");
         if (movedFromIndex === -1) {
             if (this._style.selectorEditable)
@@ -194,36 +237,60 @@ WI.SpreadsheetCSSStyleDeclarationEditor = class SpreadsheetCSSStyleDeclarationEd
         }
 
         if (direction === "forward") {
-            // Move from the value to the next property's name.
-            let index = movedFromIndex + 1;
-            if (index < this._propertyViews.length)
-                this._propertyViews[index].nameTextField.startEditing();
+            // Move from the value to the next enabled property's name.
+            let propertyView = this._editablePropertyAfter(movedFromIndex);
+            if (propertyView)
+                propertyView.nameTextField.startEditing();
             else {
                 if (willRemoveProperty) {
                     // Move from the last value in the rule to the next rule's selector.
                     let reverse = false;
                     this._delegate.cssStyleDeclarationEditorStartEditingAdjacentRule(reverse);
-                } else
-                    this.addBlankProperty(index);
+                } else {
+                    const appendAfterLast = -1;
+                    this.addBlankProperty(appendAfterLast);
+                }
             }
         } else {
-            let index = movedFromIndex - 1;
-            if (index < 0) {
+            let propertyView = this._editablePropertyBefore(movedFromIndex);
+            if (propertyView) {
+                // Move from the property's name to the previous enabled property's value.
+                propertyView.valueTextField.startEditing()
+            } else {
                 // Move from the first property's name to the rule's selector.
                 if (this._style.selectorEditable)
                     this._delegate.cssStyleDeclarationTextEditorStartEditingRuleSelector();
-            } else {
-                // Move from the property's name to the previous property's value.
-                let valueTextField = this._propertyViews[index].valueTextField;
-                if (valueTextField)
-                    valueTextField.startEditing();
             }
         }
+    }
+
+    // SpreadsheetStyleProperty delegate
+
+    spreadsheetStylePropertyAddBlankPropertySoon(propertyView, {index})
+    {
+        if (isNaN(index))
+            index = this._propertyViews.length;
+        this._pendingAddBlankPropertyIndexOffset = this._propertyViews.length - index;
     }
 
     spreadsheetStylePropertyRemoved(propertyView)
     {
         this._propertyViews.remove(propertyView);
+
+        for (let index = 0; index < this._propertyViews.length; index++)
+            this._propertyViews[index].index = index;
+
+        this._focused = false;
+    }
+
+    stylePropertyInlineSwatchActivated()
+    {
+        this.inlineSwatchActive = true;
+    }
+
+    stylePropertyInlineSwatchDeactivated()
+    {
+        this.inlineSwatchActive = false;
     }
 
     applyFilter(filterText)
@@ -252,13 +319,40 @@ WI.SpreadsheetCSSStyleDeclarationEditor = class SpreadsheetCSSStyleDeclarationEd
         return this._style.allProperties;
     }
 
+    _editablePropertyAfter(propertyIndex)
+    {
+        for (let index = propertyIndex + 1; index < this._propertyViews.length; index++) {
+            let property = this._propertyViews[index];
+            if (property.enabled)
+                return property;
+        }
+
+        return null;
+    }
+
+    _editablePropertyBefore(propertyIndex)
+    {
+        for (let index = propertyIndex - 1; index >= 0; index--) {
+            let property = this._propertyViews[index];
+            if (property.enabled)
+                return property;
+        }
+
+        return null;
+    }
+
     _propertiesChanged(event)
     {
-        if (this.isFocused()) {
+        if (this.editing && isNaN(this._pendingAddBlankPropertyIndexOffset)) {
             for (let propertyView of this._propertyViews)
                 propertyView.updateStatus();
         } else
             this.needsLayout();
+    }
+
+    _updateStyleLock()
+    {
+        this.style.locked = this._focused || this._inlineSwatchActive;
     }
 };
 

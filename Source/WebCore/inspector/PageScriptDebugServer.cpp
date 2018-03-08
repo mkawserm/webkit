@@ -41,7 +41,7 @@
 #include "PluginViewBase.h"
 #include "ScriptController.h"
 #include "Timer.h"
-#include <runtime/JSLock.h>
+#include <JavaScriptCore/JSLock.h>
 #include <wtf/MainThread.h>
 #include <wtf/StdLibExtras.h>
 
@@ -123,14 +123,14 @@ void PageScriptDebugServer::runEventLoopWhilePausedInternal()
     m_page.decrementNestedRunLoopCount();
 }
 
-bool PageScriptDebugServer::isContentScript(ExecState* exec) const
+bool PageScriptDebugServer::isContentScript(ExecState* state) const
 {
-    return &currentWorld(exec) != &mainThreadNormalWorld();
+    return &currentWorld(*state) != &mainThreadNormalWorld();
 }
 
-void PageScriptDebugServer::reportException(ExecState* exec, JSC::Exception* exception) const
+void PageScriptDebugServer::reportException(ExecState* state, JSC::Exception* exception) const
 {
-    WebCore::reportException(exec, exception);
+    WebCore::reportException(state, exception);
 }
 
 void PageScriptDebugServer::setJavaScriptPaused(const PageGroup& pageGroup, bool paused)

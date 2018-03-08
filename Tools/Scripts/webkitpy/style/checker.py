@@ -219,6 +219,7 @@ _PATH_RULES_SPECIFIER = [
     #
     ([os.path.join('webkitpy', 'thirdparty'),
       os.path.join('Source', 'ThirdParty', 'ANGLE'),
+      os.path.join('Source', 'ThirdParty', 'openvr'),
       os.path.join('Source', 'ThirdParty', 'xdgmime'),
       os.path.join('Tools', 'WebGPUAPIStructure')],
      ["-",
@@ -252,7 +253,8 @@ _PATH_RULES_SPECIFIER = [
       os.path.join('Source', 'WebCore', 'PAL', 'pal', 'spi', 'cocoa', 'PassKitSPI.h')],
      ["-build/include"]),
 
-    ([  # Some SPI headers have identifier names with underscores.
+    ([  # libwebrtc source and some SPI headers have identifier names with underscores.
+      os.path.join('Source', 'ThirdParty', 'libwebrtc', 'Source', 'webrtc'),
       os.path.join('Source', 'WebCore', 'PAL', 'pal', 'spi')],
      ["-readability/naming/underscores"]),
 ]

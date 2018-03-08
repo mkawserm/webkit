@@ -67,6 +67,7 @@ inline CapabilityLevel canCompile(Node* node)
     case CheckStructure:
     case CheckStructureOrEmpty:
     case DoubleAsInt32:
+    case Arrayify:
     case ArrayifyToStructure:
     case PutStructure:
     case GetButterfly:
@@ -136,6 +137,7 @@ inline CapabilityLevel canCompile(Node* node)
     case CheckCell:
     case CheckBadCell:
     case CheckNotEmpty:
+    case AssertNotEmpty:
     case CheckStringIdent:
     case CheckTraps:
     case StringCharCodeAt:
@@ -172,6 +174,7 @@ inline CapabilityLevel canCompile(Node* node)
     case CheckInBounds:
     case ConstantStoragePointer:
     case Check:
+    case CheckVarargs:
     case CountExecution:
     case SuperSamplerBegin:
     case SuperSamplerEnd:
@@ -179,6 +182,7 @@ inline CapabilityLevel canCompile(Node* node)
     case GetScope:
     case GetCallee:
     case GetArgumentCountIncludingThis:
+    case SetArgumentCountIncludingThis:
     case ToNumber:
     case ToString:
     case ToObject:
@@ -211,10 +215,13 @@ inline CapabilityLevel canCompile(Node* node)
     case SetAdd:
     case MapSet:
     case WeakMapGet:
+    case WeakSetAdd:
+    case WeakMapSet:
     case IsEmpty:
     case IsUndefined:
     case IsBoolean:
     case IsNumber:
+    case NumberIsInteger:
     case IsObject:
     case IsObjectOrNull:
     case IsFunction:
@@ -231,6 +238,7 @@ inline CapabilityLevel canCompile(Node* node)
     case BooleanToNumber:
     case HasGenericProperty:
     case HasStructureProperty:
+    case HasIndexedProperty:
     case GetDirectPname:
     case GetEnumerableLength:
     case GetIndexedPropertyStorage:
@@ -245,6 +253,7 @@ inline CapabilityLevel canCompile(Node* node)
     case PhantomNewAsyncGeneratorFunction:
     case PhantomNewAsyncFunction:
     case PhantomCreateActivation:
+    case PhantomNewRegexp:
     case PutHint:
     case CheckStructureImmediate:
     case MaterializeNewObject:
@@ -253,6 +262,7 @@ inline CapabilityLevel canCompile(Node* node)
     case PhantomCreateRest:
     case PhantomSpread:
     case PhantomNewArrayWithSpread:
+    case PhantomNewArrayBuffer:
     case PhantomClonedArguments:
     case GetMyArgumentByVal:
     case GetMyArgumentByValOutOfBounds:
@@ -274,7 +284,9 @@ inline CapabilityLevel canCompile(Node* node)
     case CreateRest:
     case GetRestLength:
     case RegExpExec:
+    case RegExpExecNonGlobalOrSticky:
     case RegExpTest:
+    case RegExpMatchFast:
     case NewRegexp:
     case StringReplace:
     case StringReplaceRegExp: 
@@ -308,6 +320,8 @@ inline CapabilityLevel canCompile(Node* node)
     case CallDOMGetter:
     case ArraySlice:
     case ArrayIndexOf:
+    case ArrayPop:
+    case ArrayPush:
     case ParseInt:
     case AtomicsAdd:
     case AtomicsAnd:
@@ -321,6 +335,7 @@ inline CapabilityLevel canCompile(Node* node)
     case AtomicsIsLockFree:
     case InitializeEntrypointArguments:
     case CPUIntrinsic:
+    case GetArrayMask:
         // These are OK.
         break;
 
@@ -330,21 +345,14 @@ inline CapabilityLevel canCompile(Node* node)
         // case because it would prevent us from catching bugs where the FTL backend
         // pipeline failed to optimize out an Identity.
         break;
-    case Arrayify:
-        switch (node->arrayMode().type()) {
-        case Array::Int32:
-        case Array::Double:
-        case Array::Contiguous:
-            break;
-        default:
-            return CannotCompile;
-        }
-        break;
     case CheckArray:
         switch (node->arrayMode().type()) {
         case Array::Int32:
         case Array::Double:
         case Array::Contiguous:
+        case Array::Undecided:
+        case Array::ArrayStorage:
+        case Array::SlowPutArrayStorage:
         case Array::DirectArguments:
         case Array::ScopedArguments:
             break;
@@ -360,6 +368,8 @@ inline CapabilityLevel canCompile(Node* node)
         case Array::Int32:
         case Array::Double:
         case Array::Contiguous:
+        case Array::ArrayStorage:
+        case Array::SlowPutArrayStorage:
         case Array::String:
         case Array::DirectArguments:
         case Array::ScopedArguments:
@@ -377,17 +387,6 @@ inline CapabilityLevel canCompile(Node* node)
             break;
         default:
             RELEASE_ASSERT_NOT_REACHED();
-        }
-        break;
-    case HasIndexedProperty:
-        switch (node->arrayMode().type()) {
-        case Array::ForceExit:
-        case Array::Int32:
-        case Array::Double:
-        case Array::Contiguous:
-            break;
-        default:
-            return CannotCompile;
         }
         break;
     case GetByVal:
@@ -421,6 +420,8 @@ inline CapabilityLevel canCompile(Node* node)
         case Array::Int32:
         case Array::Double:
         case Array::Contiguous:
+        case Array::ArrayStorage:
+        case Array::SlowPutArrayStorage:
             break;
         default:
             if (isTypedView(node->arrayMode().typedArrayType()))
@@ -429,17 +430,6 @@ inline CapabilityLevel canCompile(Node* node)
         }
         break;
     case PutByValWithThis:
-        break;
-    case ArrayPush:
-    case ArrayPop:
-        switch (node->arrayMode().type()) {
-        case Array::Int32:
-        case Array::Contiguous:
-        case Array::Double:
-            break;
-        default:
-            return CannotCompile;
-        }
         break;
     default:
         // Don't know how to handle anything else.

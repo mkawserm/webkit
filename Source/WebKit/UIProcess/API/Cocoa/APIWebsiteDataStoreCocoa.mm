@@ -74,7 +74,7 @@ String WebsiteDataStore::defaultIndexedDBDatabaseDirectory()
 
 String WebsiteDataStore::defaultServiceWorkerRegistrationDirectory()
 {
-    return websiteDataDirectoryFileSystemRepresentation("ServiceWorkers");
+    return cacheDirectoryFileSystemRepresentation("ServiceWorkers");
 }
 
 String WebsiteDataStore::defaultLocalStorageDirectory()
@@ -197,6 +197,8 @@ WebKit::WebsiteDataStore::Configuration WebsiteDataStore::defaultDataStoreConfig
     configuration.networkCacheDirectory = defaultNetworkCacheDirectory();
     configuration.mediaCacheDirectory = defaultMediaCacheDirectory();
 
+    configuration.indexedDBDatabaseDirectory = defaultIndexedDBDatabaseDirectory();
+    configuration.serviceWorkerRegistrationDirectory = defaultServiceWorkerRegistrationDirectory();
     configuration.webSQLDatabaseDirectory = defaultWebSQLDatabaseDirectory();
     configuration.localStorageDirectory = defaultLocalStorageDirectory();
     configuration.mediaKeysStorageDirectory = defaultMediaKeysStorageDirectory();

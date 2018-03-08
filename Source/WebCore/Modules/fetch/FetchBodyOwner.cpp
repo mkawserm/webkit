@@ -290,22 +290,33 @@ RefPtr<ReadableStream> FetchBodyOwner::readableStream(JSC::ExecState& state)
     if (isBodyNullOrOpaque())
         return nullptr;
 
-    if (!m_body->hasReadableStream()) {
-        ASSERT(!m_readableStreamSource);
-        if (isDisturbed()) {
-            m_body->setReadableStream(ReadableStream::create(state, nullptr));
-            m_body->readableStream()->lock();
-        } else {
-            m_readableStreamSource = adoptRef(*new FetchBodySource(*this));
-            m_body->setReadableStream(ReadableStream::create(state, m_readableStreamSource));
-        }
-    }
+    if (!m_body->hasReadableStream())
+        createReadableStream(state);
+
     return m_body->readableStream();
+}
+
+void FetchBodyOwner::createReadableStream(JSC::ExecState& state)
+{
+    ASSERT(!m_readableStreamSource);
+    if (isDisturbed()) {
+        m_body->setReadableStream(ReadableStream::create(state, nullptr));
+        m_body->readableStream()->lock();
+    } else {
+        m_readableStreamSource = adoptRef(*new FetchBodySource(*this));
+        m_body->setReadableStream(ReadableStream::create(state, m_readableStreamSource));
+    }
 }
 
 void FetchBodyOwner::consumeBodyAsStream()
 {
     ASSERT(m_readableStreamSource);
+
+    if (m_loadingError) {
+        auto errorMessage = m_loadingError->localizedDescription();
+        m_readableStreamSource->error(errorMessage.isEmpty() ? ASCIILiteral("Loading failed") : errorMessage);
+        return;
+    }
 
     body().consumeAsStream(*this, *m_readableStreamSource);
     if (!m_readableStreamSource->isPulling())

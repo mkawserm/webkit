@@ -42,14 +42,13 @@
 #include "Logging.h"
 #include "SerializedScriptValue.h"
 #include "UniqueIDBDatabaseConnection.h"
-#include <heap/HeapInlines.h>
-#include <heap/StrongInlines.h>
-#include <runtime/AuxiliaryBarrierInlines.h>
-#include <runtime/StructureInlines.h>
+#include <JavaScriptCore/AuxiliaryBarrierInlines.h>
+#include <JavaScriptCore/HeapInlines.h>
+#include <JavaScriptCore/StrongInlines.h>
+#include <JavaScriptCore/StructureInlines.h>
 #include <wtf/MainThread.h>
 #include <wtf/NeverDestroyed.h>
 #include <wtf/Scope.h>
-
 
 namespace WebCore {
 using namespace JSC;
@@ -333,21 +332,6 @@ void UniqueIDBDatabase::didDeleteBackingStore(uint64_t deletedVersion)
     }
 
     m_deleteBackingStoreInProgress = false;
-
-    if (m_clientClosePendingDatabaseConnections.isEmpty() && m_pendingOpenDBRequests.isEmpty()) {
-        // This UniqueIDBDatabase is now ready to be deleted.
-        ASSERT(m_databaseQueue.isEmpty());
-        ASSERT(m_databaseReplyQueue.isEmpty());
-        m_databaseQueue.kill();
-
-        RELEASE_ASSERT(!m_owningPointerForClose);
-        m_owningPointerForClose = m_server.closeAndTakeUniqueIDBDatabase(*this);
-        ASSERT(m_owningPointerForClose);
-
-        postDatabaseTaskReply(createCrossThreadTask(*this, &UniqueIDBDatabase::didShutdownForClose));
-        return;
-    }
-
     invokeOperationAndTransactionTimer();
 }
 
@@ -1548,6 +1532,7 @@ void UniqueIDBDatabase::invokeOperationAndTransactionTimer()
 {
     LOG(IndexedDB, "UniqueIDBDatabase::invokeOperationAndTransactionTimer()");
     ASSERT(!m_hardClosedForUserDelete);
+    ASSERT(!m_owningPointerForClose);
 
     if (!m_operationAndTransactionTimer.isActive())
         m_operationAndTransactionTimer.startOneShot(0_s);

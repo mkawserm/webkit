@@ -1924,6 +1924,7 @@ class CppStyleTest(CppStyleTestBase):
         self.assert_lint('dispatch_async(dispatch_get_main_queue(), ^{', '')
         self.assert_lint('[outOfBandTracks.get() addObject:@{', '')
         self.assert_lint('EXPECT_DEBUG_DEATH({', '')
+        self.assert_lint('LOCAL_LOG(R"({ "url": "%{public}s",)", url.string().utf8().data());', '')
 
     def test_spacing_between_braces(self):
         self.assert_lint('    { }', '')
@@ -4565,6 +4566,10 @@ class WebKitStyleTest(CppStyleTestBase):
             '    Value1,\n'
             '    Value2\n'
             '};', '')
+        self.assert_multi_line_lint(
+            '[delegate setPolicyForURL:^_WKWebsitePolicy(NSURL *url) {\n'
+            '    return _WKWebsitePolicyDoIt;\n'
+            '}];', '', file_name='foo.mm')
 
         # 3. One-line control clauses should not use braces unless
         #    comments are included or a single statement spans multiple
@@ -5432,6 +5437,12 @@ class WebKitStyleTest(CppStyleTestBase):
         self.assert_lint('::ShowWindow(m_overlay);', '')
         self.assert_lint('o = foo(b ? bar() : baz());', '')
         self.assert_lint('MYMACRO(a ? b() : c);', '')
+
+    def test_min_versions_of_wk_api_available(self):
+        self.assert_lint('WK_API_AVAILABLE(macosx(1.2.3), ios(3.4.5))', '')  # version numbers are OK.
+        self.assert_lint('WK_API_AVAILABLE(macosx(WK_MAC_TBA), ios(WK_IOS_TBA))', '')  # WK_MAC_TBA and WK_IOS_TBA are OK.
+        self.assert_lint('WK_API_AVAILABLE(macosx(WK_IOS_TBA), ios(3.4.5))', 'WK_IOS_TBA is neither a version number nor WK_MAC_TBA  [build/wk_api_available] [5]')
+        self.assert_lint('WK_API_AVAILABLE(macosx(1.2.3), ios(WK_MAC_TBA))', 'WK_MAC_TBA is neither a version number nor WK_IOS_TBA  [build/wk_api_available] [5]')
 
     def test_other(self):
         # FIXME: Implement this.

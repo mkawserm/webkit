@@ -72,7 +72,6 @@ public:
 
     bool isDisabledFormControl() const override;
 
-    bool isFocusable() const override;
     bool isEnumeratable() const override { return false; }
 
     bool isRequired() const;
@@ -142,7 +141,7 @@ protected:
     void didMoveToNewDocument(Document& oldDocument, Document& newDocument) override;
 
     bool supportsFocus() const override;
-    bool isKeyboardFocusable(KeyboardEvent&) const override;
+    bool isKeyboardFocusable(KeyboardEvent*) const override;
     bool isMouseFocusable() const override;
 
     void didRecalcStyle(Style::Change) override;

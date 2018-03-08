@@ -30,7 +30,7 @@
 #include "HeapCellInlines.h"
 #include "IndexingHeader.h"
 #include "JSCallee.h"
-#include "JSCell.h"
+#include "JSCast.h"
 #include "Structure.h"
 #include <type_traits>
 #include <wtf/Assertions.h>
@@ -144,12 +144,12 @@ inline void Heap::mutatorFence()
 
 template<typename Functor> inline void Heap::forEachCodeBlock(const Functor& func)
 {
-    forEachCodeBlockImpl(scopedLambdaRef<bool(CodeBlock*)>(func));
+    forEachCodeBlockImpl(scopedLambdaRef<void(CodeBlock*)>(func));
 }
 
 template<typename Functor> inline void Heap::forEachCodeBlockIgnoringJITPlans(const AbstractLocker& codeBlockSetLocker, const Functor& func)
 {
-    forEachCodeBlockIgnoringJITPlansImpl(codeBlockSetLocker, scopedLambdaRef<bool(CodeBlock*)>(func));
+    forEachCodeBlockIgnoringJITPlansImpl(codeBlockSetLocker, scopedLambdaRef<void(CodeBlock*)>(func));
 }
 
 template<typename Functor> inline void Heap::forEachProtectedCell(const Functor& functor)
@@ -262,7 +262,6 @@ inline void Heap::stopIfNecessary()
 template<typename Func>
 void Heap::forEachSlotVisitor(const Func& func)
 {
-    auto locker = holdLock(m_parallelSlotVisitorLock);
     func(*m_collectorSlotVisitor);
     func(*m_mutatorSlotVisitor);
     for (auto& slotVisitor : m_parallelSlotVisitors)

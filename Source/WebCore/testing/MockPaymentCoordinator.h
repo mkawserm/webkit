@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 Apple Inc. All rights reserved.
+ * Copyright (C) 2017-2018 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -30,6 +30,8 @@
 #include "ApplePayLineItem.h"
 #include "MockPaymentAddress.h"
 #include "PaymentCoordinatorClient.h"
+#include <wtf/HashSet.h>
+#include <wtf/text/StringHash.h>
 
 namespace WebCore {
 
@@ -54,6 +56,7 @@ public:
 
 private:
     bool supportsVersion(unsigned) final;
+    std::optional<String> validatedPaymentNetwork(const String&) final;
     bool canMakePayments() final;
     void canMakePaymentsWithActiveCard(const String&, const String&, WTF::Function<void(bool)>&&);
     void openPaymentSetup(const String&, const String&, WTF::Function<void(bool)>&&);
@@ -70,9 +73,10 @@ private:
     void updateTotalAndLineItems(const ApplePaySessionPaymentRequest::TotalAndLineItems&);
 
     MainFrame& m_mainFrame;
-    MockPaymentAddress m_shippingAddress;
+    ApplePayPaymentContact m_shippingAddress;
     ApplePayLineItem m_total;
     Vector<ApplePayLineItem> m_lineItems;
+    HashSet<String, ASCIICaseInsensitiveHash> m_availablePaymentNetworks;
 };
 
 } // namespace WebCore

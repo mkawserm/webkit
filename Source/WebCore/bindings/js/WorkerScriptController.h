@@ -26,9 +26,9 @@
 
 #pragma once
 
-#include <debugger/Debugger.h>
-#include <heap/Strong.h>
-#include <runtime/JSRunLoopTimer.h>
+#include <JavaScriptCore/Debugger.h>
+#include <JavaScriptCore/JSRunLoopTimer.h>
+#include <JavaScriptCore/Strong.h>
 #include <wtf/Forward.h>
 #include <wtf/Lock.h>
 #include <wtf/NakedPtr.h>
@@ -94,7 +94,7 @@ private:
         if (!m_workerGlobalScopeWrapper)
             initScript();
     }
-    void initScript();
+    WEBCORE_EXPORT void initScript();
 
     RefPtr<JSC::VM> m_vm;
     WorkerGlobalScope* m_workerGlobalScope;

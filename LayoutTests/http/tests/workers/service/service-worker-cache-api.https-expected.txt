@@ -1,7 +1,5 @@
-Registering service worker
-Service worker registered
-Status is Not Found
-Fetching
-Response buffer byte length is 338
-Status is Not Found
+
+
+PASS Testing cache API in service worker 
+PASS Testing cache API with opaque response + blob 
 

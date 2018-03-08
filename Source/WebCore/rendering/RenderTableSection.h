@@ -62,8 +62,6 @@ public:
     RenderTableRow* firstRow() const;
     RenderTableRow* lastRow() const;
 
-    void addChild(RenderPtr<RenderObject> child, RenderObject* beforeChild = 0) override;
-
     std::optional<int> firstLineBaseline() const override;
 
     void addCell(RenderTableCell*, RenderTableRow* row);
@@ -127,6 +125,7 @@ public:
     unsigned numColumns() const;
     void recalcCells();
     void recalcCellsIfNeeded();
+    void removeRedundantColumns();
 
     bool needsCellRecalc() const { return m_needsCellRecalc; }
     void setNeedsCellRecalc();
@@ -147,6 +146,8 @@ public:
     RenderPtr<RenderBox> createAnonymousBoxWithSameTypeAs(const RenderBox&) const override;
     
     void paint(PaintInfo&, const LayoutPoint&) override;
+
+    void willInsertTableRow(RenderTableRow& child, RenderObject* beforeChild);
 
 protected:
     void styleDidChange(StyleDifference, const RenderStyle* oldStyle) override;

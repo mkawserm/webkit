@@ -774,6 +774,7 @@ static void enableExperimentalFeatures(IWebPreferences* preferences)
 {
     COMPtr<IWebPreferencesPrivate6> prefsPrivate { Query, preferences };
 
+    prefsPrivate->setFetchAPIKeepAliveEnabled(TRUE);
     // FIXME: CSSGridLayout
     // FIXME: SpringTimingFunction
     // FIXME: Gamepads
@@ -855,7 +856,7 @@ static void resetWebPreferencesToConsistentValues(IWebPreferences* preferences)
     preferences->setLoadsImagesAutomatically(TRUE);
     prefsPrivate->setLoadsSiteIconsIgnoringImageLoadingPreference(FALSE);
     prefsPrivate->setFrameFlatteningEnabled(FALSE);
-    // Set spatial navigation enabled: NO
+    prefsPrivate->setSpatialNavigationEnabled(FALSE);
     if (persistentUserStyleSheetLocation) {
         size_t stringLength = CFStringGetLength(persistentUserStyleSheetLocation.get());
         Vector<UniChar> urlCharacters(stringLength + 1, 0);

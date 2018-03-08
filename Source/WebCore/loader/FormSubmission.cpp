@@ -47,9 +47,9 @@
 #include "HTMLInputElement.h"
 #include "HTMLNames.h"
 #include "HTMLParserIdioms.h"
-#include "NoEventDispatchAssertion.h"
+#include "ScriptDisallowedScope.h"
 #include "TextEncoding.h"
-#include <wtf/CurrentTime.h>
+#include <wtf/WallTime.h>
 
 namespace WebCore {
 
@@ -59,7 +59,7 @@ static int64_t generateFormDataIdentifier()
 {
     // Initialize to the current time to reduce the likelihood of generating
     // identifiers that overlap with those from past/future browser sessions.
-    static int64_t nextIdentifier = static_cast<int64_t>(currentTime() * 1000000.0);
+    static int64_t nextIdentifier = static_cast<int64_t>(WallTime::now().secondsSinceEpoch().microseconds());
     return ++nextIdentifier;
 }
 
@@ -182,11 +182,7 @@ Ref<FormSubmission> FormSubmission::create(HTMLFormElement& form, const Attribut
     StringPairVector formValues;
 
     bool containsPasswordData = false;
-    auto protectedAssociatedElements = WTF::map(form.associatedElements(), [] (auto* rawElement) {
-        return Ref<FormAssociatedElement>(*rawElement);
-    });
-
-    for (auto& control : protectedAssociatedElements) {
+    for (auto& control : form.copyAssociatedElementsVector()) {
         auto& element = control->asHTMLElement();
         if (!element.isDisabledFormControl())
             control->appendFormData(domFormData, isMultiPartForm);

@@ -749,7 +749,7 @@ String AccessibilityRenderObject::stringValue() const
         int selectedIndex = selectElement.selectedIndex();
         const Vector<HTMLElement*>& listItems = selectElement.listItems();
         if (selectedIndex >= 0 && static_cast<size_t>(selectedIndex) < listItems.size()) {
-            const AtomicString& overriddenDescription = AccessibleNode::effectiveStringValueForElement(*listItems[selectedIndex], AXPropertyName::Label);
+            const AtomicString& overriddenDescription = listItems[selectedIndex]->attributeWithoutSynchronization(aria_labelAttr);
             if (!overriddenDescription.isNull())
                 return overriddenDescription;
         }
@@ -944,12 +944,12 @@ AccessibilityObject* AccessibilityRenderObject::internalLinkElement() const
     return firstAccessibleObjectFromNode(linkedNode);
 }
 
-ESpeak AccessibilityRenderObject::speakProperty() const
+ESpeakAs AccessibilityRenderObject::speakAsProperty() const
 {
     if (!m_renderer)
-        return AccessibilityObject::speakProperty();
+        return AccessibilityObject::speakAsProperty();
     
-    return m_renderer->style().speak();
+    return m_renderer->style().speakAs();
 }
     
 void AccessibilityRenderObject::addRadioButtonGroupChildren(AccessibilityObject* parent, AccessibilityChildrenVector& linkedUIElements) const
@@ -1059,7 +1059,7 @@ bool AccessibilityRenderObject::exposesTitleUIElement() const
     // titleUIElement, otherwise its inner text will be announced by a screenreader.
     if (isLabelable()) {
         if (HTMLLabelElement* label = labelForElement(downcast<Element>(node()))) {
-            if (!AccessibleNode::effectiveStringValueForElement(*label, AXPropertyName::Label).isEmpty())
+            if (!label->attributeWithoutSynchronization(aria_labelAttr).isEmpty())
                 return false;
             if (AccessibilityObject* labelObject = axObjectCache()->getOrCreate(label)) {
                 if (!labelObject->ariaLabeledByAttribute().isEmpty())
@@ -1140,10 +1140,8 @@ AccessibilityObjectInclusion AccessibilityRenderObject::defaultObjectInclusion()
 
     if (m_renderer->style().visibility() != VISIBLE) {
         // aria-hidden is meant to override visibility as the determinant in AX hierarchy inclusion.
-        if (auto hidden = boolValueForProperty(AXPropertyName::Hidden)) {
-            if (!hidden.value())
-                return AccessibilityObjectInclusion::DefaultBehavior;
-        }
+        if (equalLettersIgnoringASCIICase(getAttribute(aria_hiddenAttr), "false"))
+            return AccessibilityObjectInclusion::DefaultBehavior;
 
         return AccessibilityObjectInclusion::IgnoreObject;
     }
@@ -1632,7 +1630,7 @@ bool AccessibilityRenderObject::isSelected() const
     if (!m_renderer->node())
         return false;
     
-    if (boolValueForProperty(AXPropertyName::Selected).value())
+    if (equalLettersIgnoringASCIICase(getAttribute(aria_selectedAttr), "true"))
         return true;    
     
     if (isTabItem() && isTabItemSelected())
@@ -1709,6 +1707,9 @@ bool AccessibilityRenderObject::isFocused() const
 
 void AccessibilityRenderObject::setFocused(bool on)
 {
+    if (on && dispatchAccessibilityEventWithType(AccessibilityEventType::Focus))
+        return;
+    
     if (!canSetFocusAttribute())
         return;
     
@@ -1759,6 +1760,9 @@ void AccessibilityRenderObject::setValue(const String& string)
 {
     if (!m_renderer || !is<Element>(m_renderer->node()))
         return;
+    if (dispatchAccessibleSetValueEvent(string))
+        return;
+    
     Element& element = downcast<Element>(*m_renderer->node());
     RenderObject& renderer = *m_renderer;
     
@@ -2438,8 +2442,14 @@ AccessibilityObject* AccessibilityRenderObject::activeDescendant() const
     if (!m_renderer)
         return nullptr;
     
+    const AtomicString& activeDescendantAttrStr = getAttribute(aria_activedescendantAttr);
+    if (activeDescendantAttrStr.isNull() || activeDescendantAttrStr.isEmpty())
+        return nullptr;
+    Element* element = this->element();
+    if (!element)
+        return nullptr;
     
-    Element* target = elementValueForProperty(AXPropertyName::ActiveDescendant);
+    Element* target = element->treeScope().getElementById(activeDescendantAttrStr);
     if (!target)
         return nullptr;
     
@@ -2495,6 +2505,18 @@ void AccessibilityRenderObject::handleAriaExpandedChanged()
     else
         cache->postNotification(this, document(), AXObjectCache::AXExpandedChanged);
 }
+    
+RenderObject* AccessibilityRenderObject::targetElementForActiveDescendant(const QualifiedName& attributeName, AccessibilityObject* activeDescendant) const
+{
+    AccessibilityObject::AccessibilityChildrenVector elements;
+    ariaElementsFromAttribute(elements, attributeName);
+    for (auto element : elements) {
+        if (activeDescendant->isDescendantOfObject(element.get()))
+            return element->renderer();
+    }
+
+    return nullptr;
+}
 
 void AccessibilityRenderObject::handleActiveDescendantChanged()
 {
@@ -2504,8 +2526,22 @@ void AccessibilityRenderObject::handleActiveDescendantChanged()
     if (!renderer()->frame().selection().isFocusedAndActive() || renderer()->document().focusedElement() != element)
         return;
 
-    if (activeDescendant() && shouldNotifyActiveDescendant())
-        renderer()->document().axObjectCache()->postNotification(renderer(), AXObjectCache::AXActiveDescendantChanged);
+    auto* activeDescendant = this->activeDescendant();
+    if (activeDescendant && shouldNotifyActiveDescendant()) {
+        auto* targetRenderer = renderer();
+        
+#if PLATFORM(COCOA)
+        // If the combobox's activeDescendant is inside another object, the target element should be that parent.
+        if (isComboBox()) {
+            if (auto* ariaOwner = targetElementForActiveDescendant(aria_ownsAttr, activeDescendant))
+                targetRenderer = ariaOwner;
+            else if (auto* ariaController = targetElementForActiveDescendant(aria_controlsAttr, activeDescendant))
+                targetRenderer = ariaController;
+        }
+#endif
+    
+        renderer()->document().axObjectCache()->postNotification(targetRenderer, AXObjectCache::AXActiveDescendantChanged);
+    }
 }
 
 AccessibilityObject* AccessibilityRenderObject::correspondingControlForLabelElement() const
@@ -2763,7 +2799,7 @@ AccessibilityRole AccessibilityRenderObject::determineAccessibilityRole()
     // The HTML AAM spec says it is "strongly recommended" that ATs only convey and provide navigation
     // for section elements which have names.
     if (node && node->hasTagName(sectionTag))
-        return hasProperty(AXPropertyName::Label) || hasAttribute(aria_labelledbyAttr) ? AccessibilityRole::LandmarkRegion : AccessibilityRole::TextGroup;
+        return hasAttribute(aria_labelAttr) || hasAttribute(aria_labelledbyAttr) ? AccessibilityRole::LandmarkRegion : AccessibilityRole::TextGroup;
 
     if (node && node->hasTagName(addressTag))
         return AccessibilityRole::LandmarkContentInfo;
@@ -2836,7 +2872,7 @@ AccessibilityRole AccessibilityRenderObject::determineAccessibilityRole()
 
 AccessibilityOrientation AccessibilityRenderObject::orientation() const
 {
-    const AtomicString& ariaOrientation = stringValueForProperty(AXPropertyName::Orientation);
+    const AtomicString& ariaOrientation = getAttribute(aria_orientationAttr);
     if (equalLettersIgnoringASCIICase(ariaOrientation, "horizontal"))
         return AccessibilityOrientation::Horizontal;
     if (equalLettersIgnoringASCIICase(ariaOrientation, "vertical"))
@@ -2937,7 +2973,8 @@ bool AccessibilityRenderObject::canSetExpandedAttribute() const
         return true;
     
     // An object can be expanded if it aria-expanded is true or false.
-    if (boolValueForProperty(AXPropertyName::Expanded))
+    const AtomicString& expanded = getAttribute(aria_expandedAttr);
+    if (equalLettersIgnoringASCIICase(expanded, "true") || equalLettersIgnoringASCIICase(expanded, "false"))
         return true;
     return false;
 }
@@ -3251,7 +3288,7 @@ bool AccessibilityRenderObject::canHaveChildren() const
 
 const String AccessibilityRenderObject::liveRegionStatus() const
 {
-    const AtomicString& liveRegionStatus = stringValueForProperty(AXPropertyName::Live);
+    const AtomicString& liveRegionStatus = getAttribute(aria_liveAttr);
     // These roles have implicit live region status.
     if (liveRegionStatus.isEmpty())
         return defaultLiveRegionStatusForRole(roleValue());
@@ -3261,7 +3298,8 @@ const String AccessibilityRenderObject::liveRegionStatus() const
 
 const String AccessibilityRenderObject::liveRegionRelevant() const
 {
-    const AtomicString& relevant = stringValueForProperty(AXPropertyName::Relevant);
+    static NeverDestroyed<const AtomicString> defaultLiveRegionRelevant("additions text", AtomicString::ConstructFromLiteral);
+    const AtomicString& relevant = getAttribute(aria_relevantAttr);
 
     // Default aria-relevant = "additions text".
     if (relevant.isEmpty())
@@ -3272,8 +3310,11 @@ const String AccessibilityRenderObject::liveRegionRelevant() const
 
 bool AccessibilityRenderObject::liveRegionAtomic() const
 {
-    if (auto atomic = boolValueForProperty(AXPropertyName::Atomic))
-        return atomic.value();
+    const AtomicString& atomic = getAttribute(aria_atomicAttr);
+    if (equalLettersIgnoringASCIICase(atomic, "true"))
+        return true;
+    if (equalLettersIgnoringASCIICase(atomic, "false"))
+        return false;
 
     // WAI-ARIA "alert" and "status" roles have an implicit aria-atomic value of true.
     switch (roleValue()) {
@@ -3287,7 +3328,7 @@ bool AccessibilityRenderObject::liveRegionAtomic() const
 
 bool AccessibilityRenderObject::isBusy() const
 {
-    return boolValueForProperty(AXPropertyName::Busy).value();
+    return elementAttributeValue(aria_busyAttr);
 }
 
 bool AccessibilityRenderObject::canHaveSelectedChildren() const
@@ -3299,6 +3340,7 @@ bool AccessibilityRenderObject::canHaveSelectedChildren() const
     case AccessibilityRole::TabList:
     case AccessibilityRole::Tree:
     case AccessibilityRole::TreeGrid:
+    case AccessibilityRole::List:
     // These roles are containers whose children are treated as selected by assistive
     // technologies. We can get the "selected" item via aria-activedescendant or the
     // focused element.
@@ -3326,7 +3368,7 @@ void AccessibilityRenderObject::ariaSelectedRows(AccessibilityChildrenVector& re
     // Get all the rows.
     auto rowsIteration = [&](auto& rows) {
         for (auto& row : rows) {
-            if (row->isSelected()) {
+            if (row->isSelected() || row->isActiveDescendantOfFocusedContainer()) {
                 result.append(row);
                 if (!isMulti)
                     break;
@@ -3350,7 +3392,7 @@ void AccessibilityRenderObject::ariaListboxSelectedChildren(AccessibilityChildre
 
     for (const auto& child : children()) {
         // Every child should have aria-role option, and if so, check for selected attribute/state.
-        if (child->isSelected() && child->ariaRoleAttribute() == AccessibilityRole::ListBoxOption) {
+        if (child->ariaRoleAttribute() == AccessibilityRole::ListBoxOption && (child->isSelected() || child->isActiveDescendantOfFocusedContainer())) {
             result.append(child);
             if (!isMulti)
                 return;
@@ -3378,6 +3420,10 @@ void AccessibilityRenderObject::selectedChildren(AccessibilityChildrenVector& re
     case AccessibilityRole::TabList:
         if (AccessibilityObject* selectedTab = selectedTabItem())
             result.append(selectedTab);
+        return;
+    case AccessibilityRole::List:
+        if (auto* selectedListItemChild = selectedListItem())
+            result.append(selectedListItemChild);
         return;
     case AccessibilityRole::Menu:
     case AccessibilityRole::MenuBar:

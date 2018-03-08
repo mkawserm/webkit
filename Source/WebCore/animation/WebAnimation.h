@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 Apple Inc. All rights reserved.
+ * Copyright (C) 2017-2018 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -35,22 +35,31 @@
 #include <wtf/RefCounted.h>
 #include <wtf/RefPtr.h>
 #include <wtf/Seconds.h>
+#include <wtf/UniqueRef.h>
 
 namespace WebCore {
 
-class AnimationEffect;
+class AnimationEffectReadOnly;
 class AnimationPlaybackEvent;
 class AnimationTimeline;
 class Document;
+class Element;
 class RenderStyle;
 
-class WebAnimation final : public RefCounted<WebAnimation>, public EventTargetWithInlineData, public ActiveDOMObject {
+class WebAnimation : public RefCounted<WebAnimation>, public EventTargetWithInlineData, public ActiveDOMObject {
 public:
-    static Ref<WebAnimation> create(Document&, AnimationEffect*, AnimationTimeline*);
+    static Ref<WebAnimation> create(Document&, AnimationEffectReadOnly*);
+    static Ref<WebAnimation> create(Document&, AnimationEffectReadOnly*, AnimationTimeline*);
     ~WebAnimation();
 
-    AnimationEffect* effect() const { return m_effect.get(); }
-    void setEffect(RefPtr<AnimationEffect>&&);
+    virtual bool isCSSAnimation() const { return false; }
+    virtual bool isCSSTransition() const { return false; }
+
+    const String& id() const { return m_id; }
+    void setId(const String& id) { m_id = id; }
+
+    AnimationEffectReadOnly* effect() const { return m_effect.get(); }
+    void setEffect(RefPtr<AnimationEffectReadOnly>&&);
     AnimationTimeline* timeline() const { return m_timeline.get(); }
     void setTimeline(RefPtr<AnimationTimeline>&&);
 
@@ -62,25 +71,32 @@ public:
     std::optional<double> bindingsCurrentTime() const;
     ExceptionOr<void> setBindingsCurrentTime(std::optional<double>);
     std::optional<Seconds> currentTime() const;
-    void setCurrentTime(std::optional<Seconds>);
+    ExceptionOr<void> setCurrentTime(std::optional<Seconds>);
 
+    enum class Silently { Yes, No };
     double playbackRate() const { return m_playbackRate; }
-    void setPlaybackRate(double);
+    void setPlaybackRate(double, Silently silently = Silently::No );
 
-    enum class PlayState { Idle, Pending, Running, Paused, Finished };
+    enum class PlayState { Idle, Running, Paused, Finished };
     PlayState playState() const;
 
-    // FIXME: return a live value once we support pending pause and play tasks.
-    bool pending() const { return false; }
+    bool pending() const { return hasPendingPauseTask() || hasPendingPlayTask(); }
 
     using ReadyPromise = DOMPromiseProxyWithResolveCallback<IDLInterface<WebAnimation>>;
-    ReadyPromise& ready() { return m_readyPromise; }
+    ReadyPromise& ready() { return m_readyPromise.get(); }
 
     using FinishedPromise = DOMPromiseProxyWithResolveCallback<IDLInterface<WebAnimation>>;
-    FinishedPromise& finished() { return m_finishedPromise; }
+    FinishedPromise& finished() { return m_finishedPromise.get(); }
+
+    void cancel();
+    ExceptionOr<void> finish();
+    ExceptionOr<void> play();
+    ExceptionOr<void> pause();
+    ExceptionOr<void> reverse();
 
     Seconds timeToNextRequiredTick(Seconds) const;
     void resolve(RenderStyle&);
+    void effectTargetDidChange(Element* previousTarget, Element* newTarget);
     void acceleratedRunningStateDidChange();
     void startOrStopAccelerated();
 
@@ -88,26 +104,43 @@ public:
     enum class SynchronouslyNotify { Yes, No };
     void updateFinishedState(DidSeek, SynchronouslyNotify);
 
+    void timingModelDidChange();
+
     String description();
 
     using RefCounted::ref;
     using RefCounted::deref;
 
-private:
+protected:
     explicit WebAnimation(Document&);
 
+private:
     enum class RespectHoldTime { Yes, No };
+    enum class AutoRewind { Yes, No };
+    enum class TimeToRunPendingTask { NotScheduled, ASAP, WhenReady };
 
     void enqueueAnimationPlaybackEvent(const AtomicString&, std::optional<Seconds>, std::optional<Seconds>);
     Seconds effectEndTime() const;
     WebAnimation& readyPromiseResolve();
     WebAnimation& finishedPromiseResolve();
+    void setHoldTime(std::optional<Seconds>);
     std::optional<Seconds> currentTime(RespectHoldTime) const;
+    ExceptionOr<void> silentlySetCurrentTime(std::optional<Seconds>);
     void finishNotificationSteps();
     void scheduleMicrotaskIfNeeded();
     void performMicrotask();
+    void setTimeToRunPendingPauseTask(TimeToRunPendingTask);
+    void setTimeToRunPendingPlayTask(TimeToRunPendingTask);
+    bool hasPendingPauseTask() const { return m_timeToRunPendingPauseTask != TimeToRunPendingTask::NotScheduled; }
+    bool hasPendingPlayTask() const { return m_timeToRunPendingPlayTask != TimeToRunPendingTask::NotScheduled; }
+    void updatePendingTasks();
+    ExceptionOr<void> play(AutoRewind);
+    void runPendingPauseTask();
+    void runPendingPlayTask();
+    void resetPendingTasks();
     
-    RefPtr<AnimationEffect> m_effect;
+    String m_id;
+    RefPtr<AnimationEffectReadOnly> m_effect;
     RefPtr<AnimationTimeline> m_timeline;
     std::optional<Seconds> m_previousCurrentTime;
     std::optional<Seconds> m_startTime;
@@ -116,8 +149,10 @@ private:
     bool m_isStopped { false };
     bool m_finishNotificationStepsMicrotaskPending;
     bool m_scheduledMicrotask;
-    ReadyPromise m_readyPromise;
-    FinishedPromise m_finishedPromise;
+    UniqueRef<ReadyPromise> m_readyPromise;
+    UniqueRef<FinishedPromise> m_finishedPromise;
+    TimeToRunPendingTask m_timeToRunPendingPlayTask { TimeToRunPendingTask::NotScheduled };
+    TimeToRunPendingTask m_timeToRunPendingPauseTask { TimeToRunPendingTask::NotScheduled };
 
     // ActiveDOMObject.
     const char* activeDOMObjectName() const final;
@@ -132,3 +167,8 @@ private:
 };
 
 } // namespace WebCore
+
+#define SPECIALIZE_TYPE_TRAITS_WEB_ANIMATION(ToValueTypeName, predicate) \
+SPECIALIZE_TYPE_TRAITS_BEGIN(WebCore::ToValueTypeName) \
+static bool isType(const WebCore::WebAnimation& value) { return value.predicate; } \
+SPECIALIZE_TYPE_TRAITS_END()

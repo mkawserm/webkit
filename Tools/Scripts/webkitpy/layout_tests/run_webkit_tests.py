@@ -296,7 +296,6 @@ def parse_args(args):
         optparse.make_option('--no-install', action='store_const', const=False, default=True, dest='install',
             help='Skip install step for device and simulator testing'),
         optparse.make_option('--version', help='Specify the version of iOS to be used. By default, this will adopt the runtime for iOS Simulator.'),
-        optparse.make_option('--runtime', help='iOS Simulator runtime identifier (default: latest runtime)'),
         optparse.make_option('--device-type', help='iOS Simulator device type identifier (default: i386 -> iPhone 5, x86_64 -> iPhone 5s)'),
         optparse.make_option('--dedicated-simulators', action="store_true", default=False,
             help="If set, dedicated iOS simulators will always be created.  If not set, the script will attempt to use any currently running simulator."),
@@ -430,6 +429,9 @@ def _set_up_derived_options(port, options):
     if options.platform in ["gtk", "wpe"]:
         options.webkit_test_runner = True
 
+    if options.leaks:
+        options.additional_env_var.append("JSC_usePoisoning=0")
+        options.additional_env_var.append("__XPC_JSC_usePoisoning=0")
 
 def run(port, options, args, logging_stream):
     logger = logging.getLogger()

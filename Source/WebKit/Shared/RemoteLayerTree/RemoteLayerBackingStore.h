@@ -30,7 +30,7 @@
 #include <WebCore/IOSurface.h>
 #include <WebCore/MachSendRight.h>
 #include <WebCore/Region.h>
-#include <chrono>
+#include <wtf/MonotonicTime.h>
 
 OBJC_CLASS CALayer;
 
@@ -75,7 +75,7 @@ public:
 
     bool hasFrontBuffer() const
     {
-#if USE(IOSURFACE)
+#if HAVE(IOSURFACE)
         if (m_acceleratesDrawing)
             return !!m_frontBuffer.surface;
 #endif
@@ -92,14 +92,14 @@ public:
 
     bool setBufferVolatility(BufferType, bool isVolatile);
 
-    std::chrono::steady_clock::time_point lastDisplayTime() const { return m_lastDisplayTime; }
+    MonotonicTime lastDisplayTime() const { return m_lastDisplayTime; }
 
 private:
     void drawInContext(WebCore::GraphicsContext&, CGImageRef backImage);
     void clearBackingStore();
     void swapToValidFrontBuffer();
 
-#if USE(IOSURFACE)
+#if HAVE(IOSURFACE)
     WebCore::IOSurface::Format surfaceBufferFormat() const;
 #endif
 
@@ -115,14 +115,14 @@ private:
 
     struct Buffer {
         RefPtr<ShareableBitmap> bitmap;
-#if USE(IOSURFACE)
+#if HAVE(IOSURFACE)
         std::unique_ptr<WebCore::IOSurface> surface;
         bool isVolatile = false;
 #endif
 
         explicit operator bool() const
         {
-#if USE(IOSURFACE)
+#if HAVE(IOSURFACE)
             if (surface)
                 return true;
 #endif
@@ -137,7 +137,7 @@ private:
 
     Buffer m_frontBuffer;
     Buffer m_backBuffer;
-#if USE(IOSURFACE)
+#if HAVE(IOSURFACE)
     Buffer m_secondaryBackBuffer;
     WebCore::MachSendRight m_frontBufferSendRight;
 #endif
@@ -149,7 +149,7 @@ private:
 
     WebCore::RepaintRectList m_paintingRects;
 
-    std::chrono::steady_clock::time_point m_lastDisplayTime;
+    MonotonicTime m_lastDisplayTime;
 };
 
 } // namespace WebKit

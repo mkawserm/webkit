@@ -52,7 +52,7 @@ public:
     void cancelMediaDevicesEnumeration(WebCore::MediaDevicesEnumerationRequest&);
     void didCompleteMediaDeviceEnumeration(uint64_t, const Vector<WebCore::CaptureDevice>& deviceList, String&& deviceIdentifierHashSalt, bool originHasPersistentAccess);
 
-    void grantUserMediaDeviceSandboxExtensions(const MediaDeviceSandboxExtensions&);
+    void grantUserMediaDeviceSandboxExtensions(MediaDeviceSandboxExtensions&&);
     void revokeUserMediaDeviceSandboxExtensions(const Vector<String>&);
 
 private:
@@ -67,13 +67,12 @@ private:
 
     HashMap<uint64_t, RefPtr<WebCore::UserMediaRequest>> m_idToUserMediaRequestMap;
     HashMap<RefPtr<WebCore::UserMediaRequest>, uint64_t> m_userMediaRequestToIDMap;
+    HashMap<RefPtr<WebCore::Document>, Vector<RefPtr<WebCore::UserMediaRequest>>> m_blockedUserMediaRequests;
 
     HashMap<uint64_t, RefPtr<WebCore::MediaDevicesEnumerationRequest>> m_idToMediaDevicesEnumerationRequestMap;
     HashMap<RefPtr<WebCore::MediaDevicesEnumerationRequest>, uint64_t> m_mediaDevicesEnumerationRequestToIDMap;
 
     HashMap<String, RefPtr<SandboxExtension>> m_userMediaDeviceSandboxExtensions;
-
-    HashMap<RefPtr<WebCore::Document>, Vector<RefPtr<WebCore::UserMediaRequest>>> m_blockedRequests;
 };
 
 } // namespace WebKit

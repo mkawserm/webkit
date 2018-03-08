@@ -38,8 +38,8 @@
 #import "WebCoreThreadRun.h"
 #import "WKUtilities.h"
 
-#import <runtime/InitializeThreading.h>
-#import <runtime/JSLock.h>
+#import <JavaScriptCore/InitializeThreading.h>
+#import <JavaScriptCore/JSLock.h>
 #import <wtf/Assertions.h>
 #import <wtf/MainThread.h>
 #import <wtf/RecursiveLockAdapter.h>
@@ -742,12 +742,12 @@ void WebThreadUnlock(void)
     ASSERT(!WebThreadIsCurrent());
 }
 
-void WebThreadLockFromAnyThread()
+void WebThreadLockFromAnyThread(void)
 {
     _WebThreadLockFromAnyThread(true);
 }
     
-void WebThreadLockFromAnyThreadNoLog()
+void WebThreadLockFromAnyThreadNoLog(void)
 {
     _WebThreadLockFromAnyThread(false);
 }
@@ -771,7 +771,7 @@ static void _WebThreadLockFromAnyThread(bool shouldLog)
     webThreadShouldYield = false;
 }
 
-void WebThreadUnlockFromAnyThread()
+void WebThreadUnlockFromAnyThread(void)
 {
     if (!webThreadStarted)
         return;
@@ -786,7 +786,7 @@ void WebThreadUnlockFromAnyThread()
     webLock.unlock();
 }
 
-void WebThreadUnlockGuardForMail()
+void WebThreadUnlockGuardForMail(void)
 {
     ASSERT(!WebThreadIsCurrent());
 

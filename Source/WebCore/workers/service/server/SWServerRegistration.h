@@ -60,7 +60,10 @@ public:
     bool isUninstalling() const { return m_uninstalling; }
     void setIsUninstalling(bool);
 
-    void setLastUpdateTime(WallTime time) { m_lastUpdateTime = time; }
+    void setLastUpdateTime(WallTime);
+    WallTime lastUpdateTime() const { return m_lastUpdateTime; }
+
+    void setUpdateViaCache(ServiceWorkerUpdateViaCache);
     ServiceWorkerUpdateViaCache updateViaCache() const { return m_updateViaCache; }
 
     void updateRegistrationState(ServiceWorkerRegistrationState, SWServerWorker*);
@@ -70,6 +73,8 @@ public:
     void addClientServiceWorkerRegistration(SWServerConnectionIdentifier);
     void removeClientServiceWorkerRegistration(SWServerConnectionIdentifier);
 
+    void setPreInstallationWorker(SWServerWorker*);
+    SWServerWorker* preInstallationWorker() const { return m_preInstallationWorker.get(); }
     SWServerWorker* installingWorker() const { return m_installingWorker.get(); }
     SWServerWorker* waitingWorker() const { return m_waitingWorker.get(); }
     SWServerWorker* activeWorker() const { return m_activeWorker.get(); }
@@ -89,9 +94,9 @@ public:
     void tryActivate();
     void didFinishActivation(ServiceWorkerIdentifier);
 
-private:
     void forEachConnection(const WTF::Function<void(SWServer::Connection&)>&);
 
+private:
     void activate();
     void handleClientUnload();
 
@@ -102,6 +107,7 @@ private:
     URL m_scriptURL;
 
     bool m_uninstalling { false };
+    RefPtr<SWServerWorker> m_preInstallationWorker; // Implementation detail, not part of the specification.
     RefPtr<SWServerWorker> m_installingWorker;
     RefPtr<SWServerWorker> m_waitingWorker;
     RefPtr<SWServerWorker> m_activeWorker;

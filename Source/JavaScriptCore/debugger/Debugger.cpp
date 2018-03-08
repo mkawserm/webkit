@@ -207,7 +207,7 @@ public:
     {
     }
 
-    bool operator()(CodeBlock* codeBlock) const
+    void operator()(CodeBlock* codeBlock) const
     {
         if (m_debugger == codeBlock->globalObject()->debugger()) {
             if (m_mode == SteppingModeEnabled)
@@ -215,7 +215,6 @@ public:
             else
                 codeBlock->setSteppingMode(CodeBlock::SteppingModeDisabled);
         }
-        return false;
     }
 
 private:
@@ -248,12 +247,12 @@ void Debugger::setProfilingClient(ProfilingClient* client)
     m_profilingClient = client;
 }
 
-double Debugger::willEvaluateScript()
+Seconds Debugger::willEvaluateScript()
 {
     return m_profilingClient->willEvaluateScript();
 }
 
-void Debugger::didEvaluateScript(double startTime, ProfilingReason reason)
+void Debugger::didEvaluateScript(Seconds startTime, ProfilingReason reason)
 {
     m_profilingClient->didEvaluateScript(startTime, reason);
 }
@@ -315,11 +314,10 @@ public:
     {
     }
 
-    bool operator()(CodeBlock* codeBlock) const
+    void operator()(CodeBlock* codeBlock) const
     {
         if (m_debugger == codeBlock->globalObject()->debugger())
             m_debugger->toggleBreakpoint(codeBlock, m_breakpoint, m_enabledOrNot);
-        return false;
     }
 
 private:
@@ -528,11 +526,10 @@ public:
     {
     }
 
-    bool operator()(CodeBlock* codeBlock) const
+    void operator()(CodeBlock* codeBlock) const
     {
         if (codeBlock->hasDebuggerRequests() && m_debugger == codeBlock->globalObject()->debugger())
             codeBlock->clearDebuggerRequests();
-        return false;
     }
 
 private:
@@ -558,11 +555,10 @@ public:
     {
     }
 
-    bool operator()(CodeBlock* codeBlock) const
+    void operator()(CodeBlock* codeBlock) const
     {
         if (codeBlock->hasDebuggerRequests() && m_globalObject == codeBlock->globalObject())
             codeBlock->clearDebuggerRequests();
-        return false;
     }
 
 private:

@@ -44,22 +44,26 @@ public:
     {
 #if ENABLE(DEVELOPER_MODE)
         if (g_getenv("WEBKIT2_PAUSE_WEB_PROCESS_ON_LAUNCH"))
-            WTF::sleep(30);
+            WTF::sleep(30_s);
 #endif
+
+        // Required for GStreamer initialization.
+        // FIXME: This should be probably called in other processes as well.
+        g_set_prgname("WPEWebProcess");
 
         return true;
     }
 
     bool parseCommandLine(int argc, char** argv) override
     {
-        ASSERT(argc == 3);
-        if (argc < 3)
+        ASSERT(argc == 4);
+        if (argc < 4)
             return false;
 
         if (!ChildProcessMainBase::parseCommandLine(argc, argv))
             return false;
 
-        int wpeFd = atoi(argv[2]);
+        int wpeFd = atoi(argv[3]);
         RunLoop::main().dispatch(
             [wpeFd] {
                 RELEASE_ASSERT(is<PlatformDisplayWPE>(PlatformDisplay::sharedDisplay()));

@@ -29,15 +29,15 @@
 }
 
 .spreadsheet-style-declaration-editor .property {
-    padding-right: var(--css-declaration-side-padding);
-    padding-left: calc(var(--css-declaration-side-padding) + 17px);
+    padding-right: var(--css-declaration-horizontal-padding);
+    padding-left: calc(var(--css-declaration-horizontal-padding) + 17px);
 }
 
-.spreadsheet-style-declaration-editor .name {
+.spreadsheet-style-declaration-editor .property:not(.disabled) .name {
     color: var(--syntax-highlight-boolean-color);
 }
 
-.spreadsheet-style-declaration-editor .value {
+.spreadsheet-style-declaration-editor .property:not(.disabled) .value {
     color: black;
 }
 
@@ -50,7 +50,9 @@
 
 .spreadsheet-style-declaration-editor .value.editing {
     display: inline-block;
-    margin-right: 3px;
+    position: relative;
+    z-index: 1;
+    max-width: 100%;
 }
 
 .spreadsheet-style-declaration-editor.no-properties {
@@ -60,7 +62,7 @@
 .spreadsheet-style-declaration-editor .property-toggle {
     visibility: hidden;
     position: absolute;
-    left: calc(var(--css-declaration-side-padding) + 1px);
+    left: calc(var(--css-declaration-horizontal-padding) + 1px);
     width: 10px;
     height: 10px;
     margin: 0;
@@ -71,21 +73,20 @@
     visibility: visible;
 }
 
-.spreadsheet-style-declaration-editor .property.disabled,
-.spreadsheet-style-declaration-editor .property.disabled > * {
+.spreadsheet-style-declaration-editor .property.disabled {
     color: var(--syntax-highlight-comment-color) !important;
 }
 
-.spreadsheet-style-declaration-editor .property:matches(.invalid-name, .other-vendor, .overridden):not(.disabled) {
+.spreadsheet-style-declaration-editor .property:matches(.invalid-name, .other-vendor, .overridden):not(.disabled) .content > * {
     text-decoration: line-through;
     -webkit-text-decoration-color: hsla(0, 0%, 0%, 0.6);
 }
 
-.spreadsheet-style-declaration-editor .property.invalid-name:not(.disabled) {
+.spreadsheet-style-declaration-editor .property.invalid-name:not(.disabled) .content > * {
     -webkit-text-decoration-color: hsla(0, 100%, 50%, 0.5);
 }
 
-.spreadsheet-style-declaration-editor .property.invalid-value:not(.disabled) .value {
+.spreadsheet-style-declaration-editor .property.invalid-value:not(.disabled) .content .value {
     text-decoration: line-through;
     -webkit-text-decoration-color: hsla(0, 100%, 50%, 0.5);
 }
@@ -102,7 +103,7 @@
     position: absolute;
     right: 0;
     display: inline-block;
-    width: calc(20px + var(--css-declaration-side-padding));
+    width: calc(20px + var(--css-declaration-horizontal-padding));
     height: 13px;
 
     background-image: url(../Images/Warning.svg);
@@ -115,7 +116,7 @@
     -webkit-clip-path: polygon(0% 50%, 6px 0%, 100% 0%, 100% 100%, 6px 100%);
 }
 
-.spreadsheet-style-declaration-editor .property.not-inherited {
+.spreadsheet-style-declaration-editor .property.not-inherited .content > * {
     opacity: 0.5;
 }
 

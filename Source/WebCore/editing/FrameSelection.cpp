@@ -132,7 +132,6 @@ FrameSelection::FrameSelection(Frame* frame)
     , m_focused(frame && frame->page() && frame->page()->focusController().focusedFrame() == frame)
     , m_shouldShowBlockCursor(false)
     , m_pendingSelectionUpdate(false)
-    , m_shouldRevealSelection(false)
     , m_alwaysAlignCursorOnScrollWhenRevealingSelection(false)
 #if PLATFORM(IOS)
     , m_updateAppearanceEnabled(false)
@@ -178,13 +177,26 @@ void FrameSelection::moveTo(const Position &base, const Position &extent, EAffin
     setSelection(VisibleSelection(base, extent, affinity, selectionHasDirection), defaultSetSelectionOptions(userTriggered));
 }
 
-void FrameSelection::moveWithoutValidationTo(const Position& base, const Position& extent, bool selectionHasDirection, bool shouldSetFocus, const AXTextStateChangeIntent& intent)
+void FrameSelection::moveWithoutValidationTo(const Position& base, const Position& extent, bool selectionHasDirection, bool shouldSetFocus, SelectionRevealMode revealMode, const AXTextStateChangeIntent& intent)
 {
     VisibleSelection newSelection;
     newSelection.setWithoutValidation(base, extent);
     newSelection.setIsDirectional(selectionHasDirection);
     AXTextStateChangeIntent newIntent = intent.type == AXTextStateChangeTypeUnknown ? AXTextStateChangeIntent(AXTextStateChangeTypeSelectionMove, AXTextSelection { AXTextSelectionDirectionDiscontiguous, AXTextSelectionGranularityUnknown, false }) : intent;
-    setSelection(newSelection, defaultSetSelectionOptions() | (shouldSetFocus ? 0 : DoNotSetFocus), newIntent);
+    SetSelectionOptions options = defaultSetSelectionOptions();
+    if (!shouldSetFocus)
+        options |= DoNotSetFocus;
+    switch (revealMode) {
+    case SelectionRevealMode::DoNotReveal:
+        break;
+    case SelectionRevealMode::Reveal:
+        options |= RevealSelection;
+        break;
+    case SelectionRevealMode::RevealUpToMainFrame:
+        options |= RevealSelectionUpToMainFrame;
+        break;
+    }
+    setSelection(newSelection, options, newIntent);
 }
 
 void DragCaretController::setCaretPosition(const VisiblePosition& position)
@@ -354,9 +366,15 @@ void FrameSelection::setSelection(const VisibleSelection& selection, SetSelectio
     if (!document)
         return;
 
-    m_shouldRevealSelection = options & RevealSelection;
+    if (options & RevealSelectionUpToMainFrame)
+        m_selectionRevealMode = SelectionRevealMode::RevealUpToMainFrame;
+    else if (options & RevealSelection)
+        m_selectionRevealMode = SelectionRevealMode::Reveal;
+    else
+        m_selectionRevealMode = SelectionRevealMode::DoNotReveal;
     m_alwaysAlignCursorOnScrollWhenRevealingSelection = align == AlignCursorOnScrollAlways;
 
+    m_selectionRevealIntent = intent;
     m_pendingSelectionUpdate = true;
 
     if (document->hasPendingStyleRecalc())
@@ -385,6 +403,7 @@ static void updateSelectionByUpdatingLayoutOrStyle(Frame& frame)
 
 void FrameSelection::setNeedsSelectionUpdate()
 {
+    m_selectionRevealIntent = AXTextStateChangeIntent();
     m_pendingSelectionUpdate = true;
     if (RenderView* view = m_frame->contentRenderer())
         view->selection().clear();
@@ -399,7 +418,7 @@ void FrameSelection::updateAndRevealSelection(const AXTextStateChangeIntent& int
 
     updateAppearance();
 
-    if (m_shouldRevealSelection) {
+    if (m_selectionRevealMode != SelectionRevealMode::DoNotReveal) {
         ScrollAlignment alignment;
 
         if (m_frame->editor().behavior().shouldCenterAlignWhenSelectionIsRevealed())
@@ -407,7 +426,7 @@ void FrameSelection::updateAndRevealSelection(const AXTextStateChangeIntent& int
         else
             alignment = m_alwaysAlignCursorOnScrollWhenRevealingSelection ? ScrollAlignment::alignTopAlways : ScrollAlignment::alignToEdgeIfNeeded;
 
-        revealSelection(SelectionRevealMode::Reveal, alignment, RevealExtent);
+        revealSelection(m_selectionRevealMode, alignment, RevealExtent);
     }
 
     notifyAccessibilityForSelectionChange(intent);
@@ -509,6 +528,7 @@ void FrameSelection::respondToNodeModification(Node& node, bool baseRemoved, boo
             renderView->selection().clear();
 
             // Trigger a selection update so the selection will be set again.
+            m_selectionRevealIntent = AXTextStateChangeIntent();
             m_pendingSelectionUpdate = true;
             renderView->frameView().scheduleSelectionUpdate();
         }
@@ -2430,7 +2450,7 @@ void FrameSelection::updateAppearanceAfterLayoutOrStyleChange()
         client->updateEditorStateAfterLayoutIfEditabilityChanged();
 
     setCaretRectNeedsUpdate();
-    updateAndRevealSelection(AXTextStateChangeIntent());
+    updateAndRevealSelection(m_selectionRevealIntent);
     updateDataDetectorsForSelection();
 }
 

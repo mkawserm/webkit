@@ -28,6 +28,7 @@
 
 #import <array>
 #import <sys/param.h>
+#import <wtf/OSObjectPtr.h>
 #import <wtf/spi/cocoa/SecuritySPI.h>
 #import <wtf/spi/darwin/SandboxSPI.h>
 #import <wtf/spi/darwin/XPCSPI.h>
@@ -90,6 +91,15 @@ bool processHasEntitlement(NSString *entitlement)
         return false;
 
     return CFBooleanGetValue(static_cast<CFBooleanRef>(value.get()));
+}
+
+bool connectedProcessHasEntitlement(xpc_connection_t connection, const char *entitlement)
+{
+    auto value = adoptOSObject(xpc_connection_copy_entitlement_value(connection, entitlement));
+    if (!value)
+        return false;
+
+    return xpc_get_type(value.get()) == XPC_TYPE_BOOL && xpc_bool_get_value(value.get());
 }
 
 }

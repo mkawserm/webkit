@@ -64,6 +64,7 @@ class RenderView;
 class RenderWidget;
 
 enum class FrameFlattening;
+enum class SelectionRevealMode;
 
 Pagination::Mode paginationModeForRenderStyle(const RenderStyle&);
 
@@ -219,9 +220,12 @@ public:
     float visibleContentScaleFactor() const final;
 
 #if USE(COORDINATED_GRAPHICS)
-    void setFixedVisibleContentRect(const IntRect&) final;
+    WEBCORE_EXPORT void setFixedVisibleContentRect(const IntRect&) final;
 #endif
     WEBCORE_EXPORT void setScrollPosition(const ScrollPosition&) final;
+    void restoreScrollbar();
+    void scheduleScrollToFocusedElement(SelectionRevealMode);
+    void scrollToFocusedElementImmediatelyIfNeeded();
     void updateLayerPositionsAfterScrolling() final;
     void updateCompositingLayersAfterScrolling() final;
     bool requestScrollPositionUpdate(const ScrollPosition&) final;
@@ -329,8 +333,6 @@ public:
 #endif
     WEBCORE_EXPORT void updateControlTints();
 
-    void restoreScrollbar();
-
     WEBCORE_EXPORT bool wasScrolledByUser() const;
     WEBCORE_EXPORT void setWasScrolledByUser(bool);
 
@@ -364,8 +366,8 @@ public:
     WEBCORE_EXPORT void setPaintBehavior(PaintBehavior);
     WEBCORE_EXPORT PaintBehavior paintBehavior() const;
     bool isPainting() const;
-    bool hasEverPainted() const { return m_lastPaintTime; }
-    void setLastPaintTime(double lastPaintTime) { m_lastPaintTime = lastPaintTime; }
+    bool hasEverPainted() const { return !!m_lastPaintTime; }
+    void setLastPaintTime(MonotonicTime lastPaintTime) { m_lastPaintTime = lastPaintTime; }
     WEBCORE_EXPORT void setNodeToDraw(Node*);
 
     enum SelectionInSnapshot { IncludeSelection, ExcludeSelection };
@@ -383,7 +385,7 @@ public:
     void startDisallowingLayout() { layoutContext().startDisallowingLayout(); }
     void endDisallowingLayout() { layoutContext().endDisallowingLayout(); }
 
-    static double currentPaintTimeStamp() { return sCurrentPaintTimeStamp; } // returns 0 if not painting
+    static MonotonicTime currentPaintTimeStamp() { return sCurrentPaintTimeStamp; } // returns 0 if not painting
     
     WEBCORE_EXPORT void updateLayoutAndStyleIfNeededRecursive();
 
@@ -473,7 +475,6 @@ public:
     WEBCORE_EXPORT FloatRect clientToDocumentRect(FloatRect) const;
     WEBCORE_EXPORT FloatPoint clientToDocumentPoint(FloatPoint) const;
 
-    FloatRect layoutViewportToAbsoluteRect(FloatRect) const;
     FloatPoint layoutViewportToAbsolutePoint(FloatPoint) const;
 
     // Unlike client coordinates, layout viewport coordinates are affected by page zoom.
@@ -521,7 +522,8 @@ public:
     bool containsScrollableArea(ScrollableArea*) const;
     const ScrollableAreaSet* scrollableAreas() const { return m_scrollableAreas.get(); }
 
-    void removeChild(Widget&) final;
+    WEBCORE_EXPORT void addChild(Widget&) final;
+    WEBCORE_EXPORT void removeChild(Widget&) final;
 
     // This function exists for ports that need to handle wheel events manually.
     // On Mac WebKit1 the underlying NSScrollView just does the scrolling, but on most other platforms
@@ -595,6 +597,8 @@ public:
     void setHasFlippedBlockRenderers(bool b) { m_hasFlippedBlockRenderers = b; }
 
     void updateWidgetPositions();
+    void scheduleUpdateWidgetPositions();
+
     void didAddWidgetToRenderTree(Widget&);
     void willRemoveWidgetFromRenderTree(Widget&);
 
@@ -693,6 +697,9 @@ private:
     void repaintContentRectangle(const IntRect&) final;
     void addedOrRemovedScrollbar() final;
 
+    void scrollToFocusedElementTimerFired();
+    void scrollToFocusedElementInternal();
+
     void delegatesScrollingDidChange() final;
 
     // ScrollableArea interface
@@ -742,6 +749,9 @@ private:
     void updateEmbeddedObjectsTimerFired();
     bool updateEmbeddedObjects();
     void updateEmbeddedObject(RenderEmbeddedObject&);
+
+    void updateWidgetPositionsTimerFired();
+
     void scrollToAnchor();
     void scrollPositionChanged(const ScrollPosition& oldPosition, const ScrollPosition& newPosition);
     void scrollableAreaSetChanged();
@@ -776,7 +786,7 @@ private:
 
     HashSet<Widget*> m_widgetsInRenderTree;
 
-    static double sCurrentPaintTimeStamp; // used for detecting decoded resource thrash in the cache
+    static MonotonicTime sCurrentPaintTimeStamp; // used for detecting decoded resource thrash in the cache
 
     LayoutSize m_size;
     LayoutSize m_margins;
@@ -792,6 +802,8 @@ private:
     bool m_contentIsOpaque;
 
     Timer m_updateEmbeddedObjectsTimer;
+    Timer m_updateWidgetPositionsTimer;
+
     bool m_firstLayoutCallbackPending;
 
     bool m_isTransparent;
@@ -814,8 +826,11 @@ private:
     bool m_inProgrammaticScroll;
     bool m_safeToPropagateScrollToParent;
     Timer m_delayedScrollEventTimer;
+    bool m_shouldScrollToFocusedElement { false };
+    SelectionRevealMode m_selectionRevealModeForFocusedElement;
+    Timer m_delayedScrollToFocusedElementTimer;
 
-    double m_lastPaintTime;
+    MonotonicTime m_lastPaintTime;
 
     bool m_isTrackingRepaints; // Used for testing.
     Vector<FloatRect> m_trackedRepaintRects;

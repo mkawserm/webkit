@@ -29,29 +29,39 @@
 #include "VRDisplayCapabilities.h"
 #include "VREyeParameters.h"
 #include "VRLayerInit.h"
+#include "VRPlatformDisplay.h"
 #include "VRPose.h"
+#include "VRStageParameters.h"
 
 namespace WebCore {
 
-Ref<VRDisplay> VRDisplay::create(ScriptExecutionContext& context)
+Ref<VRDisplay> VRDisplay::create(ScriptExecutionContext& context, WeakPtr<VRPlatformDisplay>&& platformDisplay)
 {
-    auto display = adoptRef(*new VRDisplay(context));
+    auto display = adoptRef(*new VRDisplay(context, WTFMove(platformDisplay)));
     display->suspendIfNeeded();
     return display;
 }
 
-VRDisplay::VRDisplay(ScriptExecutionContext& context)
+VRDisplay::VRDisplay(ScriptExecutionContext& context, WeakPtr<VRPlatformDisplay>&& platformDisplay)
     : ActiveDOMObject(&context)
-    , m_capabilities(VRDisplayCapabilities::create())
-    , m_eyeParameters(VREyeParameters::create())
+    , m_display(WTFMove(platformDisplay))
 {
+    auto displayInfo = m_display->getDisplayInfo();
+    m_capabilities = VRDisplayCapabilities::create(displayInfo.capabilityFlags());
+    m_leftEyeParameters = VREyeParameters::create(displayInfo.eyeTranslation(VRPlatformDisplayInfo::EyeLeft), displayInfo.eyeFieldOfView(VRPlatformDisplayInfo::EyeLeft), displayInfo.renderSize());
+    m_rightEyeParameters = VREyeParameters::create(displayInfo.eyeTranslation(VRPlatformDisplayInfo::EyeRight), displayInfo.eyeFieldOfView(VRPlatformDisplayInfo::EyeRight), displayInfo.renderSize());
+    m_displayId = displayInfo.displayIdentifier();
+    m_displayName = displayInfo.displayName();
 }
 
 VRDisplay::~VRDisplay() = default;
 
 bool VRDisplay::isConnected() const
 {
-    return false;
+    if (!m_display)
+        return false;
+
+    return m_display->getDisplayInfo().isConnected();
 }
 
 bool VRDisplay::isPresenting() const
@@ -61,27 +71,18 @@ bool VRDisplay::isPresenting() const
 
 const VRDisplayCapabilities& VRDisplay::capabilities() const
 {
-    return m_capabilities;
+    return *m_capabilities;
 }
 
-VRStageParameters* VRDisplay::stageParameters() const
+RefPtr<VRStageParameters> VRDisplay::stageParameters() const
 {
-    return nullptr;
+    auto displayInfo = m_display->getDisplayInfo();
+    return VRStageParameters::create(displayInfo.sittingToStandingTransform(), displayInfo.playAreaBounds());
 }
 
-const VREyeParameters& VRDisplay::getEyeParameters(VREye) const
+const VREyeParameters& VRDisplay::getEyeParameters(VREye eye) const
 {
-    return m_eyeParameters;
-}
-
-unsigned VRDisplay::displayId() const
-{
-    return 0;
-}
-
-const String& VRDisplay::displayName() const
-{
-    return emptyString();
+    return eye == VREye::Left ? *m_leftEyeParameters : *m_rightEyeParameters;
 }
 
 bool VRDisplay::getFrameData(VRFrameData&) const
@@ -95,24 +96,6 @@ Ref<VRPose> VRDisplay::getPose() const
 }
 
 void VRDisplay::resetPose()
-{
-}
-
-double VRDisplay::depthNear() const
-{
-    return 0;
-}
-
-void VRDisplay::setDepthNear(double)
-{
-}
-
-double VRDisplay::depthFar() const
-{
-    return 0;
-}
-
-void VRDisplay::setDepthFar(double)
 {
 }
 

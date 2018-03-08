@@ -40,14 +40,12 @@ WI.SpreadsheetCSSStyleDeclarationSection = class SpreadsheetCSSStyleDeclarationS
         this._mediaElements = [];
         this._filterText = null;
         this._shouldFocusSelectorElement = false;
-        this._wasFocused = false;
+        this._wasEditing = false;
     }
 
     // Public
 
     get style() { return this._style; }
-
-    get propertiesEditor() { return this._propertiesEditor; }
 
     get editable()
     {
@@ -104,6 +102,9 @@ WI.SpreadsheetCSSStyleDeclarationSection = class SpreadsheetCSSStyleDeclarationS
         if (this._style.editable) {
             this.element.addEventListener("click", this._handleClick.bind(this));
             this.element.addEventListener("mousedown", this._handleMouseDown.bind(this));
+
+            new WI.KeyboardShortcut(WI.KeyboardShortcut.Modifier.CommandOrControl, "S", this._save.bind(this), this._element);
+            new WI.KeyboardShortcut(WI.KeyboardShortcut.Modifier.CommandOrControl | WI.KeyboardShortcut.Modifier.Shift, "S", this._save.bind(this), this._element);
         }
     }
 
@@ -116,6 +117,11 @@ WI.SpreadsheetCSSStyleDeclarationSection = class SpreadsheetCSSStyleDeclarationS
 
         if (this._shouldFocusSelectorElement)
             this.startEditingRuleSelector();
+    }
+
+    hidden()
+    {
+        this._propertiesEditor.hidden();
     }
 
     startEditingRuleSelector()
@@ -149,6 +155,8 @@ WI.SpreadsheetCSSStyleDeclarationSection = class SpreadsheetCSSStyleDeclarationS
         this.startEditingRuleSelector();
     }
 
+    // SpreadsheetSelectorField delegate
+
     spreadsheetSelectorFieldDidChange(direction)
     {
         let selectorText = this._selectorElement.textContent.trim();
@@ -177,6 +185,8 @@ WI.SpreadsheetCSSStyleDeclarationSection = class SpreadsheetCSSStyleDeclarationS
     {
         this._discardSelectorChange();
     }
+
+    // SpreadsheetCSSStyleDeclarationEditor delegate
 
     cssStyleDeclarationEditorStartEditingAdjacentRule(toPreviousRule)
     {
@@ -377,14 +387,53 @@ WI.SpreadsheetCSSStyleDeclarationSection = class SpreadsheetCSSStyleDeclarationS
         return mediaElement;
     }
 
+    _save(event)
+    {
+        event.stop();
+
+        if (this._style.type !== WI.CSSStyleDeclaration.Type.Rule) {
+            // FIXME: Can't save CSS inside <style></style> <https://webkit.org/b/150357>
+            InspectorFrontendHost.beep();
+            return;
+        }
+
+        console.assert(this._style.ownerRule instanceof WI.CSSRule);
+        console.assert(this._style.ownerRule.sourceCodeLocation instanceof WI.SourceCodeLocation);
+
+        let sourceCode = this._style.ownerRule.sourceCodeLocation.sourceCode;
+        if (sourceCode.type !== WI.Resource.Type.Stylesheet) {
+            // FIXME: Can't save CSS inside style="" <https://webkit.org/b/150357>
+            InspectorFrontendHost.beep();
+            return;
+        }
+
+        let url;
+        if (sourceCode.urlComponents.scheme === "data") {
+            let mainResource = WI.frameResourceManager.mainFrame.mainResource;
+            if (mainResource.urlComponents.lastPathComponent.endsWith(".html"))
+                url = mainResource.url.replace(/\.html$/, "-data.css");
+            else {
+                let pathDirectory = mainResource.url.slice(0, -mainResource.urlComponents.lastPathComponent.length);
+                url = pathDirectory + "data.css";
+            }
+        } else
+            url = sourceCode.url;
+
+        const saveAs = event.shiftKey;
+        WI.saveDataToFile({url: url, content: sourceCode.content}, saveAs);
+    }
+
     _handleMouseDown(event)
     {
-        this._wasFocused = this._propertiesEditor.isFocused();
+        this._wasEditing = this._propertiesEditor.editing || document.activeElement === this._selectorElement;
     }
 
     _handleClick(event)
     {
-        if (this._wasFocused)
+        if (this._wasEditing)
+            return;
+
+        if (window.getSelection().type === "Range")
             return;
 
         event.stop();

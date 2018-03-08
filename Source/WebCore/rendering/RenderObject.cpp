@@ -62,6 +62,7 @@
 #include "RenderScrollbarPart.h"
 #include "RenderTableRow.h"
 #include "RenderTheme.h"
+#include "RenderTreeBuilder.h"
 #include "RenderView.h"
 #include "RenderWidget.h"
 #include "SVGRenderSupport.h"
@@ -196,6 +197,11 @@ RenderObject::FragmentedFlowState RenderObject::computedFragmentedFlowState(cons
     if (!renderer.parent())
         return renderer.fragmentedFlowState();
 
+    if (is<RenderMultiColumnFlow>(renderer)) {
+        // Multicolumn flows do not inherit the flow state.
+        return InsideInFragmentedFlow;
+    }
+
     auto inheritedFlowState = RenderObject::NotInsideFragmentedFlow;
     if (is<RenderText>(renderer))
         inheritedFlowState = renderer.parent()->fragmentedFlowState();
@@ -247,12 +253,6 @@ void RenderObject::resetFragmentedFlowStateOnRemoval()
 void RenderObject::setParent(RenderElement* parent)
 {
     m_parent = parent;
-}
-
-void RenderObject::removeFromParentAndDestroy()
-{
-    ASSERT(m_parent);
-    m_parent->removeAndDestroyChild(*this);
 }
 
 RenderObject* RenderObject::nextInPreOrder() const
@@ -1449,12 +1449,8 @@ void RenderObject::willBeDestroyed()
 void RenderObject::insertedIntoTree()
 {
     // FIXME: We should ASSERT(isRooted()) here but generated content makes some out-of-order insertion.
-
     if (!isFloating() && parent()->childrenInline())
         parent()->dirtyLinesFromChangedChild(*this);
-
-    if (RenderFragmentedFlow* fragmentedFlow = enclosingFragmentedFlow())
-        fragmentedFlow->fragmentedFlowDescendantInserted(*this);
 }
 
 void RenderObject::willBeRemovedFromTree()
@@ -1464,63 +1460,12 @@ void RenderObject::willBeRemovedFromTree()
     parent()->setNeedsBoundariesUpdate();
 }
 
-static bool isAnonymousAndSafeToDelete(RenderElement& element)
-{
-    if (!element.isAnonymous())
-        return false;
-    if (element.isRenderView() || element.isRenderFragmentedFlow())
-        return false;
-    return true;
-}
-
-static RenderObject& findDestroyRootIncludingAnonymous(RenderObject& renderer)
-{
-    auto* destroyRoot = &renderer;
-    while (true) {
-        auto& destroyRootParent = *destroyRoot->parent();
-        if (!isAnonymousAndSafeToDelete(destroyRootParent))
-            break;
-        bool destroyingOnlyChild = destroyRootParent.firstChild() == destroyRoot && destroyRootParent.lastChild() == destroyRoot;
-        if (!destroyingOnlyChild)
-            break;
-        destroyRoot = &destroyRootParent;
-    }
-    return *destroyRoot;
-}
-
-void RenderObject::removeFromParentAndDestroyCleaningUpAnonymousWrappers()
-{
-    // If the tree is destroyed, there is no need for a clean-up phase.
-    if (renderTreeBeingDestroyed()) {
-        removeFromParentAndDestroy();
-        return;
-    }
-
-    auto& destroyRoot = findDestroyRootIncludingAnonymous(*this);
-
-    if (is<RenderTableRow>(destroyRoot))
-        downcast<RenderTableRow>(destroyRoot).collapseAndDestroyAnonymousSiblingRows();
-
-    auto& destroyRootParent = *destroyRoot.parent();
-    destroyRootParent.removeAndDestroyChild(destroyRoot);
-    destroyRootParent.removeAnonymousWrappersForInlinesIfNecessary();
-
-    // Anonymous parent might have become empty, try to delete it too.
-    if (isAnonymousAndSafeToDelete(destroyRootParent) && !destroyRootParent.firstChild())
-        destroyRootParent.removeFromParentAndDestroyCleaningUpAnonymousWrappers();
-
-    // WARNING: |this| is deleted here.
-}
-
 void RenderObject::destroy()
 {
     RELEASE_ASSERT(!m_parent);
     RELEASE_ASSERT(!m_next);
     RELEASE_ASSERT(!m_previous);
     RELEASE_ASSERT(!m_bitfields.beingDestroyed());
-
-    if (is<RenderElement>(*this))
-        downcast<RenderElement>(*this).destroyLeftoverChildren();
 
     m_bitfields.setBeingDestroyed(true);
 

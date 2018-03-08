@@ -51,7 +51,7 @@ static const char* serviceName(const ProcessLauncher::LaunchOptions& launchOptio
 {
     switch (launchOptions.processType) {
     case ProcessLauncher::ProcessType::Web:
-        return "com.apple.WebKit.WebContent";
+        return launchOptions.nonValidInjectedCodeAllowed ? "com.apple.WebKit.WebContent.Development" : "com.apple.WebKit.WebContent";
     case ProcessLauncher::ProcessType::Network:
         return "com.apple.WebKit.Networking";
     case ProcessLauncher::ProcessType::Storage:
@@ -175,6 +175,7 @@ void ProcessLauncher::launchProcess()
     mach_port_deallocate(mach_task_self(), listeningPort);
 
     xpc_dictionary_set_string(bootstrapMessage.get(), "client-identifier", !clientIdentifier.isEmpty() ? clientIdentifier.utf8().data() : *_NSGetProgname());
+    xpc_dictionary_set_string(bootstrapMessage.get(), "process-identifier", String::number(m_launchOptions.processIdentifier.toUInt64()).utf8().data());
     xpc_dictionary_set_string(bootstrapMessage.get(), "ui-process-name", [[[NSProcessInfo processInfo] processName] UTF8String]);
 
     bool isWebKitDevelopmentBuild = ![[[[NSBundle bundleWithIdentifier:@"com.apple.WebKit"] bundlePath] stringByDeletingLastPathComponent] hasPrefix:systemDirectoryPath()];

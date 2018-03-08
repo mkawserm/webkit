@@ -76,9 +76,6 @@ public:
     const WTF::String& indexedDBDatabaseDirectory() const { return m_indexedDBDatabaseDirectory; }
     void setIndexedDBDatabaseDirectory(const WTF::String& indexedDBDatabaseDirectory) { m_indexedDBDatabaseDirectory = indexedDBDatabaseDirectory; }
 
-    const WTF::String& serviceWorkerRegistrationDirectory() const { return m_serviceWorkerRegistrationDirectory; }
-    void setServiceWorkerRegistrationDirectory(const WTF::String& directory) { m_serviceWorkerRegistrationDirectory = directory; }
-    
     const WTF::String& injectedBundlePath() const { return m_injectedBundlePath; }
     void setInjectedBundlePath(const WTF::String& injectedBundlePath) { m_injectedBundlePath = injectedBundlePath; }
 
@@ -138,6 +135,9 @@ public:
     ProcessID presentingApplicationPID() const { return m_presentingApplicationPID; }
     void setPresentingApplicationPID(ProcessID pid) { m_presentingApplicationPID = pid; }
 
+    bool processSwapsOnNavigation() const { return m_processSwapsOnNavigation; }
+    void setProcessSwapsOnNavigation(bool swaps) { m_processSwapsOnNavigation = swaps; }
+
 private:
     bool m_shouldHaveLegacyDataStore { false };
 
@@ -151,7 +151,6 @@ private:
     WTF::String m_diskCacheDirectory;
     WTF::String m_mediaCacheDirectory;
     WTF::String m_indexedDBDatabaseDirectory;
-    WTF::String m_serviceWorkerRegistrationDirectory;
     WTF::String m_injectedBundlePath;
     WTF::String m_localStorageDirectory;
     WTF::String m_webSQLDatabaseDirectory;
@@ -170,6 +169,8 @@ private:
     bool m_shouldTakeUIBackgroundAssertion { true };
     bool m_shouldCaptureAudioInUIProcess { false };
     ProcessID m_presentingApplicationPID { getCurrentProcessID() };
+    bool m_processSwapsOnNavigation { false };
+
 #if PLATFORM(IOS)
     WTF::String m_ctDataConnectionServiceType;
 #endif

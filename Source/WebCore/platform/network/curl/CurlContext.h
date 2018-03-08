@@ -26,13 +26,13 @@
 
 #pragma once
 
-#include "CookieJarCurl.h"
 #include "CurlSSLHandle.h"
 #include "URL.h"
 
 #include <wtf/Lock.h>
 #include <wtf/NeverDestroyed.h>
 #include <wtf/Noncopyable.h>
+#include <wtf/Seconds.h>
 #include <wtf/Threading.h>
 
 #if OS(WINDOWS)
@@ -104,16 +104,11 @@ public:
         const String url() const;
     };
 
-    static CurlContext& singleton();
+    WEBCORE_EXPORT static CurlContext& singleton();
 
     virtual ~CurlContext();
 
     const CurlShareHandle& shareHandle() { return m_shareHandle; }
-
-    // Cookie
-    const char* getCookieJarFileName() const { return m_cookieJarFileName.data(); }
-    void setCookieJarFileName(const char* cookieJarFileName) { m_cookieJarFileName = CString(cookieJarFileName); }
-    CookieJarCurl& cookieJar() { return *m_cookieJar; }
 
     // Proxy
     const ProxyInfo& proxyInfo() const { return m_proxy; }
@@ -123,20 +118,28 @@ public:
     // SSL
     CurlSSLHandle& sslHandle() { return m_sslHandle; }
 
+    // HTTP/2
+    bool isHttp2Enabled() const;
+
+    // Timeout
+    Seconds dnsCacheTimeout() const { return m_dnsCacheTimeout; }
+    Seconds connectTimeout() const { return m_connectTimeout; }
+
 #ifndef NDEBUG
     FILE* getLogFile() const { return m_logFile; }
     bool isVerbose() const { return m_verbose; }
 #endif
 
 private:
+    CurlContext();
+    void initShareHandle();
+
     ProxyInfo m_proxy;
-    CString m_cookieJarFileName;
     CurlShareHandle m_shareHandle;
-    std::unique_ptr<CookieJarCurl> m_cookieJar;
     CurlSSLHandle m_sslHandle;
 
-    CurlContext();
-    void initCookieSession();
+    Seconds m_dnsCacheTimeout { Seconds::fromMinutes(5) };
+    Seconds m_connectTimeout { 30.0 };
 
 #ifndef NDEBUG
     FILE* m_logFile { nullptr };
@@ -230,6 +233,7 @@ public:
     void appendRequestHeader(const String& name);
     void removeRequestHeader(const String& name);
 
+    void enableHttp();
     void enableHttpGetRequest();
     void enableHttpHeadRequest();
     void enableHttpPostRequest();
@@ -252,13 +256,11 @@ public:
     void setSslCertType(const char*);
     void setSslKeyPassword(const char*);
 
-    void enableCookieJarIfExists();
-    void setCookieList(const char*);
-    void fetchCookieList(CurlSList &cookies) const;
-
     void enableProxyIfExists();
 
-    void enableTimeout();
+    void setDnsCacheTimeout(Seconds);
+    void setConnectTimeout(Seconds);
+    void setTimeout(Seconds);
 
     // Callback function
     void setHeaderCallbackFunction(curl_write_callback, void*);
@@ -272,6 +274,7 @@ public:
     std::optional<long> getHttpConnectCode();
     std::optional<long long> getContentLength();
     std::optional<long> getHttpAuthAvail();
+    std::optional<long> getHttpVersion();
     std::optional<NetworkLoadMetrics> getNetworkLoadMetrics();
 
     static long long maxCurlOffT();

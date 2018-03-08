@@ -799,7 +799,7 @@ Structure* Structure::flattenDictionaryStructure(VM& vm, JSObject* object)
         // If the object had a Butterfly but after flattening/compacting we no longer have need of it,
         // we need to zero it out because the collector depends on the Structure to know the size for copying.
         if (!afterOutOfLineCapacity && !this->hasIndexingHeader(object))
-            object->setButterfly(vm, nullptr);
+            object->setButterflyWithIndexingMask(vm, nullptr, 0);
         // If the object was down-sized to the point where the base of the Butterfly is no longer within the 
         // first CopiedBlock::blockSize bytes, we'll get the wrong answer if we try to mask the base back to 
         // the CopiedBlock header. To prevent this case we need to memmove the Butterfly down.
@@ -1246,13 +1246,17 @@ JSPropertyNameEnumerator* Structure::cachedPropertyNameEnumerator() const
 
 bool Structure::canCachePropertyNameEnumerator() const
 {
-    if (isDictionary())
-        return false;
+    auto canCache = [] (const Structure* structure) {
+        if (structure->isDictionary())
+            return false;
+        if (hasIndexedProperties(structure->indexingType()))
+            return false;
+        if (structure->typeInfo().overridesGetPropertyNames())
+            return false;
+        return true;
+    };
 
-    if (hasIndexedProperties(indexingType()))
-        return false;
-
-    if (typeInfo().overridesGetPropertyNames())
+    if (!canCache(this))
         return false;
 
     StructureChain* structureChain = m_cachedPrototypeChain.get();
@@ -1260,12 +1264,13 @@ bool Structure::canCachePropertyNameEnumerator() const
     WriteBarrier<Structure>* structure = structureChain->head();
     while (true) {
         if (!structure->get())
-            break;
-        if (structure->get()->isDictionary() || structure->get()->typeInfo().overridesGetPropertyNames())
+            return true;
+        if (!canCache(structure->get()))
             return false;
         structure++;
     }
-    
+
+    ASSERT_NOT_REACHED();
     return true;
 }
     

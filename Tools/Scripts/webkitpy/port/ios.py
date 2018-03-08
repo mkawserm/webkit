@@ -25,7 +25,7 @@ import traceback
 
 from webkitpy.common.memoized import memoized
 from webkitpy.common.version import Version
-from webkitpy.common.version_name_map import VersionNameMap
+from webkitpy.common.version_name_map import VersionNameMap, INTERNAL_TABLE
 from webkitpy.layout_tests.models.test_configuration import TestConfiguration
 from webkitpy.port.config import apple_additions
 from webkitpy.port.darwin import DarwinPort
@@ -37,14 +37,12 @@ _log = logging.getLogger(__name__)
 class IOSPort(DarwinPort):
     port_name = "ios"
 
-    VERSION_MIN = Version(11)
-    VERSION_MAX = Version(12)
+    CURRENT_VERSION = Version(11)
 
     def __init__(self, host, port_name, **kwargs):
         super(IOSPort, self).__init__(host, port_name, **kwargs)
         self._test_runner_process_constructor = SimulatorProcess
         self._printing_cmd_line = False
-        self._current_device = None
 
     def _device_for_worker_number_map(self):
         raise NotImplementedError
@@ -79,9 +77,6 @@ class IOSPort(DarwinPort):
     def child_processes(self):
         return int(self.get_option('child_processes'))
 
-    def using_multiple_devices(self):
-        return False
-
     def _testing_device(self, number):
         device = self._device_for_worker_number_map()[number]
         if not device:
@@ -92,30 +87,38 @@ class IOSPort(DarwinPort):
     def target_host(self, worker_number=None):
         if self._printing_cmd_line or worker_number is None:
             return self.host
-        # When using simulated devices, this means webkitpy is managing the devices.
-        if self.using_multiple_devices():
-            return self._testing_device(worker_number)
-        return self._current_device
+        return self._testing_device(worker_number)
 
     @memoized
     def default_baseline_search_path(self):
         wk_string = 'wk1'
         if self.get_option('webkit_test_runner'):
             wk_string = 'wk2'
-        # If we don't have a specified version, that means we using the port without an SDK.
-        # This usually means we're doing some type of testing.In this case, don't add version fallbacks
+
+        versions_to_fallback = []
+        if self.ios_version() == self.CURRENT_VERSION:
+            versions_to_fallback = [self.CURRENT_VERSION]
+        elif self.ios_version():
+            temp_version = Version(self.ios_version().major)
+            while temp_version != self.CURRENT_VERSION:
+                versions_to_fallback.append(Version.from_iterable(temp_version))
+                if temp_version < self.CURRENT_VERSION:
+                    temp_version.major += 1
+                else:
+                    temp_version.major -= 1
+
         expectations = []
-        if apple_additions() and self.ios_version():
-            apple_name = VersionNameMap.map(self.host.platform).to_name(self.ios_version(), platform=IOSPort.port_name, table='internal').lower().replace(' ', '')
-        else:
+        for version in versions_to_fallback:
             apple_name = None
-        if self.ios_version():
+            if apple_additions():
+                apple_name = VersionNameMap.map(self.host.platform).to_name(version, platform=IOSPort.port_name, table=INTERNAL_TABLE)
+
             if apple_name:
-                expectations.append(self._apple_baseline_path('{}-{}-{}'.format(self.port_name, apple_name, wk_string)))
-            expectations.append(self._webkit_baseline_path('{}-{}-{}'.format(self.port_name, self.ios_version().major, wk_string)))
+                expectations.append(self._apple_baseline_path('{}-{}-{}'.format(self.port_name, apple_name.lower().replace(' ', ''), wk_string)))
+            expectations.append(self._webkit_baseline_path('{}-{}-{}'.format(self.port_name, version.major, wk_string)))
             if apple_name:
-                expectations.append(self._apple_baseline_path('{}-{}'.format(self.port_name, apple_name)))
-            expectations.append(self._webkit_baseline_path('{}-{}'.format(self.port_name, self.ios_version().major)))
+                expectations.append(self._apple_baseline_path('{}-{}'.format(self.port_name, apple_name.lower().replace(' ', ''))))
+            expectations.append(self._webkit_baseline_path('{}-{}'.format(self.port_name, version.major)))
 
         if apple_additions():
             expectations.append(self._apple_baseline_path('{}-{}'.format(self.port_name, wk_string)))
@@ -124,10 +127,13 @@ class IOSPort(DarwinPort):
             expectations.append(self._apple_baseline_path(self.port_name))
         expectations.append(self._webkit_baseline_path(self.port_name))
 
-        if self.ios_version():
+        for version in versions_to_fallback:
+            apple_name = None
+            if apple_additions():
+                apple_name = VersionNameMap.map(self.host.platform).to_name(version, platform=IOSPort.port_name, table=INTERNAL_TABLE)
             if apple_name:
-                expectations.append(self._apple_baseline_path('{}-{}'.format(IOSPort.port_name, apple_name)))
-            expectations.append(self._webkit_baseline_path('{}-{}'.format(IOSPort.port_name, self.ios_version().major)))
+                expectations.append(self._apple_baseline_path('{}-{}'.format(IOSPort.port_name, apple_name.lower().replace(' ', ''))))
+            expectations.append(self._webkit_baseline_path('{}-{}'.format(IOSPort.port_name, version.major)))
 
         if apple_additions():
             expectations.append(self._apple_baseline_path('{}-{}'.format(IOSPort.port_name, wk_string)))

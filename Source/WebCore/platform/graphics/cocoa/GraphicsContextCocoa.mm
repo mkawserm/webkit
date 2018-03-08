@@ -44,7 +44,7 @@
 #import "WKGraphicsInternal.h"
 #endif
 
-#if !PLATFORM(IOS)
+#if PLATFORM(MAC)
 #import "LocalCurrentGraphicsContext.h"
 #endif
 
@@ -55,20 +55,17 @@
 
 namespace WebCore {
 
-// NSColor, NSBezierPath, and NSGraphicsContext
-// calls in this file are all exception-safe, so we don't block
-// exceptions for those.
+// NSColor, NSBezierPath, and NSGraphicsContext calls do not raise exceptions
+// so we don't block exceptions.
 
-#if !PLATFORM(IOS)
+#if PLATFORM(MAC)
+
 CGColorRef GraphicsContext::focusRingColor()
 {
-    static CGColorRef color;
-    if (!color) {
+    static CGColorRef color = [] {
         CGFloat colorComponents[] = { 0.5, 0.75, 1.0, 1.0 };
-        auto colorSpace = adoptCF(CGColorSpaceCreateWithName(kCGColorSpaceSRGB));
-        color = CGColorCreate(colorSpace.get(), colorComponents);
-    }
-
+        return CGColorCreate(sRGBColorSpaceRef(), colorComponents);
+    }();
     return color;
 }
 
@@ -111,7 +108,8 @@ static bool drawFocusRingToContextAtTime(CGContextRef context, CGPathRef focusRi
     CGContextAddPath(context, focusRingPath);
     return drawFocusRingAtTime(context, std::numeric_limits<double>::max());
 }
-#endif // !PLATFORM(IOS)
+
+#endif // PLATFORM(MAC)
 
 void GraphicsContext::drawFocusRing(const Path& path, float width, float offset, const Color& color)
 {
@@ -163,7 +161,7 @@ void GraphicsContext::drawFocusRing(const Vector<FloatRect>& rects, double timeO
 
 void GraphicsContext::drawFocusRing(const Vector<FloatRect>& rects, float width, float offset, const Color& color)
 {
-#if !PLATFORM(IOS)
+#if PLATFORM(MAC)
     if (paintingDisabled())
         return;
 
@@ -186,6 +184,7 @@ void GraphicsContext::drawFocusRing(const Vector<FloatRect>& rects, float width,
 }
 
 #if PLATFORM(MAC)
+
 static NSImage *findImage(NSString* firstChoiceName, NSString* secondChoiceName, bool& usingDot)
 {
     // Eventually we should be able to get rid of the secondChoiceName. For the time being we need both to keep
@@ -197,10 +196,16 @@ static NSImage *findImage(NSString* firstChoiceName, NSString* secondChoiceName,
     usingDot = image;
     return image;
 }
+
+// FIXME: Should use RetainPtr instead of handwritten retain/release.
 static NSImage *spellingImage = nullptr;
 static NSImage *grammarImage = nullptr;
 static NSImage *correctionImage = nullptr;
-#else
+
+#endif
+
+#if PLATFORM (IOS)
+
 static RetainPtr<CGPatternRef> createDotPattern(bool& usingDot, const char* resourceName)
 {
     RetainPtr<CGImageRef> image = adoptCF(WKGraphicsCreateImageFromBundleWithName(resourceName));
@@ -208,7 +213,8 @@ static RetainPtr<CGPatternRef> createDotPattern(bool& usingDot, const char* reso
     usingDot = true;
     return adoptCF(WKCreatePatternFromCGImage(image.get()));
 }
-#endif // PLATFORM(MAC)
+
+#endif
 
 void GraphicsContext::updateDocumentMarkerResources()
 {
@@ -354,7 +360,10 @@ void GraphicsContext::drawLineForDocumentMarker(const FloatPoint& point, float w
 
         // FIXME: Rather than getting the NSImage and then picking the CGImage from it, we should do what iOS does and
         // just load the CGImage in the first place.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
         CGImageRef cgImage = [image CGImageForProposedRect:&dotRect context:[NSGraphicsContext graphicsContextWithGraphicsPort:context flipped:NO] hints:nullptr];
+#pragma clang diagnostic pop
         CGContextDrawTiledImage(context, NSRectToCGRect(dotRect), cgImage);
     } else {
         CGContextSetFillColorWithColor(context, [fallbackColor CGColor]);
@@ -364,30 +373,5 @@ void GraphicsContext::drawLineForDocumentMarker(const FloatPoint& point, float w
     WKRectFillUsingOperation(context, destinationRect, kCGCompositeSover);
 #endif
 }
-
-#if PLATFORM(MAC) && __MAC_OS_X_VERSION_MIN_REQUIRED < 101200
-CGColorSpaceRef linearRGBColorSpaceRef()
-{
-    static CGColorSpaceRef linearSRGBSpace = nullptr;
-
-    if (linearSRGBSpace)
-        return linearSRGBSpace;
-
-    RetainPtr<NSString> iccProfilePath = [[NSBundle bundleWithIdentifier:@"com.apple.WebCore"] pathForResource:@"linearSRGB" ofType:@"icc"];
-    RetainPtr<NSData> iccProfileData = adoptNS([[NSData alloc] initWithContentsOfFile:iccProfilePath.get()]);
-
-    if (iccProfileData)
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
-        linearSRGBSpace = CGColorSpaceCreateWithICCProfile((CFDataRef)iccProfileData.get());
-#pragma clang diagnostic pop
-
-    // If we fail to load the linearized sRGB ICC profile, fall back to sRGB.
-    if (!linearSRGBSpace)
-        return sRGBColorSpaceRef();
-
-    return linearSRGBSpace;
-}
-#endif
 
 } // namespace WebCore

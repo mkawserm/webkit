@@ -94,10 +94,10 @@
 #include "StyleScope.h"
 #include "TextResourceDecoder.h"
 #include "TiledBacking.h"
+#include "VisualViewport.h"
 #include "WheelEventTestTrigger.h"
 #include <wtf/text/TextStream.h>
 
-#include <wtf/CurrentTime.h>
 #include <wtf/IsoMallocInlines.h>
 #include <wtf/MemoryPressureHandler.h>
 #include <wtf/Ref.h>
@@ -123,7 +123,7 @@ using namespace HTMLNames;
 
 WTF_MAKE_ISO_ALLOCATED_IMPL(FrameView);
 
-double FrameView::sCurrentPaintTimeStamp = 0.0;
+MonotonicTime FrameView::sCurrentPaintTimeStamp { };
 
 // The maximum number of updateEmbeddedObjects iterations that should be done before returning.
 static const unsigned maxUpdateEmbeddedObjectsIterations = 2;
@@ -171,6 +171,7 @@ FrameView::FrameView(Frame& frame)
     : m_frame(frame)
     , m_canHaveScrollbars(true)
     , m_updateEmbeddedObjectsTimer(*this, &FrameView::updateEmbeddedObjectsTimerFired)
+    , m_updateWidgetPositionsTimer(*this, &FrameView::updateWidgetPositionsTimerFired)
     , m_isTransparent(false)
     , m_baseBackgroundColor(Color::white)
     , m_mediaType("screen")
@@ -179,6 +180,8 @@ FrameView::FrameView(Frame& frame)
     , m_inProgrammaticScroll(false)
     , m_safeToPropagateScrollToParent(true)
     , m_delayedScrollEventTimer(*this, &FrameView::sendScrollEvent)
+    , m_selectionRevealModeForFocusedElement(SelectionRevealMode::DoNotReveal)
+    , m_delayedScrollToFocusedElementTimer(*this, &FrameView::scrollToFocusedElementTimerFired)
     , m_isTrackingRepaints(false)
     , m_shouldUpdateWhileOffscreen(true)
     , m_speculativeTilingEnabled(false)
@@ -262,11 +265,13 @@ void FrameView::reset()
     m_wasScrolledByUser = false;
     m_safeToPropagateScrollToParent = true;
     m_delayedScrollEventTimer.stop();
+    m_shouldScrollToFocusedElement = false;
+    m_delayedScrollToFocusedElementTimer.stop();
     m_lastViewportSize = IntSize();
     m_lastZoomFactor = 1.0f;
     m_isTrackingRepaints = false;
     m_trackedRepaintRects.clear();
-    m_lastPaintTime = 0;
+    m_lastPaintTime = MonotonicTime();
     m_paintBehavior = PaintBehaviorNormal;
     m_isPainting = false;
     m_visuallyNonEmptyCharacterCount = 0;
@@ -714,7 +719,8 @@ void FrameView::applyPaginationToViewport()
     EOverflow overflowY = documentOrBodyRenderer->style().overflowY();
     if (overflowY == OPAGEDX || overflowY == OPAGEDY) {
         pagination.mode = WebCore::paginationModeForRenderStyle(documentOrBodyRenderer->style());
-        pagination.gap = static_cast<unsigned>(documentOrBodyRenderer->style().columnGap());
+        GapLength columnGapLength = documentOrBodyRenderer->style().columnGap();
+        pagination.gap = columnGapLength.isNormal() ? 0 : valueForLength(columnGapLength.length(), downcast<RenderBox>(documentOrBodyRenderer)->availableLogicalWidth()).toUnsigned();
     }
     setPagination(pagination);
 }
@@ -1672,6 +1678,12 @@ void FrameView::updateLayoutViewport()
             LayoutPoint newOrigin = computeLayoutViewportOrigin(visualViewportRect(), minStableLayoutViewportOrigin(), maxStableLayoutViewportOrigin(), layoutViewport, StickToDocumentBounds);
             setLayoutViewportOverrideRect(LayoutRect(newOrigin, m_layoutViewportOverrideRect.value().size()));
         }
+        if (frame().settings().visualViewportAPIEnabled()) {
+            if (Document* document = frame().document()) {
+                if (VisualViewport* visualViewport = document->domWindow()->visualViewport())
+                    visualViewport->update();
+            }
+        }
         return;
     }
 
@@ -1679,6 +1691,12 @@ void FrameView::updateLayoutViewport()
     if (newLayoutViewportOrigin != m_layoutViewportOrigin) {
         setBaseLayoutViewportOrigin(newLayoutViewportOrigin);
         LOG_WITH_STREAM(Scrolling, stream << "layoutViewport changed to " << layoutViewportRect());
+    }
+    if (frame().settings().visualViewportAPIEnabled()) {
+        if (Document* document = frame().document()) {
+            if (VisualViewport* visualViewport = document->domWindow()->visualViewport())
+                visualViewport->update();
+        }
     }
 }
 
@@ -1928,12 +1946,7 @@ ScrollPosition FrameView::unscaledMaximumScrollPosition() const
     if (RenderView* renderView = this->renderView()) {
         IntRect unscaledDocumentRect = renderView->unscaledDocumentRect();
         unscaledDocumentRect.expand(0, headerHeight() + footerHeight());
-        IntSize visibleSize = this->visibleSize();
-#if PLATFORM(IOS)
-        // FIXME: visibleSize() is the unscaled size on macOS, but the scaled size on iOS. This should be consistent. webkit.org/b/174648.
-        visibleSize.scale(visibleContentScaleFactor());
-#endif        
-        ScrollPosition maximumPosition = ScrollPosition(unscaledDocumentRect.maxXMaxYCorner() - visibleSize).expandedTo({ 0, 0 });
+        ScrollPosition maximumPosition = ScrollPosition(unscaledDocumentRect.maxXMaxYCorner() - visibleSize()).expandedTo({ 0, 0 });
         if (frame().isMainFrame() && m_scrollPinningBehavior == PinToTop)
             maximumPosition.setY(unscaledMinimumScrollPosition().y());
 
@@ -2180,6 +2193,8 @@ void FrameView::maintainScrollPositionAtAnchor(ContainerNode* anchorNode)
     m_maintainScrollPositionAnchor = anchorNode;
     if (!m_maintainScrollPositionAnchor)
         return;
+    m_shouldScrollToFocusedElement = false;
+    m_delayedScrollToFocusedElementTimer.stop();
 
     // We need to update the layout before scrolling, otherwise we could
     // really mess things up if an anchor scroll comes at a bad moment.
@@ -2210,6 +2225,8 @@ void FrameView::setScrollPosition(const ScrollPosition& scrollPosition)
 
     SetForScope<bool> changeInProgrammaticScroll(m_inProgrammaticScroll, true);
     m_maintainScrollPositionAnchor = nullptr;
+    m_shouldScrollToFocusedElement = false;
+    m_delayedScrollToFocusedElementTimer.stop();
     Page* page = frame().page();
     if (page && page->expectsWheelEventTriggers())
         scrollAnimator().setWheelEventTestTrigger(page->testTrigger());
@@ -2234,6 +2251,60 @@ void FrameView::resetScrollAnchor()
             rootElement->resetScrollAnchor();
         }
     }
+}
+
+void FrameView::scheduleScrollToFocusedElement(SelectionRevealMode selectionRevealMode)
+{
+    if (selectionRevealMode == SelectionRevealMode::DoNotReveal)
+        return;
+
+    m_selectionRevealModeForFocusedElement = selectionRevealMode;
+    if (m_shouldScrollToFocusedElement)
+        return;
+    m_shouldScrollToFocusedElement = true;
+    m_delayedScrollToFocusedElementTimer.startOneShot(0_s);
+}
+
+void FrameView::scrollToFocusedElementImmediatelyIfNeeded()
+{
+    if (!m_shouldScrollToFocusedElement)
+        return;
+
+    m_delayedScrollToFocusedElementTimer.stop();
+    scrollToFocusedElementInternal();
+}
+
+void FrameView::scrollToFocusedElementTimerFired()
+{
+    scrollToFocusedElementInternal();
+}
+
+void FrameView::scrollToFocusedElementInternal()
+{
+    RELEASE_ASSERT(m_shouldScrollToFocusedElement);
+    auto document = makeRefPtr(frame().document());
+    if (!document)
+        return;
+
+    document->updateLayoutIgnorePendingStylesheets();
+    if (!m_shouldScrollToFocusedElement)
+        return; // Updating the layout may have ran scripts.
+    m_shouldScrollToFocusedElement = false;
+
+    auto focusedElement = makeRefPtr(document->focusedElement());
+    if (!focusedElement)
+        return;
+    auto updateTarget = focusedElement->focusAppearanceUpdateTarget();
+    if (!updateTarget)
+        return;
+
+    auto* renderer = updateTarget->renderer();
+    if (!renderer || renderer->isWidget())
+        return;
+
+    bool insideFixed;
+    LayoutRect absoluteBounds = renderer->absoluteAnchorRect(&insideFixed);
+    renderer->scrollRectToVisible(m_selectionRevealModeForFocusedElement, absoluteBounds, insideFixed);
 }
 
 void FrameView::contentsResized()
@@ -2979,6 +3050,8 @@ void FrameView::scrollToAnchor()
 
     if (!anchorNode->renderer())
         return;
+    m_shouldScrollToFocusedElement = false;
+    m_delayedScrollToFocusedElementTimer.stop();
 
     LayoutRect rect;
     bool insideFixed = false;
@@ -3002,6 +3075,8 @@ void FrameView::scrollToAnchor()
     // scrollRectToVisible can call into setScrollPosition(), which resets m_maintainScrollPositionAnchor.
     LOG_WITH_STREAM(Scrolling, stream << " restoring anchor node to " << anchorNode.get());
     m_maintainScrollPositionAnchor = anchorNode;
+    m_shouldScrollToFocusedElement = false;
+    m_delayedScrollToFocusedElementTimer.stop();
 }
 
 void FrameView::updateEmbeddedObject(RenderEmbeddedObject& embeddedObject)
@@ -3582,6 +3657,8 @@ bool FrameView::isScrollable(Scrollability definitionOfScrollable)
     // 2) display:none or visibility:hidden set to self or inherited.
     // 3) overflow{-x,-y}: hidden;
     // 4) scrolling: no;
+    if (!didFirstLayout())
+        return false;
 
     bool requiresActualOverflowToBeConsideredScrollable = !frame().isMainFrame() || definitionOfScrollable != Scrollability::ScrollableOrRubberbandable;
 #if !ENABLE(RUBBER_BANDING)
@@ -3914,6 +3991,8 @@ void FrameView::setWasScrolledByUser(bool wasScrolledByUser)
 {
     LOG(Scrolling, "FrameView::setWasScrolledByUser at %d", wasScrolledByUser);
 
+    m_shouldScrollToFocusedElement = false;
+    m_delayedScrollToFocusedElementTimer.stop();
     if (m_inProgrammaticScroll)
         return;
     m_maintainScrollPositionAnchor = nullptr;
@@ -3935,7 +4014,7 @@ void FrameView::willPaintContents(GraphicsContext& context, const IntRect&, Pain
     paintingState.isTopLevelPainter = !sCurrentPaintTimeStamp;
 
     if (paintingState.isTopLevelPainter)
-        sCurrentPaintTimeStamp = monotonicallyIncreasingTime();
+        sCurrentPaintTimeStamp = MonotonicTime::now();
 
     paintingState.paintBehavior = m_paintBehavior;
     
@@ -3969,7 +4048,7 @@ void FrameView::didPaintContents(GraphicsContext& context, const IntRect& dirtyR
         notifyWidgetsInAllFrames(DidPaintFlattened);
 
     m_paintBehavior = paintingState.paintBehavior;
-    m_lastPaintTime = monotonicallyIncreasingTime();
+    m_lastPaintTime = MonotonicTime::now();
 
     // Regions may have changed as a result of the visibility/z-index of element changing.
 #if ENABLE(DASHBOARD_SUPPORT)
@@ -3978,7 +4057,7 @@ void FrameView::didPaintContents(GraphicsContext& context, const IntRect& dirtyR
 #endif
 
     if (paintingState.isTopLevelPainter)
-        sCurrentPaintTimeStamp = 0;
+        sCurrentPaintTimeStamp = MonotonicTime();
 
     if (!context.paintingDisabled()) {
         InspectorInstrumentation::didPaint(*renderView(), dirtyRect);
@@ -3990,22 +4069,22 @@ void FrameView::didPaintContents(GraphicsContext& context, const IntRect& dirtyR
 void FrameView::paintContents(GraphicsContext& context, const IntRect& dirtyRect, SecurityOriginPaintPolicy securityOriginPaintPolicy)
 {
 #ifndef NDEBUG
-    bool fillWithRed;
+    bool fillWithWarningColor;
     if (frame().document()->printing())
-        fillWithRed = false; // Printing, don't fill with red (can't remember why).
+        fillWithWarningColor = false; // Printing, don't fill with red (can't remember why).
     else if (frame().ownerElement())
-        fillWithRed = false; // Subframe, don't fill with red.
+        fillWithWarningColor = false; // Subframe, don't fill with red.
     else if (isTransparent())
-        fillWithRed = false; // Transparent, don't fill with red.
+        fillWithWarningColor = false; // Transparent, don't fill with red.
     else if (m_paintBehavior & PaintBehaviorSelectionOnly)
-        fillWithRed = false; // Selections are transparent, don't fill with red.
+        fillWithWarningColor = false; // Selections are transparent, don't fill with red.
     else if (m_nodeToDraw)
-        fillWithRed = false; // Element images are transparent, don't fill with red.
+        fillWithWarningColor = false; // Element images are transparent, don't fill with red.
     else
-        fillWithRed = true;
+        fillWithWarningColor = true;
     
-    if (fillWithRed)
-        context.fillRect(dirtyRect, Color(0xFF, 0, 0));
+    if (fillWithWarningColor)
+        context.fillRect(dirtyRect, Color(255, 64, 255));
 #endif
 
     RenderView* renderView = this->renderView();
@@ -4329,7 +4408,7 @@ void FrameView::adjustPageHeightDeprecated(float *newBottom, float oldTop, float
 
     }
     // Use a context with painting disabled.
-    GraphicsContext context((PlatformGraphicsContext*)nullptr);
+    GraphicsContext context(GraphicsContext::NonPaintingReasons::NoReasons);
     renderView->setTruncatedAt(static_cast<int>(floorf(oldBottom)));
     IntRect dirtyRect(0, static_cast<int>(floorf(oldTop)), renderView->layoutOverflowRect().maxX(), static_cast<int>(ceilf(oldBottom - oldTop)));
     renderView->setPrintRect(dirtyRect);
@@ -4501,7 +4580,7 @@ FloatSize FrameView::documentToClientOffset() const
     FloatSize clientOrigin = -toFloatSize(visibleContentRect().location());
 
     // Layout and visual viewports are affected by page zoom, so we need to factor that out.
-    return clientOrigin.scaled(1 / frame().pageZoomFactor());
+    return clientOrigin.scaled(1 / (frame().pageZoomFactor() * frame().frameScaleFactor()));
 }
 
 FloatRect FrameView::documentToClientRect(FloatRect rect) const
@@ -4526,14 +4605,6 @@ FloatPoint FrameView::clientToDocumentPoint(FloatPoint point) const
 {
     point.move(-documentToClientOffset());
     return point;
-}
-
-FloatRect FrameView::layoutViewportToAbsoluteRect(FloatRect rect) const
-{
-    ASSERT(frame().settings().visualViewportEnabled());
-    rect.moveBy(layoutViewportRect().location());
-    rect.scale(frame().frameScaleFactor());
-    return rect;
 }
 
 FloatPoint FrameView::layoutViewportToAbsolutePoint(FloatPoint p) const
@@ -4633,6 +4704,17 @@ void FrameView::sendScrollEvent()
 #if ENABLE(CSS_ANIMATIONS_LEVEL_2)
     frame().animation().scrollWasUpdated();
 #endif
+}
+
+void FrameView::addChild(Widget& widget)
+{
+    if (is<FrameView>(widget)) {
+        auto& childFrameView = downcast<FrameView>(widget);
+        if (childFrameView.isScrollable())
+            addScrollableArea(&childFrameView);
+    }
+
+    ScrollView::addChild(widget);
 }
 
 void FrameView::removeChild(Widget& widget)
@@ -4908,6 +4990,7 @@ static Vector<RefPtr<Widget>> collectAndProtectWidgets(const HashSet<Widget*>& s
 
 void FrameView::updateWidgetPositions()
 {
+    m_updateWidgetPositionsTimer.stop();
     // updateWidgetPosition() can possibly cause layout to be re-entered (via plug-ins running
     // scripts in response to NPP_SetWindow, for example), so we need to keep the Widgets
     // alive during enumeration.
@@ -4917,6 +5000,17 @@ void FrameView::updateWidgetPositions()
             UNUSED_PARAM(ignoreWidgetState);
         }
     }
+}
+
+void FrameView::scheduleUpdateWidgetPositions()
+{
+    if (!m_updateWidgetPositionsTimer.isActive())
+        m_updateWidgetPositionsTimer.startOneShot(0_s);
+}
+
+void FrameView::updateWidgetPositionsTimerFired()
+{
+    updateWidgetPositions();
 }
 
 void FrameView::notifyWidgets(WidgetNotification notification)

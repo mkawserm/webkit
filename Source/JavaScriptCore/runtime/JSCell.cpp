@@ -25,6 +25,7 @@
 
 #include "ArrayBufferView.h"
 #include "JSCInlines.h"
+#include "JSCast.h"
 #include "JSFunction.h"
 #include "JSString.h"
 #include "JSObject.h"
@@ -187,9 +188,8 @@ JSObject* JSCell::toObjectSlow(ExecState* exec, JSGlobalObject* globalObject) co
     ASSERT(!isObject());
     if (isString())
         return static_cast<const JSString*>(this)->toObject(exec, globalObject);
-    // FIXME: [ESNext][BigInt] Implement JSBigInt, BigIntConstructor and BigIntPrototype
-    // https://bugs.webkit.org/show_bug.cgi?id=175359
-    RELEASE_ASSERT(!isBigInt());
+    if (isBigInt())
+        return static_cast<const JSBigInt*>(this)->toObject(exec, globalObject);
     ASSERT(isSymbol());
     return static_cast<const Symbol*>(this)->toObject(exec, globalObject);
 }
@@ -309,13 +309,13 @@ JSValue JSCell::getPrototype(JSObject*, ExecState*)
     RELEASE_ASSERT_NOT_REACHED();
 }
 
-void JSCell::lockSlow()
+void JSCellLock::lockSlow()
 {
     Atomic<IndexingType>* lock = bitwise_cast<Atomic<IndexingType>*>(&m_indexingTypeAndMisc);
     IndexingTypeLockAlgorithm::lockSlow(*lock);
 }
 
-void JSCell::unlockSlow()
+void JSCellLock::unlockSlow()
 {
     Atomic<IndexingType>* lock = bitwise_cast<Atomic<IndexingType>*>(&m_indexingTypeAndMisc);
     IndexingTypeLockAlgorithm::unlockSlow(*lock);

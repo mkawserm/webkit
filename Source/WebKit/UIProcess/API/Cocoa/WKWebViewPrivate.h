@@ -42,7 +42,7 @@ typedef NS_ENUM(NSInteger, _WKPaginationMode) {
     _WKPaginationModeBottomToTop,
 } WK_API_AVAILABLE(macosx(10.10), ios(8.0));
 
-typedef NS_OPTIONS(NSInteger, _WKMediaCaptureState) {
+typedef NS_OPTIONS(NSUInteger, _WKMediaCaptureState) {
     _WKMediaCaptureStateNone = 0,
     _WKMediaCaptureStateActiveMicrophone = 1 << 0,
     _WKMediaCaptureStateActiveCamera = 1 << 1,
@@ -50,7 +50,7 @@ typedef NS_OPTIONS(NSInteger, _WKMediaCaptureState) {
     _WKMediaCaptureStateMutedCamera = 1 << 3,
 } WK_API_AVAILABLE(macosx(10.13), ios(11.0));
 
-typedef NS_OPTIONS(NSInteger, _WKMediaMutedState) {
+typedef NS_OPTIONS(NSUInteger, _WKMediaMutedState) {
     _WKMediaNoneMuted = 0,
     _WKMediaAudioMuted = 1 << 0,
     _WKMediaCaptureDevicesMuted = 1 << 1,
@@ -59,6 +59,7 @@ typedef NS_OPTIONS(NSInteger, _WKMediaMutedState) {
 typedef NS_OPTIONS(NSUInteger, _WKCaptureDevices) {
     _WKCaptureDeviceMicrophone = 1 << 0,
     _WKCaptureDeviceCamera = 1 << 1,
+    _WKCaptureDeviceDisplay = 1 << 2,
 } WK_API_AVAILABLE(macosx(10.13), ios(11.0));
 
 #if TARGET_OS_IPHONE
@@ -84,7 +85,7 @@ typedef NS_ENUM(NSInteger, _WKImmediateActionType) {
     _WKImmediateActionTelLink
 } WK_API_AVAILABLE(macosx(10.12));
 
-typedef NS_OPTIONS(NSInteger, _WKRectEdge) {
+typedef NS_OPTIONS(NSUInteger, _WKRectEdge) {
     _WKRectEdgeNone = 0,
     _WKRectEdgeLeft = 1 << CGRectMinXEdge,
     _WKRectEdgeTop = 1 << CGRectMinYEdge,
@@ -203,6 +204,8 @@ typedef NS_OPTIONS(NSInteger, _WKRectEdge) {
 @property (nonatomic, setter=_setInterfaceOrientationOverride:) UIInterfaceOrientation _interfaceOrientationOverride;
 
 @property (nonatomic, setter=_setAllowsViewportShrinkToFit:) BOOL _allowsViewportShrinkToFit;
+@property (nonatomic, setter=_setForceHorizontalViewportShrinkToFit:) BOOL _forceHorizontalViewportShrinkToFit WK_API_AVAILABLE(ios(WK_IOS_TBA));
+@property (nonatomic, setter=_setMinimumAllowedLayoutWidth:) CGFloat _minimumAllowedLayoutWidth WK_API_AVAILABLE(ios(WK_IOS_TBA));
 
 // FIXME: Remove these three properties once we expose WKWebViewContentProvider as API.
 @property (nonatomic, readonly, getter=_isDisplayingPDF) BOOL _displayingPDF;
@@ -238,7 +241,6 @@ typedef NS_OPTIONS(NSInteger, _WKRectEdge) {
 - (void)_setOverlaidAccessoryViewsInset:(CGSize)inset;
 
 - (void)_killWebContentProcess;
-- (void)_didRelaunchProcess;
 
 // Puts the view into a state where being taken out of the view hierarchy and resigning first responder
 // will not count as becoming inactive and unfocused. The returned block must be called to exit the state.
@@ -254,8 +256,8 @@ typedef NS_OPTIONS(NSInteger, _WKRectEdge) {
 
 #else
 
-@property (nonatomic, readonly) _WKRectEdge _pinnedState;
-@property (nonatomic, setter=_setRubberBandingEnabled:) _WKRectEdge _rubberBandingEnabled;
+@property (nonatomic, readonly) _WKRectEdge _pinnedState WK_API_AVAILABLE(macosx(WK_MAC_TBA));
+@property (nonatomic, setter=_setRubberBandingEnabled:) _WKRectEdge _rubberBandingEnabled WK_API_AVAILABLE(macosx(WK_MAC_TBA));
 
 @property (readonly) NSColor *_pageExtendedBackgroundColor;
 @property (nonatomic, setter=_setDrawsBackground:) BOOL _drawsBackground;
@@ -279,6 +281,9 @@ typedef NS_OPTIONS(NSInteger, _WKRectEdge) {
 // When using _minimumLayoutWidth, the web content will lay out to the intrinsic height
 // of the content; use this property to force it to lay out to the height of the view instead.
 @property (nonatomic, setter=_setShouldExpandContentToViewHeightForAutoLayout:) BOOL _shouldExpandContentToViewHeightForAutoLayout WK_API_AVAILABLE(macosx(10.12));
+
+@property (nonatomic, setter=_setAlwaysShowsHorizontalScroller:) BOOL _alwaysShowsHorizontalScroller WK_API_AVAILABLE(macosx(WK_MAC_TBA));
+@property (nonatomic, setter=_setAlwaysShowsVerticalScroller:) BOOL _alwaysShowsVerticalScroller WK_API_AVAILABLE(macosx(WK_MAC_TBA));
 
 - (NSPrintOperation *)_printOperationWithPrintInfo:(NSPrintInfo *)printInfo;
 - (NSPrintOperation *)_printOperationWithPrintInfo:(NSPrintInfo *)printInfo forFrame:(_WKFrameHandle *)frameHandle WK_API_AVAILABLE(macosx(10.12), ios(10.0));
@@ -374,7 +379,7 @@ typedef NS_OPTIONS(NSInteger, _WKRectEdge) {
 - (void)dismissFormAccessoryView WK_API_AVAILABLE(ios(10.3));
 - (void)selectFormAccessoryPickerRow:(int)rowIndex WK_API_AVAILABLE(ios(10.3));
 
-- (void)applyAutocorrection:(NSString *)newString toString:(NSString *)oldString withCompletionHandler:(void (^)())completionHandler WK_API_AVAILABLE(ios(11.0));
+- (void)applyAutocorrection:(NSString *)newString toString:(NSString *)oldString withCompletionHandler:(void (^)(void))completionHandler WK_API_AVAILABLE(ios(11.0));
 
 - (void)didStartFormControlInteraction WK_API_AVAILABLE(ios(10.3));
 - (void)didEndFormControlInteraction WK_API_AVAILABLE(ios(10.3));
@@ -421,7 +426,7 @@ typedef NS_OPTIONS(NSInteger, _WKRectEdge) {
 - (BOOL)_tryToSwipeWithEvent:(NSEvent *)event ignoringPinnedState:(BOOL)ignoringPinnedState WK_API_AVAILABLE(macosx(WK_MAC_TBA));
 - (void)_setDidMoveSwipeSnapshotCallback:(void(^)(CGRect))callback WK_API_AVAILABLE(macosx(WK_MAC_TBA));
 @property (nonatomic, setter=_setTotalHeightOfBanners:) CGFloat _totalHeightOfBanners WK_API_AVAILABLE(macosx(WK_MAC_TBA));
-@property (nonatomic, copy, setter=_setUnderlayColor:) NSColor *_underlayColor;
+@property (nonatomic, copy, setter=_setUnderlayColor:) NSColor *_underlayColor WK_API_AVAILABLE(macosx(WK_MAC_TBA));
 @property (nonatomic, readwrite, setter=_setIgnoresNonWheelEvents:) BOOL _ignoresNonWheelEvents WK_API_AVAILABLE(macosx(WK_MAC_TBA));
 @property (nonatomic, readonly) WKPageRef _pageRefForTransitionToWKWebView  WK_API_AVAILABLE(macosx(WK_MAC_TBA));
 @property (nonatomic, readonly) BOOL _hasActiveVideoForControlsManager WK_API_AVAILABLE(macosx(10.12));
@@ -439,7 +444,7 @@ typedef NS_OPTIONS(NSInteger, _WKRectEdge) {
 - (void)_setFooterBannerHeight:(int)height WK_API_AVAILABLE(macosx(10.12.3));
 #endif
 
-- (void)_requestActiveNowPlayingSessionInfo:(void(^)(BOOL, NSString*, double, double, NSInteger))callback WK_API_AVAILABLE(macosx(WK_MAC_TBA), ios(WK_IOS_TBA));
+- (void)_requestActiveNowPlayingSessionInfo:(void(^)(BOOL, BOOL, NSString*, double, double, NSInteger))callback WK_API_AVAILABLE(macosx(WK_MAC_TBA), ios(WK_IOS_TBA));
 
 - (void)_setPageScale:(CGFloat)scale withOrigin:(CGPoint)origin WK_API_AVAILABLE(ios(10.3));
 - (CGFloat)_pageScale WK_API_AVAILABLE(ios(10.3));
@@ -450,6 +455,9 @@ typedef NS_OPTIONS(NSInteger, _WKRectEdge) {
 
 - (void)_disableBackForwardSnapshotVolatilityForTesting WK_API_AVAILABLE(macosx(10.12.3), ios(10.3));
 - (void)_executeEditCommand:(NSString *)command argument:(NSString *)argument completion:(void (^)(BOOL))completion WK_API_AVAILABLE(macosx(WK_MAC_TBA), ios(WK_IOS_TBA));
+
+- (BOOL)_beginBackSwipeForTesting;
+- (BOOL)_completeBackSwipeForTesting;
 
 @end
 

@@ -42,7 +42,6 @@
 #include "Settings.h"
 #include "SharedBuffer.h"
 #include "SubresourceLoader.h"
-#include <wtf/CurrentTime.h>
 #include <wtf/NeverDestroyed.h>
 #include <wtf/StdLibExtras.h>
 
@@ -431,7 +430,7 @@ void CachedImage::updateBufferInternal(SharedBuffer& data)
 
     // Don't update the image with the new buffer very often. Changing the decoder
     // internal data and repainting the observers sometimes are very expensive operations.
-    if (shouldDeferUpdateImageData())
+    if (!m_forceUpdateImageDataEnabledForTesting && shouldDeferUpdateImageData())
         return;
 
     EncodedDataStatus encodedDataStatus = EncodedDataStatus::Unknown;
@@ -592,9 +591,9 @@ void CachedImage::didDraw(const Image& image)
     if (&image != m_image)
         return;
     
-    double timeStamp = FrameView::currentPaintTimeStamp();
+    MonotonicTime timeStamp = FrameView::currentPaintTimeStamp();
     if (!timeStamp) // If didDraw is called outside of a Frame paint.
-        timeStamp = monotonicallyIncreasingTime();
+        timeStamp = MonotonicTime::now();
     
     CachedResource::didAccessDecodedData(timeStamp);
 }

@@ -62,8 +62,8 @@ private:
     void frameLoaderDestroyed() final;
     bool hasWebView() const final; // mainly for assertions
 
-    uint64_t pageID() const final;
-    uint64_t frameID() const final;
+    std::optional<uint64_t> pageID() const final;
+    std::optional<uint64_t> frameID() const final;
     PAL::SessionID sessionID() const final;
 
     void makeRepresentation(WebCore::DocumentLoader*) final;
@@ -106,7 +106,7 @@ private:
     void dispatchDidDispatchOnloadEvents() final;
     void dispatchDidReceiveServerRedirectForProvisionalLoad() final;
     void dispatchDidCancelClientRedirect() final;
-    void dispatchWillPerformClientRedirect(const WebCore::URL&, double interval, double fireDate) final;
+    void dispatchWillPerformClientRedirect(const WebCore::URL&, double interval, WallTime fireDate) final;
     void dispatchDidChangeLocationWithinPage() final;
     void dispatchDidPushStateWithinPage() final;
     void dispatchDidReplaceStateWithinPage() final;

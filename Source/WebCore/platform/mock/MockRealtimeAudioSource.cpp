@@ -66,13 +66,6 @@ CaptureSourceOrError MockRealtimeAudioSource::create(const String& deviceID, con
 }
 #endif
 
-Ref<MockRealtimeAudioSource> MockRealtimeAudioSource::createMuted(const String& name)
-{
-    auto source = adoptRef(*new MockRealtimeAudioSource(String { }, name));
-    source->notifyMutedChange(true);
-    return source;
-}
-
 static MockRealtimeAudioSourceFactory& mockAudioCaptureSourceFactory()
 {
     static NeverDestroyed<MockRealtimeAudioSourceFactory> factory;
@@ -125,48 +118,48 @@ void MockRealtimeAudioSource::startProducingData()
 #endif
 
     if (!sampleRate())
-        setSampleRate(!deviceIndex() ? 44100 : 48000);
+        setSampleRate(device() == MockRealtimeMediaSource::MockDevice::Microphone1 ? 44100 : 48000);
 
-    m_startTime = monotonicallyIncreasingTime();
+    m_startTime = MonotonicTime::now();
     m_timer.startRepeating(renderInterval());
 }
 
 void MockRealtimeAudioSource::stopProducingData()
 {
     m_timer.stop();
-    m_elapsedTime += monotonicallyIncreasingTime() - m_startTime;
-    m_startTime = NAN;
+    m_elapsedTime += MonotonicTime::now() - m_startTime;
+    m_startTime = MonotonicTime::nan();
 }
 
-double MockRealtimeAudioSource::elapsedTime()
+Seconds MockRealtimeAudioSource::elapsedTime()
 {
     if (std::isnan(m_startTime))
         return m_elapsedTime;
 
-    return m_elapsedTime + (monotonicallyIncreasingTime() - m_startTime);
+    return m_elapsedTime + (MonotonicTime::now() - m_startTime);
 }
 
 void MockRealtimeAudioSource::tick()
 {
     if (std::isnan(m_lastRenderTime))
-        m_lastRenderTime = monotonicallyIncreasingTime();
+        m_lastRenderTime = MonotonicTime::now();
 
-    double now = monotonicallyIncreasingTime();
+    MonotonicTime now = MonotonicTime::now();
 
     if (m_delayUntil) {
         if (m_delayUntil < now)
             return;
-        m_delayUntil = 0;
+        m_delayUntil = MonotonicTime();
     }
 
-    double delta = now - m_lastRenderTime;
+    Seconds delta = now - m_lastRenderTime;
     m_lastRenderTime = now;
     render(delta);
 }
 
-void MockRealtimeAudioSource::delaySamples(float delta)
+void MockRealtimeAudioSource::delaySamples(Seconds delta)
 {
-    m_delayUntil = monotonicallyIncreasingTime() + delta;
+    m_delayUntil = MonotonicTime::now() + delta;
 }
 
 } // namespace WebCore

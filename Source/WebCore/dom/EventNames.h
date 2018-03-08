@@ -45,6 +45,15 @@ namespace WebCore {
     macro(DOMNodeRemovedFromDocument) \
     macro(DOMSubtreeModified) \
     macro(abort) \
+    macro(accessiblecontextmenu) \
+    macro(accessibleclick) \
+    macro(accessibledecrement) \
+    macro(accessibledismiss) \
+    macro(accessiblefocus) \
+    macro(accessibleincrement) \
+    macro(accessiblescrollintoview) \
+    macro(accessiblesetvalue) \
+    macro(accessibleselect) \
     macro(activate) \
     macro(active) \
     macro(addsourcebuffer) \
@@ -53,7 +62,6 @@ namespace WebCore {
     macro(animationend) \
     macro(animationiteration) \
     macro(animationstart) \
-    macro(applepayvalidatemerchant) \
     macro(audioend) \
     macro(audioprocess) \
     macro(audiostart) \
@@ -153,6 +161,7 @@ namespace WebCore {
     macro(loadingerror) \
     macro(loadstart) \
     macro(mark) \
+    macro(merchantvalidation) \
     macro(message) \
     macro(messageerror) \
     macro(mousedown) \

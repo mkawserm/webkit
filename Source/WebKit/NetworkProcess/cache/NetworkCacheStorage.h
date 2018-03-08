@@ -30,10 +30,12 @@
 #include "NetworkCacheKey.h"
 #include <WebCore/Timer.h>
 #include <wtf/BloomFilter.h>
+#include <wtf/CompletionHandler.h>
 #include <wtf/Deque.h>
 #include <wtf/Function.h>
 #include <wtf/HashSet.h>
 #include <wtf/Optional.h>
+#include <wtf/WallTime.h>
 #include <wtf/WorkQueue.h>
 #include <wtf/text/WTFString.h>
 
@@ -51,7 +53,7 @@ public:
         WTF_MAKE_FAST_ALLOCATED;
     public:
         Key key;
-        std::chrono::system_clock::time_point timeStamp;
+        WallTime timeStamp;
         Data header;
         Data body;
         std::optional<SHA1::Digest> bodyHash;
@@ -61,11 +63,11 @@ public:
     void retrieve(const Key&, unsigned priority, RetrieveCompletionHandler&&);
 
     typedef Function<void (const Data& mappedBody)> MappedBodyHandler;
-    void store(const Record&, MappedBodyHandler&&);
+    void store(const Record&, MappedBodyHandler&&, CompletionHandler<void()>&& = { });
 
     void remove(const Key&);
     void remove(const Vector<Key>&, Function<void ()>&&);
-    void clear(const String& type, std::chrono::system_clock::time_point modifiedSinceTime, Function<void ()>&& completionHandler);
+    void clear(const String& type, WallTime modifiedSinceTime, Function<void ()>&& completionHandler);
 
     struct RecordInfo {
         size_t bodySize;
@@ -86,10 +88,11 @@ public:
     size_t capacity() const { return m_capacity; }
     size_t approximateSize() const;
 
-    static const unsigned version = 11;
+    // Incrementing this number will delete all existing cache content for everyone. Do you really need to do it?
+    static const unsigned version = 12;
 #if PLATFORM(MAC)
     /// Allow the last stable version of the cache to co-exist with the latest development one.
-    static const unsigned lastStableVersion = 11;
+    static const unsigned lastStableVersion = 12;
 #endif
 
     String basePath() const;

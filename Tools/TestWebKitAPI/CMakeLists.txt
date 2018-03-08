@@ -95,7 +95,6 @@ set(TestWTF_SOURCES
     ${TESTWEBKITAPI_DIR}/Tests/WTF/CheckedArithmeticOperations.cpp
     ${TESTWEBKITAPI_DIR}/Tests/WTF/ConcurrentPtrHashSet.cpp
     ${TESTWEBKITAPI_DIR}/Tests/WTF/Condition.cpp
-    ${TESTWEBKITAPI_DIR}/Tests/WTF/ConstExprPoisoned.cpp
     ${TESTWEBKITAPI_DIR}/Tests/WTF/CrossThreadTask.cpp
     ${TESTWEBKITAPI_DIR}/Tests/WTF/DateMath.cpp
     ${TESTWEBKITAPI_DIR}/Tests/WTF/Deque.cpp
@@ -124,6 +123,11 @@ set(TestWTF_SOURCES
     ${TESTWEBKITAPI_DIR}/Tests/WTF/OptionSet.cpp
     ${TESTWEBKITAPI_DIR}/Tests/WTF/ParkingLot.cpp
     ${TESTWEBKITAPI_DIR}/Tests/WTF/Poisoned.cpp
+    ${TESTWEBKITAPI_DIR}/Tests/WTF/PoisonedRef.cpp
+    ${TESTWEBKITAPI_DIR}/Tests/WTF/PoisonedRefPtr.cpp
+    ${TESTWEBKITAPI_DIR}/Tests/WTF/PoisonedUniquePtr.cpp
+    ${TESTWEBKITAPI_DIR}/Tests/WTF/PoisonedUniquePtrForNonTriviallyDestructibleArrays.cpp
+    ${TESTWEBKITAPI_DIR}/Tests/WTF/PoisonedUniquePtrForTriviallyDestructibleArrays.cpp
     ${TESTWEBKITAPI_DIR}/Tests/WTF/PriorityQueue.cpp
     ${TESTWEBKITAPI_DIR}/Tests/WTF/RedBlackTree.cpp
     ${TESTWEBKITAPI_DIR}/Tests/WTF/Ref.cpp
@@ -147,6 +151,7 @@ set(TestWTF_SOURCES
     ${TESTWEBKITAPI_DIR}/Tests/WTF/ThreadMessages.cpp
     ${TESTWEBKITAPI_DIR}/Tests/WTF/Threading.cpp
     ${TESTWEBKITAPI_DIR}/Tests/WTF/Time.cpp
+    ${TESTWEBKITAPI_DIR}/Tests/WTF/UniqueArray.cpp
     ${TESTWEBKITAPI_DIR}/Tests/WTF/UniqueRef.cpp
     ${TESTWEBKITAPI_DIR}/Tests/WTF/Variant.cpp
     ${TESTWEBKITAPI_DIR}/Tests/WTF/Vector.cpp
@@ -165,7 +170,6 @@ include_directories(
     ${CMAKE_BINARY_DIR}
     ${CMAKE_SOURCE_DIR}/Source
     ${JAVASCRIPTCORE_DIR}
-    ${PAL_DIR}
     ${THIRDPARTY_DIR}/gtest/include
     ${WEBKIT_DIR}/Platform/IPC
     ${WEBKIT_DIR}/Shared

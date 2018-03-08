@@ -108,10 +108,10 @@
 #include "markup.h"
 #include "npruntime_impl.h"
 #include "runtime_root.h"
+#include <JavaScriptCore/RegularExpression.h>
 #include <wtf/RefCountedLeakCounter.h>
 #include <wtf/StdLibExtras.h>
 #include <wtf/text/StringBuilder.h>
-#include <yarr/RegularExpression.h>
 
 #if PLATFORM(IOS)
 #include "WKContentObservation.h"
@@ -284,6 +284,13 @@ void Frame::setDocument(RefPtr<Document>&& newDocument)
         m_loader->client().dispatchDidChangeMainDocument();
     }
 
+#if ENABLE(ATTACHMENT_ELEMENT)
+    if (m_doc) {
+        for (auto& attachment : m_doc->attachmentElementsByIdentifier().values())
+            editor().didRemoveAttachmentElement(attachment);
+    }
+#endif
+
     if (m_doc && m_doc->pageCacheState() != Document::InPageCache)
         m_doc->prepareForDestruction();
 
@@ -295,6 +302,13 @@ void Frame::setDocument(RefPtr<Document>&& newDocument)
     // that the document is not destroyed during this function call.
     if (newDocument)
         newDocument->didBecomeCurrentDocumentInFrame();
+
+#if ENABLE(ATTACHMENT_ELEMENT)
+    if (m_doc) {
+        for (auto& attachment : m_doc->attachmentElementsByIdentifier().values())
+            editor().didInsertAttachmentElement(attachment);
+    }
+#endif
 
     InspectorInstrumentation::frameDocumentUpdated(*this);
 

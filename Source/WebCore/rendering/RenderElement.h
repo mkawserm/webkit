@@ -29,6 +29,7 @@ namespace WebCore {
 
 class ControlStates;
 class RenderBlock;
+class RenderTreeBuilder;
 
 class RenderElement : public RenderObject {
     WTF_MAKE_ISO_ALLOCATED(RenderElement);
@@ -86,10 +87,7 @@ public:
     bool isRenderInline() const;
 
     virtual bool isChildAllowed(const RenderObject&, const RenderStyle&) const { return true; }
-    virtual void addChild(RenderPtr<RenderObject>, RenderObject* beforeChild = nullptr);
-    virtual void addChildIgnoringContinuation(RenderPtr<RenderObject> newChild, RenderObject* beforeChild = nullptr) { addChild(WTFMove(newChild), beforeChild); }
-    virtual RenderPtr<RenderObject> takeChild(RenderObject&) WARN_UNUSED_RETURN;
-    void removeAndDestroyChild(RenderObject&);
+    void didAttachChild(RenderObject& child, RenderObject* beforeChild);
 
     // The following functions are used when the render tree hierarchy changes to make sure layers get
     // properly added and removed. Since containership can be implemented by any subclass, and since a hierarchy
@@ -98,9 +96,6 @@ public:
     void removeLayers(RenderLayer* parentLayer);
     void moveLayers(RenderLayer* oldParent, RenderLayer* newParent);
     RenderLayer* findNextLayer(RenderLayer* parentLayer, RenderObject* startPoint, bool checkParent = true);
-
-    void insertChildInternal(RenderPtr<RenderObject>, RenderObject* beforeChild);
-    RenderPtr<RenderObject> takeChildInternal(RenderObject&) WARN_UNUSED_RETURN;
 
     virtual RenderElement* hoverAncestor() const;
 
@@ -203,8 +198,6 @@ public:
     const RenderElement* enclosingRendererWithTextDecoration(TextDecoration, bool firstLine) const;
     void drawLineForBoxSide(GraphicsContext&, const FloatRect&, BoxSide, Color, EBorderStyle, float adjacentWidth1, float adjacentWidth2, bool antialias = false) const;
 
-    bool childRequiresTable(const RenderObject& child) const;
-
 #if ENABLE(TEXT_AUTOSIZING)
     void adjustComputedFontSizesOnBlocks(float size, float visibleWidth);
     WEBCORE_EXPORT void resetTextAutosizing();
@@ -219,9 +212,7 @@ public:
 
     // Called before anonymousChild.setStyle(). Override to set custom styles for
     // the child.
-    virtual void updateAnonymousChildStyle(const RenderObject&, RenderStyle&) const { };
-
-    void removeAnonymousWrappersForInlinesIfNecessary();
+    virtual void updateAnonymousChildStyle(RenderStyle&) const { };
 
     bool hasContinuationChainNode() const { return m_hasContinuationChainNode; }
     bool isContinuation() const { return m_isContinuation; }
@@ -229,7 +220,8 @@ public:
     bool isFirstLetter() const { return m_isFirstLetter; }
     void setIsFirstLetter() { m_isFirstLetter = true; }
 
-    void destroyLeftoverChildren();
+    RenderObject* attachRendererInternal(RenderPtr<RenderObject> child, RenderObject* beforeChild);
+    RenderPtr<RenderObject> detachRendererInternal(RenderObject&);
 
 protected:
     enum BaseTypeFlag {
@@ -288,7 +280,6 @@ protected:
     void removeFromRenderFragmentedFlowIncludingDescendants(bool shouldUpdateState);
     void adjustFragmentedFlowStateOnContainingBlockChangeIfNeeded();
     
-    bool noLongerAffectsParentBlock() const { return s_noLongerAffectsParentBlock; }
     bool isVisibleInViewport() const;
 
 private:
@@ -356,11 +347,6 @@ private:
     RenderObject* m_lastChild;
 
     RenderStyle m_style;
-
-    // FIXME: Get rid of this hack.
-    // Store state between styleWillChange and styleDidChange
-    static bool s_affectsParentBlock;
-    static bool s_noLongerAffectsParentBlock;
 };
 
 inline void RenderElement::setAncestorLineBoxDirty(bool f)

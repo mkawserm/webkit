@@ -35,6 +35,7 @@
 #include "WebProcessMessages.h"
 #include <JavaScriptCore/RemoteInspectorServer.h>
 #include <WebCore/FileSystem.h>
+#include <WebCore/GStreamerUtilities.h>
 #include <WebCore/NotImplemented.h>
 #include <WebCore/SchemeRegistry.h>
 #include <wtf/glib/GUniquePtr.h>
@@ -90,6 +91,10 @@ void WebProcessPool::platformInitializeWebProcess(WebProcessCreationParameters& 
 {
     parameters.memoryCacheDisabled = m_memoryCacheDisabled || cacheModel() == CacheModelDocumentViewer;
     parameters.proxySettings = m_networkProxySettings;
+
+#if USE(GSTREAMER)
+    parameters.gstreamerOptions = WebCore::extractGStreamerOptionsFromCommandLine();
+#endif
 }
 
 void WebProcessPool::platformInvalidateContext()
@@ -104,11 +109,6 @@ String WebProcessPool::legacyPlatformDefaultWebSQLDatabaseDirectory()
 String WebProcessPool::legacyPlatformDefaultIndexedDBDatabaseDirectory()
 {
     return API::WebsiteDataStore::defaultIndexedDBDatabaseDirectory();
-}
-
-String WebProcessPool::legacyPlatformDefaultServiceWorkerRegistrationDirectory()
-{
-    return API::WebsiteDataStore::defaultServiceWorkerRegistrationDirectory();
 }
 
 String WebProcessPool::legacyPlatformDefaultLocalStorageDirectory()

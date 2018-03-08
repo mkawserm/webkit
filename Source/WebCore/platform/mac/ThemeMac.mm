@@ -26,12 +26,15 @@
 #import "config.h"
 #import "ThemeMac.h"
 
+#if PLATFORM(MAC)
+
 #import "AXObjectCache.h"
 #import "ControlStates.h"
 #import "GraphicsContext.h"
 #import "ImageBuffer.h"
 #import "LengthSize.h"
 #import "LocalCurrentGraphicsContext.h"
+#import "LocalDefaultSystemAppearance.h"
 #import "ScrollView.h"
 #import <Carbon/Carbon.h>
 #import <pal/spi/cocoa/NSButtonCellSPI.h>
@@ -64,6 +67,16 @@ static BOOL themeWindowHasKeyAppearance;
 @end
 
 @implementation WebCoreThemeView
+
+- (instancetype)init
+{
+    if (!(self = [super init]))
+        return nil;
+    
+    WebCore::LocalDefaultSystemAppearance localAppearence;
+    [self setAppearance:[NSAppearance currentAppearance]];
+    return self;
+}
 
 - (NSWindow *)window
 {
@@ -200,12 +213,12 @@ static void updateStates(NSCell* cell, const ControlStates& controlStates, bool 
         [cell setEnabled:enabled];
 
     // Checked and Indeterminate
-    bool oldIndeterminate = [cell state] == NSMixedState;
+    bool oldIndeterminate = [cell state] == NSControlStateValueMixed;
     bool indeterminate = (states & ControlStates::IndeterminateState);
     bool checked = states & ControlStates::CheckedState;
-    bool oldChecked = [cell state] == NSOnState;
+    bool oldChecked = [cell state] == NSControlStateValueOn;
     if (oldIndeterminate != indeterminate || checked != oldChecked) {
-        NSCellStateValue newState = indeterminate ? NSMixedState : (checked ? NSOnState : NSOffState);
+        NSControlStateValue newState = indeterminate ? NSControlStateValueMixed : (checked ? NSControlStateValueOn : NSControlStateValueOff);
         [(NSButtonCell*)cell _setState:newState animated:useAnimation];
     }
 
@@ -321,11 +334,11 @@ static RetainPtr<NSButtonCell> createToggleButtonCell(ControlPart buttonType)
     RetainPtr<NSButtonCell> toggleButtonCell = adoptNS([[NSButtonCell alloc] init]);
     
     if (buttonType == CheckboxPart) {
-        [toggleButtonCell setButtonType:NSSwitchButton];
+        [toggleButtonCell setButtonType:NSButtonTypeSwitch];
         [toggleButtonCell setAllowsMixedState:YES];
     } else {
         ASSERT(buttonType == RadioPart);
-        [toggleButtonCell setButtonType:NSRadioButton];
+        [toggleButtonCell setButtonType:NSButtonTypeRadio];
     }
     
     [toggleButtonCell setTitle:nil];
@@ -351,7 +364,10 @@ static NSButtonCell *sharedCheckboxCell(const ControlStates& states, const IntSi
 
 static bool drawCellFocusRingWithFrameAtTime(NSCell *cell, NSRect cellFrame, NSView *controlView, NSTimeInterval timeOffset)
 {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
     CGContextRef cgContext = (CGContextRef)[[NSGraphicsContext currentContext] graphicsPort];
+#pragma clang diagnostic pop
     CGContextSaveGState(cgContext);
 
     CGFocusRingStyle focusRingStyle;
@@ -474,7 +490,7 @@ static NSButtonCell *leakButtonCell(ButtonCellType type)
 {
     NSButtonCell *cell = [[NSButtonCell alloc] init];
     [cell setTitle:nil];
-    [cell setButtonType:NSMomentaryPushInButton];
+    [cell setButtonType:NSButtonTypeMomentaryPushIn];
     if (type == DefaultButtonCell)
         [cell setKeyEquivalent:@"\r"];
     return cell;
@@ -486,10 +502,10 @@ static void setUpButtonCell(NSButtonCell *cell, ControlPart part, const ControlS
     const std::array<IntSize, 3>& sizes = buttonSizes();
     if (part == SquareButtonPart || zoomedSize.height() > buttonSizes()[NSControlSizeRegular].height() * zoomFactor) {
         // Use the square button
-        if ([cell bezelStyle] != NSShadowlessSquareBezelStyle)
-            [cell setBezelStyle:NSShadowlessSquareBezelStyle];
-    } else if ([cell bezelStyle] != NSRoundedBezelStyle)
-        [cell setBezelStyle:NSRoundedBezelStyle];
+        if ([cell bezelStyle] != NSBezelStyleShadowlessSquare)
+            [cell setBezelStyle:NSBezelStyleShadowlessSquare];
+    } else if ([cell bezelStyle] != NSBezelStyleRounded)
+        [cell setBezelStyle:NSBezelStyleRounded];
 
     setControlSize(cell, sizes, zoomedSize, zoomFactor);
 
@@ -526,7 +542,7 @@ static void paintButton(ControlPart part, ControlStates& controlStates, Graphics
     zoomedSize.setWidth(zoomedRect.width()); // Buttons don't ever constrain width, so the zoomed width can just be honored.
     zoomedSize.setHeight(zoomedSize.height() * zoomFactor);
     FloatRect inflatedRect = zoomedRect;
-    if ([buttonCell bezelStyle] == NSRoundedBezelStyle) {
+    if ([buttonCell bezelStyle] == NSBezelStyleRounded) {
         // Center the button within the available space.
         if (inflatedRect.height() > zoomedSize.height()) {
             inflatedRect.setY(inflatedRect.y() + (inflatedRect.height() - zoomedSize.height()) / 2);
@@ -671,6 +687,7 @@ static inline bool drawCellOrFocusRingIntoRectWithView(NSCell *cell, NSRect rect
 bool ThemeMac::drawCellOrFocusRingWithViewIntoContext(NSCell *cell, GraphicsContext& context, const FloatRect& rect, NSView *view, bool drawButtonCell, bool drawFocusRing, bool useImageBuffer, float deviceScaleFactor)
 {
     ASSERT(drawButtonCell || drawFocusRing);
+    LocalDefaultSystemAppearance localAppearence;
     bool needsRepaint = false;
     if (useImageBuffer) {
         NSRect imageBufferDrawRect = NSRect(FloatRect(buttonFocusRectOutlineWidth, buttonFocusRectOutlineWidth, rect.width(), rect.height()));
@@ -816,7 +833,7 @@ void ThemeMac::inflateControlPaintRect(ControlPart part, const ControlStates& st
             NSControlSize controlSize = [cell controlSize];
 
             // We inflate the rect as needed to account for the Aqua button's shadow.
-            if ([cell bezelStyle] == NSRoundedBezelStyle) {
+            if ([cell bezelStyle] == NSBezelStyleRounded) {
                 IntSize zoomedSize = buttonSizes()[controlSize];
                 zoomedSize.setHeight(zoomedSize.height() * zoomFactor);
                 zoomedSize.setWidth(zoomedRect.width()); // Buttons don't ever constrain width, so the zoomed width can just be honored.
@@ -864,11 +881,9 @@ void ThemeMac::paint(ControlPart part, ControlStates& states, GraphicsContext& c
 
 bool ThemeMac::userPrefersReducedMotion() const
 {
-#if __MAC_OS_X_VERSION_MIN_REQUIRED >= 101200
     return [[NSWorkspace sharedWorkspace] accessibilityDisplayShouldReduceMotion];
-#else
-    return false;
-#endif
 }
 
 }
+
+#endif // PLATFORM(MAC)

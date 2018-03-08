@@ -63,6 +63,7 @@ class RenderLayer;
 class RenderLayerModelObject;
 class RenderFragmentContainer;
 class RenderTheme;
+class RenderTreeBuilder;
 class SelectionRangeData;
 class TransformState;
 class VisiblePosition;
@@ -282,6 +283,9 @@ public:
     virtual bool isRenderMultiColumnSet() const { return false; }
     virtual bool isRenderMultiColumnFlow() const { return false; }
     virtual bool isRenderMultiColumnSpannerPlaceholder() const { return false; }
+
+    virtual bool isRenderLinesClampFlow() const { return false; }
+    virtual bool isRenderLinesClampSet() const { return false; }
 
     virtual bool isRenderScrollbarPart() const { return false; }
 
@@ -749,9 +753,6 @@ public:
     void imageChanged(CachedImage*, const IntRect* = nullptr) override;
     virtual void imageChanged(WrappedImagePtr, const IntRect* = nullptr) { }
 
-    void removeFromParentAndDestroy();
-    void removeFromParentAndDestroyCleaningUpAnonymousWrappers();
-
     CSSAnimationController& animation() const;
 
     // Map points and quads through elements, potentially via 3d transforms. You should never need to call these directly; use
@@ -773,6 +774,11 @@ public:
         return outlineBoundsForRepaint(nullptr);
     }
 
+    virtual void willBeRemovedFromTree();
+    void resetFragmentedFlowStateOnRemoval();
+    void initializeFragmentedFlowStateOnInsertion();
+    virtual void insertedIntoTree();
+
 protected:
     //////////////////////////////////////////
     // Helper functions. Dangerous to use!
@@ -787,9 +793,6 @@ protected:
 
     virtual void willBeDestroyed();
 
-    virtual void insertedIntoTree();
-    virtual void willBeRemovedFromTree();
-
     void setNeedsPositionedMovementLayoutBit(bool b) { m_bitfields.setNeedsPositionedMovementLayout(b); }
     void setNormalChildNeedsLayoutBit(bool b) { m_bitfields.setNormalChildNeedsLayout(b); }
     void setPosChildNeedsLayoutBit(bool b) { m_bitfields.setPosChildNeedsLayout(b); }
@@ -798,8 +801,6 @@ protected:
     virtual RenderFragmentedFlow* locateEnclosingFragmentedFlow() const;
     static void calculateBorderStyleColor(const EBorderStyle&, const BoxSide&, Color&);
 
-    void initializeFragmentedFlowStateOnInsertion();
-    void resetFragmentedFlowStateOnRemoval();
     static FragmentedFlowState computedFragmentedFlowState(const RenderObject&);
 
 private:

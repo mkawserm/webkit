@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013-2017 Apple Inc. All rights reserved.
+ * Copyright (C) 2013-2018 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -334,8 +334,8 @@ static void compileStub(
                 jit.storePtr(GPRInfo::regT0, materializationArguments + propertyIndex);
             }
             
-            // This call assumes that we don't pass arguments on the stack.
-            jit.setupArgumentsWithExecState(
+            static_assert(FunctionTraits<decltype(operationMaterializeObjectInOSR)>::arity < GPRInfo::numberOfArgumentRegisters, "This call assumes that we don't pass arguments on the stack.");
+            jit.setupArguments<decltype(operationMaterializeObjectInOSR)>(
                 CCallHelpers::TrustedImmPtr(materialization),
                 CCallHelpers::TrustedImmPtr(materializationArguments));
             jit.move(CCallHelpers::TrustedImmPtr(bitwise_cast<void*>(operationMaterializeObjectInOSR)), GPRInfo::nonArgGPR0);
@@ -361,8 +361,8 @@ static void compileStub(
             jit.storePtr(GPRInfo::regT0, materializationArguments + propertyIndex);
         }
 
-        // This call assumes that we don't pass arguments on the stack
-        jit.setupArgumentsWithExecState(
+        static_assert(FunctionTraits<decltype(operationPopulateObjectInOSR)>::arity < GPRInfo::numberOfArgumentRegisters, "This call assumes that we don't pass arguments on the stack.");
+        jit.setupArguments<decltype(operationPopulateObjectInOSR)>(
             CCallHelpers::TrustedImmPtr(materialization),
             CCallHelpers::TrustedImmPtr(materializationToPointer.get(materialization)),
             CCallHelpers::TrustedImmPtr(materializationArguments));
@@ -495,10 +495,10 @@ static void compileStub(
     exit.m_code = FINALIZE_CODE_IF(
         shouldDumpDisassembly() || Options::verboseOSR() || Options::verboseFTLOSRExit(),
         patchBuffer,
-        ("FTL OSR exit #%u (%s, %s) from %s, with operands = %s",
+        "FTL OSR exit #%u (%s, %s) from %s, with operands = %s",
             exitID, toCString(exit.m_codeOrigin).data(),
             exitKindToString(exit.m_kind), toCString(*codeBlock).data(),
-            toCString(ignoringContext<DumpContext>(exit.m_descriptor->m_values)).data())
+            toCString(ignoringContext<DumpContext>(exit.m_descriptor->m_values)).data()
         );
 }
 

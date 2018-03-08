@@ -205,7 +205,7 @@ struct SwitchData {
     Vector<SwitchCase> cases;
     BranchTarget fallThrough;
     SwitchKind kind;
-    unsigned switchTableIndex;
+    size_t switchTableIndex;
     bool didUseJumpTable;
 };
 
@@ -430,7 +430,7 @@ public:
         m_flags = defaultFlags(op);
     }
 
-    void remove();
+    void remove(Graph&);
 
     void convertToCheckStructure(RegisteredStructureSet* set)
     {
@@ -451,9 +451,9 @@ public:
         children.setChild1(Edge(structure, CellUse));
     }
     
-    void replaceWith(Node* other)
+    void replaceWith(Graph& graph, Node* other)
     {
-        remove();
+        remove(graph);
         setReplacement(other);
     }
 
@@ -518,7 +518,7 @@ public:
             m_op = Int52Constant;
         else
             m_op = JSConstant;
-        m_flags &= ~NodeMustGenerate;
+        m_flags &= ~(NodeMustGenerate | NodeHasVarArgs);
         m_opInfo = value;
         children.reset();
     }
@@ -586,12 +586,6 @@ public:
         m_op = MultiPutByOffset;
     }
     
-    void convertToPutHint(const PromotedLocationDescriptor&, Node* base, Node* value);
-    
-    void convertToPutByOffsetHint();
-    void convertToPutStructureHint(Node* structure);
-    void convertToPutClosureVarHint();
-    
     void convertToPhantomNewObject()
     {
         ASSERT(m_op == NewObject || m_op == MaterializeNewObject);
@@ -649,6 +643,15 @@ public:
         m_op = PhantomCreateActivation;
         m_flags &= ~NodeHasVarArgs;
         m_flags |= NodeMustGenerate;
+        m_opInfo = OpInfoWrapper();
+        m_opInfo2 = OpInfoWrapper();
+        children = AdjacencyList();
+    }
+
+    void convertToPhantomNewRegexp()
+    {
+        ASSERT(m_op == NewRegexp);
+        setOpAndDefaultFlags(PhantomNewRegexp);
         m_opInfo = OpInfoWrapper();
         m_opInfo2 = OpInfoWrapper();
         children = AdjacencyList();
@@ -733,6 +736,14 @@ public:
     void convertToDirectCall(FrozenValue*);
 
     void convertToCallDOM(Graph&);
+
+    void convertToRegExpExecNonGlobalOrSticky(FrozenValue* regExp);
+
+    void convertToSetRegExpObjectLastIndex()
+    {
+        setOp(SetRegExpObjectLastIndex);
+        m_opInfo = false;
+    }
     
     JSValue asJSValue()
     {
@@ -960,6 +971,12 @@ public:
         ASSERT(hasStackAccessData());
         return m_opInfo.as<StackAccessData*>();
     }
+
+    unsigned argumentCountIncludingThis()
+    {
+        ASSERT(op() == SetArgumentCountIncludingThis);
+        return m_opInfo.as<unsigned>();
+    }
     
     bool hasPhi()
     {
@@ -1092,7 +1109,7 @@ public:
 
     bool hasNewArrayBufferData()
     {
-        return op() == NewArrayBuffer;
+        return op() == NewArrayBuffer || op() == PhantomNewArrayBuffer;
     }
     
     NewArrayBufferData newArrayBufferData()
@@ -1103,7 +1120,7 @@ public:
 
     unsigned hasVectorLengthHint()
     {
-        return op() == NewArrayBuffer;
+        return op() == NewArrayBuffer || op() == PhantomNewArrayBuffer;
     }
     
     unsigned vectorLengthHint()
@@ -1118,6 +1135,7 @@ public:
         case NewArray:
         case NewArrayWithSize:
         case NewArrayBuffer:
+        case PhantomNewArrayBuffer:
             return true;
         default:
             return false;
@@ -1141,7 +1159,7 @@ public:
     IndexingType indexingType()
     {
         ASSERT(hasIndexingType());
-        if (op() == NewArrayBuffer)
+        if (op() == NewArrayBuffer || op() == PhantomNewArrayBuffer)
             return static_cast<IndexingType>(newArrayBufferData().indexingType);
         return static_cast<IndexingType>(m_opInfo.as<uint32_t>());
     }
@@ -1245,6 +1263,12 @@ public:
     {
         ASSERT(hasLoadVarargsData());
         return m_opInfo.as<LoadVarargsData*>();
+    }
+
+    InlineCallFrame* argumentsInlineCallFrame()
+    {
+        ASSERT(op() == GetArgumentCountIncludingThis);
+        return m_opInfo.as<InlineCallFrame*>();
     }
 
     bool hasQueriedType()
@@ -1568,7 +1592,9 @@ public:
         case ArrayPop:
         case ArrayPush:
         case RegExpExec:
+        case RegExpExecNonGlobalOrSticky:
         case RegExpTest:
+        case RegExpMatchFast:
         case GetGlobalVar:
         case GetGlobalLexicalVariable:
         case StringReplace:
@@ -1592,6 +1618,7 @@ public:
         case AtomicsXor:
         case GetDynamicVar:
         case ExtractValueFromWeakMapGet:
+        case ToThis:
             return true;
         default:
             return false;
@@ -1641,12 +1668,14 @@ public:
         case MaterializeCreateActivation:
         case NewRegexp:
         case NewArrayBuffer:
+        case PhantomNewArrayBuffer:
         case CompareEqPtr:
         case CallObjectConstructor:
         case DirectCall:
         case DirectTailCall:
         case DirectConstruct:
         case DirectTailCallInlinedCaller:
+        case RegExpExecNonGlobalOrSticky:
             return true;
         default:
             return false;
@@ -1904,12 +1933,14 @@ public:
         case PhantomCreateRest:
         case PhantomSpread:
         case PhantomNewArrayWithSpread:
+        case PhantomNewArrayBuffer:
         case PhantomClonedArguments:
         case PhantomNewFunction:
         case PhantomNewGeneratorFunction:
         case PhantomNewAsyncFunction:
         case PhantomNewAsyncGeneratorFunction:
         case PhantomCreateActivation:
+        case PhantomNewRegexp:
             return true;
         default:
             return false;
@@ -2615,10 +2646,15 @@ public:
     {
         m_misc.epoch = epoch.toUnsigned();
     }
+    
+    bool hasNumberOfArgumentsToSkip()
+    {
+        return op() == CreateRest || op() == PhantomCreateRest || op() == GetRestLength || op() == GetMyArgumentByVal || op() == GetMyArgumentByValOutOfBounds;
+    }
 
     unsigned numberOfArgumentsToSkip()
     {
-        ASSERT(op() == CreateRest || op() == PhantomCreateRest || op() == GetRestLength || op() == GetMyArgumentByVal || op() == GetMyArgumentByValOutOfBounds);
+        ASSERT(hasNumberOfArgumentsToSkip());
         return m_opInfo.as<unsigned>();
     }
 
@@ -2653,6 +2689,17 @@ public:
     {
         ASSERT(hasValidRadixConstant());
         return m_opInfo.as<int32_t>();
+    }
+
+    bool hasIgnoreLastIndexIsWritable()
+    {
+        return op() == SetRegExpObjectLastIndex;
+    }
+
+    bool ignoreLastIndexIsWritable()
+    {
+        ASSERT(hasIgnoreLastIndexIsWritable());
+        return m_opInfo.as<uint32_t>();
     }
 
     uint32_t errorType()

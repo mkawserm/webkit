@@ -25,7 +25,7 @@
 
 #pragma once
 
-#if USE(IOSURFACE)
+#if HAVE(IOSURFACE)
 
 #include <objc/objc.h>
 #include "GraphicsContext.h"
@@ -101,7 +101,7 @@ public:
     WEBCORE_EXPORT RetainPtr<CGImageRef> createImage();
     WEBCORE_EXPORT static RetainPtr<CGImageRef> sinkIntoImage(std::unique_ptr<IOSurface>);
 
-    id asLayerContents() const { return (id)(CFTypeRef)m_surface.get(); }
+    id asLayerContents() const { return reinterpret_cast<id>(m_surface.get()); }
     IOSurfaceRef surface() const { return m_surface.get(); }
     WEBCORE_EXPORT GraphicsContext& ensureGraphicsContext();
     WEBCORE_EXPORT CGContextRef ensurePlatformContext();
@@ -134,10 +134,12 @@ public:
     // an accurate result from isInUse(), it needs to be released.
     WEBCORE_EXPORT void releaseGraphicsContext();
 
-#if PLATFORM(IOS)
+#if HAVE(IOSURFACE_ACCELERATOR)
     WEBCORE_EXPORT static bool allowConversionFromFormatToFormat(Format, Format);
     WEBCORE_EXPORT static void convertToFormat(std::unique_ptr<WebCore::IOSurface>&& inSurface, Format, WTF::Function<void(std::unique_ptr<WebCore::IOSurface>)>&&);
-#endif
+#endif // HAVE(IOSURFACE_ACCELERATOR)
+
+    void migrateColorSpaceToProperties();
 
 private:
     IOSurface(IntSize, IntSize contextSize, CGColorSpaceRef, Format, bool& success);
@@ -162,5 +164,5 @@ WEBCORE_EXPORT WTF::TextStream& operator<<(WTF::TextStream&, const WebCore::IOSu
 
 } // namespace WebCore
 
-#endif // USE(IOSURFACE)
+#endif // HAVE(IOSURFACE)
 

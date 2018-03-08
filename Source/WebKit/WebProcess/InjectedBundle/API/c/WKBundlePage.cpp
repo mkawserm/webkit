@@ -28,6 +28,7 @@
 #include "WKBundlePagePrivate.h"
 
 #include "APIArray.h"
+#include "APIFrameHandle.h"
 #include "APIString.h"
 #include "APIURL.h"
 #include "APIURLRequest.h"
@@ -168,6 +169,11 @@ WKBundlePageGroupRef WKBundlePageGetPageGroup(WKBundlePageRef pageRef)
 WKBundleFrameRef WKBundlePageGetMainFrame(WKBundlePageRef pageRef)
 {
     return toAPI(toImpl(pageRef)->mainWebFrame());
+}
+
+WKFrameHandleRef WKBundleFrameCreateFrameHandle(WKBundleFrameRef bundleFrameRef)
+{
+    return toAPI(&API::FrameHandle::create(toImpl(bundleFrameRef)->frameID()).leakRef());
 }
 
 void WKBundlePageClickMenuItem(WKBundlePageRef pageRef, WKContextMenuItemRef item)
@@ -534,9 +540,9 @@ WKArrayRef WKBundlePageCopyTrackedRepaintRects(WKBundlePageRef pageRef)
     return toAPI(&toImpl(pageRef)->trackedRepaintRects().leakRef());
 }
 
-void WKBundlePageSetComposition(WKBundlePageRef pageRef, WKStringRef text, int from, int length)
+void WKBundlePageSetComposition(WKBundlePageRef pageRef, WKStringRef text, int from, int length, bool suppressUnderline)
 {
-    toImpl(pageRef)->setCompositionForTesting(toWTFString(text), from, length);
+    toImpl(pageRef)->setCompositionForTesting(toWTFString(text), from, length, suppressUnderline);
 }
 
 bool WKBundlePageHasComposition(WKBundlePageRef pageRef)

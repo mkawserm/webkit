@@ -78,16 +78,6 @@ void WKContextConfigurationSetIndexedDBDatabaseDirectory(WKContextConfigurationR
     toImpl(configuration)->setIndexedDBDatabaseDirectory(toImpl(indexedDBDatabaseDirectory)->string());
 }
 
-WKStringRef WKContextConfigurationCopyServiceWorkerDatabaseDirectory(WKContextConfigurationRef configuration)
-{
-    return toCopiedAPI(toImpl(configuration)->serviceWorkerRegistrationDirectory());
-}
-
-void WKContextConfigurationSetServiceWorkerDatabaseDirectory(WKContextConfigurationRef configuration, WKStringRef swDatabaseDirectory)
-{
-    toImpl(configuration)->setServiceWorkerRegistrationDirectory(toImpl(swDatabaseDirectory)->string());
-}
-
 WKStringRef WKContextConfigurationCopyInjectedBundlePath(WKContextConfigurationRef configuration)
 {
     return toCopiedAPI(toImpl(configuration)->injectedBundlePath());
@@ -166,4 +156,14 @@ bool WKContextConfigurationShouldCaptureAudioInUIProcess(WKContextConfigurationR
 void WKContextConfigurationSetShouldCaptureAudioInUIProcess(WKContextConfigurationRef configuration, bool should)
 {
     toImpl(configuration)->setShouldCaptureAudioInUIProcess(should);
+}
+
+bool WKContextConfigurationProcessSwapsOnNavigation(WKContextConfigurationRef configuration)
+{
+    return toImpl(configuration)->processSwapsOnNavigation();
+}
+
+void WKContextConfigurationSetProcessSwapsOnNavigation(WKContextConfigurationRef configuration, bool swaps)
+{
+    toImpl(configuration)->setProcessSwapsOnNavigation(swaps);
 }

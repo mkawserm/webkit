@@ -67,10 +67,6 @@
 #include <wtf/text/StringBuilder.h>
 #include <wtf/text/TextStream.h>
 
-#if USE(CG) && !PLATFORM(IOS)
-#include <ApplicationServices/ApplicationServices.h>
-#endif
-
 namespace WebCore {
 
 using namespace HTMLNames;
@@ -1976,7 +1972,7 @@ ExceptionOr<RefPtr<CanvasPattern>> CanvasRenderingContext2DBase::createPattern(H
     auto imageBuffer = ImageBuffer::create(size(videoElement), drawingContext() ? drawingContext()->renderingMode() : Accelerated);
     videoElement.paintCurrentFrameInContext(imageBuffer->context(), FloatRect(FloatPoint(), size(videoElement)));
     
-    return RefPtr<CanvasPattern> { CanvasPattern::create(ImageBuffer::sinkIntoImage(WTFMove(imageBuffer), Unscaled).releaseNonNull(), repeatX, repeatY, originClean) };
+    return RefPtr<CanvasPattern> { CanvasPattern::create(ImageBuffer::sinkIntoImage(WTFMove(imageBuffer), PreserveResolution::Yes).releaseNonNull(), repeatX, repeatY, originClean) };
 }
 
 #endif
@@ -2004,11 +2000,12 @@ void CanvasRenderingContext2DBase::didDraw(const FloatRect& r, unsigned options)
 #if ENABLE(ACCELERATED_2D_CANVAS)
     // If we are drawing to hardware and we have a composited layer, just call contentChanged().
     if (isAccelerated()) {
-        RenderBox* renderBox = canvas().renderBox();
+        auto& canvas = downcast<HTMLCanvasElement>(canvasBase());
+        RenderBox* renderBox = canvas.renderBox();
         if (renderBox && renderBox->hasAcceleratedCompositing()) {
             renderBox->contentChanged(CanvasPixelsChanged);
-            canvas().clearCopiedImage();
-            canvas().notifyObserversCanvasChanged(r);
+            canvas.clearCopiedImage();
+            canvas.notifyObserversCanvasChanged(r);
             return;
         }
     }
@@ -2104,12 +2101,9 @@ static RefPtr<ImageData> createEmptyImageData(const IntSize& size)
     return data;
 }
 
-ExceptionOr<RefPtr<ImageData>> CanvasRenderingContext2DBase::createImageData(ImageData* imageData) const
+RefPtr<ImageData> CanvasRenderingContext2DBase::createImageData(ImageData& imageData) const
 {
-    if (!imageData)
-        return Exception { NotSupportedError };
-
-    return createEmptyImageData(imageData->size());
+    return createEmptyImageData(imageData.size());
 }
 
 ExceptionOr<RefPtr<ImageData>> CanvasRenderingContext2DBase::createImageData(float sw, float sh) const

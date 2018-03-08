@@ -37,8 +37,9 @@
 #include "HTMLBodyElement.h"
 #include "InspectorInstrumentation.h"
 #include "JSEventListener.h"
-#include "NoEventDispatchAssertion.h"
 #include "ScriptController.h"
+#include "ScriptDisallowedScope.h"
+#include "Settings.h"
 #include "WebKitAnimationEvent.h"
 #include "WebKitTransitionEvent.h"
 #include <wtf/MainThread.h>
@@ -62,12 +63,14 @@ bool EventTarget::addEventListener(const AtomicString& eventType, Ref<EventListe
     auto passive = options.passive;
 
     if (!passive.has_value() && eventNames().isTouchScrollBlockingEventType(eventType)) {
-        if (is<DOMWindow>(*this))
-            passive = true;
-        else if (is<Node>(*this)) {
+        if (is<DOMWindow>(*this)) {
+            auto& window = downcast<DOMWindow>(*this);
+            if (auto* document = window.document())
+                passive = document->settings().passiveTouchListenersAsDefaultOnDocument();
+        } else if (is<Node>(*this)) {
             auto& node = downcast<Node>(*this);
             if (is<Document>(node) || node.document().documentElement() == &node || node.document().body() == &node)
-                passive = true;
+                passive = node.document().settings().passiveTouchListenersAsDefaultOnDocument();
         }
     }
 
@@ -184,6 +187,7 @@ void EventTarget::dispatchEvent(Event& event)
     event.setTarget(this);
     event.setCurrentTarget(this);
     event.setEventPhase(Event::AT_TARGET);
+    event.resetBeforeDispatch();
     fireEventListeners(event);
     event.resetAfterDispatch();
 }
@@ -215,7 +219,7 @@ static const AtomicString& legacyType(const Event& event)
 
 void EventTarget::fireEventListeners(Event& event)
 {
-    ASSERT_WITH_SECURITY_IMPLICATION(NoEventDispatchAssertion::isEventAllowedInMainThread());
+    ASSERT_WITH_SECURITY_IMPLICATION(ScriptDisallowedScope::isEventAllowedInMainThread());
     ASSERT(event.isInitialized());
 
     auto* data = eventTargetData();

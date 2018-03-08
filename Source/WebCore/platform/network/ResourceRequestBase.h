@@ -110,9 +110,10 @@ public:
     WEBCORE_EXPORT String httpReferrer() const;
     bool hasHTTPReferrer() const;
     WEBCORE_EXPORT void setHTTPReferrer(const String&);
+    WEBCORE_EXPORT void setExistingHTTPReferrerToOriginString();
     WEBCORE_EXPORT void clearHTTPReferrer();
 
-    String httpOrigin() const;
+    WEBCORE_EXPORT String httpOrigin() const;
     bool hasHTTPOrigin() const;
     void setHTTPOrigin(const String&);
     WEBCORE_EXPORT void clearHTTPOrigin();
@@ -168,11 +169,6 @@ public:
     WEBCORE_EXPORT static double defaultTimeoutInterval(); // May return 0 when using platform default.
     WEBCORE_EXPORT static void setDefaultTimeoutInterval(double);
 
-#if PLATFORM(IOS)
-    WEBCORE_EXPORT static bool defaultAllowCookies();
-    WEBCORE_EXPORT static void setDefaultAllowCookies(bool);
-#endif
-
     WEBCORE_EXPORT static bool equal(const ResourceRequest&, const ResourceRequest&);
 
 protected:
@@ -188,11 +184,7 @@ protected:
         , m_timeoutInterval(s_defaultTimeoutInterval)
         , m_httpMethod(ASCIILiteral("GET"))
         , m_cachePolicy(policy)
-#if !PLATFORM(IOS)
         , m_allowCookies(true)
-#else
-        , m_allowCookies(ResourceRequestBase::defaultAllowCookies())
-#endif
         , m_resourceRequestUpdated(true)
         , m_resourceRequestBodyUpdated(true)
     {
@@ -230,9 +222,6 @@ private:
     const ResourceRequest& asResourceRequest() const;
 
     WEBCORE_EXPORT static double s_defaultTimeoutInterval;
-#if PLATFORM(IOS)
-    static bool s_defaultAllowCookies;
-#endif
 };
 
 bool equalIgnoringHeaderFields(const ResourceRequestBase&, const ResourceRequestBase&);

@@ -35,12 +35,13 @@ struct TestOptions {
     bool enableMenuItemElement { false };
     bool enableModernMediaControls { true };
     bool enablePointerLock { false };
-    bool enableCredentialManagement { false };
+    bool enableWebAuthentication { true };
     bool enableDragDestinationActionLoad { false };
     bool layerBackedWebView { false };
     bool enableIsSecureContextAttribute { true };
     bool enableInspectorAdditions { false };
     bool dumpJSConsoleLogInStdErr { false };
+    bool allowCrossOriginSubresourcesToAskForCredentials { false };
 
     TestOptions(NSURL*, const TestCommand&);
     bool webViewIsCompatibleWithOptions(const TestOptions&) const;

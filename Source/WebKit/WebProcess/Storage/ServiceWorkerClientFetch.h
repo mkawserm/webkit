@@ -57,6 +57,8 @@ public:
 private:
     ServiceWorkerClientFetch(WebServiceWorkerProvider&, Ref<WebCore::ResourceLoader>&&, uint64_t identifier, Ref<WebSWClientConnection>&&, bool shouldClearReferrerOnHTTPSToHTTPRedirect, Callback&&);
 
+    std::optional<WebCore::ResourceError> validateResponse(const WebCore::ResourceResponse&);
+
     void didReceiveResponse(WebCore::ResourceResponse&&);
     void didReceiveData(const IPC::DataReference&, int64_t encodedDataLength);
     void didReceiveFormData(const IPC::FormDataReference&);
@@ -65,7 +67,7 @@ private:
     void didNotHandle();
 
     WebServiceWorkerProvider& m_serviceWorkerProvider;
-    Ref<WebCore::ResourceLoader> m_loader;
+    RefPtr<WebCore::ResourceLoader> m_loader;
     uint64_t m_identifier { 0 };
     Ref<WebSWClientConnection> m_connection;
     Callback m_callback;

@@ -145,8 +145,6 @@ WI.DebuggerSidebarPanel = class DebuggerSidebarPanel extends WI.NavigationSideba
         let breakpointsSection = new WI.DetailsSection("breakpoints", WI.UIString("Breakpoints"), [breakpointsGroup]);
         this.contentView.element.appendChild(breakpointsSection.element);
 
-        this._breakpointSectionElement = breakpointsSection.element;
-
         this._breakpointsContentTreeOutline.addEventListener(WI.TreeOutline.Event.SelectionDidChange, this._treeSelectionDidChange, this);
         this._breakpointsContentTreeOutline.ondelete = this._breakpointTreeOutlineDeleteTreeElement.bind(this);
         this._breakpointsContentTreeOutline.populateContextMenu = function(contextMenu, event, treeElement) {
@@ -375,10 +373,10 @@ WI.DebuggerSidebarPanel = class DebuggerSidebarPanel extends WI.NavigationSideba
             this._allUncaughtExceptionsBreakpointTreeElement.revealAndSelect();
         else if (cookie[WI.DebuggerSidebarPanel.SelectedAssertionsCookieKey])
             this._assertionsBreakpointTreeElement.revealAndSelect();
-        else if (cookie[WI.DebuggerSidebarPanel.SelectedAllRequestsCookieKey])
+        else if (cookie[WI.DebuggerSidebarPanel.SelectedAllRequestsCookieKey]) {
             if (this._xhrBreakpointTreeController)
                 this._xhrBreakpointTreeController.revealAndSelect(WI.domDebuggerManager.allRequestsBreakpoint);
-        else
+        } else
             super.restoreStateFromCookie(cookie, relaxedMatchDelay);
     }
 

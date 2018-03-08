@@ -101,6 +101,7 @@ AccessibilityUIElement::~AccessibilityUIElement()
 - (BOOL)accessibilityIsExpanded;
 - (NSUInteger)accessibilityBlockquoteLevel;
 - (NSArray *)accessibilityFindMatchingObjects:(NSDictionary *)parameters;
+- (NSArray *)accessibilitySpeechHint;
 
 // TextMarker related
 - (NSArray *)textMarkerRange;
@@ -357,6 +358,11 @@ void AccessibilityUIElement::decreaseTextSelection()
     [m_element accessibilityModifySelection:WebCore::CharacterGranularity increase:NO];    
 }
 
+JSStringRef AccessibilityUIElement::speakAs()
+{
+    return [[[m_element accessibilitySpeechHint] componentsJoinedByString:@", "] createJSStringRef];
+}
+
 JSStringRef AccessibilityUIElement::stringForSelection() 
 { 
     NSString *stringForRange = [m_element selectionRangeString];
@@ -534,6 +540,16 @@ JSStringRef AccessibilityUIElement::stringForTextMarkerRange(AccessibilityTextMa
     if (!textMarkers || ![textMarkers isKindOfClass:[NSArray class]])
         return JSStringCreateWithCharacters(0, 0);
     return [[m_element stringForTextMarkers:textMarkers] createJSStringRef];
+}
+
+JSStringRef AccessibilityUIElement::attributedStringForTextMarkerRange(AccessibilityTextMarkerRange*)
+{
+    return nullptr;
+}
+
+JSStringRef AccessibilityUIElement::attributedStringForTextMarkerRangeWithOptions(AccessibilityTextMarkerRange*, bool)
+{
+    return nullptr;
 }
 
 bool AccessibilityUIElement::attributedStringForTextMarkerRangeContainsAttribute(JSStringRef, AccessibilityTextMarkerRange*)

@@ -23,8 +23,7 @@
  * THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef MediaSessionManageriOS_h
-#define MediaSessionManageriOS_h
+#pragma once
 
 #if PLATFORM(IOS)
 
@@ -73,6 +72,7 @@ private:
     double lastUpdatedNowPlayingDuration() const final { return m_reportedDuration; }
     double lastUpdatedNowPlayingElapsedTime() const final { return m_reportedCurrentTime; }
     uint64_t lastUpdatedNowPlayingInfoUniqueIdentifier() const final { return m_lastUpdatedNowPlayingInfoUniqueIdentifier; }
+    bool registeredAsNowPlayingApplication() const final { return m_nowPlayingActive; }
 
     PlatformMediaSession* nowPlayingEligibleSession();
     
@@ -86,7 +86,5 @@ private:
 };
 
 } // namespace WebCore
-
-#endif // MediaSessionManageriOS_h
 
 #endif // PLATFORM(IOS)

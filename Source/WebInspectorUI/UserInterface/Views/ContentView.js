@@ -255,6 +255,8 @@ WI.ContentView = class ContentView extends WI.View
             return true;
         if (representedObject instanceof WI.Canvas)
             return true;
+        if (representedObject instanceof WI.CanvasCollection)
+            return true;
         if (representedObject instanceof WI.ShaderProgram)
             return true;
         if (representedObject instanceof WI.TimelineRecording)
@@ -441,6 +443,11 @@ WI.ContentView = class ContentView extends WI.View
     }
 
     performSearch(query)
+    {
+        // Implemented by subclasses.
+    }
+
+    searchHidden()
     {
         // Implemented by subclasses.
     }

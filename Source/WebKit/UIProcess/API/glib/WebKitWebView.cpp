@@ -145,6 +145,7 @@ enum {
     INSECURE_CONTENT_DETECTED,
 
     WEB_PROCESS_CRASHED,
+    WEB_PROCESS_TERMINATED,
 
     AUTHENTICATE,
 
@@ -197,14 +198,10 @@ struct _WebKitWebViewPrivate {
         // For modal dialogs, make sure the main loop is stopped when finalizing the webView.
         if (modalLoop && g_main_loop_is_running(modalLoop.get()))
             g_main_loop_quit(modalLoop.get());
-#if PLATFORM(WPE)
-        view = nullptr;
-        webkitWebViewBackendUnref(backend);
-#endif
     }
 
 #if PLATFORM(WPE)
-    WebKitWebViewBackend* backend;
+    GRefPtr<WebKitWebViewBackend> backend;
     std::unique_ptr<WKWPE::View> view;
 #endif
 
@@ -690,7 +687,7 @@ static void webkitWebViewSetProperty(GObject* object, guint propId, const GValue
 #if PLATFORM(WPE)
     case PROP_BACKEND: {
         gpointer backend = g_value_get_boxed(value);
-        webView->priv->backend = backend ? static_cast<WebKitWebViewBackend*>(backend) : nullptr;
+        webView->priv->backend = backend ? adoptGRef(static_cast<WebKitWebViewBackend*>(backend)) : nullptr;
         break;
     }
 #endif
@@ -738,7 +735,7 @@ static void webkitWebViewGetProperty(GObject* object, guint propId, GValue* valu
     switch (propId) {
 #if PLATFORM(WPE)
     case PROP_BACKEND:
-        g_value_set_static_boxed(value, webView->priv->backend);
+        g_value_set_static_boxed(value, webView->priv->backend.get());
         break;
 #endif
     case PROP_WEB_CONTEXT:
@@ -1806,6 +1803,8 @@ static void webkit_web_view_class_init(WebKitWebViewClass* webViewClass)
      *
      * Returns: %TRUE to stop other handlers from being invoked for the event.
      *    %FALSE to propagate the event further.
+     *
+     * Deprecated: 2.20: Use WebKitWebView::web-process-terminated instead.
      */
     signals[WEB_PROCESS_CRASHED] = g_signal_new(
         "web-process-crashed",
@@ -1815,6 +1814,26 @@ static void webkit_web_view_class_init(WebKitWebViewClass* webViewClass)
         g_signal_accumulator_true_handled, nullptr,
         g_cclosure_marshal_generic,
         G_TYPE_BOOLEAN, 0);
+
+    /**
+     * WebKitWebView::web-process-terminated:
+     * @web_view: the #WebKitWebView
+     * @reason: the a #WebKitWebProcessTerminationReason
+     *
+     * This signal is emitted when the web process terminates abnormally due
+     * to @reason.
+     *
+     * Since: 2.20
+     */
+    signals[WEB_PROCESS_TERMINATED] = g_signal_new(
+        "web-process-terminated",
+        G_TYPE_FROM_CLASS(webViewClass),
+        G_SIGNAL_RUN_LAST,
+        G_STRUCT_OFFSET(WebKitWebViewClass, web_process_terminated),
+        0, 0,
+        g_cclosure_marshal_VOID__ENUM,
+        G_TYPE_NONE, 1,
+        WEBKIT_TYPE_WEB_PROCESS_TERMINATION_REASON);
 
     /**
      * WebKitWebView::authenticate:
@@ -1960,7 +1979,7 @@ void webkitWebViewCreatePage(WebKitWebView* webView, Ref<API::PageConfiguration>
 #if PLATFORM(GTK)
     webkitWebViewBaseCreateWebPage(WEBKIT_WEB_VIEW_BASE(webView), WTFMove(configuration));
 #elif PLATFORM(WPE)
-    webView->priv->view.reset(WKWPE::View::create(webkit_web_view_backend_get_wpe_backend(webView->priv->backend), configuration.get()));
+    webView->priv->view.reset(WKWPE::View::create(webkit_web_view_backend_get_wpe_backend(webView->priv->backend.get()), configuration.get()));
 #endif
 }
 
@@ -2407,7 +2426,7 @@ WebKitWebViewBackend* webkit_web_view_get_backend(WebKitWebView* webView)
 {
     g_return_val_if_fail(WEBKIT_IS_WEB_VIEW(webView), nullptr);
 
-    return webView->priv->backend;
+    return webView->priv->backend.get();
 }
 #endif
 
@@ -3818,10 +3837,13 @@ cairo_surface_t* webkit_web_view_get_snapshot_finish(WebKitWebView* webView, GAs
 }
 #endif
 
-void webkitWebViewWebProcessCrashed(WebKitWebView* webView)
+void webkitWebViewWebProcessTerminated(WebKitWebView* webView, WebKitWebProcessTerminationReason reason)
 {
-    gboolean returnValue;
-    g_signal_emit(webView, signals[WEB_PROCESS_CRASHED], 0, &returnValue);
+    if (reason == WEBKIT_WEB_PROCESS_CRASHED) {
+        gboolean returnValue;
+        g_signal_emit(webView, signals[WEB_PROCESS_CRASHED], 0, &returnValue);
+    }
+    g_signal_emit(webView, signals[WEB_PROCESS_TERMINATED], 0, reason);
 }
 
 #if PLATFORM(GTK)

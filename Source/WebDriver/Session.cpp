@@ -31,7 +31,6 @@
 #include "WebDriverAtoms.h"
 #include <wtf/CryptographicallyRandomNumber.h>
 #include <wtf/HexNumber.h>
-#include <wtf/UUID.h>
 
 namespace WebDriver {
 
@@ -39,19 +38,40 @@ namespace WebDriver {
 // https://www.w3.org/TR/webdriver/#elements
 static const String webElementIdentifier = ASCIILiteral("element-6066-11e4-a52e-4f735466cecf");
 
+// https://w3c.github.io/webdriver/webdriver-spec.html#dfn-session-script-timeout
+static const Seconds defaultScriptTimeout = 30_s;
+// https://w3c.github.io/webdriver/webdriver-spec.html#dfn-session-page-load-timeout
+static const Seconds defaultPageLoadTimeout = 300_s;
+// https://w3c.github.io/webdriver/webdriver-spec.html#dfn-session-implicit-wait-timeout
+static const Seconds defaultImplicitWaitTimeout = 0_s;
+
 Session::Session(std::unique_ptr<SessionHost>&& host)
     : m_host(WTFMove(host))
-    , m_id(createCanonicalUUIDString())
+    , m_scriptTimeout(defaultScriptTimeout)
+    , m_pageLoadTimeout(defaultPageLoadTimeout)
+    , m_implicitWaitTimeout(defaultImplicitWaitTimeout)
 {
+    if (capabilities().timeouts)
+        setTimeouts(capabilities().timeouts.value(), [](CommandResult&&) { });
 }
 
 Session::~Session()
 {
 }
 
+const String& Session::id() const
+{
+    return m_host->sessionID();
+}
+
 const Capabilities& Session::capabilities() const
 {
     return m_host->capabilities();
+}
+
+bool Session::isConnected() const
+{
+    return m_host->isConnected();
 }
 
 static std::optional<String> firstWindowHandleInResult(JSON::Value& result)
@@ -97,14 +117,23 @@ void Session::close(Function<void (CommandResult&&)>&& completionHandler)
     });
 }
 
+void Session::getTimeouts(Function<void (CommandResult&&)>&& completionHandler)
+{
+    RefPtr<JSON::Object> parameters = JSON::Object::create();
+    parameters->setInteger(ASCIILiteral("script"), m_scriptTimeout.millisecondsAs<int>());
+    parameters->setInteger(ASCIILiteral("pageLoad"), m_pageLoadTimeout.millisecondsAs<int>());
+    parameters->setInteger(ASCIILiteral("implicit"), m_implicitWaitTimeout.millisecondsAs<int>());
+    completionHandler(CommandResult::success(WTFMove(parameters)));
+}
+
 void Session::setTimeouts(const Timeouts& timeouts, Function<void (CommandResult&&)>&& completionHandler)
 {
     if (timeouts.script)
-        m_timeouts.script = timeouts.script;
+        m_scriptTimeout = timeouts.script.value();
     if (timeouts.pageLoad)
-        m_timeouts.pageLoad = timeouts.pageLoad;
+        m_pageLoadTimeout = timeouts.pageLoad.value();
     if (timeouts.implicit)
-        m_timeouts.implicit = timeouts.implicit;
+        m_implicitWaitTimeout = timeouts.implicit.value();
     completionHandler(CommandResult::success());
 }
 
@@ -143,24 +172,18 @@ std::optional<String> Session::pageLoadStrategyString() const
 void Session::createTopLevelBrowsingContext(Function<void (CommandResult&&)>&& completionHandler)
 {
     ASSERT(!m_toplevelBrowsingContext.value());
-    m_host->startAutomationSession(m_id, [this, protectedThis = makeRef(*this), completionHandler = WTFMove(completionHandler)](std::optional<String> errorMessage) mutable {
-        if (errorMessage) {
-            completionHandler(CommandResult::fail(CommandResult::ErrorCode::UnknownError, errorMessage.value()));
+    m_host->sendCommandToBackend(ASCIILiteral("createBrowsingContext"), nullptr, [this, protectedThis = makeRef(*this), completionHandler = WTFMove(completionHandler)](SessionHost::CommandResponse&& response) mutable {
+        if (response.isError || !response.responseObject) {
+            completionHandler(CommandResult::fail(WTFMove(response.responseObject)));
             return;
         }
-        m_host->sendCommandToBackend(ASCIILiteral("createBrowsingContext"), nullptr, [this, protectedThis = makeRef(*this), completionHandler = WTFMove(completionHandler)](SessionHost::CommandResponse&& response) mutable {
-            if (response.isError || !response.responseObject) {
-                completionHandler(CommandResult::fail(WTFMove(response.responseObject)));
-                return;
-            }
-            String handle;
-            if (!response.responseObject->getString(ASCIILiteral("handle"), handle)) {
-                completionHandler(CommandResult::fail(CommandResult::ErrorCode::UnknownError));
-                return;
-            }
-            switchToTopLevelBrowsingContext(handle);
-            completionHandler(CommandResult::success());
-        });
+        String handle;
+        if (!response.responseObject->getString(ASCIILiteral("handle"), handle)) {
+            completionHandler(CommandResult::fail(CommandResult::ErrorCode::UnknownError));
+            return;
+        }
+        switchToTopLevelBrowsingContext(handle);
+        completionHandler(CommandResult::success());
     });
 }
 
@@ -190,30 +213,49 @@ void Session::handleUserPrompts(Function<void (CommandResult&&)>&& completionHan
 
 void Session::handleUnexpectedAlertOpen(Function<void (CommandResult&&)>&& completionHandler)
 {
-    if (!capabilities().unhandledPromptBehavior) {
-        reportUnexpectedAlertOpen([this, completionHandler = WTFMove(completionHandler)](CommandResult&& result) mutable {
-            dismissAlert([this, errorResult = WTFMove(result), completionHandler = WTFMove(completionHandler)](CommandResult&& result) mutable {
-                if (result.isError()) {
-                    completionHandler(WTFMove(result));
-                    return;
-                }
-                completionHandler(WTFMove(errorResult));
-            });
-        });
-        return;
-    }
-
-    switch (capabilities().unhandledPromptBehavior.value()) {
+    switch (capabilities().unhandledPromptBehavior.value_or(UnhandledPromptBehavior::DismissAndNotify)) {
     case UnhandledPromptBehavior::Dismiss:
         dismissAlert(WTFMove(completionHandler));
         break;
     case UnhandledPromptBehavior::Accept:
         acceptAlert(WTFMove(completionHandler));
         break;
+    case UnhandledPromptBehavior::DismissAndNotify:
+        dismissAndNotifyAlert(WTFMove(completionHandler));
+        break;
+    case UnhandledPromptBehavior::AcceptAndNotify:
+        acceptAndNotifyAlert(WTFMove(completionHandler));
+        break;
     case UnhandledPromptBehavior::Ignore:
         reportUnexpectedAlertOpen(WTFMove(completionHandler));
         break;
     }
+}
+
+void Session::dismissAndNotifyAlert(Function<void (CommandResult&&)>&& completionHandler)
+{
+    reportUnexpectedAlertOpen([this, completionHandler = WTFMove(completionHandler)](CommandResult&& result) mutable {
+        dismissAlert([this, errorResult = WTFMove(result), completionHandler = WTFMove(completionHandler)](CommandResult&& result) mutable {
+            if (result.isError()) {
+                completionHandler(WTFMove(result));
+                return;
+            }
+            completionHandler(WTFMove(errorResult));
+        });
+    });
+}
+
+void Session::acceptAndNotifyAlert(Function<void (CommandResult&&)>&& completionHandler)
+{
+    reportUnexpectedAlertOpen([this, completionHandler = WTFMove(completionHandler)](CommandResult&& result) mutable {
+        acceptAlert([this, errorResult = WTFMove(result), completionHandler = WTFMove(completionHandler)](CommandResult&& result) mutable {
+            if (result.isError()) {
+                completionHandler(WTFMove(result));
+                return;
+            }
+            completionHandler(WTFMove(errorResult));
+        });
+    });
 }
 
 void Session::reportUnexpectedAlertOpen(Function<void (CommandResult&&)>&& completionHandler)
@@ -251,8 +293,7 @@ void Session::go(const String& url, Function<void (CommandResult&&)>&& completio
         RefPtr<JSON::Object> parameters = JSON::Object::create();
         parameters->setString(ASCIILiteral("handle"), m_toplevelBrowsingContext.value());
         parameters->setString(ASCIILiteral("url"), url);
-        if (m_timeouts.pageLoad)
-            parameters->setInteger(ASCIILiteral("pageLoadTimeout"), m_timeouts.pageLoad.value().millisecondsAs<int>());
+        parameters->setInteger(ASCIILiteral("pageLoadTimeout"), m_pageLoadTimeout.millisecondsAs<int>());
         if (auto pageLoadStrategy = pageLoadStrategyString())
             parameters->setString(ASCIILiteral("pageLoadStrategy"), pageLoadStrategy.value());
         m_host->sendCommandToBackend(ASCIILiteral("navigateBrowsingContext"), WTFMove(parameters), [this, protectedThis = makeRef(*this), completionHandler = WTFMove(completionHandler)](SessionHost::CommandResponse&& response) {
@@ -315,8 +356,7 @@ void Session::back(Function<void (CommandResult&&)>&& completionHandler)
         }
         RefPtr<JSON::Object> parameters = JSON::Object::create();
         parameters->setString(ASCIILiteral("handle"), m_toplevelBrowsingContext.value());
-        if (m_timeouts.pageLoad)
-            parameters->setInteger(ASCIILiteral("pageLoadTimeout"), m_timeouts.pageLoad.value().millisecondsAs<int>());
+        parameters->setInteger(ASCIILiteral("pageLoadTimeout"), m_pageLoadTimeout.millisecondsAs<int>());
         if (auto pageLoadStrategy = pageLoadStrategyString())
             parameters->setString(ASCIILiteral("pageLoadStrategy"), pageLoadStrategy.value());
         m_host->sendCommandToBackend(ASCIILiteral("goBackInBrowsingContext"), WTFMove(parameters), [this, protectedThis = makeRef(*this), completionHandler = WTFMove(completionHandler)](SessionHost::CommandResponse&& response) {
@@ -344,8 +384,7 @@ void Session::forward(Function<void (CommandResult&&)>&& completionHandler)
         }
         RefPtr<JSON::Object> parameters = JSON::Object::create();
         parameters->setString(ASCIILiteral("handle"), m_toplevelBrowsingContext.value());
-        if (m_timeouts.pageLoad)
-            parameters->setInteger(ASCIILiteral("pageLoadTimeout"), m_timeouts.pageLoad.value().millisecondsAs<int>());
+        parameters->setInteger(ASCIILiteral("pageLoadTimeout"), m_pageLoadTimeout.millisecondsAs<int>());
         if (auto pageLoadStrategy = pageLoadStrategyString())
             parameters->setString(ASCIILiteral("pageLoadStrategy"), pageLoadStrategy.value());
         m_host->sendCommandToBackend(ASCIILiteral("goForwardInBrowsingContext"), WTFMove(parameters), [this, protectedThis = makeRef(*this), completionHandler = WTFMove(completionHandler)](SessionHost::CommandResponse&& response) {
@@ -373,8 +412,7 @@ void Session::refresh(Function<void (CommandResult&&)>&& completionHandler)
         }
         RefPtr<JSON::Object> parameters = JSON::Object::create();
         parameters->setString(ASCIILiteral("handle"), m_toplevelBrowsingContext.value());
-        if (m_timeouts.pageLoad)
-            parameters->setInteger(ASCIILiteral("pageLoadTimeout"), m_timeouts.pageLoad.value().millisecondsAs<int>());
+        parameters->setInteger(ASCIILiteral("pageLoadTimeout"), m_pageLoadTimeout.millisecondsAs<int>());
         if (auto pageLoadStrategy = pageLoadStrategyString())
             parameters->setString(ASCIILiteral("pageLoadStrategy"), pageLoadStrategy.value());
         m_host->sendCommandToBackend(ASCIILiteral("reloadBrowsingContext"), WTFMove(parameters), [this, protectedThis = makeRef(*this), completionHandler = WTFMove(completionHandler)](SessionHost::CommandResponse&& response) {
@@ -664,7 +702,7 @@ void Session::getToplevelBrowsingContextRect(Function<void (CommandResult&&)>&& 
         double width, height;
         if (!browsingContext->getObject(ASCIILiteral("windowSize"), windowSize)
             || !windowSize->getDouble(ASCIILiteral("width"), width)
-            || !windowSize->getDouble(ASCIILiteral("height"), width)) {
+            || !windowSize->getDouble(ASCIILiteral("height"), height)) {
             completionHandler(CommandResult::fail(CommandResult::ErrorCode::UnknownError));
             return;
         }
@@ -674,40 +712,6 @@ void Session::getToplevelBrowsingContextRect(Function<void (CommandResult&&)>&& 
         windowRect->setDouble(ASCIILiteral("width"), width);
         windowRect->setDouble(ASCIILiteral("height"), height);
         completionHandler(CommandResult::success(WTFMove(windowRect)));
-    });
-}
-
-void Session::moveToplevelBrowsingContextWindow(double x, double y, Function<void (CommandResult&&)>&& completionHandler)
-{
-    RefPtr<JSON::Object> parameters = JSON::Object::create();
-    parameters->setString(ASCIILiteral("handle"), m_toplevelBrowsingContext.value());
-    RefPtr<JSON::Object> windowOrigin = JSON::Object::create();
-    windowOrigin->setDouble("x", x);
-    windowOrigin->setDouble("y", y);
-    parameters->setObject(ASCIILiteral("origin"), WTFMove(windowOrigin));
-    m_host->sendCommandToBackend(ASCIILiteral("moveWindowOfBrowsingContext"), WTFMove(parameters), [this, protectedThis = makeRef(*this), completionHandler = WTFMove(completionHandler)](SessionHost::CommandResponse&& response) {
-        if (response.isError) {
-            completionHandler(CommandResult::fail(WTFMove(response.responseObject)));
-            return;
-        }
-        completionHandler(CommandResult::success());
-    });
-}
-
-void Session::resizeToplevelBrowsingContextWindow(double width, double height, Function<void (CommandResult&&)>&& completionHandler)
-{
-    RefPtr<JSON::Object> parameters = JSON::Object::create();
-    parameters->setString(ASCIILiteral("handle"), m_toplevelBrowsingContext.value());
-    RefPtr<JSON::Object> windowSize = JSON::Object::create();
-    windowSize->setDouble("width", width);
-    windowSize->setDouble("height", height);
-    parameters->setObject(ASCIILiteral("size"), WTFMove(windowSize));
-    m_host->sendCommandToBackend(ASCIILiteral("resizeWindowOfBrowsingContext"), WTFMove(parameters), [this, protectedThis = makeRef(*this), completionHandler = WTFMove(completionHandler)](SessionHost::CommandResponse&& response) {
-        if (response.isError) {
-            completionHandler(CommandResult::fail(WTFMove(response.responseObject)));
-            return;
-        }
-        completionHandler(CommandResult::success());
     });
 }
 
@@ -740,40 +744,27 @@ void Session::setWindowRect(std::optional<double> x, std::optional<double> y, st
             return;
         }
 
-        if (width && height)  {
-            resizeToplevelBrowsingContextWindow(width.value(), height.value(), [this, x, y, completionHandler = WTFMove(completionHandler)](CommandResult&& result) mutable {
-                if (result.isError()) {
-                    completionHandler(WTFMove(result));
-                    return;
-                }
-                if (!x || !y) {
-                    getToplevelBrowsingContextRect(WTFMove(completionHandler));
-                    return;
-                }
-
-                moveToplevelBrowsingContextWindow(x.value(), y.value(), [this, completionHandler = WTFMove(completionHandler)](CommandResult&& result) mutable {
-                    if (result.isError()) {
-                        completionHandler(WTFMove(result));
-                        return;
-                    }
-                    getToplevelBrowsingContextRect(WTFMove(completionHandler));
-                });
-            });
-            return;
-        }
-
+        RefPtr<JSON::Object> parameters = JSON::Object::create();
+        parameters->setString(ASCIILiteral("handle"), m_toplevelBrowsingContext.value());
         if (x && y) {
-            moveToplevelBrowsingContextWindow(x.value(), y.value(), [this, completionHandler = WTFMove(completionHandler)](CommandResult&& result) mutable {
-                if (result.isError()) {
-                    completionHandler(WTFMove(result));
-                    return;
-                }
-                getToplevelBrowsingContextRect(WTFMove(completionHandler));
-            });
-            return;
+            RefPtr<JSON::Object> windowOrigin = JSON::Object::create();
+            windowOrigin->setDouble("x", x.value());
+            windowOrigin->setDouble("y", y.value());
+            parameters->setObject(ASCIILiteral("origin"), WTFMove(windowOrigin));
         }
-
-        getToplevelBrowsingContextRect(WTFMove(completionHandler));
+        if (width && height) {
+            RefPtr<JSON::Object> windowSize = JSON::Object::create();
+            windowSize->setDouble("width", width.value());
+            windowSize->setDouble("height", height.value());
+            parameters->setObject(ASCIILiteral("size"), WTFMove(windowSize));
+        }
+        m_host->sendCommandToBackend(ASCIILiteral("setWindowFrameOfBrowsingContext"), WTFMove(parameters), [this, protectedThis = makeRef(*this), completionHandler = WTFMove(completionHandler)] (SessionHost::CommandResponse&& response) mutable {
+            if (response.isError) {
+                completionHandler(CommandResult::fail(WTFMove(response.responseObject)));
+                return;
+            }
+            getToplevelBrowsingContextRect(WTFMove(completionHandler));
+        });
     });
 }
 
@@ -784,7 +775,7 @@ RefPtr<JSON::Object> Session::createElement(RefPtr<JSON::Value>&& value)
         return nullptr;
 
     String elementID;
-    if (!valueObject->getString("session-node-" + m_id, elementID))
+    if (!valueObject->getString("session-node-" + id(), elementID))
         return nullptr;
 
     RefPtr<JSON::Object> elementObject = JSON::Object::create();
@@ -795,7 +786,7 @@ RefPtr<JSON::Object> Session::createElement(RefPtr<JSON::Value>&& value)
 RefPtr<JSON::Object> Session::createElement(const String& elementID)
 {
     RefPtr<JSON::Object> elementObject = JSON::Object::create();
-    elementObject->setString("session-node-" + m_id, elementID);
+    elementObject->setString("session-node-" + id(), elementID);
     return elementObject;
 }
 
@@ -896,7 +887,6 @@ void Session::findElements(const String& strategy, const String& selector, FindE
         return;
     }
 
-    auto implicitWait = m_timeouts.implicit.value_or(0_s);
     RefPtr<JSON::Array> arguments = JSON::Array::create();
     arguments->pushString(JSON::Value::create(strategy)->toJSONString());
     if (rootElementID.isEmpty())
@@ -905,7 +895,7 @@ void Session::findElements(const String& strategy, const String& selector, FindE
         arguments->pushString(createElement(rootElementID)->toJSONString());
     arguments->pushString(JSON::Value::create(selector)->toJSONString());
     arguments->pushString(JSON::Value::create(mode == FindElementsMode::Single)->toJSONString());
-    arguments->pushString(JSON::Value::create(implicitWait.milliseconds())->toJSONString());
+    arguments->pushString(JSON::Value::create(m_implicitWaitTimeout.milliseconds())->toJSONString());
 
     RefPtr<JSON::Object> parameters = JSON::Object::create();
     parameters->setString(ASCIILiteral("browsingContextHandle"), m_toplevelBrowsingContext.value());
@@ -915,8 +905,8 @@ void Session::findElements(const String& strategy, const String& selector, FindE
     parameters->setArray(ASCIILiteral("arguments"), WTFMove(arguments));
     parameters->setBoolean(ASCIILiteral("expectsImplicitCallbackArgument"), true);
     // If there's an implicit wait, use one second more as callback timeout.
-    if (implicitWait)
-        parameters->setInteger(ASCIILiteral("callbackTimeout"), Seconds(implicitWait + 1_s).millisecondsAs<int>());
+    if (m_implicitWaitTimeout)
+        parameters->setInteger(ASCIILiteral("callbackTimeout"), Seconds(m_implicitWaitTimeout + 1_s).millisecondsAs<int>());
 
     m_host->sendCommandToBackend(ASCIILiteral("evaluateJavaScriptFunction"), WTFMove(parameters), [this, protectedThis = makeRef(*this), mode, completionHandler = WTFMove(completionHandler)](SessionHost::CommandResponse&& response) {
         if (response.isError || !response.responseObject) {
@@ -1330,6 +1320,47 @@ void Session::getElementProperty(const String& elementID, const String& property
     });
 }
 
+void Session::getElementCSSValue(const String& elementID, const String& cssProperty, Function<void (CommandResult&&)>&& completionHandler)
+{
+    if (!m_toplevelBrowsingContext) {
+        completionHandler(CommandResult::fail(CommandResult::ErrorCode::NoSuchWindow));
+        return;
+    }
+
+    handleUserPrompts([this, elementID, cssProperty, completionHandler = WTFMove(completionHandler)](CommandResult&& result) mutable {
+        if (result.isError()) {
+            completionHandler(WTFMove(result));
+            return;
+        }
+        RefPtr<JSON::Array> arguments = JSON::Array::create();
+        arguments->pushString(createElement(elementID)->toJSONString());
+
+        RefPtr<JSON::Object> parameters = JSON::Object::create();
+        parameters->setString(ASCIILiteral("browsingContextHandle"), m_toplevelBrowsingContext.value());
+        if (m_currentBrowsingContext)
+            parameters->setString(ASCIILiteral("frameHandle"), m_currentBrowsingContext.value());
+        parameters->setString(ASCIILiteral("function"), makeString("function(element) { return document.defaultView.getComputedStyle(element).getPropertyValue('", cssProperty, "'); }"));
+        parameters->setArray(ASCIILiteral("arguments"), WTFMove(arguments));
+        m_host->sendCommandToBackend(ASCIILiteral("evaluateJavaScriptFunction"), WTFMove(parameters), [this, protectedThis = makeRef(*this), completionHandler = WTFMove(completionHandler)](SessionHost::CommandResponse&& response) {
+            if (response.isError || !response.responseObject) {
+                completionHandler(CommandResult::fail(WTFMove(response.responseObject)));
+                return;
+            }
+            String valueString;
+            if (!response.responseObject->getString(ASCIILiteral("result"), valueString)) {
+                completionHandler(CommandResult::fail(CommandResult::ErrorCode::UnknownError));
+                return;
+            }
+            RefPtr<JSON::Value> resultValue;
+            if (!JSON::Value::parseJSON(valueString, resultValue)) {
+                completionHandler(CommandResult::fail(CommandResult::ErrorCode::UnknownError));
+                return;
+            }
+            completionHandler(CommandResult::success(WTFMove(resultValue)));
+        });
+    });
+}
+
 void Session::waitForNavigationToComplete(Function<void (CommandResult&&)>&& completionHandler)
 {
     if (!m_toplevelBrowsingContext) {
@@ -1341,17 +1372,22 @@ void Session::waitForNavigationToComplete(Function<void (CommandResult&&)>&& com
     parameters->setString(ASCIILiteral("browsingContextHandle"), m_toplevelBrowsingContext.value());
     if (m_currentBrowsingContext)
         parameters->setString(ASCIILiteral("frameHandle"), m_currentBrowsingContext.value());
-    if (m_timeouts.pageLoad)
-        parameters->setInteger(ASCIILiteral("pageLoadTimeout"), m_timeouts.pageLoad.value().millisecondsAs<int>());
+    parameters->setInteger(ASCIILiteral("pageLoadTimeout"), m_pageLoadTimeout.millisecondsAs<int>());
     if (auto pageLoadStrategy = pageLoadStrategyString())
         parameters->setString(ASCIILiteral("pageLoadStrategy"), pageLoadStrategy.value());
     m_host->sendCommandToBackend(ASCIILiteral("waitForNavigationToComplete"), WTFMove(parameters), [this, protectedThis = makeRef(*this), completionHandler = WTFMove(completionHandler)](SessionHost::CommandResponse&& response) {
         if (response.isError) {
             auto result = CommandResult::fail(WTFMove(response.responseObject));
-            if (result.errorCode() == CommandResult::ErrorCode::NoSuchFrame) {
+            switch (result.errorCode()) {
+            case CommandResult::ErrorCode::NoSuchWindow:
+                // Window was closed, reset the top level browsing context and ignore the error.
+                m_toplevelBrowsingContext = std::nullopt;
+                break;
+            case CommandResult::ErrorCode::NoSuchFrame:
                 // Navigation destroyed the current frame, switch to top level browsing context and ignore the error.
                 switchToBrowsingContext(std::nullopt);
-            } else {
+                break;
+            default:
                 completionHandler(WTFMove(result));
                 return;
             }
@@ -1706,8 +1742,8 @@ void Session::executeScript(const String& script, RefPtr<JSON::Array>&& argument
         parameters->setArray(ASCIILiteral("arguments"), WTFMove(arguments));
         if (mode == ExecuteScriptMode::Async) {
             parameters->setBoolean(ASCIILiteral("expectsImplicitCallbackArgument"), true);
-            if (m_timeouts.script)
-                parameters->setInteger(ASCIILiteral("callbackTimeout"), m_timeouts.script.value().millisecondsAs<int>());
+            if (m_scriptTimeout)
+                parameters->setInteger(ASCIILiteral("callbackTimeout"), m_scriptTimeout.millisecondsAs<int>());
         }
         m_host->sendCommandToBackend(ASCIILiteral("evaluateJavaScriptFunction"), WTFMove(parameters), [this, protectedThis = makeRef(*this), completionHandler = WTFMove(completionHandler)](SessionHost::CommandResponse&& response) mutable {
             if (response.isError || !response.responseObject) {
@@ -1721,10 +1757,6 @@ void Session::executeScript(const String& script, RefPtr<JSON::Array>&& argument
             String valueString;
             if (!response.responseObject->getString(ASCIILiteral("result"), valueString)) {
                 completionHandler(CommandResult::fail(CommandResult::ErrorCode::UnknownError));
-                return;
-            }
-            if (valueString.isEmpty()) {
-                completionHandler(CommandResult::success());
                 return;
             }
             RefPtr<JSON::Value> resultValue;

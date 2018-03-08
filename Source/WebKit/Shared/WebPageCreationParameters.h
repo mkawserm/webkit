@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010, 2011, 2015 Apple Inc. All rights reserved.
+ * Copyright (C) 2010-2018 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -81,6 +81,9 @@ struct WebPageCreationParameters {
     bool useFixedLayout;
     WebCore::IntSize fixedLayoutSize;
 
+    bool alwaysShowsHorizontalScroller;
+    bool alwaysShowsVerticalScroller;
+
     bool suppressScrollbarAnimations;
 
     WebCore::Pagination::Mode paginationMode;
@@ -141,11 +144,15 @@ struct WebPageCreationParameters {
     WebCore::FloatSize availableScreenSize;
     float textAutosizingWidth;
     bool ignoresViewportScaleLimits;
+    WebCore::FloatSize viewportConfigurationMinimumLayoutSize;
+    WebCore::FloatSize viewportConfigurationViewSize;
+    WebCore::FloatSize maximumUnobscuredSize;
 #endif
 #if PLATFORM(COCOA)
     bool smartInsertDeleteEnabled;
 #endif
     bool appleMailPaginationQuirkEnabled;
+    bool appleMailLinesClampEnabled;
     bool shouldScaleViewToFitDocument;
 
     WebCore::UserInterfaceLayoutDirection userInterfaceLayoutDirection;
@@ -158,6 +165,10 @@ struct WebPageCreationParameters {
 
 #if ENABLE(APPLICATION_MANIFEST)
     std::optional<WebCore::ApplicationManifest> applicationManifest;
+#endif
+
+#if ENABLE(SERVICE_WORKER)
+    bool hasRegisteredServiceWorkers { true };
 #endif
 
     // WebRTC members.

@@ -51,6 +51,8 @@
 #import "WebUIDelegatePrivate.h"
 #import "WebViewInternal.h"
 #import <Carbon/Carbon.h>
+#import <JavaScriptCore/InitializeThreading.h>
+#import <JavaScriptCore/JSLock.h>
 #import <WebCore/CommonVM.h>
 #import <WebCore/CookieJar.h>
 #import <WebCore/DocumentLoader.h>
@@ -74,8 +76,6 @@
 #import <objc/runtime.h>
 #import <pal/spi/cg/CoreGraphicsSPI.h>
 #import <pal/spi/mac/QuickDrawSPI.h>
-#import <runtime/InitializeThreading.h>
-#import <runtime/JSLock.h>
 #import <wtf/Assertions.h>
 #import <wtf/MainThread.h>
 #import <wtf/RunLoop.h>
@@ -377,7 +377,10 @@ static inline void getNPRect(const NSRect& nr, NPRect& npr)
             RgnHandle clipRegion = NewRgn();
             qdPortState->clipRegion = clipRegion;
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
             CGContextRef currentContext = (CGContextRef)[[NSGraphicsContext currentContext] graphicsPort];
+#pragma clang diagnostic pop
             if (currentContext && CGContextGetType(currentContext) == kCGContextTypeBitmap) {
                 // We check for kCGContextTypeBitmap here, because if we just called CGBitmapContextGetData
                 // on any context, we'd log to the console every time. But even if currentContext is a
@@ -500,7 +503,10 @@ static inline void getNPRect(const NSRect& nr, NPRect& npr)
             
             ASSERT([NSView focusView] == self);
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
             CGContextRef context = static_cast<CGContextRef>([[NSGraphicsContext currentContext] graphicsPort]);
+#pragma clang diagnostic pop
 
             PortState_CG *cgPortState = (PortState_CG *)malloc(sizeof(PortState_CG));
             portState = (PortState)cgPortState;
@@ -689,7 +695,10 @@ static inline void getNPRect(const NSRect& nr, NPRect& npr)
 {
     ASSERT(_eventHandler);
     
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
     CGContextRef context = static_cast<CGContextRef>([[NSGraphicsContext currentContext] graphicsPort]);
+#pragma clang diagnostic pop
     _eventHandler->drawRect(context, rect);
 }
 
@@ -1329,7 +1338,10 @@ static inline void getNPRect(const NSRect& nr, NPRect& npr)
         if (printedPluginBitmap) {
             // Flip the bitmap before drawing because the QuickDraw port is flipped relative
             // to this view.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
             CGContextRef cgContext = (CGContextRef)[[NSGraphicsContext currentContext] graphicsPort];
+#pragma clang diagnostic pop
             CGContextSaveGState(cgContext);
             NSRect bounds = [self bounds];
             CGContextTranslateCTM(cgContext, 0.0f, NSHeight(bounds));
@@ -2150,7 +2162,7 @@ static inline void getNPRect(const NSRect& nr, NPRect& npr)
             if (!URL)
                 break;
 
-            Vector<ProxyServer> proxyServers = proxyServersForURL(URL, 0);
+            Vector<ProxyServer> proxyServers = proxyServersForURL(URL);
             CString proxiesUTF8 = toString(proxyServers).utf8();
             
             *value = static_cast<char*>(NPN_MemAlloc(proxiesUTF8.length()));
@@ -2246,7 +2258,7 @@ static inline void getNPRect(const NSRect& nr, NPRect& npr)
     _isSilverlight = [_pluginPackage.get() bundleIdentifier] == "com.microsoft.SilverlightPlugin";
 
     [[self class] setCurrentPluginView:self];
-    NPError npErr = [_pluginPackage.get() pluginFuncs]->newp((char *)[_MIMEType.get() cString], plugin, _mode, argsCount, cAttributes, cValues, NULL);
+    NPError npErr = [_pluginPackage.get() pluginFuncs]->newp(const_cast<char*>([_MIMEType.get() cString]), plugin, _mode, argsCount, cAttributes, cValues, NULL);
     [[self class] setCurrentPluginView:nil];
     LOG(Plugins, "NPP_New: %d", npErr);
     return npErr;

@@ -58,6 +58,12 @@ WI.SpreadsheetTextField = class SpreadsheetTextField
     get value() { return this._element.textContent; }
     set value(value) { this._element.textContent = value; }
 
+    valueWithoutSuggestion()
+    {
+        let value = this._element.textContent;
+        return value.slice(0, value.length - this.suggestionHint.length);
+    }
+
     get suggestionHint()
     {
         return this._suggestionHintElement.textContent;
@@ -132,7 +138,7 @@ WI.SpreadsheetTextField = class SpreadsheetTextField
 
     completionSuggestionsSelectedCompletion(suggestionsView, selectedText = "")
     {
-        let prefix = this._getPrefix();
+        let prefix = this.valueWithoutSuggestion();
         let completionPrefix = this._getCompletionPrefix(prefix);
 
         this.suggestionHint = selectedText.slice(completionPrefix.length);
@@ -158,7 +164,7 @@ WI.SpreadsheetTextField = class SpreadsheetTextField
         // completionPrefix:            ro
         //        newPrefix:  1px solid
         //     selectedText:            rosybrown
-        let prefix = this._getPrefix();
+        let prefix = this.valueWithoutSuggestion();
         let completionPrefix = this._getCompletionPrefix(prefix);
         let newPrefix = prefix.slice(0, -completionPrefix.length);
 
@@ -189,12 +195,6 @@ WI.SpreadsheetTextField = class SpreadsheetTextField
             if (this._delegate && typeof this._delegate.spreadsheetTextFieldDidChange === "function")
                 this._delegate.spreadsheetTextFieldDidChange(this);
         }
-    }
-
-    _getPrefix()
-    {
-        let value = this._element.textContent;
-        return value.slice(0, value.length - this.suggestionHint.length);
     }
 
     _handleFocus(event)
@@ -297,7 +297,7 @@ WI.SpreadsheetTextField = class SpreadsheetTextField
         if (event.key === "ArrowRight" && this.suggestionHint) {
             let selection = window.getSelection();
 
-            if (selection.isCollapsed && (selection.focusOffset === this._getPrefix().length || selection.focusNode === this._suggestionHintElement)) {
+            if (selection.isCollapsed && (selection.focusOffset === this.valueWithoutSuggestion().length || selection.focusNode === this._suggestionHintElement)) {
                 event.stop();
                 document.execCommand("insertText", false, this.suggestionHint);
 
@@ -350,7 +350,7 @@ WI.SpreadsheetTextField = class SpreadsheetTextField
         if (!this._completionProvider)
             return;
 
-        let prefix = this._getPrefix();
+        let prefix = this.valueWithoutSuggestion();
         let completionPrefix = this._getCompletionPrefix(prefix);
         let completions = this._completionProvider(completionPrefix);
 
@@ -365,8 +365,8 @@ WI.SpreadsheetTextField = class SpreadsheetTextField
             return;
         }
 
-        console.assert(this._element.parentNode, "_updateCompletions got called after SpreadsheetTextField was removed from the DOM");
-        if (!this._element.parentNode) {
+        console.assert(this._element.isConnected, "SpreadsheetTextField already removed from the DOM.");
+        if (!this._element.isConnected) {
             this._suggestionsView.hide();
             return;
         }
@@ -377,31 +377,44 @@ WI.SpreadsheetTextField = class SpreadsheetTextField
             // No need to show the completion popover that matches the suggestion hint.
             this._suggestionsView.hide();
         } else {
-            let caretRect = this._getCaretRect(prefix, completionPrefix);
-            this._suggestionsView.show(caretRect);
+            let startOffset = prefix.length - completionPrefix.length;
+            this._suggestionsView.showUntilAnchorMoves(() => {
+                return this._getCaretRect(startOffset);
+            });
         }
 
-        // Select first item and call completionSuggestionsSelectedCompletion.
         this._suggestionsView.selectedIndex = NaN;
-        this._suggestionsView.selectNext();
-
-        if (!completionPrefix)
+        if (completionPrefix) {
+            // Select first item and call completionSuggestionsSelectedCompletion.
+            this._suggestionsView.selectNext();
+        } else
             this.suggestionHint = "";
     }
 
-    _getCaretRect(prefix, completionPrefix)
+    _getCaretRect(startOffset)
     {
-        let startOffset = prefix.length - completionPrefix.length;
         let selection = window.getSelection();
 
-        if (startOffset > 0 && selection.rangeCount) {
+        let isHidden = (clientRect) => {
+            return clientRect.x === 0 && clientRect.y === 0
+        };
+
+        if (selection.rangeCount) {
             let range = selection.getRangeAt(0).cloneRange();
             range.setStart(range.startContainer, startOffset);
             let clientRect = range.getBoundingClientRect();
-            return WI.Rect.rectFromClientRect(clientRect);
+
+            if (!isHidden(clientRect)) {
+                // This happens after deleting value. However, when focusing
+                // on an empty value clientRect is visible.
+                return WI.Rect.rectFromClientRect(clientRect);
+            }
         }
 
         let clientRect = this._element.getBoundingClientRect();
+        if (isHidden(clientRect))
+            return null;
+
         const leftPadding = parseInt(getComputedStyle(this._element).paddingLeft) || 0;
         return new WI.Rect(clientRect.left + leftPadding, clientRect.top, clientRect.width, clientRect.height);
     }

@@ -146,6 +146,8 @@
 
 #define WebKitCustomDragCursorsEnabledPreferenceKey "WebKitCustomDragCursorsEnabled"
 
+#define WebKitSpatialNavigationEnabledPreferenceKey "WebKitSpatialNavigationEnabled"
+
 #define WebKitDNSPrefetchingEnabledPreferenceKey "WebKitDNSPrefetchingEnabled"
 
 #define WebKitFullScreenEnabledPreferenceKey "WebKitFullScreenEnabled"
@@ -169,6 +171,8 @@
 #define WebKitShowTiledScrollingIndicatorPreferenceKey "WebKitShowTiledScrollingIndicator"
 
 #define WebKitFetchAPIEnabledPreferenceKey "WebKitFetchAPIEnabled"
+
+#define WebKitFetchAPIKeepAliveEnabledPreferenceKey "WebKitFetchAPIKeepAlivEnabled"
 
 #define WebKitShadowDOMEnabledPreferenceKey "WebKitShadowDOMEnabled"
 

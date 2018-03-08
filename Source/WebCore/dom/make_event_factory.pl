@@ -1,4 +1,4 @@
-#!/usr/bin/perl -w
+#!/usr/bin/env perl
 
 # Copyright (C) 2005, 2006, 2007, 2009 Apple Inc. All rights reserved.
 # Copyright (C) 2009, Julien Chaffraix <jchaffraix@webkit.org>
@@ -31,6 +31,7 @@
 # THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 use strict;
+use warnings;
 use FindBin;
 use lib "$FindBin::Bin/../bindings/scripts";
 
@@ -86,7 +87,7 @@ sub generateImplementation()
     print F "#include \"${namespace}Factory.h\"\n";
     print F "\n";
     print F "#include \"${namespace}Headers.h\"\n";
-    print F "#include <runtime/StructureInlines.h>\n";
+    print F "#include <JavaScriptCore/StructureInlines.h>\n";
     print F "\n";
     print F "namespace WebCore {\n";
     print F "\n";

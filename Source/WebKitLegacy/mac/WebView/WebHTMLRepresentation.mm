@@ -42,6 +42,7 @@
 #import "WebTypesInternal.h"
 #import "WebView.h"
 #import <Foundation/NSURLResponse.h>
+#import <JavaScriptCore/RegularExpression.h>
 #import <WebCore/Document.h>
 #import <WebCore/DocumentLoader.h>
 #import <WebCore/Editor.h>
@@ -58,9 +59,9 @@
 #import <WebCore/NodeTraversal.h>
 #import <WebCore/Range.h>
 #import <WebCore/RenderElement.h>
+#import <WebCore/ScriptDisallowedScope.h>
 #import <WebCore/TextResourceDecoder.h>
 #import <WebKitLegacy/DOMHTMLInputElement.h>
-#import <yarr/RegularExpression.h>
 #import <wtf/Assertions.h>
 #import <wtf/NeverDestroyed.h>
 #import <wtf/StdLibExtras.h>
@@ -281,7 +282,9 @@ static HTMLFormElement* formElementFromDOMElement(DOMElement *element)
     HTMLFormElement* formElement = formElementFromDOMElement(form);
     if (!formElement)
         return nil;
-    const Vector<FormAssociatedElement*>& elements = formElement->associatedElements();
+
+    ScriptDisallowedScope::InMainThread scriptDisallowedScope;
+    auto& elements = formElement->unsafeAssociatedElements();
     AtomicString targetName = name;
     for (unsigned i = 0; i < elements.size(); i++) {
         FormAssociatedElement& element = *elements[i];
@@ -329,7 +332,9 @@ static HTMLInputElement* inputElementFromDOMElement(DOMElement* element)
     if (!formElement)
         return nil;
     NSMutableArray *results = nil;
-    const Vector<FormAssociatedElement*>& elements = formElement->associatedElements();
+
+    ScriptDisallowedScope::InMainThread scriptDisallowedScope;
+    auto& elements = formElement->unsafeAssociatedElements();
     for (unsigned i = 0; i < elements.size(); i++) {
         if (elements[i]->isEnumeratable()) { // Skip option elements, other duds
             DOMElement *element = kit(&elements[i]->asHTMLElement());

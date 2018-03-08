@@ -27,7 +27,8 @@
 #include "GRefPtrGStreamer.h"
 #include "GStreamerEMEUtilities.h"
 #include "GStreamerMediaDescription.h"
-#include "GStreamerMediaSample.h"
+#include "GStreamerUtilities.h"
+#include "MediaSampleGStreamer.h"
 #include "InbandTextTrackPrivateGStreamer.h"
 #include "MediaDescription.h"
 #include "SourceBufferPrivateGStreamer.h"
@@ -582,74 +583,36 @@ void AppendPipeline::parseDemuxerSrcPadCaps(GstCaps* demuxerSrcPadCaps)
 
     m_demuxerSrcPadCaps = adoptGRef(demuxerSrcPadCaps);
     m_streamType = WebCore::MediaSourceStreamTypeGStreamer::Unknown;
-
-    GstStructure* structure = gst_caps_get_structure(m_demuxerSrcPadCaps.get(), 0);
-    bool sizeConfigured = false;
-
-#if GST_CHECK_VERSION(1, 5, 3) && ENABLE(ENCRYPTED_MEDIA)
-    if (gst_structure_has_name(structure, "application/x-cenc")) {
+#if ENABLE(ENCRYPTED_MEDIA)
+    if (areEncryptedCaps(m_demuxerSrcPadCaps.get())) {
         // Any previous decryptor should have been removed from the pipeline by disconnectFromAppSinkFromStreamingThread()
         ASSERT(!m_decryptor);
-
+        GstStructure* structure = gst_caps_get_structure(m_demuxerSrcPadCaps.get(), 0);
         m_decryptor = GStreamerEMEUtilities::createDecryptor(gst_structure_get_string(structure, "protection-system"));
         if (!m_decryptor) {
             GST_ERROR("decryptor not found for caps: %" GST_PTR_FORMAT, m_demuxerSrcPadCaps.get());
             return;
         }
-
-        const gchar* originalMediaType = gst_structure_get_string(structure, "original-media-type");
-
-        if (!MediaPlayerPrivateGStreamerMSE::supportsCodec(originalMediaType)) {
-            m_presentationSize = WebCore::FloatSize();
-            m_streamType = WebCore::MediaSourceStreamTypeGStreamer::Invalid;
-        } else if (g_str_has_prefix(originalMediaType, "video/")) {
-            int width = 0;
-            int height = 0;
-            float finalHeight = 0;
-
-            if (gst_structure_get_int(structure, "width", &width) && gst_structure_get_int(structure, "height", &height)) {
-                int ratioNumerator = 1;
-                int ratioDenominator = 1;
-
-                gst_structure_get_fraction(structure, "pixel-aspect-ratio", &ratioNumerator, &ratioDenominator);
-                finalHeight = height * ((float) ratioDenominator / (float) ratioNumerator);
-            }
-
-            m_presentationSize = WebCore::FloatSize(width, finalHeight);
-            m_streamType = WebCore::MediaSourceStreamTypeGStreamer::Video;
-        } else {
-            m_presentationSize = WebCore::FloatSize();
-            if (g_str_has_prefix(originalMediaType, "audio/"))
-                m_streamType = WebCore::MediaSourceStreamTypeGStreamer::Audio;
-            else if (g_str_has_prefix(originalMediaType, "text/"))
-                m_streamType = WebCore::MediaSourceStreamTypeGStreamer::Text;
-        }
-        sizeConfigured = true;
     }
 #endif
-
-    if (!sizeConfigured) {
-        const char* structureName = gst_structure_get_name(structure);
-        GstVideoInfo info;
-
-        if (!MediaPlayerPrivateGStreamerMSE::supportsCodec(structureName)) {
+    const char* originalMediaType = capsMediaType(m_demuxerSrcPadCaps.get());
+    if (!MediaPlayerPrivateGStreamerMSE::supportsCodec(originalMediaType)) {
             m_presentationSize = WebCore::FloatSize();
             m_streamType = WebCore::MediaSourceStreamTypeGStreamer::Invalid;
-        } else if (g_str_has_prefix(structureName, "video/") && gst_video_info_from_caps(&info, demuxerSrcPadCaps)) {
-            float width, height;
-
-            width = info.width;
-            height = info.height * ((float) info.par_d / (float) info.par_n);
-
-            m_presentationSize = WebCore::FloatSize(width, height);
-            m_streamType = WebCore::MediaSourceStreamTypeGStreamer::Video;
-        } else {
+    } else if (doCapsHaveType(m_demuxerSrcPadCaps.get(), GST_VIDEO_CAPS_TYPE_PREFIX)) {
+        std::optional<FloatSize> size = getVideoResolutionFromCaps(m_demuxerSrcPadCaps.get());
+        if (size.has_value())
+            m_presentationSize = size.value();
+        else
             m_presentationSize = WebCore::FloatSize();
-            if (g_str_has_prefix(structureName, "audio/"))
-                m_streamType = WebCore::MediaSourceStreamTypeGStreamer::Audio;
-            else if (g_str_has_prefix(structureName, "text/"))
-                m_streamType = WebCore::MediaSourceStreamTypeGStreamer::Text;
-        }
+
+        m_streamType = WebCore::MediaSourceStreamTypeGStreamer::Video;
+    } else {
+        m_presentationSize = WebCore::FloatSize();
+        if (doCapsHaveType(m_demuxerSrcPadCaps.get(), GST_AUDIO_CAPS_TYPE_PREFIX))
+            m_streamType = WebCore::MediaSourceStreamTypeGStreamer::Audio;
+        else if (doCapsHaveType(m_demuxerSrcPadCaps.get(), GST_TEXT_CAPS_TYPE_PREFIX))
+            m_streamType = WebCore::MediaSourceStreamTypeGStreamer::Text;
     }
 }
 
@@ -726,7 +689,7 @@ void AppendPipeline::appsinkNewSample(GstSample* sample)
             return;
         }
 
-        RefPtr<GStreamerMediaSample> mediaSample = WebCore::GStreamerMediaSample::create(sample, m_presentationSize, trackId());
+        RefPtr<MediaSampleGStreamer> mediaSample = WebCore::MediaSampleGStreamer::create(sample, m_presentationSize, trackId());
 
         GST_TRACE("append: trackId=%s PTS=%s DTS=%s DUR=%s presentationSize=%.0fx%.0f",
             mediaSample->trackID().string().utf8().data(),
@@ -1110,11 +1073,11 @@ void AppendPipeline::connectDemuxerSrcPadToAppsink(GstPad* demuxerSrcPad)
     switch (m_streamType) {
     case WebCore::MediaSourceStreamTypeGStreamer::Audio:
         if (m_playerPrivate)
-            m_track = WebCore::AudioTrackPrivateGStreamer::create(m_playerPrivate->pipeline(), id(), sinkSinkPad.get());
+            m_track = WebCore::AudioTrackPrivateGStreamer::create(m_playerPrivate->createWeakPtr(), id(), sinkSinkPad.get());
         break;
     case WebCore::MediaSourceStreamTypeGStreamer::Video:
         if (m_playerPrivate)
-            m_track = WebCore::VideoTrackPrivateGStreamer::create(m_playerPrivate->pipeline(), id(), sinkSinkPad.get());
+            m_track = WebCore::VideoTrackPrivateGStreamer::create(m_playerPrivate->createWeakPtr(), id(), sinkSinkPad.get());
         break;
     case WebCore::MediaSourceStreamTypeGStreamer::Text:
         m_track = WebCore::InbandTextTrackPrivateGStreamer::create(id(), sinkSinkPad.get());

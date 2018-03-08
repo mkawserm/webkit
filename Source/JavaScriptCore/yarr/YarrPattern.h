@@ -27,6 +27,7 @@
 #pragma once
 
 #include "RegExpKey.h"
+#include "YarrErrorCode.h"
 #include "YarrUnicodeProperties.h"
 #include <wtf/CheckedArithmetic.h>
 #include <wtf/HashMap.h>
@@ -227,7 +228,13 @@ struct PatternTerm {
     {
         return m_capture;
     }
-    
+
+    bool containsAnyCaptures()
+    {
+        ASSERT(this->type == TypeParenthesesSubpattern);
+        return parentheses.lastSubpatternId >= parentheses.subpatternId;
+    }
+
     void quantify(unsigned count, QuantifierType type)
     {
         quantityMinCount = 0;
@@ -345,33 +352,7 @@ struct TermChain {
 
 
 struct YarrPattern {
-    JS_EXPORT_PRIVATE YarrPattern(const String& pattern, RegExpFlags, const char** error, void* stackLimit = nullptr);
-
-    enum ErrorCode {
-        NoError,
-        PatternTooLarge,
-        QuantifierOutOfOrder,
-        QuantifierWithoutAtom,
-        QuantifierTooLarge,
-        MissingParentheses,
-        ParenthesesUnmatched,
-        ParenthesesTypeInvalid,
-        InvalidGroupName,
-        DuplicateGroupName,
-        CharacterClassUnmatched,
-        CharacterClassOutOfOrder,
-        EscapeUnterminated,
-        InvalidUnicodeEscape,
-        InvalidBackreference,
-        InvalidIdentityEscape,
-        InvalidUnicodePropertyExpression,
-        TooManyDisjunctions,
-        OffsetTooLarge,
-        InvalidRegularExpressionFlags,
-        NumberOfErrorCodes
-    };
-    
-    JS_EXPORT_PRIVATE static const char* errorMessage(ErrorCode);
+    JS_EXPORT_PRIVATE YarrPattern(const String& pattern, RegExpFlags, ErrorCode&, void* stackLimit = nullptr);
 
     void reset()
     {
@@ -385,16 +366,16 @@ struct YarrPattern {
         m_hasCopiedParenSubexpressions = false;
         m_saveInitialStartValue = false;
 
-        anycharCached = 0;
-        newlineCached = 0;
-        digitsCached = 0;
-        spacesCached = 0;
-        wordcharCached = 0;
-        wordUnicodeIgnoreCaseCharCached = 0;
-        nondigitsCached = 0;
-        nonspacesCached = 0;
-        nonwordcharCached = 0;
-        nonwordUnicodeIgnoreCasecharCached = 0;
+        anycharCached = nullptr;
+        newlineCached = nullptr;
+        digitsCached = nullptr;
+        spacesCached = nullptr;
+        wordcharCached = nullptr;
+        wordUnicodeIgnoreCaseCharCached = nullptr;
+        nondigitsCached = nullptr;
+        nonspacesCached = nullptr;
+        nonwordcharCached = nullptr;
+        nonwordUnicodeIgnoreCasecharCached = nullptr;
         unicodePropertiesCached.clear();
 
         m_disjunctions.clear();
@@ -524,9 +505,9 @@ struct YarrPattern {
     bool m_hasCopiedParenSubexpressions : 1;
     bool m_saveInitialStartValue : 1;
     RegExpFlags m_flags;
-    unsigned m_numSubpatterns;
-    unsigned m_maxBackReference;
-    unsigned m_initialStartValueFrameLocation;
+    unsigned m_numSubpatterns { 0 };
+    unsigned m_maxBackReference { 0 };
+    unsigned m_initialStartValueFrameLocation { 0 };
     PatternDisjunction* m_body;
     Vector<std::unique_ptr<PatternDisjunction>, 4> m_disjunctions;
     Vector<std::unique_ptr<CharacterClass>> m_userCharacterClasses;
@@ -534,20 +515,24 @@ struct YarrPattern {
     HashMap<String, unsigned> m_namedGroupToParenIndex;
 
 private:
-    const char* compile(const String& patternString, void* stackLimit);
+    ErrorCode compile(const String& patternString, void* stackLimit);
 
-    CharacterClass* anycharCached;
-    CharacterClass* newlineCached;
-    CharacterClass* digitsCached;
-    CharacterClass* spacesCached;
-    CharacterClass* wordcharCached;
-    CharacterClass* wordUnicodeIgnoreCaseCharCached;
-    CharacterClass* nondigitsCached;
-    CharacterClass* nonspacesCached;
-    CharacterClass* nonwordcharCached;
-    CharacterClass* nonwordUnicodeIgnoreCasecharCached;
+    CharacterClass* anycharCached { nullptr };
+    CharacterClass* newlineCached { nullptr };
+    CharacterClass* digitsCached { nullptr };
+    CharacterClass* spacesCached { nullptr };
+    CharacterClass* wordcharCached { nullptr };
+    CharacterClass* wordUnicodeIgnoreCaseCharCached { nullptr };
+    CharacterClass* nondigitsCached { nullptr };
+    CharacterClass* nonspacesCached { nullptr };
+    CharacterClass* nonwordcharCached { nullptr };
+    CharacterClass* nonwordUnicodeIgnoreCasecharCached { nullptr };
     HashMap<unsigned, CharacterClass*> unicodePropertiesCached;
 };
+
+    void indentForNestingLevel(PrintStream&, unsigned);
+    void dumpUChar32(PrintStream&, UChar32);
+    void dumpCharacterClass(PrintStream&, YarrPattern*, CharacterClass*);
 
     struct BackTrackInfoPatternCharacter {
         uintptr_t begin; // Only needed for unicode patterns
@@ -574,9 +559,9 @@ private:
     };
 
     struct BackTrackInfoAlternative {
-        uintptr_t offset;
-
-        static unsigned offsetIndex() { return offsetof(BackTrackInfoAlternative, offset) / sizeof(uintptr_t); }
+        union {
+            uintptr_t offset;
+        };
     };
 
     struct BackTrackInfoParentheticalAssertion {
@@ -587,14 +572,28 @@ private:
 
     struct BackTrackInfoParenthesesOnce {
         uintptr_t begin;
+        uintptr_t returnAddress;
 
         static unsigned beginIndex() { return offsetof(BackTrackInfoParenthesesOnce, begin) / sizeof(uintptr_t); }
+        static unsigned returnAddressIndex() { return offsetof(BackTrackInfoParenthesesOnce, returnAddress) / sizeof(uintptr_t); }
     };
 
     struct BackTrackInfoParenthesesTerminal {
         uintptr_t begin;
 
         static unsigned beginIndex() { return offsetof(BackTrackInfoParenthesesTerminal, begin) / sizeof(uintptr_t); }
+    };
+
+    struct BackTrackInfoParentheses {
+        uintptr_t begin;
+        uintptr_t returnAddress;
+        uintptr_t matchAmount;
+        uintptr_t parenContextHead;
+
+        static unsigned beginIndex() { return offsetof(BackTrackInfoParentheses, begin) / sizeof(uintptr_t); }
+        static unsigned returnAddressIndex() { return offsetof(BackTrackInfoParentheses, returnAddress) / sizeof(uintptr_t); }
+        static unsigned matchAmountIndex() { return offsetof(BackTrackInfoParentheses, matchAmount) / sizeof(uintptr_t); }
+        static unsigned parenContextHeadIndex() { return offsetof(BackTrackInfoParentheses, parenContextHead) / sizeof(uintptr_t); }
     };
 
 } } // namespace JSC::Yarr

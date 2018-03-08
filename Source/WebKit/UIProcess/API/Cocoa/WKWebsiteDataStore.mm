@@ -28,6 +28,7 @@
 
 #if WK_API_ENABLED
 
+#import "APIString.h"
 #import "WKHTTPCookieStoreInternal.h"
 #import "WKNSArray.h"
 #import "WKWebsiteDataRecordInternal.h"
@@ -36,6 +37,7 @@
 #import "WebsiteDataFetchOption.h"
 #import "_WKWebsiteDataStoreConfiguration.h"
 #import <WebCore/URL.h>
+#import <WebKit/ServiceWorkerProcessProxy.h>
 #import <wtf/BlockPtr.h>
 
 using namespace WebCore;
@@ -57,6 +59,11 @@ using namespace WebCore;
     _websiteDataStore->API::WebsiteDataStore::~WebsiteDataStore();
 
     [super dealloc];
+}
+
++ (BOOL)supportsSecureCoding
+{
+    return YES;
 }
 
 - (instancetype)initWithCoder:(NSCoder *)coder
@@ -106,12 +113,10 @@ using namespace WebCore;
     return WebKit::wrapper(_websiteDataStore->httpCookieStore());
 }
 
-static std::chrono::system_clock::time_point toSystemClockTime(NSDate *date)
+static WallTime toSystemClockTime(NSDate *date)
 {
     ASSERT(date);
-    using namespace std::chrono;
-
-    return system_clock::time_point(duration_cast<system_clock::duration>(duration<double>(date.timeIntervalSince1970)));
+    return WallTime::fromRawSeconds(date.timeIntervalSince1970);
 }
 
 - (void)fetchDataRecordsOfTypes:(NSSet *)dataTypes completionHandler:(void (^)(NSArray<WKWebsiteDataRecord *> *))completionHandler
@@ -196,6 +201,10 @@ static Vector<WebKit::WebsiteDataRecord> toWebsiteDataRecords(NSArray *dataRecor
         config.cookieStorageFile = configuration._cookieStorageFile.path;
     if (configuration._resourceLoadStatisticsDirectory)
         config.resourceLoadStatisticsDirectory = configuration._resourceLoadStatisticsDirectory.path;
+    if (configuration._cacheStorageDirectory)
+        config.cacheStorageDirectory = configuration._cacheStorageDirectory.path;
+    if (configuration._serviceWorkerRegistrationDirectory)
+        config.serviceWorkerRegistrationDirectory = configuration._serviceWorkerRegistrationDirectory.path;
 
     API::Object::constructInWrapper<API::WebsiteDataStore>(self, config, PAL::SessionID::generatePersistentSessionID());
 
@@ -231,6 +240,16 @@ static Vector<WebKit::WebsiteDataRecord> toWebsiteDataRecords(NSArray *dataRecor
     _websiteDataStore->websiteDataStore().setResourceLoadStatisticsEnabled(enabled);
 }
 
+- (BOOL)_resourceLoadStatisticsDebugMode
+{
+    return _websiteDataStore->websiteDataStore().resourceLoadStatisticsDebugMode();
+}
+
+- (void)_setResourceLoadStatisticsDebugMode:(BOOL)enabled
+{
+    _websiteDataStore->websiteDataStore().setResourceLoadStatisticsDebugMode(enabled);
+}
+
 - (NSUInteger)_cacheStoragePerOriginQuota
 {
     return _websiteDataStore->websiteDataStore().cacheStoragePerOriginQuota();
@@ -249,6 +268,16 @@ static Vector<WebKit::WebsiteDataRecord> toWebsiteDataRecords(NSArray *dataRecor
 - (void)_setCacheStorageDirectory:(NSString *)directory
 {
     _websiteDataStore->websiteDataStore().setCacheStorageDirectory(directory);
+}
+
+- (NSString *)_serviceWorkerRegistrationDirectory
+{
+    return _websiteDataStore->websiteDataStore().serviceWorkerRegistrationDirectory();
+}
+
+- (void)_setServiceWorkerRegistrationDirectory:(NSString *)directory
+{
+    _websiteDataStore->websiteDataStore().setServiceWorkerRegistrationDirectory(directory);
 }
 
 - (void)_setBoundInterfaceIdentifier:(NSString *)identifier
@@ -271,270 +300,6 @@ static Vector<WebKit::WebsiteDataRecord> toWebsiteDataRecords(NSArray *dataRecor
     return _websiteDataStore->websiteDataStore().allowsCellularAccess() == WebKit::AllowsCellularAccess::Yes;
 }
 
-- (void)_resourceLoadStatisticsSetLastSeen:(double)seconds forHost:(NSString *)host
-{
-    auto* store = _websiteDataStore->websiteDataStore().resourceLoadStatistics();
-    if (!store)
-        return;
-    
-    store->setLastSeen(URL(URL(), host), Seconds { seconds });
-}
-
-- (void)_resourceLoadStatisticsSetIsPrevalentResource:(BOOL)value forHost:(NSString *)host
-{
-    auto* store = _websiteDataStore->websiteDataStore().resourceLoadStatistics();
-    if (!store)
-        return;
-
-    if (value)
-        store->setPrevalentResource(URL(URL(), host));
-    else
-        store->clearPrevalentResource(URL(URL(), host));
-}
-
-- (void)_resourceLoadStatisticsIsPrevalentResource:(NSString *)host completionHandler:(void (^)(BOOL))completionHandler
-{
-    auto* store = _websiteDataStore->websiteDataStore().resourceLoadStatistics();
-    if (!store) {
-        completionHandler(NO);
-        return;
-    }
-
-    auto completionHandlerCopy = makeBlockPtr(completionHandler);
-    store->isPrevalentResource(URL(URL(), host), [completionHandlerCopy](bool isPrevalentResource) {
-        completionHandlerCopy(isPrevalentResource);
-    });
-}
-
-- (void)_resourceLoadStatisticsIsRegisteredAsSubFrameUnder:(NSString *)subFrameHost topFrameHost:(NSString *)topFrameHost completionHandler:(void (^)(BOOL))completionHandler
-{
-    auto* store = _websiteDataStore->websiteDataStore().resourceLoadStatistics();
-    if (!store) {
-        completionHandler(NO);
-        return;
-    }
-    
-    auto completionHandlerCopy = makeBlockPtr(completionHandler);
-    store->isRegisteredAsSubFrameUnder(URL(URL(), subFrameHost), URL(URL(), topFrameHost), [completionHandlerCopy](bool isRegisteredAsSubFrameUnder) {
-        completionHandlerCopy(isRegisteredAsSubFrameUnder);
-    });
-}
-
-- (void)_resourceLoadStatisticsIsRegisteredAsRedirectingTo:(NSString *)hostRedirectedFrom hostRedirectedTo:(NSString *)hostRedirectedTo completionHandler:(void (^)(BOOL))completionHandler
-{
-    auto* store = _websiteDataStore->websiteDataStore().resourceLoadStatistics();
-    if (!store) {
-        completionHandler(NO);
-        return;
-    }
-    
-    auto completionHandlerCopy = makeBlockPtr(completionHandler);
-    store->isRegisteredAsRedirectingTo(URL(URL(), hostRedirectedFrom), URL(URL(), hostRedirectedTo), [completionHandlerCopy](bool isRegisteredAsRedirectingTo) {
-        completionHandlerCopy(isRegisteredAsRedirectingTo);
-    });
-}
-
-- (void)_resourceLoadStatisticsSetHadUserInteraction:(BOOL)value forHost:(NSString *)host
-{
-    auto* store = _websiteDataStore->websiteDataStore().resourceLoadStatistics();
-    if (!store)
-        return;
-
-    if (value)
-        store->logUserInteraction(URL(URL(), host));
-    else
-        store->clearUserInteraction(URL(URL(), host));
-}
-
-- (void)_resourceLoadStatisticsSetHasHadNonRecentUserInteractionForHost:(NSString *)host
-{
-    auto* store = _websiteDataStore->websiteDataStore().resourceLoadStatistics();
-    if (!store)
-        return;
-    
-    store->logNonRecentUserInteraction(URL(URL(), host));
-}
-
-- (void)_resourceLoadStatisticsHadUserInteraction:(NSString *)host completionHandler:(void (^)(BOOL))completionHandler
-{
-    auto* store = _websiteDataStore->websiteDataStore().resourceLoadStatistics();
-    if (!store) {
-        completionHandler(NO);
-        return;
-    }
-
-    auto completionHandlerCopy = makeBlockPtr(completionHandler);
-    store->hasHadUserInteraction(URL(URL(), host), [completionHandlerCopy](bool hasHadUserInteraction) {
-        completionHandlerCopy(hasHadUserInteraction);
-    });
-}
-
-- (void)_resourceLoadStatisticsSetIsGrandfathered:(BOOL)value forHost:(NSString *)host
-{
-    auto* store = _websiteDataStore->websiteDataStore().resourceLoadStatistics();
-    if (!store)
-        return;
-
-    store->setGrandfathered(URL(URL(), host), value);
-}
-
-- (void)_resourceLoadStatisticsIsGrandfathered:(NSString *)host completionHandler:(void (^)(BOOL))completionHandler
-{
-    auto* store = _websiteDataStore->websiteDataStore().resourceLoadStatistics();
-    if (!store) {
-        completionHandler(NO);
-        return;
-    }
-
-    auto completionHandlerCopy = makeBlockPtr(completionHandler);
-    store->isGrandfathered(URL(URL(), host), [completionHandlerCopy](bool isGrandfathered) {
-        completionHandlerCopy(isGrandfathered);
-    });
-}
-
-- (void)_resourceLoadStatisticsSetSubframeUnderTopFrameOrigin:(NSString *)topFrameHostName forHost:(NSString *)host
-{
-    auto* store = _websiteDataStore->websiteDataStore().resourceLoadStatistics();
-    if (!store)
-        return;
-
-    store->setSubframeUnderTopFrameOrigin(URL(URL(), host), URL(URL(), topFrameHostName));
-}
-
-- (void)_resourceLoadStatisticsSetSubresourceUnderTopFrameOrigin:(NSString *)topFrameHostName forHost:(NSString *)host
-{
-    auto* store = _websiteDataStore->websiteDataStore().resourceLoadStatistics();
-    if (!store)
-        return;
-
-    store->setSubresourceUnderTopFrameOrigin(URL(URL(), host), URL(URL(), topFrameHostName));
-}
-
-- (void)_resourceLoadStatisticsSetSubresourceUniqueRedirectTo:(NSString *)hostNameRedirectedTo forHost:(NSString *)host
-{
-    auto* store = _websiteDataStore->websiteDataStore().resourceLoadStatistics();
-    if (!store)
-        return;
-
-    store->setSubresourceUniqueRedirectTo(URL(URL(), host), URL(URL(), hostNameRedirectedTo));
-}
-
-- (void)_resourceLoadStatisticsSetTimeToLiveUserInteraction:(double)seconds
-{
-    auto* store = _websiteDataStore->websiteDataStore().resourceLoadStatistics();
-    if (!store)
-        return;
-
-    store->setTimeToLiveUserInteraction(Seconds { seconds });
-}
-
-- (void)_resourceLoadStatisticsSetTimeToLiveCookiePartitionFree:(double)seconds
-{
-    auto* store = _websiteDataStore->websiteDataStore().resourceLoadStatistics();
-    if (!store)
-        return;
-
-    store->setTimeToLiveCookiePartitionFree(Seconds { seconds });
-}
-
-- (void)_resourceLoadStatisticsSetMinimumTimeBetweenDataRecordsRemoval:(double)seconds
-{
-    auto* store = _websiteDataStore->websiteDataStore().resourceLoadStatistics();
-    if (!store)
-        return;
-
-    store->setMinimumTimeBetweenDataRecordsRemoval(Seconds { seconds });
-}
-
-- (void)_resourceLoadStatisticsSetGrandfatheringTime:(double)seconds
-{
-    auto* store = _websiteDataStore->websiteDataStore().resourceLoadStatistics();
-    if (!store)
-        return;
-
-    store->setGrandfatheringTime(Seconds {seconds });
-}
-
-- (void)_resourceLoadStatisticsSetMaxStatisticsEntries:(size_t)entries
-{
-    auto* store = _websiteDataStore->websiteDataStore().resourceLoadStatistics();
-    if (!store)
-        return;
-
-    store->setMaxStatisticsEntries(entries);
-}
-
-- (void)_resourceLoadStatisticsSetPruneEntriesDownTo:(size_t)entries
-{
-    auto* store = _websiteDataStore->websiteDataStore().resourceLoadStatistics();
-    if (!store)
-        return;
-
-    store->setPruneEntriesDownTo(entries);
-}
-
-- (void)_resourceLoadStatisticsProcessStatisticsAndDataRecords
-{
-    auto* store = _websiteDataStore->websiteDataStore().resourceLoadStatistics();
-    if (!store)
-        return;
-
-    store->scheduleStatisticsAndDataRecordsProcessing();
-}
-
-- (void)_resourceLoadStatisticsUpdateCookiePartitioning
-{
-    auto* store = _websiteDataStore->websiteDataStore().resourceLoadStatistics();
-    if (!store)
-        return;
-
-    store->scheduleCookiePartitioningUpdate();
-}
-
-- (void)_resourceLoadStatisticsSetShouldPartitionCookies:(BOOL)value forHost:(NSString *)host
-{
-    auto* store = _websiteDataStore->websiteDataStore().resourceLoadStatistics();
-    if (!store)
-        return;
-
-    if (value)
-        store->scheduleCookiePartitioningUpdateForDomains({ host }, { }, { }, WebKit::ShouldClearFirst::No);
-    else
-        store->scheduleClearPartitioningStateForDomains({ host });
-}
-
-- (void)_resourceLoadStatisticsSubmitTelemetry
-{
-    auto* store = _websiteDataStore->websiteDataStore().resourceLoadStatistics();
-    if (!store)
-        return;
-
-    store->submitTelemetry();
-}
-
-- (void)_resourceLoadStatisticsSetNotifyPagesWhenDataRecordsWereScanned:(BOOL)value
-{
-    auto* store = _websiteDataStore->websiteDataStore().resourceLoadStatistics();
-    if (!store)
-        return;
-
-    store->setNotifyPagesWhenDataRecordsWereScanned(value);
-}
-
-- (void)_resourceLoadStatisticsSetShouldClassifyResourcesBeforeDataRecordsRemoval:(BOOL)value
-{
-    auto* store = _websiteDataStore->websiteDataStore().resourceLoadStatistics();
-    if (!store)
-        return;
-
-    store->setShouldClassifyResourcesBeforeDataRecordsRemoval(value);
-}
-
-- (void)_resourceLoadStatisticsSetNotifyPagesWhenTelemetryWasCaptured:(BOOL)value
-{
-    WebKit::WebResourceLoadStatisticsTelemetry::setNotifyPagesWhenTelemetryWasCaptured(value);
-}
-
 - (void)_resourceLoadStatisticsSetShouldSubmitTelemetry:(BOOL)value
 {
     auto* store = _websiteDataStore->websiteDataStore().resourceLoadStatistics();
@@ -542,36 +307,6 @@ static Vector<WebKit::WebsiteDataRecord> toWebsiteDataRecords(NSArray *dataRecor
         return;
 
     store->setShouldSubmitTelemetry(value);
-}
-
-- (void)_resourceLoadStatisticsClearInMemoryAndPersistentStore
-{
-    auto* store = _websiteDataStore->websiteDataStore().resourceLoadStatistics();
-    if (!store)
-        return;
-
-    store->scheduleClearInMemoryAndPersistent(WebKit::WebResourceLoadStatisticsStore::ShouldGrandfather::Yes);
-}
-
-- (void)_resourceLoadStatisticsClearInMemoryAndPersistentStoreModifiedSinceHours:(unsigned)hours
-{
-    auto* store = _websiteDataStore->websiteDataStore().resourceLoadStatistics();
-    if (!store)
-        return;
-
-    store->scheduleClearInMemoryAndPersistent(std::chrono::system_clock::now() - std::chrono::hours(hours), WebKit::WebResourceLoadStatisticsStore::ShouldGrandfather::Yes);
-}
-
-- (void)_resourceLoadStatisticsResetToConsistentState
-{
-    WebKit::WebResourceLoadStatisticsTelemetry::setNotifyPagesWhenTelemetryWasCaptured(false);
-
-    auto* store = _websiteDataStore->websiteDataStore().resourceLoadStatistics();
-    if (!store)
-        return;
-
-    store->resetParametersToDefaultValues();
-    store->scheduleClearInMemory();
 }
 
 - (void)_setResourceLoadStatisticsTestingCallback:(void (^)(WKWebsiteDataStore *, NSString *))callback
@@ -588,6 +323,28 @@ static Vector<WebKit::WebsiteDataRecord> toWebsiteDataRecords(NSArray *dataRecor
         return;
 
     store->setStatisticsTestingCallback(nullptr);
+}
+
++ (void)_allowWebsiteDataRecordsForAllOrigins
+{
+    WebKit::WebsiteDataStore::allowWebsiteDataRecordsForAllOrigins();
+}
+
+- (void)_getAllStorageAccessEntries:(void (^)(NSArray<NSString *> *domains))completionHandler
+{
+    _websiteDataStore->websiteDataStore().getAllStorageAccessEntries([completionHandler = makeBlockPtr(completionHandler)](auto domains) {
+        Vector<RefPtr<API::Object>> apiDomains;
+        apiDomains.reserveInitialCapacity(domains.size());
+        for (auto& domain : domains)
+            apiDomains.uncheckedAppend(API::String::create(domain));
+
+        completionHandler(wrapper(API::Array::create(WTFMove(apiDomains))));
+    });
+}
+
+- (bool)_hasRegisteredServiceWorker
+{
+    return WebKit::ServiceWorkerProcessProxy::hasRegisteredServiceWorkers(_websiteDataStore->websiteDataStore().serviceWorkerRegistrationDirectory());
 }
 
 @end

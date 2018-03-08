@@ -112,11 +112,14 @@ InternalSettings::Backup::Backup(Settings& settings)
     , m_webGPUEnabled(RuntimeEnabledFeatures::sharedFeatures().webGPUEnabled())
 #endif
     , m_webVREnabled(RuntimeEnabledFeatures::sharedFeatures().webVREnabled())
+#if ENABLE(MEDIA_STREAM)
+    , m_setScreenCaptureEnabled(RuntimeEnabledFeatures::sharedFeatures().screenCaptureEnabled())
+#endif
     , m_shouldMockBoldSystemFontForAccessibility(RenderTheme::singleton().shouldMockBoldSystemFontForAccessibility())
 #if USE(AUDIO_SESSION)
     , m_shouldManageAudioSessionCategory(DeprecatedGlobalSettings::shouldManageAudioSessionCategory())
 #endif
-    , m_customPasteboardDataEnabled(DeprecatedGlobalSettings::customPasteboardDataEnabled())
+    , m_customPasteboardDataEnabled(RuntimeEnabledFeatures::sharedFeatures().customPasteboardDataEnabled())
 {
 }
 
@@ -210,11 +213,14 @@ void InternalSettings::Backup::restoreTo(Settings& settings)
     RuntimeEnabledFeatures::sharedFeatures().setWebGPUEnabled(m_webGPUEnabled);
 #endif
     RuntimeEnabledFeatures::sharedFeatures().setWebVREnabled(m_webVREnabled);
+#if ENABLE(MEDIA_STREAM)
+    RuntimeEnabledFeatures::sharedFeatures().setScreenCaptureEnabled(m_setScreenCaptureEnabled);
+#endif
+    RuntimeEnabledFeatures::sharedFeatures().setCustomPasteboardDataEnabled(m_customPasteboardDataEnabled);
 
 #if USE(AUDIO_SESSION)
     DeprecatedGlobalSettings::setShouldManageAudioSessionCategory(m_shouldManageAudioSessionCategory);
 #endif
-    DeprecatedGlobalSettings::setCustomPasteboardDataEnabled(m_customPasteboardDataEnabled);
 }
 
 class InternalSettingsWrapper : public Supplement<Page> {
@@ -762,6 +768,15 @@ void InternalSettings::setWebVREnabled(bool enabled)
     RuntimeEnabledFeatures::sharedFeatures().setWebVREnabled(enabled);
 }
 
+void InternalSettings::setScreenCaptureEnabled(bool enabled)
+{
+#if ENABLE(MEDIA_STREAM)
+    RuntimeEnabledFeatures::sharedFeatures().setScreenCaptureEnabled(enabled);
+#else
+    UNUSED_PARAM(enabled);
+#endif
+}
+
 ExceptionOr<String> InternalSettings::userInterfaceDirectionPolicy()
 {
     if (!m_page)
@@ -864,7 +879,7 @@ ExceptionOr<void> InternalSettings::setShouldManageAudioSessionCategory(bool sho
 
 ExceptionOr<void> InternalSettings::setCustomPasteboardDataEnabled(bool enabled)
 {
-    DeprecatedGlobalSettings::setCustomPasteboardDataEnabled(enabled);
+    RuntimeEnabledFeatures::sharedFeatures().setCustomPasteboardDataEnabled(enabled);
     return { };
 }
 

@@ -49,11 +49,12 @@ struct TestOptions {
     bool enableMenuItemElement { false };
     bool enableModernMediaControls { true };
     bool enablePointerLock { false };
-    bool enableCredentialManagement { false };
+    bool enableWebAuthentication { true };
     bool enableIsSecureContextAttribute { true };
     bool enableInspectorAdditions { false };
     bool shouldShowTouches { false };
     bool dumpJSConsoleLogInStdErr { false };
+    bool allowCrossOriginSubresourcesToAskForCredentials { false };
 
     float deviceScaleFactor { 1 };
     Vector<String> overrideLanguages;
@@ -78,11 +79,12 @@ struct TestOptions {
             || enableMenuItemElement != options.enableMenuItemElement
             || enableModernMediaControls != options.enableModernMediaControls
             || enablePointerLock != options.enablePointerLock
-            || enableCredentialManagement != options.enableCredentialManagement
+            || enableWebAuthentication != options.enableWebAuthentication
             || enableIsSecureContextAttribute != options.enableIsSecureContextAttribute
             || enableInspectorAdditions != options.enableInspectorAdditions
             || dumpJSConsoleLogInStdErr != options.dumpJSConsoleLogInStdErr
-            || applicationManifest != options.applicationManifest)
+            || applicationManifest != options.applicationManifest
+            || allowCrossOriginSubresourcesToAskForCredentials != options.allowCrossOriginSubresourcesToAskForCredentials)
             return false;
 
         return true;

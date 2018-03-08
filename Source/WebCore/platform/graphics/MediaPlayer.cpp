@@ -65,9 +65,6 @@
 #endif
 
 #if PLATFORM(COCOA)
-#if USE(QTKIT)
-#include "MediaPlayerPrivateQTKit.h"
-#endif
 
 #if USE(AVFOUNDATION)
 #include "MediaPlayerPrivateAVFoundationObjC.h"
@@ -248,11 +245,6 @@ static void buildMediaEnginesVector()
 #endif
     }
 #endif // USE(AVFOUNDATION)
-
-#if PLATFORM(MAC) && USE(QTKIT)
-    if (DeprecatedGlobalSettings::isQTKitEnabled())
-        MediaPlayerPrivateQTKit::registerMediaEngine(addMediaEngine);
-#endif
 
 #if defined(PlatformMediaEngineClassName)
 #if USE(GSTREAMER)
@@ -908,7 +900,7 @@ NativeImagePtr MediaPlayer::nativeImageForCurrentTime()
     return m_private->nativeImageForCurrentTime();
 }
 
-MediaPlayer::SupportsType MediaPlayer::supportsType(const MediaEngineSupportParameters& parameters, const MediaPlayerSupportsTypeClient* client)
+MediaPlayer::SupportsType MediaPlayer::supportsType(const MediaEngineSupportParameters& parameters)
 {
     // 4.8.10.3 MIME types - The canPlayType(type) method must return the empty string if type is a type that the 
     // user agent knows it cannot render or is the type "application/octet-stream"
@@ -919,23 +911,6 @@ MediaPlayer::SupportsType MediaPlayer::supportsType(const MediaEngineSupportPara
     const MediaPlayerFactory* engine = bestMediaEngineForSupportParameters(parameters);
     if (!engine)
         return IsNotSupported;
-
-#if PLATFORM(COCOA)
-    // YouTube will ask if the HTMLMediaElement canPlayType video/webm, then
-    // video/x-flv, then finally video/mp4, and will then load a URL of the first type
-    // in that list which returns "probably". When Perian is installed,
-    // MediaPlayerPrivateQTKit claims to support both video/webm and video/x-flv, but
-    // due to a bug in Perian, loading media in these formats will sometimes fail on
-    // slow connections. <https://bugs.webkit.org/show_bug.cgi?id=86409>
-    if (client && client->mediaPlayerNeedsSiteSpecificHacks()) {
-        String host = client->mediaPlayerDocumentHost();
-        if ((host.endsWithIgnoringASCIICase(".youtube.com") || equalLettersIgnoringASCIICase(host, "youtube.com"))
-            && (startsWithLettersIgnoringASCIICase(containerType, "video/webm") || startsWithLettersIgnoringASCIICase(containerType, "video/x-flv")))
-            return IsNotSupported;
-    }
-#else
-    UNUSED_PARAM(client);
-#endif
 
     return engine->supportsTypeAndCodecs(parameters);
 }
@@ -1130,7 +1105,7 @@ HashSet<RefPtr<SecurityOrigin>> MediaPlayer::originsInMediaCache(const String& p
     return origins;
 }
 
-void MediaPlayer::clearMediaCache(const String& path, std::chrono::system_clock::time_point modifiedSince)
+void MediaPlayer::clearMediaCache(const String& path, WallTime modifiedSince)
 {
     for (auto& engine : installedMediaEngines()) {
         if (engine.clearMediaCache)
@@ -1195,6 +1170,9 @@ void MediaPlayer::volumeChanged(double newVolume)
 
 void MediaPlayer::muteChanged(bool newMuted)
 {
+    if (newMuted == m_muted)
+        return;
+
     m_muted = newMuted;
     client().mediaPlayerMuteChanged(this);
 }
@@ -1400,6 +1378,18 @@ void MediaPlayer::simulateAudioInterruption()
 }
 #endif
 
+void MediaPlayer::beginSimulatedHDCPError()
+{
+    if (m_private)
+        m_private->beginSimulatedHDCPError();
+}
+
+void MediaPlayer::endSimulatedHDCPError()
+{
+    if (m_private)
+        m_private->endSimulatedHDCPError();
+}
+
 String MediaPlayer::languageOfPrimaryAudioTrack() const
 {
     if (!m_private)
@@ -1438,11 +1428,6 @@ std::optional<PlatformVideoPlaybackQualityMetrics> MediaPlayer::videoPlaybackQua
     return m_private->videoPlaybackQualityMetrics();
 }
 #endif
-
-bool MediaPlayer::shouldWaitForResponseToAuthenticationChallenge(const AuthenticationChallenge& challenge)
-{
-    return client().mediaPlayerShouldWaitForResponseToAuthenticationChallenge(challenge);
-}
 
 void MediaPlayer::handlePlaybackCommand(PlatformMediaSession::RemoteControlCommandType command)
 {
@@ -1502,6 +1487,16 @@ bool MediaPlayer::shouldCheckHardwareSupport() const
     return client().mediaPlayerShouldCheckHardwareSupport();
 }
 
+void MediaPlayer::applicationWillResignActive()
+{
+    m_private->applicationWillResignActive();
+}
+
+void MediaPlayer::applicationDidBecomeActive()
+{
+    m_private->applicationDidBecomeActive();
+}
+
 #if !RELEASE_LOG_DISABLED
 const Logger& MediaPlayer::mediaPlayerLogger()
 {
@@ -1545,6 +1540,20 @@ String convertEnumerationToString(MediaPlayerEnums::NetworkState enumerationValu
     static_assert(static_cast<size_t>(MediaPlayerEnums::FormatError) == 4, "MediaPlayerEnums::FormatError is not 4 as expected");
     static_assert(static_cast<size_t>(MediaPlayerEnums::NetworkError) == 5, "MediaPlayerEnums::NetworkError is not 5 as expected");
     static_assert(static_cast<size_t>(MediaPlayerEnums::DecodeError) == 6, "MediaPlayerEnums::DecodeError is not 6 as expected");
+    ASSERT(static_cast<size_t>(enumerationValue) < WTF_ARRAY_LENGTH(values));
+    return values[static_cast<size_t>(enumerationValue)];
+}
+
+String convertEnumerationToString(MediaPlayerEnums::Preload enumerationValue)
+{
+    static const NeverDestroyed<String> values[] = {
+        MAKE_STATIC_STRING_IMPL("None"),
+        MAKE_STATIC_STRING_IMPL("MetaData"),
+        MAKE_STATIC_STRING_IMPL("Auto"),
+    };
+    static_assert(!static_cast<size_t>(MediaPlayerEnums::None), "MediaPlayerEnums::None is not 0 as expected");
+    static_assert(static_cast<size_t>(MediaPlayerEnums::MetaData) == 1, "MediaPlayerEnums::MetaData is not 1 as expected");
+    static_assert(static_cast<size_t>(MediaPlayerEnums::Auto) == 2, "MediaPlayerEnums::Auto is not 2 as expected");
     ASSERT(static_cast<size_t>(enumerationValue) < WTF_ARRAY_LENGTH(values));
     return values[static_cast<size_t>(enumerationValue)];
 }

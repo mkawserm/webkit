@@ -28,10 +28,10 @@ def executor_kwargs(test_type, server_config, cache_manager, run_info_data,
                     **kwargs):
     from selenium.webdriver import DesiredCapabilities
 
-    ieOptions = {}
-    ieOptions["requireWindowFocus"] = True
+    options = {}
+    options["requireWindowFocus"] = True
     capabilities = {}
-    capabilities["se:ieOptions"] = ieOptions
+    capabilities["se:ieOptions"] = options
     executor_kwargs = base_executor_kwargs(test_type, server_config,
                                            cache_manager, **kwargs)
     executor_kwargs["close_after_done"] = True
@@ -42,8 +42,7 @@ def env_extras(**kwargs):
     return []
 
 def env_options():
-    return {"host": "web-platform.test",
-            "bind_hostname": "true",
+    return {"bind_hostname": "true",
             "supports_debugger": False}
 
 class InternetExplorerBrowser(Browser):
@@ -51,7 +50,7 @@ class InternetExplorerBrowser(Browser):
 
     def __init__(self, logger, webdriver_binary, webdriver_args=None):
         Browser.__init__(self, logger)
-        self.server = InterentExplorerDriverServer(self.logger,
+        self.server = InternetExplorerDriverServer(self.logger,
                                                    binary=webdriver_binary,
                                                    args=webdriver_args)
         self.webdriver_host = "localhost"

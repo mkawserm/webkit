@@ -140,7 +140,7 @@ TEST(ActionSheetTests, DataDetectorsLinkIsNotPresentedAsALink)
     EXPECT_TRUE(runTest(@"０８０８０８０８０８０"));
 }
 
-#if __IPHONE_OS_VERSION_MIN_REQUIRED >= 110000
+#if !PLATFORM(WATCHOS) && !PLATFORM(APPLETV)
 
 static void presentActionSheetAndChooseAction(WKWebView *webView, ActionSheetObserver *observer, CGPoint location, _WKElementActionType actionType)
 {
@@ -164,6 +164,47 @@ static void presentActionSheetAndChooseAction(WKWebView *webView, ActionSheetObs
     [copyAction runActionWithElementInfo:copyElement.get()];
 }
 
+TEST(ActionSheetTests, CopyImageElementWithHREFAndTitle)
+{
+    UIApplicationInitialize();
+    [UIPasteboard generalPasteboard].items = @[ ];
+
+    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    auto observer = adoptNS([[ActionSheetObserver alloc] init]);
+    [webView setUIDelegate:observer.get()];
+    [webView synchronouslyLoadTestPageNamed:@"image-in-link-and-input"];
+    [webView stringByEvaluatingJavaScript:@"document.querySelector('a').setAttribute('title', 'hello world')"];
+
+    presentActionSheetAndChooseAction(webView.get(), observer.get(), CGPointMake(100, 50), _WKElementActionTypeCopy);
+
+    __block bool done = false;
+    __block RetainPtr<NSItemProvider> itemProvider;
+    [webView _doAfterNextPresentationUpdate:^() {
+        NSArray <NSString *> *pasteboardTypes = [[UIPasteboard generalPasteboard] pasteboardTypes];
+        EXPECT_EQ(2UL, pasteboardTypes.count);
+        EXPECT_WK_STREQ((NSString *)kUTTypePNG, pasteboardTypes.firstObject);
+        EXPECT_WK_STREQ((NSString *)kUTTypeURL, pasteboardTypes.lastObject);
+        NSArray <NSItemProvider *> *itemProviders = [[UIPasteboard generalPasteboard] itemProviders];
+        EXPECT_EQ(1UL, itemProviders.count);
+        itemProvider = itemProviders.firstObject;
+        EXPECT_EQ(2UL, [itemProvider registeredTypeIdentifiers].count);
+        EXPECT_WK_STREQ((NSString *)kUTTypePNG, [itemProvider registeredTypeIdentifiers].firstObject);
+        EXPECT_WK_STREQ((NSString *)kUTTypeURL, [itemProvider registeredTypeIdentifiers].lastObject);
+        done = true;
+    }];
+    TestWebKitAPI::Util::run(&done);
+
+    __block bool doneLoading = false;
+    [itemProvider loadObjectOfClass:[NSURL class] completionHandler:^(id <NSItemProviderReading> result, NSError *) {
+        EXPECT_TRUE([result isKindOfClass:[NSURL class]]);
+        NSURL *url = (NSURL *)result;
+        EXPECT_WK_STREQ("https://www.apple.com/", url.absoluteString);
+        EXPECT_WK_STREQ("hello world", url._title);
+        doneLoading = true;
+    }];
+    TestWebKitAPI::Util::run(&doneLoading);
+}
+
 TEST(ActionSheetTests, CopyImageElementWithHREF)
 {
     UIApplicationInitialize();
@@ -177,6 +218,7 @@ TEST(ActionSheetTests, CopyImageElementWithHREF)
     presentActionSheetAndChooseAction(webView.get(), observer.get(), CGPointMake(100, 50), _WKElementActionTypeCopy);
 
     __block bool done = false;
+    __block RetainPtr<NSItemProvider> itemProvider;
     [webView _doAfterNextPresentationUpdate:^() {
         NSArray <NSString *> *pasteboardTypes = [[UIPasteboard generalPasteboard] pasteboardTypes];
         EXPECT_EQ(2UL, pasteboardTypes.count);
@@ -184,13 +226,23 @@ TEST(ActionSheetTests, CopyImageElementWithHREF)
         EXPECT_WK_STREQ((NSString *)kUTTypeURL, pasteboardTypes.lastObject);
         NSArray <NSItemProvider *> *itemProviders = [[UIPasteboard generalPasteboard] itemProviders];
         EXPECT_EQ(1UL, itemProviders.count);
-        NSItemProvider *itemProvider = itemProviders.firstObject;
-        EXPECT_EQ(2UL, itemProvider.registeredTypeIdentifiers.count);
-        EXPECT_WK_STREQ((NSString *)kUTTypePNG, itemProvider.registeredTypeIdentifiers.firstObject);
-        EXPECT_WK_STREQ((NSString *)kUTTypeURL, itemProvider.registeredTypeIdentifiers.lastObject);
+        itemProvider = itemProviders.firstObject;
+        EXPECT_EQ(2UL, [itemProvider registeredTypeIdentifiers].count);
+        EXPECT_WK_STREQ((NSString *)kUTTypePNG, [itemProvider registeredTypeIdentifiers].firstObject);
+        EXPECT_WK_STREQ((NSString *)kUTTypeURL, [itemProvider registeredTypeIdentifiers].lastObject);
         done = true;
     }];
     TestWebKitAPI::Util::run(&done);
+
+    __block bool doneLoading = false;
+    [itemProvider loadObjectOfClass:[NSURL class] completionHandler:^(id <NSItemProviderReading> result, NSError *) {
+        EXPECT_TRUE([result isKindOfClass:[NSURL class]]);
+        NSURL *url = (NSURL *)result;
+        EXPECT_WK_STREQ("https://www.apple.com/", url.absoluteString);
+        EXPECT_WK_STREQ("https://www.apple.com/", url._title);
+        doneLoading = true;
+    }];
+    TestWebKitAPI::Util::run(&doneLoading);
 }
 
 TEST(ActionSheetTests, CopyImageElementWithoutHREF)
@@ -220,7 +272,31 @@ TEST(ActionSheetTests, CopyImageElementWithoutHREF)
     TestWebKitAPI::Util::run(&done);
 }
 
-#endif // __IPHONE_OS_VERSION_MIN_REQUIRED >= 110000
+TEST(ActionSheetTests, CopyLinkWritesURLAndPlainText)
+{
+    UIApplicationInitialize();
+    [UIPasteboard generalPasteboard].items = @[ ];
+
+    auto webView = adoptNS([[TestWKWebView alloc] initWithFrame:CGRectMake(0, 0, 320, 500)]);
+    auto observer = adoptNS([[ActionSheetObserver alloc] init]);
+    [webView setUIDelegate:observer.get()];
+    [webView synchronouslyLoadTestPageNamed:@"link-and-input"];
+
+    presentActionSheetAndChooseAction(webView.get(), observer.get(), CGPointMake(100, 100), _WKElementActionTypeCopy);
+
+    [webView synchronouslyLoadTestPageNamed:@"DataTransfer"];
+    [webView paste:nil];
+
+    EXPECT_WK_STREQ("text/uri-list, text/plain", [webView stringByEvaluatingJavaScript:@"types.textContent"]);
+    EXPECT_WK_STREQ("(STRING, text/uri-list), (STRING, text/plain)", [webView stringByEvaluatingJavaScript:@"items.textContent"]);
+    EXPECT_WK_STREQ("", [webView stringByEvaluatingJavaScript:@"files.textContent"]);
+    EXPECT_WK_STREQ("https://www.apple.com/", [webView stringByEvaluatingJavaScript:@"textData.textContent"]);
+    EXPECT_WK_STREQ("https://www.apple.com/", [webView stringByEvaluatingJavaScript:@"urlData.textContent"]);
+    EXPECT_WK_STREQ("", [webView stringByEvaluatingJavaScript:@"htmlData.textContent"]);
+    EXPECT_WK_STREQ("", [webView stringByEvaluatingJavaScript:@"rawHTMLData.textContent"]);
+}
+
+#endif // !PLATFORM(WATCHOS) && !PLATFORM(APPLETV)
 
 } // namespace TestWebKitAPI
 

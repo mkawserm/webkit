@@ -27,6 +27,7 @@ from webkitpy.common.version import Version
 
 
 PUBLIC_TABLE = 'public'
+INTERNAL_TABLE = 'internal'
 
 
 class VersionNameMap(object):
@@ -58,9 +59,10 @@ class VersionNameMap(object):
                 'El Capitan': Version(10, 11),
                 'Sierra': Version(10, 12),
                 'High Sierra': Version(10, 13),
-                'Future': Version(10, 14),
             },
-            'ios': self._automap_to_major_version('iOS', minimum=Version(10), maximum=Version(12)),
+            'ios': self._automap_to_major_version('iOS', minimum=Version(10), maximum=Version(11)),
+            'tvos': self._automap_to_major_version('tvOS', minimum=Version(10), maximum=Version(11)),
+            'watchos': self._automap_to_major_version('watchOS', minimum=Version(1), maximum=Version(4)),
             'win': {
                 'Win10': Version(10),
                 '8.1': Version(6, 3),
@@ -91,8 +93,8 @@ class VersionNameMap(object):
         for os_name, os_version in self.mapping_for_platform(platform, table).iteritems():
             if version == os_version:
                 return os_name
-            elif version.contained_in(os_version):
-                if closest_match[1] and closest_match[1].contained_in(os_version):
+            elif version in os_version:
+                if closest_match[1] and closest_match[1] in os_version:
                     continue
                 closest_match = (os_name, os_version)
         return closest_match[0]
@@ -141,6 +143,4 @@ class VersionNameMap(object):
     def mapping_for_platform(self, platform=None, table=PUBLIC_TABLE):
         """return proper os_name: os_version mapping for platform"""
         platform = self.default_system_platform if platform is None else platform
-        assert table in self.mapping
-        assert platform in self.mapping[table]
-        return self.mapping[table][platform]
+        return self.mapping.get(table, {}).get(platform, {})

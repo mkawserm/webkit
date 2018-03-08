@@ -374,6 +374,9 @@ public:
     void setIsClosing() { m_isClosing = true; }
     bool isClosing() const { return m_isClosing; }
 
+    void setIsRestoringCachedPage(bool value) { m_isRestoringCachedPage = value; }
+    bool isRestoringCachedPage() const { return m_isRestoringCachedPage; }
+
     void addActivityStateChangeObserver(ActivityStateChangeObserver&);
     void removeActivityStateChangeObserver(ActivityStateChangeObserver&);
 
@@ -588,6 +591,11 @@ public:
     bool isLowPowerModeEnabled() const;
     WEBCORE_EXPORT void setLowPowerModeEnabledOverrideForTesting(std::optional<bool>);
 
+    WEBCORE_EXPORT void applicationWillResignActive();
+    WEBCORE_EXPORT void applicationDidEnterBackground();
+    WEBCORE_EXPORT void applicationWillEnterForeground();
+    WEBCORE_EXPORT void applicationDidBecomeActive();
+
 private:
     struct Navigation {
         String domain;
@@ -617,6 +625,8 @@ private:
     Vector<Ref<PluginViewBase>> pluginViews();
 
     void handleLowModePowerChange(bool);
+
+    void forEachDocument(const WTF::Function<void(Document&)>&);
 
     enum class TimerThrottlingState { Disabled, Enabled, EnabledIncreasing };
     void hiddenPageDOMTimerThrottlingStateChanged();
@@ -780,6 +790,7 @@ private:
     PAL::SessionID m_sessionID;
 
     bool m_isClosing { false };
+    bool m_isRestoringCachedPage { false };
 
     MediaProducer::MediaStateFlags m_mediaState { MediaProducer::IsNotPlaying };
     

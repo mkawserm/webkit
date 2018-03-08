@@ -44,9 +44,8 @@
 #include <wpe/renderer-host.h>
 #endif
 
-using namespace WebCore;
-
 namespace WebKit {
+using namespace WebCore;
 
 static void childSetupFunction(gpointer userData)
 {
@@ -94,8 +93,9 @@ void ProcessLauncher::launchProcess()
     }
 
     realExecutablePath = FileSystem::fileSystemRepresentation(executablePath);
+    GUniquePtr<gchar> processIdentifier(g_strdup_printf("%" PRIu64, m_launchOptions.processIdentifier.toUInt64()));
     GUniquePtr<gchar> webkitSocket(g_strdup_printf("%d", socketPair.client));
-    unsigned nargs = 4; // size of the argv array for g_spawn_async()
+    unsigned nargs = 5; // size of the argv array for g_spawn_async()
 
 #if PLATFORM(WPE)
     GUniquePtr<gchar> wpeSocket;
@@ -124,6 +124,7 @@ void ProcessLauncher::launchProcess()
         argv[i++] = const_cast<char*>(arg.data());
 #endif
     argv[i++] = const_cast<char*>(realExecutablePath.data());
+    argv[i++] = processIdentifier.get();
     argv[i++] = webkitSocket.get();
 #if PLATFORM(WPE)
     if (m_launchOptions.processType == ProcessLauncher::ProcessType::Web)

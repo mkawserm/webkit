@@ -37,13 +37,8 @@
 #include <pal/spi/cf/CFNetworkSPI.h>
 #endif
 
-#if USE(CURL) && PLATFORM(WIN)
-#include <winsock2.h>
-#include <windows.h>
-#endif
-
 #if USE(CURL)
-#include "ResourceHandleCurlDelegate.h"
+#include "CurlRequest.h"
 #endif
 
 #if USE(SOUP)
@@ -132,8 +127,13 @@ public:
     RetainPtr<CFURLStorageSessionRef> m_storageSession;
 #endif
 #if USE(CURL)
-    RefPtr<ResourceHandleCurlDelegate> m_delegate;
-    ResourceResponse m_response;
+    std::unique_ptr<CurlResourceHandleDelegate> m_delegate;
+    
+    bool m_cancelled { false };
+    unsigned m_redirectCount { 0 };
+    unsigned m_authFailureCount { 0 };
+    bool m_addedCacheValidationHeaders { false };
+    RefPtr<CurlRequest> m_curlRequest;
 #endif
 
 #if USE(SOUP)

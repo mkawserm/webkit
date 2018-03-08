@@ -38,6 +38,14 @@ class ExtensionStyleSheets;
 class InspectorCSSOMWrappers;
 class MediaQueryEvaluator;
 
+struct InvalidationRuleSet {
+    MatchElement matchElement;
+    std::unique_ptr<RuleSet> ruleSet;
+    Vector<const CSSSelector*> invalidationSelectors;
+
+    WTF_MAKE_FAST_ALLOCATED;
+};
+
 class DocumentRuleSets {
 public:
     DocumentRuleSets(StyleResolver&);
@@ -50,15 +58,11 @@ public:
     const RuleFeatureSet& features() const;
     RuleSet* sibling() const { return m_siblingRuleSet.get(); }
     RuleSet* uncommonAttribute() const { return m_uncommonAttributeRuleSet.get(); }
-    RuleSet* ancestorClassRules(const AtomicString& className) const;
 
-    struct AttributeRules {
-        WTF_MAKE_FAST_ALLOCATED;
-    public:
-        Vector<const CSSSelector*> attributeSelectors;
-        std::unique_ptr<RuleSet> ruleSet;
-    };
-    const AttributeRules* ancestorAttributeRulesForHTML(const AtomicString&) const;
+    const Vector<InvalidationRuleSet>* classInvalidationRuleSets(const AtomicString& className) const;
+    const Vector<InvalidationRuleSet>* attributeInvalidationRuleSets(const AtomicString& attributeName) const;
+
+    bool hasComplexSelectorsForStyleAttribute() const;
 
     void setIsForShadowScope() { m_isForShadowScope = true; }
 
@@ -90,8 +94,9 @@ private:
     mutable unsigned m_userAgentMediaQueryRuleCountOnUpdate { 0 };
     mutable std::unique_ptr<RuleSet> m_siblingRuleSet;
     mutable std::unique_ptr<RuleSet> m_uncommonAttributeRuleSet;
-    mutable HashMap<AtomicString, std::unique_ptr<RuleSet>> m_ancestorClassRuleSets;
-    mutable HashMap<AtomicString, std::unique_ptr<AttributeRules>> m_ancestorAttributeRuleSetsForHTML;
+    mutable HashMap<AtomicString, std::unique_ptr<Vector<InvalidationRuleSet>>> m_classInvalidationRuleSets;
+    mutable HashMap<AtomicString, std::unique_ptr<Vector<InvalidationRuleSet>>> m_attributeInvalidationRuleSets;
+    mutable std::optional<bool> m_cachedHasComplexSelectorsForStyleAttribute;
 };
 
 inline const RuleFeatureSet& DocumentRuleSets::features() const

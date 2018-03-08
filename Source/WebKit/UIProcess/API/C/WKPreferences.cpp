@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2016 Apple Inc. All rights reserved.
+ * Copyright (C) 2010-2018 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -515,6 +515,16 @@ bool WKPreferencesGetWebAnimationsEnabled(WKPreferencesRef preferencesRef)
     return toImpl(preferencesRef)->webAnimationsEnabled();
 }
 
+void WKPreferencesSetCSSAnimationsAndCSSTransitionsBackedByWebAnimationsEnabled(WKPreferencesRef preferencesRef, bool flag)
+{
+    toImpl(preferencesRef)->setCSSAnimationsAndCSSTransitionsBackedByWebAnimationsEnabled(flag);
+}
+
+bool WKPreferencesGetCSSAnimationsAndCSSTransitionsBackedByWebAnimationsEnabled(WKPreferencesRef preferencesRef)
+{
+    return toImpl(preferencesRef)->cssAnimationsAndCSSTransitionsBackedByWebAnimationsEnabled();
+}
+
 void WKPreferencesSetNeedsSiteSpecificQuirks(WKPreferencesRef preferencesRef, bool flag)
 {
     toImpl(preferencesRef)->setNeedsSiteSpecificQuirks(flag);
@@ -826,18 +836,12 @@ bool WKPreferencesGetInlineMediaPlaybackRequiresPlaysInlineAttribute(WKPreferenc
 
 void WKPreferencesSetBeaconAPIEnabled(WKPreferencesRef preferencesRef, bool flag)
 {
-#if ENABLE(BEACON_API)
     toImpl(preferencesRef)->setBeaconAPIEnabled(flag);
-#endif
 }
 
 bool WKPreferencesGetBeaconAPIEnabled(WKPreferencesRef preferencesRef)
 {
-#if ENABLE(BEACON_API)
     return toImpl(preferencesRef)->beaconAPIEnabled();
-#else
-    return false;
-#endif
 }
 
 void WKPreferencesSetDirectoryUploadEnabled(WKPreferencesRef preferencesRef, bool flag)
@@ -870,14 +874,14 @@ bool WKPreferencesGetModernMediaControlsEnabled(WKPreferencesRef preferencesRef)
     return toImpl(preferencesRef)->modernMediaControlsEnabled();
 }
 
-void WKPreferencesSetCredentialManagementEnabled(WKPreferencesRef preferencesRef, bool flag)
+void WKPreferencesSetWebAuthenticationEnabled(WKPreferencesRef preferencesRef, bool flag)
 {
-    toImpl(preferencesRef)->setCredentialManagementEnabled(flag);
+    toImpl(preferencesRef)->setWebAuthenticationEnabled(flag);
 }
 
-bool WKPreferencesGetCredentialManagementEnabled(WKPreferencesRef preferencesRef)
+bool WKPreferencesGetWebAuthenticationEnabled(WKPreferencesRef preferencesRef)
 {
-    return toImpl(preferencesRef)->credentialManagementEnabled();
+    return toImpl(preferencesRef)->webAuthenticationEnabled();
 }
 
 void WKPreferencesSetInvisibleMediaAutoplayPermitted(WKPreferencesRef preferencesRef, bool flag)
@@ -1209,16 +1213,6 @@ bool WKPreferencesGetAggressiveTileRetentionEnabled(WKPreferencesRef preferences
     return toImpl(preferencesRef)->aggressiveTileRetentionEnabled();
 }
 
-void WKPreferencesSetQTKitEnabled(WKPreferencesRef preferencesRef, bool enabled)
-{
-    toImpl(preferencesRef)->setQTKitEnabled(enabled);
-}
-
-bool WKPreferencesGetQTKitEnabled(WKPreferencesRef preferencesRef)
-{
-    return toImpl(preferencesRef)->isQTKitEnabled();
-}
-
 void WKPreferencesSetLogsPageMessagesToSystemConsoleEnabled(WKPreferencesRef preferencesRef, bool enabled)
 {
     toImpl(preferencesRef)->setLogsPageMessagesToSystemConsoleEnabled(enabled);
@@ -1412,12 +1406,12 @@ bool WKPreferencesGetPeerConnectionEnabled(WKPreferencesRef preferencesRef)
 
 void WKPreferencesSetWebRTCLegacyAPIEnabled(WKPreferencesRef preferencesRef, bool enabled)
 {
-    toImpl(preferencesRef)->setWebRTCLegacyAPIDisabled(!enabled);
+    toImpl(preferencesRef)->setWebRTCLegacyAPIEnabled(enabled);
 }
 
 bool WKPreferencesGetWebRTCLegacyAPIEnabled(WKPreferencesRef preferencesRef)
 {
-    return !toImpl(preferencesRef)->webRTCLegacyAPIDisabled();
+    return toImpl(preferencesRef)->webRTCLegacyAPIEnabled();
 }
 
 void WKPreferencesSetSpatialNavigationEnabled(WKPreferencesRef preferencesRef, bool enabled)
@@ -1750,6 +1744,16 @@ bool WKPreferencesGetResourceTimingEnabled(WKPreferencesRef preferencesRef)
     return toImpl(preferencesRef)->resourceTimingEnabled();
 }
 
+void WKPreferencesSetFetchAPIKeepAliveEnabled(WKPreferencesRef preferencesRef, bool flag)
+{
+    toImpl(preferencesRef)->setFetchAPIKeepAliveEnabled(flag);
+}
+
+bool WKPreferencesGetFetchAPIKeepAliveEnabled(WKPreferencesRef preferencesRef)
+{
+    return toImpl(preferencesRef)->fetchAPIKeepAliveEnabled();
+}
+
 void WKPreferencesSetSelectionPaintingWithoutSelectionGapsEnabled(WKPreferencesRef preferencesRef, bool flag)
 {
     toImpl(preferencesRef)->setSelectionPaintingWithoutSelectionGapsEnabled(flag);
@@ -1920,12 +1924,32 @@ bool WKPreferencesGetAccessibilityObjectModelEnabled(WKPreferencesRef preference
     return toImpl(preferencesRef)->accessibilityObjectModelEnabled();
 }
 
-void WKPreferencesSetShouldDisallowUserInstalledFonts(WKPreferencesRef preferencesRef, bool flag)
+void WKPreferencesSetShouldAllowUserInstalledFonts(WKPreferencesRef preferencesRef, bool flag)
 {
-    toImpl(preferencesRef)->setShouldDisallowUserInstalledFonts(flag);
+    toImpl(preferencesRef)->setShouldAllowUserInstalledFonts(flag);
 }
 
-bool WKPreferencesGetShouldDisallowUserInstalledFonts(WKPreferencesRef preferencesRef)
+bool WKPreferencesGetShouldAllowUserInstalledFonts(WKPreferencesRef preferencesRef)
 {
-    return toImpl(preferencesRef)->shouldDisallowUserInstalledFonts();
+    return toImpl(preferencesRef)->shouldAllowUserInstalledFonts();
+}
+
+void WKPreferencesSetMediaCapabilitiesEnabled(WKPreferencesRef preferencesRef, bool enabled)
+{
+    toImpl(preferencesRef)->setMediaCapabilitiesEnabled(enabled);
+}
+
+bool WKPreferencesGetMediaCapabilitiesEnabled(WKPreferencesRef preferencesRef)
+{
+    return toImpl(preferencesRef)->mediaCapabilitiesEnabled();
+}
+
+void WKPreferencesSetAllowCrossOriginSubresourcesToAskForCredentials(WKPreferencesRef preferencesRef, bool flag)
+{
+    toImpl(preferencesRef)->setAllowCrossOriginSubresourcesToAskForCredentials(flag);
+}
+
+bool WKPreferencesGetAllowCrossOriginSubresourcesToAskForCredentials(WKPreferencesRef preferencesRef)
+{
+    return toImpl(preferencesRef)->allowCrossOriginSubresourcesToAskForCredentials();
 }

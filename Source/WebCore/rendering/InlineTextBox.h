@@ -32,7 +32,7 @@ class RenderCombineText;
 class RenderedDocumentMarker;
 class TextPainter;
 struct CompositionUnderline;
-struct MarkerSubrange;
+struct MarkedText;
 struct TextPaintStyle;
 
 const unsigned short cNoTruncation = USHRT_MAX;
@@ -151,19 +151,35 @@ public:
     virtual float positionForOffset(unsigned offset) const;
 
 private:
-    void paintDecoration(GraphicsContext&, const TextRun&, const FloatPoint& textOrigin, const FloatRect& boxRect,
-        TextDecoration, TextPaintStyle, const ShadowData*, const FloatRect& clipOutRect);
-    void paintSelection(GraphicsContext&, const FloatPoint& boxOrigin, const Color&);
+    struct MarkedTextStyle;
+    struct StyledMarkedText;
 
-    void paintDocumentMarker(GraphicsContext&, const FloatPoint& boxOrigin, const MarkerSubrange&);
-    void paintDocumentMarkers(GraphicsContext&, const FloatPoint& boxOrigin, bool background);
-    void paintTextMatchMarker(GraphicsContext&, const FloatPoint& boxOrigin, const MarkerSubrange&, bool isActiveMatch);
+    enum class TextPaintPhase { Background, Foreground, Decoration };
+
+    Vector<MarkedText> collectMarkedTextsForDraggedContent();
+    Vector<MarkedText> collectMarkedTextsForDocumentMarkers(TextPaintPhase);
+
+    MarkedTextStyle computeStyleForUnmarkedMarkedText(const PaintInfo&) const;
+    StyledMarkedText resolveStyleForMarkedText(const MarkedText&, const MarkedTextStyle& baseStyle, const PaintInfo&);
+    Vector<StyledMarkedText> subdivideAndResolveStyle(const Vector<MarkedText>&, const MarkedTextStyle& baseStyle, const PaintInfo&);
+
+    using MarkedTextStylesEqualityFunction = bool (*)(const MarkedTextStyle&, const MarkedTextStyle&);
+    Vector<StyledMarkedText> coalesceAdjacentMarkedTexts(const Vector<StyledMarkedText>&, MarkedTextStylesEqualityFunction);
+
+    FloatPoint textOriginFromBoxRect(const FloatRect&) const;
+
+    void paintMarkedTexts(GraphicsContext&, TextPaintPhase, const FloatRect& boxRect, const Vector<StyledMarkedText>&, const FloatRect& decorationClipOutRect = { });
+
+    void paintPlatformDocumentMarker(GraphicsContext&, const FloatPoint& boxOrigin, const MarkedText&);
+    void paintPlatformDocumentMarkers(GraphicsContext&, const FloatPoint& boxOrigin);
 
     void paintCompositionBackground(GraphicsContext&, const FloatPoint& boxOrigin);
     void paintCompositionUnderlines(GraphicsContext&, const FloatPoint& boxOrigin) const;
     void paintCompositionUnderline(GraphicsContext&, const FloatPoint& boxOrigin, const CompositionUnderline&) const;
 
-    void paintTextSubrangeBackground(GraphicsContext&, const FloatPoint& boxOrigin, const Color&, unsigned startOffset, unsigned endOffset);
+    void paintMarkedTextBackground(GraphicsContext&, const FloatPoint& boxOrigin, const Color&, unsigned clampedStartOffset, unsigned clampedEndOffset);
+    void paintMarkedTextForeground(GraphicsContext&, const FloatRect& boxRect, const StyledMarkedText&);
+    void paintMarkedTextDecoration(GraphicsContext&, const FloatRect& boxRect, const FloatRect& clipOutRect, const StyledMarkedText&);
 
     const RenderCombineText* combinedText() const;
     const FontCascade& lineFont() const;

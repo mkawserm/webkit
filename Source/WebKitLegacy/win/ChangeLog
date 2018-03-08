@@ -1,3 +1,411 @@
+2018-03-08  Tim Horton  <timothy_horton@apple.com>
+
+        Stop linking ApplicationServices directly
+        https://bugs.webkit.org/show_bug.cgi?id=182867
+        <rdar://problem/38252142>
+
+        Reviewed by Alex Christensen.
+
+        The frameworks that we use that live inside ApplicationServices
+        have mostly moved out, so import them directly.
+
+        * FullscreenVideoController.cpp:
+
+2018-03-05  Yusuke Suzuki  <utatane.tea@gmail.com>
+
+        Fix std::make_unique / new[] using system malloc
+        https://bugs.webkit.org/show_bug.cgi?id=182975
+
+        Reviewed by JF Bastien.
+
+        Use Vector instead.
+
+        * MarshallingHelpers.cpp:
+        (MarshallingHelpers::safeArrayToStringArray):
+        (MarshallingHelpers::safeArrayToIntArray):
+        * Plugins/PluginPackageWin.cpp:
+        (WebCore::PluginPackage::fetchInfo):
+        * WebPreferences.cpp:
+        (WebPreferences::copyWebKitPreferencesToCFPreferences):
+        * WebView.cpp:
+        (WebView::onMenuCommand):
+
+2018-03-04  Yusuke Suzuki  <utatane.tea@gmail.com>
+
+        [WTF] Move currentCPUTime and sleep(Seconds) to CPUTime.h and Seconds.h respectively
+        https://bugs.webkit.org/show_bug.cgi?id=183312
+
+        Reviewed by Mark Lam.
+
+        Remove wtf/CurrentTime.h include pragma.
+
+        * WebDownload.cpp:
+        * WebDownloadCFNet.cpp:
+        * WebDropSource.cpp:
+
+2018-03-01  Yusuke Suzuki  <utatane.tea@gmail.com>
+
+        Remove monotonicallyIncreasingTime
+        https://bugs.webkit.org/show_bug.cgi?id=182911
+
+        Reviewed by Michael Catanzaro.
+
+        * FullscreenVideoController.cpp:
+        (FullscreenVideoController::LayerClient::platformCALayerAnimationStarted):
+        * Plugins/PluginMessageThrottlerWin.cpp:
+        (WebCore::PluginMessageThrottlerWin::PluginMessageThrottlerWin):
+        (WebCore::PluginMessageThrottlerWin::appendMessage):
+        * Plugins/PluginMessageThrottlerWin.h:
+        * WebView.cpp:
+        (WebView::notifyAnimationStarted):
+        * WebView.h:
+
+2018-03-01  Ross Kirsling  <ross.kirsling@sony.com>
+
+        [Win][DRT] Implement setSpatialNavigationEnabled.
+        https://bugs.webkit.org/show_bug.cgi?id=183166
+
+        Reviewed by Per Arne Vollan.
+
+        Create a non-dummy implementation of the private preference in Win WKL to support layout tests.
+
+        * Interfaces/IWebPreferencesPrivate.idl:
+        * WebPreferenceKeysPrivate.h:
+        * WebPreferences.cpp:
+        (WebPreferences::initializeDefaultSettings):
+        (WebPreferences::spatialNavigationEnabled):
+        (WebPreferences::setSpatialNavigationEnabled):
+        * WebPreferences.h:
+        * WebView.cpp:
+        (WebView::notifyPreferencesChanged):
+
+2018-02-28  Alex Christensen  <achristensen@webkit.org>
+
+        Reduce use of NetworkingContext in WebKit
+        https://bugs.webkit.org/show_bug.cgi?id=183213
+
+        Reviewed by Brady Eidson.
+
+        * Plugins/PluginView.cpp:
+        (WebCore::PluginView::getValueForURL):
+
+2018-02-26  Don Olmstead  <don.olmstead@sony.com>
+
+        Fix WebCore includes within WebKitLegacy
+        https://bugs.webkit.org/show_bug.cgi?id=183147
+
+        Reviewed by Tim Horton.
+
+        * Plugins/PluginDatabase.cpp:
+        * Plugins/PluginDatabaseWin.cpp:
+        * Plugins/PluginDebug.cpp:
+        * Plugins/PluginDebug.h:
+        * Plugins/PluginMainThreadScheduler.cpp:
+        * Plugins/PluginMessageThrottlerWin.cpp:
+        * Plugins/PluginMessageThrottlerWin.h:
+        * Plugins/PluginPackage.cpp:
+        * Plugins/PluginPackage.h:
+        * Plugins/PluginPackageWin.cpp:
+        * Plugins/PluginStream.cpp:
+        * Plugins/PluginStream.h:
+        * Plugins/PluginView.cpp:
+        * Plugins/PluginView.h:
+        * Plugins/PluginViewWin.cpp:
+        * Plugins/npapi.cpp:
+        * WebCoreSupport/WebChromeClient.cpp:
+        * WebCoreSupport/WebContextMenuClient.cpp:
+        * WebCoreSupport/WebFrameLoaderClient.cpp:
+        * WebCoreSupport/WebInspectorClient.cpp:
+        * WebCoreSupport/WebPlatformStrategies.cpp:
+        * WebFrame.cpp:
+        * WebKitMessageLoop.cpp:
+        * WebView.cpp:
+        * storage/WebDatabaseProvider.cpp:
+
+2018-02-22  Yusuke Suzuki  <utatane.tea@gmail.com>
+
+        Remove currentTime() / currentTimeMS()
+        https://bugs.webkit.org/show_bug.cgi?id=183052
+
+        Reviewed by Mark Lam.
+
+        * WebCoreSupport/WebFrameLoaderClient.cpp:
+        (WebFrameLoaderClient::dispatchWillPerformClientRedirect):
+        * WebCoreSupport/WebFrameLoaderClient.h:
+        * WebDownload.h:
+        * WebDownloadCFNet.cpp:
+        (WebDownload::didStart):
+        (WebDownload::didReceiveData):
+        (WebDownload::didFinish):
+
+2018-02-21  Don Olmstead  <don.olmstead@sony.com>
+
+        [CMake][Win] Use cmakeconfig.h rather than config.h and Platform.h
+        https://bugs.webkit.org/show_bug.cgi?id=182883
+
+        Reviewed by Per Arne Vollan.
+
+        * WebKitPrefix.h:
+
+2018-02-16  Dean Jackson  <dino@apple.com>
+
+        Use OPENGL macros to be more clear about which OpenGL/ES WebGL uses on Cocoa
+        https://bugs.webkit.org/show_bug.cgi?id=182894
+
+        Reviewed by Tim Horton.
+
+        Rename OPENGL_ES_2 to OPENGL_ES.
+
+        * WebCoreSupport/AcceleratedCompositingContext.cpp:
+
+2018-02-16  Youenn Fablet  <youenn@apple.com>
+
+        Allow specifying which plug-ins are supported
+        https://bugs.webkit.org/show_bug.cgi?id=182748
+
+        Reviewed by Chris Dumez.
+
+        * WebCoreSupport/WebPluginInfoProvider.cpp:
+        (WebPluginInfoProvider::getPluginInfo):
+        * WebCoreSupport/WebPluginInfoProvider.h:
+
+2018-02-15  Don Olmstead  <don.olmstead@sony.com>
+
+        WebCore headers should not be included relatively within dependent projects
+        https://bugs.webkit.org/show_bug.cgi?id=182805
+
+        Reviewed by Chris Dumez.
+
+        * FullscreenVideoController.h:
+
+2018-02-13  Commit Queue  <commit-queue@webkit.org>
+
+        Unreviewed, rolling out r228431.
+        https://bugs.webkit.org/show_bug.cgi?id=182766
+
+        Regressed CMake build stability (Requested by dolmstead on
+        #webkit).
+
+        Reverted changeset:
+
+        "[CMake] Make WebCore headers copies"
+        https://bugs.webkit.org/show_bug.cgi?id=182512
+        https://trac.webkit.org/changeset/228431
+
+2018-02-13  Don Olmstead  <don.olmstead@sony.com>
+
+        [CMake] Make WebCore headers copies
+        https://bugs.webkit.org/show_bug.cgi?id=182512
+
+        Reviewed by Keith Miller.
+
+        * FullscreenVideoController.h:
+        * Plugins/PluginDatabase.cpp:
+        * Plugins/PluginDatabaseWin.cpp:
+        * Plugins/PluginDebug.cpp:
+        * Plugins/PluginMainThreadScheduler.cpp:
+        * Plugins/PluginMessageThrottlerWin.cpp:
+        * Plugins/PluginPackage.cpp:
+        * Plugins/PluginPackageWin.cpp:
+        * Plugins/PluginStream.cpp:
+        * Plugins/PluginView.cpp:
+        * Plugins/PluginViewWin.cpp:
+        * Plugins/npapi.cpp:
+        * WebKitMessageLoop.cpp:
+        * WebKitPrefix.h:
+        * storage/WebDatabaseProvider.cpp:
+
+2018-01-13  Darin Adler  <darin@apple.com>
+
+        Event improvements
+        https://bugs.webkit.org/show_bug.cgi?id=179591
+
+        Reviewed by Chris Dumez.
+
+        * Plugins/PluginView.cpp: Removed include of ScriptValue.h.
+        * WebFrame.cpp: Ditto.
+
+        * WebScriptWorld.cpp:
+        (WebScriptWorld::scriptWorldForGlobalContext): Pass reference to currentWorld.
+
+        * WebView.cpp: Removed include of ScriptValue.h.
+        (WebView::handleEditingKeyboardEvent): Updated for name change from
+        keyEvent to underlyingPlatformEvent.
+
+2018-02-06  Don Olmstead  <don.olmstead@sony.com>
+
+        Remove WebCore/ForwardingHeaders directory
+        https://bugs.webkit.org/show_bug.cgi?id=182347
+
+        Reviewed by Keith Miller.
+
+        * Plugins/PluginView.cpp:
+        * Plugins/PluginViewWin.cpp:
+        * WebCoreSupport/WebInspectorClient.cpp:
+        * WebCoreSupport/WebInspectorClient.h:
+        * WebFrame.cpp:
+        * WebJavaScriptCollector.cpp:
+        * WebView.cpp:
+
+2018-01-24  Wenson Hsieh  <wenson_hsieh@apple.com>
+
+        Unreviewed, another attempt to fix the Windows build after r227479.
+
+        * WebFrame.cpp:
+        (WebFrame::elementWithName):
+
+2018-01-24  Wenson Hsieh  <wenson_hsieh@apple.com>
+
+        Unreviewed, try to fix the Windows build after r227479.
+
+        Tweak some Windows WebKitLegacy code to use updated HTMLFormElement methods.
+
+        * WebFrame.cpp:
+        (WebFrame::elementWithName):
+        (WebFrame::controlsInForm):
+
+2018-01-19  Per Arne Vollan  <pvollan@apple.com>
+
+        [Win] Compile error: 'WebKitQuartzCoreAdditionsBase.h' not found.
+        https://bugs.webkit.org/show_bug.cgi?id=181859
+        <rdar://problem/36659886>
+
+        Reviewed by Alex Christensen.
+        
+        Use local include patch.
+
+        * WebKitQuartzCoreAdditions/API/WKCACFImage.h:
+        * WebKitQuartzCoreAdditions/API/WKCACFView.h:
+        * WebKitQuartzCoreAdditions/API/WKCACFViewPrivate.h:
+
+2018-01-17  Youenn Fablet  <youenn@apple.com>
+
+        Put fetch Request.keepalive behind a runtime flag
+        https://bugs.webkit.org/show_bug.cgi?id=181592
+
+        Reviewed by Chris Dumez.
+
+        * WebPreferences.cpp:
+        (WebPreferences::fetchAPIKeepAliveEnabled):
+        (WebPreferences::setFetchAPIKeepAliveEnabled):
+        * WebPreferences.h:
+        * WebView.cpp:
+        (WebView::notifyPreferencesChanged):
+
+2018-01-17  Wenson Hsieh  <wenson_hsieh@apple.com>
+
+        Add injected bundle SPI to replace subresource URLs when dropping or pasting rich content
+        https://bugs.webkit.org/show_bug.cgi?id=181637
+        <rdar://problem/36508471>
+
+        Reviewed by Tim Horton.
+
+        Add a stub implementation of replacementURLForResource. See WebCore and WebKit ChangeLogs for more detail.
+
+        * WebCoreSupport/WebEditorClient.cpp:
+        (WebEditorClient::replacementURLForResource):
+        * WebCoreSupport/WebEditorClient.h:
+
+2017-12-28  Yusuke Suzuki  <utatane.tea@gmail.com>
+
+        Remove std::chrono completely
+        https://bugs.webkit.org/show_bug.cgi?id=181186
+
+        Reviewed by Alex Christensen.
+
+        * Plugins/PluginStream.cpp:
+        (WebCore::lastModifiedDateMS):
+
+2018-01-02  Fujii Hironori  <Hironori.Fujii@sony.com>
+
+        [Win] Web Inspector: Wrongly placed inspector highlight in HiDPI
+        https://bugs.webkit.org/show_bug.cgi?id=181173
+
+        Reviewed by Alex Christensen.
+
+        * WebNodeHighlight.cpp:
+        (WebNodeHighlight::update): Scale the GraphicsContext.
+
+2017-12-26  Carlos Alberto Lopez Perez  <clopez@igalia.com>
+
+        REGRESSION(r225769): Build error with constexpr std::max // std::min in libdstdc++4
+        https://bugs.webkit.org/show_bug.cgi?id=181160
+
+        Reviewed by Myles C. Maxfield.
+
+        * Plugins/PluginView.cpp:
+        (WebCore::PluginView::handlePost): Disambiguate usage of min (Use the version from stdlib).
+
+2017-12-21  Jeremy Jones  <jeremyj@apple.com>
+
+        Enable picture-in-picture from inline element on suspend.
+        https://bugs.webkit.org/show_bug.cgi?id=180942
+        rdar://problem/34745234
+
+        Reviewed by Jer Noble.
+
+        Update signature of enterVideoFullscreenForVideoElement.
+
+        * WebCoreSupport/WebChromeClient.cpp:
+        (WebChromeClient::enterVideoFullscreenForVideoElement):
+        * WebCoreSupport/WebChromeClient.h:
+
+2017-12-18  Fujii Hironori  <Hironori.Fujii@sony.com>
+
+        [Win] SHOULD NEVER BE REACHED in WebFrameLoaderClient::pageID
+        https://bugs.webkit.org/show_bug.cgi?id=180926
+
+        Reviewed by Tim Horton.
+
+        Apply the same change of mac/WebCoreSupport/WebFrameLoaderClient.mm
+        of r225934 to win/WebCoreSupport/WebFrameLoaderClient.cpp.
+
+        * WebCoreSupport/WebFrameLoaderClient.cpp:
+        (WebFrameLoaderClient::frameID const): Removed RELEASE_ASSERT_NOT_REACHED.
+        (WebFrameLoaderClient::pageID const): Ditto.
+
+2017-12-16  Yusuke Suzuki  <utatane.tea@gmail.com>
+
+        Remove unnecessary boolean result of start() functions
+        https://bugs.webkit.org/show_bug.cgi?id=180856
+
+        Reviewed by Darin Adler.
+
+        It always returns true.
+
+        * WebDownloadCurl.cpp:
+        (WebDownload::start):
+
+2017-12-14  John Wilander  <wilander@apple.com>
+
+        Storage Access API: Implement frame-specific access in the document.cookie layer
+        https://bugs.webkit.org/show_bug.cgi?id=180682
+        <rdar://problem/35982257>
+
+        Reviewed by Alex Christensen.
+
+        CookiesStrategy::cookiesForDOM(), CookiesStrategy::setCookiesFromDOM(),
+        CookiesStrategy::cookieRequestHeaderFieldValue(), and
+        CookiesStrategy::getRawCookies() now take optional parameters for
+        frameID and pageID to allow frame-specific scoping of cookies.
+
+        This change makes the return values of FrameLoaderClient::frameID()
+        and FrameLoaderClient::pageID() std::optional<uint64_t> so that
+        WebCore can call those getters and get the right return values in
+        WebKit and std:nullopt in WebKitLegacy.
+
+        * WebCoreSupport/WebFrameLoaderClient.cpp:
+        (WebFrameLoaderClient::pageID const):
+        (WebFrameLoaderClient::frameID const):
+            Now return an optional.
+        * WebCoreSupport/WebFrameLoaderClient.h:
+        * WebCoreSupport/WebPlatformStrategies.cpp:
+        (WebPlatformStrategies::cookiesForDOM):
+        (WebPlatformStrategies::setCookiesFromDOM):
+        (WebPlatformStrategies::cookieRequestHeaderFieldValue):
+        (WebPlatformStrategies::getRawCookies):
+        * WebCoreSupport/WebPlatformStrategies.h:
+
 2017-12-12  Yusuke Suzuki  <utatane.tea@gmail.com>
 
         [WTF] Thread::create should have Thread::tryCreate

@@ -37,13 +37,14 @@ class RequestAnimationFrameCallback;
 class VRDisplayCapabilities;
 class VREyeParameters;
 class VRFrameData;
+class VRPlatformDisplay;
 class VRPose;
 class VRStageParameters;
 struct VRLayerInit;
 
 class VRDisplay : public RefCounted<VRDisplay>, public EventTargetWithInlineData, public ActiveDOMObject {
 public:
-    static Ref<VRDisplay> create(ScriptExecutionContext&);
+    static Ref<VRDisplay> create(ScriptExecutionContext&, WeakPtr<VRPlatformDisplay>&&);
 
     virtual ~VRDisplay();
 
@@ -54,22 +55,22 @@ public:
     bool isPresenting() const;
 
     const VRDisplayCapabilities& capabilities() const;
-    VRStageParameters* stageParameters() const;
+    RefPtr<VRStageParameters> stageParameters() const;
 
     const VREyeParameters& getEyeParameters(VREye) const;
 
-    unsigned displayId() const;
-    const String& displayName() const;
+    const String& displayName() const { return m_displayName; }
+    uint32_t displayId() const { return m_displayId; }
 
     bool getFrameData(VRFrameData&) const;
 
     Ref<VRPose> getPose() const;
     void resetPose();
 
-    double depthNear() const;
-    void setDepthNear(double);
-    double depthFar() const;
-    void setDepthFar(double);
+    double depthNear() const { return m_depthNear; }
+    void setDepthNear(double depthNear) { m_depthNear = depthNear; }
+    double depthFar() const { return m_depthFar; }
+    void setDepthFar(double depthFar) { m_depthFar = depthFar; }
 
     long requestAnimationFrame(Ref<RequestAnimationFrameCallback>&&);
     void cancelAnimationFrame(unsigned);
@@ -82,7 +83,7 @@ public:
     void submitFrame();
 
 private:
-    VRDisplay(ScriptExecutionContext&);
+    VRDisplay(ScriptExecutionContext&, WeakPtr<VRPlatformDisplay>&&);
 
     // EventTarget
     EventTargetInterface eventTargetInterface() const override { return VRDisplayEventTargetInterfaceType; }
@@ -96,8 +97,20 @@ private:
     bool canSuspendForDocumentSuspension() const override;
     void stop() override;
 
-    Ref<VRDisplayCapabilities> m_capabilities;
-    Ref<VREyeParameters> m_eyeParameters;
+    WeakPtr<VRPlatformDisplay> m_display;
+
+    RefPtr<VRDisplayCapabilities> m_capabilities;
+    // We could likely store just one of the two following ones as the values should be identical
+    // (except the sign of the eye to head transform offset).
+    RefPtr<VREyeParameters> m_leftEyeParameters;
+    RefPtr<VREyeParameters> m_rightEyeParameters;
+    RefPtr<VRStageParameters> m_stageParameters;
+
+    String m_displayName;
+    uint32_t m_displayId;
+
+    double m_depthNear { 0.01 }; // Default value from the specs.
+    double m_depthFar { 10000 }; // Default value from the specs.
 };
 
 } // namespace WebCore

@@ -212,6 +212,11 @@ void WebChromeClient::makeFirstResponder()
     m_page.send(Messages::WebPageProxy::MakeFirstResponder());
 }
 
+void WebChromeClient::assistiveTechnologyMakeFirstResponder()
+{
+    m_page.send(Messages::WebPageProxy::AssistiveTechnologyMakeFirstResponder());
+}
+
 #endif    
 
 bool WebChromeClient::canTakeFocus(FocusDirection)
@@ -633,6 +638,7 @@ bool WebChromeClient::shouldUnavailablePluginMessageBeButton(RenderEmbeddedObjec
 
     case RenderEmbeddedObject::PluginCrashed:
     case RenderEmbeddedObject::PluginBlockedByContentSecurityPolicy:
+    case RenderEmbeddedObject::UnsupportedPlugin:
         return false;
     }
 
@@ -710,6 +716,13 @@ void WebChromeClient::print(Frame& frame)
 #endif
 
     m_page.sendSync(Messages::WebPageProxy::PrintFrame(webFrame->frameID()), Messages::WebPageProxy::PrintFrame::Reply(), Seconds::infinity(), IPC::SendSyncOption::InformPlatformProcessWillSuspend);
+}
+
+void WebChromeClient::testIncomingSyncIPCMessageWhileWaitingForSyncReply()
+{
+    bool wasHandled = false;
+    WebProcess::singleton().parentProcessConnection()->sendSync(Messages::WebProcessProxy::TestIncomingSyncIPCMessageWhileWaitingForSyncReply(), Messages::WebProcessProxy::TestIncomingSyncIPCMessageWhileWaitingForSyncReply::Reply(wasHandled), 0, Seconds::infinity(), IPC::SendSyncOption::DoNotProcessIncomingMessagesWhenWaitingForSyncReply);
+    RELEASE_ASSERT(wasHandled);
 }
 
 void WebChromeClient::exceededDatabaseQuota(Frame& frame, const String& databaseName, DatabaseDetails details)
@@ -941,6 +954,11 @@ bool WebChromeClient::supportsVideoFullscreen(HTMLMediaElementEnums::VideoFullsc
     return m_page.videoFullscreenManager().supportsVideoFullscreen(mode);
 }
 
+bool WebChromeClient::supportsVideoFullscreenStandby()
+{
+    return m_page.videoFullscreenManager().supportsVideoFullscreenStandby();
+}
+
 void WebChromeClient::setUpPlaybackControlsManager(HTMLMediaElement& mediaElement)
 {
     m_page.playbackSessionManager().setUpPlaybackControlsManager(mediaElement);
@@ -951,10 +969,14 @@ void WebChromeClient::clearPlaybackControlsManager()
     m_page.playbackSessionManager().clearPlaybackControlsManager();
 }
 
-void WebChromeClient::enterVideoFullscreenForVideoElement(HTMLVideoElement& videoElement, HTMLMediaElementEnums::VideoFullscreenMode mode)
+void WebChromeClient::enterVideoFullscreenForVideoElement(HTMLVideoElement& videoElement, HTMLMediaElementEnums::VideoFullscreenMode mode, bool standby)
 {
+#if ENABLE(FULLSCREEN_API) && PLATFORM(IOS)
+    ASSERT(standby || mode != HTMLMediaElementEnums::VideoFullscreenModeNone);
+#else
     ASSERT(mode != HTMLMediaElementEnums::VideoFullscreenModeNone);
-    m_page.videoFullscreenManager().enterVideoFullscreenForVideoElement(videoElement, mode);
+#endif
+    m_page.videoFullscreenManager().enterVideoFullscreenForVideoElement(videoElement, mode, standby);
 }
 
 void WebChromeClient::exitVideoFullscreenForVideoElement(HTMLVideoElement& videoElement)
@@ -1189,18 +1211,6 @@ void WebChromeClient::handleAutoFillButtonClick(HTMLInputElement& inputElement)
     m_page.send(Messages::WebPageProxy::HandleAutoFillButtonClick(UserData(WebProcess::singleton().transformObjectsToHandles(userData.get()).get())));
 }
 
-void WebChromeClient::handleAlternativePresentationButtonClick(Node& node)
-{
-    RefPtr<API::Object> userData;
-
-    // Notify the bundle client.
-    auto nodeHandle = InjectedBundleNodeHandle::getOrCreate(node);
-    m_page.injectedBundleUIClient().didClickAlternativePresentationButton(m_page, nodeHandle.get(), userData);
-
-    // Notify the UIProcess.
-    m_page.send(Messages::WebPageProxy::HandleAlternativePresentationButtonClick(UserData(WebProcess::singleton().transformObjectsToHandles(userData.get()).get())));
-}
-
 #if ENABLE(WIRELESS_PLAYBACK_TARGET) && !PLATFORM(IOS)
 
 void WebChromeClient::addPlaybackTargetPickerClient(uint64_t contextId)
@@ -1256,14 +1266,16 @@ void WebChromeClient::didInvalidateDocumentMarkerRects()
     m_page.findController().didInvalidateDocumentMarkerRects();
 }
 
-void WebChromeClient::hasStorageAccess(String&& subFrameHost, String&& topFrameHost, WTF::CompletionHandler<void (bool)>&& callback)
+#if HAVE(CFNETWORK_STORAGE_PARTITIONING)
+void WebChromeClient::hasStorageAccess(String&& subFrameHost, String&& topFrameHost, uint64_t frameID, uint64_t pageID, WTF::CompletionHandler<void (bool)>&& callback)
 {
-    m_page.hasStorageAccess(WTFMove(subFrameHost), WTFMove(topFrameHost), WTFMove(callback));
+    m_page.hasStorageAccess(WTFMove(subFrameHost), WTFMove(topFrameHost), frameID, pageID, WTFMove(callback));
 }
 
 void WebChromeClient::requestStorageAccess(String&& subFrameHost, String&& topFrameHost, uint64_t frameID, uint64_t pageID, WTF::CompletionHandler<void (bool)>&& callback)
 {
     m_page.requestStorageAccess(WTFMove(subFrameHost), WTFMove(topFrameHost), frameID, pageID, WTFMove(callback));
 }
+#endif
 
 } // namespace WebKit

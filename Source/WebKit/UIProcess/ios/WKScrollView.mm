@@ -34,6 +34,10 @@
 
 using namespace WebKit;
 
+#if USE(APPLE_INTERNAL_SDK)
+#import <WebKitAdditions/WKScrollViewAdditionsBefore.mm>
+#endif
+
 @interface UIScrollView (UIScrollViewInternalHack)
 - (CGFloat)_rubberBandOffsetForOffset:(CGFloat)newOffset maxOffset:(CGFloat)maxOffset minOffset:(CGFloat)minOffset range:(CGFloat)range outside:(BOOL *)outside;
 @end
@@ -75,12 +79,23 @@ using namespace WebKit;
     return [super respondsToSelector:aSelector] || [_internalDelegate respondsToSelector:aSelector] || [_externalDelegate.get() respondsToSelector:aSelector];
 }
 
+static BOOL shouldForwardScrollViewDelegateMethodToExternalDelegate(SEL selector)
+{
+    // We cannot forward viewForZoomingInScrollView: to the external delegate, because WebKit
+    // owns the content of the scroll view, and depends on viewForZoomingInScrollView being the
+    // content view. Any other view returned by the external delegate will break our behavior.
+    if (sel_isEqual(selector, @selector(viewForZoomingInScrollView:)))
+        return NO;
+
+    return YES;
+}
+
 - (void)forwardInvocation:(NSInvocation *)anInvocation
 {
     auto externalDelegate = _externalDelegate.get();
     SEL aSelector = [anInvocation selector];
     BOOL internalDelegateWillRespond = [_internalDelegate respondsToSelector:aSelector];
-    BOOL externalDelegateWillRespond = [externalDelegate respondsToSelector:aSelector];
+    BOOL externalDelegateWillRespond = shouldForwardScrollViewDelegateMethodToExternalDelegate(aSelector) && [externalDelegate respondsToSelector:aSelector];
 
     if (internalDelegateWillRespond && externalDelegateWillRespond)
         [_internalDelegate _willInvokeUIScrollViewDelegateCallback];
@@ -100,7 +115,7 @@ using namespace WebKit;
 - (id)forwardingTargetForSelector:(SEL)aSelector
 {
     BOOL internalDelegateWillRespond = [_internalDelegate respondsToSelector:aSelector];
-    BOOL externalDelegateWillRespond = [_externalDelegate.get() respondsToSelector:aSelector];
+    BOOL externalDelegateWillRespond = shouldForwardScrollViewDelegateMethodToExternalDelegate(aSelector) && [_externalDelegate.get() respondsToSelector:aSelector];
 
     if (internalDelegateWillRespond && !externalDelegateWillRespond)
         return _internalDelegate;
@@ -134,6 +149,10 @@ using namespace WebKit;
     _contentInsetAdjustmentBehaviorWasExternallyOverridden = (self.contentInsetAdjustmentBehavior != UIScrollViewContentInsetAdjustmentAutomatic);
 #endif
     
+#if ENABLE(EXTRA_ZOOM_MODE)
+    [self _configureScrollingForExtraZoomMode];
+#endif
+
     return self;
 }
 
@@ -310,6 +329,20 @@ static inline bool valuesAreWithinOnePixel(CGFloat a, CGFloat b)
     if (!CGSizeEqualToSize(rubberbandAmount, CGSizeZero))
         [self _restoreContentOffsetWithRubberbandAmount:rubberbandAmount];
 }
+
+- (void)addGestureRecognizer:(UIGestureRecognizer *)gestureRecognizer
+{
+    [super addGestureRecognizer:gestureRecognizer];
+
+#if ENABLE(EXTRA_ZOOM_MODE)
+    if (gestureRecognizer == self.pinchGestureRecognizer)
+        gestureRecognizer.allowedTouchTypes = @[];
+#endif
+}
+
+#if USE(APPLE_INTERNAL_SDK)
+#import <WebKitAdditions/WKScrollViewAdditionsAfter.mm>
+#endif
 
 @end
 

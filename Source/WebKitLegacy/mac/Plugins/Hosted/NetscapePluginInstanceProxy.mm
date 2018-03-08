@@ -56,13 +56,12 @@
 #import <WebCore/FrameTree.h>
 #import <WebCore/PlatformEventFactoryMac.h>
 #import <WebCore/ProxyServer.h>
-#import <WebCore/SecurityOrigin.h>
 #import <WebCore/ScriptController.h>
+#import <WebCore/SecurityOrigin.h>
 #import <WebCore/URL.h>
 #import <WebCore/UserGestureIndicator.h>
 #import <WebCore/npruntime_impl.h>
 #import <WebCore/runtime_object.h>
-#import <bindings/ScriptValue.h>
 #import <mach/mach.h>
 #import <utility>
 #import <wtf/NeverDestroyed.h>
@@ -1617,7 +1616,7 @@ bool NetscapePluginInstanceProxy::getProxy(data_t urlData, mach_msg_type_number_
     if (!url)
         return false;
 
-    Vector<ProxyServer> proxyServers = proxyServersForURL(url, 0);
+    Vector<ProxyServer> proxyServers = proxyServersForURL(url);
     WTF::CString proxyStringUTF8 = toString(proxyServers).utf8();
 
     proxyLength = proxyStringUTF8.length();

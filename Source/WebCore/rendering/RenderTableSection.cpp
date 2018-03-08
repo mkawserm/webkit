@@ -35,6 +35,7 @@
 #include "RenderTableCol.h"
 #include "RenderTableRow.h"
 #include "RenderTextControl.h"
+#include "RenderTreeBuilder.h"
 #include "RenderView.h"
 #include "StyleInheritedData.h"
 #include <limits>
@@ -120,45 +121,8 @@ void RenderTableSection::willBeRemovedFromTree()
     setNeedsCellRecalc();
 }
 
-void RenderTableSection::addChild(RenderPtr<RenderObject> child, RenderObject* beforeChild)
+void RenderTableSection::willInsertTableRow(RenderTableRow& child, RenderObject* beforeChild)
 {
-    if (!is<RenderTableRow>(*child)) {
-        RenderObject* last = beforeChild;
-        if (!last)
-            last = lastRow();
-        if (is<RenderTableRow>(last) && last->isAnonymous() && !last->isBeforeOrAfterContent()) {
-            RenderTableRow& row = downcast<RenderTableRow>(*last);
-            if (beforeChild == &row)
-                beforeChild = row.firstCell();
-            row.addChild(WTFMove(child), beforeChild);
-            return;
-        }
-
-        if (beforeChild && !beforeChild->isAnonymous() && beforeChild->parent() == this) {
-            RenderObject* row = beforeChild->previousSibling();
-            if (is<RenderTableRow>(row) && row->isAnonymous()) {
-                downcast<RenderTableRow>(*row).addChild(WTFMove(child));
-                return;
-            }
-        }
-
-        // If beforeChild is inside an anonymous cell/row, insert into the cell or into
-        // the anonymous row containing it, if there is one.
-        RenderObject* lastBox = last;
-        while (lastBox && lastBox->parent()->isAnonymous() && !is<RenderTableRow>(*lastBox))
-            lastBox = lastBox->parent();
-        if (is<RenderTableRow>(lastBox) && lastBox->isAnonymous() && !lastBox->isBeforeOrAfterContent()) {
-            downcast<RenderTableRow>(*lastBox).addChild(WTFMove(child), beforeChild);
-            return;
-        }
-
-        auto newRow = RenderTableRow::createAnonymousWithParentRenderer(*this);
-        auto& row = *newRow;
-        addChild(WTFMove(newRow), beforeChild);
-        row.addChild(WTFMove(child));
-        return;
-    }
-
     if (beforeChild)
         setNeedsCellRecalc();
 
@@ -168,18 +132,11 @@ void RenderTableSection::addChild(RenderPtr<RenderObject> child, RenderObject* b
 
     ensureRows(m_cRow);
 
-    RenderTableRow& row = downcast<RenderTableRow>(*child);
-    m_grid[insertionRow].rowRenderer = &row;
-    row.setRowIndex(insertionRow);
+    m_grid[insertionRow].rowRenderer = &child;
+    child.setRowIndex(insertionRow);
 
     if (!beforeChild)
         setRowLogicalHeightToRowStyleLogicalHeightIfNotRelative(m_grid[insertionRow]);
-
-    if (beforeChild && beforeChild->parent() != this)
-        beforeChild = splitAnonymousBoxesAroundChild(beforeChild);
-
-    ASSERT(!beforeChild || is<RenderTableRow>(*beforeChild));
-    RenderBox::addChild(WTFMove(child), beforeChild);
 }
 
 void RenderTableSection::ensureRows(unsigned numRows)
@@ -1383,6 +1340,16 @@ void RenderTableSection::recalcCells()
 
     m_grid.shrinkToFit();
     setNeedsLayout();
+}
+
+void RenderTableSection::removeRedundantColumns()
+{
+    auto maximumNumberOfColumns = table()->numEffCols();
+    for (auto& rowItem : m_grid) {
+        if (rowItem.row.size() <= maximumNumberOfColumns)
+            continue;
+        rowItem.row.resize(maximumNumberOfColumns);
+    }
 }
 
 // FIXME: This function could be made O(1) in certain cases (like for the non-most-constrainive cells' case).

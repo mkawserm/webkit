@@ -235,7 +235,9 @@ NSString * const DataInteractionStartEventName = @"dragstart";
 
 @end
 
-@implementation MockDragSession
+@implementation MockDragSession {
+    RetainPtr<id> _localContext;
+}
 
 - (instancetype)initWithWindow:(UIWindow *)window allowMove:(BOOL)allowMove
 {
@@ -257,6 +259,16 @@ NSString * const DataInteractionStartEventName = @"dragstart";
 - (id)session
 {
     return nil;
+}
+
+- (id)localContext
+{
+    return _localContext.get();
+}
+
+- (void)setLocalContext:(id)localContext
+{
+    _localContext = localContext;
 }
 
 @end
@@ -317,10 +329,12 @@ static NSArray *dataInteractionEventNames()
     _currentProgress = 0;
     _isDoneWithCurrentRun = false;
     _observedEventNames = adoptNS([[NSMutableArray alloc] init]);
+    _insertedAttachments = adoptNS([[NSMutableArray alloc] init]);
+    _removedAttachments = adoptNS([[NSMutableArray alloc] init]);
     _finalSelectionRects = @[ ];
     _dragSession = nil;
     _dropSession = nil;
-    _shouldPerformOperation = NO;
+    _currentDropProposal = nil;
     _lastKnownDragCaretRect = CGRectZero;
     _remainingAdditionalItemRequestLocationsByProgress = nil;
     _queuedAdditionalItemRequestLocations = adoptNS([[NSMutableArray alloc] init]);
@@ -339,7 +353,7 @@ static NSArray *dataInteractionEventNames()
     _currentProgress = 1;
     _isDoneWithCurrentRun = true;
     if (_dragSession)
-        [[_webView dragInteractionDelegate] dragInteraction:[_webView dragInteraction] session:_dragSession.get() didEndWithOperation:UIDropOperationCopy];
+        [[_webView dragInteractionDelegate] dragInteraction:[_webView dragInteraction] session:_dragSession.get() didEndWithOperation:UIDropOperationCancel];
 }
 
 - (void)runFrom:(CGPoint)startLocation to:(CGPoint)endLocation
@@ -403,7 +417,8 @@ static NSArray *dataInteractionEventNames()
 - (void)_concludeDataInteractionAndPerformOperationIfNecessary
 {
     _lastKnownDragCaretRect = [_webView _dragCaretRect];
-    if (_shouldPerformOperation) {
+    auto operation = [_currentDropProposal operation];
+    if (operation != UIDropOperationCancel && operation != UIDropOperationForbidden) {
         [[_webView dropInteractionDelegate] dropInteraction:[_webView dropInteraction] performDrop:_dropSession.get()];
         _phase = DataInteractionPerforming;
     } else {
@@ -414,7 +429,7 @@ static NSArray *dataInteractionEventNames()
     [[_webView dropInteractionDelegate] dropInteraction:[_webView dropInteraction] sessionDidEnd:_dropSession.get()];
 
     if (_dragSession)
-        [[_webView dragInteractionDelegate] dragInteraction:[_webView dragInteraction] session:_dragSession.get() didEndWithOperation:UIDropOperationCopy];
+        [[_webView dragInteractionDelegate] dragInteraction:[_webView dragInteraction] session:_dragSession.get() didEndWithOperation:operation];
 }
 
 - (void)_enqueuePendingAdditionalItemRequestLocations
@@ -512,8 +527,9 @@ static NSArray *dataInteractionEventNames()
         _phase = DataInteractionEntered;
         break;
     case DataInteractionEntered: {
-        auto operation = static_cast<UIDropOperation>([[_webView dropInteractionDelegate] dropInteraction:[_webView dropInteraction] sessionDidUpdate:_dropSession.get()].operation);
-        _shouldPerformOperation = operation == UIDropOperationCopy || ([_dropSession allowsMoveOperation] && operation != UIDropOperationCancel);
+        _currentDropProposal = [[_webView dropInteractionDelegate] dropInteraction:[_webView dropInteraction] sessionDidUpdate:_dropSession.get()];
+        if (![self shouldAllowMoveOperation] && [_currentDropProposal operation] == UIDropOperationMove)
+            _currentDropProposal = adoptNS([[UIDropProposal alloc] initWithDropOperation:UIDropOperationCancel]);
         break;
     }
     default:
@@ -576,6 +592,21 @@ static NSArray *dataInteractionEventNames()
     Util::run(&_isDoneWaitingForInputSession);
 }
 
+- (NSArray<_WKAttachment *> *)insertedAttachments
+{
+    return _insertedAttachments.get();
+}
+
+- (NSArray<_WKAttachment *> *)removedAttachments
+{
+    return _removedAttachments.get();
+}
+
+- (void)endDataTransfer
+{
+    [[_webView dragInteractionDelegate] dragInteraction:[_webView dragInteraction] sessionDidTransferItems:_dragSession.get()];
+}
+
 #pragma mark - WKUIDelegatePrivate
 
 - (void)_webView:(WKWebView *)webView dataInteractionOperationWasHandled:(BOOL)handled forSession:(id)session itemProviders:(NSArray<UIItemProvider *> *)itemProviders
@@ -615,6 +646,16 @@ static NSArray *dataInteractionEventNames()
 - (NSArray<UIDragItem *> *)_webView:(WKWebView *)webView willPerformDropWithSession:(id <UIDropSession>)session
 {
     return self.overridePerformDropBlock ? self.overridePerformDropBlock(session) : session.items;
+}
+
+- (void)_webView:(WKWebView *)webView didInsertAttachment:(_WKAttachment *)attachment
+{
+    [_insertedAttachments addObject:attachment];
+}
+
+- (void)_webView:(WKWebView *)webView didRemoveAttachment:(_WKAttachment *)attachment
+{
+    [_removedAttachments addObject:attachment];
 }
 
 #pragma mark - _WKInputDelegate

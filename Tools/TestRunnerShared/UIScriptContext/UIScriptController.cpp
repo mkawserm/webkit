@@ -457,6 +457,14 @@ void UIScriptController::addViewToWindow(JSValueRef)
 {
 }
 
+void UIScriptController::beginBackSwipe(JSValueRef callback)
+{
+}
+
+void UIScriptController::completeBackSwipe(JSValueRef callback)
+{
+}
+
 #endif // !PLATFORM(COCOA)
 
 #if !PLATFORM(MAC)
@@ -469,16 +477,21 @@ void UIScriptController::replaceTextAtRange(JSStringRef, int, int)
 {
 }
 
-void UIScriptController::beginBackSwipe(JSValueRef callback)
-{
-}
-
-void UIScriptController::completeBackSwipe(JSValueRef callback)
-{
-}
-
 void UIScriptController::platformPlayBackEventStream(JSStringRef, JSValueRef)
 {
+}
+
+void UIScriptController::firstResponderSuppressionForWebView(bool)
+{
+}
+
+void UIScriptController::makeWindowContentViewFirstResponder()
+{
+}
+
+bool UIScriptController::isWindowContentViewFirstResponder() const
+{
+    return false;
 }
 
 #endif

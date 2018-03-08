@@ -30,12 +30,12 @@
 #import "WebPreferences.h"
 #import "WebView.h"
 #import "WebViewInternal.h"
+#import <JavaScriptCore/InitializeThreading.h>
 #import <WebCore/ApplicationCacheStorage.h>
 #import <WebCore/CredentialStorage.h>
 #import <WebCore/CrossOriginPreflightResultCache.h>
 #import <WebCore/Document.h>
 #import <WebCore/MemoryCache.h>
-#import <runtime/InitializeThreading.h>
 #import <wtf/MainThread.h>
 #import <wtf/RunLoop.h>
 
@@ -162,10 +162,8 @@
 {
     if (!image || !url || ![[url absoluteString] length])
         return false;
-    WebCore::SecurityOrigin* topOrigin = nullptr;
-    if (frame)
-        topOrigin = &core(frame)->document()->topOrigin();
-    return WebCore::MemoryCache::singleton().addImageToCache(RetainPtr<CGImageRef>(image), url, topOrigin ? topOrigin->domainForCachePartition() : emptyString());
+
+    return WebCore::MemoryCache::singleton().addImageToCache(RetainPtr<CGImageRef>(image), url, frame ? core(frame)->document()->domainForCachePartition() : emptyString());
 }
 
 + (void)removeImageFromCacheForURL:(NSURL *)url
@@ -177,10 +175,8 @@
 {
     if (!url)
         return;
-    WebCore::SecurityOrigin* topOrigin = nullptr;
-    if (frame)
-        topOrigin = &core(frame)->document()->topOrigin();
-    WebCore::MemoryCache::singleton().removeImageFromCache(url, topOrigin ? topOrigin->domainForCachePartition() : emptyString());
+
+    return WebCore::MemoryCache::singleton().removeImageFromCache(url, frame ? core(frame)->document()->domainForCachePartition() : emptyString());
 }
 
 + (CGImageRef)imageForURL:(NSURL *)url

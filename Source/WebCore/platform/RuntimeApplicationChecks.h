@@ -83,6 +83,8 @@ WEBCORE_EXPORT bool isWebProcess();
 bool isIBooks();
 bool isIBooksStorytime();
 WEBCORE_EXPORT bool isTheSecretSocietyHiddenMystery();
+WEBCORE_EXPORT bool isCardiogram();
+WEBCORE_EXPORT bool isNike();
 
 } // IOSApplication
 

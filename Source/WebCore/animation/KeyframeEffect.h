@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 Apple Inc. All rights reserved.
+ * Copyright (C) 2017-2018 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -25,49 +25,28 @@
 
 #pragma once
 
-#include "AnimationEffect.h"
-#include "CSSPropertyBlendingClient.h"
-#include "KeyframeList.h"
-#include "RenderStyle.h"
+#include "CompositeOperation.h"
+#include "IterationCompositeOperation.h"
+#include "KeyframeEffectOptions.h"
+#include "KeyframeEffectReadOnly.h"
 #include <wtf/Ref.h>
 
 namespace WebCore {
 
 class Element;
 
-class KeyframeEffect final : public AnimationEffect
-    , public CSSPropertyBlendingClient {
+class KeyframeEffect final : public KeyframeEffectReadOnly {
 public:
-    static ExceptionOr<Ref<KeyframeEffect>> create(JSC::ExecState&, Element*, JSC::Strong<JSC::JSObject>&&);
+    static ExceptionOr<Ref<KeyframeEffect>> create(JSC::ExecState&, Element*, JSC::Strong<JSC::JSObject>&&, std::optional<Variant<double, KeyframeEffectOptions>>&&);
+    static ExceptionOr<Ref<KeyframeEffect>> create(JSC::ExecState&, Ref<KeyframeEffectReadOnly>&&);
     ~KeyframeEffect() { }
 
-    Element* target() const { return m_target.get(); }
+    void setIterationComposite(IterationCompositeOperation iterationCompositeOperation) { m_iterationCompositeOperation = iterationCompositeOperation; }
+    void setComposite(CompositeOperation compositeOperation) { m_compositeOperation = compositeOperation; }
     ExceptionOr<void> setKeyframes(JSC::ExecState&, JSC::Strong<JSC::JSObject>&&);
-    void getAnimatedStyle(std::unique_ptr<RenderStyle>& animatedStyle);
-    void applyAtLocalTime(Seconds, RenderStyle&) override;
-    void startOrStopAccelerated();
-    bool isRunningAccelerated() const { return m_startedAccelerated; }
-
-    RenderElement* renderer() const override;
-    const RenderStyle& currentStyle() const override;
-    bool isAccelerated() const override { return false; }
-    bool filterFunctionListsMatch() const override { return false; }
-    bool transformFunctionListsMatch() const override { return false; }
-#if ENABLE(FILTERS_LEVEL_2)
-    bool backdropFilterFunctionListsMatch() const override { return false; }
-#endif
 
 private:
-    KeyframeEffect(Element*);
-    ExceptionOr<void> processKeyframes(JSC::ExecState&, JSC::Strong<JSC::JSObject>&&);
-    void computeStackingContextImpact();
-    bool shouldRunAccelerated();
-
-    RefPtr<Element> m_target;
-    KeyframeList m_keyframes;
-    bool m_triggersStackingContext { false };
-    bool m_started { false };
-    bool m_startedAccelerated { false };
+    KeyframeEffect(Ref<AnimationEffectTimingReadOnly>&&, Element*);
 
 };
 

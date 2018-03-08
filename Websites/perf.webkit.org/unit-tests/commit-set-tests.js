@@ -3,17 +3,30 @@
 const assert = require('assert');
 require('../tools/js/v3-models.js');
 const MockModels = require('./resources/mock-v3-models.js').MockModels;
+const MockRemoteAPI = require('../unit-tests/resources/mock-remote-api.js').MockRemoteAPI;
 
 function createPatch()
 {
-    return new UploadedFile(453, {'createdAt': new Date('2017-05-01T19:16:53Z'), 'filename': 'patch.dat', 'extension': '.dat', 'author': 'some user',
+    return UploadedFile.ensureSingleton(453, {'createdAt': new Date('2017-05-01T19:16:53Z'), 'filename': 'patch.dat', 'extension': '.dat', 'author': 'some user',
         size: 534637, sha256: '169463c8125e07c577110fe144ecd63942eb9472d438fc0014f474245e5df8a1'});
+}
+
+function createAnotherPatch()
+{
+    return UploadedFile.ensureSingleton(454, {'createdAt': new Date('2017-05-01T19:16:53Z'), 'filename': 'patch.dat', 'extension': '.dat', 'author': 'some user',
+        size: 534611, sha256: '169463c8125e07c577110fe144ecd63942eb9472d438fc0014f474245e5dfaaa'});
 }
 
 function createRoot()
 {
-    return new UploadedFile(456, {'createdAt': new Date('2017-05-01T21:03:27Z'), 'filename': 'root.dat', 'extension': '.dat', 'author': 'some user',
+    return UploadedFile.ensureSingleton(456, {'createdAt': new Date('2017-05-01T21:03:27Z'), 'filename': 'root.dat', 'extension': '.dat', 'author': 'some user',
         size: 16452234, sha256: '03eed7a8494ab8794c44b7d4308e55448fc56f4d6c175809ba968f78f656d58d'});
+}
+
+function createAnotherRoot()
+{
+    return UploadedFile.ensureSingleton(457, {'createdAt': new Date('2017-05-01T21:03:27Z'), 'filename': 'root.dat', 'extension': '.dat', 'author': 'some user',
+        size: 16452111, sha256: '03eed7a8494ab8794c44b7d4308e55448fc56f4d6c175809ba968f78f656dbbb'});
 }
 
 function customCommitSetWithoutOwnedCommit()
@@ -50,6 +63,369 @@ function customCommitSetWithOwnedRepositoryHasSameNameAsNotOwnedRepository()
     customCommitSet.setRevisionForRepository(MockModels.ownedWebkit, 'owned-200805', null, '10.11.4 15E65');
     return customCommitSet;
 }
+
+function ownerCommit()
+{
+    return CommitLog.ensureSingleton(5, {
+        repository: MockModels.ownerRepository,
+        revision: 'owner-commit-0',
+        ownsCommits: true,
+        time: null,
+    });
+}
+
+function partialOwnerCommit()
+{
+    return CommitLog.ensureSingleton(5, {
+        repository: MockModels.ownerRepository,
+        revision: 'owner-commit-0',
+        ownsCommits: null,
+        time: +(new Date('2016-05-13T00:55:57.841344Z')),
+    });
+}
+
+function ownedCommit()
+{
+    return new CommitLog(6, {
+        repository: MockModels.ownedRepository,
+        revision: 'owned-commit-0',
+        ownsCommits: null,
+        time: 1456932774000
+    });
+}
+
+function webkitCommit()
+{
+    return CommitLog.ensureSingleton(2017, {
+        repository: MockModels.webkit,
+        revision: 'webkit-commit-0',
+        ownsCommits: false,
+        time: 1456932773000
+    });
+}
+
+describe('CommitSet', () => {
+    MockRemoteAPI.inject();
+    MockModels.inject();
+
+    function oneCommitSet()
+    {
+        return CommitSet.ensureSingleton(1, {
+            revisionItems: [{ commit: webkitCommit(), requiresBuild: false }],
+            customRoots: []
+        });
+    }
+
+    function anotherCommitSet()
+    {
+        return CommitSet.ensureSingleton(2, {
+            revisionItems: [{ commit: webkitCommit(), requiresBuild: false }],
+            customRoots: []
+        });
+    }
+
+    function commitSetWithPatch()
+    {
+        return CommitSet.ensureSingleton(3, {
+            revisionItems: [{ commit: webkitCommit(), requiresBuild: false, patch: createPatch() }],
+            customRoots: []
+        });
+    }
+
+    function commitSetWithAnotherPatch()
+    {
+        return CommitSet.ensureSingleton(4, {
+            revisionItems: [{ commit: webkitCommit(), requiresBuild: false, patch: createAnotherPatch() }],
+            customRoots: []
+        });
+    }
+
+    function commitSetWithRoot()
+    {
+        return CommitSet.ensureSingleton(5, {
+            revisionItems: [{ commit: webkitCommit(), requiresBuild: false }],
+            customRoots: [createRoot()]
+        });
+    }
+
+    function anotherCommitSetWithRoot()
+    {
+        return CommitSet.ensureSingleton(6, {
+            revisionItems: [{ commit: webkitCommit(), requiresBuild: false }],
+            customRoots: [createAnotherRoot()]
+        });
+    }
+
+    function oneMeasurementCommitSet()
+    {
+        return MeasurementCommitSet.ensureSingleton(1, [
+            [2017, 11, 'webkit-commit-0', 1456932773000]
+        ]);
+    }
+
+    describe('equals', () => {
+        it('should return false if patches for same repository are different', () => {
+            assert(!commitSetWithPatch().equals(commitSetWithAnotherPatch()));
+            assert(!commitSetWithAnotherPatch().equals(commitSetWithPatch()));
+        });
+
+        it('should return false if patch is only specified in one commit set', () => {
+            assert(!oneCommitSet().equals(commitSetWithPatch()));
+            assert(!commitSetWithPatch().equals(oneCommitSet()));
+        });
+
+        it('should return false if roots for same repository are different', () => {
+            assert(!commitSetWithRoot().equals(anotherCommitSetWithRoot()));
+            assert(!anotherCommitSetWithRoot().equals(commitSetWithRoot()));
+        });
+
+        it('should return false if root is only specified in one commit set', () => {
+            assert(!commitSetWithRoot().equals(oneCommitSet()));
+            assert(!oneCommitSet().equals(commitSetWithRoot()));
+        });
+
+        it('should return true when comparing two identical commit set', () => {
+            assert(oneCommitSet().equals(oneCommitSet()));
+            assert(anotherCommitSet().equals(anotherCommitSet()));
+            assert(commitSetWithPatch().equals(commitSetWithPatch()));
+            assert(commitSetWithAnotherPatch().equals(commitSetWithAnotherPatch()));
+            assert(oneMeasurementCommitSet().equals(oneMeasurementCommitSet()));
+            assert(commitSetWithRoot().equals(commitSetWithRoot()));
+            assert(anotherCommitSetWithRoot().equals(anotherCommitSetWithRoot()));
+        });
+
+        it('should be able to compare between CommitSet and MeasurementCommitSet', () => {
+            assert(oneCommitSet().equals(oneMeasurementCommitSet()));
+            assert(oneMeasurementCommitSet().equals(oneCommitSet()));
+        });
+    })
+});
+
+describe('IntermediateCommitSet', () => {
+    MockRemoteAPI.inject();
+    MockModels.inject();
+
+    describe('setCommitForRepository', () => {
+        it('should allow set commit for owner repository', () => {
+            const commitSet = new IntermediateCommitSet(new CommitSet);
+            const commit = ownerCommit();
+            commitSet.setCommitForRepository(MockModels.ownerRepository, commit);
+            assert.equal(commit, commitSet.commitForRepository(MockModels.ownerRepository));
+        });
+
+        it('should allow set commit for owned repository', () => {
+            const commitSet = new IntermediateCommitSet(new CommitSet);
+            const commit = ownerCommit();
+
+            const fetchingPromise = commit.fetchOwnedCommits();
+            const requests = MockRemoteAPI.requests;
+            assert.equal(requests.length, 1);
+            assert.equal(requests[0].url, '../api/commits/111/owned-commits?owner-revision=owner-commit-0');
+            assert.equal(requests[0].method, 'GET');
+
+            requests[0].resolve({commits: [{
+                id: 233,
+                repository: MockModels.ownedRepository.id(),
+                revision: '6f8b0dbbda95a440503b88db1dd03dad3a7b07fb',
+                time: +(new Date('2016-05-13T00:55:57.841344Z')),
+            }]});
+
+            return fetchingPromise.then(() => {
+                const ownedCommit = commit.ownedCommits()[0];
+                commitSet.setCommitForRepository(MockModels.ownerRepository, commit);
+                commitSet.setCommitForRepository(MockModels.ownedRepository, ownedCommit);
+                assert.equal(commit, commitSet.commitForRepository(MockModels.ownerRepository));
+                assert.equal(ownedCommit, commitSet.commitForRepository(MockModels.ownedRepository));
+                assert.deepEqual(commitSet.repositories(), [MockModels.ownerRepository, MockModels.ownedRepository]);
+            });
+        });
+    });
+
+    describe('fetchCommitLogs', () => {
+
+        it('should fetch CommitLog object with owned commits information',  () => {
+            const commit = partialOwnerCommit();
+            assert.equal(commit.ownsCommits(), null);
+            const owned = ownedCommit();
+
+            const commitSet = CommitSet.ensureSingleton('53246456', {revisionItems: [{commit}, {commit: owned, ownerCommit: commit}]});
+            const intermediateCommitSet =new IntermediateCommitSet(commitSet);
+            const fetchingPromise = intermediateCommitSet.fetchCommitLogs();
+
+            const requests = MockRemoteAPI.requests;
+            assert.equal(requests.length, 2);
+            assert.equal(requests[0].url, '/api/commits/111/owner-commit-0');
+            assert.equal(requests[0].method, 'GET');
+            assert.equal(requests[1].url, '/api/commits/112/owned-commit-0');
+            assert.equal(requests[1].method, 'GET');
+
+            requests[0].resolve({commits: [{
+                id: 5,
+                repository: MockModels.ownerRepository,
+                revision: 'owner-commit-0',
+                ownsCommits: true,
+                time: +(new Date('2016-05-13T00:55:57.841344Z')),
+            }]});
+            requests[1].resolve({commits: [{
+                id: 6,
+                repository: MockModels.ownedRepository,
+                revision: 'owned-commit-0',
+                ownsCommits: false,
+                time: 1456932774000,
+            }]});
+
+            return MockRemoteAPI.waitForRequest().then(() => {
+                assert.equal(requests.length, 3);
+                assert.equal(requests[2].url, '../api/commits/111/owned-commits?owner-revision=owner-commit-0');
+                assert.equal(requests[2].method, 'GET');
+
+                requests[2].resolve({commits: [{
+                    id: 6,
+                    repository: MockModels.ownedRepository.id(),
+                    revision: 'owned-commit-0',
+                    ownsCommits: false,
+                    time: 1456932774000,
+                }]});
+                return fetchingPromise;
+            }).then(() => {
+                assert(commit.ownsCommits());
+                assert.equal(commit.ownedCommits().length, 1);
+                assert.equal(commit.ownedCommits()[0], owned);
+                assert.equal(owned.ownerCommit(), commit);
+                assert.equal(owned.repository(), MockModels.ownedRepository);
+                assert.equal(intermediateCommitSet.commitForRepository(MockModels.ownedRepository), owned);
+                assert.equal(intermediateCommitSet.ownerCommitForRepository(MockModels.ownedRepository), commit);
+                assert.deepEqual(intermediateCommitSet.repositories(), [MockModels.ownerRepository, MockModels.ownedRepository]);
+            });
+        });
+    });
+
+    describe('updateRevisionForOwnerRepository', () => {
+
+        it('should update CommitSet based on the latest invocation', () => {
+            const commitSet = new IntermediateCommitSet(new CommitSet);
+            const firstUpdatePromise = commitSet.updateRevisionForOwnerRepository(MockModels.webkit, 'webkit-commit-0');
+            const secondUpdatePromise = commitSet.updateRevisionForOwnerRepository(MockModels.webkit, 'webkit-commit-1');
+            const requests = MockRemoteAPI.requests;
+
+            assert(requests.length, 2);
+            assert.equal(requests[0].url, '/api/commits/11/webkit-commit-0');
+            assert.equal(requests[0].method, 'GET');
+            assert.equal(requests[1].url, '/api/commits/11/webkit-commit-1');
+            assert.equal(requests[1].method, 'GET');
+
+            requests[1].resolve({commits: [{
+                id: 2018,
+                repository: MockModels.webkit.id(),
+                revision: 'webkit-commit-1',
+                ownsCommits: false,
+                time: 1456932774000,
+            }]});
+
+            let commit = null;
+            return secondUpdatePromise.then(() => {
+                commit = commitSet.commitForRepository(MockModels.webkit);
+
+                requests[0].resolve({commits: [{
+                    id: 2017,
+                    repository: MockModels.webkit.id(),
+                    revision: 'webkit-commit-0',
+                    ownsCommits: false,
+                    time: 1456932773000,
+                }]});
+
+                assert.equal(commit.revision(), 'webkit-commit-1');
+                assert.equal(commit.id(), 2018);
+
+                return firstUpdatePromise;
+            }).then(() => {
+                const currentCommit = commitSet.commitForRepository(MockModels.webkit);
+                assert.equal(commit, currentCommit);
+            });
+        });
+
+    });
+
+    describe('removeCommitForRepository', () => {
+        it('should remove owned commits when owner commit is removed', () => {
+            const commitSet = new IntermediateCommitSet(new CommitSet);
+            const commit = ownerCommit();
+
+            const fetchingPromise = commit.fetchOwnedCommits();
+            const requests = MockRemoteAPI.requests;
+            assert.equal(requests.length, 1);
+            assert.equal(requests[0].url, '../api/commits/111/owned-commits?owner-revision=owner-commit-0');
+            assert.equal(requests[0].method, 'GET');
+
+            requests[0].resolve({commits: [{
+                id: 233,
+                repository: MockModels.ownedRepository.id(),
+                revision: '6f8b0dbbda95a440503b88db1dd03dad3a7b07fb',
+                ownsCommits: true
+            }]});
+
+            return fetchingPromise.then(() => {
+                commitSet.setCommitForRepository(MockModels.ownerRepository, commit);
+                commitSet.setCommitForRepository(MockModels.ownedRepository, commit.ownedCommits()[0]);
+                commitSet.removeCommitForRepository(MockModels.ownerRepository);
+                assert.deepEqual(commitSet.repositories(), []);
+            });
+        });
+
+        it('should not remove owner commits when owned commit is removed', () => {
+            const commitSet = new IntermediateCommitSet(new CommitSet);
+            const commit = ownerCommit();
+
+            const fetchingPromise = commit.fetchOwnedCommits();
+            const requests = MockRemoteAPI.requests;
+            assert.equal(requests.length, 1);
+            assert.equal(requests[0].url, '../api/commits/111/owned-commits?owner-revision=owner-commit-0');
+            assert.equal(requests[0].method, 'GET');
+
+            requests[0].resolve({commits: [{
+                id: 233,
+                repository: MockModels.ownedRepository.id(),
+                revision: '6f8b0dbbda95a440503b88db1dd03dad3a7b07fb',
+                time: +(new Date('2016-05-13T00:55:57.841344Z')),
+            }]});
+
+            return fetchingPromise.then(() => {
+                commitSet.setCommitForRepository(MockModels.ownerRepository, commit);
+                commitSet.setCommitForRepository(MockModels.ownedRepository, commit.ownedCommits()[0]);
+                commitSet.removeCommitForRepository(MockModels.ownedRepository);
+                assert.deepEqual(commitSet.repositories(), [MockModels.ownerRepository]);
+            });
+        });
+
+        it('should not update commit set for repository if removeCommitForRepository called before updateRevisionForOwnerRepository finishes', () => {
+            const commitSet = new IntermediateCommitSet(new CommitSet);
+            const commit = webkitCommit();
+            commitSet.setCommitForRepository(MockModels.webkit, commit);
+            const updatePromise = commitSet.updateRevisionForOwnerRepository(MockModels.webkit, 'webkit-commit-1');
+
+            commitSet.removeCommitForRepository(MockModels.webkit);
+
+            const requests = MockRemoteAPI.requests;
+            assert.equal(requests[0].url, '/api/commits/11/webkit-commit-1');
+            assert.equal(requests[0].method, 'GET');
+
+            requests[0].resolve({commits: [{
+                id: 2018,
+                repository: MockModels.webkit.id(),
+                revision: 'webkit-commit-1',
+                ownsCommits: false,
+                time: 1456932774000,
+            }]});
+
+            return updatePromise.then(() => {
+                assert.deepEqual(commitSet.repositories(), []);
+                assert(!commitSet.commitForRepository(MockModels.webkit));
+            });
+        });
+
+    });
+
+});
 
 describe('CustomCommitSet', () => {
     MockModels.inject();
