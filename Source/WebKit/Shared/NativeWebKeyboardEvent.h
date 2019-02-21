@@ -2,6 +2,7 @@
  * Copyright (C) 2010 Apple Inc. All rights reserved.
  * Portions Copyright (c) 2010 Motorola Mobility, Inc.  All rights reserved.
  * Copyright (C) 2011, 2012 Igalia S.L
+ * Copyright (C) 2018 Sony Interactive Entertainment Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -46,13 +47,17 @@ struct KeypressCommand;
 typedef union _GdkEvent GdkEvent;
 #endif
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
 #include <wtf/RetainPtr.h>
 OBJC_CLASS WebEvent;
 #endif
 
-#if PLATFORM(WPE)
+#if USE(LIBWPE)
 struct wpe_input_keyboard_event;
+#endif
+
+#if PLATFORM(WIN)
+#include <windows.h>
 #endif
 
 namespace WebKit {
@@ -64,10 +69,12 @@ public:
 #elif PLATFORM(GTK)
     NativeWebKeyboardEvent(const NativeWebKeyboardEvent&);
     NativeWebKeyboardEvent(GdkEvent*, const WebCore::CompositionResults&, InputMethodFilter::EventFakedForComposition, Vector<String>&& commands);
-#elif PLATFORM(IOS)
+#elif PLATFORM(IOS_FAMILY)
     NativeWebKeyboardEvent(::WebEvent *);
-#elif PLATFORM(WPE)
+#elif USE(LIBWPE)
     NativeWebKeyboardEvent(struct wpe_input_keyboard_event*);
+#elif PLATFORM(WIN)
+    NativeWebKeyboardEvent(HWND, UINT message, WPARAM, LPARAM);
 #endif
 
 #if USE(APPKIT)
@@ -76,8 +83,10 @@ public:
     GdkEvent* nativeEvent() const { return m_nativeEvent.get(); }
     const WebCore::CompositionResults& compositionResults() const  { return m_compositionResults; }
     bool isFakeEventForComposition() const { return m_fakeEventForComposition; }
-#elif PLATFORM(IOS)
+#elif PLATFORM(IOS_FAMILY)
     ::WebEvent* nativeEvent() const { return m_nativeEvent.get(); }
+#elif PLATFORM(WIN)
+    const MSG* nativeEvent() const { return &m_nativeEvent; }
 #else
     const void* nativeEvent() const { return nullptr; }
 #endif
@@ -89,8 +98,10 @@ private:
     GUniquePtr<GdkEvent> m_nativeEvent;
     WebCore::CompositionResults m_compositionResults;
     bool m_fakeEventForComposition;
-#elif PLATFORM(IOS)
+#elif PLATFORM(IOS_FAMILY)
     RetainPtr<::WebEvent> m_nativeEvent;
+#elif PLATFORM(WIN)
+    MSG m_nativeEvent;
 #endif
 };
 

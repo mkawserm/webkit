@@ -33,6 +33,7 @@
 #include "IntPoint.h"
 #include "IntSize.h"
 #include "Logging.h"
+#include "MIMETypeRegistry.h"
 #include "SharedBuffer.h"
 #include "UTIRegistry.h"
 #include <pal/spi/cg/ImageIOSPI.h>
@@ -175,7 +176,7 @@ String ImageDecoderCG::uti() const
 
 String ImageDecoderCG::filenameExtension() const
 {
-    return WebCore::preferredExtensionForImageSourceType(uti());
+    return WebCore::preferredExtensionForImageType(uti());
 }
 
 EncodedDataStatus ImageDecoderCG::encodedDataStatus() const
@@ -198,7 +199,7 @@ EncodedDataStatus ImageDecoderCG::encodedDataStatus() const
         return EncodedDataStatus::Error;
 
     case kCGImageStatusIncomplete: {
-        if (!isAllowedImageUTI(uti))
+        if (!isSupportedImageType(uti))
             return EncodedDataStatus::Error;
 
         RetainPtr<CFDictionaryRef> image0Properties = adoptCF(CGImageSourceCopyPropertiesAtIndex(m_nativeDecoder.get(), 0, imageSourceOptions().get()));
@@ -212,7 +213,7 @@ EncodedDataStatus ImageDecoderCG::encodedDataStatus() const
     }
 
     case kCGImageStatusComplete:
-        if (!isAllowedImageUTI(uti))
+        if (!isSupportedImageType(uti))
             return EncodedDataStatus::Error;
 
         return EncodedDataStatus::Complete;
@@ -245,7 +246,9 @@ RepetitionCount ImageDecoderCG::repetitionCount() const
         CFNumberGetValue(num, kCFNumberIntType, &loopCount);
         
         // A property with value 0 means loop forever.
-        return loopCount ? loopCount : RepetitionCountInfinite;
+        // For loopCount > 0, the specs is not clear about it. But it looks the meaning
+        // is: play once + loop loopCount which is equivalent to play loopCount + 1.
+        return loopCount ? loopCount + 1 : RepetitionCountInfinite;
     }
     
     CFDictionaryRef pngProperties = (CFDictionaryRef)CFDictionaryGetValue(properties.get(), kCGImagePropertyPNGDictionary);
@@ -263,23 +266,23 @@ RepetitionCount ImageDecoderCG::repetitionCount() const
     return RepetitionCountNone;
 }
 
-std::optional<IntPoint> ImageDecoderCG::hotSpot() const
+Optional<IntPoint> ImageDecoderCG::hotSpot() const
 {
     RetainPtr<CFDictionaryRef> properties = adoptCF(CGImageSourceCopyPropertiesAtIndex(m_nativeDecoder.get(), 0, imageSourceOptions().get()));
     if (!properties)
-        return std::nullopt;
+        return WTF::nullopt;
     
     int x = -1, y = -1;
     CFNumberRef num = (CFNumberRef)CFDictionaryGetValue(properties.get(), CFSTR("hotspotX"));
     if (!num || !CFNumberGetValue(num, kCFNumberIntType, &x))
-        return std::nullopt;
+        return WTF::nullopt;
     
     num = (CFNumberRef)CFDictionaryGetValue(properties.get(), CFSTR("hotspotY"));
     if (!num || !CFNumberGetValue(num, kCFNumberIntType, &y))
-        return std::nullopt;
+        return WTF::nullopt;
     
     if (x < 0 || y < 0)
-        return std::nullopt;
+        return WTF::nullopt;
     
     return IntPoint(x, y);
 }
@@ -363,23 +366,6 @@ Seconds ImageDecoderCG::frameDurationAtIndex(size_t index) const
 
 bool ImageDecoderCG::frameAllowSubsamplingAtIndex(size_t) const
 {
-    RetainPtr<CFDictionaryRef> properties = adoptCF(CGImageSourceCopyPropertiesAtIndex(m_nativeDecoder.get(), 0, imageSourceOptions().get()));
-    if (!properties)
-        return false;
-    
-    CFDictionaryRef jfifProperties = static_cast<CFDictionaryRef>(CFDictionaryGetValue(properties.get(), kCGImagePropertyJFIFDictionary));
-    if (jfifProperties) {
-        CFBooleanRef isProgCFBool = static_cast<CFBooleanRef>(CFDictionaryGetValue(jfifProperties, kCGImagePropertyJFIFIsProgressive));
-        if (isProgCFBool) {
-            bool isProgressive = CFBooleanGetValue(isProgCFBool);
-            // Workaround for <rdar://problem/5184655> - Hang rendering very large progressive JPEG. Decoding progressive
-            // images hangs for a very long time right now. Until this is fixed, don't sub-sample progressive images. This
-            // will cause them to fail our large image check and they won't be decoded.
-            // FIXME: Remove once underlying issue is fixed (<rdar://problem/5191418>)
-            return !isProgressive;
-        }
-    }
-    
     return true;
 }
 
@@ -419,7 +405,7 @@ NativeImagePtr ImageDecoderCG::createFrameImageAtIndex(size_t index, Subsampling
         
         if (decodingOptions.hasSizeForDrawing()) {
             // See which size is smaller: the image native size or the sizeForDrawing.
-            std::optional<IntSize> sizeForDrawing = decodingOptions.sizeForDrawing();
+            Optional<IntSize> sizeForDrawing = decodingOptions.sizeForDrawing();
             if (sizeForDrawing.value().unclampedArea() < size.unclampedArea())
                 size = sizeForDrawing.value();
         }
@@ -432,20 +418,15 @@ NativeImagePtr ImageDecoderCG::createFrameImageAtIndex(size_t index, Subsampling
         image = adoptCF(CGImageSourceCreateImageAtIndex(m_nativeDecoder.get(), index, options.get()));
     }
     
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
     // <rdar://problem/7371198> - CoreGraphics changed the default caching behaviour in iOS 4.0 to kCGImageCachingTransient
     // which caused a performance regression for us since the images had to be resampled/recreated every time we called
     // CGContextDrawImage. We now tell CG to cache the drawn images. See also <rdar://problem/14366755> -
     // CoreGraphics needs to un-deprecate kCGImageCachingTemporary since it's still not the default.
-#if COMPILER(CLANG)
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
-#endif
+    ALLOW_DEPRECATED_DECLARATIONS_BEGIN
     CGImageSetCachingFlags(image.get(), kCGImageCachingTemporary);
-#if COMPILER(CLANG)
-#pragma clang diagnostic pop
-#endif
-#endif // PLATFORM(IOS)
+    ALLOW_DEPRECATED_DECLARATIONS_END
+#endif // PLATFORM(IOS_FAMILY)
     
     String uti = this->uti();
     if (uti.isEmpty() || uti != "public.xbitmap-image")
@@ -476,6 +457,11 @@ void ImageDecoderCG::setData(SharedBuffer& data, bool allDataReceived)
     RetainPtr<CGDataProviderRef> dataProvider = adoptCF(CGDataProviderCreateDirect(&data, data.size(), &providerCallbacks));
     CGImageSourceUpdateDataProvider(m_nativeDecoder.get(), dataProvider.get(), allDataReceived);
 #endif
+}
+
+bool ImageDecoderCG::canDecodeType(const String& mimeType)
+{
+    return MIMETypeRegistry::isSupportedImageMIMEType(mimeType);
 }
 
 }

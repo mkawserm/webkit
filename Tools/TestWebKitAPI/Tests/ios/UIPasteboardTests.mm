@@ -25,7 +25,7 @@
 
 #include "config.h"
 
-#if PLATFORM(IOS) && WK_API_ENABLED
+#if PLATFORM(IOS_FAMILY) && WK_API_ENABLED
 
 #import "PlatformUtilities.h"
 #import "TestWKWebView.h"
@@ -174,7 +174,7 @@ TEST(UIPasteboardTests, DataTransferGetDataWhenPastingPlatformRepresentations)
     RetainPtr<NSString> testPlainTextString = @"WebKit";
     RetainPtr<NSString> testMarkupString = @"<a href=\"https://www.webkit.org/\">The WebKit Project</a>";
     auto itemProvider = adoptNS([[NSItemProvider alloc] init]);
-    [itemProvider registerDataRepresentationForTypeIdentifier:(NSString *)kUTTypeHTML visibility:NSItemProviderRepresentationVisibilityAll loadHandler:^NSProgress *(DataLoadCompletionBlock completionHandler)
+    [itemProvider registerDataRepresentationForTypeIdentifier:(__bridge NSString *)kUTTypeHTML visibility:NSItemProviderRepresentationVisibilityAll loadHandler:^NSProgress *(DataLoadCompletionBlock completionHandler)
     {
         completionHandler([testMarkupString dataUsingEncoding:NSUTF8StringEncoding], nil);
         return nil;
@@ -192,6 +192,30 @@ TEST(UIPasteboardTests, DataTransferGetDataWhenPastingPlatformRepresentations)
             @"text/html" : testMarkupString.get()
         }
     });
+}
+
+TEST(UIPasteboardTests, DataTransferGetDataWhenPastingImageAndText)
+{
+    auto webView = setUpWebViewForPasteboardTests(@"DataTransfer");
+    auto copiedText = retainPtr(@"Apple Inc.");
+    auto itemProvider = adoptNS([[NSItemProvider alloc] init]);
+    [itemProvider registerDataRepresentationForTypeIdentifier:(__bridge NSString *)kUTTypePNG visibility:NSItemProviderRepresentationVisibilityAll loadHandler:[] (DataLoadCompletionBlock completionHandler) -> NSProgress * {
+        completionHandler([NSData dataWithContentsOfURL:[[NSBundle mainBundle] URLForResource:@"icon" withExtension:@"png" subdirectory:@"TestWebKitAPI.resources"]], nil);
+        return nil;
+    }];
+    [itemProvider registerDataRepresentationForTypeIdentifier:(__bridge NSString *)kUTTypeUTF8PlainText visibility:NSItemProviderRepresentationVisibilityAll loadHandler:[copiedText] (DataLoadCompletionBlock completionHandler) -> NSProgress * {
+        completionHandler([copiedText dataUsingEncoding:NSUTF8StringEncoding], nil);
+        return nil;
+    }];
+    [UIPasteboard generalPasteboard].itemProviders = @[ itemProvider.get() ];
+    [webView paste:nil];
+
+    EXPECT_WK_STREQ("Files, text/plain", [webView stringByEvaluatingJavaScript:@"types.textContent"]);
+    EXPECT_WK_STREQ("(STRING, text/plain), (FILE, image/png)", [webView stringByEvaluatingJavaScript:@"items.textContent"]);
+    EXPECT_WK_STREQ("('image.png', image/png)", [webView stringByEvaluatingJavaScript:@"files.textContent"]);
+    EXPECT_WK_STREQ("", [webView stringByEvaluatingJavaScript:@"urlData.textContent"]);
+    EXPECT_WK_STREQ("Apple Inc.", [webView stringByEvaluatingJavaScript:@"textData.textContent"]);
+    EXPECT_WK_STREQ("", [webView stringByEvaluatingJavaScript:@"htmlData.textContent"]);
 }
 
 TEST(UIPasteboardTests, DataTransferSetDataCannotWritePlatformTypes)
@@ -214,7 +238,7 @@ TEST(UIPasteboardTests, DataTransferSetDataCannotWritePlatformTypes)
     });
 
     // Most importantly, the system pasteboard should not contain the PDF UTI.
-    NSData *pdfData = [[UIPasteboard generalPasteboard] dataForPasteboardType:(NSString *)kUTTypePDF];
+    NSData *pdfData = [[UIPasteboard generalPasteboard] dataForPasteboardType:(__bridge NSString *)kUTTypePDF];
     EXPECT_EQ(0UL, pdfData.length);
 
     // However, the system pasteboard should contain a plain text string.
@@ -225,7 +249,7 @@ TEST(UIPasteboardTests, DataTransferGetDataCannotReadArbitraryPlatformTypes)
 {
     auto webView = setUpWebViewForPasteboardTests(@"dump-datatransfer-types");
     auto itemProvider = adoptNS([[NSItemProvider alloc] init]);
-    [itemProvider registerDataRepresentationForTypeIdentifier:(NSString *)kUTTypeMP3 visibility:NSItemProviderRepresentationVisibilityAll loadHandler:^NSProgress *(DataLoadCompletionBlock completionHandler)
+    [itemProvider registerDataRepresentationForTypeIdentifier:(__bridge NSString *)kUTTypeMP3 visibility:NSItemProviderRepresentationVisibilityAll loadHandler:^NSProgress *(DataLoadCompletionBlock completionHandler)
     {
         completionHandler([@"this is a test" dataUsingEncoding:NSUTF8StringEncoding], nil);
         return nil;
@@ -241,6 +265,22 @@ TEST(UIPasteboardTests, DataTransferGetDataCannotReadArbitraryPlatformTypes)
     checkJSONWithLogging([webView stringByEvaluatingJavaScript:@"output.value"], @{
         @"paste": @{ }
     });
+}
+
+TEST(UIPasteboardTests, DataTransferURIListContainsMultipleURLs)
+{
+    auto webView = setUpWebViewForPasteboardTests(@"DataTransfer");
+
+    NSURL *firstURL = [NSURL URLWithString:@"https://www.apple.com/"];
+    NSURL *secondURL = [NSURL URLWithString:@"https://webkit.org/"];
+    [UIPasteboard generalPasteboard].URLs = @[ firstURL, secondURL ];
+
+    [webView paste:nil];
+
+    EXPECT_WK_STREQ("text/uri-list, text/plain", [webView stringByEvaluatingJavaScript:@"types.textContent"]);
+    EXPECT_WK_STREQ("(STRING, text/uri-list), (STRING, text/plain)", [webView stringByEvaluatingJavaScript:@"items.textContent"]);
+    EXPECT_WK_STREQ("https://www.apple.com/\nhttps://webkit.org/", [webView stringByEvaluatingJavaScript:@"urlData.textContent"]);
+    EXPECT_WK_STREQ("https://www.apple.com/", [webView stringByEvaluatingJavaScript:@"textData.textContent"]);
 }
 
 #endif // __IPHONE_OS_VERSION_MIN_REQUIRED >= 110300

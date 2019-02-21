@@ -3616,4 +3616,116 @@ PASS undefinedelement.tabIndex: IDL set to 0
 PASS undefinedelement.tabIndex: IDL set to 1 
 PASS undefinedelement.tabIndex: IDL set to 2147483647 
 PASS undefinedelement.tabIndex: IDL set to -2147483648 
+PASS undefinedelement.inputMode: typeof IDL attribute 
+PASS undefinedelement.inputMode: IDL get with DOM attribute unset 
+PASS undefinedelement.inputMode: setAttribute() to "" 
+PASS undefinedelement.inputMode: setAttribute() to " \0\x01\x02\x03\x04\x05\x06\x07 \b\t\n\v\f\r\x0e\x0f \x10\x11\x12\x13\x14\x15\x16\x17 \x18\x19\x1a\x1b\x1c\x1d\x1e\x1f  foo " 
+PASS undefinedelement.inputMode: setAttribute() to undefined 
+PASS undefinedelement.inputMode: setAttribute() to 7 
+PASS undefinedelement.inputMode: setAttribute() to 1.5 
+PASS undefinedelement.inputMode: setAttribute() to true 
+PASS undefinedelement.inputMode: setAttribute() to false 
+PASS undefinedelement.inputMode: setAttribute() to object "[object Object]" 
+PASS undefinedelement.inputMode: setAttribute() to NaN 
+PASS undefinedelement.inputMode: setAttribute() to Infinity 
+PASS undefinedelement.inputMode: setAttribute() to -Infinity 
+PASS undefinedelement.inputMode: setAttribute() to "\0" 
+PASS undefinedelement.inputMode: setAttribute() to null 
+PASS undefinedelement.inputMode: setAttribute() to object "test-toString" 
+PASS undefinedelement.inputMode: setAttribute() to object "test-valueOf" 
+PASS undefinedelement.inputMode: setAttribute() to "none" 
+PASS undefinedelement.inputMode: setAttribute() to "xnone" 
+PASS undefinedelement.inputMode: setAttribute() to "none\0" 
+PASS undefinedelement.inputMode: setAttribute() to "one" 
+PASS undefinedelement.inputMode: setAttribute() to "NONE" 
+PASS undefinedelement.inputMode: setAttribute() to "text" 
+PASS undefinedelement.inputMode: setAttribute() to "xtext" 
+PASS undefinedelement.inputMode: setAttribute() to "text\0" 
+PASS undefinedelement.inputMode: setAttribute() to "ext" 
+PASS undefinedelement.inputMode: setAttribute() to "TEXT" 
+PASS undefinedelement.inputMode: setAttribute() to "tel" 
+PASS undefinedelement.inputMode: setAttribute() to "xtel" 
+PASS undefinedelement.inputMode: setAttribute() to "tel\0" 
+PASS undefinedelement.inputMode: setAttribute() to "el" 
+PASS undefinedelement.inputMode: setAttribute() to "TEL" 
+PASS undefinedelement.inputMode: setAttribute() to "url" 
+PASS undefinedelement.inputMode: setAttribute() to "xurl" 
+PASS undefinedelement.inputMode: setAttribute() to "url\0" 
+PASS undefinedelement.inputMode: setAttribute() to "rl" 
+PASS undefinedelement.inputMode: setAttribute() to "URL" 
+PASS undefinedelement.inputMode: setAttribute() to "email" 
+PASS undefinedelement.inputMode: setAttribute() to "xemail" 
+PASS undefinedelement.inputMode: setAttribute() to "email\0" 
+PASS undefinedelement.inputMode: setAttribute() to "mail" 
+PASS undefinedelement.inputMode: setAttribute() to "EMAIL" 
+PASS undefinedelement.inputMode: setAttribute() to "numeric" 
+PASS undefinedelement.inputMode: setAttribute() to "xnumeric" 
+PASS undefinedelement.inputMode: setAttribute() to "numeric\0" 
+PASS undefinedelement.inputMode: setAttribute() to "umeric" 
+PASS undefinedelement.inputMode: setAttribute() to "NUMERIC" 
+PASS undefinedelement.inputMode: setAttribute() to "decimal" 
+PASS undefinedelement.inputMode: setAttribute() to "xdecimal" 
+PASS undefinedelement.inputMode: setAttribute() to "decimal\0" 
+PASS undefinedelement.inputMode: setAttribute() to "ecimal" 
+PASS undefinedelement.inputMode: setAttribute() to "DECIMAL" 
+PASS undefinedelement.inputMode: setAttribute() to "search" 
+PASS undefinedelement.inputMode: setAttribute() to "xsearch" 
+PASS undefinedelement.inputMode: setAttribute() to "search\0" 
+PASS undefinedelement.inputMode: setAttribute() to "earch" 
+PASS undefinedelement.inputMode: setAttribute() to "SEARCH" 
+PASS undefinedelement.inputMode: IDL set to "" 
+PASS undefinedelement.inputMode: IDL set to " \0\x01\x02\x03\x04\x05\x06\x07 \b\t\n\v\f\r\x0e\x0f \x10\x11\x12\x13\x14\x15\x16\x17 \x18\x19\x1a\x1b\x1c\x1d\x1e\x1f  foo " 
+PASS undefinedelement.inputMode: IDL set to undefined 
+PASS undefinedelement.inputMode: IDL set to 7 
+PASS undefinedelement.inputMode: IDL set to 1.5 
+PASS undefinedelement.inputMode: IDL set to true 
+PASS undefinedelement.inputMode: IDL set to false 
+PASS undefinedelement.inputMode: IDL set to object "[object Object]" 
+PASS undefinedelement.inputMode: IDL set to NaN 
+PASS undefinedelement.inputMode: IDL set to Infinity 
+PASS undefinedelement.inputMode: IDL set to -Infinity 
+PASS undefinedelement.inputMode: IDL set to "\0" 
+PASS undefinedelement.inputMode: IDL set to null 
+PASS undefinedelement.inputMode: IDL set to object "test-toString" 
+PASS undefinedelement.inputMode: IDL set to object "test-valueOf" 
+PASS undefinedelement.inputMode: IDL set to "none" 
+PASS undefinedelement.inputMode: IDL set to "xnone" 
+PASS undefinedelement.inputMode: IDL set to "none\0" 
+PASS undefinedelement.inputMode: IDL set to "one" 
+PASS undefinedelement.inputMode: IDL set to "NONE" 
+PASS undefinedelement.inputMode: IDL set to "text" 
+PASS undefinedelement.inputMode: IDL set to "xtext" 
+PASS undefinedelement.inputMode: IDL set to "text\0" 
+PASS undefinedelement.inputMode: IDL set to "ext" 
+PASS undefinedelement.inputMode: IDL set to "TEXT" 
+PASS undefinedelement.inputMode: IDL set to "tel" 
+PASS undefinedelement.inputMode: IDL set to "xtel" 
+PASS undefinedelement.inputMode: IDL set to "tel\0" 
+PASS undefinedelement.inputMode: IDL set to "el" 
+PASS undefinedelement.inputMode: IDL set to "TEL" 
+PASS undefinedelement.inputMode: IDL set to "url" 
+PASS undefinedelement.inputMode: IDL set to "xurl" 
+PASS undefinedelement.inputMode: IDL set to "url\0" 
+PASS undefinedelement.inputMode: IDL set to "rl" 
+PASS undefinedelement.inputMode: IDL set to "URL" 
+PASS undefinedelement.inputMode: IDL set to "email" 
+PASS undefinedelement.inputMode: IDL set to "xemail" 
+PASS undefinedelement.inputMode: IDL set to "email\0" 
+PASS undefinedelement.inputMode: IDL set to "mail" 
+PASS undefinedelement.inputMode: IDL set to "EMAIL" 
+PASS undefinedelement.inputMode: IDL set to "numeric" 
+PASS undefinedelement.inputMode: IDL set to "xnumeric" 
+PASS undefinedelement.inputMode: IDL set to "numeric\0" 
+PASS undefinedelement.inputMode: IDL set to "umeric" 
+PASS undefinedelement.inputMode: IDL set to "NUMERIC" 
+PASS undefinedelement.inputMode: IDL set to "decimal" 
+PASS undefinedelement.inputMode: IDL set to "xdecimal" 
+PASS undefinedelement.inputMode: IDL set to "decimal\0" 
+PASS undefinedelement.inputMode: IDL set to "ecimal" 
+PASS undefinedelement.inputMode: IDL set to "DECIMAL" 
+PASS undefinedelement.inputMode: IDL set to "search" 
+PASS undefinedelement.inputMode: IDL set to "xsearch" 
+PASS undefinedelement.inputMode: IDL set to "search\0" 
+PASS undefinedelement.inputMode: IDL set to "earch" 
+PASS undefinedelement.inputMode: IDL set to "SEARCH" 
 (Note: missing tests for types tokenlist.)

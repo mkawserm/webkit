@@ -31,7 +31,7 @@
 
 namespace WebKit {
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
 
 void InteractionInformationRequest::encode(IPC::Encoder& encoder) const
 {
@@ -67,7 +67,18 @@ bool InteractionInformationRequest::isValidForRequest(const InteractionInformati
 
     return true;
 }
+    
+bool InteractionInformationRequest::isApproximatelyValidForRequest(const InteractionInformationRequest& other)
+{
+    if (other.includeSnapshot && !includeSnapshot)
+        return false;
+    
+    if (other.includeLinkIndicator && !includeLinkIndicator)
+        return false;
+    
+    return (other.point - point).diagonalLengthSquared() <= 4;
+}
 
-#endif // PLATFORM(IOS)
+#endif // PLATFORM(IOS_FAMILY)
 
 }

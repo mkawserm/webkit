@@ -26,16 +26,15 @@
 #import "config.h"
 #import "PlaybackSessionManagerProxy.h"
 
-#if PLATFORM(IOS) || (PLATFORM(MAC) && ENABLE(VIDEO_PRESENTATION_MODE))
+#if PLATFORM(IOS_FAMILY) || (PLATFORM(MAC) && ENABLE(VIDEO_PRESENTATION_MODE))
 
 #import "PlaybackSessionManagerMessages.h"
 #import "PlaybackSessionManagerProxyMessages.h"
 #import "WebPageProxy.h"
 #import "WebProcessProxy.h"
 
-using namespace WebCore;
-
 namespace WebKit {
+using namespace WebCore;
 
 #pragma mark - PlaybackSessionModelContext
 
@@ -144,6 +143,18 @@ void PlaybackSessionModelContext::setMuted(bool muted)
 {
     if (m_manager)
         m_manager->setMuted(m_contextId, muted);
+}
+
+void PlaybackSessionModelContext::setVolume(double volume)
+{
+    if (m_manager)
+        m_manager->setVolume(m_contextId, volume);
+}
+
+void PlaybackSessionModelContext::setPlayingOnSecondScreen(bool value)
+{
+    if (m_manager)
+        m_manager->setPlayingOnSecondScreen(m_contextId, value);
 }
 
 void PlaybackSessionModelContext::playbackStartedTimeChanged(double playbackStartedTime)
@@ -258,11 +269,32 @@ void PlaybackSessionModelContext::mutedChanged(bool muted)
         client->mutedChanged(muted);
 }
 
+void PlaybackSessionModelContext::volumeChanged(double volume)
+{
+    m_volume = volume;
+    for (auto* client : m_clients)
+        client->volumeChanged(volume);
+}
+
+void PlaybackSessionModelContext::pictureInPictureSupportedChanged(bool supported)
+{
+    m_pictureInPictureSupported = supported;
+    for (auto* client : m_clients)
+        client->isPictureInPictureSupportedChanged(supported);
+}
+
+void PlaybackSessionModelContext::pictureInPictureActiveChanged(bool active)
+{
+    m_pictureInPictureActive = active;
+    for (auto* client : m_clients)
+        client->pictureInPictureActiveChanged(active);
+}
+
 #pragma mark - PlaybackSessionManagerProxy
 
-RefPtr<PlaybackSessionManagerProxy> PlaybackSessionManagerProxy::create(WebPageProxy& page)
+Ref<PlaybackSessionManagerProxy> PlaybackSessionManagerProxy::create(WebPageProxy& page)
 {
-    return adoptRef(new PlaybackSessionManagerProxy(page));
+    return adoptRef(*new PlaybackSessionManagerProxy(page));
 }
 
 PlaybackSessionManagerProxy::PlaybackSessionManagerProxy(WebPageProxy& page)
@@ -283,16 +315,16 @@ void PlaybackSessionManagerProxy::invalidate()
     m_page->process().removeMessageReceiver(Messages::PlaybackSessionManagerProxy::messageReceiverName(), m_page->pageID());
     m_page = nullptr;
 
-    for (auto& tuple : m_contextMap.values()) {
+    auto contextMap = WTFMove(m_contextMap);
+    m_clientCounts.clear();
+
+    for (auto& tuple : contextMap.values()) {
         RefPtr<PlaybackSessionModelContext> model;
         RefPtr<PlatformPlaybackSessionInterface> interface;
         std::tie(model, interface) = tuple;
 
         interface->invalidate();
     }
-
-    m_contextMap.clear();
-    m_clientCounts.clear();
 }
 
 PlaybackSessionManagerProxy::ModelInterfaceTuple PlaybackSessionManagerProxy::createModelAndInterface(uint64_t contextId)
@@ -339,7 +371,6 @@ void PlaybackSessionManagerProxy::removeClientForContext(uint64_t contextId)
 
 void PlaybackSessionManagerProxy::setUpPlaybackControlsManagerWithID(uint64_t contextId)
 {
-#if PLATFORM(MAC)
     if (m_controlsManagerContextId == contextId)
         return;
 
@@ -351,26 +382,16 @@ void PlaybackSessionManagerProxy::setUpPlaybackControlsManagerWithID(uint64_t co
     addClientForContext(m_controlsManagerContextId);
 
     m_page->videoControlsManagerDidChange();
-#else
-    UNUSED_PARAM(contextId);
-#endif
 }
 
 void PlaybackSessionManagerProxy::clearPlaybackControlsManager()
 {
-#if PLATFORM(MAC)
     if (!m_controlsManagerContextId)
         return;
 
     removeClientForContext(m_controlsManagerContextId);
     m_controlsManagerContextId = 0;
     m_page->videoControlsManagerDidChange();
-#endif
-}
-
-void PlaybackSessionManagerProxy::resetMediaState(uint64_t contextId)
-{
-    ensureInterface(contextId).resetMediaState();
 }
 
 void PlaybackSessionManagerProxy::currentTimeChanged(uint64_t contextId, double currentTime, double hostTime)
@@ -439,6 +460,11 @@ void PlaybackSessionManagerProxy::mutedChanged(uint64_t contextId, bool muted)
     ensureModel(contextId).mutedChanged(muted);
 }
 
+void PlaybackSessionManagerProxy::volumeChanged(uint64_t contextId, double volume)
+{
+    ensureModel(contextId).volumeChanged(volume);
+}
+
 void PlaybackSessionManagerProxy::durationChanged(uint64_t contextId, double duration)
 {
     ensureModel(contextId).durationChanged(duration);
@@ -454,6 +480,15 @@ void PlaybackSessionManagerProxy::rateChanged(uint64_t contextId, bool isPlaying
     ensureModel(contextId).rateChanged(isPlaying, rate);
 }
 
+void PlaybackSessionManagerProxy::pictureInPictureSupportedChanged(uint64_t contextId, bool supported)
+{
+    ensureModel(contextId).pictureInPictureSupportedChanged(supported);
+}
+
+void PlaybackSessionManagerProxy::pictureInPictureActiveChanged(uint64_t contextId, bool active)
+{
+    ensureModel(contextId).pictureInPictureActiveChanged(active);
+}
 
 void PlaybackSessionManagerProxy::handleControlledElementIDResponse(uint64_t contextId, String identifier) const
 {
@@ -544,6 +579,17 @@ void PlaybackSessionManagerProxy::setMuted(uint64_t contextId, bool muted)
     m_page->send(Messages::PlaybackSessionManager::SetMuted(contextId, muted), m_page->pageID());
 }
 
+void PlaybackSessionManagerProxy::setVolume(uint64_t contextId, double volume)
+{
+    m_page->send(Messages::PlaybackSessionManager::SetVolume(contextId, volume), m_page->pageID());
+}
+
+void PlaybackSessionManagerProxy::setPlayingOnSecondScreen(uint64_t contextId, bool value)
+{
+    if (m_page)
+        m_page->send(Messages::PlaybackSessionManager::SetPlayingOnSecondScreen(contextId, value), m_page->pageID());
+}
+
 void PlaybackSessionManagerProxy::requestControlledElementID()
 {
     if (m_controlsManagerContextId)
@@ -561,4 +607,4 @@ PlatformPlaybackSessionInterface* PlaybackSessionManagerProxy::controlsManagerIn
 
 } // namespace WebKit
 
-#endif // PLATFORM(IOS) || (PLATFORM(MAC) && ENABLE(VIDEO_PRESENTATION_MODE))
+#endif // PLATFORM(IOS_FAMILY) || (PLATFORM(MAC) && ENABLE(VIDEO_PRESENTATION_MODE))

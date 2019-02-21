@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 Apple Inc. All rights reserved.
+ * Copyright (C) 2017-2018 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -45,14 +45,15 @@ namespace WebKit {
 
 class WebSocketStream : public IPC::MessageSender, public IPC::MessageReceiver, public WebCore::SocketStreamHandle, public Identified<WebSocketStream> {
 public:
-    static Ref<WebSocketStream> create(const WebCore::URL&, WebCore::SocketStreamHandleClient&, PAL::SessionID, const String& credentialPartition);
+    static Ref<WebSocketStream> create(const URL&, WebCore::SocketStreamHandleClient&, PAL::SessionID, const String& credentialPartition);
     static void networkProcessCrashed();
     static WebSocketStream* streamWithIdentifier(uint64_t);
     
     void didReceiveMessage(IPC::Connection&, IPC::Decoder&);
     
     // SocketStreamHandle
-    void platformSend(const char*, size_t, Function<void(bool)>&&) final;
+    void platformSend(const uint8_t*, size_t, Function<void(bool)>&&) final;
+    void platformSendHandshake(const uint8_t*, size_t, const Optional<WebCore::CookieRequestHeaderFieldProxy>&, Function<void(bool, bool)>&&);
     void platformClose() final;
     size_t bufferedAmount() final;
 
@@ -64,19 +65,21 @@ public:
     void didUpdateBufferedAmount(uint64_t);
     void didFailSocketStream(WebCore::SocketStreamError&&);
 
-    void didSendData(uint64_t, bool);
+    void didSendData(uint64_t, bool success);
+    void didSendHandshake(uint64_t, bool success, bool didAccessSecureCookies);
     
 private:
     // MessageSender
-    IPC::Connection* messageSenderConnection() final;
-    uint64_t messageSenderDestinationID() final;
+    IPC::Connection* messageSenderConnection() const final;
+    uint64_t messageSenderDestinationID() const final;
 
-    WebSocketStream(const WebCore::URL&, WebCore::SocketStreamHandleClient&, PAL::SessionID, const String& credentialPartition);
+    WebSocketStream(const URL&, WebCore::SocketStreamHandleClient&, PAL::SessionID, const String& credentialPartition);
     ~WebSocketStream();
 
     size_t m_bufferedAmount { 0 };
     WebCore::SocketStreamHandleClient& m_client;
     HashMap<uint64_t, Function<void(bool)>> m_sendDataCallbacks;
+    HashMap<uint64_t, Function<void(bool, bool)>> m_sendHandshakeCallbacks;
 };
 
 } // namespace WebKit

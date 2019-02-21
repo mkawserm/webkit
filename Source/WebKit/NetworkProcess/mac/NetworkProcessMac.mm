@@ -26,7 +26,7 @@
 #import "config.h"
 #import "NetworkProcess.h"
 
-#if PLATFORM(MAC)
+#if PLATFORM(MAC) || PLATFORM(IOSMAC)
 
 #import "NetworkCache.h"
 #import "NetworkProcessCreationParameters.h"
@@ -36,63 +36,38 @@
 #import "SandboxInitializationParameters.h"
 #import "SecItemShim.h"
 #import "StringUtilities.h"
+#import "WKFoundation.h"
 #import <WebCore/CertificateInfo.h>
-#import <WebCore/FileSystem.h>
 #import <WebCore/LocalizedStrings.h>
 #import <notify.h>
 #import <pal/spi/cf/CFNetworkSPI.h>
 #import <pal/spi/cocoa/LaunchServicesSPI.h>
+#import <pal/spi/mac/HIServicesSPI.h>
 #import <sysexits.h>
+#import <wtf/FileSystem.h>
 #import <wtf/MemoryPressureHandler.h>
 #import <wtf/text/WTFString.h>
 
+namespace WebKit {
 using namespace WebCore;
 
-namespace WebKit {
-
-void NetworkProcess::initializeProcess(const ChildProcessInitializationParameters&)
+void NetworkProcess::initializeProcess(const AuxiliaryProcessInitializationParameters&)
 {
+#if PLATFORM(MAC) && !PLATFORM(IOSMAC)
     // Having a window server connection in this process would result in spin logs (<rdar://problem/13239119>).
-    setApplicationIsDaemon();
+    OSStatus error = SetApplicationIsDaemon(true);
+    ASSERT_UNUSED(error, error == noErr);
+#endif
+
+    launchServicesCheckIn();
 }
 
-void NetworkProcess::initializeProcessName(const ChildProcessInitializationParameters& parameters)
+void NetworkProcess::initializeProcessName(const AuxiliaryProcessInitializationParameters& parameters)
 {
+#if !PLATFORM(IOSMAC)
     NSString *applicationName = [NSString stringWithFormat:WEB_UI_STRING("%@ Networking", "visible name of the network process. The argument is the application name."), (NSString *)parameters.uiProcessName];
     _LSSetApplicationInformationItem(kLSDefaultSessionID, _LSGetCurrentApplicationASN(), _kLSDisplayNameKey, (CFStringRef)applicationName, nullptr);
-}
-
-static void overrideSystemProxies(const String& httpProxy, const String& httpsProxy)
-{
-    NSMutableDictionary *proxySettings = [NSMutableDictionary dictionary];
-
-    if (!httpProxy.isNull()) {
-        URL httpProxyURL(URL(), httpProxy);
-        if (httpProxyURL.isValid()) {
-            [proxySettings setObject:nsStringFromWebCoreString(httpProxyURL.host()) forKey:(NSString *)kCFNetworkProxiesHTTPProxy];
-            if (httpProxyURL.port()) {
-                NSNumber *port = [NSNumber numberWithInt:httpProxyURL.port().value()];
-                [proxySettings setObject:port forKey:(NSString *)kCFNetworkProxiesHTTPPort];
-            }
-        }
-        else
-            NSLog(@"Malformed HTTP Proxy URL '%s'.  Expected 'http://<hostname>[:<port>]'\n", httpProxy.utf8().data());
-    }
-
-    if (!httpsProxy.isNull()) {
-        URL httpsProxyURL(URL(), httpsProxy);
-        if (httpsProxyURL.isValid()) {
-            [proxySettings setObject:nsStringFromWebCoreString(httpsProxyURL.host()) forKey:(NSString *)kCFNetworkProxiesHTTPSProxy];
-            if (httpsProxyURL.port()) {
-                NSNumber *port = [NSNumber numberWithInt:httpsProxyURL.port().value()];
-                [proxySettings setObject:port forKey:(NSString *)kCFNetworkProxiesHTTPSPort];
-            }
-        } else
-            NSLog(@"Malformed HTTPS Proxy URL '%s'.  Expected 'https://<hostname>[:<port>]'\n", httpsProxy.utf8().data());
-    }
-
-    if ([proxySettings count] > 0)
-        _CFNetworkSetOverrideSystemProxySettings((CFDictionaryRef)proxySettings);
+#endif
 }
 
 void NetworkProcess::platformInitializeNetworkProcess(const NetworkProcessCreationParameters& parameters)
@@ -100,25 +75,28 @@ void NetworkProcess::platformInitializeNetworkProcess(const NetworkProcessCreati
     platformInitializeNetworkProcessCocoa(parameters);
 
 #if ENABLE(SEC_ITEM_SHIM)
+    // SecItemShim is needed for CFNetwork APIs that query Keychains beneath us.
     initializeSecItemShim(*this);
 #endif
-
-    if (!parameters.httpProxy.isNull() || !parameters.httpsProxy.isNull())
-        overrideSystemProxies(parameters.httpProxy, parameters.httpsProxy);
 }
 
 void NetworkProcess::allowSpecificHTTPSCertificateForHost(const CertificateInfo& certificateInfo, const String& host)
 {
-    [NSURLRequest setAllowsSpecificHTTPSCertificate:(NSArray *)certificateInfo.certificateChain() forHost:(NSString *)host];
+    [NSURLRequest setAllowsSpecificHTTPSCertificate:(__bridge NSArray *)certificateInfo.certificateChain() forHost:(NSString *)host];
 }
 
-void NetworkProcess::initializeSandbox(const ChildProcessInitializationParameters& parameters, SandboxInitializationParameters& sandboxParameters)
+void NetworkProcess::initializeSandbox(const AuxiliaryProcessInitializationParameters& parameters, SandboxInitializationParameters& sandboxParameters)
 {
     // Need to overide the default, because service has a different bundle ID.
-    NSBundle *webkit2Bundle = [NSBundle bundleForClass:NSClassFromString(@"WKView")];
-    sandboxParameters.setOverrideSandboxProfilePath([webkit2Bundle pathForResource:@"com.apple.WebKit.NetworkProcess" ofType:@"sb"]);
+#if WK_API_ENABLED
+    NSBundle *webKit2Bundle = [NSBundle bundleForClass:NSClassFromString(@"WKWebView")];
+#else
+    NSBundle *webKit2Bundle = [NSBundle bundleForClass:NSClassFromString(@"WKView")];
+#endif
 
-    ChildProcess::initializeSandbox(parameters, sandboxParameters);
+    sandboxParameters.setOverrideSandboxProfilePath([webKit2Bundle pathForResource:@"com.apple.WebKit.NetworkProcess" ofType:@"sb"]);
+
+    AuxiliaryProcess::initializeSandbox(parameters, sandboxParameters);
 }
 
 void NetworkProcess::clearCacheForAllOrigins(uint32_t cachesToClear)
@@ -138,6 +116,13 @@ void NetworkProcess::platformTerminate()
         m_clearCacheDispatchGroup = 0;
     }
 }
+
+#if PLATFORM(IOSMAC)
+bool NetworkProcess::parentProcessHasServiceWorkerEntitlement() const
+{
+    return true;
+}
+#endif
 
 } // namespace WebKit
 

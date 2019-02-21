@@ -28,9 +28,10 @@
 
 #if ENABLE(SERVICE_WORKER)
 
+#include "NetworkProcessConnection.h"
 #include "WebProcess.h"
+#include "WebSWClientConnection.h"
 #include "WebSWServerConnection.h"
-#include "WebToStorageProcessConnection.h"
 #include <WebCore/CachedResource.h>
 #include <WebCore/Exception.h>
 #include <WebCore/ExceptionCode.h>
@@ -39,10 +40,9 @@
 #include <pal/SessionID.h>
 #include <wtf/text/WTFString.h>
 
+namespace WebKit {
 using namespace PAL;
 using namespace WebCore;
-
-namespace WebKit {
 
 WebServiceWorkerProvider& WebServiceWorkerProvider::singleton()
 {
@@ -57,16 +57,16 @@ WebServiceWorkerProvider::WebServiceWorkerProvider()
 WebCore::SWClientConnection& WebServiceWorkerProvider::serviceWorkerConnectionForSession(SessionID sessionID)
 {
     ASSERT(sessionID.isValid());
-    return WebProcess::singleton().ensureWebToStorageProcessConnection(sessionID).serviceWorkerConnectionForSession(sessionID);
+    return WebProcess::singleton().ensureNetworkProcessConnection().serviceWorkerConnectionForSession(sessionID);
 }
 
 WebCore::SWClientConnection* WebServiceWorkerProvider::existingServiceWorkerConnectionForSession(SessionID sessionID)
 {
     ASSERT(sessionID.isValid());
-    auto* webToStorageProcessConnection = WebProcess::singleton().existingWebToStorageProcessConnection();
-    if (!webToStorageProcessConnection)
+    auto* networkProcessConnection = WebProcess::singleton().existingNetworkProcessConnection();
+    if (!networkProcessConnection)
         return nullptr;
-    return webToStorageProcessConnection->existingServiceWorkerConnectionForSession(sessionID);
+    return networkProcessConnection->existingServiceWorkerConnectionForSession(sessionID);
 }
 
 static inline bool shouldHandleFetch(const ResourceLoaderOptions& options)
@@ -80,18 +80,19 @@ static inline bool shouldHandleFetch(const ResourceLoaderOptions& options)
     return !!options.serviceWorkerRegistrationIdentifier;
 }
 
-void WebServiceWorkerProvider::handleFetch(ResourceLoader& loader, CachedResource* resource, PAL::SessionID sessionID, bool shouldClearReferrerOnHTTPSToHTTPRedirect, ServiceWorkerClientFetch::Callback&& callback)
+void WebServiceWorkerProvider::handleFetch(ResourceLoader& loader, PAL::SessionID sessionID, bool shouldClearReferrerOnHTTPSToHTTPRedirect, ServiceWorkerClientFetch::Callback&& callback)
 {
     if (!SchemeRegistry::canServiceWorkersHandleURLScheme(loader.request().url().protocol().toStringWithoutCopying()) || !shouldHandleFetch(loader.options())) {
         callback(ServiceWorkerClientFetch::Result::Unhandled);
         return;
     }
 
-    auto& connection = WebProcess::singleton().ensureWebToStorageProcessConnection(sessionID).serviceWorkerConnectionForSession(sessionID);
-    m_ongoingFetchTasks.add(loader.identifier(), ServiceWorkerClientFetch::create(*this, loader, loader.identifier(), connection, shouldClearReferrerOnHTTPSToHTTPRedirect, WTFMove(callback)));
+    auto& connection = WebProcess::singleton().ensureNetworkProcessConnection().serviceWorkerConnectionForSession(sessionID);
+    auto fetchIdentifier = makeObjectIdentifier<FetchIdentifierType>(loader.identifier());
+    m_ongoingFetchTasks.add(fetchIdentifier, ServiceWorkerClientFetch::create(*this, loader, fetchIdentifier, connection, shouldClearReferrerOnHTTPSToHTTPRedirect, WTFMove(callback)));
 }
 
-bool WebServiceWorkerProvider::cancelFetch(uint64_t fetchIdentifier)
+bool WebServiceWorkerProvider::cancelFetch(FetchIdentifier fetchIdentifier)
 {
     auto fetch = m_ongoingFetchTasks.take(fetchIdentifier);
     if (fetch)
@@ -99,14 +100,14 @@ bool WebServiceWorkerProvider::cancelFetch(uint64_t fetchIdentifier)
     return !!fetch;
 }
 
-void WebServiceWorkerProvider::fetchFinished(uint64_t fetchIdentifier)
+void WebServiceWorkerProvider::fetchFinished(FetchIdentifier fetchIdentifier)
 {
     m_ongoingFetchTasks.take(fetchIdentifier);
 }
 
 void WebServiceWorkerProvider::didReceiveServiceWorkerClientFetchMessage(IPC::Connection& connection, IPC::Decoder& decoder)
 {
-    if (auto fetch = m_ongoingFetchTasks.get(decoder.destinationID()))
+    if (auto fetch = m_ongoingFetchTasks.get(makeObjectIdentifier<FetchIdentifierType>(decoder.destinationID())))
         fetch->didReceiveMessage(connection, decoder);
 }
 

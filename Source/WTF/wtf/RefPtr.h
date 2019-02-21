@@ -20,8 +20,7 @@
 
 // RefPtr is documented at http://webkit.org/coding/RefPtr.html
 
-#ifndef WTF_RefPtr_h
-#define WTF_RefPtr_h
+#pragma once
 
 #include <algorithm>
 #include <utility>
@@ -99,12 +98,8 @@ public:
 
     static T* hashTableDeletedValue() { return reinterpret_cast<T*>(-1); }
 
-#if COMPILER_SUPPORTS(CXX_REFERENCE_QUALIFIED_FUNCTIONS)
     RefPtr copyRef() && = delete;
     RefPtr copyRef() const & WARN_UNUSED_RETURN { return RefPtr(m_ptr); }
-#else
-    RefPtr copyRef() const WARN_UNUSED_RETURN { return RefPtr(m_ptr); }
-#endif
 
 private:
     friend RefPtr adoptRef<T, PtrTraits>(T*);
@@ -288,5 +283,3 @@ using WTF::RefPtr;
 using WTF::adoptRef;
 using WTF::makeRefPtr;
 using WTF::static_pointer_cast;
-
-#endif // WTF_RefPtr_h

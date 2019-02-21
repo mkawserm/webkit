@@ -9,21 +9,37 @@
  */
 
 #include "rtc_base/asyncpacketsocket.h"
+#include "rtc_base/nethelper.h"
 
 namespace rtc {
 
-PacketTimeUpdateParams::PacketTimeUpdateParams()
-    : rtp_sendtime_extension_id(-1),
-      srtp_auth_tag_len(-1),
-      srtp_packet_index(-1) {
-}
+PacketTimeUpdateParams::PacketTimeUpdateParams() = default;
+
+PacketTimeUpdateParams::PacketTimeUpdateParams(
+    const PacketTimeUpdateParams& other) = default;
 
 PacketTimeUpdateParams::~PacketTimeUpdateParams() = default;
 
-AsyncPacketSocket::AsyncPacketSocket() {
-}
+PacketOptions::PacketOptions() = default;
+PacketOptions::PacketOptions(DiffServCodePoint dscp) : dscp(dscp) {}
+PacketOptions::PacketOptions(const PacketOptions& other) = default;
+PacketOptions::~PacketOptions() = default;
 
-AsyncPacketSocket::~AsyncPacketSocket() {
+AsyncPacketSocket::AsyncPacketSocket() = default;
+
+AsyncPacketSocket::~AsyncPacketSocket() = default;
+
+void CopySocketInformationToPacketInfo(size_t packet_size_bytes,
+                                       const AsyncPacketSocket& socket_from,
+                                       bool is_connectionless,
+                                       rtc::PacketInfo* info) {
+  info->packet_size_bytes = packet_size_bytes;
+  // TODO(srte): Make sure that the family of the local socket is always set
+  // in the VirtualSocket implementation and remove this check.
+  int family = socket_from.GetLocalAddress().family();
+  if (family != 0) {
+    info->ip_overhead_bytes = cricket::GetIpOverhead(family);
+  }
 }
 
 };  // namespace rtc

@@ -26,6 +26,7 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+from webkitpy.common.system import path
 from webkitpy.common.memoized import memoized
 from webkitpy.layout_tests.models.test_configuration import TestConfiguration
 from webkitpy.port.base import Port
@@ -66,9 +67,7 @@ class WPEPort(Port):
 
     @memoized
     def _driver_class(self):
-        if self._display_server == "wayland":
-            return WaylandDriver
-        return HeadlessDriver
+        return WaylandDriver
 
     def setup_environ_for_server(self, server_name=None):
         environment = super(WPEPort, self).setup_environ_for_server(server_name)
@@ -77,7 +76,20 @@ class WPEPort(Port):
         environment['TEST_RUNNER_INJECTED_BUNDLE_FILENAME'] = self._build_path('lib', 'libTestRunnerInjectedBundle.so')
         environment['TEST_RUNNER_TEST_PLUGIN_PATH'] = self._build_path('lib', 'plugins')
         environment['WEBKIT_EXEC_PATH'] = self._build_path('bin')
+        self._copy_value_from_environ_if_set(environment, 'WEBKIT_OUTPUTDIR')
+        self._copy_value_from_environ_if_set(environment, 'WEBKIT_TOP_LEVEL')
+        self._copy_value_from_environ_if_set(environment, 'USE_PLAYBIN3')
+        self._copy_value_from_environ_if_set(environment, 'GST_DEBUG')
+        self._copy_value_from_environ_if_set(environment, 'GST_DEBUG_DUMP_DOT_DIR')
+        self._copy_value_from_environ_if_set(environment, 'GST_DEBUG_FILE')
+        self._copy_value_from_environ_if_set(environment, 'GST_DEBUG_NO_COLOR')
         return environment
+
+    def show_results_html_file(self, results_filename):
+        self._run_script("run-minibrowser", [path.abspath_to_uri(self.host.platform, results_filename)])
+
+    def check_sys_deps(self):
+        return super(WPEPort, self).check_sys_deps() and self._driver_class().check_driver(self)
 
     def _generate_all_test_configurations(self):
         configurations = []
@@ -94,10 +106,10 @@ class WPEPort(Port):
     def _search_paths(self):
         return [self.port_name, 'wk2'] + self.get_option("additional_platform_directory", [])
 
-    def default_baseline_search_path(self):
+    def default_baseline_search_path(self, **kwargs):
         return map(self._webkit_baseline_path, self._search_paths())
 
-    def _port_specific_expectations_files(self):
+    def _port_specific_expectations_files(self, **kwargs):
         return map(lambda x: self._filesystem.join(self._webkit_baseline_path(x), 'TestExpectations'), reversed(self._search_paths()))
 
     def test_expectations_file_position(self):
@@ -105,4 +117,4 @@ class WPEPort(Port):
         return 2
 
     def _get_crash_log(self, name, pid, stdout, stderr, newer_than, target_host=None):
-        return GDBCrashLogGenerator(name, pid, newer_than, self._filesystem, self._path_to_driver).generate_crash_log(stdout, stderr)
+        return GDBCrashLogGenerator(self._executive, name, pid, newer_than, self._filesystem, self._path_to_driver).generate_crash_log(stdout, stderr)

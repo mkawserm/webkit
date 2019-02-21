@@ -33,6 +33,10 @@
 #include <wtf/RetainPtr.h>
 #include <wtf/WeakPtr.h>
 
+#if USE(APPLE_INTERNAL_SDK)
+#import <WebKitAdditions/WebPaymentCoordinatorProxyAdditions.h>
+#endif
+
 namespace IPC {
 class DataReference;
 }
@@ -43,7 +47,6 @@ class Payment;
 class PaymentContact;
 class PaymentMerchantSession;
 class PaymentMethod;
-class URL;
 }
 
 OBJC_CLASS NSObject;
@@ -55,13 +58,13 @@ namespace WebKit {
 
 class WebPageProxy;
 
-class WebPaymentCoordinatorProxy : private IPC::MessageReceiver {
+class WebPaymentCoordinatorProxy : private IPC::MessageReceiver, public CanMakeWeakPtr<WebPaymentCoordinatorProxy> {
 public:
     explicit WebPaymentCoordinatorProxy(WebPageProxy&);
     ~WebPaymentCoordinatorProxy();
 
     void didCancelPaymentSession();
-    void validateMerchant(const WebCore::URL&);
+    void validateMerchant(const URL&);
     void didAuthorizePayment(const WebCore::Payment&);
     void didSelectShippingMethod(const WebCore::ApplePaySessionPaymentRequest::ShippingMethod&);
     void didSelectShippingContact(const WebCore::PaymentContact&);
@@ -75,16 +78,16 @@ private:
     void didReceiveSyncMessage(IPC::Connection&, IPC::Decoder&, std::unique_ptr<IPC::Encoder>&) override;
 
     // Message handlers.
-    void availablePaymentNetworks(Vector<String>&);
-    void canMakePayments(bool& reply);
+    void availablePaymentNetworks(CompletionHandler<void(Vector<String>&&)>&&);
+    void canMakePayments(CompletionHandler<void(bool)>&&);
     void canMakePaymentsWithActiveCard(const String& merchantIdentifier, const String& domainName, uint64_t requestID);
     void openPaymentSetup(const String& merchantIdentifier, const String& domainName, uint64_t requestID);
-    void showPaymentUI(const String& originatingURLString, const Vector<String>& linkIconURLStrings, const WebCore::ApplePaySessionPaymentRequest&, bool& result);
+    void showPaymentUI(const String& originatingURLString, const Vector<String>& linkIconURLStrings, const WebCore::ApplePaySessionPaymentRequest&, CompletionHandler<void(bool)>&&);
     void completeMerchantValidation(const WebCore::PaymentMerchantSession&);
-    void completeShippingMethodSelection(const std::optional<WebCore::ShippingMethodUpdate>&);
-    void completeShippingContactSelection(const std::optional<WebCore::ShippingContactUpdate>&);
-    void completePaymentMethodSelection(const std::optional<WebCore::PaymentMethodUpdate>&);
-    void completePaymentSession(const std::optional<WebCore::PaymentAuthorizationResult>&);
+    void completeShippingMethodSelection(const Optional<WebCore::ShippingMethodUpdate>&);
+    void completeShippingContactSelection(const Optional<WebCore::ShippingContactUpdate>&);
+    void completePaymentMethodSelection(const Optional<WebCore::PaymentMethodUpdate>&);
+    void completePaymentSession(const Optional<WebCore::PaymentAuthorizationResult>&);
     void abortPaymentSession();
     void cancelPaymentSession();
 
@@ -99,15 +102,14 @@ private:
     bool platformCanMakePayments();
     void platformCanMakePaymentsWithActiveCard(const String& merchantIdentifier, const String& domainName, WTF::Function<void (bool)>&& completionHandler);
     void platformOpenPaymentSetup(const String& merchantIdentifier, const String& domainName, WTF::Function<void (bool)>&& completionHandler);
-    void platformShowPaymentUI(const WebCore::URL& originatingURL, const Vector<WebCore::URL>& linkIconURLs, const WebCore::ApplePaySessionPaymentRequest&, WTF::Function<void (bool)>&& completionHandler);
+    void platformShowPaymentUI(const URL& originatingURL, const Vector<URL>& linkIconURLs, const WebCore::ApplePaySessionPaymentRequest&, CompletionHandler<void(bool)>&&);
     void platformCompleteMerchantValidation(const WebCore::PaymentMerchantSession&);
-    void platformCompleteShippingMethodSelection(const std::optional<WebCore::ShippingMethodUpdate>&);
-    void platformCompleteShippingContactSelection(const std::optional<WebCore::ShippingContactUpdate>&);
-    void platformCompletePaymentMethodSelection(const std::optional<WebCore::PaymentMethodUpdate>&);
-    void platformCompletePaymentSession(const std::optional<WebCore::PaymentAuthorizationResult>&);
+    void platformCompleteShippingMethodSelection(const Optional<WebCore::ShippingMethodUpdate>&);
+    void platformCompleteShippingContactSelection(const Optional<WebCore::ShippingContactUpdate>&);
+    void platformCompletePaymentMethodSelection(const Optional<WebCore::PaymentMethodUpdate>&);
+    void platformCompletePaymentSession(const Optional<WebCore::PaymentAuthorizationResult>&);
 
     WebPageProxy& m_webPageProxy;
-    WeakPtrFactory<WebPaymentCoordinatorProxy> m_weakPtrFactory;
 
     enum class State {
         // Idle - Nothing's happening.
@@ -149,7 +151,14 @@ private:
 #if PLATFORM(MAC)
     uint64_t m_showPaymentUIRequestSeed { 0 };
     RetainPtr<NSWindow> m_sheetWindow;
-    RetainPtr<NSObject *> m_sheetWindowWillCloseObserver;
+    RetainPtr<NSObject> m_sheetWindowWillCloseObserver;
+#endif
+    
+#if defined(WEBPAYMENTCOORDINATORPROXY_ADDITIONS)
+WEBPAYMENTCOORDINATORPROXY_ADDITIONS
+#undef WEBPAYMENTCOORDINATORPROXY_ADDITIONS
+#else
+    void finishConstruction(WebPaymentCoordinatorProxy&) { }
 #endif
 };
 

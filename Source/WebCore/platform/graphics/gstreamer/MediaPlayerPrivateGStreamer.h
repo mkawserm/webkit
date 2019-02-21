@@ -26,7 +26,7 @@
 
 #if ENABLE(VIDEO) && USE(GSTREAMER)
 
-#include "GRefPtrGStreamer.h"
+#include "GStreamerCommon.h"
 #include "MediaPlayerPrivateGStreamerBase.h"
 
 #include <glib.h>
@@ -65,9 +65,9 @@ public:
     explicit MediaPlayerPrivateGStreamer(MediaPlayer*);
     virtual ~MediaPlayerPrivateGStreamer();
 
-    WeakPtr<MediaPlayerPrivateGStreamer> createWeakPtr() { return m_weakPtrFactory.createWeakPtr(*this); }
-
     static void registerMediaEngine(MediaEngineRegistrar);
+    static bool isAvailable();
+
     void handleMessage(GstMessage*);
     void handlePluginInstallerResult(GstInstallPluginsReturn);
 
@@ -109,6 +109,7 @@ public:
     MediaTime maxTimeLoaded() const override;
 
     bool hasSingleSecurityOrigin() const override;
+    Optional<bool> wouldTaintOrigin(const SecurityOrigin&) const override;
 
     void loadStateChanged();
     void timeChanged();
@@ -133,11 +134,12 @@ public:
 
     void enableTrack(TrackPrivateBaseGStreamer::TrackType, unsigned index);
 
+    bool handleSyncMessage(GstMessage*) override;
+
 private:
     static void getSupportedTypes(HashSet<String, ASCIICaseInsensitiveHash>&);
     static MediaPlayer::SupportsType supportsType(const MediaEngineSupportParameters&);
-
-    static bool isAvailable();
+    void syncOnClock(bool sync);
 
     GstElement* createAudioSink() override;
 
@@ -146,7 +148,7 @@ private:
     virtual void updateStates();
     virtual void asyncStateChangeDone();
 
-    void createGSTPlayBin();
+    void createGSTPlayBin(const gchar* playbinName, const String& pipelineName);
 
     bool loadNextLocation();
     void mediaLocationChanged(GstMessage*);
@@ -177,9 +179,11 @@ private:
     static void downloadBufferFileCreatedCallback(MediaPlayerPrivateGStreamer*);
 
     void setPlaybinURL(const URL& urlString);
+    void loadFull(const String& url, const gchar* playbinName, const String& pipelineName);
 
-#if USE(GSTREAMER_PLAYBIN3)
+#if GST_CHECK_VERSION(1, 10, 0)
     void updateTracks();
+    void clearTracks();
 #endif
 
 protected:
@@ -233,7 +237,6 @@ protected:
 #endif
 
 private:
-    WeakPtrFactory<MediaPlayerPrivateGStreamer> m_weakPtrFactory;
 
 #if ENABLE(VIDEO_TRACK)
     GRefPtr<GstElement> m_textAppSink;
@@ -256,10 +259,15 @@ private:
     mutable unsigned long long m_totalBytes;
     URL m_url;
     bool m_preservesPitch;
+    mutable Optional<Seconds> m_lastQueryTime;
     bool m_isLegacyPlaybin;
-#if USE(GSTREAMER_PLAYBIN3)
+#if GST_CHECK_VERSION(1, 10, 0)
     GRefPtr<GstStreamCollection> m_streamCollection;
-#endif
+    FloatSize naturalSize() const final;
+#if ENABLE(MEDIA_STREAM)
+    RefPtr<MediaStreamPrivate> m_streamPrivate;
+#endif // ENABLE(MEDIA_STREAM)
+#endif // GST_CHECK_VERSION(1, 10, 0)
     String m_currentAudioStreamId;
     String m_currentVideoStreamId;
     String m_currentTextStreamId;
@@ -279,6 +287,8 @@ private:
 #endif
 #endif
     virtual bool isMediaSource() const { return false; }
+
+    Optional<bool> m_hasTaintedOrigin { WTF::nullopt };
 };
 }
 

@@ -1,8 +1,7 @@
-set(PAL_HEADERS
+set(PAL_PUBLIC_HEADERS
     ExportMacros.h
     FileSizeFormatter.h
     HysteresisActivity.h
-    LogInitialization.h
     LogMacros.h
     Logging.h
     SessionID.h
@@ -52,5 +51,5 @@ WEBKIT_FRAMEWORK(PAL)
 
 WEBKIT_MAKE_FORWARDING_HEADERS(PAL
     DESTINATION ${FORWARDING_HEADERS_DIR}/pal
-    FILES ${PAL_HEADERS}
+    FILES ${PAL_PUBLIC_HEADERS}
 )

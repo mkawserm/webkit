@@ -54,13 +54,10 @@ class AudioTrackPrivateMediaStreamCocoa;
 class AVVideoCaptureSource;
 class MediaSourcePrivateClient;
 class PixelBufferConformerCV;
+class VideoFullscreenLayerManagerObjC;
 class VideoTrackPrivateMediaStream;
 
-#if PLATFORM(IOS) || (PLATFORM(MAC) && ENABLE(VIDEO_PRESENTATION_MODE))
-class VideoFullscreenLayerManager;
-#endif
-
-class MediaPlayerPrivateMediaStreamAVFObjC final : public MediaPlayerPrivateInterface, private MediaStreamPrivate::Observer, private MediaStreamTrackPrivate::Observer
+class MediaPlayerPrivateMediaStreamAVFObjC final : public CanMakeWeakPtr<MediaPlayerPrivateMediaStreamAVFObjC>, public MediaPlayerPrivateInterface, private MediaStreamPrivate::Observer, private MediaStreamTrackPrivate::Observer
 #if !RELEASE_LOG_DISABLED
     , private LoggerHelper
 #endif
@@ -80,8 +77,6 @@ public:
     void setNetworkState(MediaPlayer::NetworkState);
     MediaPlayer::ReadyState readyState() const override;
     void setReadyState(MediaPlayer::ReadyState);
-
-    WeakPtr<MediaPlayerPrivateMediaStreamAVFObjC> createWeakPtr() { return m_weakPtrFactory.createWeakPtr(*this); }
 
     void ensureLayers();
     void destroyLayers();
@@ -194,6 +189,7 @@ private:
     enum DisplayMode {
         None,
         PaintItBlack,
+        WaitingForFirstImage,
         PausedImage,
         LivePreview,
     };
@@ -223,10 +219,8 @@ private:
     void sampleBufferUpdated(MediaStreamTrackPrivate&, MediaSample&) override;
     void readyStateChanged(MediaStreamTrackPrivate&) override;
 
-#if PLATFORM(IOS) || (PLATFORM(MAC) && ENABLE(VIDEO_PRESENTATION_MODE))
     void setVideoFullscreenLayer(PlatformLayer*, WTF::Function<void()>&& completionHandler) override;
     void setVideoFullscreenFrame(FloatRect) override;
-#endif
 
     MediaTime streamTime() const;
 
@@ -236,8 +230,9 @@ private:
 
     void applicationDidBecomeActive() final;
 
+    bool hideBackgroundLayer() const { return (!m_activeVideoTrack || m_waitingForFirstImage) && m_displayMode != PaintItBlack; }
+
     MediaPlayer* m_player { nullptr };
-    WeakPtrFactory<MediaPlayerPrivateMediaStreamAVFObjC> m_weakPtrFactory;
     RefPtr<MediaStreamPrivate> m_mediaStreamPrivate;
     RefPtr<MediaStreamTrackPrivate> m_activeVideoTrack;
     RetainPtr<WebAVSampleBufferStatusChangeListener> m_statusChangeListener;
@@ -269,26 +264,23 @@ private:
     PlaybackState m_playbackState { PlaybackState::None };
     MediaSample::VideoRotation m_videoRotation { MediaSample::VideoRotation::None };
     CGAffineTransform m_videoTransform;
-    bool m_videoMirrored { false };
-    bool m_playing { false };
-    bool m_muted { false };
-    bool m_ended { false };
-    bool m_hasEverEnqueuedVideoFrame { false };
-    bool m_pendingSelectedTrackCheck { false };
-    bool m_shouldDisplayFirstVideoFrame { false };
-    bool m_transformIsValid { false };
-    bool m_visible { false };
-    bool m_haveSeenMetadata { false };
-
-#if PLATFORM(IOS) || (PLATFORM(MAC) && ENABLE(VIDEO_PRESENTATION_MODE))
-    std::unique_ptr<VideoFullscreenLayerManager> m_videoFullscreenLayerManager;
-#endif
+    std::unique_ptr<VideoFullscreenLayerManagerObjC> m_videoFullscreenLayerManager;
 
 #if !RELEASE_LOG_DISABLED
     Ref<const Logger> m_logger;
     const void* m_logIdentifier;
 #endif
 
+    bool m_videoMirrored { false };
+    bool m_playing { false };
+    bool m_muted { false };
+    bool m_ended { false };
+    bool m_hasEverEnqueuedVideoFrame { false };
+    bool m_pendingSelectedTrackCheck { false };
+    bool m_transformIsValid { false };
+    bool m_visible { false };
+    bool m_haveSeenMetadata { false };
+    bool m_waitingForFirstImage { false };
 };
     
 }

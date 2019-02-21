@@ -247,6 +247,18 @@ webkit_web_context_register_uri_scheme              (WebKitWebContext           
                                                      gpointer                       user_data,
                                                      GDestroyNotify                 user_data_destroy_func);
 
+WEBKIT_API void
+webkit_web_context_set_sandbox_enabled              (WebKitWebContext               *context,
+                                                     gboolean                       enabled);
+
+WEBKIT_API gboolean
+webkit_web_context_get_sandbox_enabled              (WebKitWebContext              *context);
+
+WEBKIT_API void
+webkit_web_context_add_path_to_sandbox              (WebKitWebContext              *context,
+                                                     const char                    *path,
+                                                     gboolean                       read_only);
+
 WEBKIT_API gboolean
 webkit_web_context_get_spell_checking_enabled       (WebKitWebContext              *context);
 
@@ -283,10 +295,6 @@ webkit_web_context_set_web_extensions_initialization_user_data
 WEBKIT_API void
 webkit_web_context_prefetch_dns                     (WebKitWebContext              *context,
                                                      const gchar                   *hostname);
-
-WEBKIT_DEPRECATED_FOR(webkit_web_context_new_with_website_data_manager) void
-webkit_web_context_set_disk_cache_directory         (WebKitWebContext              *context,
-                                                     const gchar                   *directory);
 
 WEBKIT_API void
 webkit_web_context_allow_tls_certificate_for_host   (WebKitWebContext              *context,

@@ -37,9 +37,9 @@
 #import "EditorClient.h"
 #import "Element.h"
 #import "File.h"
+#import "Frame.h"
 #import "FrameView.h"
 #import "HTMLAttachmentElement.h"
-#import "MainFrame.h"
 #import "Page.h"
 #import "Pasteboard.h"
 #import "PasteboardStrategy.h"
@@ -143,6 +143,9 @@ void DragController::updateSupportedTypeIdentifiersForDragHandlingMethod(DragHan
             for (NSString *type in Pasteboard::supportedWebContentPasteboardTypes())
                 supportedTypes.append(type);
         }
+        break;
+    case DragHandlingMethod::SetColor:
+        supportedTypes.append(UIColorPboardType);
         break;
     default:
         for (NSString *type in Pasteboard::supportedFileUploadPasteboardTypes())

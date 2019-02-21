@@ -32,8 +32,10 @@
  */
 
 #include "config.h"
-#include "MonotonicTime.h"
-#include "WallTime.h"
+#include <wtf/MonotonicTime.h>
+
+#include <time.h>
+#include <wtf/WallTime.h>
 
 #if OS(DARWIN)
 #include <mach/mach.h>
@@ -49,9 +51,12 @@
 #include <windows.h>
 #include <math.h>
 #include <stdint.h>
-#include <time.h>
 #else
 #include <sys/time.h>
+#endif
+
+#if OS(FUCHSIA)
+#include <zircon/syscalls.h>
 #endif
 
 #if USE(GLIB)
@@ -261,6 +266,8 @@ MonotonicTime MonotonicTime::now()
     });
 
     return fromRawSeconds((mach_absolute_time() * timebaseInfo.numer) / (1.0e9 * timebaseInfo.denom));
+#elif OS(FUCHSIA)
+    return fromRawSeconds(zx_clock_get_monotonic() / static_cast<double>(ZX_SEC(1)));
 #elif OS(LINUX) || OS(FREEBSD) || OS(OPENBSD) || OS(NETBSD)
     struct timespec ts { };
     clock_gettime(CLOCK_MONOTONIC, &ts);

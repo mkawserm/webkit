@@ -4,11 +4,15 @@ This test verifies that the implementations of the WebAuthN API match with its W
 
 
 PASS Setup for WebAuthN API IDL tests. 
+PASS Partial dictionary CredentialCreationOptions: original dictionary defined 
+PASS Partial dictionary CredentialRequestOptions: original dictionary defined 
+PASS Partial interface PublicKeyCredential: original interface defined 
 PASS Credential interface: existence and properties of interface object 
 PASS Credential interface object length 
 PASS Credential interface object name 
 PASS Credential interface: existence and properties of interface prototype object 
 PASS Credential interface: existence and properties of interface prototype object's "constructor" property 
+PASS Credential interface: existence and properties of interface prototype object's @@unscopables property 
 PASS Credential interface: attribute id 
 PASS Credential interface: attribute type 
 PASS PublicKeyCredential interface: existence and properties of interface object 
@@ -16,6 +20,7 @@ PASS PublicKeyCredential interface object length
 PASS PublicKeyCredential interface object name 
 PASS PublicKeyCredential interface: existence and properties of interface prototype object 
 PASS PublicKeyCredential interface: existence and properties of interface prototype object's "constructor" property 
+PASS PublicKeyCredential interface: existence and properties of interface prototype object's @@unscopables property 
 PASS PublicKeyCredential interface: attribute rawId 
 PASS PublicKeyCredential interface: attribute response 
 PASS PublicKeyCredential interface: operation getClientExtensionResults() 
@@ -33,12 +38,14 @@ PASS AuthenticatorResponse interface object length
 PASS AuthenticatorResponse interface object name 
 PASS AuthenticatorResponse interface: existence and properties of interface prototype object 
 PASS AuthenticatorResponse interface: existence and properties of interface prototype object's "constructor" property 
+PASS AuthenticatorResponse interface: existence and properties of interface prototype object's @@unscopables property 
 PASS AuthenticatorResponse interface: attribute clientDataJSON 
 PASS AuthenticatorAttestationResponse interface: existence and properties of interface object 
 PASS AuthenticatorAttestationResponse interface object length 
 PASS AuthenticatorAttestationResponse interface object name 
 PASS AuthenticatorAttestationResponse interface: existence and properties of interface prototype object 
 PASS AuthenticatorAttestationResponse interface: existence and properties of interface prototype object's "constructor" property 
+PASS AuthenticatorAttestationResponse interface: existence and properties of interface prototype object's @@unscopables property 
 PASS AuthenticatorAttestationResponse interface: attribute attestationObject 
 PASS AuthenticatorAttestationResponse must be primary interface of createdCredential.response 
 PASS Stringification of createdCredential.response 
@@ -49,6 +56,7 @@ PASS AuthenticatorAssertionResponse interface object length
 PASS AuthenticatorAssertionResponse interface object name 
 PASS AuthenticatorAssertionResponse interface: existence and properties of interface prototype object 
 PASS AuthenticatorAssertionResponse interface: existence and properties of interface prototype object's "constructor" property 
+PASS AuthenticatorAssertionResponse interface: existence and properties of interface prototype object's @@unscopables property 
 PASS AuthenticatorAssertionResponse interface: attribute authenticatorData 
 PASS AuthenticatorAssertionResponse interface: attribute signature 
 PASS AuthenticatorAssertionResponse interface: attribute userHandle 

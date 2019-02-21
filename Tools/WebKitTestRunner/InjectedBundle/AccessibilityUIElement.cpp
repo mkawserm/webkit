@@ -27,7 +27,6 @@
 #include "AccessibilityUIElement.h"
 
 #include "JSAccessibilityUIElement.h"
-#include <JavaScriptCore/JSRetainPtr.h>
 
 namespace WTR {
 
@@ -54,7 +53,7 @@ bool AccessibilityUIElement::isValid() const
 }
 
 // iOS specific methods
-#if !PLATFORM(IOS)
+#if !PLATFORM(IOS_FAMILY)
 JSRetainPtr<JSStringRef> AccessibilityUIElement::identifier() { return nullptr; }
 JSRetainPtr<JSStringRef> AccessibilityUIElement::traits() { return nullptr; }
 int AccessibilityUIElement::elementTextPosition() { return 0; }
@@ -75,10 +74,12 @@ RefPtr<AccessibilityUIElement> AccessibilityUIElement::fieldsetAncestorElement()
 bool AccessibilityUIElement::isSearchField() const { return false; }
 bool AccessibilityUIElement::isTextArea() const { return false; }
 RefPtr<AccessibilityTextMarkerRange> AccessibilityUIElement::textMarkerRangeMatchesTextNearMarkers(JSStringRef, AccessibilityTextMarker*, AccessibilityTextMarker*) { return nullptr; }
+bool AccessibilityUIElement::dismiss() { return false; }
+JSRetainPtr<JSStringRef> AccessibilityUIElement::attributedStringForElement() { return nullptr; }
 #endif
     
 // Unsupported methods on various platforms. As they're implemented on other platforms this list should be modified.
-#if (!PLATFORM(GTK) && !PLATFORM(WPE)) || !HAVE(ACCESSIBILITY)
+#if PLATFORM(COCOA) || !HAVE(ACCESSIBILITY)
 JSRetainPtr<JSStringRef> AccessibilityUIElement::characterAtOffset(int) { return nullptr; }
 JSRetainPtr<JSStringRef> AccessibilityUIElement::wordAtOffset(int) { return nullptr; }
 JSRetainPtr<JSStringRef> AccessibilityUIElement::lineAtOffset(int) { return nullptr; }
@@ -106,4 +107,3 @@ RefPtr<AccessibilityTextMarker> AccessibilityUIElement::previousSentenceStartTex
 #endif
 
 } // namespace WTR
-

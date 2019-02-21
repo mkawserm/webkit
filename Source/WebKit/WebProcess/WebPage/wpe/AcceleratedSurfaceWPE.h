@@ -28,7 +28,6 @@
 #if PLATFORM(WPE)
 
 #include "AcceleratedSurface.h"
-#include "CompositingManager.h"
 
 struct wpe_renderer_backend_egl_target;
 
@@ -44,7 +43,7 @@ public:
 
     uint64_t window() const override;
     uint64_t surfaceID() const override;
-    bool resize(const WebCore::IntSize&) override;
+    void clientResize(const WebCore::IntSize&) override;
     bool shouldPaintMirrored() const override { return false; }
 
     void initialize() override;
@@ -55,7 +54,6 @@ public:
 private:
     AcceleratedSurfaceWPE(WebPage&, Client&);
 
-    CompositingManager m_compositingManager;
     struct wpe_renderer_backend_egl_target* m_backend { nullptr };
 };
 

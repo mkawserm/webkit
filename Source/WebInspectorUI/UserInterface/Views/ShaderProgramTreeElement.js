@@ -40,12 +40,17 @@ WI.ShaderProgramTreeElement = class ShaderProgramTreeElement extends WI.GeneralT
 
     // Protected
 
-    selectOnMouseDown(event)
+    onattach()
     {
-        if (this._statusElement.contains(event.target))
-            return;
+        super.onattach();
 
-        super.selectOnMouseDown(event);
+        this.element.addEventListener("mouseover", this._handleMouseOver.bind(this));
+        this.element.addEventListener("mouseout", this._handleMouseOut.bind(this));
+    }
+
+    canSelectOnMouseDown(event)
+    {
+        return !this._statusElement.contains(event.target);
     }
 
     // Private
@@ -56,5 +61,15 @@ WI.ShaderProgramTreeElement = class ShaderProgramTreeElement extends WI.GeneralT
             this._listItemNode.classList.toggle("disabled", !!this.representedObject.disabled);
             this._disabledImageElement.title = this.representedObject.disabled ? WI.UIString("Enable Program") : WI.UIString("Disable Program");
         });
+    }
+
+    _handleMouseOver(event)
+    {
+        this.representedObject.showHighlight();
+    }
+
+    _handleMouseOut(event)
+    {
+        this.representedObject.hideHighlight();
     }
 };

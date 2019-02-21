@@ -28,7 +28,6 @@
 #define WKAPICast_h
 
 #include "CacheModel.h"
-#include "FontSmoothingLevel.h"
 #include "HTTPCookieAcceptPolicy.h"
 #include "InjectedBundleHitTestResultMediaType.h"
 #include "PluginModuleInfo.h"
@@ -54,6 +53,7 @@
 namespace API {
 class ContentRuleList;
 class ContentRuleListStore;
+class InternalDebugFeature;
 class ExperimentalFeature;
 class FrameHandle;
 class FrameInfo;
@@ -204,25 +204,25 @@ inline CacheModel toCacheModel(WKCacheModel wkCacheModel)
 {
     switch (wkCacheModel) {
     case kWKCacheModelDocumentViewer:
-        return CacheModelDocumentViewer;
+        return CacheModel::DocumentViewer;
     case kWKCacheModelDocumentBrowser:
-        return CacheModelDocumentBrowser;
+        return CacheModel::DocumentBrowser;
     case kWKCacheModelPrimaryWebBrowser:
-        return CacheModelPrimaryWebBrowser;
+        return CacheModel::PrimaryWebBrowser;
     }
 
     ASSERT_NOT_REACHED();
-    return CacheModelDocumentViewer;
+    return CacheModel::DocumentViewer;
 }
 
 inline WKCacheModel toAPI(CacheModel cacheModel)
 {
     switch (cacheModel) {
-    case CacheModelDocumentViewer:
+    case CacheModel::DocumentViewer:
         return kWKCacheModelDocumentViewer;
-    case CacheModelDocumentBrowser:
+    case CacheModel::DocumentBrowser:
         return kWKCacheModelDocumentBrowser;
-    case CacheModelPrimaryWebBrowser:
+    case CacheModel::PrimaryWebBrowser:
         return kWKCacheModelPrimaryWebBrowser;
     }
     
@@ -236,6 +236,10 @@ inline WKProcessTerminationReason toAPI(ProcessTerminationReason reason)
         return kWKProcessTerminationReasonExceededMemoryLimit;
     case ProcessTerminationReason::ExceededCPULimit:
         return kWKProcessTerminationReasonExceededCPULimit;
+    case ProcessTerminationReason::NavigationSwap:
+        // We probably shouldn't bother coming up with a new C-API type for process-swapping.
+        // "Requested by client" seems like the best match for existing types.
+        FALLTHROUGH;
     case ProcessTerminationReason::RequestedByClient:
         return kWKProcessTerminationReasonRequestedByClient;
     case ProcessTerminationReason::Crash:
@@ -243,41 +247,6 @@ inline WKProcessTerminationReason toAPI(ProcessTerminationReason reason)
     }
 
     return kWKProcessTerminationReasonCrash;
-}
-
-inline FontSmoothingLevel toFontSmoothingLevel(WKFontSmoothingLevel wkLevel)
-{
-    switch (wkLevel) {
-    case kWKFontSmoothingLevelNoSubpixelAntiAliasing:
-        return FontSmoothingLevelNoSubpixelAntiAliasing;
-    case kWKFontSmoothingLevelLight:
-        return FontSmoothingLevelLight;
-    case kWKFontSmoothingLevelMedium:
-        return FontSmoothingLevelMedium;
-    case kWKFontSmoothingLevelStrong:
-        return FontSmoothingLevelStrong;
-    }
-
-    ASSERT_NOT_REACHED();
-    return FontSmoothingLevelMedium;
-}
-
-
-inline WKFontSmoothingLevel toAPI(FontSmoothingLevel level)
-{
-    switch (level) {
-    case FontSmoothingLevelNoSubpixelAntiAliasing:
-        return kWKFontSmoothingLevelNoSubpixelAntiAliasing;
-    case FontSmoothingLevelLight:
-        return kWKFontSmoothingLevelLight;
-    case FontSmoothingLevelMedium:
-        return kWKFontSmoothingLevelMedium;
-    case FontSmoothingLevelStrong:
-        return kWKFontSmoothingLevelStrong;
-    }
-
-    ASSERT_NOT_REACHED();
-    return kWKFontSmoothingLevelMedium;
 }
 
 inline WKEditableLinkBehavior toAPI(WebCore::EditableLinkBehavior behavior)
@@ -360,6 +329,8 @@ inline WKProtectionSpaceAuthenticationScheme toAPI(WebCore::ProtectionSpaceAuthe
         return kWKProtectionSpaceAuthenticationSchemeClientCertificateRequested;
     case WebCore::ProtectionSpaceAuthenticationSchemeServerTrustEvaluationRequested:
         return kWKProtectionSpaceAuthenticationSchemeServerTrustEvaluationRequested;
+    case WebCore::ProtectionSpaceAuthenticationSchemeOAuth:
+        return kWKProtectionSpaceAuthenticationSchemeOAuth;
     default:
         return kWKProtectionSpaceAuthenticationSchemeUnknown;
     }
@@ -566,6 +537,10 @@ inline WKWebGLLoadPolicy toAPI(WebCore::WebGLLoadPolicy webGLLoadPolicy)
 
 #if defined(BUILDING_WPE__)
 #include "WKAPICastWPE.h"
+#endif
+
+#if defined(WIN32) || defined(_WIN32)
+#include "WKAPICastWin.h"
 #endif
 
 #endif // WKAPICast_h

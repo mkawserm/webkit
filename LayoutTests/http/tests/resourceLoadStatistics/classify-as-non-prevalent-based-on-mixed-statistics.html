@@ -19,24 +19,26 @@
         else
             testPassed("Host did not get classified as prevalent resource.");
 
-        testRunner.statisticsResetToConsistentState();
-        testRunner.notifyDone();
+        testRunner.statisticsResetToConsistentState(function() {
+            testRunner.notifyDone();
+        });
     }
 
     function runTestRunnerTest() {
         testRunner.setStatisticsNotifyPagesWhenDataRecordsWereScanned(true);
 
-        testRunner.setStatisticsPrevalentResource(statisticsUrl, false);
-        if (testRunner.isStatisticsPrevalentResource(statisticsUrl))
-            testFailed("Host did not get set as non-prevalent resource.");
+        testRunner.setStatisticsPrevalentResource(statisticsUrl, false, function() {
+            if (testRunner.isStatisticsPrevalentResource(statisticsUrl))
+                testFailed("Host did not get set as non-prevalent resource.");
 
-        testRunner.setStatisticsSubframeUnderTopFrameOrigin(statisticsUrl, topFrameOrigin1);
-        testRunner.setStatisticsSubresourceUnderTopFrameOrigin(statisticsUrl, topFrameOrigin2);
-        testRunner.setStatisticsSubresourceUniqueRedirectTo(statisticsUrl, topFrameOrigin3);
+            testRunner.setStatisticsSubframeUnderTopFrameOrigin(statisticsUrl, topFrameOrigin1);
+            testRunner.setStatisticsSubresourceUnderTopFrameOrigin(statisticsUrl, topFrameOrigin2);
+            testRunner.setStatisticsSubresourceUniqueRedirectTo(statisticsUrl, topFrameOrigin3);
 
-        testRunner.installStatisticsDidScanDataRecordsCallback(completeTest);
+            testRunner.installStatisticsDidScanDataRecordsCallback(completeTest);
 
-        testRunner.statisticsProcessStatisticsAndDataRecords();
+            testRunner.statisticsProcessStatisticsAndDataRecords();
+        });
     }
 
     if (document.location.host === hostUnderTest && window.testRunner && window.internals) {

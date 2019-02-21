@@ -11,9 +11,8 @@
 #ifndef RTC_BASE_EVENT_H_
 #define RTC_BASE_EVENT_H_
 
-#include "rtc_base/constructormagic.h"
 #if defined(WEBRTC_WIN)
-#include "rtc_base/win32.h"  // NOLINT: consider this a system header.
+#include <windows.h>
 #elif defined(WEBRTC_POSIX)
 #include <pthread.h>
 #else
@@ -26,7 +25,10 @@ class Event {
  public:
   static const int kForever = -1;
 
+  Event();
   Event(bool manual_reset, bool initially_signaled);
+  Event(const Event&) = delete;
+  Event& operator=(const Event&) = delete;
   ~Event();
 
   void Set();
@@ -45,8 +47,20 @@ class Event {
   const bool is_manual_reset_;
   bool event_status_;
 #endif
+};
 
-  RTC_DISALLOW_IMPLICIT_CONSTRUCTORS(Event);
+// This class is provided for compatibility with Chromium.
+// The rtc::Event implementation is overriden inside of Chromium for the
+// purposes of detecting when threads are blocked that shouldn't be as well as
+// to use the more accurate event implementation that's there than is provided
+// by default on some platforms (e.g. Windows).
+// When building with standalone WebRTC, this class is a noop.
+// For further information, please see the ScopedAllowBaseSyncPrimitives class
+// in Chromium.
+class ScopedAllowBaseSyncPrimitives {
+ public:
+  ScopedAllowBaseSyncPrimitives() {}
+  ~ScopedAllowBaseSyncPrimitives() {}
 };
 
 }  // namespace rtc

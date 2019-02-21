@@ -38,8 +38,12 @@ OBJC_CLASS NSView;
 typedef union _GdkEvent GdkEvent;
 #endif
 
-#if PLATFORM(WPE)
+#if USE(LIBWPE)
 struct wpe_input_axis_event;
+#endif
+
+#if PLATFORM(WIN)
+#include <windows.h>
 #endif
 
 namespace WebKit {
@@ -52,14 +56,18 @@ public:
     NativeWebWheelEvent(const NativeWebWheelEvent&);
     NativeWebWheelEvent(GdkEvent*);
     NativeWebWheelEvent(GdkEvent*, WebWheelEvent::Phase, WebWheelEvent::Phase momentumPhase);
-#elif PLATFORM(WPE)
+#elif USE(LIBWPE)
     NativeWebWheelEvent(struct wpe_input_axis_event*, float deviceScaleFactor);
+#elif PLATFORM(WIN)
+    NativeWebWheelEvent(HWND, UINT message, WPARAM, LPARAM);
 #endif
 
 #if USE(APPKIT)
     NSEvent* nativeEvent() const { return m_nativeEvent.get(); }
 #elif PLATFORM(GTK)
     GdkEvent* nativeEvent() const { return m_nativeEvent.get(); }
+#elif PLATFORM(WIN)
+    const MSG* nativeEvent() const { return &m_nativeEvent; }
 #else
     const void* nativeEvent() const { return nullptr; }
 #endif
@@ -69,6 +77,8 @@ private:
     RetainPtr<NSEvent> m_nativeEvent;
 #elif PLATFORM(GTK)
     GUniquePtr<GdkEvent> m_nativeEvent;
+#elif PLATFORM(WIN)
+    MSG m_nativeEvent;
 #endif
 };
 

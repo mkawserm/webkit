@@ -25,7 +25,7 @@
 
 #pragma once
 
-#if PLATFORM(IOS) || (PLATFORM(MAC) && ENABLE(VIDEO_PRESENTATION_MODE))
+#if PLATFORM(IOS_FAMILY) || (PLATFORM(MAC) && ENABLE(VIDEO_PRESENTATION_MODE))
 
 #include "EventListener.h"
 #include "HTMLMediaElementEnums.h"
@@ -72,6 +72,8 @@ public:
     WEBCORE_EXPORT void togglePictureInPicture() final;
     WEBCORE_EXPORT void toggleMuted() final;
     WEBCORE_EXPORT void setMuted(bool) final;
+    WEBCORE_EXPORT void setVolume(double) final;
+    WEBCORE_EXPORT void setPlayingOnSecondScreen(bool) final;
 
     double duration() const final;
     double currentTime() const final;
@@ -92,6 +94,9 @@ public:
     String externalPlaybackLocalizedDeviceName() const final;
     bool wirelessVideoPlaybackDisabled() const final;
     bool isMuted() const final;
+    double volume() const final;
+    bool isPictureInPictureSupported() const final;
+    bool isPictureInPictureActive() const final;
 
 protected:
     WEBCORE_EXPORT PlaybackSessionModelMediaElement();

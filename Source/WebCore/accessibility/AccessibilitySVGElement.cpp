@@ -65,11 +65,10 @@ AccessibilityObject* AccessibilitySVGElement::targetForUseElement() const
     if (href.isEmpty())
         href = getAttribute(HTMLNames::hrefAttr);
 
-    Element* target = SVGURIReference::targetElementFromIRIString(href, use.document());
-    if (target)
-        return axObjectCache()->getOrCreate(target);
-
-    return nullptr;
+    auto target = SVGURIReference::targetElementFromIRIString(href, use.treeScope());
+    if (!target.element)
+        return nullptr;
+    return axObjectCache()->getOrCreate(target.element.get());
 }
 
 template <typename ChildrenType>
@@ -107,7 +106,7 @@ Element* AccessibilitySVGElement::childElementWithMatchingLanguage(ChildrenType&
     return fallback;
 }
 
-void AccessibilitySVGElement::accessibilityText(Vector<AccessibilityText>& textOrder)
+void AccessibilitySVGElement::accessibilityText(Vector<AccessibilityText>& textOrder) const
 {
     String description = accessibilityDescription();
     if (!description.isEmpty())

@@ -25,13 +25,12 @@
 
 #import "config.h"
 
-#if !PLATFORM(IOS)
+#if !PLATFORM(IOS_FAMILY)
 
 #import "PlatformUtilities.h"
 #import <JavaScriptCore/InitializeThreading.h>
-#import <WebKit/WebView.h>
+#import <WebCore/Frame.h>
 #import <WebCore/FrameLoadRequest.h>
-#import <WebCore/MainFrame.h>
 #import <WebCore/Page.h>
 #import <WebCore/PageConfiguration.h>
 #import <WebCore/Document.h>
@@ -42,6 +41,7 @@
 #import <WebCore/SubresourceLoader.h>
 #import <WebCore/WebCoreNSURLSession.h>
 #import <WebCore/ResourceLoader.h>
+#import <WebKit/WebView.h>
 #import <wtf/SchedulePair.h>
 
 static bool didLoadMainResource;
@@ -113,7 +113,7 @@ public:
 
     virtual void SetUp()
     {
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
         JSC::initializeThreading();
 #endif
         view = [[WebView alloc] initWithFrame:NSZeroRect];

@@ -55,6 +55,18 @@ static void enableTerminationOnHeapCorruption()
     HeapSetInformation(0, heapEnableTerminationOnCorruption, 0, 0);
 }
 
+static wstring copyEnvironmentVariable(const wstring& variable)
+{
+    DWORD length = ::GetEnvironmentVariableW(variable.c_str(), 0, 0);
+    if (!length)
+        return wstring();
+    vector<wchar_t> buffer(length);
+    if (!GetEnvironmentVariable(variable.c_str(), &buffer[0], buffer.size()) || !buffer[0])
+        return wstring();
+    return &buffer[0];
+}
+
+#if !defined(WIN_CAIRO)
 static wstring getStringValue(HKEY key, const wstring& valueName)
 {
     DWORD type = 0;
@@ -84,17 +96,6 @@ static wstring appleApplicationSupportDirectory()
     return applePathFromRegistry(L"SOFTWARE\\Apple Inc.\\Apple Application Support", L"InstallDir");
 }
 
-static wstring copyEnvironmentVariable(const wstring& variable)
-{
-    DWORD length = ::GetEnvironmentVariableW(variable.c_str(), 0, 0);
-    if (!length)
-        return wstring();
-    vector<wchar_t> buffer(length);
-    if (!GetEnvironmentVariable(variable.c_str(), &buffer[0], buffer.size()) || !buffer[0])
-        return wstring();
-    return &buffer[0];
-}
-
 static bool prependPath(const wstring& directoryToPrepend)
 {
     wstring pathVariable = L"PATH";
@@ -102,6 +103,7 @@ static bool prependPath(const wstring& directoryToPrepend)
     wstring newPath = directoryToPrepend + L';' + oldPath;
     return ::SetEnvironmentVariableW(pathVariable.c_str(), newPath.c_str());
 }
+#endif
 
 static int fatalError(const wstring& programName, const wstring& message)
 {
@@ -167,33 +169,12 @@ static wstring getLastErrorString(HRESULT hr)
     return errorMessage;
 }
 
-static bool shouldUseHighDPI()
-{
-#ifdef WIN_CAIRO
-    return true;
-#else
-    int argc = 0;
-    WCHAR** argv = CommandLineToArgvW(GetCommandLineW(), &argc);
-    for (int i = 1; i < argc; ++i) {
-        if (!wcsicmp(argv[i], L"--highDPI"))
-            return true;
-    }
-
-    return false;
-#endif
-}
-
 #if USE_CONSOLE_ENTRY_POINT
 int main(int argc, const char* argv[])
 #else
 int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPWSTR lpstrCmdLine, _In_ int nCmdShow)
 #endif
 {
-    if (shouldUseHighDPI()) {
-        BOOL didIt = SetProcessDPIAware();
-        _ASSERT(didIt);
-    }
-
 #ifdef _CRTDBG_MAP_ALLOC
     _CrtSetReportFile(_CRT_WARN, _CRTDBG_FILE_STDERR);
     _CrtSetReportMode(_CRT_WARN, _CRTDBG_MODE_FILE);

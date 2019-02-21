@@ -25,7 +25,7 @@
 
 #pragma once
 
-#if ENABLE(JIT)
+#if !ENABLE(C_LOOP)
 
 #include "GPRInfo.h"
 #include "MacroAssembler.h"
@@ -207,6 +207,7 @@ public:
     
 private:
     void setAny(Reg reg) { set(reg); }
+    void setAny(JSValueRegs regs) { set(regs); }
     void setAny(const RegisterSet& set) { merge(set); }
     void setMany() { }
     template<typename RegType, typename... Regs>
@@ -245,4 +246,4 @@ template<> struct HashTraits<JSC::RegisterSet> : public CustomHashTraits<JSC::Re
 
 } // namespace WTF
 
-#endif // ENABLE(JIT)
+#endif // !ENABLE(C_LOOP)

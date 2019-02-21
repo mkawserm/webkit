@@ -58,13 +58,11 @@ private:
 };
 
 class CARingBuffer {
+    WTF_MAKE_FAST_ALLOCATED;
 public:
     WEBCORE_EXPORT CARingBuffer();
     WEBCORE_EXPORT CARingBuffer(UniqueRef<CARingBufferStorage>&&);
-    WEBCORE_EXPORT ~CARingBuffer()
-    {
-        deallocate();
-    }
+    WEBCORE_EXPORT ~CARingBuffer();
 
     enum Error {
         Ok,

@@ -31,7 +31,7 @@
 #import "SharedBuffer.h"
 #import <wtf/text/WTFString.h>
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
 #import <CoreGraphics/CoreGraphics.h>
 #import <ImageIO/ImageIO.h>
 #import <MobileCoreServices/MobileCoreServices.h>
@@ -88,7 +88,7 @@ RetainPtr<CFDataRef> BitmapImage::tiffRepresentation(const Vector<NativeImagePtr
     if (!destination)
         return nullptr;
 
-    for (auto nativeImage : nativeImages)
+    for (const auto& nativeImage : nativeImages)
         CGImageDestinationAddImage(destination.get(), nativeImage.get(), 0);
 
     CGImageDestinationFinalize(destination.get());
@@ -105,9 +105,7 @@ CFDataRef BitmapImage::tiffRepresentation()
         return nullptr;
 
     m_tiffRep = data;
-    return m_tiffRep.get();
-
-    
+    return m_tiffRep.get();    
 }
 
 #if USE(APPKIT)
@@ -120,7 +118,7 @@ NSImage* BitmapImage::nsImage()
     if (!data)
         return nullptr;
     
-    m_nsImage = adoptNS([[NSImage alloc] initWithData:(NSData*)data]);
+    m_nsImage = adoptNS([[NSImage alloc] initWithData:(__bridge NSData *)data]);
     return m_nsImage.get();
 }
 
@@ -134,7 +132,7 @@ RetainPtr<NSImage> BitmapImage::snapshotNSImage()
     if (!data)
         return nullptr;
 
-    return adoptNS([[NSImage alloc] initWithData:(NSData*)data.get()]);
+    return adoptNS([[NSImage alloc] initWithData:(__bridge NSData *)data.get()]);
 }
 #endif
 

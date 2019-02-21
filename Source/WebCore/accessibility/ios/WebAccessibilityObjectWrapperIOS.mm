@@ -26,7 +26,7 @@
 #import "config.h"
 #import "WebAccessibilityObjectWrapperIOS.h"
 
-#if HAVE(ACCESSIBILITY) && PLATFORM(IOS)
+#if HAVE(ACCESSIBILITY) && PLATFORM(IOS_FAMILY)
 
 #import "AccessibilityAttachment.h"
 #import "AccessibilityMediaObject.h"
@@ -77,7 +77,6 @@ enum {
 @end
 
 @interface WebAccessibilityObjectWrapper (AccessibilityPrivate)
-- (id)_accessibilityWebDocumentView;
 - (id)accessibilityContainer;
 - (void)setAccessibilityLabel:(NSString *)label;
 - (void)setAccessibilityValue:(NSString *)value;
@@ -117,6 +116,9 @@ static NSString * const UIAccessibilityTokenItalic = @"UIAccessibilityTokenItali
 static NSString * const UIAccessibilityTokenUnderline = @"UIAccessibilityTokenUnderline";
 static NSString * const UIAccessibilityTokenLanguage = @"UIAccessibilityTokenLanguage";
 static NSString * const UIAccessibilityTokenAttachment = @"UIAccessibilityTokenAttachment";
+
+static NSString * const UIAccessibilityTextAttributeContext = @"UIAccessibilityTextAttributeContext";
+static NSString * const UIAccessibilityTextualContextSourceCode = @"UIAccessibilityTextualContextSourceCode";
 
 static AccessibilityObjectWrapper* AccessibilityUnignoredAncestor(AccessibilityObjectWrapper *wrapper)
 {
@@ -344,6 +346,7 @@ static AccessibilityObjectWrapper* AccessibilityUnignoredAncestor(AccessibilityO
     switch (role) {
     case AccessibilityRole::Button:
     case AccessibilityRole::CheckBox:
+    case AccessibilityRole::ColorWell:
     case AccessibilityRole::ComboBox:
     case AccessibilityRole::DisclosureTriangle:
     case AccessibilityRole::Heading:
@@ -385,7 +388,7 @@ static AccessibilityObjectWrapper* AccessibilityUnignoredAncestor(AccessibilityO
         return nil;
     
     // Try a fuzzy hit test first to find an accessible element.
-    RefPtr<AccessibilityObject> axObject;
+    AccessibilityObjectInterface *axObject = nullptr;
     {
         AXAttributeCacheEnabler enableCache(m_object->axObjectCache());
         axObject = m_object->accessibilityHitTest(IntPoint(point));
@@ -854,6 +857,7 @@ static AccessibilityObjectWrapper* AccessibilityUnignoredAncestor(AccessibilityO
     case AccessibilityRole::ToggleButton:
     case AccessibilityRole::PopUpButton:
     case AccessibilityRole::CheckBox:
+    case AccessibilityRole::ColorWell:
     case AccessibilityRole::RadioButton:
     case AccessibilityRole::Slider:
     case AccessibilityRole::MenuButton:
@@ -928,7 +932,6 @@ static AccessibilityObjectWrapper* AccessibilityUnignoredAncestor(AccessibilityO
     case AccessibilityRole::Canvas:
     case AccessibilityRole::Caption:
     case AccessibilityRole::Cell:
-    case AccessibilityRole::ColorWell:
     case AccessibilityRole::Column:
     case AccessibilityRole::ColumnHeader:
     case AccessibilityRole::Definition:
@@ -1053,11 +1056,6 @@ static AccessibilityObjectWrapper* AccessibilityUnignoredAncestor(AccessibilityO
     return YES;
 }
 
-- (BOOL)fileUploadButtonReturnsValueInTitle
-{
-    return NO;
-}
-
 static void appendStringToResult(NSMutableString *result, NSString *string)
 {
     ASSERT(result);
@@ -1084,6 +1082,17 @@ static void appendStringToResult(NSMutableString *result, NSString *string)
     return m_object->isValueAutofilled();
 }
 
+- (BOOL)_accessibilityIsStrongPasswordField
+{
+    if (![self _prepareAccessibilityCall])
+        return NO;
+    
+    if (!m_object->isPasswordField())
+        return NO;
+    
+    return m_object->valueAutofillButtonType() == AutoFillButtonType::StrongPassword;
+}
+
 - (CGFloat)_accessibilityMinValue
 {
     if (![self _prepareAccessibilityCall])
@@ -1102,6 +1111,12 @@ static void appendStringToResult(NSMutableString *result, NSString *string)
 
 - (NSString *)accessibilityRoleDescription
 {
+    if (![self _prepareAccessibilityCall])
+        return nil;
+
+    if (m_object->isColorWell())
+        return AXColorWellText();
+
     return m_object->roleDescription();
 }
 
@@ -1110,7 +1125,7 @@ static void appendStringToResult(NSMutableString *result, NSString *string)
     if (![self _prepareAccessibilityCall])
         return nil;
 
-    // check if the label was overriden
+    // check if the label was overridden
     NSString *label = [super accessibilityLabel];
     if (label)
         return label;
@@ -1380,18 +1395,32 @@ static void appendStringToResult(NSMutableString *result, NSString *string)
     return m_object->placeholderValue();
 }
 
+- (NSString *)accessibilityColorStringValue
+{
+    if (![self _prepareAccessibilityCall])
+        return nil;
+
+    if (m_object->isColorWell()) {
+        int r, g, b;
+        m_object->colorValue(r, g, b);
+        return [NSString stringWithFormat:@"rgb %7.5f %7.5f %7.5f 1", r / 255., g / 255., b / 255.];
+    }
+
+    return nil;
+}
+
 - (NSString *)accessibilityValue
 {
     if (![self _prepareAccessibilityCall])
         return nil;
     
-    // check if the value was overriden
+    // check if the value was overridden
     NSString *value = [super accessibilityValue];
     if (value)
         return value;
     
     AccessibilityRole role = m_object->roleValue();
-    if (m_object->isCheckboxOrRadio() || role == AccessibilityRole::MenuItemCheckbox || role == AccessibilityRole::MenuItemRadio) {
+    if (m_object->isCheckboxOrRadio() || role == AccessibilityRole::MenuItemCheckbox || role == AccessibilityRole::MenuItemRadio || role == AccessibilityRole::Switch) {
         switch (m_object->checkboxOrRadioValue()) {
         case AccessibilityButtonState::Off:
             return [NSString stringWithFormat:@"%d", 0];
@@ -1408,7 +1437,7 @@ static void appendStringToResult(NSMutableString *result, NSString *string)
         return [NSString stringWithFormat:@"%d", 1];
 
     // rdar://8131388 WebKit should expose the same info as UIKit for its password fields.
-    if (m_object->isPasswordField()) {
+    if (m_object->isPasswordField() && ![self _accessibilityIsStrongPasswordField]) {
         int passwordLength = m_object->accessibilityPasswordFieldLength();
         NSMutableString* string = [NSMutableString string];
         for (int k = 0; k < passwordLength; ++k)
@@ -1484,8 +1513,20 @@ static void appendStringToResult(NSMutableString *result, NSString *string)
     if (![self _prepareAccessibilityCall])
         return point;
     
-    FloatPoint floatPoint = FloatPoint(point);
-    return [self convertPointToScreenSpace:floatPoint];
+    auto floatPoint = FloatPoint(point);
+    auto floatRect = FloatRect(floatPoint, FloatSize());
+    return [self convertRectToSpace:floatRect space:AccessibilityConversionSpace::Screen].origin;
+}
+
+- (BOOL)accessibilityPerformEscape
+{
+    if (![self _prepareAccessibilityCall])
+        return NO;
+    
+    m_object->dispatchAccessibilityEventWithType(AccessibilityEventType::Dismiss);
+    
+    // Return whether a listener received this event so it prevents other callers up the hierarchy chain.
+    return m_object->shouldDispatchAccessibilityEvent() && m_object->hasAccessibleDismissEventListener();
 }
 
 - (BOOL)_accessibilityScrollToVisible
@@ -1535,102 +1576,10 @@ static void appendStringToResult(NSMutableString *result, NSString *string)
     return result;
 }
 
-- (CGPoint)convertPointToScreenSpace:(FloatPoint &)point
+- (CGRect)_accessibilityRelativeFrame
 {
-    if (!m_object)
-        return CGPointZero;
-    
-    CGPoint cgPoint = CGPointMake(point.x(), point.y());
-    
-    FrameView* frameView = m_object->documentFrameView();
-    WAKView* documentView = frameView ? frameView->documentView() : nullptr;
-    if (documentView) {
-        cgPoint = [documentView convertPoint:cgPoint toView:nil];
-
-        // we need the web document view to give us our final screen coordinates
-        // because that can take account of the scroller
-        id webDocument = [self _accessibilityWebDocumentView];
-        if (webDocument)
-            cgPoint = [webDocument convertPoint:cgPoint toView:nil];
-    }
-    else {
-        // Find the appropriate scroll view to use to convert the contents to the window.
-        ScrollView* scrollView = nullptr;
-        const AccessibilityObject* parent = AccessibilityObject::matchedParent(*m_object, false, [] (const AccessibilityObject& object) {
-            return is<AccessibilityScrollView>(object);
-        });
-        if (parent)
-            scrollView = downcast<AccessibilityScrollView>(*parent).scrollView();
-        
-        IntPoint intPoint = flooredIntPoint(point);
-        if (scrollView)
-            intPoint = scrollView->contentsToRootView(intPoint);
-        
-        Page* page = m_object->page();
-        
-        // If we have an empty chrome client (like SVG) then we should use the page
-        // of the scroll view parent to help us get to the screen rect.
-        if (parent && page && page->chrome().client().isEmptyChromeClient())
-            page = parent->page();
-        
-        if (page) {
-            IntRect rect = IntRect(intPoint, IntSize(0, 0));
-            intPoint = page->chrome().rootViewToAccessibilityScreen(rect).location();
-        }
-        
-        cgPoint = (CGPoint)intPoint;
-    }
-    
-    return cgPoint;
-}
-
-- (CGRect)convertRectToScreenSpace:(IntRect &)rect
-{
-    if (!m_object)
-        return CGRectZero;
-    
-    CGSize size = CGSizeMake(rect.size().width(), rect.size().height());
-    CGPoint point = CGPointMake(rect.x(), rect.y());
-    
-    CGRect frame = CGRectMake(point.x, point.y, size.width, size.height);
-    
-    FrameView* frameView = m_object->documentFrameView();
-    WAKView* documentView = frameView ? frameView->documentView() : nil;
-    if (documentView) {
-        frame = [documentView convertRect:frame toView:nil];
-        
-        // we need the web document view to give us our final screen coordinates
-        // because that can take account of the scroller
-        id webDocument = [self _accessibilityWebDocumentView];
-        if (webDocument)
-            frame = [webDocument convertRect:frame toView:nil];
-        
-    } else {
-        // Find the appropriate scroll view to use to convert the contents to the window.
-        ScrollView* scrollView = nullptr;
-        const AccessibilityObject* parent = AccessibilityObject::matchedParent(*m_object, false, [] (const AccessibilityObject& object) {
-            return is<AccessibilityScrollView>(object);
-        });
-        if (parent)
-            scrollView = downcast<AccessibilityScrollView>(*parent).scrollView();
-        
-        if (scrollView)
-            rect = scrollView->contentsToRootView(rect);
-        
-        Page* page = m_object->page();
-        
-        // If we have an empty chrome client (like SVG) then we should use the page
-        // of the scroll view parent to help us get to the screen rect.
-        if (parent && page && page->chrome().client().isEmptyChromeClient())
-            page = parent->page();
-        
-        if (page)
-            rect = page->chrome().rootViewToAccessibilityScreen(rect);
-        
-        frame = (CGRect)rect;
-    }
-    
-    return frame;
+    auto rect = FloatRect(snappedIntRect(m_object->elementRect()));
+    return [self convertRectToSpace:rect space:AccessibilityConversionSpace::Page];
 }
 
 // Used by UIKit accessibility bundle to help determine distance during a hit-test.
@@ -1643,6 +1592,18 @@ static void appendStringToResult(NSMutableString *result, NSString *string)
     return CGRectMake(rect.x(), rect.y(), rect.width(), rect.height());
 }
 
+- (CGRect)accessibilityVisibleContentRect
+{
+    if (![self _prepareAccessibilityCall])
+        return CGRectZero;
+    
+    auto document = m_object->document();
+    if (!document || !document->view())
+        return CGRectZero;
+    auto rect = FloatRect(snappedIntRect(document->view()->unobscuredContentRect()));
+    return [self convertRectToSpace:rect space:AccessibilityConversionSpace::Screen];
+}
+
 // The "center point" is where VoiceOver will "press" an object. This may not be the actual
 // center of the accessibilityFrame
 - (CGPoint)accessibilityActivationPoint
@@ -1650,8 +1611,8 @@ static void appendStringToResult(NSMutableString *result, NSString *string)
     if (![self _prepareAccessibilityCall])
         return CGPointZero;
     
-    IntRect rect = snappedIntRect(m_object->boundingBoxRect());
-    CGRect cgRect = [self convertRectToScreenSpace:rect];
+    auto rect = FloatRect(snappedIntRect(m_object->boundingBoxRect()));
+    CGRect cgRect = [self convertRectToSpace:rect space:AccessibilityConversionSpace::Screen];
     return CGPointMake(CGRectGetMidX(cgRect), CGRectGetMidY(cgRect));
 }
 
@@ -1660,8 +1621,8 @@ static void appendStringToResult(NSMutableString *result, NSString *string)
     if (![self _prepareAccessibilityCall])
         return CGRectZero;
     
-    IntRect rect = snappedIntRect(m_object->elementRect());
-    return [self convertRectToScreenSpace:rect];
+    auto rect = FloatRect(snappedIntRect(m_object->elementRect()));
+    return [self convertRectToSpace:rect space:AccessibilityConversionSpace::Screen];
 }
 
 // Checks whether a link contains only static text and images (and has been divided unnaturally by <spans> and other nefarious mechanisms).
@@ -1724,7 +1685,7 @@ static void appendStringToResult(NSMutableString *result, NSString *string)
     if (![self _prepareAccessibilityCall])
         return nil;
     
-    AccessibilityObject* focusedObj = m_object->focusedUIElement();
+    AccessibilityObject* focusedObj = downcast<AccessibilityObject>(m_object->focusedUIElement());
     
     if (!focusedObj)
         return nil;
@@ -1788,6 +1749,14 @@ static void appendStringToResult(NSMutableString *result, NSString *string)
     return m_object->canSetValueAttribute();
 }
 
+- (NSString *)accessibilityLinkRelationshipType
+{
+    if (![self _prepareAccessibilityCall])
+        return nil;
+    
+    return m_object->linkRelValue();
+}
+
 - (BOOL)accessibilityRequired
 {
     if (![self _prepareAccessibilityCall])
@@ -1845,6 +1814,17 @@ static void appendStringToResult(NSMutableString *result, NSString *string)
         return NO;
     
     return m_object->isAttachment();
+}
+
+- (NSString *)accessibilityTextualContext
+{
+    if (![self _prepareAccessibilityCall])
+        return nil;
+
+    if (m_object->node() && m_object->node()->hasTagName(codeTag))
+        return UIAccessibilityTextualContextSourceCode;
+    
+    return nil;
 }
 
 - (void)_accessibilityActivate
@@ -2012,7 +1992,7 @@ static RenderObject* rendererForView(WAKView* view)
     AccessibilitySearchCriteria criteria = accessibilitySearchCriteriaForSearchPredicateParameterizedAttribute(parameters);
     AccessibilityObject::AccessibilityChildrenVector results;
     m_object->findMatchingObjects(&criteria, results);
-    return convertToNSArray(results);
+    return (NSArray *)convertToNSArray(results);
 }
 
 - (void)accessibilityElementDidBecomeFocused
@@ -2020,26 +2000,7 @@ static RenderObject* rendererForView(WAKView* view)
     if (![self _prepareAccessibilityCall])
         return;
     
-    // The focused VoiceOver element might be the text inside a link.
-    // In those cases we should focus on the link itself.
-    for (AccessibilityObject* object = m_object; object != nil; object = object->parentObject()) {
-        if (object->roleValue() == AccessibilityRole::WebArea)
-            break;
-
-        if (object->canSetFocusAttribute()) {
-            // webkit.org/b/162041 Taking focus onto elements inside a details node will cause VO focusing onto random items.
-            if ([self detailParentForObject:object])
-                break;
-            
-            // webkit.org/b/162322 When a dialog is focusable, allowing focusing onto the dialog node will cause VO cursor jumping
-            // back and forward while navigating its children.
-            if ([object->wrapper() accessibilityIsDialog])
-                break;
-            
-            object->setFocused(true);
-            break;
-        }
-    }
+    m_object->dispatchAccessibilityEventWithType(AccessibilityEventType::Focus);
 }
 
 - (void)accessibilityModifySelection:(TextGranularity)granularity increase:(BOOL)increase
@@ -2230,9 +2191,18 @@ static void AXAttributeStringSetStyle(NSMutableAttributedString* attrString, Ren
     // set basic font info
     AXAttributeStringSetFont(attrString, style.fontCascade().primaryFont().getCTFont(), range);
                 
-    int decor = style.textDecorationsInEffect();
-    if (decor & TextDecorationUnderline)
+    auto decor = style.textDecorationsInEffect();
+    if (decor & TextDecoration::Underline)
         AXAttributeStringSetNumber(attrString, UIAccessibilityTokenUnderline, @YES, range);
+
+    // Add code context if this node is within a <code> block.
+    AccessibilityObject* axObject = renderer->document().axObjectCache()->getOrCreate(renderer);
+    auto matchFunc = [] (const AccessibilityObject& object) {
+        return object.node() && object.node()->hasTagName(codeTag);
+    };
+    
+    if (const AccessibilityObject* parent = AccessibilityObject::matchedParent(*axObject, true, WTFMove(matchFunc)))
+        [attrString addAttribute:UIAccessibilityTextAttributeContext value:UIAccessibilityTextualContextSourceCode range:range];
 }
 
 static void AXAttributedStringAppendText(NSMutableAttributedString* attrString, Node* node, NSString *text)
@@ -2355,12 +2325,12 @@ static void AXAttributedStringAppendText(NSMutableAttributedString* attrString, 
     if (&range->endContainer() != scope && !range->endContainer().isDescendantOf(scope))
         return NSMakeRange(NSNotFound, 0);
 
-    RefPtr<Range> testRange = Range::create(scope->document(), scope, 0, &range->startContainer(), range->startOffset());
+    auto testRange = Range::create(scope->document(), scope, 0, &range->startContainer(), range->startOffset());
     ASSERT(&testRange->startContainer() == scope);
-    int startPosition = TextIterator::rangeLength(testRange.get());
+    int startPosition = TextIterator::rangeLength(testRange.ptr());
     testRange->setEnd(range->endContainer(), range->endOffset());
     ASSERT(&testRange->startContainer() == scope);
-    int endPosition = TextIterator::rangeLength(testRange.get());
+    int endPosition = TextIterator::rangeLength(testRange.ptr());
     return NSMakeRange(startPosition, endPosition - startPosition);
 }
 
@@ -2491,25 +2461,10 @@ static void AXAttributedStringAppendText(NSMutableAttributedString* attrString, 
     return [WebAccessibilityTextMarker textMarkerWithCharacterOffset:characterOffset cache:cache];
 }
 
-- (id)_stringForRange:(NSRange)range attributed:(BOOL)attributed
+- (id)_stringFromStartMarker:(WebAccessibilityTextMarker*)startMarker toEndMarker:(WebAccessibilityTextMarker*)endMarker attributed:(BOOL)attributed
 {
-    if (![self _prepareAccessibilityCall])
+    if (!startMarker || !endMarker)
         return nil;
-    
-    WebAccessibilityTextMarker* startMarker = [self textMarkerForPosition:range.location];
-    WebAccessibilityTextMarker* endMarker = [self textMarkerForPosition:NSMaxRange(range)];
-    
-    // Clients don't always know the exact range, rather than force them to compute it,
-    // allow clients to overshoot and use the max text marker range.
-    if (!startMarker || !endMarker) {
-        NSArray *markers = [self textMarkerRange];
-        if ([markers count] != 2)
-            return nil;
-        if (!startMarker)
-            startMarker = [markers objectAtIndex:0];
-        if (!endMarker)
-            endMarker = [markers objectAtIndex:1];
-    }
     
     NSArray* array = [self arrayOfTextForTextMarkers:[NSArray arrayWithObjects:startMarker, endMarker, nil] attributed:attributed];
     Class returnClass = attributed ? [NSMutableAttributedString class] : [NSMutableString class];
@@ -2534,6 +2489,29 @@ static void AXAttributedStringAppendText(NSMutableAttributedString* attrString, 
     return returnValue;
 }
 
+- (id)_stringForRange:(NSRange)range attributed:(BOOL)attributed
+{
+    if (![self _prepareAccessibilityCall])
+        return nil;
+    
+    WebAccessibilityTextMarker* startMarker = [self textMarkerForPosition:range.location];
+    WebAccessibilityTextMarker* endMarker = [self textMarkerForPosition:NSMaxRange(range)];
+    
+    // Clients don't always know the exact range, rather than force them to compute it,
+    // allow clients to overshoot and use the max text marker range.
+    if (!startMarker || !endMarker) {
+        NSArray *markers = [self textMarkerRange];
+        if ([markers count] != 2)
+            return nil;
+        if (!startMarker)
+            startMarker = [markers objectAtIndex:0];
+        if (!endMarker)
+            endMarker = [markers objectAtIndex:1];
+    }
+    
+    return [self _stringFromStartMarker:startMarker toEndMarker:endMarker attributed:attributed];
+}
+
 
 // A convenience method for getting the text of a NSRange. Currently used only by DRT.
 - (NSString *)stringForRange:(NSRange)range
@@ -2544,6 +2522,18 @@ static void AXAttributedStringAppendText(NSMutableAttributedString* attrString, 
 - (NSAttributedString *)attributedStringForRange:(NSRange)range
 {
     return [self _stringForRange:range attributed:YES];
+}
+
+- (NSAttributedString *)attributedStringForElement
+{
+    if (![self _prepareAccessibilityCall])
+        return nil;
+    
+    NSArray *markers = [self textMarkerRange];
+    if ([markers count] != 2)
+        return nil;
+    
+    return [self _stringFromStartMarker:markers.firstObject toEndMarker:markers.lastObject attributed:YES];
 }
 
 - (NSRange)_accessibilitySelectedTextRange
@@ -2676,8 +2666,8 @@ static void AXAttributedStringAppendText(NSMutableAttributedString* attrString, 
     if (!range)
         return CGRectZero;
     
-    IntRect rect = m_object->boundsForRange(range);
-    return [self convertRectToScreenSpace:rect];
+    auto rect = FloatRect(m_object->boundsForRange(range));
+    return [self convertRectToSpace:rect space:AccessibilityConversionSpace::Screen];
 }
 
 - (RefPtr<Range>)rangeFromMarkers:(NSArray *)markers withText:(NSString *)text
@@ -2722,8 +2712,8 @@ static void AXAttributedStringAppendText(NSMutableAttributedString* attrString, 
     NSMutableArray *rects = [NSMutableArray arrayWithCapacity:size];
     for (unsigned i = 0; i < size; i++) {
         const WebCore::SelectionRect& coreRect = selectionRects[i];
-        IntRect selectionRect = coreRect.rect();
-        CGRect rect = [self convertRectToScreenSpace:selectionRect];
+        auto selectionRect = FloatRect(coreRect.rect());
+        CGRect rect = [self convertRectToSpace:selectionRect space:AccessibilityConversionSpace::Screen];
         [rects addObject:[NSValue valueWithRect:rect]];
     }
     
@@ -3178,4 +3168,4 @@ static void AXAttributedStringAppendText(NSMutableAttributedString* attrString, 
 
 @end
 
-#endif // HAVE(ACCESSIBILITY) && PLATFORM(IOS)
+#endif // HAVE(ACCESSIBILITY) && PLATFORM(IOS_FAMILY)

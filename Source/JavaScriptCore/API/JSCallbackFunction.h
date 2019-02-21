@@ -32,10 +32,16 @@
 
 namespace JSC {
 
-class JSCallbackFunction : public InternalFunction {
+class JSCallbackFunction final : public InternalFunction {
     friend struct APICallbackFunction;
 public:
     typedef InternalFunction Base;
+
+    template<typename CellType, SubspaceAccess mode>
+    static IsoSubspace* subspaceFor(VM& vm)
+    {
+        return vm.callbackFunctionSpace<mode>();
+    }
 
     static JSCallbackFunction* create(VM&, JSGlobalObject*, JSObjectCallAsFunctionCallback, const String& name);
 

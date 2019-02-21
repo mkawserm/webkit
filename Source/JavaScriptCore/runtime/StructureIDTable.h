@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013 Apple Inc. All rights reserved.
+ * Copyright (C) 2013-2019 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -28,6 +28,7 @@
 #include "UnusedPointer.h"
 #include <wtf/UniqueArray.h>
 #include <wtf/Vector.h>
+#include <wtf/WeakRandom.h>
 
 namespace JSC {
 
@@ -55,7 +56,7 @@ inline StructureID decontaminate(StructureID id)
 {
     return id & ~nukedStructureIDBit();
 }
-#else
+#else // not USE(JSVALUE64)
 typedef Structure* StructureID;
 
 inline StructureID nukedStructureIDBit()
@@ -77,7 +78,9 @@ inline StructureID decontaminate(StructureID id)
 {
     return bitwise_cast<StructureID>(bitwise_cast<uintptr_t>(id) & ~bitwise_cast<uintptr_t>(nukedStructureIDBit()));
 }
-#endif
+#endif // not USE(JSVALUE64)
+
+#if USE(JSVALUE64)
 
 class StructureIDTable {
     friend class LLIntOffsetsExtractor;
@@ -96,6 +99,7 @@ public:
 
 private:
     void resize(size_t newCapacity);
+    void makeFreeListFromRange(uint32_t first, uint32_t last);
 
     union StructureOrOffset {
         WTF_MAKE_FAST_ALLOCATED;
@@ -106,31 +110,48 @@ private:
 
     StructureOrOffset* table() const { return m_table.get(); }
     
-    static const size_t s_initialSize = 256;
+    static constexpr size_t s_initialSize = 512;
 
     Vector<UniqueArray<StructureOrOffset>> m_oldTables;
 
-    uint32_t m_firstFreeOffset;
+    uint32_t m_firstFreeOffset { 0 };
+    uint32_t m_lastFreeOffset { 0 };
     UniqueArray<StructureOrOffset> m_table;
 
-    size_t m_size;
+    size_t m_size { 0 };
     size_t m_capacity;
 
-#if USE(JSVALUE64)
+    WeakRandom m_weakRandom;
+
     static const StructureID s_unusedID = unusedPointer;
-#endif
 };
 
 inline Structure* StructureIDTable::get(StructureID structureID)
 {
-#if USE(JSVALUE64)
     ASSERT_WITH_SECURITY_IMPLICATION(structureID);
     ASSERT_WITH_SECURITY_IMPLICATION(!isNuked(structureID));
     ASSERT_WITH_SECURITY_IMPLICATION(structureID < m_capacity);
     return table()[structureID].structure;
-#else
-    return structureID;
-#endif
 }
+
+#else // not USE(JSVALUE64)
+
+class StructureIDTable {
+    friend class LLIntOffsetsExtractor;
+public:
+    StructureIDTable() = default;
+
+    Structure* get(StructureID structureID) { return structureID; }
+    void deallocateID(Structure*, StructureID) { }
+    StructureID allocateID(Structure* structure)
+    {
+        ASSERT(!isNuked(structure));
+        return structure;
+    };
+
+    void flushOldTables() { }
+};
+
+#endif // not USE(JSVALUE64)
 
 } // namespace JSC

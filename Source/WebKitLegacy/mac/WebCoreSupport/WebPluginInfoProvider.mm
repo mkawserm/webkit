@@ -27,8 +27,8 @@
 
 #import "WebPluginDatabase.h"
 #import "WebPluginPackage.h"
+#import <WebCore/Frame.h>
 #import <WebCore/FrameLoader.h>
-#import <WebCore/MainFrame.h>
 #import <WebCore/Page.h>
 #import <WebCore/SubframeLoader.h>
 #import <wtf/BlockObjCExceptions.h>
@@ -55,22 +55,27 @@ void WebPluginInfoProvider::refreshPlugins()
     [[WebPluginDatabase sharedDatabaseIfExists] refresh];
 }
 
-void WebPluginInfoProvider::getPluginInfo(WebCore::Page& page, Vector<WebCore::PluginInfo>& plugins, std::optional<Vector<SupportedPluginName>>&)
+Vector<WebCore::PluginInfo> WebPluginInfoProvider::pluginInfo(WebCore::Page& page, Optional<Vector<SupportedPluginIdentifier>>&)
 {
+    Vector<WebCore::PluginInfo> plugins;
+
     BEGIN_BLOCK_OBJC_EXCEPTIONS;
+
 
     // WebKit1 has no application plug-ins, so we don't need to add them here.
     if (!page.mainFrame().loader().subframeLoader().allowPlugins())
-        return;
+        return plugins;
 
     for (WebPluginPackage *plugin in [WebPluginDatabase sharedDatabase].plugins)
         plugins.append(plugin.pluginInfo);
 
     END_BLOCK_OBJC_EXCEPTIONS;
+
+    return plugins;
 }
 
-void WebPluginInfoProvider::getWebVisiblePluginInfo(WebCore::Page& page, Vector<WebCore::PluginInfo>& plugins)
+Vector<WebCore::PluginInfo> WebPluginInfoProvider::webVisiblePluginInfo(WebCore::Page& page, const URL&)
 {
-    std::optional<Vector<SupportedPluginName>> supportedPluginNames;
-    getPluginInfo(page, plugins, supportedPluginNames);
+    Optional<Vector<SupportedPluginIdentifier>> supportedPluginIdentifiers;
+    return pluginInfo(page, supportedPluginIdentifiers);
 }

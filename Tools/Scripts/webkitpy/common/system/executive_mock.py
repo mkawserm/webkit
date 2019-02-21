@@ -143,6 +143,9 @@ class MockExecutive(object):
     def kill_process(self, pid):
         pass
 
+    def interrupt(self, pid):
+        pass
+
     def popen(self, args, cwd=None, env=None, **kwargs):
         self.calls.append(args)
         if self._should_log:
@@ -178,6 +181,7 @@ class MockExecutive2(MockExecutive):
         self._stderr = stderr
         self._exit_code = exit_code
         self._exception = exception
+        self._running_pids = {'test-webkitpy': os.getpid()}
         self._run_command_fn = run_command_fn
         self.calls = []
 

@@ -163,6 +163,71 @@ function getLocaleSupportInfo(Constructor) {
 
 
 /**
+ * Returns an array of strings for which IsStructurallyValidLanguageTag() returns false
+ */
+function getInvalidLanguageTags() {
+  var invalidLanguageTags = [
+    "", // empty tag
+    "i", // singleton alone
+    "x", // private use without subtag
+    "u", // extension singleton in first place
+    "419", // region code in first place
+    "u-nu-latn-cu-bob", // extension sequence without language
+    "hans-cmn-cn", // "hans" could theoretically be a 4-letter language code,
+                   // but those can't be followed by extlang codes.
+    "cmn-hans-cn-u-u", // duplicate singleton
+    "cmn-hans-cn-t-u-ca-u", // duplicate singleton
+    "de-gregory-gregory", // duplicate variant
+    "*", // language range
+    "de-*", // language range
+    "中文", // non-ASCII letters
+    "en-ß", // non-ASCII letters
+    "ıd", // non-ASCII letters
+    "es-Latn-latn", // two scripts
+    "pl-PL-pl", // two regions
+    "u-ca-gregory", // extension in first place
+    "de-1996-1996", // duplicate numeric variant
+    "pt-u-ca-gregory-u-nu-latn", // duplicate singleton subtag
+
+    // underscores in different parts of the language tag
+    "de_DE",
+    "DE_de",
+    "cmn_Hans",
+    "cmn-hans_cn",
+    "es_419",
+    "es-419-u-nu-latn-cu_bob",
+    "i_klingon",
+    "cmn-hans-cn-t-ca-u-ca-x_t-u",
+    "enochian_enochian",
+    "de-gregory_u-ca-gregory",
+
+    "en\u0000", // null-terminator sequence
+    " en", // leading whitespace
+    "en ", // trailing whitespace
+    "it-IT-Latn", // country before script tag
+    "de-u", // incomplete Unicode extension sequences
+    "de-u-",
+    "de-u-ca-",
+    "de-u-ca-gregory-",
+    "si-x", // incomplete private-use tags
+    "x-",
+    "x-y-",
+  ];
+
+  // make sure the data above is correct
+  for (var i = 0; i < invalidLanguageTags.length; ++i) {
+    var invalidTag = invalidLanguageTags[i];
+    assert(
+      !isCanonicalizedStructurallyValidLanguageTag(invalidTag),
+      "Test data \"" + invalidTag + "\" is a canonicalized and structurally valid language tag."
+    );
+  }
+
+  return invalidLanguageTags;
+}
+
+
+/**
  * @description Tests whether locale is a String value representing a
  * structurally valid and canonicalized BCP 47 language tag, as defined in
  * sections 6.2.2 and 6.2.3 of the ECMAScript Internationalization API
@@ -223,7 +288,7 @@ function isCanonicalizedStructurallyValidLanguageTag(locale) {
   var __tagMappings = {
     // property names must be in lower case; values in canonical form
 
-    // grandfathered tags from IANA language subtag registry, file date 2017-12-14
+    // grandfathered tags from IANA language subtag registry, file date 2018-04-23
     "art-lojban": "jbo",
     "cel-gaulish": "cel-gaulish",
     "en-gb-oed": "en-GB-oxendict",
@@ -250,7 +315,7 @@ function isCanonicalizedStructurallyValidLanguageTag(locale) {
     "zh-min": "zh-min",
     "zh-min-nan": "nan",
     "zh-xiang": "hsn",
-    // deprecated redundant tags from IANA language subtag registry, file date 2017-12-14
+    // deprecated redundant tags from IANA language subtag registry, file date 2018-04-23
     "sgn-br": "bzs",
     "sgn-co": "csn",
     "sgn-de": "gsg",
@@ -276,7 +341,7 @@ function isCanonicalizedStructurallyValidLanguageTag(locale) {
     "zh-gan": "gan",
     "zh-wuu": "wuu",
     "zh-yue": "yue",
-    // deprecated variant with prefix from IANA language subtag registry, file date 2017-12-14
+    // deprecated variant with prefix from IANA language subtag registry, file date 2018-04-23
     "ja-latn-hepburn-heploc": "ja-Latn-alalc97"
   };
 
@@ -288,7 +353,7 @@ function isCanonicalizedStructurallyValidLanguageTag(locale) {
    */
   var __subtagMappings = {
     // property names and values must be in canonical case
-    // language subtags with Preferred-Value mappings from IANA language subtag registry, file date 2017-12-14
+    // language subtags with Preferred-Value mappings from IANA language subtag registry, file date 2018-04-23
     "in": "id",
     "iw": "he",
     "ji": "yi",
@@ -334,6 +399,7 @@ function isCanonicalizedStructurallyValidLanguageTag(locale) {
     "mwj": "vaj",
     "myt": "mry",
     "nad": "xny",
+    "ncp": "kdz",
     "nnx": "ngv",
     "nts": "pij",
     "oun": "vaj",
@@ -366,7 +432,7 @@ function isCanonicalizedStructurallyValidLanguageTag(locale) {
     "ymt": "mtm",
     "yos": "zom",
     "yuu": "yug",
-    // region subtags with Preferred-Value mappings from IANA language subtag registry, file date 2017-12-14
+    // region subtags with Preferred-Value mappings from IANA language subtag registry, file date 2018-04-23
     "BU": "MM",
     "DD": "DE",
     "FX": "FR",
@@ -382,7 +448,7 @@ function isCanonicalizedStructurallyValidLanguageTag(locale) {
    * Spec: IANA Language Subtag Registry.
    */
   var __extlangMappings = {
-    // extlang subtags with Preferred-Value mappings from IANA language subtag registry, file date 2017-12-14
+    // extlang subtags with Preferred-Value mappings from IANA language subtag registry, file date 2018-04-23
     // values are arrays with [0] the replacement value, [1] (if present) the prefix to be removed
     "aao": ["aao", "ar"],
     "abh": ["abh", "ar"],
@@ -515,6 +581,7 @@ function isCanonicalizedStructurallyValidLanguageTag(locale) {
     "lsy": ["lsy", "sgn"],
     "ltg": ["ltg", "lv"],
     "lvs": ["lvs", "lv"],
+    "lws": ["lws", "sgn"],
     "lzh": ["lzh", "zh"],
     "max": ["max", "ms"],
     "mdl": ["mdl", "sgn"],
@@ -560,6 +627,7 @@ function isCanonicalizedStructurallyValidLanguageTag(locale) {
     "psr": ["psr", "sgn"],
     "pys": ["pys", "sgn"],
     "rms": ["rms", "sgn"],
+    "rsi": ["rsi", "sgn"],
     "rsl": ["rsl", "sgn"],
     "rsm": ["rsm", "sgn"],
     "sdl": ["sdl", "sgn"],
@@ -607,6 +675,7 @@ function isCanonicalizedStructurallyValidLanguageTag(locale) {
     "xml": ["xml", "sgn"],
     "xmm": ["xmm", "ms"],
     "xms": ["xms", "sgn"],
+    "yds": ["yds", "sgn"],
     "ygs": ["ygs", "sgn"],
     "yhs": ["yhs", "sgn"],
     "ysl": ["ysl", "sgn"],
@@ -701,6 +770,65 @@ function isCanonicalizedStructurallyValidLanguageTag(locale) {
       canonicalizeLanguageTag(locale) === locale;
 }
 
+
+/**
+ * Returns an array of error cases handled by CanonicalizeLocaleList().
+ */
+function getInvalidLocaleArguments() {
+  function CustomError() {}
+
+  var topLevelErrors = [
+    // fails ToObject
+    [null, TypeError],
+
+    // fails Get
+    [{ get length() { throw new CustomError(); } }, CustomError],
+
+    // fail ToLength
+    [{ length: Symbol.toPrimitive }, TypeError],
+    [{ length: { get [Symbol.toPrimitive]() { throw new CustomError(); } } }, CustomError],
+    [{ length: { [Symbol.toPrimitive]() { throw new CustomError(); } } }, CustomError],
+    [{ length: { get valueOf() { throw new CustomError(); } } }, CustomError],
+    [{ length: { valueOf() { throw new CustomError(); } } }, CustomError],
+    [{ length: { get toString() { throw new CustomError(); } } }, CustomError],
+    [{ length: { toString() { throw new CustomError(); } } }, CustomError],
+
+    // fail type check
+    [[undefined], TypeError],
+    [[null], TypeError],
+    [[true], TypeError],
+    [[Symbol.toPrimitive], TypeError],
+    [[1], TypeError],
+    [[0.1], TypeError],
+    [[NaN], TypeError],
+  ];
+
+  var invalidLanguageTags = [
+    "", // empty tag
+    "i", // singleton alone
+    "x", // private use without subtag
+    "u", // extension singleton in first place
+    "419", // region code in first place
+    "u-nu-latn-cu-bob", // extension sequence without language
+    "hans-cmn-cn", // "hans" could theoretically be a 4-letter language code,
+                   // but those can't be followed by extlang codes.
+    "abcdefghi", // overlong language
+    "cmn-hans-cn-u-u", // duplicate singleton
+    "cmn-hans-cn-t-u-ca-u", // duplicate singleton
+    "de-gregory-gregory", // duplicate variant
+    "*", // language range
+    "de-*", // language range
+    "中文", // non-ASCII letters
+    "en-ß", // non-ASCII letters
+    "ıd" // non-ASCII letters
+  ];
+
+  return topLevelErrors.concat(
+    invalidLanguageTags.map(tag => [tag, RangeError]),
+    invalidLanguageTags.map(tag => [[tag], RangeError]),
+    invalidLanguageTags.map(tag => [["en", tag], RangeError]),
+  )
+}
 
 /**
  * Tests whether the named options property is correctly handled by the given constructor.

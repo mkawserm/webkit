@@ -15,8 +15,8 @@
 #include <vector>
 
 #include "logging/rtc_event_log/mock/mock_rtc_event_log.h"
-#include "modules/congestion_controller/acknowledged_bitrate_estimator.h"
-#include "modules/remote_bitrate_estimator/include/send_time_history.h"
+#include "modules/congestion_controller/goog_cc/acknowledged_bitrate_estimator.h"
+#include "modules/congestion_controller/rtp/send_time_history.h"
 #include "modules/remote_bitrate_estimator/test/bwe.h"
 
 namespace webrtc {
@@ -39,6 +39,7 @@ class SendSideBweSender : public BweSender, public RemoteBitrateObserver {
  protected:
   std::unique_ptr<BitrateController> bitrate_controller_;
   std::unique_ptr<AcknowledgedBitrateEstimator> acknowledged_bitrate_estimator_;
+  std::unique_ptr<ProbeBitrateEstimator> probe_bitrate_estimator_;
   std::unique_ptr<DelayBasedBwe> bwe_;
   RtcpBandwidthObserver* feedback_observer_;
 
@@ -58,7 +59,7 @@ class SendSideBweSender : public BweSender, public RemoteBitrateObserver {
 class SendSideBweReceiver : public BweReceiver {
  public:
   explicit SendSideBweReceiver(int flow_id);
-  virtual ~SendSideBweReceiver();
+  ~SendSideBweReceiver() override;
 
   void ReceivePacket(int64_t arrival_time_ms,
                      const MediaPacket& media_packet) override;

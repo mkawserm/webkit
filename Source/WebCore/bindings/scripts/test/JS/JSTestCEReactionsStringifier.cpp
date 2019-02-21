@@ -29,10 +29,13 @@
 #include "JSDOMExceptionHandling.h"
 #include "JSDOMOperation.h"
 #include "JSDOMWrapperCache.h"
+#include "ScriptExecutionContext.h"
 #include <JavaScriptCore/FunctionPrototype.h>
+#include <JavaScriptCore/HeapSnapshotBuilder.h>
 #include <JavaScriptCore/JSCInlines.h>
 #include <wtf/GetPtr.h>
 #include <wtf/PointerPreparations.h>
+#include <wtf/URL.h>
 
 
 namespace WebCore {
@@ -48,6 +51,8 @@ JSC::EncodedJSValue jsTestCEReactionsStringifierConstructor(JSC::ExecState*, JSC
 bool setJSTestCEReactionsStringifierConstructor(JSC::ExecState*, JSC::EncodedJSValue, JSC::EncodedJSValue);
 JSC::EncodedJSValue jsTestCEReactionsStringifierValue(JSC::ExecState*, JSC::EncodedJSValue, JSC::PropertyName);
 bool setJSTestCEReactionsStringifierValue(JSC::ExecState*, JSC::EncodedJSValue, JSC::EncodedJSValue);
+JSC::EncodedJSValue jsTestCEReactionsStringifierValueWithoutReactions(JSC::ExecState*, JSC::EncodedJSValue, JSC::PropertyName);
+bool setJSTestCEReactionsStringifierValueWithoutReactions(JSC::ExecState*, JSC::EncodedJSValue, JSC::EncodedJSValue);
 
 class JSTestCEReactionsStringifierPrototype : public JSC::JSNonFinalObject {
 public:
@@ -85,7 +90,7 @@ template<> JSValue JSTestCEReactionsStringifierConstructor::prototypeForStructur
 template<> void JSTestCEReactionsStringifierConstructor::initializeProperties(VM& vm, JSDOMGlobalObject& globalObject)
 {
     putDirect(vm, vm.propertyNames->prototype, JSTestCEReactionsStringifier::prototype(vm, globalObject), JSC::PropertyAttribute::DontDelete | JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum);
-    putDirect(vm, vm.propertyNames->name, jsNontrivialString(&vm, String(ASCIILiteral("TestCEReactionsStringifier"))), JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum);
+    putDirect(vm, vm.propertyNames->name, jsNontrivialString(&vm, String("TestCEReactionsStringifier"_s)), JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum);
     putDirect(vm, vm.propertyNames->length, jsNumber(0), JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum);
 }
 
@@ -97,7 +102,8 @@ static const HashTableValue JSTestCEReactionsStringifierPrototypeTableValues[] =
 {
     { "constructor", static_cast<unsigned>(JSC::PropertyAttribute::DontEnum), NoIntrinsic, { (intptr_t)static_cast<PropertySlot::GetValueFunc>(jsTestCEReactionsStringifierConstructor), (intptr_t) static_cast<PutPropertySlot::PutValueFunc>(setJSTestCEReactionsStringifierConstructor) } },
     { "value", static_cast<unsigned>(JSC::PropertyAttribute::CustomAccessor | JSC::PropertyAttribute::DOMAttribute), NoIntrinsic, { (intptr_t)static_cast<PropertySlot::GetValueFunc>(jsTestCEReactionsStringifierValue), (intptr_t) static_cast<PutPropertySlot::PutValueFunc>(setJSTestCEReactionsStringifierValue) } },
-    { "toString", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestCEReactionsStringifierPrototypeFunctionToString), (intptr_t) (0) } },
+    { "valueWithoutReactions", static_cast<unsigned>(JSC::PropertyAttribute::CustomAccessor | JSC::PropertyAttribute::DOMAttribute), NoIntrinsic, { (intptr_t)static_cast<PropertySlot::GetValueFunc>(jsTestCEReactionsStringifierValueWithoutReactions), (intptr_t) static_cast<PutPropertySlot::PutValueFunc>(setJSTestCEReactionsStringifierValueWithoutReactions) } },
+    { "toString", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestCEReactionsStringifierPrototypeFunctionToString), (intptr_t) (0) } },
 };
 
 const ClassInfo JSTestCEReactionsStringifierPrototype::s_info = { "TestCEReactionsStringifierPrototype", &Base::s_info, nullptr, nullptr, CREATE_METHOD_TABLE(JSTestCEReactionsStringifierPrototype) };
@@ -145,19 +151,19 @@ void JSTestCEReactionsStringifier::destroy(JSC::JSCell* cell)
 
 template<> inline JSTestCEReactionsStringifier* IDLAttribute<JSTestCEReactionsStringifier>::cast(ExecState& state, EncodedJSValue thisValue)
 {
-    return jsDynamicDowncast<JSTestCEReactionsStringifier*>(state.vm(), JSValue::decode(thisValue));
+    return jsDynamicCast<JSTestCEReactionsStringifier*>(state.vm(), JSValue::decode(thisValue));
 }
 
 template<> inline JSTestCEReactionsStringifier* IDLOperation<JSTestCEReactionsStringifier>::cast(ExecState& state)
 {
-    return jsDynamicDowncast<JSTestCEReactionsStringifier*>(state.vm(), state.thisValue());
+    return jsDynamicCast<JSTestCEReactionsStringifier*>(state.vm(), state.thisValue());
 }
 
 EncodedJSValue jsTestCEReactionsStringifierConstructor(ExecState* state, EncodedJSValue thisValue, PropertyName)
 {
     VM& vm = state->vm();
     auto throwScope = DECLARE_THROW_SCOPE(vm);
-    auto* prototype = jsDynamicDowncast<JSTestCEReactionsStringifierPrototype*>(vm, JSValue::decode(thisValue));
+    auto* prototype = jsDynamicCast<JSTestCEReactionsStringifierPrototype*>(vm, JSValue::decode(thisValue));
     if (UNLIKELY(!prototype))
         return throwVMTypeError(state, throwScope);
     return JSValue::encode(JSTestCEReactionsStringifier::getConstructor(state->vm(), prototype->globalObject()));
@@ -167,7 +173,7 @@ bool setJSTestCEReactionsStringifierConstructor(ExecState* state, EncodedJSValue
 {
     VM& vm = state->vm();
     auto throwScope = DECLARE_THROW_SCOPE(vm);
-    auto* prototype = jsDynamicDowncast<JSTestCEReactionsStringifierPrototype*>(vm, JSValue::decode(thisValue));
+    auto* prototype = jsDynamicCast<JSTestCEReactionsStringifierPrototype*>(vm, JSValue::decode(thisValue));
     if (UNLIKELY(!prototype)) {
         throwVMTypeError(state, throwScope);
         return false;
@@ -193,7 +199,7 @@ EncodedJSValue jsTestCEReactionsStringifierValue(ExecState* state, EncodedJSValu
 static inline bool setJSTestCEReactionsStringifierValueSetter(ExecState& state, JSTestCEReactionsStringifier& thisObject, JSValue value, ThrowScope& throwScope)
 {
     UNUSED_PARAM(throwScope);
-    CustomElementReactionStack customElementReactionStack;
+    CustomElementReactionStack customElementReactionStack(state);
     auto& impl = thisObject.wrapped();
     auto nativeValue = convert<IDLDOMString>(state, value);
     RETURN_IF_EXCEPTION(throwScope, false);
@@ -206,6 +212,38 @@ static inline bool setJSTestCEReactionsStringifierValueSetter(ExecState& state, 
 bool setJSTestCEReactionsStringifierValue(ExecState* state, EncodedJSValue thisValue, EncodedJSValue encodedValue)
 {
     return IDLAttribute<JSTestCEReactionsStringifier>::set<setJSTestCEReactionsStringifierValueSetter>(*state, thisValue, encodedValue, "value");
+}
+
+static inline JSValue jsTestCEReactionsStringifierValueWithoutReactionsGetter(ExecState& state, JSTestCEReactionsStringifier& thisObject, ThrowScope& throwScope)
+{
+    UNUSED_PARAM(throwScope);
+    UNUSED_PARAM(state);
+    auto& impl = thisObject.wrapped();
+    JSValue result = toJS<IDLDOMString>(state, throwScope, impl.valueWithoutReactions());
+    return result;
+}
+
+EncodedJSValue jsTestCEReactionsStringifierValueWithoutReactions(ExecState* state, EncodedJSValue thisValue, PropertyName)
+{
+    return IDLAttribute<JSTestCEReactionsStringifier>::get<jsTestCEReactionsStringifierValueWithoutReactionsGetter, CastedThisErrorBehavior::Assert>(*state, thisValue, "valueWithoutReactions");
+}
+
+static inline bool setJSTestCEReactionsStringifierValueWithoutReactionsSetter(ExecState& state, JSTestCEReactionsStringifier& thisObject, JSValue value, ThrowScope& throwScope)
+{
+    UNUSED_PARAM(throwScope);
+    CustomElementReactionDisallowedScope customElementReactionDisallowedScope;
+    auto& impl = thisObject.wrapped();
+    auto nativeValue = convert<IDLDOMString>(state, value);
+    RETURN_IF_EXCEPTION(throwScope, false);
+    AttributeSetter::call(state, throwScope, [&] {
+        return impl.setValueWithoutReactions(WTFMove(nativeValue));
+    });
+    return true;
+}
+
+bool setJSTestCEReactionsStringifierValueWithoutReactions(ExecState* state, EncodedJSValue thisValue, EncodedJSValue encodedValue)
+{
+    return IDLAttribute<JSTestCEReactionsStringifier>::set<setJSTestCEReactionsStringifierValueWithoutReactionsSetter>(*state, thisValue, encodedValue, "valueWithoutReactions");
 }
 
 static inline JSC::EncodedJSValue jsTestCEReactionsStringifierPrototypeFunctionToStringBody(JSC::ExecState* state, typename IDLOperation<JSTestCEReactionsStringifier>::ClassParameter castedThis, JSC::ThrowScope& throwScope)
@@ -221,10 +259,20 @@ EncodedJSValue JSC_HOST_CALL jsTestCEReactionsStringifierPrototypeFunctionToStri
     return IDLOperation<JSTestCEReactionsStringifier>::call<jsTestCEReactionsStringifierPrototypeFunctionToStringBody>(*state, "toString");
 }
 
-bool JSTestCEReactionsStringifierOwner::isReachableFromOpaqueRoots(JSC::Handle<JSC::Unknown> handle, void*, SlotVisitor& visitor)
+void JSTestCEReactionsStringifier::heapSnapshot(JSCell* cell, HeapSnapshotBuilder& builder)
+{
+    auto* thisObject = jsCast<JSTestCEReactionsStringifier*>(cell);
+    builder.setWrappedObjectForCell(cell, &thisObject->wrapped());
+    if (thisObject->scriptExecutionContext())
+        builder.setLabelForCell(cell, "url " + thisObject->scriptExecutionContext()->url().string());
+    Base::heapSnapshot(cell, builder);
+}
+
+bool JSTestCEReactionsStringifierOwner::isReachableFromOpaqueRoots(JSC::Handle<JSC::Unknown> handle, void*, SlotVisitor& visitor, const char** reason)
 {
     UNUSED_PARAM(handle);
     UNUSED_PARAM(visitor);
+    UNUSED_PARAM(reason);
     return false;
 }
 
@@ -275,7 +323,7 @@ JSC::JSValue toJS(JSC::ExecState* state, JSDOMGlobalObject* globalObject, TestCE
 
 TestCEReactionsStringifier* JSTestCEReactionsStringifier::toWrapped(JSC::VM& vm, JSC::JSValue value)
 {
-    if (auto* wrapper = jsDynamicDowncast<JSTestCEReactionsStringifier*>(vm, value))
+    if (auto* wrapper = jsDynamicCast<JSTestCEReactionsStringifier*>(vm, value))
         return &wrapper->wrapped();
     return nullptr;
 }

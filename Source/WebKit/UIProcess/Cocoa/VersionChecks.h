@@ -27,10 +27,19 @@
 
 #import <wtf/spi/darwin/dyldSPI.h>
 
+#if USE(APPLE_INTERNAL_SDK)
+#import <WebKitAdditions/VersionChecksAdditions.h>
+#else
+#define DYLD_IOS_VERSION_FIRST_WITH_LAZY_GESTURE_RECOGNIZER_INSTALLATION 0
+#define DYLD_IOS_VERSION_FIRST_WITH_PROCESS_SWAP_ON_CROSS_SITE_NAVIGATION 0
+#define DYLD_IOS_VERSION_FIRST_WITH_SNAPSHOT_AFTER_SCREEN_UPDATES 0
+#define DYLD_MACOS_VERSION_FIRST_WITH_SNAPSHOT_AFTER_SCREEN_UPDATES 0
+#endif
+
 namespace WebKit {
 
 enum class SDKVersion : uint32_t {
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
     FirstWithNetworkCache = DYLD_IOS_VERSION_9_0,
     FirstWithMediaTypesRequiringUserActionForPlayback = DYLD_IOS_VERSION_10_0,
     FirstWithExceptionsForDuplicateCompletionHandlerCalls = DYLD_IOS_VERSION_11_0,
@@ -38,11 +47,19 @@ enum class SDKVersion : uint32_t {
     FirstWithExpiredOnlyReloadBehavior = DYLD_IOS_VERSION_11_0,
     FirstThatDisallowsSettingAnyXHRHeaderFromFileURLs = DYLD_IOS_VERSION_11_3,
     FirstThatDefaultsToPassiveTouchListenersOnDocument = DYLD_IOS_VERSION_11_3,
+    FirstWhereScrollViewContentInsetsAreNotObscuringInsets = DYLD_IOS_VERSION_12_0,
+    FirstWhereUIScrollViewDoesNotApplyKeyboardInsetsUnconditionally = DYLD_IOS_VERSION_12_0,
+    FirstWithMainThreadReleaseAssertionInWebPageProxy = DYLD_IOS_VERSION_12_0,
+    FirstWithLazyGestureRecognizerInstallation = DYLD_IOS_VERSION_FIRST_WITH_LAZY_GESTURE_RECOGNIZER_INSTALLATION,
+    FirstWithProcessSwapOnCrossSiteNavigation = DYLD_IOS_VERSION_FIRST_WITH_PROCESS_SWAP_ON_CROSS_SITE_NAVIGATION,
+    FirstWithSnapshotAfterScreenUpdates = DYLD_IOS_VERSION_FIRST_WITH_SNAPSHOT_AFTER_SCREEN_UPDATES,
 #elif PLATFORM(MAC)
     FirstWithNetworkCache = DYLD_MACOSX_VERSION_10_11,
     FirstWithExceptionsForDuplicateCompletionHandlerCalls = DYLD_MACOSX_VERSION_10_13,
     FirstWithDropToNavigateDisallowedByDefault = DYLD_MACOSX_VERSION_10_13,
     FirstWithExpiredOnlyReloadBehavior = DYLD_MACOSX_VERSION_10_13,
+    FirstWithMainThreadReleaseAssertionInWebPageProxy = DYLD_MACOSX_VERSION_10_14,
+    FirstWithSnapshotAfterScreenUpdates = DYLD_MACOS_VERSION_FIRST_WITH_SNAPSHOT_AFTER_SCREEN_UPDATES,
 #endif
 };
 

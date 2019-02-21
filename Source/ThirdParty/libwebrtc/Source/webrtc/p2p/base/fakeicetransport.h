@@ -11,7 +11,9 @@
 #ifndef P2P_BASE_FAKEICETRANSPORT_H_
 #define P2P_BASE_FAKEICETRANSPORT_H_
 
+#include <map>
 #include <string>
+#include <utility>
 
 #include "p2p/base/icetransportinternal.h"
 #include "rtc_base/asyncinvoker.h"
@@ -21,8 +23,13 @@ namespace cricket {
 
 class FakeIceTransport : public IceTransportInternal {
  public:
-  explicit FakeIceTransport(const std::string& name, int component)
-      : name_(name), component_(component) {}
+  explicit FakeIceTransport(const std::string& name,
+                            int component,
+                            rtc::Thread* network_thread = nullptr)
+      : name_(name),
+        component_(component),
+        network_thread_(network_thread ? network_thread
+                                       : rtc::Thread::Current()) {}
   ~FakeIceTransport() override {
     if (dest_ && dest_->dest_ == this) {
       dest_->dest_ = nullptr;
@@ -83,7 +90,9 @@ class FakeIceTransport : public IceTransportInternal {
   }
 
   // Convenience functions for accessing ICE config and other things.
-  int receiving_timeout() const { return ice_config_.receiving_timeout; }
+  int receiving_timeout() const {
+    return ice_config_.receiving_timeout_or_default();
+  }
   bool gather_continually() const { return ice_config_.gather_continually(); }
   const Candidates& remote_candidates() const { return remote_candidates_; }
 
@@ -108,6 +117,19 @@ class FakeIceTransport : public IceTransportInternal {
     }
 
     return IceTransportState::STATE_CONNECTING;
+  }
+
+  webrtc::IceTransportState GetIceTransportState() const override {
+    if (connection_count_ == 0) {
+      return had_connection_ ? webrtc::IceTransportState::kFailed
+                             : webrtc::IceTransportState::kNew;
+    }
+
+    if (connection_count_ == 1) {
+      return webrtc::IceTransportState::kCompleted;
+    }
+
+    return webrtc::IceTransportState::kConnected;
   }
 
   void SetIceRole(IceRole role) override { role_ = role; }
@@ -142,21 +164,29 @@ class FakeIceTransport : public IceTransportInternal {
   void AddRemoteCandidate(const Candidate& candidate) override {
     remote_candidates_.push_back(candidate);
   }
-  void RemoveRemoteCandidate(const Candidate& candidate) override {}
+  void RemoveRemoteCandidate(const Candidate& candidate) override {
+    auto it = std::find(remote_candidates_.begin(), remote_candidates_.end(),
+                        candidate);
+    if (it == remote_candidates_.end()) {
+      RTC_LOG(LS_INFO) << "Trying to remove a candidate which doesn't exist.";
+      return;
+    }
 
-  bool GetStats(ConnectionInfos* infos) override {
-    ConnectionInfo info;
-    infos->clear();
-    infos->push_back(info);
+    remote_candidates_.erase(it);
+  }
+
+  bool GetStats(ConnectionInfos* candidate_pair_stats_list,
+                CandidateStatsList* candidate_stats_list) override {
+    CandidateStats candidate_stats;
+    ConnectionInfo candidate_pair_stats;
+    candidate_stats_list->clear();
+    candidate_stats_list->push_back(candidate_stats);
+    candidate_pair_stats_list->clear();
+    candidate_pair_stats_list->push_back(candidate_pair_stats);
     return true;
   }
 
-  rtc::Optional<int> GetRttEstimate() override {
-    return rtc::Optional<int>();
-  }
-
-  void SetMetricsObserver(webrtc::MetricsObserverInterface* observer) override {
-  }
+  absl::optional<int> GetRttEstimate() override { return absl::nullopt; }
 
   // Fake PacketTransportInternal implementation.
   bool writable() const override { return writable_; }
@@ -209,11 +239,13 @@ class FakeIceTransport : public IceTransportInternal {
 
   rtc::CopyOnWriteBuffer last_sent_packet() { return last_sent_packet_; }
 
-  rtc::Optional<rtc::NetworkRoute> network_route() const override {
+  absl::optional<rtc::NetworkRoute> network_route() const override {
     return network_route_;
   }
-  void SetNetworkRoute(rtc::Optional<rtc::NetworkRoute> network_route) {
+  void SetNetworkRoute(absl::optional<rtc::NetworkRoute> network_route) {
     network_route_ = network_route;
+    network_thread_->Invoke<void>(
+        RTC_FROM_HERE, [this] { SignalNetworkRouteChanged(network_route_); });
   }
 
  private:
@@ -221,7 +253,7 @@ class FakeIceTransport : public IceTransportInternal {
     if (writable_ == writable) {
       return;
     }
-    RTC_LOG(INFO) << "set_writable from:" << writable_ << " to " << writable;
+    RTC_LOG(INFO) << "Change writable_ to " << writable;
     writable_ = writable;
     if (writable_) {
       SignalReadyToSend(this);
@@ -241,7 +273,7 @@ class FakeIceTransport : public IceTransportInternal {
     if (dest_) {
       last_sent_packet_ = packet;
       dest_->SignalReadPacket(dest_, packet.data<char>(), packet.size(),
-                              rtc::CreatePacketTime(0), 0);
+                              rtc::TimeMicros(), 0);
     }
   }
 
@@ -267,9 +299,10 @@ class FakeIceTransport : public IceTransportInternal {
   bool receiving_ = false;
   bool combine_outgoing_packets_ = false;
   rtc::CopyOnWriteBuffer send_packet_;
-  rtc::Optional<rtc::NetworkRoute> network_route_;
+  absl::optional<rtc::NetworkRoute> network_route_;
   std::map<rtc::Socket::Option, int> socket_options_;
   rtc::CopyOnWriteBuffer last_sent_packet_;
+  rtc::Thread* const network_thread_;
 };
 
 }  // namespace cricket

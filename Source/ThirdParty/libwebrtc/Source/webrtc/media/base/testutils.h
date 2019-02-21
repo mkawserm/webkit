@@ -18,15 +18,7 @@
 #include "media/base/videocapturer.h"
 #include "media/base/videocommon.h"
 #include "rtc_base/arraysize.h"
-#include "rtc_base/basictypes.h"
-#include "rtc_base/sigslot.h"
-#include "rtc_base/window.h"
-
-namespace rtc {
-class ByteBufferReader;
-class ByteBufferWriter;
-class StreamInterface;
-}
+#include "rtc_base/third_party/sigslot/sigslot.h"
 
 namespace webrtc {
 class VideoFrame;
@@ -39,44 +31,11 @@ namespace cricket {
 // Returns size of ARGB image.
 #define ARGB_SIZE(w, h) (w * h * 4)
 
-template <class T> inline std::vector<T> MakeVector(const T a[], size_t s) {
+template <class T>
+inline std::vector<T> MakeVector(const T a[], size_t s) {
   return std::vector<T>(a, a + s);
 }
 #define MAKE_VECTOR(a) cricket::MakeVector(a, arraysize(a))
-
-struct RtpDumpPacket;
-class RtpDumpWriter;
-
-struct RawRtpPacket {
-  void WriteToByteBuffer(uint32_t in_ssrc, rtc::ByteBufferWriter* buf) const;
-  bool ReadFromByteBuffer(rtc::ByteBufferReader* buf);
-  // Check if this packet is the same as the specified packet except the
-  // sequence number and timestamp, which should be the same as the specified
-  // parameters.
-  bool SameExceptSeqNumTimestampSsrc(const RawRtpPacket& packet,
-                                     uint16_t seq,
-                                     uint32_t ts,
-                                     uint32_t ssc) const;
-  int size() const { return 28; }
-
-  uint8_t ver_to_cc;
-  uint8_t m_to_pt;
-  uint16_t sequence_number;
-  uint32_t timestamp;
-  uint32_t ssrc;
-  char payload[16];
-};
-
-struct RawRtcpPacket {
-  void WriteToByteBuffer(rtc::ByteBufferWriter* buf) const;
-  bool ReadFromByteBuffer(rtc::ByteBufferReader* buf);
-  bool EqualsTo(const RawRtcpPacket& packet) const;
-
-  uint8_t ver_to_count;
-  uint8_t type;
-  uint16_t length;
-  char payload[16];
-};
 
 // Test helper for testing VideoCapturer implementations.
 class VideoCapturerListener
@@ -102,20 +61,6 @@ class VideoCapturerListener
   int frame_width_;
   int frame_height_;
   bool resolution_changed_;
-};
-
-class VideoMediaErrorCatcher : public sigslot::has_slots<> {
- public:
-  VideoMediaErrorCatcher() : ssrc_(0), error_(VideoMediaChannel::ERROR_NONE) { }
-  uint32_t ssrc() const { return ssrc_; }
-  VideoMediaChannel::Error error() const { return error_; }
-  void OnError(uint32_t ssrc, VideoMediaChannel::Error error) {
-    ssrc_ = ssrc;
-    error_ = error;
-  }
- private:
-  uint32_t ssrc_;
-  VideoMediaChannel::Error error_;
 };
 
 // Checks whether |codecs| contains |codec|; checks using Codec::Matches().

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013 Apple Inc. All rights reserved.
+ * Copyright (C) 2013-2019 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -33,6 +33,7 @@
 #include "NotImplemented.h"
 #include <CoreAudio/AudioHardware.h>
 #include <wtf/MainThread.h>
+#include <wtf/text/WTFString.h>
 
 namespace WebCore {
 
@@ -52,6 +53,7 @@ static AudioDeviceID defaultDevice()
 }
 
 class AudioSessionPrivate {
+    WTF_MAKE_FAST_ALLOCATED;
 public:
     AudioSessionPrivate(bool mutedState)
         : lastMutedState(mutedState) { }
@@ -125,10 +127,20 @@ size_t AudioSession::numberOfOutputChannels() const
     return 0;
 }
 
-bool AudioSession::tryToSetActive(bool)
+bool AudioSession::tryToSetActiveInternal(bool)
 {
     notImplemented();
     return true;
+}
+
+RouteSharingPolicy AudioSession::routeSharingPolicy() const
+{
+    return RouteSharingPolicy::Default;
+}
+
+String AudioSession::routingContextUID() const
+{
+    return emptyString();
 }
 
 size_t AudioSession::preferredBufferSize() const
@@ -137,7 +149,7 @@ size_t AudioSession::preferredBufferSize() const
     UInt32 bufferSizeSize = sizeof(bufferSize);
 
     AudioObjectPropertyAddress preferredBufferSizeAddress = {
-        kAudioDevicePropertyBufferFrameSizeRange,
+        kAudioDevicePropertyBufferFrameSize,
         kAudioObjectPropertyScopeGlobal,
         kAudioObjectPropertyElementMaster };
     OSStatus result = AudioObjectGetPropertyData(defaultDevice(), &preferredBufferSizeAddress, 0, 0, &bufferSizeSize, &bufferSize);

@@ -25,7 +25,7 @@
 
 #import "WebChromeClientIOS.h"
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
 
 #import "DOMNodeInternal.h"
 #import "PopupMenuIOS.h"
@@ -44,6 +44,7 @@
 #import "WebView.h"
 #import "WebViewInternal.h"
 #import "WebViewPrivate.h"
+#import <WebCore/DisabledAdaptations.h>
 #import <WebCore/FileChooser.h>
 #import <WebCore/FloatRect.h>
 #import <WebCore/Frame.h>
@@ -156,6 +157,10 @@ void WebChromeClientIOS::runOpenPanel(Frame&, FileChooser& chooser)
     [listener release];
 }
 
+void WebChromeClientIOS::showShareSheet(ShareDataWithParsedURL&, CompletionHandler<void(bool)>&&)
+{
+}
+
 #if ENABLE(IOS_TOUCH_EVENTS)
 
 void WebChromeClientIOS::didPreventDefaultForEvent()
@@ -183,9 +188,9 @@ void WebChromeClientIOS::observedContentChange(WebCore::Frame& frame)
 
 void WebChromeClientIOS::clearContentChangeObservers(WebCore::Frame& frame)
 {
-    ASSERT(WebThreadCountOfObservedContentModifiers() > 0);
-    if (WebThreadCountOfObservedContentModifiers() > 0) {
-        WebThreadClearObservedContentModifiers();
+    ASSERT(WebThreadCountOfObservedDOMTimers() > 0);
+    if (WebThreadCountOfObservedDOMTimers() > 0) {
+        WebThreadClearObservedDOMTimers();
         observedContentChange(frame);
     }
 }
@@ -227,9 +232,18 @@ FloatSize WebChromeClientIOS::availableScreenSize() const
     return FloatSize();
 }
 
+FloatSize WebChromeClientIOS::overrideScreenSize() const
+{
+    return screenSize();
+}
+
 void WebChromeClientIOS::dispatchViewportPropertiesDidChange(const WebCore::ViewportArguments& arguments) const
 {
     [[webView() _UIKitDelegateForwarder] webView:webView() didReceiveViewportArguments:dictionaryForViewportArguments(arguments)];
+}
+
+void WebChromeClientIOS::dispatchDisabledAdaptationsDidChange(const OptionSet<WebCore::DisabledAdaptations>&) const
+{
 }
 
 void WebChromeClientIOS::notifyRevealedSelectionByScrollingFrame(WebCore::Frame& frame)
@@ -326,7 +340,7 @@ bool WebChromeClientIOS::fetchCustomFixedPositionLayoutRect(IntRect& rect)
     return false;
 }
 
-void WebChromeClientIOS::updateViewportConstrainedLayers(HashMap<PlatformLayer*, std::unique_ptr<ViewportConstraints>>& layerMap, HashMap<PlatformLayer*, PlatformLayer*>& stickyContainers)
+void WebChromeClientIOS::updateViewportConstrainedLayers(HashMap<PlatformLayer*, std::unique_ptr<ViewportConstraints>>& layerMap, const HashMap<PlatformLayer*, PlatformLayer*>& stickyContainers)
 {
     [[webView() _fixedPositionContent] setViewportConstrainedLayers:layerMap stickyContainerMap:stickyContainers];
 }
@@ -362,7 +376,7 @@ void WebChromeClientIOS::focusedElementChanged(Element* element)
     CallFormDelegate(webView(), @selector(didFocusTextField:inFrame:), kit(&inputElement), kit(inputElement.document().frame()));
 }
 
-void WebChromeClientIOS::showPlaybackTargetPicker(bool hasVideo)
+void WebChromeClientIOS::showPlaybackTargetPicker(bool hasVideo, WebCore::RouteSharingPolicy, const String&)
 {
     CGPoint point = [[webView() _UIKitDelegateForwarder] interactionLocation];
     CGRect elementRect = [[webView() mainFrame] elementRectAtPoint:point];
@@ -381,4 +395,4 @@ int WebChromeClientIOS::deviceOrientation() const
 }
 #endif
 
-#endif // PLATFORM(IOS)
+#endif // PLATFORM(IOS_FAMILY)

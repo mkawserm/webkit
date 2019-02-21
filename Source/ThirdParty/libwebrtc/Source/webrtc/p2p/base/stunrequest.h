@@ -14,7 +14,7 @@
 #include <map>
 #include <string>
 #include "p2p/base/stun.h"
-#include "rtc_base/sigslot.h"
+#include "rtc_base/third_party/sigslot/sigslot.h"
 #include "rtc_base/thread.h"
 
 namespace cricket {
@@ -32,7 +32,7 @@ const int STUN_TOTAL_TIMEOUT = 39750;  // milliseconds
 // response or determine that the request has timed out.
 class StunRequestManager {
  public:
-  StunRequestManager(rtc::Thread* thread);
+  explicit StunRequestManager(rtc::Thread* thread);
   ~StunRequestManager();
 
   // Starts sending the given request (perhaps after a delay).
@@ -83,7 +83,7 @@ class StunRequestManager {
 class StunRequest : public rtc::MessageHandler {
  public:
   StunRequest();
-  StunRequest(StunMessage* request);
+  explicit StunRequest(StunMessage* request);
   ~StunRequest() override;
 
   // Causes our wrapped StunMessage to be Prepared
@@ -118,11 +118,11 @@ class StunRequest : public rtc::MessageHandler {
 
   // Fills in a request object to be sent.  Note that request's transaction ID
   // will already be set and cannot be changed.
-  virtual void Prepare(StunMessage*) {}
+  virtual void Prepare(StunMessage* request) {}
 
   // Called when the message receives a response or times out.
-  virtual void OnResponse(StunMessage*) {}
-  virtual void OnErrorResponse(StunMessage*) {}
+  virtual void OnResponse(StunMessage* response) {}
+  virtual void OnErrorResponse(StunMessage* response) {}
   virtual void OnTimeout() {}
   // Called when the message is sent.
   virtual void OnSent();

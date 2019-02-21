@@ -1,26 +1,91 @@
+var shouldAutoDump = true;
+
 (function () {
     if (window.testRunner)
         testRunner.dumpAsText();
 
-    var called = false;
-    function dumpAttributedString(container) {
-        called = true;
+    window.dumpAttributedString = function dumpAttributedString(root = document.body, startContainer, startOffset, endContainer, endOffset) {
+        shouldAutoDump = false;
 
-        var body = document.body;
-        if (!container)
-            container = body;
+        const markup = serializeSubtreeWithShadow(root, startContainer, startOffset, endContainer, endOffset).trim();
 
-        var range = document.createRange();
-        range.selectNodeContents(container);
+        if (!startContainer)
+            startContainer = root;
+        if (startOffset == undefined)
+            startOffset = 0;
+        if (!endContainer)
+            endContainer = root;
+        if (endOffset == undefined)
+            endOffset = endContainer.childNodes.length;
 
-        var pre = document.createElement('pre');
-        pre.textContent = 'Input:\n' + container.innerHTML.trim() + '\n\nOutput:\n' + serializeAttributedString(textInputController.legacyAttributedString(range));
+        const pre = document.createElement('pre');
+        const result = serializeAttributedString(textInputController.legacyAttributedString(startContainer, startOffset, endContainer, endOffset));
+        pre.textContent = 'Input:\n' + markup + '\n\nOutput:\n' + result;
 
-        body.innerHTML = '';
-        body.appendChild(pre);
+        document.body.innerHTML = '';
+        document.body.appendChild(pre);
     }
 
-    function serializeAttributedString(attributedString) {
+    function serializeSubtreeWithShadow(parent, startContainer, startOffset, endContainer, endOffset) {
+        function serializeCharacterData(node) {
+            let data = node.data;
+            let result = data;
+            if (node == startContainer && node == endContainer) {
+                result = data.substring(0, startOffset);
+                result += '<#start>';
+                result = data.substring(startOffset, endOffset);
+                result += '<#end>';
+                result += data.substring(endOffset);
+            } else if (node == startContainer) {
+                result = data.substring(0, startOffset);
+                result += '<#start>';
+                result += data.substring(startOffset);
+            } else if (node == endContainer) {
+                result = data.substring(0, endOffset);
+                result += '<#end>';
+                result += data.substring(endOffset);
+            }
+            return result;
+        }
+
+        function serializeNode(node) {
+            if (node.nodeType == Node.TEXT_NODE)
+                return serializeCharacterData(node);
+            if (node.nodeType == Node.COMMENT_NODE)
+                return '<!--' + node.nodeValue + '-->';
+            if (node.nodeType == Node.CDATA_SECTION_NODE)
+                return '<!--[CDATA[' + node.nodeValue + '-->';
+
+            const elementTags = node.cloneNode(false).outerHTML;
+            const endTagIndex = elementTags.lastIndexOf('</');
+            const startTag = endTagIndex >= 0 ? elementTags.substring(0, endTagIndex) : elementTags;
+            const endTag = endTagIndex >= 0 ? elementTags.substring(endTagIndex) : '';
+            return startTag + serializeShadowRootAndChildNodes(node) + endTag;
+        }
+
+        function serializeChildNodes(node) {
+            let result = '';
+            for (let i = 0; i < node.childNodes.length; i++) {
+                if (node == startContainer && i == startOffset)
+                    result += '<#start>';
+                result += serializeNode(node.childNodes[i]);
+                if (node == endContainer && i + 1 == endOffset)
+                    result += '<#end>';
+            }
+            return result;
+        }
+
+        function serializeShadowRootAndChildNodes(node) {
+            const shadowRoot = node.nodeType == Node.ELEMENT_NODE ? internals.shadowRoot(node) : null;
+            if (!shadowRoot)
+                return serializeChildNodes(node);
+            return `<#shadow-start>${serializeChildNodes(shadowRoot)}<#shadow-end>${serializeChildNodes(node)}`;
+        }
+
+        return serializeShadowRootAndChildNodes(parent);
+    }
+
+    window.serializeAttributedString = function (attributedString) {
         var string = attributedString.string();
         var output = '';
         function log(text) {
@@ -67,6 +132,7 @@
         case 'NSFont':
             return value.match(/(.+?)\s+P \[\]/)[1];
         case 'NSColor':
+        case 'NSStrokeColor':
         case 'NSBackgroundColor':
             var parsed = parseNSColorDescription(value);
             return serializeColor(parsed.rgb, parsed.alpha) + ' (' + parsed.colorSpace + ')';
@@ -86,7 +152,7 @@
     }
 
     function parseNSColorDescription(value) {
-        var match = value.match(/\s*(\w+)\s*([0-9\.]+)\s*([0-9\.]+)\s*([0-9\.]+)\s*([0-9\.]+)/);
+        var match = value.match(/^\s*(\w+).+\s([0-9\.]+)\s+([0-9\.]+)\s+([0-9\.]+)\s+([0-9\.]+)\s*$/);
         return {
             colorSpace: match[1],
             rgb: match.slice(2, 5).map(function (string) { return Math.round(string * 255); }),
@@ -126,7 +192,7 @@
     }
 
     window.onload = function () {
-        (!called)
+        if (shouldAutoDump)
             dumpAttributedString();
     }
 })();

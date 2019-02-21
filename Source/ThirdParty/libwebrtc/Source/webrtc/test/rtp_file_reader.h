@@ -13,8 +13,6 @@
 #include <set>
 #include <string>
 
-#include "common_types.h"  // NOLINT(build/include)
-
 namespace webrtc {
 namespace test {
 
@@ -36,8 +34,7 @@ class RtpFileReader {
   enum FileFormat { kPcap, kRtpDump, kLengthPacketInterleaved };
 
   virtual ~RtpFileReader() {}
-  static RtpFileReader* Create(FileFormat format,
-                               const std::string& filename);
+  static RtpFileReader* Create(FileFormat format, const std::string& filename);
   static RtpFileReader* Create(FileFormat format,
                                const std::string& filename,
                                const std::set<uint32_t>& ssrc_filter);

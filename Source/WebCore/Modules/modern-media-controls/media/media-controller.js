@@ -186,7 +186,7 @@ class MediaController
     _supportingObjectClasses()
     {
         if (this.layoutTraits & LayoutTraits.Compact)
-            return [PlacardSupport, PlaybackSupport];
+            return [CompactMediaControlsSupport];
 
         return [AirplaySupport, AudioSupport, ControlsVisibilitySupport, FullscreenSupport, MuteSupport, PiPSupport, PlacardSupport, PlaybackSupport, ScrubbingSupport, SeekBackwardSupport, SeekForwardSupport, SkipBackSupport, SkipForwardSupport, StartSupport, StatusSupport, TimeControlSupport, TracksSupport, VolumeSupport, VolumeDownSupport, VolumeUpSupport];
     }
@@ -284,7 +284,7 @@ class MediaController
     _returnMediaLayerToInlineIfNeeded()
     {
         if (this.host)
-            window.requestAnimationFrame(() => this.host.setPreparedToReturnVideoLayerToInline(this.media.webkitPresentationMode !== PiPMode));
+            this.host.setPreparedToReturnVideoLayerToInline(this.media.webkitPresentationMode !== PiPMode);
     }
 
     _controlsClassForLayoutTraits(layoutTraits)

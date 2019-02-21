@@ -14,7 +14,8 @@
 #include <map>
 #include <memory>
 
-#include "api/optional.h"
+#include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 #include "common_types.h"  // NOLINT(build/include)
 #include "modules/rtp_rtcp/include/flexfec_sender.h"
 #include "modules/rtp_rtcp/include/rtp_rtcp_defines.h"
@@ -22,15 +23,15 @@
 #include "modules/rtp_rtcp/source/rtp_sender.h"
 #include "modules/rtp_rtcp/source/rtp_utility.h"
 #include "modules/rtp_rtcp/source/ulpfec_generator.h"
-#include "modules/rtp_rtcp/source/video_codec_information.h"
 #include "rtc_base/criticalsection.h"
 #include "rtc_base/onetimeevent.h"
 #include "rtc_base/rate_statistics.h"
 #include "rtc_base/sequenced_task_checker.h"
 #include "rtc_base/thread_annotations.h"
-#include "typedefs.h"  // NOLINT(build/include)
 
 namespace webrtc {
+
+class FrameEncryptorInterface;
 class RtpPacketizer;
 class RtpPacketToSend;
 
@@ -40,16 +41,17 @@ class RTPSenderVideo {
 
   RTPSenderVideo(Clock* clock,
                  RTPSender* rtpSender,
-                 FlexfecSender* flexfec_sender);
+                 FlexfecSender* flexfec_sender,
+                 FrameEncryptorInterface* frame_encryptor,
+                 bool require_frame_encryption);
   virtual ~RTPSenderVideo();
 
-  virtual RtpVideoCodecTypes VideoCodecType() const;
+  virtual enum VideoCodecType VideoCodecType() const;
 
-  static RtpUtility::Payload* CreateVideoPayload(
-      const char payload_name[RTP_PAYLOAD_NAME_SIZE],
-      int8_t payload_type);
+  static RtpUtility::Payload* CreateVideoPayload(absl::string_view payload_name,
+                                                 int8_t payload_type);
 
-  bool SendVideo(RtpVideoCodecTypes video_type,
+  bool SendVideo(enum VideoCodecType video_type,
                  FrameType frame_type,
                  int8_t payload_type,
                  uint32_t capture_timestamp,
@@ -60,7 +62,7 @@ class RTPSenderVideo {
                  const RTPVideoHeader* video_header,
                  int64_t expected_retransmission_time_ms);
 
-  void SetVideoCodecType(RtpVideoCodecTypes type);
+  void SetVideoCodecType(enum VideoCodecType type);
 
   // ULPFEC.
   void SetUlpfecConfig(int red_payload_type, int ulpfec_payload_type);
@@ -71,7 +73,7 @@ class RTPSenderVideo {
                         const FecProtectionParams& key_params);
 
   // FlexFEC.
-  rtc::Optional<uint32_t> FlexfecSsrc() const;
+  absl::optional<uint32_t> FlexfecSsrc() const;
 
   uint32_t VideoBitrateSent() const;
   uint32_t FecOverheadRate() const;
@@ -133,7 +135,7 @@ class RTPSenderVideo {
   // Should never be held when calling out of this class.
   rtc::CriticalSection crit_;
 
-  RtpVideoCodecTypes video_type_;
+  enum VideoCodecType video_type_;
   int32_t retransmission_settings_ RTC_GUARDED_BY(crit_);
   VideoRotation last_rotation_ RTC_GUARDED_BY(crit_);
 
@@ -160,6 +162,13 @@ class RTPSenderVideo {
       RTC_GUARDED_BY(stats_crit_);
 
   OneTimeEvent first_frame_sent_;
+
+  // E2EE Custom Video Frame Encryptor (optional)
+  FrameEncryptorInterface* const frame_encryptor_ = nullptr;
+  // If set to true will require all outgoing frames to pass through an
+  // initialized frame_encryptor_ before being sent out of the network.
+  // Otherwise these payloads will be dropped.
+  bool require_frame_encryption_;
 };
 
 }  // namespace webrtc

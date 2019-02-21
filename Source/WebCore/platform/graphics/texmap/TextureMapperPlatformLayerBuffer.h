@@ -25,12 +25,12 @@
 
 #pragma once
 
+#if USE(COORDINATED_GRAPHICS_THREADED)
+
 #include "BitmapTextureGL.h"
 #include "TextureMapperGLHeaders.h"
 #include "TextureMapperPlatformLayer.h"
 #include <wtf/MonotonicTime.h>
-
-#if USE(COORDINATED_GRAPHICS_THREADED)
 
 namespace WebCore {
 
@@ -63,7 +63,14 @@ public:
     void setUnmanagedBufferDataHolder(std::unique_ptr<UnmanagedBufferDataHolder> holder) { m_unmanagedBufferDataHolder = WTFMove(holder); }
     void setExtraFlags(TextureMapperGL::Flags flags) { m_extraFlags = flags; }
 
-    std::unique_ptr<TextureMapperPlatformLayerBuffer> clone(TextureMapperGL&);
+    std::unique_ptr<TextureMapperPlatformLayerBuffer> clone();
+
+    class HolePunchClient {
+    public:
+        virtual void setVideoRectangle(const IntRect&) = 0;
+    };
+
+    void setHolePunchClient(std::unique_ptr<HolePunchClient>&& client) { m_holePunchClient = WTFMove(client); }
 
 private:
 
@@ -76,8 +83,9 @@ private:
     TextureMapperGL::Flags m_extraFlags;
     bool m_hasManagedTexture;
     std::unique_ptr<UnmanagedBufferDataHolder> m_unmanagedBufferDataHolder;
+    std::unique_ptr<HolePunchClient> m_holePunchClient;
 };
 
 } // namespace WebCore
 
-#endif // COORDINATED_GRAPHICS_THREADED
+#endif // USE(COORDINATED_GRAPHICS_THREADED)

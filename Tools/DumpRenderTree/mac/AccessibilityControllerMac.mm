@@ -34,8 +34,8 @@
 #import <Foundation/Foundation.h>
 #import <JavaScriptCore/JSStringRef.h>
 #import <JavaScriptCore/JSStringRefCF.h>
-#import <WebKit/WebFrame.h>
 #import <WebKit/WebFramePrivate.h>
+#import <WebKit/WebFrameView.h>
 #import <WebKit/WebHTMLView.h>
 
 AccessibilityController::AccessibilityController()
@@ -158,6 +158,5 @@ bool AccessibilityController::enhancedAccessibilityEnabled()
 
 JSRetainPtr<JSStringRef> AccessibilityController::platformName() const
 {
-    JSRetainPtr<JSStringRef> platformName(Adopt, JSStringCreateWithUTF8CString("mac"));
-    return platformName;
+    return adopt(JSStringCreateWithUTF8CString("mac"));
 }

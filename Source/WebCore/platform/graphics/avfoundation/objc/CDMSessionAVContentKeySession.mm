@@ -29,7 +29,6 @@
 #if ENABLE(LEGACY_ENCRYPTED_MEDIA) && ENABLE(MEDIA_SOURCE)
 
 #import "CDMPrivateMediaSourceAVFObjC.h"
-#import "FileSystem.h"
 #import "LegacyCDM.h"
 #import "Logging.h"
 #import "MediaPlayer.h"
@@ -39,6 +38,7 @@
 #import <CoreMedia/CMBase.h>
 #import <JavaScriptCore/TypedArrayInlines.h>
 #import <objc/objc-runtime.h>
+#import <wtf/FileSystem.h>
 #import <wtf/SoftLinking.h>
 
 SOFT_LINK_FRAMEWORK_OPTIONAL(AVFoundation)
@@ -164,11 +164,11 @@ RefPtr<Uint8Array> CDMSessionAVContentKeySession::generateKeyRequest(const Strin
     }
 
     if (!m_certificate) {
-        String certificateString(ASCIILiteral("certificate"));
-        RefPtr<Uint8Array> array = Uint8Array::create(certificateString.length());
+        String certificateString("certificate"_s);
+        auto array = Uint8Array::create(certificateString.length());
         for (unsigned i = 0, length = certificateString.length(); i < length; ++i)
             array->set(i, certificateString[i]);
-        return array;
+        return WTFMove(array);
     }
 
     if (!m_keyRequest) {
@@ -210,7 +210,7 @@ void CDMSessionAVContentKeySession::releaseKeys()
             if (m_sessionId == String(playbackSessionIdValue)) {
                 LOG(Media, "CDMSessionAVContentKeySession::releaseKeys(%p) - found session, sending expiration message");
                 m_expiredSession = expiredSessionData;
-                m_client->sendMessage(Uint8Array::create(static_cast<const uint8_t*>([m_expiredSession bytes]), [m_expiredSession length]).get(), emptyString());
+                m_client->sendMessage(Uint8Array::create(static_cast<const uint8_t*>([m_expiredSession bytes]), [m_expiredSession length]).ptr(), emptyString());
                 break;
             }
         }
@@ -237,13 +237,6 @@ bool CDMSessionAVContentKeySession::update(Uint8Array* key, RefPtr<Uint8Array>& 
 {
     UNUSED_PARAM(nextMessage);
 
-    bool shouldGenerateKeyRequest = !m_certificate || isEqual(key, "renew");
-    if (!m_certificate) {
-        LOG(Media, "CDMSessionAVContentKeySession::update(%p) - certificate data", this);
-
-        m_certificate = key;
-    }
-
     if (isEqual(key, "acknowledged")) {
         LOG(Media, "CDMSessionAVContentKeySession::update(%p) - acknowleding secure stop message", this);
 
@@ -259,6 +252,18 @@ bool CDMSessionAVContentKeySession::update(Uint8Array* key, RefPtr<Uint8Array>& 
             [getAVContentKeySessionClass() removePendingExpiredSessionReports:@[m_expiredSession.get()] withAppIdentifier:certificateData.get() storageDirectoryAtURL:[NSURL fileURLWithPath:storagePath]];
         m_expiredSession = nullptr;
         return true;
+    }
+
+    if (m_stopped) {
+        errorCode = MediaPlayer::InvalidPlayerState;
+        return false;
+    }
+
+    bool shouldGenerateKeyRequest = !m_certificate || isEqual(key, "renew");
+    if (!m_certificate) {
+        LOG(Media, "CDMSessionAVContentKeySession::update(%p) - certificate data", this);
+
+        m_certificate = key;
     }
 
     if (m_mode == KeyRelease)
@@ -295,7 +300,7 @@ bool CDMSessionAVContentKeySession::update(Uint8Array* key, RefPtr<Uint8Array>& 
             return false;
         }
 
-        nextMessage = Uint8Array::create(static_cast<const uint8_t*>([requestData bytes]), [requestData length]);
+        nextMessage = Uint8Array::tryCreate(static_cast<const uint8_t*>([requestData bytes]), [requestData length]);
         return false;
     }
 
@@ -345,7 +350,7 @@ RefPtr<Uint8Array> CDMSessionAVContentKeySession::generateKeyReleaseMessage(unsi
     errorCode = 0;
     systemCode = 0;
     m_expiredSession = [expiredSessions firstObject];
-    return Uint8Array::create(static_cast<const uint8_t*>([m_expiredSession bytes]), [m_expiredSession length]);
+    return Uint8Array::tryCreate(static_cast<const uint8_t*>([m_expiredSession bytes]), [m_expiredSession length]);
 }
 
 void CDMSessionAVContentKeySession::didProvideContentKeyRequest(AVContentKeyRequest *keyRequest)

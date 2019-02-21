@@ -39,7 +39,7 @@ PlatformWebView::PlatformWebView(WKPageConfigurationRef configuration, const Tes
     : m_windowIsKey(true)
     , m_options(options)
 {
-    m_window = new HeadlessViewBackend;
+    m_window = new WPEToolingBackends::HeadlessViewBackend(800, 600);
     m_view = WKViewCreate(m_window->backend(), configuration);
 }
 
@@ -129,6 +129,19 @@ void PlatformWebView::setNavigationGesturesEnabled(bool)
 }
 
 void PlatformWebView::forceWindowFramesChanged()
+{
+}
+
+bool PlatformWebView::drawsBackground() const
+{
+    return false;
+}
+
+void PlatformWebView::setDrawsBackground(bool)
+{
+}
+
+void PlatformWebView::setEditable(bool)
 {
 }
 

@@ -34,7 +34,7 @@
 
     5.5.  RTCDtlsTransport Interface
       interface RTCDtlsTransport {
-        readonly attribute RTCIceTransport       transport;
+        readonly attribute RTCIceTransport       iceTransport;
         readonly attribute RTCDtlsTransportState state;
         ...
       };
@@ -107,7 +107,10 @@
    */
   async_test(t => {
     const pc1 = new RTCPeerConnection();
+    t.add_cleanup(() => pc1.close());
     const pc2 = new RTCPeerConnection();
+
+    t.add_cleanup(() => pc2.close());
 
     const onConnectionStateChange = t.step_func(() => {
       const { connectionState } = pc1;
@@ -118,7 +121,7 @@
         assert_equals(dtlsTransport.state, 'connected',
           'Expect DTLS transport to be in connected state');
 
-        const iceTransport = dtlsTransport.transport
+        const iceTransport = dtlsTransport.iceTransport
         assert_true(iceTransport.state ===  'connected' ||
           iceTransport.state === 'completed',
           'Expect ICE transport to be in connected or completed state');
@@ -136,7 +139,6 @@
 
     exchangeIceCandidates(pc1, pc2);
     doSignalingHandshake(pc1, pc2);
-
   }, 'connection with one data channel should eventually have connected connection state');
 
   /*

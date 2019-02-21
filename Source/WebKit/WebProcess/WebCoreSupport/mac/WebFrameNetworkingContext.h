@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013 Apple Inc. All rights reserved.
+ * Copyright (C) 2013-2018 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -25,7 +25,6 @@
 
 #pragma once
 
-#include "HTTPCookieAcceptPolicy.h"
 #include "WebFrame.h"
 #include <WebCore/FrameNetworkingContext.h>
 #include <pal/SessionID.h>
@@ -41,10 +40,8 @@ public:
         return adoptRef(*new WebFrameNetworkingContext(frame));
     }
 
-    // FIXME: remove platform-specific code and use SessionTracker
+    // FIXME: remove platform-specific code.
     static void ensureWebsiteDataStoreSession(WebsiteDataStoreParameters&&);
-
-    static void setCookieAcceptPolicyForAllContexts(HTTPCookieAcceptPolicy);
 
     WebFrameLoaderClient* webFrameLoaderClient() const;
 
@@ -59,7 +56,7 @@ private:
     RetainPtr<CFDataRef> sourceApplicationAuditData() const override;
     String sourceApplicationIdentifier() const override;
     WebCore::ResourceError blockedError(const WebCore::ResourceRequest&) const override;
-    WebCore::NetworkStorageSession& storageSession() const override;
+    WebCore::NetworkStorageSession* storageSession() const override { return nullptr; }
 };
 
 }

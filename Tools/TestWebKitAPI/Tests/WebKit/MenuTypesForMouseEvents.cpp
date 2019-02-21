@@ -35,25 +35,25 @@ namespace TestWebKitAPI {
 
 static bool didFinishLoad;
 
-static void didFinishLoadForFrame(WKPageRef, WKFrameRef, WKTypeRef, const void*)
+static void didFinishNavigation(WKPageRef, WKNavigationRef, WKTypeRef, const void*)
 {
     didFinishLoad = true;
 }
 
 static void setPageLoaderClient(WKPageRef page)
 {
-    WKPageLoaderClientV0 loaderClient;
+    WKPageNavigationClientV0 loaderClient;
     memset(&loaderClient, 0, sizeof(loaderClient));
 
     loaderClient.base.version = 0;
-    loaderClient.didFinishLoadForFrame = didFinishLoadForFrame;
+    loaderClient.didFinishNavigation = didFinishNavigation;
 
-    WKPageSetPageLoaderClient(page, &loaderClient.base);
+    WKPageSetPageNavigationClient(page, &loaderClient.base);
 }
 
 static void buildAndPerformTest(WKEventMouseButton button, WKEventModifiers modifiers, const char* expectedButton, const char* expectedMenuType)
 {
-    WKRetainPtr<WKContextRef> context(AdoptWK, WKContextCreate());
+    WKRetainPtr<WKContextRef> context(AdoptWK, WKContextCreateWithConfiguration(nullptr));
     PlatformWebView webView(context.get());
     setPageLoaderClient(webView.page());
 

@@ -36,7 +36,11 @@
 
 namespace WebKit {
 
-static WebPaymentCoordinatorProxy* activePaymentCoordinatorProxy;
+static WeakPtr<WebPaymentCoordinatorProxy>& activePaymentCoordinatorProxy()
+{
+    static NeverDestroyed<WeakPtr<WebPaymentCoordinatorProxy>> activePaymentCoordinatorProxy;
+    return activePaymentCoordinatorProxy.get();
+}
 
 WebPaymentCoordinatorProxy::WebPaymentCoordinatorProxy(WebPageProxy& webPageProxy)
     : m_webPageProxy(webPageProxy)
@@ -44,32 +48,30 @@ WebPaymentCoordinatorProxy::WebPaymentCoordinatorProxy(WebPageProxy& webPageProx
     , m_merchantValidationState(MerchantValidationState::Idle)
 {
     m_webPageProxy.process().addMessageReceiver(Messages::WebPaymentCoordinatorProxy::messageReceiverName(), m_webPageProxy.pageID(), *this);
+    finishConstruction(*this);
 }
 
 WebPaymentCoordinatorProxy::~WebPaymentCoordinatorProxy()
 {
-    if (activePaymentCoordinatorProxy == this)
-        activePaymentCoordinatorProxy = nullptr;
-
     if (m_state != State::Idle)
         hidePaymentUI();
 
     m_webPageProxy.process().removeMessageReceiver(Messages::WebPaymentCoordinatorProxy::messageReceiverName(), m_webPageProxy.pageID());
 }
 
-void WebPaymentCoordinatorProxy::availablePaymentNetworks(Vector<String>& networks)
+void WebPaymentCoordinatorProxy::availablePaymentNetworks(CompletionHandler<void(Vector<String>&&)>&& completionHandler)
 {
-    networks = platformAvailablePaymentNetworks();
+    completionHandler(platformAvailablePaymentNetworks());
 }
 
-void WebPaymentCoordinatorProxy::canMakePayments(bool& reply)
+void WebPaymentCoordinatorProxy::canMakePayments(CompletionHandler<void(bool)>&& reply)
 {
-    reply = platformCanMakePayments();
+    reply(platformCanMakePayments());
 }
 
 void WebPaymentCoordinatorProxy::canMakePaymentsWithActiveCard(const String& merchantIdentifier, const String& domainName, uint64_t requestID)
 {
-    auto weakThis = m_weakPtrFactory.createWeakPtr(*this);
+    auto weakThis = makeWeakPtr(*this);
     platformCanMakePaymentsWithActiveCard(merchantIdentifier, domainName, [weakThis, requestID](bool canMakePayments) {
         auto paymentCoordinatorProxy = weakThis.get();
         if (!paymentCoordinatorProxy)
@@ -81,7 +83,7 @@ void WebPaymentCoordinatorProxy::canMakePaymentsWithActiveCard(const String& mer
 
 void WebPaymentCoordinatorProxy::openPaymentSetup(const String& merchantIdentifier, const String& domainName, uint64_t requestID)
 {
-    auto weakThis = m_weakPtrFactory.createWeakPtr(*this);
+    auto weakThis = makeWeakPtr(*this);
     platformOpenPaymentSetup(merchantIdentifier, domainName, [weakThis, requestID](bool result) {
         auto paymentCoordinatorProxy = weakThis.get();
         if (!paymentCoordinatorProxy)
@@ -91,37 +93,40 @@ void WebPaymentCoordinatorProxy::openPaymentSetup(const String& merchantIdentifi
     });
 }
 
-void WebPaymentCoordinatorProxy::showPaymentUI(const String& originatingURLString, const Vector<String>& linkIconURLStrings, const WebCore::ApplePaySessionPaymentRequest& paymentRequest, bool& result)
+void WebPaymentCoordinatorProxy::showPaymentUI(const String& originatingURLString, const Vector<String>& linkIconURLStrings, const WebCore::ApplePaySessionPaymentRequest& paymentRequest, CompletionHandler<void(bool)>&& completionHandler)
 {
     // FIXME: Make this a message check.
     ASSERT(canBegin());
 
-    if (activePaymentCoordinatorProxy) {
-        activePaymentCoordinatorProxy->hidePaymentUI();
-        activePaymentCoordinatorProxy->didCancelPaymentSession();
+    if (auto& coordinator = activePaymentCoordinatorProxy()) {
+        coordinator->hidePaymentUI();
+        coordinator->didCancelPaymentSession();
     }
 
-    activePaymentCoordinatorProxy = this;
+    activePaymentCoordinatorProxy() = makeWeakPtr(this);
 
     m_state = State::Activating;
 
-    WebCore::URL originatingURL(WebCore::URL(), originatingURLString);
+    URL originatingURL(URL(), originatingURLString);
 
-    Vector<WebCore::URL> linkIconURLs;
+    Vector<URL> linkIconURLs;
     for (const auto& linkIconURLString : linkIconURLStrings)
-        linkIconURLs.append(WebCore::URL(WebCore::URL(), linkIconURLString));
+        linkIconURLs.append(URL(URL(), linkIconURLString));
 
-    platformShowPaymentUI(originatingURL, linkIconURLs, paymentRequest, [this](bool result) {
-        ASSERT(m_state == State::Activating);
+    platformShowPaymentUI(originatingURL, linkIconURLs, paymentRequest, [weakThis = makeWeakPtr(*this)](bool result) {
+        if (!weakThis)
+            return;
+
+        ASSERT(weakThis->m_state == State::Activating);
         if (!result) {
-            didCancelPaymentSession();
+            weakThis->didCancelPaymentSession();
             return;
         }
 
-        m_state = State::Active;
+        weakThis->m_state = State::Active;
     });
 
-    result = true;
+    completionHandler(true);
 }
 
     
@@ -138,7 +143,7 @@ void WebPaymentCoordinatorProxy::completeMerchantValidation(const WebCore::Payme
     m_merchantValidationState = MerchantValidationState::ValidationComplete;
 }
 
-void WebPaymentCoordinatorProxy::completeShippingMethodSelection(const std::optional<WebCore::ShippingMethodUpdate>& update)
+void WebPaymentCoordinatorProxy::completeShippingMethodSelection(const Optional<WebCore::ShippingMethodUpdate>& update)
 {
     // It's possible that the payment has been canceled already.
     if (m_state == State::Idle)
@@ -151,7 +156,7 @@ void WebPaymentCoordinatorProxy::completeShippingMethodSelection(const std::opti
     m_state = State::Active;
 }
 
-void WebPaymentCoordinatorProxy::completeShippingContactSelection(const std::optional<WebCore::ShippingContactUpdate>& update)
+void WebPaymentCoordinatorProxy::completeShippingContactSelection(const Optional<WebCore::ShippingContactUpdate>& update)
 {
     // It's possible that the payment has been canceled already.
     if (m_state == State::Idle)
@@ -164,7 +169,7 @@ void WebPaymentCoordinatorProxy::completeShippingContactSelection(const std::opt
     m_state = State::Active;
 }
 
-void WebPaymentCoordinatorProxy::completePaymentMethodSelection(const std::optional<WebCore::PaymentMethodUpdate>& update)
+void WebPaymentCoordinatorProxy::completePaymentMethodSelection(const Optional<WebCore::PaymentMethodUpdate>& update)
 {
     // It's possible that the payment has been canceled already.
     if (m_state == State::Idle)
@@ -177,7 +182,7 @@ void WebPaymentCoordinatorProxy::completePaymentMethodSelection(const std::optio
     m_state = State::Active;
 }
 
-void WebPaymentCoordinatorProxy::completePaymentSession(const std::optional<WebCore::PaymentAuthorizationResult>& result)
+void WebPaymentCoordinatorProxy::completePaymentSession(const Optional<WebCore::PaymentAuthorizationResult>& result)
 {
     // It's possible that the payment has been canceled already.
     if (!canCompletePayment())
@@ -224,7 +229,7 @@ void WebPaymentCoordinatorProxy::didCancelPaymentSession()
     didReachFinalState();
 }
 
-void WebPaymentCoordinatorProxy::validateMerchant(const WebCore::URL& url)
+void WebPaymentCoordinatorProxy::validateMerchant(const URL& url)
 {
     ASSERT(m_merchantValidationState == MerchantValidationState::Idle);
 
@@ -331,8 +336,8 @@ void WebPaymentCoordinatorProxy::didReachFinalState()
     m_state = State::Idle;
     m_merchantValidationState = MerchantValidationState::Idle;
 
-    ASSERT(activePaymentCoordinatorProxy == this);
-    activePaymentCoordinatorProxy = nullptr;
+    ASSERT(activePaymentCoordinatorProxy() == this);
+    activePaymentCoordinatorProxy() = nullptr;
 }
 
 }

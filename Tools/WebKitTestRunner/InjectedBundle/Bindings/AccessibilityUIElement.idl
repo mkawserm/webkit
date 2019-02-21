@@ -58,6 +58,7 @@ interface AccessibilityUIElement {
     readonly attribute long insertionPointLineNumber;
     readonly attribute DOMString selectedTextRange;
 
+    DOMString stringDescriptionOfAttributeValue(DOMString attr);
     DOMString stringAttributeValue(DOMString attr);
     double numberAttributeValue(DOMString attr);
     object uiElementArrayAttributeValue(DOMString attr);
@@ -115,9 +116,12 @@ interface AccessibilityUIElement {
     // Actions.
     void increment();
     void decrement();
+    void asyncIncrement();
+    void asyncDecrement();
     void press();
     void syncPress();
     void showMenu();
+    boolean dismiss();
 
     // Attribute info.
     DOMString allAttributes();
@@ -174,6 +178,7 @@ interface AccessibilityUIElement {
     DOMString boundsForRange(unsigned long location, unsigned long length);
     DOMString stringForRange(unsigned long location, unsigned long length);
     DOMString attributedStringForRange(unsigned long location, unsigned long length);
+    DOMString attributedStringForElement();
     boolean attributedStringRangeIsMisspelled(unsigned long location, unsigned long length);
     [PassContext] unsigned long uiElementCountForSearchPredicate(AccessibilityUIElement startElement, boolean isDirectionNext, object searchKey, DOMString searchText, boolean visibleOnly, boolean immediateDescendantsOnly);
     [PassContext] AccessibilityUIElement uiElementForSearchPredicate(AccessibilityUIElement startElement, boolean isDirectionNext, object searchKey, DOMString searchText, boolean visibleOnly, boolean immediateDescendantsOnly);

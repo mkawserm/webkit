@@ -26,22 +26,23 @@
 #import "config.h"
 #import "WebChromeClient.h"
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
 
 #import "DrawingArea.h"
+#import "EditableImageControllerMessages.h"
 #import "UIKitSPI.h"
 #import "WebCoreArgumentCoders.h"
 #import "WebFrame.h"
 #import "WebIconUtilities.h"
 #import "WebPage.h"
 #import "WebPageProxyMessages.h"
+#import <WebCore/AudioSession.h>
 #import <WebCore/Icon.h>
 #import <WebCore/NotImplemented.h>
 #import <wtf/RefPtr.h>
 
-using namespace WebCore;
-
 namespace WebKit {
+using namespace WebCore;
 
 #if ENABLE(IOS_TOUCH_EVENTS)
 
@@ -51,11 +52,6 @@ void WebChromeClient::didPreventDefaultForEvent()
 }
 
 #endif
-
-void WebChromeClient::elementDidRefocus(WebCore::Element& element)
-{
-    elementDidFocus(element);
-}
 
 void WebChromeClient::didReceiveMobileDocType(bool isMobileDoctype)
 {
@@ -96,12 +92,12 @@ void WebChromeClient::didLayout(LayoutType type)
 
 void WebChromeClient::didStartOverflowScroll()
 {
-    m_page.send(Messages::WebPageProxy::OverflowScrollWillStartScroll());
+    m_page.send(Messages::WebPageProxy::ScrollingNodeScrollWillStartScroll());
 }
 
 void WebChromeClient::didEndOverflowScroll()
 {
-    m_page.send(Messages::WebPageProxy::OverflowScrollDidEndScroll());
+    m_page.send(Messages::WebPageProxy::ScrollingNodeScrollDidEndScroll());
 }
 
 bool WebChromeClient::hasStablePageScaleFactor() const
@@ -134,9 +130,9 @@ void WebChromeClient::webAppOrientationsUpdated()
     notImplemented();
 }
 
-void WebChromeClient::showPlaybackTargetPicker(bool hasVideo)
+void WebChromeClient::showPlaybackTargetPicker(bool hasVideo, WebCore::RouteSharingPolicy policy, const String& routingContextUID)
 {
-    m_page.send(Messages::WebPageProxy::ShowPlaybackTargetPicker(hasVideo, m_page.rectForElementAtInteractionLocation()));
+    m_page.send(Messages::WebPageProxy::ShowPlaybackTargetPicker(hasVideo, m_page.rectForElementAtInteractionLocation(), policy, routingContextUID));
 }
 
 Seconds WebChromeClient::eventThrottlingDelay()
@@ -156,9 +152,37 @@ RefPtr<Icon> WebChromeClient::createIconForFiles(const Vector<String>& filenames
 
     // FIXME: We should generate an icon showing multiple files here, if applicable. Currently, if there are multiple
     // files, we only use the first URL to generate an icon.
-    return Icon::createIconForImage(iconForFile([NSURL fileURLWithPath:filenames[0]]).CGImage);
+    return Icon::createIconForImage(iconForFile([NSURL fileURLWithPath:filenames[0] isDirectory:NO]).CGImage);
+}
+
+void WebChromeClient::associateEditableImageWithAttachment(GraphicsLayer::EmbeddedViewID embeddedViewID, const String& attachmentID)
+{
+#if HAVE(PENCILKIT)
+    m_page.send(Messages::EditableImageController::AssociateWithAttachment(embeddedViewID, attachmentID));
+#else
+    UNUSED_PARAM(embeddedViewID);
+    UNUSED_PARAM(attachmentID);
+#endif
+}
+
+void WebChromeClient::didCreateEditableImage(GraphicsLayer::EmbeddedViewID embeddedViewID)
+{
+#if HAVE(PENCILKIT)
+    m_page.send(Messages::EditableImageController::DidCreateEditableImage(embeddedViewID));
+#else
+    UNUSED_PARAM(embeddedViewID);
+#endif
+}
+
+void WebChromeClient::didDestroyEditableImage(GraphicsLayer::EmbeddedViewID embeddedViewID)
+{
+#if HAVE(PENCILKIT)
+    m_page.send(Messages::EditableImageController::DidDestroyEditableImage(embeddedViewID));
+#else
+    UNUSED_PARAM(embeddedViewID);
+#endif
 }
 
 } // namespace WebKit
 
-#endif // PLATFORM(IOS)
+#endif // PLATFORM(IOS_FAMILY)

@@ -100,7 +100,7 @@ Vector<RefPtr<AudioTrack>> MediaControlsHost::sortedTrackListForMenu(AudioTrackL
     return page->group().captionPreferences().sortedTrackListForMenu(&trackList);
 }
 
-String MediaControlsHost::displayNameForTrack(const std::optional<TextOrAudioTrack>& track)
+String MediaControlsHost::displayNameForTrack(const Optional<TextOrAudioTrack>& track)
 {
     if (!track)
         return emptyString();
@@ -185,7 +185,7 @@ void MediaControlsHost::updateCaptionDisplaySizes()
     
 bool MediaControlsHost::allowsInlineMediaPlayback() const
 {
-    return !m_mediaElement->mediaSession().requiresFullscreenForVideoPlayback(*m_mediaElement);
+    return !m_mediaElement->mediaSession().requiresFullscreenForVideoPlayback();
 }
 
 bool MediaControlsHost::supportsFullscreen() const
@@ -210,7 +210,7 @@ void MediaControlsHost::setPreparedToReturnVideoLayerToInline(bool value)
 
 bool MediaControlsHost::userGestureRequired() const
 {
-    return !m_mediaElement->mediaSession().playbackPermitted(*m_mediaElement);
+    return !m_mediaElement->mediaSession().playbackPermitted();
 }
 
 bool MediaControlsHost::shouldForceControlsDisplay() const
@@ -296,7 +296,7 @@ bool MediaControlsHost::compactMode() const
     if (m_simulateCompactMode)
         return true;
 
-#if ENABLE(EXTRA_ZOOM_MODE)
+#if PLATFORM(WATCHOS)
     return true;
 #else
     return false;

@@ -36,7 +36,7 @@ namespace API {
 class Object;
 
 template<> struct ClientTraits<WKBundlePageUIClientBase> {
-    typedef std::tuple<WKBundlePageUIClientV0, WKBundlePageUIClientV1, WKBundlePageUIClientV2, WKBundlePageUIClientV3> Versions;
+    typedef std::tuple<WKBundlePageUIClientV0, WKBundlePageUIClientV1, WKBundlePageUIClientV2, WKBundlePageUIClientV3, WKBundlePageUIClientV4> Versions;
 };
 }
 
@@ -51,7 +51,7 @@ public:
     void willRunJavaScriptAlert(WebPage*, const String&, WebFrame*) override;
     void willRunJavaScriptConfirm(WebPage*, const String&, WebFrame*) override;
     void willRunJavaScriptPrompt(WebPage*, const String&, const String&, WebFrame*) override;
-    void mouseDidMoveOverElement(WebPage*, const WebCore::HitTestResult&, WebEvent::Modifiers, RefPtr<API::Object>& userData) override;
+    void mouseDidMoveOverElement(WebPage*, const WebCore::HitTestResult&, OptionSet<WebEvent::Modifier>, RefPtr<API::Object>& userData) override;
     void pageDidScroll(WebPage*) override;
 
     String shouldGenerateFileForUpload(WebPage*, const String& originalFilePath) override;
@@ -70,6 +70,8 @@ public:
     String plugInExtraScript() const override;
 
     void didClickAutoFillButton(WebPage&, InjectedBundleNodeHandle&, RefPtr<API::Object>& userData) override;
+
+    void didResignInputElementStrongPasswordAppearance(WebPage&, InjectedBundleNodeHandle&, RefPtr<API::Object>& userData) override;
 };
 
 } // namespace WebKit

@@ -26,8 +26,8 @@
 
 #pragma once
 
-#include "FileSystem.h"
 #include "FormData.h"
+#include <wtf/FileSystem.h>
 #include <wtf/Vector.h>
 
 namespace WebCore {
@@ -35,24 +35,24 @@ namespace WebCore {
 class CurlFormDataStream {
 public:
     CurlFormDataStream(const FormData*);
-    ~CurlFormDataStream();
+    WEBCORE_EXPORT ~CurlFormDataStream();
 
     void clean();
 
     size_t elementSize() { return m_formData ? m_formData->elements().size() : 0; }
 
-    std::optional<const Vector<char>&> getPostData();
+    const Vector<char>* getPostData();
     bool shouldUseChunkTransfer();
     unsigned long long totalSize();
 
-    std::optional<size_t> read(char*, size_t);
+    Optional<size_t> read(char*, size_t);
     unsigned long long totalReadSize() { return m_totalReadSize; }
 
 private:
     void computeContentLength();
 
-    std::optional<size_t> readFromFile(const FormDataElement&, char*, size_t);
-    std::optional<size_t> readFromData(const FormDataElement&, char*, size_t);
+    Optional<size_t> readFromFile(const FormDataElement::EncodedFileData&, char*, size_t);
+    Optional<size_t> readFromData(const Vector<char>&, char*, size_t);
 
     RefPtr<FormData> m_formData;
 

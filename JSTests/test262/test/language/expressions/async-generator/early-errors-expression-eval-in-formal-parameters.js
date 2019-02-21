@@ -3,7 +3,7 @@
 
 /*---
 author: Caitlin Potter <caitp@igalia.com>
-esid: pending
+esid: sec-strict-mode-of-ecmascript
 description: >
   It is a SyntaxError if FormalParameters contains eval in strict mode.
 negative:
@@ -13,6 +13,6 @@ flags: [onlyStrict]
 features: [async-iteration]
 ---*/
 
-throw "Test262: This statement should not be evaluated.";
+$DONOTEVALUATE();
 
 (async function*(eval) { });

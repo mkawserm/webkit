@@ -23,6 +23,7 @@
 #include "config.h"
 #include "RegExp.h"
 
+#include "ExceptionHelpers.h"
 #include "Lexer.h"
 #include "JSCInlines.h"
 #include "RegExpCache.h"
@@ -211,7 +212,6 @@ void RegExpFunctionalTestCollector::outputEscapedString(const String& s, bool es
 
 RegExp::RegExp(VM& vm, const String& patternString, RegExpFlags flags)
     : JSCell(vm, vm.regExpStructure.get())
-    , m_state(NotCompiled)
     , m_patternString(patternString)
     , m_flags(flags)
 {
@@ -239,14 +239,14 @@ void RegExp::destroy(JSCell* cell)
     thisObject->RegExp::~RegExp();
 }
 
-size_t RegExp::estimatedSize(JSCell* cell)
+size_t RegExp::estimatedSize(JSCell* cell, VM& vm)
 {
     RegExp* thisObject = static_cast<RegExp*>(cell);
     size_t regexDataSize = thisObject->m_regExpBytecode ? thisObject->m_regExpBytecode->estimatedSizeInBytes() : 0;
 #if ENABLE(YARR_JIT)
     regexDataSize += thisObject->m_regExpJITCode.size();
 #endif
-    return Base::estimatedSize(cell) + regexDataSize;
+    return Base::estimatedSize(cell, vm) + regexDataSize;
 }
 
 RegExp* RegExp::createWithoutCaching(VM& vm, const String& patternString, RegExpFlags flags)
@@ -291,11 +291,8 @@ void RegExp::compile(VM* vm, Yarr::YarrCharSize charSize)
     
     Yarr::YarrPattern pattern(m_patternString, m_flags, m_constructionErrorCode, vm->stackLimit());
     if (hasError(m_constructionErrorCode)) {
-        RELEASE_ASSERT_NOT_REACHED();
-#if COMPILER_QUIRK(CONSIDERS_UNREACHABLE_CODE)
         m_state = ParseError;
         return;
-#endif
     }
     ASSERT(m_numSubpatterns == pattern.m_numSubpatterns);
 
@@ -306,8 +303,12 @@ void RegExp::compile(VM* vm, Yarr::YarrCharSize charSize)
     }
 
 #if ENABLE(YARR_JIT)
-    if (!pattern.m_containsBackreferences && !pattern.containsUnsignedLengthPattern() && VM::canUseRegExpJIT()) {
-        Yarr::jitCompile(pattern, charSize, vm, m_regExpJITCode);
+    if (!pattern.containsUnsignedLengthPattern() && VM::canUseRegExpJIT()
+#if !ENABLE(YARR_JIT_BACKREFERENCES)
+        && !pattern.m_containsBackreferences
+#endif
+        ) {
+        Yarr::jitCompile(pattern, m_patternString, charSize, vm, m_regExpJITCode);
         if (!m_regExpJITCode.failureReason()) {
             m_state = JITCode;
             return;
@@ -347,11 +348,8 @@ void RegExp::compileMatchOnly(VM* vm, Yarr::YarrCharSize charSize)
     
     Yarr::YarrPattern pattern(m_patternString, m_flags, m_constructionErrorCode, vm->stackLimit());
     if (hasError(m_constructionErrorCode)) {
-        RELEASE_ASSERT_NOT_REACHED();
-#if COMPILER_QUIRK(CONSIDERS_UNREACHABLE_CODE)
         m_state = ParseError;
         return;
-#endif
     }
     ASSERT(m_numSubpatterns == pattern.m_numSubpatterns);
 
@@ -362,8 +360,12 @@ void RegExp::compileMatchOnly(VM* vm, Yarr::YarrCharSize charSize)
     }
 
 #if ENABLE(YARR_JIT)
-    if (!pattern.m_containsBackreferences && !pattern.containsUnsignedLengthPattern() && VM::canUseRegExpJIT()) {
-        Yarr::jitCompile(pattern, charSize, vm, m_regExpJITCode, Yarr::MatchOnly);
+    if (!pattern.containsUnsignedLengthPattern() && VM::canUseRegExpJIT()
+#if !ENABLE(YARR_JIT_BACKREFERENCES)
+        && !pattern.m_containsBackreferences
+#endif
+        ) {
+        Yarr::jitCompile(pattern, m_patternString, charSize, vm, m_regExpJITCode, Yarr::MatchOnly);
         if (!m_regExpJITCode.failureReason()) {
             m_state = JITCode;
             return;
@@ -487,10 +489,10 @@ void RegExp::matchCompareWithInterpreter(const String& s, int startOffset, int* 
             snprintf(jit8BitMatchAddr, jitAddrSize, "fallback    ");
             snprintf(jit16BitMatchAddr, jitAddrSize, "----      ");
         } else {
-            snprintf(jit8BitMatchOnlyAddr, jitAddrSize, "0x%014lx", reinterpret_cast<unsigned long int>(codeBlock.get8BitMatchOnlyAddr()));
-            snprintf(jit16BitMatchOnlyAddr, jitAddrSize, "0x%014lx", reinterpret_cast<unsigned long int>(codeBlock.get16BitMatchOnlyAddr()));
-            snprintf(jit8BitMatchAddr, jitAddrSize, "0x%014lx", reinterpret_cast<unsigned long int>(codeBlock.get8BitMatchAddr()));
-            snprintf(jit16BitMatchAddr, jitAddrSize, "0x%014lx", reinterpret_cast<unsigned long int>(codeBlock.get16BitMatchAddr()));
+            snprintf(jit8BitMatchOnlyAddr, jitAddrSize, "0x%014lx", reinterpret_cast<uintptr_t>(codeBlock.get8BitMatchOnlyAddr()));
+            snprintf(jit16BitMatchOnlyAddr, jitAddrSize, "0x%014lx", reinterpret_cast<uintptr_t>(codeBlock.get16BitMatchOnlyAddr()));
+            snprintf(jit8BitMatchAddr, jitAddrSize, "0x%014lx", reinterpret_cast<uintptr_t>(codeBlock.get8BitMatchAddr()));
+            snprintf(jit16BitMatchAddr, jitAddrSize, "0x%014lx", reinterpret_cast<uintptr_t>(codeBlock.get16BitMatchAddr()));
         }
 #else
         const char* jit8BitMatchOnlyAddr = "JIT Off";
@@ -505,5 +507,30 @@ void RegExp::matchCompareWithInterpreter(const String& s, int startOffset, int* 
         printf("                                         %16.16s %16.16s %10d %10d %10u\n", jit8BitMatchAddr, jit16BitMatchAddr, m_rtMatchCallCount, m_rtMatchFoundCount, averageMatchStringLen);
     }
 #endif
+
+static CString regexpToSourceString(const RegExp* regExp)
+{
+    char postfix[7] = { '/', 0, 0, 0, 0, 0, 0 };
+    int index = 1;
+    if (regExp->global())
+        postfix[index++] = 'g';
+    if (regExp->ignoreCase())
+        postfix[index++] = 'i';
+    if (regExp->multiline())
+        postfix[index] = 'm';
+    if (regExp->dotAll())
+        postfix[index++] = 's';
+    if (regExp->unicode())
+        postfix[index++] = 'u';
+    if (regExp->sticky())
+        postfix[index++] = 'y';
+
+    return toCString("/", regExp->pattern().impl(), postfix);
+}
+
+void RegExp::dumpToStream(const JSCell* cell, PrintStream& out)
+{
+    out.print(regexpToSourceString(jsCast<const RegExp*>(cell)));
+}
 
 } // namespace JSC

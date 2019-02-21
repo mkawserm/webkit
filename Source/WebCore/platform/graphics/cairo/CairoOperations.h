@@ -89,7 +89,7 @@ struct FillSource {
     } gradient;
     Color color;
 
-    WindRule fillRule { RULE_NONZERO };
+    WindRule fillRule { WindRule::NonZero };
 };
 
 struct StrokeSource {
@@ -140,12 +140,12 @@ void drawGlyphs(PlatformContextCairo&, const FillSource&, const StrokeSource&, c
 
 void drawNativeImage(PlatformContextCairo&, cairo_surface_t*, const FloatRect&, const FloatRect&, CompositeOperator, BlendMode, ImageOrientation, InterpolationQuality, float, const ShadowState&);
 void drawPattern(PlatformContextCairo&, cairo_surface_t*, const IntSize&, const FloatRect&, const FloatRect&, const AffineTransform&, const FloatPoint&, CompositeOperator, BlendMode);
-void drawSurface(PlatformContextCairo&, cairo_surface_t*, const FloatRect&, const FloatRect&, InterpolationQuality, float, const ShadowState&);
+WEBCORE_EXPORT void drawSurface(PlatformContextCairo&, cairo_surface_t*, const FloatRect&, const FloatRect&, InterpolationQuality, float, const ShadowState&);
 
 void drawRect(PlatformContextCairo&, const FloatRect&, float, const Color&, StrokeStyle, const Color&);
 void drawLine(PlatformContextCairo&, const FloatPoint&, const FloatPoint&, StrokeStyle, const Color&, float, bool);
-void drawLinesForText(PlatformContextCairo&, const FloatPoint&, const DashArray&, bool, bool, const Color&, float);
-void drawLineForDocumentMarker(PlatformContextCairo&, const FloatPoint&, float, GraphicsContext::DocumentMarkerLineStyle);
+void drawLinesForText(PlatformContextCairo&, const FloatPoint&, float thickness, const DashArray&, bool, bool, const Color&);
+void drawDotsForDocumentMarker(PlatformContextCairo&, const FloatRect&, DocumentMarkerLineStyle);
 void drawEllipse(PlatformContextCairo&, const FloatRect&, const Color&, StrokeStyle, const Color&, float);
 
 void drawFocusRing(PlatformContextCairo&, const Path&, float, const Color&);

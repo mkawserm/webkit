@@ -30,9 +30,9 @@
 
 #import "PlatformUtilities.h"
 #import "Test.h"
-#import <WebCore/WebCoreNSURLExtras.h>
 #import <WebKit/WKWebViewPrivate.h>
 #import <wtf/RetainPtr.h>
+#import <wtf/cocoa/NSURLExtras.h>
 
 static bool isDone;
 static int provisionalLoadCount;
@@ -110,14 +110,15 @@ TEST(WKWebView, LoadAlternateHTMLStringFromProvisionalLoadErrorBackToBack)
         [webView setNavigationDelegate:delegate.get()];
 
         char literal[] = "https://www.example.com<>/";
-        NSURL* targetURL = WebCore::URLWithData([NSData dataWithBytes:literal length:strlen(literal)], nil);
+        NSURL* targetURL = WTF::URLWithData([NSData dataWithBytes:literal length:strlen(literal)], nil);
         [webView loadRequest:[NSURLRequest requestWithURL:targetURL]];
         [webView loadRequest:[NSURLRequest requestWithURL:targetURL]];
 
         isDone = false;
         TestWebKitAPI::Util::run(&isDone);
-        // In success, we should only start 3 provisional loads: 2 for the loadRequest, and *only 1* for the _loadAlternateHTMLString.
-        EXPECT_EQ(3, provisionalLoadCount);
+        // In success, we should only start 2 provisional loads: 1 for the second loadRequest, and 1 for the _loadAlternateHTMLString.
+        // The second loadRequest cancels the first one before its provisional load starts.
+        EXPECT_EQ(2, provisionalLoadCount);
     }
 }
 
@@ -125,6 +126,33 @@ TEST(WKWebView, LoadAlternateHTMLStringNoFileSystemPath)
 {
     auto webView = adoptNS([[WKWebView alloc] init]);
     [webView loadHTMLString:@"<html>hi</html>" baseURL:[NSURL URLWithString:@"file:///.file/id="]];
+}
+
+TEST(WKWebView, LoadAlternateHTMLStringFromProvisionalLoadErrorReload)
+{
+    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    auto controller = adoptNS([[LoadAlternateHTMLStringFromProvisionalLoadErrorController alloc] init]);
+    [webView setNavigationDelegate:controller.get()];
+
+    NSURL *invalidURL = [NSURL URLWithString:@"https://www.example.com%3C%3E/"];
+    [webView loadRequest:[NSURLRequest requestWithURL:invalidURL]];
+    TestWebKitAPI::Util::run(&isDone);
+    isDone = false;
+
+    [webView reload];
+    TestWebKitAPI::Util::run(&isDone);
+    isDone = false;
+
+    [webView reloadFromOrigin];
+    TestWebKitAPI::Util::run(&isDone);
+    isDone = false;
+
+    [webView _reloadExpiredOnly];
+    TestWebKitAPI::Util::run(&isDone);
+    isDone = false;
+
+    WKBackForwardList *list = [webView backForwardList];
+    EXPECT_EQ((NSUInteger)0, list.backList.count);
 }
 
 #endif

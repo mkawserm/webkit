@@ -23,26 +23,26 @@
  * THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#import "config.h"
-#import "SystemPreviewController.h"
+#include "config.h"
+#include "SystemPreviewController.h"
+
+#if USE(SYSTEM_PREVIEW)
+
+#include "WebPageProxy.h"
+#include <WebCore/MIMETypeRegistry.h>
 
 namespace WebKit {
 
 SystemPreviewController::SystemPreviewController(WebPageProxy& webPageProxy)
     : m_webPageProxy(webPageProxy)
 {
-    (void)m_webPageProxy; // This will be used eventually. Using it here to keep the compiler from complaining.
 }
 
-#if !PLATFORM(IOS) || !USE(QUICK_LOOK)
-bool SystemPreviewController::canPreview(const String&) const
+bool SystemPreviewController::canPreview(const String& mimeType) const
 {
-    return false;
+    return WebCore::MIMETypeRegistry::isSystemPreviewMIMEType(mimeType);
 }
 
-void SystemPreviewController::showPreview(const WebCore::URL&)
-{
 }
+
 #endif
-
-}

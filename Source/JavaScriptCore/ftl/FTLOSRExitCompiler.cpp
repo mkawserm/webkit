@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013-2018 Apple Inc. All rights reserved.
+ * Copyright (C) 2013-2019 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -244,6 +244,13 @@ static void compileStub(
 
     saveAllRegisters(jit, registerScratch);
     
+    if (validateDFGDoesGC) {
+        // We're about to exit optimized code. So, there's no longer any optimized
+        // code running that expects no GC. We need to set this before object
+        // materialization below.
+        jit.store8(CCallHelpers::TrustedImm32(true), vm->heap.addressOfExpectDoesGC());
+    }
+
     // Bring the stack back into a sane form and assert that it's sane.
     jit.popToRestore(GPRInfo::regT0);
     jit.checkStackPointerAlignment();
@@ -277,9 +284,20 @@ static void compileStub(
             if (ArrayProfile* arrayProfile = jit.baselineCodeBlockFor(codeOrigin)->getArrayProfile(codeOrigin.bytecodeIndex)) {
                 jit.load32(MacroAssembler::Address(GPRInfo::regT0, JSCell::structureIDOffset()), GPRInfo::regT1);
                 jit.store32(GPRInfo::regT1, arrayProfile->addressOfLastSeenStructureID());
+
+                jit.load8(MacroAssembler::Address(GPRInfo::regT0, JSCell::typeInfoTypeOffset()), GPRInfo::regT2);
+                jit.sub32(MacroAssembler::TrustedImm32(FirstTypedArrayType), GPRInfo::regT2);
+                auto notTypedArray = jit.branch32(MacroAssembler::AboveOrEqual, GPRInfo::regT2, MacroAssembler::TrustedImm32(NumberOfTypedArrayTypesExcludingDataView));
+                jit.move(MacroAssembler::TrustedImmPtr(typedArrayModes), GPRInfo::regT1);
+                jit.load32(MacroAssembler::BaseIndex(GPRInfo::regT1, GPRInfo::regT2, MacroAssembler::TimesFour), GPRInfo::regT2);
+                auto storeArrayModes = jit.jump();
+
+                notTypedArray.link(&jit);
                 jit.load8(MacroAssembler::Address(GPRInfo::regT0, JSCell::indexingTypeAndMiscOffset()), GPRInfo::regT1);
+                jit.and32(MacroAssembler::TrustedImm32(IndexingModeMask), GPRInfo::regT1);
                 jit.move(MacroAssembler::TrustedImm32(1), GPRInfo::regT2);
                 jit.lshift32(GPRInfo::regT1, GPRInfo::regT2);
+                storeArrayModes.link(&jit);
                 jit.or32(GPRInfo::regT2, MacroAssembler::AbsoluteAddress(arrayProfile->addressOfArrayModes()));
             }
         }
@@ -338,8 +356,8 @@ static void compileStub(
             jit.setupArguments<decltype(operationMaterializeObjectInOSR)>(
                 CCallHelpers::TrustedImmPtr(materialization),
                 CCallHelpers::TrustedImmPtr(materializationArguments));
-            jit.move(CCallHelpers::TrustedImmPtr(bitwise_cast<void*>(operationMaterializeObjectInOSR)), GPRInfo::nonArgGPR0);
-            jit.call(GPRInfo::nonArgGPR0);
+            jit.move(CCallHelpers::TrustedImmPtr(tagCFunctionPtr<OperationPtrTag>(operationMaterializeObjectInOSR)), GPRInfo::nonArgGPR0);
+            jit.call(GPRInfo::nonArgGPR0, OperationPtrTag);
             jit.storePtr(GPRInfo::returnValueGPR, materializationToPointer.get(materialization));
 
             // Let everyone know that we're done.
@@ -366,8 +384,8 @@ static void compileStub(
             CCallHelpers::TrustedImmPtr(materialization),
             CCallHelpers::TrustedImmPtr(materializationToPointer.get(materialization)),
             CCallHelpers::TrustedImmPtr(materializationArguments));
-        jit.move(CCallHelpers::TrustedImmPtr(bitwise_cast<void*>(operationPopulateObjectInOSR)), GPRInfo::nonArgGPR0);
-        jit.call(GPRInfo::nonArgGPR0);
+        jit.move(CCallHelpers::TrustedImmPtr(tagCFunctionPtr<OperationPtrTag>(operationPopulateObjectInOSR)), GPRInfo::nonArgGPR0);
+        jit.call(GPRInfo::nonArgGPR0, OperationPtrTag);
     }
 
     // Save all state from wherever the exit data tells us it was, into the appropriate place in
@@ -408,7 +426,7 @@ static void compileStub(
     jit.checkStackPointerAlignment();
 
     RegisterSet allFTLCalleeSaves = RegisterSet::ftlCalleeSaveRegisters();
-    RegisterAtOffsetList* baselineCalleeSaves = baselineCodeBlock->calleeSaveRegisters();
+    const RegisterAtOffsetList* baselineCalleeSaves = baselineCodeBlock->calleeSaveRegisters();
     RegisterAtOffsetList* vmCalleeSaves = RegisterSet::vmCalleeSaveRegisterOffsets();
     RegisterSet vmCalleeSavesToSkip = RegisterSet::stackRegisters();
     if (exit.isExceptionHandler()) {
@@ -423,7 +441,7 @@ static void compileStub(
             continue;
         }
         unsigned unwindIndex = codeBlock->calleeSaveRegisters()->indexOf(reg);
-        RegisterAtOffset* baselineRegisterOffset = baselineCalleeSaves->find(reg);
+        const RegisterAtOffset* baselineRegisterOffset = baselineCalleeSaves->find(reg);
         RegisterAtOffset* vmCalleeSave = nullptr; 
         if (exit.isExceptionHandler())
             vmCalleeSave = vmCalleeSaves->find(reg);
@@ -494,7 +512,7 @@ static void compileStub(
     LinkBuffer patchBuffer(jit, codeBlock);
     exit.m_code = FINALIZE_CODE_IF(
         shouldDumpDisassembly() || Options::verboseOSR() || Options::verboseFTLOSRExit(),
-        patchBuffer,
+        patchBuffer, OSRExitPtrTag,
         "FTL OSR exit #%u (%s, %s) from %s, with operands = %s",
             exitID, toCString(exit.m_codeOrigin).data(),
             exitKindToString(exit.m_kind), toCString(*codeBlock).data(),
@@ -541,11 +559,11 @@ extern "C" void* compileFTLOSRExit(ExecState* exec, unsigned exitID)
     }
 
     prepareCodeOriginForOSRExit(exec, exit.m_codeOrigin);
-    
+
     compileStub(exitID, jitCode, exit, &vm, codeBlock);
 
     MacroAssembler::repatchJump(
-        exit.codeLocationForRepatch(codeBlock), CodeLocationLabel(exit.m_code.code()));
+        exit.codeLocationForRepatch(codeBlock), CodeLocationLabel<OSRExitPtrTag>(exit.m_code.code()));
     
     return exit.m_code.code().executableAddress();
 }

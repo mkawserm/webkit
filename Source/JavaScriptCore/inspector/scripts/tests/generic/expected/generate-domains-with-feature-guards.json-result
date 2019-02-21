@@ -239,7 +239,7 @@ Network1BackendDispatcher::Network1BackendDispatcher(BackendDispatcher& backendD
     : SupplementalBackendDispatcher(backendDispatcher)
     , m_agent(agent)
 {
-    m_backendDispatcher->registerDispatcherForDomain(ASCIILiteral("Network1"), this);
+    m_backendDispatcher->registerDispatcherForDomain("Network1"_s, this);
 }
 
 void Network1BackendDispatcher::dispatch(long requestId, const String& method, Ref<JSON::Object>&& message)
@@ -247,7 +247,7 @@ void Network1BackendDispatcher::dispatch(long requestId, const String& method, R
     Ref<Network1BackendDispatcher> protect(*this);
 
     RefPtr<JSON::Object> parameters;
-    message->getObject(ASCIILiteral("params"), parameters);
+    message->getObject("params"_s, parameters);
 
     if (method == "loadResource")
         loadResource(requestId, WTFMove(parameters));
@@ -376,7 +376,7 @@ namespace Inspector {
 void Network3FrontendDispatcher::resourceLoaded()
 {
     Ref<JSON::Object> jsonMessage = JSON::Object::create();
-    jsonMessage->setString(ASCIILiteral("method"), ASCIILiteral("Network3.resourceLoaded"));
+    jsonMessage->setString("method"_s, "Network3.resourceLoaded"_s);
 
     m_frontendRouter.sendEvent(jsonMessage->toJSONString());
 }
@@ -428,6 +428,8 @@ namespace Inspector {
 
 namespace Protocol {
 
+
+
 // Forward declarations.
 #if PLATFORM(WEB_TYPES)
 namespace Network2 {
@@ -471,14 +473,14 @@ public:
         Builder<STATE | MessageSet>& setMessage(const String& value)
         {
             COMPILE_ASSERT(!(STATE & MessageSet), property_message_already_set);
-            m_result->setString(ASCIILiteral("message"), value);
+            m_result->setString("message"_s, value);
             return castState<MessageSet>();
         }
 
         Builder<STATE | CodeSet>& setCode(int value)
         {
             COMPILE_ASSERT(!(STATE & CodeSet), property_code_already_set);
-            m_result->setInteger(ASCIILiteral("code"), value);
+            m_result->setInteger("code"_s, value);
             return castState<CodeSet>();
         }
 
@@ -795,7 +797,7 @@ using namespace Inspector;
     _network1Handler = [handler retain];
 
     auto alternateDispatcher = std::make_unique<ObjCInspectorNetwork1BackendDispatcher>(handler);
-    auto alternateAgent = std::make_unique<AlternateDispatchableAgent<Network1BackendDispatcher, AlternateNetwork1BackendDispatcher>>(ASCIILiteral("Network1"), *_controller, WTFMove(alternateDispatcher));
+    auto alternateAgent = std::make_unique<AlternateDispatchableAgent<Network1BackendDispatcher, AlternateNetwork1BackendDispatcher>>("Network1"_s, *_controller, WTFMove(alternateDispatcher));
     _controller->appendExtraAgent(WTFMove(alternateAgent));
 }
 
@@ -874,7 +876,7 @@ using namespace Inspector;
     const FrontendRouter& router = _controller->frontendRouter();
 
     Ref<JSON::Object> jsonMessage = JSON::Object::create();
-    jsonMessage->setString(ASCIILiteral("method"), ASCIILiteral("Network3.resourceLoaded"));
+    jsonMessage->setString("method"_s, "Network3.resourceLoaded"_s);
     router.sendEvent(jsonMessage->toJSONString());
 }
 
@@ -942,7 +944,7 @@ __attribute__((visibility ("default")))
 
 @protocol TestProtocolNetwork1DomainHandler <NSObject>
 @required
-- (void)loadResourceWithErrorCallback:(void(^)(NSString *error))errorCallback successCallback:(void(^)())successCallback;
+- (void)loadResourceWithErrorCallback:(void(^)(NSString *error))errorCallback successCallback:(void(^)(void))successCallback;
 @end
 
 __attribute__((visibility ("default")))
@@ -1033,24 +1035,24 @@ __attribute__((visibility ("default")))
 namespace Inspector {
 
 template<typename ObjCEnumType>
-std::optional<ObjCEnumType> fromProtocolString(const String& value);
+Optional<ObjCEnumType> fromProtocolString(const String& value);
 
 inline String toProtocolString(TestProtocolPlatform value)
 {
     switch(value) {
     case TestProtocolPlatformAll:
-        return ASCIILiteral("all");
+        return "all"_s;
     case TestProtocolPlatformGeneric:
-        return ASCIILiteral("generic");
+        return "generic"_s;
     case TestProtocolPlatformIOS:
-        return ASCIILiteral("ios");
+        return "ios"_s;
     case TestProtocolPlatformMacOS:
-        return ASCIILiteral("macos");
+        return "macos"_s;
     }
 }
 
 template<>
-inline std::optional<TestProtocolPlatform> fromProtocolString(const String& value)
+inline Optional<TestProtocolPlatform> fromProtocolString(const String& value)
 {
     if (value == "all")
         return TestProtocolPlatformAll;
@@ -1060,7 +1062,7 @@ inline std::optional<TestProtocolPlatform> fromProtocolString(const String& valu
         return TestProtocolPlatformIOS;
     if (value == "macos")
         return TestProtocolPlatformMacOS;
-    return std::nullopt;
+    return WTF::nullopt;
 }
 
 

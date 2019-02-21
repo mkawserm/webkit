@@ -7,6 +7,10 @@ endif ()
 
 add_subdirectory(WTF)
 
+if (USE_CAPSTONE)
+    add_subdirectory(ThirdParty/capstone)
+endif ()
+
 add_subdirectory(JavaScriptCore)
 
 if (WIN32 AND ENABLE_GRAPHICS_CONTEXT_3D)
@@ -26,6 +30,10 @@ endif ()
 
 if (USE_XDGMIME)
     add_subdirectory(ThirdParty/xdgmime)
+endif ()
+
+if (USE_LIBWEBRTC)
+    add_subdirectory(ThirdParty/libwebrtc)
 endif ()
 
 if (ENABLE_WEBCORE)

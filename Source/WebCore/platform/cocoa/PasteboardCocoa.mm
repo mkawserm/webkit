@@ -34,7 +34,7 @@
 #include <wtf/ListHashSet.h>
 #include <wtf/text/StringHash.h>
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
 #include <MobileCoreServices/MobileCoreServices.h>
 #endif
 
@@ -134,21 +134,65 @@ bool Pasteboard::shouldTreatCocoaTypeAsFile(const String& cocoaType)
     return cocoaTypeToImageType(cocoaType) != ImageType::Invalid;
 }
 
-bool Pasteboard::containsFiles()
+Pasteboard::FileContentState Pasteboard::fileContentState()
 {
-    if (!platformStrategies()->pasteboardStrategy()->getNumberOfFiles(m_pasteboardName)) {
+    bool mayContainFilePaths = platformStrategies()->pasteboardStrategy()->getNumberOfFiles(m_pasteboardName);
+
+#if PLATFORM(IOS_FAMILY)
+    if (mayContainFilePaths) {
+        // On iOS, files are not written to the pasteboard using file URLs, so we need a heuristic to determine
+        // whether or not the pasteboard contains items that represent files. An example of when this gets tricky
+        // is differentiating between cases where the user is dragging a plain text file, versus selected text.
+        // Some common signs that indicate a file drop as opposed to dropping inline data are:
+        //
+        //  1. Multiple items - the system generally does not give opportunities to flock multiple pieces of
+        //     selected text.
+        //  2. Preferred attachment presentation style - this means the source has explicitly marked the item
+        //     as a file-like entity, as opposed to inline data.
+        //  3. A suggested name - this means that the source has explicitly specified a potential file name for
+        //     the item when dropped.
+        //  4. The presence of any other declared non-text data in the same item indicates that the content being
+        //     dropped can take on another non-text format, which could be a file.
+        //
+        // If none of these four conditions are satisfied, it's very likely that the content being dropped is just
+        // an inline piece of text, with no files in the pasteboard (and therefore, no risk of leaking file paths
+        // to web content). In cases such as these, we should not suppress DataTransfer access.
+        auto items = platformStrategies()->pasteboardStrategy()->allPasteboardItemInfo(m_pasteboardName);
+        mayContainFilePaths = items.size() != 1 || notFound != items.findMatching([] (auto& item) {
+            if (item.preferredPresentationStyle != PasteboardItemPresentationStyle::Unspecified)
+                return item.preferredPresentationStyle == PasteboardItemPresentationStyle::Attachment;
+
+            return !item.suggestedFileName.isEmpty() || item.isNonTextType || item.containsFileURLAndFileUploadContent;
+        });
+    }
+#endif
+
+    if (!mayContainFilePaths) {
         Vector<String> cocoaTypes;
         platformStrategies()->pasteboardStrategy()->getTypes(cocoaTypes, m_pasteboardName);
         if (cocoaTypes.findMatching([](const String& cocoaType) { return shouldTreatCocoaTypeAsFile(cocoaType); }) == notFound)
-            return false;
+            return FileContentState::NoFileOrImageData;
+
+        bool containsURL = notFound != cocoaTypes.findMatching([] (auto& cocoaType) {
+#if PLATFORM(MAC)
+            if (cocoaType == String(legacyURLPasteboardType()))
+                return true;
+#endif
+            return cocoaType == String(kUTTypeURL);
+        });
+        mayContainFilePaths = containsURL && !Pasteboard::canExposeURLToDOMWhenPasteboardContainsFiles(readString("text/uri-list"_s));
     }
 
     // Enforce changeCount ourselves for security. We check after reading instead of before to be
     // sure it doesn't change between our testing the change count and accessing the data.
     if (m_changeCount != platformStrategies()->pasteboardStrategy()->changeCount(m_pasteboardName))
-        return false;
+        return FileContentState::NoFileOrImageData;
 
-    return true;
+    // Even when there's only image data in the pasteboard and no file representations, we still run the risk of exposing file paths
+    // to the page if the app has written image data to the pasteboard with a corresponding file path as plain text. An example of
+    // this is copying an image with a local `src` in Safari. To mitigate this, we additionally require that the app has not also
+    // written URLs to the pasteboard, as this would suggest that the plain text data might contain file paths.
+    return mayContainFilePaths ? FileContentState::MayContainFilePaths : FileContentState::InMemoryImage;
 }
 
 Vector<String> Pasteboard::typesSafeForBindings(const String& origin)
@@ -215,9 +259,15 @@ void Pasteboard::read(PasteboardFileReader& reader)
     }
 }
 
+Vector<String> Pasteboard::readAllStrings(const String& type)
+{
+    return readPlatformValuesAsStrings(type, m_changeCount, m_pasteboardName);
+}
+
 String Pasteboard::readString(const String& type)
 {
-    return readPlatformValueAsString(type, m_changeCount, m_pasteboardName);
+    auto values = readPlatformValuesAsStrings(type, m_changeCount, m_pasteboardName);
+    return values.isEmpty() ? String() : values.first();
 }
 
 String Pasteboard::readStringInCustomData(const String& type)

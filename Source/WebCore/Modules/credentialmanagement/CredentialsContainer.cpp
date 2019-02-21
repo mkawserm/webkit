@@ -35,6 +35,7 @@
 #include "Document.h"
 #include "ExceptionOr.h"
 #include "JSDOMPromiseDeferred.h"
+#include "Page.h"
 #include "SecurityOrigin.h"
 
 namespace WebCore {
@@ -63,12 +64,12 @@ void CredentialsContainer::get(CredentialRequestOptions&& options, CredentialPro
 {
     // The following implements https://www.w3.org/TR/credential-management-1/#algorithm-request as of 4 August 2017
     // with enhancement from 14 November 2017 Editor's Draft.
-    if (!m_document) {
+    if (!m_document || !m_document->page()) {
         promise.reject(Exception { NotSupportedError });
         return;
     }
     if (options.signal && options.signal->aborted()) {
-        promise.reject(Exception { AbortError, ASCIILiteral("Aborted by AbortSignal.") });
+        promise.reject(Exception { AbortError, "Aborted by AbortSignal."_s });
         return;
     }
     // Step 1-2.
@@ -78,29 +79,28 @@ void CredentialsContainer::get(CredentialRequestOptions&& options, CredentialPro
     // Step 4-6. Shortcut as we only support PublicKeyCredential which can only
     // be requested from [[discoverFromExternalSource]].
     if (!options.publicKey) {
-        promise.reject(Exception { NotSupportedError, ASCIILiteral("Only PublicKeyCredential is supported.") });
+        promise.reject(Exception { NotSupportedError, "Only PublicKeyCredential is supported."_s });
         return;
     }
 
-    // Async operations are dispatched/handled in (Web)CredentialMessenger, which exchanges messages between WebProcess and UIProcess.
-    AuthenticatorManager::singleton().discoverFromExternalSource(m_document->securityOrigin(), options.publicKey.value(), doesHaveSameOriginAsItsAncestors(), WTFMove(options.signal), WTFMove(promise));
+    m_document->page()->authenticatorCoordinator().discoverFromExternalSource(m_document->securityOrigin(), options.publicKey.value(), doesHaveSameOriginAsItsAncestors(), WTFMove(options.signal), WTFMove(promise));
 }
 
 void CredentialsContainer::store(const BasicCredential&, CredentialPromise&& promise)
 {
-    promise.reject(Exception { NotSupportedError, ASCIILiteral("Not implemented.") });
+    promise.reject(Exception { NotSupportedError, "Not implemented."_s });
 }
 
 void CredentialsContainer::isCreate(CredentialCreationOptions&& options, CredentialPromise&& promise)
 {
     // The following implements https://www.w3.org/TR/credential-management-1/#algorithm-create as of 4 August 2017
     // with enhancement from 14 November 2017 Editor's Draft.
-    if (!m_document) {
+    if (!m_document || !m_document->page()) {
         promise.reject(Exception { NotSupportedError });
         return;
     }
     if (options.signal && options.signal->aborted()) {
-        promise.reject(Exception { AbortError, ASCIILiteral("Aborted by AbortSignal.") });
+        promise.reject(Exception { AbortError, "Aborted by AbortSignal."_s });
         return;
     }
     // Step 1-2.
@@ -108,17 +108,16 @@ void CredentialsContainer::isCreate(CredentialCreationOptions&& options, Credent
 
     // Step 3-7. Shortcut as we only support one kind of credentials.
     if (!options.publicKey) {
-        promise.reject(Exception { NotSupportedError, ASCIILiteral("Only PublicKeyCredential is supported.") });
+        promise.reject(Exception { NotSupportedError, "Only PublicKeyCredential is supported."_s });
         return;
     }
 
-    // Async operations are dispatched/handled in (Web)CredentialMessenger, which exchanges messages between WebProcess and UIProcess.
-    AuthenticatorManager::singleton().create(m_document->securityOrigin(), options.publicKey.value(), doesHaveSameOriginAsItsAncestors(), WTFMove(options.signal), WTFMove(promise));
+    m_document->page()->authenticatorCoordinator().create(m_document->securityOrigin(), options.publicKey.value(), doesHaveSameOriginAsItsAncestors(), WTFMove(options.signal), WTFMove(promise));
 }
 
 void CredentialsContainer::preventSilentAccess(DOMPromiseDeferred<void>&& promise) const
 {
-    promise.reject(Exception { NotSupportedError, ASCIILiteral("Not implemented.") });
+    promise.reject(Exception { NotSupportedError, "Not implemented."_s });
 }
 
 } // namespace WebCore

@@ -41,19 +41,23 @@
 #include <WebCore/JSRange.h>
 #include <WebCore/Page.h>
 #include <WebCore/Range.h>
+#include <WebCore/RenderView.h>
 #include <WebCore/VisibleSelection.h>
 #include <wtf/HashMap.h>
 #include <wtf/NeverDestroyed.h>
 
-using namespace WebCore;
+#if PLATFORM(MAC)
+#include <WebCore/LocalDefaultSystemAppearance.h>
+#endif
 
 namespace WebKit {
+using namespace WebCore;
 
-typedef HashMap<Range*, InjectedBundleRangeHandle*> DOMHandleCache;
+typedef HashMap<Range*, InjectedBundleRangeHandle*> DOMRangeHandleCache;
 
-static DOMHandleCache& domHandleCache()
+static DOMRangeHandleCache& domRangeHandleCache()
 {
-    static NeverDestroyed<DOMHandleCache> cache;
+    static NeverDestroyed<DOMRangeHandleCache> cache;
     return cache;
 }
 
@@ -68,7 +72,7 @@ RefPtr<InjectedBundleRangeHandle> InjectedBundleRangeHandle::getOrCreate(Range* 
     if (!range)
         return nullptr;
 
-    DOMHandleCache::AddResult result = domHandleCache().add(range, nullptr);
+    DOMRangeHandleCache::AddResult result = domRangeHandleCache().add(range, nullptr);
     if (!result.isNewEntry)
         return result.iterator->value;
 
@@ -89,7 +93,7 @@ InjectedBundleRangeHandle::InjectedBundleRangeHandle(Range& range)
 
 InjectedBundleRangeHandle::~InjectedBundleRangeHandle()
 {
-    domHandleCache().remove(m_range.ptr());
+    domRangeHandleCache().remove(m_range.ptr());
 }
 
 Range& InjectedBundleRangeHandle::coreRange() const
@@ -120,6 +124,10 @@ RefPtr<WebImage> InjectedBundleRangeHandle::renderedImage(SnapshotOptions option
     if (!frameView)
         return nullptr;
 
+#if PLATFORM(MAC)
+    LocalDefaultSystemAppearance localAppearance(frameView->useDarkAppearance());
+#endif
+
     Ref<Frame> protector(*frame);
 
     VisibleSelection oldSelection = frame->selection().selection();
@@ -130,7 +138,7 @@ RefPtr<WebImage> InjectedBundleRangeHandle::renderedImage(SnapshotOptions option
     IntSize backingStoreSize = paintRect.size();
     backingStoreSize.scale(scaleFactor);
 
-    RefPtr<ShareableBitmap> backingStore = ShareableBitmap::createShareable(backingStoreSize, { });
+    auto backingStore = ShareableBitmap::createShareable(backingStoreSize, { });
     if (!backingStore)
         return nullptr;
 
@@ -142,12 +150,13 @@ RefPtr<WebImage> InjectedBundleRangeHandle::renderedImage(SnapshotOptions option
 
     graphicsContext->translate(-paintRect.location());
 
-    PaintBehavior oldPaintBehavior = frameView->paintBehavior();
-    PaintBehavior paintBehavior = oldPaintBehavior | PaintBehaviorSelectionOnly | PaintBehaviorFlattenCompositingLayers | PaintBehaviorSnapshotting;
+    OptionSet<PaintBehavior> oldPaintBehavior = frameView->paintBehavior();
+    OptionSet<PaintBehavior> paintBehavior = oldPaintBehavior;
+    paintBehavior.add({ PaintBehavior::SelectionOnly, PaintBehavior::FlattenCompositingLayers, PaintBehavior::Snapshotting });
     if (options & SnapshotOptionsForceBlackText)
-        paintBehavior |= PaintBehaviorForceBlackText;
+        paintBehavior.add(PaintBehavior::ForceBlackText);
     if (options & SnapshotOptionsForceWhiteText)
-        paintBehavior |= PaintBehaviorForceWhiteText;
+        paintBehavior.add(PaintBehavior::ForceWhiteText);
 
     frameView->setPaintBehavior(paintBehavior);
     ownerDocument.updateLayout();

@@ -25,7 +25,7 @@
 
 #include "config.h"
 
-#if PLATFORM(IOS) && USE(QUICK_LOOK)
+#if PLATFORM(IOS_FAMILY) && USE(QUICK_LOOK)
 
 #include <WebCore/PreviewLoader.h>
 #include <wtf/text/WTFString.h>
@@ -39,9 +39,9 @@ TEST(QuickLook, ShouldCreateForMIMEType)
     // FIXME: Expand this to cover all the MIME types we expect to support.
     EXPECT_FALSE(PreviewLoader::shouldCreateForMIMEType(String()));
     EXPECT_FALSE(PreviewLoader::shouldCreateForMIMEType(emptyString()));
-    EXPECT_TRUE(PreviewLoader::shouldCreateForMIMEType(ASCIILiteral("application/vnd.ms-excel.sheet.macroEnabled.12")));
+    EXPECT_TRUE(PreviewLoader::shouldCreateForMIMEType("application/vnd.ms-excel.sheet.macroEnabled.12"_s));
 }
 
 } // namespace TestWebKitAPI
 
-#endif // PLATFORM(IOS) && USE(QUICK_LOOK)
+#endif // PLATFORM(IOS_FAMILY) && USE(QUICK_LOOK)

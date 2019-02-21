@@ -46,7 +46,7 @@ class InbandMetadataTextTrackPrivateAVF;
 class InbandTextTrackPrivateAVF;
 class GenericCueData;
 
-class MediaPlayerPrivateAVFoundation : public MediaPlayerPrivateInterface, public AVFInbandTrackParent
+class MediaPlayerPrivateAVFoundation : public CanMakeWeakPtr<MediaPlayerPrivateAVFoundation>, public MediaPlayerPrivateInterface, public AVFInbandTrackParent
 #if !RELEASE_LOG_DISABLED
     , private LoggerHelper
 #endif
@@ -159,8 +159,6 @@ protected:
     explicit MediaPlayerPrivateAVFoundation(MediaPlayer*);
     virtual ~MediaPlayerPrivateAVFoundation();
 
-    WeakPtr<MediaPlayerPrivateAVFoundation> createWeakPtr() { return m_weakPtrFactory.createWeakPtr(*this); }
-
     // MediaPlayerPrivatePrivateInterface overrides.
     void load(const String& url) override;
 #if ENABLE(MEDIA_SOURCE)
@@ -172,7 +170,6 @@ protected:
     void cancelLoad() override = 0;
 
     void prepareToPlay() override;
-    PlatformMedia platformMedia() const override = 0;
 
     void play() override;
     void pause() override;
@@ -248,6 +245,7 @@ protected:
     virtual void platformSetVisible(bool) = 0;
     virtual void platformPlay() = 0;
     virtual void platformPause() = 0;
+    virtual bool platformPaused() const { return !rate(); }
     virtual void checkPlayability() = 0;
     virtual void seekToTime(const MediaTime&, const MediaTime& negativeTolerance, const MediaTime& positiveTolerance) = 0;
     unsigned long long totalBytes() const override = 0;
@@ -331,8 +329,6 @@ protected:
 private:
     MediaPlayer* m_player;
 
-    WeakPtrFactory<MediaPlayerPrivateAVFoundation> m_weakPtrFactory;
-
     WTF::Function<void()> m_pendingSeek;
 
     Deque<Notification> m_queuedNotifications;
@@ -374,7 +370,6 @@ private:
     bool m_cachedHasCaptions;
     bool m_ignoreLoadStateChanges;
     bool m_haveReportedFirstVideoFrame;
-    bool m_playWhenFramesAvailable;
     bool m_inbandTrackConfigurationPending;
     bool m_characteristicsChanged;
     bool m_shouldMaintainAspectRatio;

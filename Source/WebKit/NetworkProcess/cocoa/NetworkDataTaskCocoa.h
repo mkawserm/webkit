@@ -25,8 +25,10 @@
 
 #pragma once
 
+#include "NetworkActivityTracker.h"
 #include "NetworkDataTask.h"
 #include "NetworkLoadParameters.h"
+#include "NetworkProximityAssertion.h"
 #include <WebCore/NetworkLoadMetrics.h>
 #include <wtf/RetainPtr.h>
 
@@ -35,14 +37,15 @@ OBJC_CLASS NSURLSessionDataTask;
 
 namespace WebKit {
 
+class Download;
 class NetworkSessionCocoa;
 
 class NetworkDataTaskCocoa final : public NetworkDataTask {
     friend class NetworkSessionCocoa;
 public:
-    static Ref<NetworkDataTask> create(NetworkSession& session, NetworkDataTaskClient& client, const WebCore::ResourceRequest& request, uint64_t frameID, uint64_t pageID, WebCore::StoredCredentialsPolicy storedCredentialsPolicy, WebCore::ContentSniffingPolicy shouldContentSniff, WebCore::ContentEncodingSniffingPolicy shouldContentEncodingSniff, bool shouldClearReferrerOnHTTPSToHTTPRedirect, PreconnectOnly shouldPreconnectOnly)
+    static Ref<NetworkDataTask> create(NetworkSession& session, NetworkDataTaskClient& client, const WebCore::ResourceRequest& request, uint64_t frameID, uint64_t pageID, WebCore::StoredCredentialsPolicy storedCredentialsPolicy, WebCore::ContentSniffingPolicy shouldContentSniff, WebCore::ContentEncodingSniffingPolicy shouldContentEncodingSniff, bool shouldClearReferrerOnHTTPSToHTTPRedirect, PreconnectOnly shouldPreconnectOnly, bool dataTaskIsForMainFrameNavigation, Optional<NetworkActivityTracker> networkActivityTracker)
     {
-        return adoptRef(*new NetworkDataTaskCocoa(session, client, request, frameID, pageID, storedCredentialsPolicy, shouldContentSniff, shouldContentEncodingSniff, shouldClearReferrerOnHTTPSToHTTPRedirect, shouldPreconnectOnly));
+        return adoptRef(*new NetworkDataTaskCocoa(session, client, request, frameID, pageID, storedCredentialsPolicy, shouldContentSniff, shouldContentEncodingSniff, shouldClearReferrerOnHTTPSToHTTPRedirect, shouldPreconnectOnly, dataTaskIsForMainFrameNavigation, networkActivityTracker));
     }
 
     ~NetworkDataTaskCocoa();
@@ -50,14 +53,13 @@ public:
     typedef uint64_t TaskIdentifier;
 
     void didSendData(uint64_t totalBytesSent, uint64_t totalBytesExpectedToSend);
-    void didReceiveChallenge(const WebCore::AuthenticationChallenge&, ChallengeCompletionHandler&&);
+    void didReceiveChallenge(WebCore::AuthenticationChallenge&&, ChallengeCompletionHandler&&);
     void didCompleteWithError(const WebCore::ResourceError&, const WebCore::NetworkLoadMetrics&);
     void didReceiveData(Ref<WebCore::SharedBuffer>&&);
 
     void willPerformHTTPRedirection(WebCore::ResourceResponse&&, WebCore::ResourceRequest&&, RedirectCompletionHandler&&);
     void transferSandboxExtensionToDownload(Download&);
 
-    void suspend() override;
     void cancel() override;
     void resume() override;
     void invalidateAndCancel() override { }
@@ -71,16 +73,27 @@ public:
     uint64_t frameID() const { return m_frameID; };
     uint64_t pageID() const { return m_pageID; };
 
+#if ENABLE(PROXIMITY_NETWORKING)
+    void holdProximityAssertion(NetworkProximityAssertion& assertion)
+    {
+        ASSERT(!m_proximityAssertionToken);
+        m_proximityAssertionToken.emplace(assertion);
+    }
+#endif
+
+    String description() const override;
+
 private:
-    NetworkDataTaskCocoa(NetworkSession&, NetworkDataTaskClient&, const WebCore::ResourceRequest&, uint64_t frameID, uint64_t pageID, WebCore::StoredCredentialsPolicy, WebCore::ContentSniffingPolicy, WebCore::ContentEncodingSniffingPolicy, bool shouldClearReferrerOnHTTPSToHTTPRedirect, PreconnectOnly);
+    NetworkDataTaskCocoa(NetworkSession&, NetworkDataTaskClient&, const WebCore::ResourceRequest&, uint64_t frameID, uint64_t pageID, WebCore::StoredCredentialsPolicy, WebCore::ContentSniffingPolicy, WebCore::ContentEncodingSniffingPolicy, bool shouldClearReferrerOnHTTPSToHTTPRedirect, PreconnectOnly, bool dataTaskIsForMainFrameNavigation, Optional<NetworkActivityTracker>);
 
     bool tryPasswordBasedAuthentication(const WebCore::AuthenticationChallenge&, ChallengeCompletionHandler&);
-    void applySniffingPoliciesAndBindRequestToInferfaceIfNeeded(NSURLRequest*&, bool shouldContentSniff, bool shouldContentEncodingSniff);
+    void applySniffingPoliciesAndBindRequestToInferfaceIfNeeded(__strong NSURLRequest*&, bool shouldContentSniff, bool shouldContentEncodingSniff);
 
-#if HAVE(CFNETWORK_STORAGE_PARTITIONING)
+    void restrictRequestReferrerToOriginIfNeeded(WebCore::ResourceRequest&, bool shouldBlockCookies);
+
+#if ENABLE(RESOURCE_LOAD_STATISTICS)
     static NSHTTPCookieStorage *statelessCookieStorage();
     void applyCookieBlockingPolicy(bool shouldBlock);
-    void applyCookiePartitioningPolicy(const String& requiredStoragePartition, const String& currentStoragePartition);
 #endif
     bool isThirdPartyRequest(const WebCore::ResourceRequest&);
     bool isAlwaysOnLoggingAllowed() const;
@@ -91,8 +104,12 @@ private:
     uint64_t m_frameID;
     uint64_t m_pageID;
 
-#if HAVE(CFNETWORK_STORAGE_PARTITIONING)
+#if ENABLE(RESOURCE_LOAD_STATISTICS)
     bool m_hasBeenSetToUseStatelessCookieStorage { false };
+#endif
+
+#if ENABLE(PROXIMITY_NETWORKING)
+    Optional<NetworkProximityAssertion::Token> m_proximityAssertionToken;
 #endif
 };
 

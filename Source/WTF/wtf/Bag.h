@@ -23,8 +23,7 @@
  * THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef Bag_h
-#define Bag_h
+#pragma once
 
 #include <wtf/DumbPtrTraits.h>
 #include <wtf/FastMalloc.h>
@@ -138,13 +137,21 @@ public:
         result.m_node = unwrappedHead();
         return result;
     }
-    
-    iterator end() { return iterator(); }
+
+    const iterator begin() const
+    {
+        iterator result;
+        result.m_node = unwrappedHead();
+        return result;
+    }
+
+
+    iterator end() const { return iterator(); }
     
     bool isEmpty() const { return !m_head; }
     
 private:
-    Node* unwrappedHead() { return PtrTraits::unwrap(m_head); }
+    Node* unwrappedHead() const { return PtrTraits::unwrap(m_head); }
 
     typename PtrTraits::StorageType m_head { nullptr };
 };
@@ -158,6 +165,3 @@ using PoisonedBag = Bag<T, PoisonedPtrTraits<Poison, Private::BagNode<T>>>;
 
 using WTF::Bag;
 using WTF::PoisonedBag;
-
-#endif // Bag_h
-

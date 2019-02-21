@@ -35,6 +35,7 @@
 
 #if USE(CAIRO)
 
+#include "CairoUtilities.h"
 #include "DrawErrorUnderline.h"
 #include "FloatConversion.h"
 #include "FloatRect.h"
@@ -117,7 +118,7 @@ static void clipForPatternFilling(cairo_t* cr, const FloatSize& patternSize, con
 
 static void prepareForFilling(cairo_t* cr, const Cairo::FillSource& fillSource, PatternAdjustment patternAdjustment)
 {
-    cairo_set_fill_rule(cr, fillSource.fillRule == RULE_EVENODD ? CAIRO_FILL_RULE_EVEN_ODD : CAIRO_FILL_RULE_WINDING);
+    cairo_set_fill_rule(cr, fillSource.fillRule == WindRule::EvenOdd ? CAIRO_FILL_RULE_EVEN_ODD : CAIRO_FILL_RULE_WINDING);
 
     bool adjustForAlpha = patternAdjustment == AdjustPatternForGlobalAlpha;
 
@@ -151,12 +152,8 @@ static void drawPatternToCairoContext(cairo_t* cr, cairo_pattern_t* pattern, con
     cairo_translate(cr, destRect.x(), destRect.y());
     cairo_set_source(cr, pattern);
     cairo_rectangle(cr, 0, 0, destRect.width(), destRect.height());
-
-    if (alpha < 1) {
-        cairo_clip(cr);
-        cairo_paint_with_alpha(cr, alpha);
-    } else
-        cairo_fill(cr);
+    cairo_clip(cr);
+    cairo_paint_with_alpha(cr, std::max<float>(0, std::min<float>(1.0, alpha)));
 }
 
 static inline void fillRectWithColor(cairo_t* cr, const FloatRect& rect, const Color& color)
@@ -182,8 +179,7 @@ static void drawShadowLayerBuffer(PlatformContextCairo& platformContext, ImageBu
         return;
 
     if (auto surface = image->nativeImageForCurrentFrame()) {
-        drawNativeImage(platformContext, surface.get(), FloatRect(roundedIntPoint(layerOrigin), layerSize), FloatRect(FloatPoint(), layerSize),
-            shadowState.globalCompositeOperator, BlendModeNormal, ImageOrientation(),
+        drawNativeImage(platformContext, surface.get(), FloatRect(roundedIntPoint(layerOrigin), layerSize), FloatRect(FloatPoint(), layerSize), shadowState.globalCompositeOperator, BlendMode::Normal, ImageOrientation(),
             InterpolationDefault, shadowState.globalAlpha, ShadowState());
     }
 }
@@ -739,7 +735,7 @@ void fillRectWithRoundedHole(PlatformContextCairo& platformContext, const FloatR
 {
     // FIXME: this should leverage the specified color.
 
-    if (shadowState.isRequired(platformContext)) {
+    if (shadowState.isVisible()) {
         ShadowBlur shadow({ shadowState.blur, shadowState.blur }, shadowState.offset, shadowState.color, shadowState.ignoreTransforms);
         shadow.drawInsetShadow(State::getCTM(platformContext), State::getClipBounds(platformContext), rect, roundedHoleRect,
             [&platformContext, &shadowState](ImageBuffer& layerImage, const FloatPoint& layerOrigin, const FloatSize& layerSize, const FloatRect& sourceRect)
@@ -841,8 +837,8 @@ void drawNativeImage(PlatformContextCairo& platformContext, cairo_surface_t* sur
     platformContext.save();
 
     // Set the compositing operation.
-    if (compositeOperator == CompositeSourceOver && blendMode == BlendModeNormal && !cairoSurfaceHasAlpha(surface))
-        Cairo::State::setCompositeOperation(platformContext, CompositeCopy, BlendModeNormal);
+    if (compositeOperator == CompositeSourceOver && blendMode == BlendMode::Normal && !cairoSurfaceHasAlpha(surface))
+        Cairo::State::setCompositeOperation(platformContext, CompositeCopy, BlendMode::Normal);
     else
         Cairo::State::setCompositeOperation(platformContext, compositeOperator, blendMode);
 
@@ -1027,7 +1023,7 @@ void drawLine(PlatformContextCairo& platformContext, const FloatPoint& point1, c
         cairo_set_antialias(cairoContext, CAIRO_ANTIALIAS_DEFAULT);
 }
 
-void drawLinesForText(PlatformContextCairo& platformContext, const FloatPoint& point, const DashArray& widths, bool printing, bool doubleUnderlines, const Color& color, float strokeThickness)
+void drawLinesForText(PlatformContextCairo& platformContext, const FloatPoint& point, float strokeThickness, const DashArray& widths, bool printing, bool doubleUnderlines, const Color& color)
 {
     Color modifiedColor = color;
     FloatRect bounds = computeLineBoundsAndAntialiasingModeForText(platformContext, point, widths.last(), printing, modifiedColor, strokeThickness);
@@ -1053,21 +1049,21 @@ void drawLinesForText(PlatformContextCairo& platformContext, const FloatPoint& p
     cairo_restore(cr);
 }
 
-void drawLineForDocumentMarker(PlatformContextCairo& platformContext, const FloatPoint& origin, float width, GraphicsContext::DocumentMarkerLineStyle style)
+void drawDotsForDocumentMarker(PlatformContextCairo& platformContext, const FloatRect& rect, DocumentMarkerLineStyle style)
 {
-    if (style != GraphicsContext::DocumentMarkerSpellingLineStyle
-        && style != GraphicsContext::DocumentMarkerGrammarLineStyle)
+    if (style.mode != DocumentMarkerLineStyle::Mode::Spelling
+        && style.mode != DocumentMarkerLineStyle::Mode::Grammar)
         return;
 
     cairo_t* cr = platformContext.cr();
     cairo_save(cr);
 
-    if (style == GraphicsContext::DocumentMarkerSpellingLineStyle)
+    if (style.mode == DocumentMarkerLineStyle::Mode::Spelling)
         cairo_set_source_rgb(cr, 1, 0, 0);
-    else if (style == GraphicsContext::DocumentMarkerGrammarLineStyle)
+    else if (style.mode == DocumentMarkerLineStyle::Mode::Grammar)
         cairo_set_source_rgb(cr, 0, 1, 0);
 
-    drawErrorUnderline(cr, origin.x(), origin.y(), width, cMisspellingLineThickness);
+    drawErrorUnderline(cr, rect.x(), rect.y(), rect.width(), rect.height());
     cairo_restore(cr);
 }
 
@@ -1265,7 +1261,7 @@ void clipPath(PlatformContextCairo& platformContext, const Path& path, WindRule 
         setPathOnCairoContext(cr, path.platformPath()->context());
 
     cairo_fill_rule_t savedFillRule = cairo_get_fill_rule(cr);
-    cairo_set_fill_rule(cr, clipRule == RULE_EVENODD ? CAIRO_FILL_RULE_EVEN_ODD : CAIRO_FILL_RULE_WINDING);
+    cairo_set_fill_rule(cr, clipRule == WindRule::EvenOdd ? CAIRO_FILL_RULE_EVEN_ODD : CAIRO_FILL_RULE_WINDING);
     cairo_clip(cr);
     cairo_set_fill_rule(cr, savedFillRule);
 

@@ -28,10 +28,13 @@
 #include "JSDOMExceptionHandling.h"
 #include "JSDOMOperation.h"
 #include "JSDOMWrapperCache.h"
+#include "ScriptExecutionContext.h"
 #include <JavaScriptCore/FunctionPrototype.h>
+#include <JavaScriptCore/HeapSnapshotBuilder.h>
 #include <JavaScriptCore/JSCInlines.h>
 #include <wtf/GetPtr.h>
 #include <wtf/PointerPreparations.h>
+#include <wtf/URL.h>
 
 
 namespace WebCore {
@@ -83,7 +86,7 @@ template<> JSValue JSTestStringifierReadOnlyAttributeConstructor::prototypeForSt
 template<> void JSTestStringifierReadOnlyAttributeConstructor::initializeProperties(VM& vm, JSDOMGlobalObject& globalObject)
 {
     putDirect(vm, vm.propertyNames->prototype, JSTestStringifierReadOnlyAttribute::prototype(vm, globalObject), JSC::PropertyAttribute::DontDelete | JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum);
-    putDirect(vm, vm.propertyNames->name, jsNontrivialString(&vm, String(ASCIILiteral("TestStringifierReadOnlyAttribute"))), JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum);
+    putDirect(vm, vm.propertyNames->name, jsNontrivialString(&vm, String("TestStringifierReadOnlyAttribute"_s)), JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum);
     putDirect(vm, vm.propertyNames->length, jsNumber(0), JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum);
 }
 
@@ -95,7 +98,7 @@ static const HashTableValue JSTestStringifierReadOnlyAttributePrototypeTableValu
 {
     { "constructor", static_cast<unsigned>(JSC::PropertyAttribute::DontEnum), NoIntrinsic, { (intptr_t)static_cast<PropertySlot::GetValueFunc>(jsTestStringifierReadOnlyAttributeConstructor), (intptr_t) static_cast<PutPropertySlot::PutValueFunc>(setJSTestStringifierReadOnlyAttributeConstructor) } },
     { "identifier", static_cast<unsigned>(JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::CustomAccessor | JSC::PropertyAttribute::DOMAttribute), NoIntrinsic, { (intptr_t)static_cast<PropertySlot::GetValueFunc>(jsTestStringifierReadOnlyAttributeIdentifier), (intptr_t) static_cast<PutPropertySlot::PutValueFunc>(0) } },
-    { "toString", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestStringifierReadOnlyAttributePrototypeFunctionToString), (intptr_t) (0) } },
+    { "toString", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestStringifierReadOnlyAttributePrototypeFunctionToString), (intptr_t) (0) } },
 };
 
 const ClassInfo JSTestStringifierReadOnlyAttributePrototype::s_info = { "TestStringifierReadOnlyAttributePrototype", &Base::s_info, nullptr, nullptr, CREATE_METHOD_TABLE(JSTestStringifierReadOnlyAttributePrototype) };
@@ -143,19 +146,19 @@ void JSTestStringifierReadOnlyAttribute::destroy(JSC::JSCell* cell)
 
 template<> inline JSTestStringifierReadOnlyAttribute* IDLAttribute<JSTestStringifierReadOnlyAttribute>::cast(ExecState& state, EncodedJSValue thisValue)
 {
-    return jsDynamicDowncast<JSTestStringifierReadOnlyAttribute*>(state.vm(), JSValue::decode(thisValue));
+    return jsDynamicCast<JSTestStringifierReadOnlyAttribute*>(state.vm(), JSValue::decode(thisValue));
 }
 
 template<> inline JSTestStringifierReadOnlyAttribute* IDLOperation<JSTestStringifierReadOnlyAttribute>::cast(ExecState& state)
 {
-    return jsDynamicDowncast<JSTestStringifierReadOnlyAttribute*>(state.vm(), state.thisValue());
+    return jsDynamicCast<JSTestStringifierReadOnlyAttribute*>(state.vm(), state.thisValue());
 }
 
 EncodedJSValue jsTestStringifierReadOnlyAttributeConstructor(ExecState* state, EncodedJSValue thisValue, PropertyName)
 {
     VM& vm = state->vm();
     auto throwScope = DECLARE_THROW_SCOPE(vm);
-    auto* prototype = jsDynamicDowncast<JSTestStringifierReadOnlyAttributePrototype*>(vm, JSValue::decode(thisValue));
+    auto* prototype = jsDynamicCast<JSTestStringifierReadOnlyAttributePrototype*>(vm, JSValue::decode(thisValue));
     if (UNLIKELY(!prototype))
         return throwVMTypeError(state, throwScope);
     return JSValue::encode(JSTestStringifierReadOnlyAttribute::getConstructor(state->vm(), prototype->globalObject()));
@@ -165,7 +168,7 @@ bool setJSTestStringifierReadOnlyAttributeConstructor(ExecState* state, EncodedJ
 {
     VM& vm = state->vm();
     auto throwScope = DECLARE_THROW_SCOPE(vm);
-    auto* prototype = jsDynamicDowncast<JSTestStringifierReadOnlyAttributePrototype*>(vm, JSValue::decode(thisValue));
+    auto* prototype = jsDynamicCast<JSTestStringifierReadOnlyAttributePrototype*>(vm, JSValue::decode(thisValue));
     if (UNLIKELY(!prototype)) {
         throwVMTypeError(state, throwScope);
         return false;
@@ -201,10 +204,20 @@ EncodedJSValue JSC_HOST_CALL jsTestStringifierReadOnlyAttributePrototypeFunction
     return IDLOperation<JSTestStringifierReadOnlyAttribute>::call<jsTestStringifierReadOnlyAttributePrototypeFunctionToStringBody>(*state, "toString");
 }
 
-bool JSTestStringifierReadOnlyAttributeOwner::isReachableFromOpaqueRoots(JSC::Handle<JSC::Unknown> handle, void*, SlotVisitor& visitor)
+void JSTestStringifierReadOnlyAttribute::heapSnapshot(JSCell* cell, HeapSnapshotBuilder& builder)
+{
+    auto* thisObject = jsCast<JSTestStringifierReadOnlyAttribute*>(cell);
+    builder.setWrappedObjectForCell(cell, &thisObject->wrapped());
+    if (thisObject->scriptExecutionContext())
+        builder.setLabelForCell(cell, "url " + thisObject->scriptExecutionContext()->url().string());
+    Base::heapSnapshot(cell, builder);
+}
+
+bool JSTestStringifierReadOnlyAttributeOwner::isReachableFromOpaqueRoots(JSC::Handle<JSC::Unknown> handle, void*, SlotVisitor& visitor, const char** reason)
 {
     UNUSED_PARAM(handle);
     UNUSED_PARAM(visitor);
+    UNUSED_PARAM(reason);
     return false;
 }
 
@@ -255,7 +268,7 @@ JSC::JSValue toJS(JSC::ExecState* state, JSDOMGlobalObject* globalObject, TestSt
 
 TestStringifierReadOnlyAttribute* JSTestStringifierReadOnlyAttribute::toWrapped(JSC::VM& vm, JSC::JSValue value)
 {
-    if (auto* wrapper = jsDynamicDowncast<JSTestStringifierReadOnlyAttribute*>(vm, value))
+    if (auto* wrapper = jsDynamicCast<JSTestStringifierReadOnlyAttribute*>(vm, value))
         return &wrapper->wrapped();
     return nullptr;
 }

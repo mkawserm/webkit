@@ -41,55 +41,100 @@ void WebsiteDataStoreParameters::encode(IPC::Encoder& encoder) const
     encoder << uiProcessCookieStorageIdentifier;
     encoder << cookieStoragePathExtensionHandle;
     encoder << pendingCookies;
-    encoder << cacheStorageDirectory;
-    encoder << cacheStoragePerOriginQuota;
-    encoder << cacheStorageDirectoryExtensionHandle;
+
+#if ENABLE(INDEXED_DATABASE)
+    encoder << indexedDatabaseDirectory << indexedDatabaseDirectoryExtensionHandle;
+#if PLATFORM(IOS_FAMILY)
+    encoder << indexedDatabaseTempBlobDirectoryExtensionHandle;
+#endif
+#endif
+
+#if ENABLE(SERVICE_WORKER)
+    encoder << serviceWorkerRegistrationDirectory << serviceWorkerRegistrationDirectoryExtensionHandle;
+#endif
 }
 
-std::optional<WebsiteDataStoreParameters> WebsiteDataStoreParameters::decode(IPC::Decoder& decoder)
+Optional<WebsiteDataStoreParameters> WebsiteDataStoreParameters::decode(IPC::Decoder& decoder)
 {
-    std::optional<NetworkSessionCreationParameters> networkSessionParameters;
+    WebsiteDataStoreParameters parameters;
+
+    Optional<NetworkSessionCreationParameters> networkSessionParameters;
     decoder >> networkSessionParameters;
     if (!networkSessionParameters)
-        return std::nullopt;
+        return WTF::nullopt;
+    parameters.networkSessionParameters = WTFMove(*networkSessionParameters);
 
-    std::optional<Vector<uint8_t>> uiProcessCookieStorageIdentifier;
+    Optional<Vector<uint8_t>> uiProcessCookieStorageIdentifier;
     decoder >> uiProcessCookieStorageIdentifier;
     if (!uiProcessCookieStorageIdentifier)
-        return std::nullopt;
+        return WTF::nullopt;
+    parameters.uiProcessCookieStorageIdentifier = WTFMove(*uiProcessCookieStorageIdentifier);
 
-    std::optional<SandboxExtension::Handle> cookieStoragePathExtensionHandle;
+    Optional<SandboxExtension::Handle> cookieStoragePathExtensionHandle;
     decoder >> cookieStoragePathExtensionHandle;
     if (!cookieStoragePathExtensionHandle)
-        return std::nullopt;
+        return WTF::nullopt;
+    parameters.cookieStoragePathExtensionHandle = WTFMove(*cookieStoragePathExtensionHandle);
 
-    std::optional<Vector<WebCore::Cookie>> pendingCookies;
+    Optional<Vector<WebCore::Cookie>> pendingCookies;
     decoder >> pendingCookies;
     if (!pendingCookies)
-        return std::nullopt;
+        return WTF::nullopt;
+    parameters.pendingCookies = WTFMove(*pendingCookies);
 
-    std::optional<String> cacheStorageDirectory;
-    decoder >> cacheStorageDirectory;
-    if (!cacheStorageDirectory)
-        return std::nullopt;
-
-    std::optional<uint64_t> cacheStoragePerOriginQuota;
-    decoder >> cacheStoragePerOriginQuota;
-    if (!cacheStoragePerOriginQuota)
-        return std::nullopt;
-
-    std::optional<SandboxExtension::Handle> cacheStorageDirectoryExtensionHandle;
-    decoder >> cacheStorageDirectoryExtensionHandle;
-    if (!cacheStorageDirectoryExtensionHandle)
-        return std::nullopt;
+#if ENABLE(INDEXED_DATABASE)
+    Optional<String> indexedDatabaseDirectory;
+    decoder >> indexedDatabaseDirectory;
+    if (!indexedDatabaseDirectory)
+        return WTF::nullopt;
+    parameters.indexedDatabaseDirectory = WTFMove(*indexedDatabaseDirectory);
     
-    return {{ WTFMove(*uiProcessCookieStorageIdentifier), WTFMove(*cookieStoragePathExtensionHandle), WTFMove(*pendingCookies), WTFMove(*cacheStorageDirectory), WTFMove(*cacheStoragePerOriginQuota), WTFMove(*cacheStorageDirectoryExtensionHandle), WTFMove(*networkSessionParameters)}};
+    Optional<SandboxExtension::Handle> indexedDatabaseDirectoryExtensionHandle;
+    decoder >> indexedDatabaseDirectoryExtensionHandle;
+    if (!indexedDatabaseDirectoryExtensionHandle)
+        return WTF::nullopt;
+    parameters.indexedDatabaseDirectoryExtensionHandle = WTFMove(*indexedDatabaseDirectoryExtensionHandle);
+
+#if PLATFORM(IOS_FAMILY)
+    Optional<SandboxExtension::Handle> indexedDatabaseTempBlobDirectoryExtensionHandle;
+    decoder >> indexedDatabaseTempBlobDirectoryExtensionHandle;
+    if (!indexedDatabaseTempBlobDirectoryExtensionHandle)
+        return WTF::nullopt;
+    parameters.indexedDatabaseTempBlobDirectoryExtensionHandle = WTFMove(*indexedDatabaseTempBlobDirectoryExtensionHandle);
+#endif
+#endif
+
+#if ENABLE(SERVICE_WORKER)
+    Optional<String> serviceWorkerRegistrationDirectory;
+    decoder >> serviceWorkerRegistrationDirectory;
+    if (!serviceWorkerRegistrationDirectory)
+        return WTF::nullopt;
+    parameters.serviceWorkerRegistrationDirectory = WTFMove(*serviceWorkerRegistrationDirectory);
+    
+    Optional<SandboxExtension::Handle> serviceWorkerRegistrationDirectoryExtensionHandle;
+    decoder >> serviceWorkerRegistrationDirectoryExtensionHandle;
+    if (!serviceWorkerRegistrationDirectoryExtensionHandle)
+        return WTF::nullopt;
+    parameters.serviceWorkerRegistrationDirectoryExtensionHandle = WTFMove(*serviceWorkerRegistrationDirectoryExtensionHandle);
+#endif
+    
+    return WTFMove(parameters);
 }
 
 WebsiteDataStoreParameters WebsiteDataStoreParameters::privateSessionParameters(PAL::SessionID sessionID)
 {
     ASSERT(sessionID.isEphemeral());
-    return { { }, { }, { }, { }, WebsiteDataStore::defaultCacheStoragePerOriginQuota, { }, { sessionID, { }, { }, AllowsCellularAccess::Yes }};
+    return { { }, { }, { }, NetworkSessionCreationParameters::privateSessionParameters(sessionID)
+#if ENABLE(INDEXED_DATABASE)
+        , { }, { }
+#if PLATFORM(IOS_FAMILY)
+        , { }
+#endif
+#endif
+#if ENABLE(SERVICE_WORKER)
+        , { }, { }
+#endif
+    };
 }
 
 } // namespace WebKit

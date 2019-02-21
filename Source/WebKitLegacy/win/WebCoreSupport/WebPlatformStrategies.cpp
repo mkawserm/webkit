@@ -32,10 +32,9 @@
 #include <WebCore/NetworkStorageSession.h>
 #include <WebCore/Page.h>
 #include <WebCore/PageGroup.h>
-#include <WebCore/PlatformCookieJar.h>
 
 #if USE(CFURLCONNECTION)
-#include <WebKitSystemInterface/WebKitSystemInterface.h>
+#include <pal/spi/cf/CFNetworkSPI.h>
 #endif
 
 using namespace WebCore;
@@ -48,11 +47,6 @@ void WebPlatformStrategies::initialize()
 WebPlatformStrategies::WebPlatformStrategies()
 {
     setPlatformStrategies(this);
-}
-
-CookiesStrategy* WebPlatformStrategies::createCookiesStrategy()
-{
-    return this;
 }
 
 LoaderStrategy* WebPlatformStrategies::createLoaderStrategy()
@@ -68,40 +62,4 @@ PasteboardStrategy* WebPlatformStrategies::createPasteboardStrategy()
 BlobRegistry* WebPlatformStrategies::createBlobRegistry()
 {
     return new BlobRegistryImpl;
-}
-
-std::pair<String, bool> WebPlatformStrategies::cookiesForDOM(const WebCore::NetworkStorageSession& session, const WebCore::URL& firstParty, const WebCore::URL& url, std::optional<uint64_t> frameID, std::optional<uint64_t> pageID, WebCore::IncludeSecureCookies includeSecureCookies)
-{
-    return WebCore::cookiesForDOM(session, firstParty, url, frameID, pageID, includeSecureCookies);
-}
-
-void WebPlatformStrategies::setCookiesFromDOM(const NetworkStorageSession& session, const URL& firstParty, const URL& url, std::optional<uint64_t> frameID, std::optional<uint64_t> pageID, const String& cookieString)
-{
-    WebCore::setCookiesFromDOM(session, firstParty, url, frameID, pageID, cookieString);
-}
-
-bool WebPlatformStrategies::cookiesEnabled(const NetworkStorageSession& session)
-{
-    return WebCore::cookiesEnabled(session);
-}
-
-std::pair<String, bool> WebPlatformStrategies::cookieRequestHeaderFieldValue(const NetworkStorageSession& session, const URL& firstParty, const URL& url, std::optional<uint64_t> frameID, std::optional<uint64_t> pageID, WebCore::IncludeSecureCookies includeSecureCookies)
-{
-    return WebCore::cookieRequestHeaderFieldValue(session, firstParty, url, frameID, pageID, includeSecureCookies);
-}
-
-std::pair<String, bool> WebPlatformStrategies::cookieRequestHeaderFieldValue(PAL::SessionID sessionID, const URL& firstParty, const URL& url, std::optional<uint64_t> frameID, std::optional<uint64_t> pageID, WebCore::IncludeSecureCookies includeSecureCookies)
-{
-    auto& session = sessionID.isEphemeral() ? WebFrameNetworkingContext::ensurePrivateBrowsingSession() : NetworkStorageSession::defaultStorageSession();
-    return WebCore::cookieRequestHeaderFieldValue(session, firstParty, url, frameID, pageID, includeSecureCookies);
-}
-
-bool WebPlatformStrategies::getRawCookies(const NetworkStorageSession& session, const URL& firstParty, const URL& url, std::optional<uint64_t> frameID, std::optional<uint64_t> pageID, Vector<Cookie>& rawCookies)
-{
-    return WebCore::getRawCookies(session, firstParty, url, frameID, pageID, rawCookies);
-}
-
-void WebPlatformStrategies::deleteCookie(const NetworkStorageSession& session, const URL& url, const String& cookieName)
-{
-    WebCore::deleteCookie(session, url, cookieName);
 }

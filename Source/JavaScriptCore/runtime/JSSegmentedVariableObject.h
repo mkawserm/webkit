@@ -90,7 +90,7 @@ public:
     
     static void destroy(JSCell*);
     
-    template<typename>
+    template<typename, SubspaceAccess>
     static CompleteSubspace* subspaceFor(VM& vm)
     {
         return &vm.segmentedVariableObjectSpace;
@@ -107,9 +107,9 @@ protected:
     
 private:
     SegmentedVector<WriteBarrier<Unknown>, 16> m_variables;
+    PoisonedClassInfoPtr m_classInfo;
     ConcurrentJSLock m_lock;
     bool m_alreadyDestroyed { false }; // We use these assertions to check that we aren't doing ancient hacks that result in this being destroyed more than once.
-    PoisonedClassInfoPtr m_classInfo;
 };
 
 } // namespace JSC

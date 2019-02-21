@@ -30,8 +30,6 @@
 #import "InjectedBundle.h"
 #import "InjectedBundlePage.h"
 #import <Foundation/Foundation.h>
-#import <JavaScriptCore/JSRetainPtr.h>
-#import <JavaScriptCore/JSStringRef.h>
 #import <JavaScriptCore/JSStringRefCF.h>
 #import <UIKit/UIKit.h>
 #import <WebCore/TextGranularity.h>
@@ -52,6 +50,7 @@ typedef void (*AXPostedNotificationCallback)(id element, NSString* notification,
 - (NSString *)accessibilityPlaceholderValue;
 - (NSString *)stringForRange:(NSRange)range;
 - (NSAttributedString *)attributedStringForRange:(NSRange)range;
+- (NSAttributedString *)attributedStringForElement;
 - (NSArray *)elementsForRange:(NSRange)range;
 - (NSString *)selectionRangeString;
 - (CGPoint)accessibilityClickPoint;
@@ -80,6 +79,11 @@ typedef void (*AXPostedNotificationCallback)(id element, NSString* notification,
 - (NSUInteger)accessibilityBlockquoteLevel;
 - (NSArray *)accessibilityFindMatchingObjects:(NSDictionary *)parameters;
 - (NSArray<NSString *> *)accessibilitySpeechHint;
+- (BOOL)_accessibilityIsStrongPasswordField;
+- (CGRect)accessibilityVisibleContentRect;
+- (NSString *)accessibilityTextualContext;
+- (NSString *)accessibilityRoleDescription;
+- (NSString *)accessibilityColorStringValue;
 
 // TextMarker related
 - (NSArray *)textMarkerRange;
@@ -106,18 +110,22 @@ typedef void (*AXPostedNotificationCallback)(id element, NSString* notification,
     if (!jsStringRef)
         return nil;
     
-    CFStringRef cfString = JSStringCopyCFString(kCFAllocatorDefault, jsStringRef);
-    return [(NSString *)cfString autorelease];
+    return CFBridgingRelease(JSStringCopyCFString(kCFAllocatorDefault, jsStringRef));
 }
 
-- (JSStringRef)createJSStringRef
+- (JSRetainPtr<JSStringRef>)createJSStringRef
 {
-    return JSStringCreateWithCFString((CFStringRef)self);
+    return adopt(JSStringCreateWithCFString((__bridge CFStringRef)self));
 }
 
 @end
 
 namespace WTR {
+
+static JSRetainPtr<JSStringRef> createEmptyJSString()
+{
+    return adopt(JSStringCreateWithCharacters(nullptr, 0));
+}
 
 static void convertNSArrayToVector(NSArray* array, Vector<RefPtr<AccessibilityUIElement> >& elementVector)
 {
@@ -126,18 +134,18 @@ static void convertNSArrayToVector(NSArray* array, Vector<RefPtr<AccessibilityUI
         elementVector.append(AccessibilityUIElement::create([array objectAtIndex:i]));
 }    
 
-static JSStringRef concatenateAttributeAndValue(NSString* attribute, NSString* value)
+static JSRetainPtr<JSStringRef> concatenateAttributeAndValue(NSString *attribute, NSString *value)
 {
     Vector<UniChar> buffer([attribute length]);
     [attribute getCharacters:buffer.data()];
     buffer.append(':');
     buffer.append(' ');
-    
+
     Vector<UniChar> valueBuffer([value length]);
     [value getCharacters:valueBuffer.data()];
     buffer.appendVector(valueBuffer);
-    
-    return JSStringCreateWithCharacters(buffer.data(), buffer.size());
+
+    return adopt(JSStringCreateWithCharacters(buffer.data(), buffer.size()));
 }
     
 AccessibilityUIElement::AccessibilityUIElement(PlatformUIElement element)
@@ -324,29 +332,40 @@ RefPtr<AccessibilityUIElement> AccessibilityUIElement::disclosedByRow()
 
 JSRetainPtr<JSStringRef> AccessibilityUIElement::attributesOfLinkedUIElements()
 {
-    return JSStringCreateWithCharacters(0, 0);
+    return createEmptyJSString();
 }
 
 JSRetainPtr<JSStringRef> AccessibilityUIElement::attributesOfDocumentLinks()
 {
-    return JSStringCreateWithCharacters(0, 0);
+    return createEmptyJSString();
 }
 
 JSRetainPtr<JSStringRef> AccessibilityUIElement::attributesOfChildren()
 {
-    return JSStringCreateWithCharacters(0, 0);
+    return createEmptyJSString();
 }
 
 JSRetainPtr<JSStringRef> AccessibilityUIElement::allAttributes()
 {
-    return JSStringCreateWithCharacters(0, 0);
+    return createEmptyJSString();
+}
+
+JSRetainPtr<JSStringRef> AccessibilityUIElement::stringDescriptionOfAttributeValue(JSStringRef attribute)
+{
+    return createEmptyJSString();
 }
 
 JSRetainPtr<JSStringRef> AccessibilityUIElement::stringAttributeValue(JSStringRef attribute)
 {
     if (JSStringIsEqualToUTF8CString(attribute, "AXPlaceholderValue"))
         return [[m_element accessibilityPlaceholderValue] createJSStringRef];
-    
+
+    if (JSStringIsEqualToUTF8CString(attribute, "AXRoleDescription"))
+        return [[m_element accessibilityRoleDescription] createJSStringRef];
+
+    if (JSStringIsEqualToUTF8CString(attribute, "AXColorStringDescription"))
+        return [[m_element accessibilityColorStringValue] createJSStringRef];
+
     if (JSStringIsEqualToUTF8CString(attribute, "AXARIACurrent"))
         return [[m_element accessibilityARIACurrentStatus] createJSStringRef];
 
@@ -355,8 +374,17 @@ JSRetainPtr<JSStringRef> AccessibilityUIElement::stringAttributeValue(JSStringRe
     
     if (JSStringIsEqualToUTF8CString(attribute, "AXSortDirection"))
         return [[m_element accessibilitySortDirection] createJSStringRef];
+    
+    if (JSStringIsEqualToUTF8CString(attribute, "AXVisibleContentRect")) {
+        CGRect screenRect = [m_element accessibilityVisibleContentRect];
+        NSString *rectStr = [NSString stringWithFormat:@"{%.2f, %.2f, %.2f, %.2f}", screenRect.origin.x, screenRect.origin.y, screenRect.size.width, screenRect.size.height];
+        return [rectStr createJSStringRef];
+    }
 
-    return JSStringCreateWithCharacters(0, 0);
+    if (JSStringIsEqualToUTF8CString(attribute, "AXTextualContext"))
+        return [[m_element accessibilityTextualContext] createJSStringRef];
+    
+    return createEmptyJSString();
 }
 
 double AccessibilityUIElement::numberAttributeValue(JSStringRef attribute)
@@ -400,6 +428,8 @@ bool AccessibilityUIElement::boolAttributeValue(JSStringRef attribute)
 {
     if (JSStringIsEqualToUTF8CString(attribute, "AXHasTouchEventListener"))
         return [m_element _accessibilityHasTouchEventListener];
+    if (JSStringIsEqualToUTF8CString(attribute, "AXIsStrongPasswordField"))
+        return [m_element _accessibilityIsStrongPasswordField];
     return false;
 }
 
@@ -415,33 +445,33 @@ bool AccessibilityUIElement::isAttributeSupported(JSStringRef attribute)
 
 JSRetainPtr<JSStringRef> AccessibilityUIElement::parameterizedAttributeNames()
 {
-    return JSStringCreateWithCharacters(0, 0);
+    return createEmptyJSString();
 }
 
 JSRetainPtr<JSStringRef> AccessibilityUIElement::role()
 {
-    return JSStringCreateWithCharacters(0, 0);
+    return createEmptyJSString();
 }
 
 JSRetainPtr<JSStringRef> AccessibilityUIElement::subrole()
 {
-    return JSStringCreateWithCharacters(0, 0);
+    return createEmptyJSString();
 }
 
 JSRetainPtr<JSStringRef> AccessibilityUIElement::roleDescription()
 {
-    return JSStringCreateWithCharacters(0, 0);
+    return createEmptyJSString();
 }
 
 JSRetainPtr<JSStringRef> AccessibilityUIElement::computedRoleString()
 {
     // FIXME: implement
-    return JSStringCreateWithCharacters(0, 0);
+    return createEmptyJSString();
 }
 
 JSRetainPtr<JSStringRef> AccessibilityUIElement::title()
 {
-    return JSStringCreateWithCharacters(0, 0);
+    return createEmptyJSString();
 }
 
 JSRetainPtr<JSStringRef> AccessibilityUIElement::description()
@@ -451,7 +481,7 @@ JSRetainPtr<JSStringRef> AccessibilityUIElement::description()
 
 JSRetainPtr<JSStringRef> AccessibilityUIElement::orientation() const
 {
-    return JSStringCreateWithCharacters(0, 0);
+    return createEmptyJSString();
 }
 
 JSRetainPtr<JSStringRef> AccessibilityUIElement::stringValue()
@@ -461,7 +491,7 @@ JSRetainPtr<JSStringRef> AccessibilityUIElement::stringValue()
 
 JSRetainPtr<JSStringRef> AccessibilityUIElement::language()
 {
-    return JSStringCreateWithCharacters(0, 0);
+    return createEmptyJSString();
 }
 
 JSRetainPtr<JSStringRef> AccessibilityUIElement::helpText() const
@@ -521,7 +551,7 @@ double AccessibilityUIElement::maxValue()
 
 JSRetainPtr<JSStringRef> AccessibilityUIElement::valueDescription()
 {
-    return JSStringCreateWithCharacters(0, 0);
+    return createEmptyJSString();
 }
 
 int AccessibilityUIElement::insertionPointLineNumber()
@@ -610,7 +640,7 @@ bool AccessibilityUIElement::ariaIsGrabbed() const
 
 JSRetainPtr<JSStringRef> AccessibilityUIElement::ariaDropEffects() const
 {
-    return JSStringCreateWithCharacters(0, 0);
+    return createEmptyJSString();
 }
 
 // parameterized attributes
@@ -631,25 +661,28 @@ JSRetainPtr<JSStringRef> AccessibilityUIElement::rangeForPosition(int x, int y)
 
 JSRetainPtr<JSStringRef> AccessibilityUIElement::boundsForRange(unsigned location, unsigned length)
 {
-    return JSStringCreateWithCharacters(0, 0);
+    return createEmptyJSString();
 }
 
 JSRetainPtr<JSStringRef> AccessibilityUIElement::stringForRange(unsigned location, unsigned length)
 {
     NSString *stringForRange = [m_element stringForRange:NSMakeRange(location, length)];
-    if (!stringForRange)
-        return nullptr;
-    
     return [stringForRange createJSStringRef];
 }
 
 JSRetainPtr<JSStringRef> AccessibilityUIElement::attributedStringForRange(unsigned location, unsigned length)
 {
     NSAttributedString *stringForRange = [m_element attributedStringForRange:NSMakeRange(location, length)];
-    if (!stringForRange)
+    return [[stringForRange description] createJSStringRef];
+}
+
+JSRetainPtr<JSStringRef> AccessibilityUIElement::attributedStringForElement()
+{
+    NSAttributedString *string = [m_element attributedStringForElement];
+    if (![string isKindOfClass:[NSAttributedString class]])
         return nullptr;
     
-    return [[stringForRange description] createJSStringRef];
+    return [[string description] createJSStringRef];
 }
 
 bool AccessibilityUIElement::attributedStringRangeIsMisspelled(unsigned location, unsigned length)
@@ -682,32 +715,32 @@ JSRetainPtr<JSStringRef> AccessibilityUIElement::selectTextWithCriteria(JSContex
 
 JSRetainPtr<JSStringRef> AccessibilityUIElement::attributesOfColumnHeaders()
 {
-    return JSStringCreateWithCharacters(0, 0);
+    return createEmptyJSString();
 }
 
 JSRetainPtr<JSStringRef> AccessibilityUIElement::attributesOfRowHeaders()
 {
-    return JSStringCreateWithCharacters(0, 0);
+    return createEmptyJSString();
 }
 
 JSRetainPtr<JSStringRef> AccessibilityUIElement::attributesOfColumns()
 {
-    return JSStringCreateWithCharacters(0, 0);
+    return createEmptyJSString();
 }
 
 JSRetainPtr<JSStringRef> AccessibilityUIElement::attributesOfRows()
 {
-    return JSStringCreateWithCharacters(0, 0);
+    return createEmptyJSString();
 }
 
 JSRetainPtr<JSStringRef> AccessibilityUIElement::attributesOfVisibleCells()
 {
-    return JSStringCreateWithCharacters(0, 0);
+    return createEmptyJSString();
 }
 
 JSRetainPtr<JSStringRef> AccessibilityUIElement::attributesOfHeader()
 {
-    return JSStringCreateWithCharacters(0, 0);
+    return createEmptyJSString();
 }
 
 JSRetainPtr<JSStringRef> AccessibilityUIElement::traits()
@@ -803,7 +836,7 @@ void AccessibilityUIElement::scrollToMakeVisibleWithSubFocus(int x, int y, int w
 
 JSRetainPtr<JSStringRef> AccessibilityUIElement::selectedTextRange()
 {
-    return JSStringCreateWithCharacters(0, 0);
+    return createEmptyJSString();
 }
 
 bool AccessibilityUIElement::setSelectedVisibleTextRange(AccessibilityTextMarkerRange*)
@@ -834,6 +867,11 @@ void AccessibilityUIElement::press()
 {
     [m_element _accessibilityActivate];
 }
+    
+bool AccessibilityUIElement::dismiss()
+{
+    return [m_element accessibilityPerformEscape];
+}
 
 void AccessibilityUIElement::setSelectedChild(AccessibilityUIElement* element) const
 {
@@ -855,17 +893,17 @@ void AccessibilityUIElement::clearSelectedChildren() const
 JSRetainPtr<JSStringRef> AccessibilityUIElement::accessibilityValue() const
 {
     // FIXME: implement
-    return JSStringCreateWithCharacters(0, 0);
+    return createEmptyJSString();
 }
 
 JSRetainPtr<JSStringRef> AccessibilityUIElement::documentEncoding()
 {
-    return JSStringCreateWithCharacters(0, 0);
+    return createEmptyJSString();
 }
 
 JSRetainPtr<JSStringRef> AccessibilityUIElement::documentURI()
 {
-    return JSStringCreateWithCharacters(0, 0);
+    return createEmptyJSString();
 }
 
 void AccessibilityUIElement::assistiveTechnologySimulatedFocus()
@@ -905,9 +943,6 @@ void AccessibilityUIElement::decreaseTextSelection()
 JSRetainPtr<JSStringRef> AccessibilityUIElement::stringForSelection()
 {
     NSString *stringForRange = [m_element selectionRangeString];
-    if (!stringForRange)
-        return nullptr;
-    
     return [stringForRange createJSStringRef];
 }
     
@@ -1075,7 +1110,7 @@ JSRetainPtr<JSStringRef> AccessibilityUIElement::stringForTextMarkerRange(Access
 {
     id textMarkers = (id)markerRange->platformTextMarkerRange();
     if (!textMarkers || ![textMarkers isKindOfClass:[NSArray class]])
-        return JSStringCreateWithCharacters(0, 0);
+        return createEmptyJSString();
     return [[m_element stringForTextMarkers:textMarkers] createJSStringRef];
 }
 

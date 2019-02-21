@@ -13,16 +13,21 @@
 #include "modules/audio_device/audio_device_config.h"
 #include "modules/audio_device/linux/audio_device_alsa_linux.h"
 #include "rtc_base/logging.h"
-
+#include "rtc_base/system/arch.h"
 #include "system_wrappers/include/event_wrapper.h"
 #include "system_wrappers/include/sleep.h"
-webrtc::adm_linux_alsa::AlsaSymbolTable AlsaSymbolTable;
+
+WebRTCAlsaSymbolTable* GetAlsaSymbolTable() {
+  static WebRTCAlsaSymbolTable* alsa_symbol_table = new WebRTCAlsaSymbolTable();
+  return alsa_symbol_table;
+}
 
 // Accesses ALSA functions through our late-binding symbol table instead of
 // directly. This way we don't have to link to libasound, which means our binary
 // will work on systems that don't have it.
-#define LATE(sym) \
-  LATESYM_GET(webrtc::adm_linux_alsa::AlsaSymbolTable, &AlsaSymbolTable, sym)
+#define LATE(sym)                                                            \
+  LATESYM_GET(webrtc::adm_linux_alsa::AlsaSymbolTable, GetAlsaSymbolTable(), \
+              sym)
 
 // Redefine these here to be able to do late-binding
 #undef snd_ctl_card_info_alloca
@@ -90,7 +95,6 @@ AudioDeviceLinuxALSA::AudioDeviceLinuxALSA()
       _playing(false),
       _recIsInitialized(false),
       _playIsInitialized(false),
-      _AGC(false),
       _recordingDelay(0),
       _playoutDelay(0) {
   memset(_oldKeyState, 0, sizeof(_oldKeyState));
@@ -141,7 +145,7 @@ AudioDeviceGeneric::InitStatus AudioDeviceLinuxALSA::Init() {
   rtc::CritScope lock(&_critSect);
 
   // Load libasound
-  if (!AlsaSymbolTable.Load()) {
+  if (!GetAlsaSymbolTable()->Load()) {
     // Alsa is not installed on this system
     RTC_LOG(LS_ERROR) << "failed to load symbol table";
     return InitStatus::OTHER_ERROR;
@@ -150,7 +154,7 @@ AudioDeviceGeneric::InitStatus AudioDeviceLinuxALSA::Init() {
   if (_initialized) {
     return InitStatus::OK;
   }
-#if defined(USE_X11)
+#if defined(WEBRTC_USE_X11)
   // Get X display handle for typing detection
   _XDisplay = XOpenDisplay(NULL);
   if (!_XDisplay) {
@@ -194,7 +198,7 @@ int32_t AudioDeviceLinuxALSA::Terminate() {
 
     _critSect.Enter();
   }
-#if defined(USE_X11)
+#if defined(WEBRTC_USE_X11)
   if (_XDisplay) {
     XCloseDisplay(_XDisplay);
     _XDisplay = NULL;
@@ -517,16 +521,6 @@ int32_t AudioDeviceLinuxALSA::StereoPlayout(bool& enabled) const {
     enabled = false;
 
   return 0;
-}
-
-int32_t AudioDeviceLinuxALSA::SetAGC(bool enable) {
-  _AGC = enable;
-
-  return 0;
-}
-
-bool AudioDeviceLinuxALSA::AGC() const {
-  return _AGC;
 }
 
 int32_t AudioDeviceLinuxALSA::MicrophoneVolumeIsAvailable(bool& available) {
@@ -1593,19 +1587,6 @@ bool AudioDeviceLinuxALSA::RecThreadProcess() {
       _ptrAudioBuffer->SetRecordedBuffer(_recordingBuffer,
                                          _recordingFramesIn10MS);
 
-      uint32_t currentMicLevel = 0;
-      uint32_t newMicLevel = 0;
-
-      if (AGC()) {
-        // store current mic level in the audio buffer if AGC is enabled
-        if (MicrophoneVolume(currentMicLevel) == 0) {
-          if (currentMicLevel == 0xffffffff)
-            currentMicLevel = 100;
-          // this call does not affect the actual microphone volume
-          _ptrAudioBuffer->SetCurrentMicLevel(currentMicLevel);
-        }
-      }
-
       // calculate delay
       _playoutDelay = 0;
       _recordingDelay = 0;
@@ -1631,7 +1612,7 @@ bool AudioDeviceLinuxALSA::RecThreadProcess() {
 
       // TODO(xians): Shall we add 10ms buffer delay to the record delay?
       _ptrAudioBuffer->SetVQEData(_playoutDelay * 1000 / _playoutFreq,
-                                  _recordingDelay * 1000 / _recordingFreq, 0);
+                                  _recordingDelay * 1000 / _recordingFreq);
 
       _ptrAudioBuffer->SetTypingStatus(KeyPressed());
 
@@ -1640,18 +1621,6 @@ bool AudioDeviceLinuxALSA::RecThreadProcess() {
       UnLock();
       _ptrAudioBuffer->DeliverRecordedData();
       Lock();
-
-      if (AGC()) {
-        newMicLevel = _ptrAudioBuffer->NewMicLevel();
-        if (newMicLevel != 0) {
-          // The VQE will only deliver non-zero microphone levels when a
-          // change is needed. Set this new mic level (received from the
-          // observer as return value in the callback).
-          if (SetMicrophoneVolume(newMicLevel) == -1)
-            RTC_LOG(LS_WARNING)
-                << "the required modification of the microphone volume failed";
-        }
-      }
     }
   }
 
@@ -1660,7 +1629,7 @@ bool AudioDeviceLinuxALSA::RecThreadProcess() {
 }
 
 bool AudioDeviceLinuxALSA::KeyPressed() const {
-#if defined(USE_X11)
+#if defined(WEBRTC_USE_X11)
   char szKey[32];
   unsigned int i = 0;
   char state = 0;

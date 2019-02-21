@@ -7,10 +7,12 @@ esid: sec-atomics.islockfree
 description: >
   Atomics.isLockFree.name is "isLockFree".
 includes: [propertyHelper.js]
+features: [Atomics]
 ---*/
 
-assert.sameValue(Atomics.isLockFree.name, "isLockFree");
-
-verifyNotEnumerable(Atomics.isLockFree, "name");
-verifyNotWritable(Atomics.isLockFree, "name");
-verifyConfigurable(Atomics.isLockFree, "name");
+verifyProperty(Atomics.isLockFree, 'name', {
+  value: 'isLockFree',
+  enumerable: false,
+  writable: false,
+  configurable: true,
+});

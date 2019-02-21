@@ -23,11 +23,14 @@
  * THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef WebBackForwardListProxy_h
-#define WebBackForwardListProxy_h
+#pragma once
 
 #include <WebCore/BackForwardClient.h>
 #include <wtf/HashSet.h>
+
+namespace WebCore {
+struct BackForwardItemIdentifier;
+}
 
 namespace WebKit {
 
@@ -35,27 +38,29 @@ class WebPage;
 
 class WebBackForwardListProxy : public WebCore::BackForwardClient {
 public: 
-    static Ref<WebBackForwardListProxy> create(WebPage* page) { return adoptRef(*new WebBackForwardListProxy(page)); }
+    static Ref<WebBackForwardListProxy> create(WebPage& page) { return adoptRef(*new WebBackForwardListProxy(page)); }
 
-    static WebCore::HistoryItem* itemForID(uint64_t);
-    static uint64_t idForItem(WebCore::HistoryItem*);
-    static void removeItem(uint64_t itemID);
+    static WebCore::HistoryItem* itemForID(const WebCore::BackForwardItemIdentifier&);
+    static void removeItem(const WebCore::BackForwardItemIdentifier&);
 
-    void addItemFromUIProcess(uint64_t itemID, Ref<WebCore::HistoryItem>&&, uint64_t pageID);
-    static void setHighestItemIDFromUIProcess(uint64_t itemID);
-    
+    enum class OverwriteExistingItem {
+        Yes,
+        No
+    };
+    void addItemFromUIProcess(const WebCore::BackForwardItemIdentifier&, Ref<WebCore::HistoryItem>&&, uint64_t pageID, OverwriteExistingItem);
+
     void clear();
 
 private:
-    WebBackForwardListProxy(WebPage*);
+    WebBackForwardListProxy(WebPage&);
 
     void addItem(Ref<WebCore::HistoryItem>&&) override;
 
-    void goToItem(WebCore::HistoryItem*) override;
+    void goToItem(WebCore::HistoryItem&) override;
         
-    WebCore::HistoryItem* itemAtIndex(int) override;
-    int backListCount() override;
-    int forwardListCount() override;
+    RefPtr<WebCore::HistoryItem> itemAtIndex(int) override;
+    unsigned backListCount() const override;
+    unsigned forwardListCount() const override;
 
     void close() override;
 
@@ -63,5 +68,3 @@ private:
 };
 
 } // namespace WebKit
-
-#endif // WebBackForwardListProxy_h

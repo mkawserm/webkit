@@ -31,14 +31,12 @@
 #include <string.h>
 #include <wtf/MainThread.h>
 
-using namespace WebCore;
-
 @interface WebCoreSharedBufferData : NSData
 {
-    RefPtr<const SharedBuffer::DataSegment> sharedBufferDataSegment;
+    RefPtr<const WebCore::SharedBuffer::DataSegment> sharedBufferDataSegment;
 }
 
-- (id)initWithSharedBufferDataSegment:(const SharedBuffer::DataSegment&)dataSegment;
+- (id)initWithSharedBufferDataSegment:(const WebCore::SharedBuffer::DataSegment&)dataSegment;
 @end
 
 @implementation WebCoreSharedBufferData
@@ -59,7 +57,7 @@ using namespace WebCore;
     [super dealloc];
 }
 
-- (id)initWithSharedBufferDataSegment:(const SharedBuffer::DataSegment&)dataSegment
+- (id)initWithSharedBufferDataSegment:(const WebCore::SharedBuffer::DataSegment&)dataSegment
 {
     self = [super init];
     
@@ -85,7 +83,12 @@ namespace WebCore {
 
 Ref<SharedBuffer> SharedBuffer::create(NSData *nsData)
 {
-    return adoptRef(*new SharedBuffer((CFDataRef)nsData));
+    return adoptRef(*new SharedBuffer((__bridge CFDataRef)nsData));
+}
+
+void SharedBuffer::append(NSData *nsData)
+{
+    return append((__bridge CFDataRef)nsData);
 }
 
 RetainPtr<NSData> SharedBuffer::createNSData() const

@@ -30,12 +30,12 @@
 
 #include "NetscapeBrowserFuncs.h"
 #include "PluginProcessProxy.h"
-#include <WebCore/FileSystem.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <wtf/FileSystem.h>
 #include <wtf/text/StringBuilder.h>
 
 namespace WebKit {
@@ -74,14 +74,12 @@ void NetscapePluginModule::parseMIMEDescription(const String& mimeDescription, V
 {
     ASSERT_ARG(result, result.isEmpty());
 
-    Vector<String> types;
-    mimeDescription.convertToASCIILowercase().split(UChar(';'), false, types);
+    Vector<String> types = mimeDescription.convertToASCIILowercase().split(';');
     result.reserveInitialCapacity(types.size());
 
     size_t mimeInfoCount = 0;
     for (size_t i = 0; i < types.size(); ++i) {
-        Vector<String> mimeTypeParts;
-        types[i].split(UChar(':'), true, mimeTypeParts);
+        Vector<String> mimeTypeParts = types[i].splitAllowingEmptyEntries(':');
         if (mimeTypeParts.size() <= 0)
             continue;
 
@@ -90,7 +88,7 @@ void NetscapePluginModule::parseMIMEDescription(const String& mimeDescription, V
         mimeInfo.type = mimeTypeParts[0];
 
         if (mimeTypeParts.size() > 1)
-            mimeTypeParts[1].split(UChar(','), false, mimeInfo.extensions);
+            mimeInfo.extensions = mimeTypeParts[1].split(',');
 
         if (mimeTypeParts.size() > 2)
             mimeInfo.desc = mimeTypeParts[2];

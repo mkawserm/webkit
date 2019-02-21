@@ -38,7 +38,7 @@
 #if ENABLE(MEDIA_SOURCE) && USE(GSTREAMER)
 
 #include "ContentType.h"
-#include "GStreamerUtilities.h"
+#include "GStreamerCommon.h"
 #include "MediaPlayerPrivateGStreamerMSE.h"
 #include "MediaSample.h"
 #include "MediaSourceClientGStreamerMSE.h"
@@ -73,9 +73,7 @@ void SourceBufferPrivateGStreamer::append(Vector<unsigned char>&& data)
     if (!m_sourceBufferPrivateClient)
         return;
 
-    if (m_client->append(this, WTFMove(data)))
-        return;
-
+    m_client->append(this, WTFMove(data));
     m_sourceBufferPrivateClient->sourceBufferPrivateAppendComplete(SourceBufferPrivateClient::ReadStreamFailed);
 }
 
@@ -118,6 +116,11 @@ void SourceBufferPrivateGStreamer::enqueueSample(Ref<MediaSample>&& sample, cons
     m_client->enqueueSample(WTFMove(sample));
 }
 
+void SourceBufferPrivateGStreamer::allSamplesInTrackEnqueued(const AtomicString& trackId)
+{
+    m_client->allSamplesInTrackEnqueued(trackId);
+}
+
 bool SourceBufferPrivateGStreamer::isReadyForMoreSamples(const AtomicString&)
 {
     return m_isReadyForMoreSamples;
@@ -143,11 +146,6 @@ void SourceBufferPrivateGStreamer::setActive(bool isActive)
         m_mediaSource->sourceBufferPrivateDidChangeActiveState(this, isActive);
 }
 
-void SourceBufferPrivateGStreamer::stopAskingForMoreSamples(const AtomicString&)
-{
-    notImplemented();
-}
-
 void SourceBufferPrivateGStreamer::notifyClientWhenReadyForMoreSamples(const AtomicString& trackId)
 {
     ASSERT(WTF::isMainThread());
@@ -171,6 +169,12 @@ void SourceBufferPrivateGStreamer::didReceiveAllPendingSamples()
 {
     if (m_sourceBufferPrivateClient)
         m_sourceBufferPrivateClient->sourceBufferPrivateAppendComplete(SourceBufferPrivateClient::AppendSucceeded);
+}
+
+void SourceBufferPrivateGStreamer::appendParsingFailed()
+{
+    if (m_sourceBufferPrivateClient)
+        m_sourceBufferPrivateClient->sourceBufferPrivateAppendComplete(SourceBufferPrivateClient::ParsingFailed);
 }
 
 }

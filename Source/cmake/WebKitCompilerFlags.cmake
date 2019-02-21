@@ -102,8 +102,14 @@ if (COMPILER_IS_GCC_OR_CLANG)
                                              -Wno-unknown-argument)
     else ()
         WEBKIT_APPEND_GLOBAL_COMPILER_FLAGS(-fno-exceptions)
-        WEBKIT_APPEND_GLOBAL_CXX_FLAGS(-std=c++14
-                                       -fno-rtti)
+        WEBKIT_APPEND_GLOBAL_CXX_FLAGS(-fno-rtti)
+
+        check_cxx_compiler_flag("-std=c++14" CXX_COMPILER_SUPPORTS_CXX14)
+        if (CXX_COMPILER_SUPPORTS_CXX14)
+            WEBKIT_APPEND_GLOBAL_CXX_FLAGS(-std=c++14)
+        else ()
+            message(FATAL_ERROR "Compiler with C++14 support is required")
+        endif ()
 
         if (WIN32)
             WEBKIT_APPEND_GLOBAL_COMPILER_FLAGS(-mno-ms-bitfields)
@@ -113,9 +119,7 @@ if (COMPILER_IS_GCC_OR_CLANG)
     endif ()
 
     # Warnings to be enabled
-    WEBKIT_PREPEND_GLOBAL_COMPILER_FLAGS(-Wall
-                                         -Wextra
-                                         -Wcast-align
+    WEBKIT_PREPEND_GLOBAL_COMPILER_FLAGS(-Wcast-align
                                          -Wformat-security
                                          -Wmissing-format-attribute
                                          -Wpointer-arith
@@ -133,12 +137,18 @@ if (COMPILER_IS_GCC_OR_CLANG)
     if (${CMAKE_CXX_COMPILER_VERSION} VERSION_LESS "8.0" AND NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
         WEBKIT_PREPEND_GLOBAL_CXX_FLAGS(-Wno-attributes)
     endif ()
+
+    # -Wexpansion-to-defined produces false positives with GCC but not Clang
+    # https://bugs.webkit.org/show_bug.cgi?id=167643#c13
+    if (CMAKE_COMPILER_IS_GNUCXX)
+        WEBKIT_PREPEND_GLOBAL_COMPILER_FLAGS(-Wno-expansion-to-defined)
+    endif ()
 endif ()
 
-# -Wexpansion-to-defined produces false positives with GCC but not Clang
-# https://bugs.webkit.org/show_bug.cgi?id=167643#c13
-if (CMAKE_COMPILER_IS_GNUCXX)
-    WEBKIT_PREPEND_GLOBAL_COMPILER_FLAGS(-Wno-expansion-to-defined)
+if (COMPILER_IS_GCC_OR_CLANG AND NOT MSVC)
+    # Don't give -Wall to clang-cl because clang-cl treats /Wall and -Wall as -Weverything.
+    # -Wall and -Wextra should be specified before -Wno-* for Clang.
+    WEBKIT_PREPEND_GLOBAL_COMPILER_FLAGS(-Wall -Wextra)
 endif ()
 
 # Ninja tricks compilers into turning off color support.
@@ -168,6 +178,7 @@ if (COMPILER_IS_GCC_OR_CLANG)
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address")
         set(CMAKE_EXE_LINKER_FLAGS "-lpthread ${CMAKE_EXE_LINKER_FLAGS} -fsanitize=address")
         set(CMAKE_SHARED_LINKER_FLAGS "-lpthread ${CMAKE_SHARED_LINKER_FLAGS} -fsanitize=address")
+        set(CMAKE_MODULE_LINKER_FLAGS "-lpthread ${CMAKE_MODULE_LINKER_FLAGS} -fsanitize=address")
     endif ()
 endif ()
 
@@ -218,4 +229,17 @@ if (COMPILER_IS_GCC_OR_CLANG)
    set(CMAKE_C_IMPLICIT_INCLUDE_DIRECTORIES ${CMAKE_C_IMPLICIT_INCLUDE_DIRECTORIES} ${SYSTEM_INCLUDE_DIRS})
    DETERMINE_GCC_SYSTEM_INCLUDE_DIRS("c++" "${CMAKE_CXX_COMPILER}" "${CMAKE_CXX_FLAGS}" SYSTEM_INCLUDE_DIRS)
    set(CMAKE_CXX_IMPLICIT_INCLUDE_DIRECTORIES ${CMAKE_CXX_IMPLICIT_INCLUDE_DIRECTORIES} ${SYSTEM_INCLUDE_DIRS})
+endif ()
+
+if (COMPILER_IS_GCC_OR_CLANG)
+    set(ATOMIC_TEST_SOURCE "
+        #include <atomic>
+        int main() { std::atomic<int64_t> i(0); i++; return 0; }
+    ")
+    check_cxx_source_compiles("${ATOMIC_TEST_SOURCE}" ATOMIC_INT64_IS_BUILTIN)
+    if (NOT ATOMIC_INT64_IS_BUILTIN)
+        set(CMAKE_REQUIRED_LIBRARIES atomic)
+        check_cxx_source_compiles("${ATOMIC_TEST_SOURCE}" ATOMIC_INT64_REQUIRES_LIBATOMIC)
+        unset(CMAKE_REQUIRED_LIBRARIES)
+    endif ()
 endif ()

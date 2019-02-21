@@ -25,14 +25,14 @@
 
 #include "config.h"
 
-#if (PLATFORM(IOS) || (PLATFORM(MAC) && ENABLE(VIDEO_PRESENTATION_MODE))) && ENABLE(VIDEO_TRACK)
+#if (PLATFORM(IOS_FAMILY) || (PLATFORM(MAC) && ENABLE(VIDEO_PRESENTATION_MODE))) && ENABLE(VIDEO_TRACK)
 #include "TextTrackRepresentationCocoa.h"
 
 #include "FloatRect.h"
 #include "GraphicsContextCG.h"
 #include "IntRect.h"
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
 #include "WebCoreThread.h"
 #include "WebCoreThreadRun.h"
 #endif
@@ -85,7 +85,7 @@ using namespace WebCore;
 {
     UNUSED_PARAM(change);
     UNUSED_PARAM(context);
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
     WebThreadRun(^{
         if (_parent && [keyPath isEqual:@"bounds"] && object == _parent->platformLayer())
             _parent->client().textTrackRepresentationBoundsChanged(_parent->bounds());
@@ -129,7 +129,7 @@ TextTrackRepresentationCocoa::~TextTrackRepresentationCocoa()
 void TextTrackRepresentationCocoa::update()
 {
     if (auto representation = m_client.createTextTrackRepresentationImage())
-        [m_layer.get() setContents:(id)representation->nativeImage().get()];
+        [m_layer.get() setContents:(__bridge id)representation->nativeImage().get()];
 }
 
 void TextTrackRepresentationCocoa::setContentScale(float scale)
@@ -142,4 +142,4 @@ IntRect TextTrackRepresentationCocoa::bounds() const
     return enclosingIntRect(FloatRect([m_layer.get() bounds]));
 }
 
-#endif // (PLATFORM(IOS) || (PLATFORM(MAC) && ENABLE(VIDEO_PRESENTATION_MODE))) && ENABLE(VIDEO_TRACK)
+#endif // (PLATFORM(IOS_FAMILY) || (PLATFORM(MAC) && ENABLE(VIDEO_PRESENTATION_MODE))) && ENABLE(VIDEO_TRACK)

@@ -37,8 +37,6 @@
 #import <QuartzCore/QuartzCore.h>
 #import <WebCore/GraphicsContextCG.h>
 
-using namespace WebCore;
-
 namespace WebKit {
 
 void PluginControllerProxy::pluginFocusOrWindowFocusChanged(bool pluginHasFocusAndWindowHasFocus)
@@ -90,7 +88,7 @@ void PluginControllerProxy::platformGeometryDidChange()
     [CATransaction commit];
 }
 
-void PluginControllerProxy::windowAndViewFramesChanged(const IntRect& windowFrameInScreenCoordinates, const IntRect& viewFrameInWindowCoordinates)
+void PluginControllerProxy::windowAndViewFramesChanged(const WebCore::IntRect& windowFrameInScreenCoordinates, const WebCore::IntRect& viewFrameInWindowCoordinates)
 {
     m_plugin->windowAndViewFramesChanged(windowFrameInScreenCoordinates, viewFrameInWindowCoordinates);
 }
@@ -130,12 +128,12 @@ void PluginControllerProxy::updateLayerHostingContext(LayerHostingMode layerHost
             break;
 #if HAVE(OUT_OF_PROCESS_LAYER_HOSTING)
         case LayerHostingMode::OutOfProcess:
-            m_layerHostingContext = LayerHostingContext::createForExternalHostingProcess();
+            m_layerHostingContext = LayerHostingContext::createForExternalPluginHostingProcess();
             break;
 #endif
     }
 
-    m_layerHostingContext->setColorSpace(sRGBColorSpaceRef());
+    m_layerHostingContext->setColorSpace(WebCore::sRGBColorSpaceRef());
     m_layerHostingContext->setColorMatchUntaggedContent(true);
 
     m_layerHostingContext->setRootLayer(platformLayer);

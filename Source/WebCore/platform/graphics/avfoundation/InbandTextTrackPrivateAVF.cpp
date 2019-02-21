@@ -26,7 +26,7 @@
 #include "config.h"
 #include "InbandTextTrackPrivateAVF.h"
 
-#if ENABLE(VIDEO) && (USE(AVFOUNDATION) || PLATFORM(IOS))
+#if ENABLE(VIDEO) && (USE(AVFOUNDATION) || PLATFORM(IOS_FAMILY))
 
 #include "ISOVTTCue.h"
 #include "InbandTextTrackPrivateClient.h"
@@ -383,7 +383,7 @@ void InbandTextTrackPrivateAVF::processAttributedStrings(CFArrayRef attributedSt
                 }
             }
         } else
-            ERROR_LOG(LOGIDENTIFIER, "negative length cue(s): start ", m_currentCueStartTime, ", end ", m_currentCueEndTime);
+            ERROR_LOG(LOGIDENTIFIER, "negative length cue(s): ", MediaTimeRange { m_currentCueStartTime, m_currentCueEndTime });
 
         removeCompletedCues();
     }
@@ -584,4 +584,4 @@ bool InbandTextTrackPrivateAVF::readNativeSampleBuffer(CFArrayRef nativeSamples,
 
 } // namespace WebCore
 
-#endif // ENABLE(VIDEO) && (USE(AVFOUNDATION) || PLATFORM(IOS))
+#endif // ENABLE(VIDEO) && (USE(AVFOUNDATION) || PLATFORM(IOS_FAMILY))

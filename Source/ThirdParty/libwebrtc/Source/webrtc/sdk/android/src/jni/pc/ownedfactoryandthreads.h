@@ -18,10 +18,6 @@
 #include "api/peerconnectioninterface.h"
 #include "rtc_base/thread.h"
 
-using cricket::WebRtcVideoDecoderFactory;
-using cricket::WebRtcVideoEncoderFactory;
-using rtc::Thread;
-
 namespace webrtc {
 namespace jni {
 
@@ -35,32 +31,18 @@ PeerConnectionFactoryInterface* factoryFromJava(jlong j_p);
 // single thing for Java to hold and eventually free.
 class OwnedFactoryAndThreads {
  public:
-  OwnedFactoryAndThreads(std::unique_ptr<Thread> network_thread,
-                         std::unique_ptr<Thread> worker_thread,
-                         std::unique_ptr<Thread> signaling_thread,
-                         WebRtcVideoEncoderFactory* legacy_encoder_factory,
-                         WebRtcVideoDecoderFactory* legacy_decoder_factory,
+  OwnedFactoryAndThreads(std::unique_ptr<rtc::Thread> network_thread,
+                         std::unique_ptr<rtc::Thread> worker_thread,
+                         std::unique_ptr<rtc::Thread> signaling_thread,
                          rtc::NetworkMonitorFactory* network_monitor_factory,
-                         PeerConnectionFactoryInterface* factory)
-      : network_thread_(std::move(network_thread)),
-        worker_thread_(std::move(worker_thread)),
-        signaling_thread_(std::move(signaling_thread)),
-        legacy_encoder_factory_(legacy_encoder_factory),
-        legacy_decoder_factory_(legacy_decoder_factory),
-        network_monitor_factory_(network_monitor_factory),
-        factory_(factory) {}
+                         PeerConnectionFactoryInterface* factory);
 
   ~OwnedFactoryAndThreads();
 
   PeerConnectionFactoryInterface* factory() { return factory_; }
-  Thread* signaling_thread() { return signaling_thread_.get(); }
-  Thread* worker_thread() { return worker_thread_.get(); }
-  WebRtcVideoEncoderFactory* legacy_encoder_factory() {
-    return legacy_encoder_factory_;
-  }
-  WebRtcVideoDecoderFactory* legacy_decoder_factory() {
-    return legacy_decoder_factory_;
-  }
+  rtc::Thread* network_thread() { return network_thread_.get(); }
+  rtc::Thread* signaling_thread() { return signaling_thread_.get(); }
+  rtc::Thread* worker_thread() { return worker_thread_.get(); }
   rtc::NetworkMonitorFactory* network_monitor_factory() {
     return network_monitor_factory_;
   }
@@ -68,13 +50,9 @@ class OwnedFactoryAndThreads {
   void InvokeJavaCallbacksOnFactoryThreads();
 
  private:
-  void JavaCallbackOnFactoryThreads();
-
-  const std::unique_ptr<Thread> network_thread_;
-  const std::unique_ptr<Thread> worker_thread_;
-  const std::unique_ptr<Thread> signaling_thread_;
-  WebRtcVideoEncoderFactory* legacy_encoder_factory_;
-  WebRtcVideoDecoderFactory* legacy_decoder_factory_;
+  const std::unique_ptr<rtc::Thread> network_thread_;
+  const std::unique_ptr<rtc::Thread> worker_thread_;
+  const std::unique_ptr<rtc::Thread> signaling_thread_;
   rtc::NetworkMonitorFactory* network_monitor_factory_;
   PeerConnectionFactoryInterface* factory_;  // Const after ctor except dtor.
 };

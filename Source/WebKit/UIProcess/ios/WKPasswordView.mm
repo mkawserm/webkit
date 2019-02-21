@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 Apple Inc. All rights reserved.
+ * Copyright (C) 2017-2018 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -26,7 +26,7 @@
 #import "config.h"
 #import "WKPasswordView.h"
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
 
 #import "UIKitSPI.h"
 #import "WKContentView.h"
@@ -67,6 +67,12 @@ const CGFloat passwordEntryFieldPadding = 10;
     [self addSubview:_passwordView.get()];
 
     return self;
+}
+
+- (void)dealloc
+{
+    [_userDidEnterPassword release];
+    [super dealloc];
 }
 
 - (NSString *)documentName
@@ -181,4 +187,4 @@ const CGFloat passwordEntryFieldPadding = 10;
 
 @end
 
-#endif // PLATFORM(IOS)
+#endif // PLATFORM(IOS_FAMILY)

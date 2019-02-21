@@ -46,6 +46,11 @@ PASS: Last line of a three line string should be the third line.
 PASS: Last line of a string with a traling line break should be empty.
 PASS: Last line of an empty string is the same empty string.
 
+-- Running test case: String.prototype.truncateStart
+PASS: String stays the same.
+PASS: Ellipsis is inserted before the third character.
+PASS: Ellipsis is inserted before the fourth character.
+
 -- Running test case: String.prototype.truncateMiddle
 PASS: String stays the same.
 PASS: Ellipsis is inserted in the middle.
@@ -53,6 +58,15 @@ PASS: Ellipsis is inserted after the second character.
 
 -- Running test case: String.prototype.truncateEnd
 PASS: String stays the same.
-PASS: Ellipsis is inserted in the middle.
+PASS: Ellipsis is inserted after the fourth character.
 PASS: Ellipsis is inserted after the third character.
+
+-- Running test case: String.prototype.escapeCharacters
+PASS: String stays the same with no escape characters.
+PASS: String stays the same with empty escape characters.
+PASS: String stays the same with no matching escape characters.
+PASS: The letter 'c' is escaped.
+PASS: The letter 'c' and 'e' are escaped.
+PASS: The letter 'c' and 'e' are escaped.
+PASS: The letter 'c', 'd', and 'e' are escaped.
 

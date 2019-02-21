@@ -1,6 +1,6 @@
 #!/usr/bin/env perl
 
-# Copyright (C) 2015 Apple Inc. All rights reserved.
+# Copyright (C) 2015-2018 Apple Inc. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions
@@ -25,9 +25,20 @@
 
 use warnings;
 use English;
+use File::Basename qw(dirname);
 use File::Copy qw(copy);
 use File::Path qw(make_path remove_tree);
 use File::Spec;
+use Getopt::Long;
+
+my $verbose = 0;
+GetOptions('verbose' => \$verbose);
+
+sub debugLog($)
+{
+    my $logString = shift;
+    print "-- $logString\n" if $verbose;
+}
 
 my $useDirCopy = 0;
 
@@ -101,7 +112,7 @@ sub readLicenseFile($)
 
 my $inspectorLicense = <<'EOF';
 /*
- * Copyright (C) 2007-2016 Apple Inc. All rights reserved.
+ * Copyright (C) 2007-2019 Apple Inc. All rights reserved.
  * Copyright (C) 2008 Matt Lilek. All rights reserved.
  * Copyright (C) 2008-2009 Anthony Ricaud <rik@webkit.org>
  * Copyright (C) 2009-2010 Joseph Pecoraro. All rights reserved.
@@ -118,7 +129,8 @@ my $inspectorLicense = <<'EOF';
  * Copyright (C) 2014 Antoine Quint
  * Copyright (C) 2015 Tobias Reiss <tobi+webkit@basecode.de>
  * Copyright (C) 2015-2017 Devin Rousso <webkit@devinrousso.com>. All rights reserved.
- * Copyright (C) 2017 Sony Interactive Entertainment Inc.
+ * Copyright (C) 2017 The Chromium Authors
+ * Copyright (C) 2017-2018 Sony Interactive Entertainment Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -154,14 +166,16 @@ my $protocolDir = File::Spec->catdir($targetResourcePath, 'Protocol');
 my $workersDir = File::Spec->catdir($targetResourcePath, 'Workers');
 my $codeMirrorPath = File::Spec->catdir($uiRoot, 'External', 'CodeMirror');
 my $esprimaPath = File::Spec->catdir($uiRoot, 'External', 'Esprima');
-my $eslintPath = File::Spec->catdir($uiRoot, 'External', 'ESLint');
 my $threejsPath = File::Spec->catdir($uiRoot, 'External', 'three.js');
+
+$webInspectorUIAdditionsDir = &webInspectorUIAdditionsDir();
 
 my $codeMirrorLicense = readLicenseFile(File::Spec->catfile($codeMirrorPath, 'LICENSE'));
 my $esprimaLicense = readLicenseFile(File::Spec->catfile($esprimaPath, 'LICENSE'));
-my $eslintLicense = readLicenseFile(File::Spec->catfile($eslintPath, 'LICENSE'));
 my $threejsLicense = readLicenseFile(File::Spec->catfile($threejsPath, 'LICENSE'));
 make_path($protocolDir, $targetResourcePath);
+
+$python = $ENV{"PYTHON"} if defined($ENV{"PYTHON"});
 
 # Copy over dynamically loaded files from other frameworks, even if we aren't combining resources.
 copy(File::Spec->catfile($ENV{'JAVASCRIPTCORE_PRIVATE_HEADERS_DIR'}, 'InspectorBackendCommands.js'), File::Spec->catfile($protocolDir, 'InspectorBackendCommands.js')) or die "Copy of InspectorBackendCommands.js failed: $!";
@@ -181,11 +195,109 @@ if ($forceToolInstall) {
     $shouldCombineTest = 1;
 }
 
+if (!$shouldCombineMain) {
+    # Keep the files separate for engineering builds. Copy these before altering Main.html
+    # in other ways, such as combining for WebKitAdditions or inlining files.
+    ditto($uiRoot, $targetResourcePath);
+}
+
+# Always refer to the copy in derived sources so the order of replacements does not matter.
+make_path($derivedSourcesDir);
+my $derivedSourcesMainHTML = File::Spec->catfile($derivedSourcesDir, 'Main.html');
+copy(File::Spec->catfile($uiRoot, 'Main.html'), File::Spec->catfile($derivedSourcesDir, 'Main.html')) or die "Copy failed: $!";
+
+sub webInspectorUIAdditionsDir() {
+    my $webkitAdditionsDir;
+    if (defined $ENV{'BUILT_PRODUCTS_DIR'}) {
+        $webkitAdditionsDir = File::Spec->catdir($ENV{'BUILT_PRODUCTS_DIR'}, 'usr', 'local', 'include', 'WebKitAdditions');
+        undef $webkitAdditionsDir unless -d $webkitAdditionsDir
+    }
+    if (!$webkitAdditionsDir and defined $ENV{'SDKROOT'}) {
+        $webkitAdditionsDir = File::Spec->catdir($ENV{'SDKROOT'}, 'usr', 'local', 'include', 'WebKitAdditions');
+        undef $webkitAdditionsDir unless -d $webkitAdditionsDir
+    }
+    return unless $webkitAdditionsDir;
+    debugLog("webkitAdditionsDir: $webkitAdditionsDir");
+    return File::Spec->catdir($webkitAdditionsDir, 'WebInspectorUI');
+}
+
+sub combineOrStripResourcesForWebKitAdditions() {
+    my $combineWebKitAdditions = 0;
+
+    if (!defined $webInspectorUIAdditionsDir) {
+        debugLog("Didn't define \$webInspectorUIAdditionsDir");
+    } elsif (-d $webInspectorUIAdditionsDir) {
+        debugLog("Found $webInspectorUIAdditionsDir");
+
+        opendir(DIR, $webInspectorUIAdditionsDir) || die "$!";
+        my @files = grep { !/^\.{1,2}$/ } readdir (DIR);
+        closedir(DIR);
+
+        # The WebKitAdditions/WebInspectorUI directory may exist without any files in it.
+        # Make sure that there is something to be processed in the directory before proceeding.
+        my $foundJSFile = 0;
+        my $foundCSSFile = 0;
+        foreach my $file (@files) {
+            my $path = File::Spec->catdir($$webInspectorUIAdditionsDir, $file);
+            next if -d $path;
+            if ($file =~ /\.js$/) {
+                debugLog("Found a JavaScript file to combine: $file");
+                $foundJSFile = 1;
+            } elsif ($file =~ /\.css$/) {
+                debugLog("Found a CSS file to combine: $file");
+                $foundCSSFile = 1;
+            }
+        }
+        $combineWebKitAdditions = 1 if $foundCSSFile or $foundJSFile;
+    } else {
+        debugLog("Didn't find $webInspectorUIAdditionsDir");
+    }
+
+    if ($combineWebKitAdditions) {
+        debugLog("Combining resources provided by WebKitAdditions.");
+        combineResourcesForWebKitAdditions();
+    } else {
+        debugLog("Stripping resources provided by WebKitAdditions.");
+        stripResourcesForWebKitAdditions();
+    }
+}
+
+sub stripResourcesForWebKitAdditions() {
+    system($perl, $combineResourcesCmd,
+        '--input-dir', 'WebKitAdditions',
+        '--input-html', $derivedSourcesMainHTML,
+        '--derived-sources-dir', $derivedSourcesDir,
+        '--output-dir', $derivedSourcesDir,
+        '--strip');
+}
+
+sub combineResourcesForWebKitAdditions() {
+    $rootPathForRelativeIncludes = dirname(dirname($webInspectorUIAdditionsDir));
+    system($perl, $combineResourcesCmd,
+        '--input-dir', 'WebKitAdditions',
+        '--input-html', $derivedSourcesMainHTML,
+        '--input-html-dir', $rootPathForRelativeIncludes,
+        '--derived-sources-dir', $derivedSourcesDir,
+        '--output-dir', $derivedSourcesDir,
+        '--output-script-name', 'WebKitAdditions.js',
+        '--output-style-name', 'WebKitAdditions.css');
+
+    # Export the license into WebKitAdditions files.
+    my $targetWebKitAdditionsJS = File::Spec->catfile($targetResourcePath, 'WebKitAdditions.js');
+    seedFile($targetWebKitAdditionsJS, $inspectorLicense);
+
+    my $targetWebKitAdditionsCSS = File::Spec->catfile($targetResourcePath, 'WebKitAdditions.css');
+    seedFile($targetWebKitAdditionsCSS, $inspectorLicense);
+
+    appendFile($targetWebKitAdditionsJS, File::Spec->catfile($derivedSourcesDir, 'WebKitAdditions.js'));
+    appendFile($targetWebKitAdditionsCSS, File::Spec->catfile($derivedSourcesDir, 'WebKitAdditions.css'));
+}
+
 if ($shouldCombineMain) {
     # Remove Debug JavaScript and CSS files in Production builds.
     system($perl, $combineResourcesCmd,
         '--input-dir', 'Debug',
-        '--input-html', File::Spec->catfile($uiRoot, 'Main.html'),
+        '--input-html', $derivedSourcesMainHTML,
         '--input-html-dir', $uiRoot,
         '--derived-sources-dir', $derivedSourcesDir,
         '--output-dir', $derivedSourcesDir,
@@ -194,7 +306,6 @@ if ($shouldCombineMain) {
         '--strip');
 
     # Combine the JavaScript and CSS files in Production builds into single files (Main.js and Main.css).
-    my $derivedSourcesMainHTML = File::Spec->catfile($derivedSourcesDir, 'Main.html');
     system($perl, $combineResourcesCmd,
        '--input-html', $derivedSourcesMainHTML,
        '--input-html-dir', $uiRoot,
@@ -202,6 +313,10 @@ if ($shouldCombineMain) {
        '--output-dir', $derivedSourcesDir,
        '--output-script-name', 'Main.js',
        '--output-style-name', 'Main.css');
+
+    # Process WebKitAdditions.{css,js} after Main.{js,css}. Otherwise, the combined WebKitAdditions files
+    # will get slurped into Main.{js,css} because the 'WebKitAdditions' relative URL prefix will be removed.
+    combineOrStripResourcesForWebKitAdditions();
 
     # Combine the CodeMirror JavaScript and CSS files in Production builds into single files (CodeMirror.js and CodeMirror.css).
     system($perl, $combineResourcesCmd,
@@ -221,15 +336,6 @@ if ($shouldCombineMain) {
        '--derived-sources-dir', $derivedSourcesDir,
        '--output-dir', $derivedSourcesDir,
        '--output-script-name', 'Esprima.js');
-
-    # Combine the ESLint JavaScript files in Production builds into a single file (ESLint.js).
-    system($perl, $combineResourcesCmd,
-       '--input-dir', 'External/ESLint',
-       '--input-html', $derivedSourcesMainHTML,
-       '--input-html-dir', $uiRoot,
-       '--derived-sources-dir', $derivedSourcesDir,
-       '--output-dir', $derivedSourcesDir,
-       '--output-script-name', 'ESLint.js');
 
     # Combine the three.js JavaScript files in Production builds into a single file (Three.js).
     system($perl, $combineResourcesCmd,
@@ -276,10 +382,6 @@ if ($shouldCombineMain) {
     my $targetEsprimaJS = File::Spec->catfile($targetResourcePath, 'Esprima.js');
     seedFile($targetEsprimaJS, $esprimaLicense);
 
-    # Export the license into ESLint.js.
-    my $targetESLintJS = File::Spec->catfile($targetResourcePath, 'ESLint.js');
-    seedFile($targetESLintJS, $eslintLicense);
-
     # Export the license into Three.js.
     my $targetThreejsJS = File::Spec->catfile($targetResourcePath, 'Three.js');
     seedFile($targetThreejsJS, $threejsLicense);
@@ -300,21 +402,12 @@ if ($shouldCombineMain) {
     my $derivedSourcesEsprimaJS = File::Spec->catfile($derivedSourcesDir, 'Esprima.js');
     system(qq("$python" "$jsMinScript" < "$derivedSourcesEsprimaJS" >> "$targetEsprimaJS")) and die "Failed to minify $derivedSourcesEsprimaJS: $!";
 
-    # Minify the ESLint.js file, appending to the license that was exported above.
-    my $derivedSourcesESLintJS = File::Spec->catfile($derivedSourcesDir, 'ESLint.js');
-    system(qq("$python" "$jsMinScript" < "$derivedSourcesESLintJS" >> "$targetESLintJS")) and die "Failed to minify $derivedSourcesESLintJS: $!";
-
     # Minify the Three.js file, appending to the license that was exported above.
     my $derivedSourcesThreejsJS = File::Spec->catfile($derivedSourcesDir, 'Three.js');
     system(qq("$python" "$jsMinScript" < "$derivedSourcesThreejsJS" >> "$targetThreejsJS")) and die "Failed to minify $derivedSourcesThreejsJS: $!";
 
-    # Copy over Main.html and the Images directory.
-    copy($derivedSourcesMainHTML, File::Spec->catfile($targetResourcePath, 'Main.html'));
-
+    # Copy over the Images directory.
     ditto(File::Spec->catdir($uiRoot, 'Images'), File::Spec->catdir($targetResourcePath, 'Images'));
-
-    # Remove ESLint until needed: <https://webkit.org/b/136515> Web Inspector: JavaScript source text editor should have a linter
-    unlink $targetESLintJS;
 
     # Copy the Protocol/Legacy and Workers directories.
     ditto(File::Spec->catfile($uiRoot, 'Protocol', 'Legacy'), File::Spec->catfile($protocolDir, 'Legacy'));
@@ -328,9 +421,16 @@ if ($shouldCombineMain) {
     system($perl, File::Spec->catfile($scriptsRoot, 'fix-worker-imports-for-optimized-builds.pl'),
         '--input-directory', $workersDir) and die "Failed to update Worker imports for optimized builds.";
 } else {
-    # Keep the files separate for engineering builds.
-    ditto($uiRoot, $targetResourcePath);
+    # Always process WebKitAdditions files because the 'WebKitAdditions' path prefix is not real,
+    # so it can't proceed as a normal load from the bundle as written. This function replaces the
+    # dummy prefix with the actual WebKitAdditions path when looking for files to inline and combine.
+    combineOrStripResourcesForWebKitAdditions();
 }
+
+# Always copy over Main.html because we may have combined WebKitAdditions files
+# without minifying anything else. We always want to combine WKA so the relevant
+# resources are copied out of Derived Sources rather than an arbitrary WKA directory.
+copy($derivedSourcesMainHTML, File::Spec->catfile($targetResourcePath, 'Main.html'));
 
 if ($shouldCombineTest) {
     # Combine the JavaScript files for testing into a single file (TestCombined.js).

@@ -26,8 +26,9 @@
 #import "config.h"
 #import "ViewGestureController.h"
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
 
+#import "APINavigation.h"
 #import "DrawingAreaProxy.h"
 #import "UIKitSPI.h"
 #import "ViewGestureControllerMessages.h"
@@ -35,7 +36,6 @@
 #import "ViewSnapshotStore.h"
 #import "WKBackForwardListItemInternal.h"
 #import "WKWebViewInternal.h"
-#import "WeakObjCPtr.h"
 #import "WebBackForwardList.h"
 #import "WebPageGroup.h"
 #import "WebPageMessages.h"
@@ -44,8 +44,7 @@
 #import <UIKit/UIScreenEdgePanGestureRecognizer.h>
 #import <WebCore/IOSurface.h>
 #import <pal/spi/cocoa/QuartzCoreSPI.h>
-
-using namespace WebCore;
+#import <wtf/WeakObjCPtr.h>
 
 @interface WKSwipeTransitionController : NSObject <_UINavigationInteractiveTransitionBaseDelegate>
 - (instancetype)initWithViewGestureController:(WebKit::ViewGestureController*)gestureController gestureRecognizerView:(UIView *)gestureRecognizerView;
@@ -63,7 +62,7 @@ using namespace WebCore;
     WebKit::ViewGestureController *_gestureController;
     RetainPtr<_UINavigationInteractiveTransitionBase> _backTransitionController;
     RetainPtr<_UINavigationInteractiveTransitionBase> _forwardTransitionController;
-    WebKit::WeakObjCPtr<UIView> _gestureRecognizerView;
+    WeakObjCPtr<UIView> _gestureRecognizerView;
 }
 
 static const float swipeSnapshotRemovalRenderTreeSizeTargetFraction = 0.5;
@@ -202,17 +201,17 @@ void ViewGestureController::beginSwipeGesture(_UINavigationInteractiveTransition
     RetainPtr<UIColor> backgroundColor = [UIColor whiteColor];
     if (ViewSnapshot* snapshot = targetItem->snapshot()) {
         float deviceScaleFactor = m_webPageProxy.deviceScaleFactor();
-        FloatSize swipeLayerSizeInDeviceCoordinates(liveSwipeViewFrame.size);
+        WebCore::FloatSize swipeLayerSizeInDeviceCoordinates(liveSwipeViewFrame.size);
         swipeLayerSizeInDeviceCoordinates.scale(deviceScaleFactor);
         
         BOOL shouldRestoreScrollPosition = targetItem->pageState().mainFrameState.shouldRestoreScrollPosition;
-        IntPoint currentScrollPosition = roundedIntPoint(m_webPageProxy.viewScrollPosition());
+        WebCore::IntPoint currentScrollPosition = WebCore::roundedIntPoint(m_webPageProxy.viewScrollPosition());
 
         if (snapshot->hasImage() && snapshot->size() == swipeLayerSizeInDeviceCoordinates && deviceScaleFactor == snapshot->deviceScaleFactor() && (shouldRestoreScrollPosition || (currentScrollPosition == snapshot->viewScrollPosition())))
             [m_snapshotView layer].contents = snapshot->asLayerContents();
-        Color coreColor = snapshot->backgroundColor();
+        WebCore::Color coreColor = snapshot->backgroundColor();
         if (coreColor.isValid())
-            backgroundColor = adoptNS([[UIColor alloc] initWithCGColor:cachedCGColor(coreColor)]);
+            backgroundColor = adoptNS([[UIColor alloc] initWithCGColor:WebCore::cachedCGColor(coreColor)]);
     }
 
     [m_snapshotView setBackgroundColor:backgroundColor.get()];
@@ -294,17 +293,16 @@ void ViewGestureController::endSwipeGesture(WebBackForwardListItem* targetItem, 
     if (&m_webPageProxy != m_webPageProxyForBackForwardListForCurrentSwipe)
         m_webPageProxy.navigationGestureDidEnd();
 
-    m_webPageProxyForBackForwardListForCurrentSwipe->goToBackForwardItem(targetItem);
+    m_webPageProxyForBackForwardListForCurrentSwipe->goToBackForwardItem(*targetItem);
 
-    if (auto drawingArea = m_webPageProxy.drawingArea()) {
-        uint64_t pageID = m_webPageProxy.pageID();
-        GestureID gestureID = m_currentGestureID;
-        drawingArea->dispatchAfterEnsuringDrawing([pageID, gestureID] (CallbackBase::Error error) {
-            if (auto gestureController = controllerForGesture(pageID, gestureID))
-                gestureController->willCommitPostSwipeTransitionLayerTree(error == CallbackBase::Error::None);
-        });
-        drawingArea->hideContentUntilPendingUpdate();
-    } else {
+    if (!m_webPageProxy.drawingArea()) {
+        removeSwipeSnapshot();
+        return;
+    }
+
+    auto* currentItem = m_webPageProxyForBackForwardListForCurrentSwipe->backForwardList().currentItem();
+    // The main frame will not be navigated so hide the snapshot right away.
+    if (currentItem && currentItem->itemIsClone(*targetItem)) {
         removeSwipeSnapshot();
         return;
     }
@@ -322,6 +320,22 @@ void ViewGestureController::endSwipeGesture(WebBackForwardListItem* targetItem, 
         m_backgroundColorForCurrentSnapshot = snapshot->backgroundColor();
         m_webPageProxy.didChangeBackgroundColor();
     }
+
+    uint64_t pageID = m_webPageProxy.pageID();
+    GestureID gestureID = m_currentGestureID;
+    m_loadCallback = [this, pageID, gestureID] {
+        auto drawingArea = m_webPageProxy.provisionalDrawingArea();
+        if (!drawingArea) {
+            removeSwipeSnapshot();
+            return;
+        }
+
+        drawingArea->dispatchAfterEnsuringDrawing([pageID, gestureID] (CallbackBase::Error error) {
+            if (auto gestureController = controllerForGesture(pageID, gestureID))
+                gestureController->willCommitPostSwipeTransitionLayerTree(error == CallbackBase::Error::None);
+        });
+        drawingArea->hideContentUntilPendingUpdate();
+    };
 }
 
 void ViewGestureController::setRenderTreeSize(uint64_t renderTreeSize)
@@ -363,7 +377,7 @@ void ViewGestureController::removeSwipeSnapshot()
 
     m_swipeTransitionContext = nullptr;
 
-    m_backgroundColorForCurrentSnapshot = Color();
+    m_backgroundColorForCurrentSnapshot = WebCore::Color();
 
     didEndGesture();
 }
@@ -390,4 +404,4 @@ bool ViewGestureController::completeSimulatedSwipeInDirectionForTesting(SwipeDir
 
 } // namespace WebKit
 
-#endif // PLATFORM(IOS)
+#endif // PLATFORM(IOS_FAMILY)

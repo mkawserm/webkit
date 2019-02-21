@@ -39,7 +39,6 @@
 #include "FrameLoaderStateMachine.h"
 #include "FrameView.h"
 #include "MIMETypeRegistry.h"
-#include "MainFrame.h"
 #include "PluginDocument.h"
 #include "RawDataDocumentParser.h"
 #include "ScriptController.h"
@@ -118,7 +117,7 @@ Ref<Document> DocumentWriter::createDocument(const URL& url)
 {
     if (!m_frame->loader().stateMachine().isDisplayingInitialEmptyDocument() && m_frame->loader().client().shouldAlwaysUsePluginDocument(m_mimeType))
         return PluginDocument::create(m_frame, url);
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
     if (MIMETypeRegistry::isPDFMIMEType(m_mimeType) && (m_frame->isMainFrame() || !m_frame->settings().useImageDocumentForSubframePDF()))
         return SinkDocument::create(m_frame, url);
 #endif
@@ -147,7 +146,7 @@ bool DocumentWriter::begin(const URL& urlReference, bool dispatch, Document* own
 
     bool shouldReuseDefaultView = m_frame->loader().stateMachine().isDisplayingInitialEmptyDocument() && m_frame->document()->isSecureTransitionTo(url);
     if (shouldReuseDefaultView)
-        document->takeDOMWindowFrom(m_frame->document());
+        document->takeDOMWindowFrom(*m_frame->document());
     else
         document->createDOMWindow();
 
@@ -155,7 +154,7 @@ bool DocumentWriter::begin(const URL& urlReference, bool dispatch, Document* own
     // requests in new navigation contexts. Although this information is present when we construct the
     // Document object, it is discard in the subsequent 'clear' statements below. So, we must capture it
     // so we can restore it.
-    HashSet<RefPtr<SecurityOrigin>> insecureNavigationRequestsToUpgrade;
+    HashSet<SecurityOriginData> insecureNavigationRequestsToUpgrade;
     if (auto* existingDocument = m_frame->document())
         insecureNavigationRequestsToUpgrade = existingDocument->contentSecurityPolicy()->takeNavigationRequestsToUpgrade();
     
@@ -252,6 +251,14 @@ void DocumentWriter::addData(const char* bytes, size_t length)
 
     ASSERT(m_parser);
     m_parser->appendBytes(*this, bytes, length);
+}
+
+void DocumentWriter::insertDataSynchronously(const String& markup)
+{
+    ASSERT(m_state != NotStartedWritingState);
+    ASSERT(m_state != FinishedWritingState);
+    ASSERT(m_parser);
+    m_parser->insert(markup);
 }
 
 void DocumentWriter::end()

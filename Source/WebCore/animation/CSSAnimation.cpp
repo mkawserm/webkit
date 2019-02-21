@@ -31,19 +31,88 @@
 
 namespace WebCore {
 
-Ref<CSSAnimation> CSSAnimation::create(Element& target, const Animation&)
+Ref<CSSAnimation> CSSAnimation::create(Element& owningElement, const Animation& backingAnimation, const RenderStyle* oldStyle, const RenderStyle& newStyle)
 {
-    auto& document = target.document();
-
-    auto result = adoptRef(*new CSSAnimation(document));
-
+    auto result = adoptRef(*new CSSAnimation(owningElement, backingAnimation, newStyle));
+    result->initialize(oldStyle, newStyle);
     return result;
 }
 
-CSSAnimation::CSSAnimation(Document& document)
-    : WebAnimation(document)
+CSSAnimation::CSSAnimation(Element& element, const Animation& backingAnimation, const RenderStyle& unanimatedStyle)
+    : DeclarativeAnimation(element, backingAnimation)
+    , m_animationName(backingAnimation.name())
+    , m_unanimatedStyle(RenderStyle::clonePtr(unanimatedStyle))
 {
 }
 
+void CSSAnimation::syncPropertiesWithBackingAnimation()
+{
+    DeclarativeAnimation::syncPropertiesWithBackingAnimation();
+
+    if (!effect())
+        return;
+
+    suspendEffectInvalidation();
+
+    auto& animation = backingAnimation();
+    auto* animationEffect = effect();
+
+    switch (animation.fillMode()) {
+    case AnimationFillMode::None:
+        animationEffect->setFill(FillMode::None);
+        break;
+    case AnimationFillMode::Backwards:
+        animationEffect->setFill(FillMode::Backwards);
+        break;
+    case AnimationFillMode::Forwards:
+        animationEffect->setFill(FillMode::Forwards);
+        break;
+    case AnimationFillMode::Both:
+        animationEffect->setFill(FillMode::Both);
+        break;
+    }
+
+    switch (animation.direction()) {
+    case Animation::AnimationDirectionNormal:
+        animationEffect->setDirection(PlaybackDirection::Normal);
+        break;
+    case Animation::AnimationDirectionAlternate:
+        animationEffect->setDirection(PlaybackDirection::Alternate);
+        break;
+    case Animation::AnimationDirectionReverse:
+        animationEffect->setDirection(PlaybackDirection::Reverse);
+        break;
+    case Animation::AnimationDirectionAlternateReverse:
+        animationEffect->setDirection(PlaybackDirection::AlternateReverse);
+        break;
+    }
+
+    auto iterationCount = animation.iterationCount();
+    animationEffect->setIterations(iterationCount == Animation::IterationCountInfinite ? std::numeric_limits<double>::infinity() : iterationCount);
+
+    animationEffect->setDelay(Seconds(animation.delay()));
+    animationEffect->setIterationDuration(Seconds(animation.duration()));
+
+    // Synchronize the play state
+    if (animation.playState() == AnimationPlayState::Playing && playState() == WebAnimation::PlayState::Paused) {
+        if (!m_stickyPaused)
+            play();
+    } else if (animation.playState() == AnimationPlayState::Paused && playState() == WebAnimation::PlayState::Running)
+        pause();
+
+    unsuspendEffectInvalidation();
+}
+
+ExceptionOr<void> CSSAnimation::bindingsPlay()
+{
+    m_stickyPaused = false;
+    return DeclarativeAnimation::bindingsPlay();
+}
+
+ExceptionOr<void> CSSAnimation::bindingsPause()
+{
+    m_stickyPaused = true;
+    return DeclarativeAnimation::bindingsPause();
+}
 
 } // namespace WebCore

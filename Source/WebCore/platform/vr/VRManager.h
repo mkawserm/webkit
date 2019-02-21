@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 Igalia, S.L. All right reserved.
+ * Copyright (C) 2017-2018 Igalia, S.L. All right reserved.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -20,6 +20,7 @@
 
 #pragma once
 
+#include <wtf/HashMap.h>
 #include <wtf/NeverDestroyed.h>
 #include <wtf/Vector.h>
 #include <wtf/WeakPtr.h>
@@ -38,11 +39,13 @@ public:
 
     WEBCORE_EXPORT static VRManager& singleton();
 
-    std::optional<VRDisplaysVector> getVRDisplays();
+    Optional<VRDisplaysVector> getVRDisplays();
 
 private:
     VRManager();
 
+    using VRDisplaysHashMap = HashMap<uint32_t, WeakPtr<VRPlatformDisplay>>;
+    VRDisplaysHashMap m_displays;
     std::unique_ptr<VRPlatformManager> m_platformManager;
 };
 

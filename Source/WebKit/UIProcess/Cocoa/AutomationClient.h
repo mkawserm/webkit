@@ -30,8 +30,8 @@
 #if ENABLE(REMOTE_INSPECTOR)
 
 #import "APIAutomationClient.h"
-#import "WeakObjCPtr.h"
 #import <JavaScriptCore/RemoteInspector.h>
+#import <wtf/WeakObjCPtr.h>
 
 @class WKProcessPool;
 
@@ -40,20 +40,21 @@
 namespace WebKit {
 
 class AutomationClient final : public API::AutomationClient, Inspector::RemoteInspector::Client {
+    WTF_MAKE_FAST_ALLOCATED;
 public:
     explicit AutomationClient(WKProcessPool *, id <_WKAutomationDelegate>);
     virtual ~AutomationClient();
 
 private:
     // API::AutomationClient
-    bool allowsRemoteAutomation(WebProcessPool*) override { return remoteAutomationAllowed(); }
-    void didRequestAutomationSession(WebKit::WebProcessPool*, const String& sessionIdentifier) override;
-
-    void requestAutomationSessionWithCapabilities(NSString *sessionIdentifier, NSDictionary *forwardedCapabilities) override;
+    bool allowsRemoteAutomation(WebProcessPool*) final { return remoteAutomationAllowed(); }
+    void didRequestAutomationSession(WebKit::WebProcessPool*, const String& sessionIdentifier) final;
 
     // RemoteInspector::Client
-    bool remoteAutomationAllowed() const override;
-    void requestAutomationSession(const String& sessionIdentifier) override;
+    bool remoteAutomationAllowed() const final;
+    void requestAutomationSession(const String& sessionIdentifier, const Inspector::RemoteInspector::Client::SessionCapabilities&) final;
+    String browserName() const final;
+    String browserVersion() const final;
 
     WKProcessPool *m_processPool;
     WeakObjCPtr<id <_WKAutomationDelegate>> m_delegate;
@@ -61,6 +62,8 @@ private:
     struct {
         bool allowsRemoteAutomation : 1;
         bool requestAutomationSession : 1;
+        bool browserNameForAutomation : 1;
+        bool browserVersionForAutomation : 1;
     } m_delegateMethods;
 };
 

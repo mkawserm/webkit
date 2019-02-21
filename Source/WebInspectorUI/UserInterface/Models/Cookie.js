@@ -25,47 +25,47 @@
 
 WI.Cookie = class Cookie
 {
-    constructor(type, name, value, raw, expires, maxAge, path, domain, secure, httpOnly)
+    constructor(type, name, value, {header, expires, maxAge, path, domain, secure, httpOnly, sameSite, size} = {})
     {
         console.assert(Object.values(WI.Cookie.Type).includes(type));
         console.assert(typeof name === "string");
         console.assert(typeof value === "string");
-        console.assert(!raw || typeof raw === "string");
+        console.assert(!header || typeof header === "string");
         console.assert(!expires || expires instanceof Date);
         console.assert(!maxAge || typeof maxAge === "number");
         console.assert(!path || typeof path === "string");
         console.assert(!domain || typeof domain === "string");
         console.assert(!secure || typeof secure === "boolean");
         console.assert(!httpOnly || typeof httpOnly === "boolean");
+        console.assert(!sameSite || Object.values(WI.Cookie.SameSiteType).includes(sameSite));
+        console.assert(!size || typeof size === "number");
 
-        this.type = type;
-        this.name = name || "";
-        this.value = value || "";
+        this._type = type;
+        this._name = name;
+        this._value = value;
+        this._size = size || this._name.length + this._value.length;
 
-        if (this.type === WI.Cookie.Type.Response) {
-            this.rawHeader = raw || "";
-            this.expires = expires || null;
-            this.maxAge = maxAge || null;
-            this.path = path || null;
-            this.domain = domain || null;
-            this.secure = secure || false;
-            this.httpOnly = httpOnly || false;
+        if (this._type === WI.Cookie.Type.Response) {
+            this._header = header || "";
+            this._expires = expires || null;
+            this._maxAge = maxAge || null;
+            this._path = path || null;
+            this._domain = domain || null;
+            this._secure = secure || false;
+            this._httpOnly = httpOnly || false;
+            this._sameSite = sameSite || WI.Cookie.SameSiteType.None;
         }
-    }
-
-    // Public
-
-    expirationDate(requestSentDate)
-    {
-        if (this.maxAge) {
-            let startDate = requestSentDate || new Date;
-            return new Date(startDate.getTime() + (this.maxAge * 1000));
-        }
-
-        return this.expires;
     }
 
     // Static
+
+    static fromPayload(payload)
+    {
+        let {name, value, ...options} = payload;
+        options.expires = options.expires ? new Date(options.expires) : null;
+
+        return new WI.Cookie(WI.Cookie.Type.Response, name, value, options);
+    }
 
     // RFC 6265 defines the HTTP Cookie and Set-Cookie header fields:
     // https://www.ietf.org/rfc/rfc6265.txt
@@ -99,6 +99,35 @@ WI.Cookie = class Cookie
         return cookies;
     }
 
+    static displayNameForSameSiteType(sameSiteType)
+    {
+        switch (sameSiteType) {
+        case WI.Cookie.SameSiteType.None:
+            return WI.unlocalizedString("None");
+        case WI.Cookie.SameSiteType.Lax:
+            return WI.unlocalizedString("Lax");
+        case WI.Cookie.SameSiteType.Strict:
+            return WI.unlocalizedString("Strict");
+        default:
+            console.error("Invalid SameSite type", sameSiteType);
+            return sameSiteType;
+        }
+    }
+
+    // Derived from <https://tools.ietf.org/html/draft-west-first-party-cookies-06#section-3.2>.
+    static parseSameSiteAttributeValue(attributeValue)
+    {
+        if (!attributeValue)
+            return WI.Cookie.SameSiteType.Strict;
+        switch (attributeValue.toLowerCase()) {
+        case "lax":
+            return WI.Cookie.SameSiteType.Lax;
+        case "strict":
+        default:
+            return WI.Cookie.SameSiteType.Strict;
+        }
+    }
+
     static parseSetCookieResponseHeader(header)
     {
         if (!header)
@@ -122,6 +151,7 @@ WI.Cookie = class Cookie
         let domain = null;
         let secure = false;
         let httpOnly = false;
+        let sameSite = WI.Cookie.SameSiteType.None;
 
         // Parse Attributes
         let remaining = header.substr(nameValueMatch[0].length);
@@ -171,17 +201,60 @@ WI.Cookie = class Cookie
                 console.assert(!attributeValue);
                 httpOnly = true;
                 break;
+            case "samesite":
+                sameSite = WI.Cookie.parseSameSiteAttributeValue(attributeValue);
+                break;
             default:
                 console.warn("Unknown Cookie attribute:", attribute);
                 break;
             }
         }
 
-        return new WI.Cookie(WI.Cookie.Type.Response, name, value, header, expires, maxAge, path, domain, secure, httpOnly);
+        return new WI.Cookie(WI.Cookie.Type.Response, name, value, {header, expires, maxAge, path, domain, secure, httpOnly, sameSite});
     }
-}
+
+    // Public
+
+    get type() { return this._type; }
+    get name() { return this._name; }
+    get value() { return this._value; }
+    get header() { return this._header; }
+    get expires() { return this._expires; }
+    get maxAge() { return this._maxAge; }
+    get path() { return this._path; }
+    get domain() { return this._domain; }
+    get secure() { return this._secure; }
+    get httpOnly() { return this._httpOnly; }
+    get sameSite() { return this._sameSite; }
+    get size() { return this._size; }
+
+    get url()
+    {
+        let url = this._secure ? "https://" : "http://";
+        url += this._domain || "";
+        url += this._path || "";
+        return url;
+    }
+
+    expirationDate(requestSentDate)
+    {
+        if (this._maxAge) {
+            let startDate = requestSentDate || new Date;
+            return new Date(startDate.getTime() + (this._maxAge * 1000));
+        }
+
+        return this._expires;
+    }
+};
 
 WI.Cookie.Type = {
     Request: "request",
     Response: "response",
+};
+
+// Keep these in sync with the "CookieSameSitePolicy" enum defined by the "Page" domain.
+WI.Cookie.SameSiteType = {
+    None: "None",
+    Lax: "Lax",
+    Strict: "Strict",
 };

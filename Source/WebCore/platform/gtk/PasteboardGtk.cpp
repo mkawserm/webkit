@@ -20,14 +20,15 @@
 #include "config.h"
 #include "Pasteboard.h"
 
+#include "Color.h"
 #include "DragData.h"
 #include "Image.h"
 #include "NotImplemented.h"
 #include "PasteboardStrategy.h"
 #include "PlatformStrategies.h"
 #include "SelectionData.h"
-#include "URL.h"
 #include <wtf/NeverDestroyed.h>
+#include <wtf/URL.h>
 
 namespace WebCore {
 
@@ -265,17 +266,17 @@ Vector<String> Pasteboard::typesForLegacyUnsafeBindings()
 
     Vector<String> types;
     if (m_selectionData->hasText()) {
-        types.append(ASCIILiteral("text/plain"));
-        types.append(ASCIILiteral("Text"));
-        types.append(ASCIILiteral("text"));
+        types.append("text/plain"_s);
+        types.append("Text"_s);
+        types.append("text"_s);
     }
 
     if (m_selectionData->hasMarkup())
-        types.append(ASCIILiteral("text/html"));
+        types.append("text/html"_s);
 
     if (m_selectionData->hasURIList()) {
-        types.append(ASCIILiteral("text/uri-list"));
-        types.append(ASCIILiteral("URL"));
+        types.append("text/uri-list"_s);
+        types.append("URL"_s);
     }
 
     for (auto& key : m_selectionData->unknownTypes().keys())
@@ -318,10 +319,10 @@ String Pasteboard::readStringInCustomData(const String&)
     return { };
 }
 
-bool Pasteboard::containsFiles()
+Pasteboard::FileContentState Pasteboard::fileContentState()
 {
     readFromClipboard();
-    return !m_selectionData->filenames().isEmpty();
+    return m_selectionData->filenames().isEmpty() ? FileContentState::NoFileOrImageData : FileContentState::MayContainFilePaths;
 }
 
 void Pasteboard::writeMarkup(const String&)
@@ -329,6 +330,10 @@ void Pasteboard::writeMarkup(const String&)
 }
 
 void Pasteboard::writeCustomData(const PasteboardCustomData&)
+{
+}
+
+void Pasteboard::write(const Color&)
 {
 }
 

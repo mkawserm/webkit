@@ -68,8 +68,6 @@ list(APPEND DumpRenderTree_Cpp_SOURCES
 )
 
 list(APPEND DumpRenderTree_ObjCpp_SOURCES
-    TestOptions.mm
-
     mac/AccessibilityCommonMac.mm
     mac/AccessibilityControllerMac.mm
     mac/AccessibilityNotificationHandler.mm
@@ -79,7 +77,6 @@ list(APPEND DumpRenderTree_ObjCpp_SOURCES
     mac/DumpRenderTreeDraggingInfo.mm
     mac/DumpRenderTreeMain.mm
     mac/DumpRenderTreePasteboard.mm
-    mac/DumpRenderTreeSpellChecker.mm
     mac/DumpRenderTreeWindow.mm
     mac/EditingDelegate.mm
     mac/EventSendingController.mm
@@ -108,11 +105,11 @@ foreach (_file ${DumpRenderTree_ObjC_SOURCES})
 endforeach ()
 
 foreach (_file ${DumpRenderTree_Cpp_SOURCES} ${TestNetscapePlugIn_Cpp_SOURCES})
-    set_source_files_properties(${_file} PROPERTIES COMPILE_FLAGS "-std=c++14")
+    set_source_files_properties(${_file} PROPERTIES COMPILE_FLAGS "-std=c++17")
 endforeach ()
 
 foreach (_file ${DumpRenderTree_ObjCpp_SOURCES} ${TestNetscapePlugIn_ObjCpp_SOURCES})
-    set_source_files_properties(${_file} PROPERTIES COMPILE_FLAGS "-ObjC++ -std=c++14")
+    set_source_files_properties(${_file} PROPERTIES COMPILE_FLAGS "-ObjC++ -std=c++17")
 endforeach ()
 
 set(DumpRenderTree_RESOURCES

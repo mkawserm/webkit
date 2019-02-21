@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2016 Apple Inc. All rights reserved.
+ * Copyright (C) 2010-2018 Apple Inc. All rights reserved.
  * Copyright (C) 2010 Nokia Corporation and/or its subsidiary(-ies)
  * Portions Copyright (c) 2010 Motorola Mobility, Inc.  All rights reserved.
  * Copyright (C) 2017 Sony Interactive Entertainment Inc.
@@ -32,13 +32,16 @@
 #include "Encoder.h"
 #include "HandleMessage.h"
 #include "MessageReceiver.h"
+#include <WebCore/ScriptDisallowedScope.h>
 #include <atomic>
 #include <wtf/Condition.h>
 #include <wtf/Deque.h>
 #include <wtf/Forward.h>
 #include <wtf/HashMap.h>
 #include <wtf/Lock.h>
+#include <wtf/ObjectIdentifier.h>
 #include <wtf/OptionSet.h>
+#include <wtf/RunLoop.h>
 #include <wtf/WorkQueue.h>
 #include <wtf/text/CString.h>
 
@@ -58,14 +61,13 @@ enum class SendOption {
     // Whether this message should be dispatched when waiting for a sync reply.
     // This is the default for synchronous messages.
     DispatchMessageEvenWhenWaitingForSyncReply = 1 << 0,
+    IgnoreFullySynchronousMode = 1 << 1,
 };
 
 enum class SendSyncOption {
     // Use this to inform that this sync call will suspend this process until the user responds with input.
     InformPlatformProcessWillSuspend = 1 << 0,
     UseFullySynchronousModeForTesting = 1 << 1,
-
-    DoNotProcessIncomingMessagesWhenWaitingForSyncReply = 1 << 2,
 };
 
 enum class WaitForOption {
@@ -84,7 +86,7 @@ while (0)
 class MachMessage;
 class UnixMessage;
 
-class Connection : public ThreadSafeRefCounted<Connection> {
+class Connection : public ThreadSafeRefCounted<Connection, WTF::DestructionThread::Main> {
 public:
     class Client : public MessageReceiver {
     public:
@@ -100,7 +102,7 @@ public:
 
 #if USE(UNIX_DOMAIN_SOCKETS)
     typedef int Identifier;
-    static bool identifierIsNull(Identifier identifier) { return identifier == -1; }
+    static bool identifierIsValid(Identifier identifier) { return identifier != -1; }
 
     struct SocketPair {
         int client;
@@ -116,7 +118,6 @@ public:
 #elif OS(DARWIN)
     struct Identifier {
         Identifier()
-            : port(MACH_PORT_NULL)
         {
         }
 
@@ -131,17 +132,17 @@ public:
         {
         }
 
-        mach_port_t port;
+        mach_port_t port { MACH_PORT_NULL };
         OSObjectPtr<xpc_connection_t> xpcConnection;
     };
-    static bool identifierIsNull(Identifier identifier) { return identifier.port == MACH_PORT_NULL; }
+    static bool identifierIsValid(Identifier identifier) { return MACH_PORT_VALID(identifier.port); }
     xpc_connection_t xpcConnection() const { return m_xpcConnection.get(); }
-    bool getAuditToken(audit_token_t&);
+    Optional<audit_token_t> getAuditToken();
     pid_t remoteProcessID() const;
 #elif OS(WINDOWS)
     typedef HANDLE Identifier;
     static bool createServerAndClientIdentifiers(Identifier& serverIdentifier, Identifier& clientIdentifier);
-    static bool identifierIsNull(Identifier identifier) { return !identifier; }
+    static bool identifierIsValid(Identifier identifier) { return !!identifier; }
 #endif
 
     static Ref<Connection> createServerConnection(Identifier, Client&);
@@ -149,6 +150,12 @@ public:
     ~Connection();
 
     Client& client() const { return m_client; }
+
+    enum UniqueIDType { };
+    using UniqueID = ObjectIdentifier<UniqueIDType>;
+
+    static Connection* connection(UniqueID);
+    UniqueID uniqueID() const { return m_uniqueID; }
 
     void setOnlySendMessagesAsDispatchWhenWaitingForSyncReplyWhenProcessingSuchAMessage(bool);
     void setShouldExitOnSyncMessageSendFailure(bool);
@@ -170,8 +177,9 @@ public:
 
     void postConnectionDidCloseOnConnectionWorkQueue();
 
+    template<typename T, typename... Args> void sendWithAsyncReply(T&& message, CompletionHandler<void(Args...)>&& args, uint64_t destinationID = 0);
     template<typename T> bool send(T&& message, uint64_t destinationID, OptionSet<SendOption> sendOptions = { });
-    template<typename T> void sendWithReply(T&& message, uint64_t destinationID, FunctionDispatcher& replyDispatcher, Function<void(std::optional<typename CodingType<typename T::Reply>::Type>)>&& replyHandler);
+    template<typename T> void sendWithReply(T&& message, uint64_t destinationID, FunctionDispatcher& replyDispatcher, Function<void(Optional<typename CodingType<typename T::Reply>::Type>)>&& replyHandler);
     template<typename T> bool sendSync(T&& message, typename T::Reply&& reply, uint64_t destinationID, Seconds timeout = Seconds::infinity(), OptionSet<SendSyncOption> sendSyncOptions = { });
     template<typename T> bool waitForAndDispatchImmediately(uint64_t destinationID, Seconds timeout, OptionSet<WaitForOption> waitForOptions = { });
 
@@ -209,6 +217,8 @@ public:
 
     void ignoreTimeoutsForTesting() { m_ignoreTimeoutsForTesting = true; }
 
+    void enableIncomingMessagesThrottling();
+
 private:
     Connection(Identifier, bool isServer, Client&);
     void platformInitialize(Identifier);
@@ -231,7 +241,8 @@ private:
     void connectionDidClose();
     
     // Called on the listener thread.
-    void dispatchOneMessage();
+    void dispatchOneIncomingMessage();
+    void dispatchIncomingMessages();
     void dispatchMessage(std::unique_ptr<Decoder>);
     void dispatchMessage(Decoder&);
     void dispatchSyncMessage(Decoder&);
@@ -240,6 +251,7 @@ private:
 
     // Can be called on any thread.
     void enqueueIncomingMessage(std::unique_ptr<Decoder>);
+    size_t incomingMessagesDispatchingBatchSize() const;
 
     void willSendSyncMessage(OptionSet<SendSyncOption>);
     void didReceiveSyncReply(OptionSet<SendSyncOption>);
@@ -250,7 +262,24 @@ private:
     bool sendMessage(std::unique_ptr<MachMessage>);
 #endif
 
+    class MessagesThrottler {
+        WTF_MAKE_FAST_ALLOCATED;
+    public:
+        typedef void (Connection::*DispatchMessagesFunction)();
+        MessagesThrottler(Connection&, DispatchMessagesFunction);
+
+        size_t numberOfMessagesToProcess(size_t totalMessages);
+        void scheduleMessagesDispatch();
+
+    private:
+        RunLoop::Timer<Connection> m_dispatchMessagesTimer;
+        Connection& m_connection;
+        DispatchMessagesFunction m_dispatchMessages;
+        unsigned m_throttlingLevel { 0 };
+    };
+
     Client& m_client;
+    UniqueID m_uniqueID;
     bool m_isServer;
     std::atomic<bool> m_isValid { true };
     std::atomic<uint64_t> m_syncRequestID;
@@ -275,6 +304,7 @@ private:
     // Incoming messages.
     Lock m_incomingMessagesMutex;
     Deque<std::unique_ptr<Decoder>> m_incomingMessages;
+    std::unique_ptr<MessagesThrottler> m_incomingMessagesThrottler;
 
     // Outgoing messages.
     Lock m_outgoingMessagesMutex;
@@ -327,26 +357,47 @@ private:
     // Called on the connection queue.
     void receiveSourceEventHandler();
     void initializeSendSource();
+    void resumeSendSource();
+    void cancelReceiveSource();
 
-    mach_port_t m_sendPort;
-    dispatch_source_t m_sendSource;
+    mach_port_t m_sendPort { MACH_PORT_NULL };
+    dispatch_source_t m_sendSource { nullptr };
 
-    mach_port_t m_receivePort;
-    dispatch_source_t m_receiveSource;
+    mach_port_t m_receivePort { MACH_PORT_NULL };
+    dispatch_source_t m_receiveSource { nullptr };
 
     std::unique_ptr<MachMessage> m_pendingOutgoingMachMessage;
+    bool m_isInitializingSendSource { false };
 
     OSObjectPtr<xpc_connection_t> m_xpcConnection;
+    bool m_wasKilled { false };
 #elif OS(WINDOWS)
     // Called on the connection queue.
     void readEventHandler();
     void writeEventHandler();
+    void invokeReadEventHandler();
+    void invokeWriteEventHandler();
+
+    class EventListener {
+    public:
+        void open(Function<void()>&&);
+        void close();
+
+        OVERLAPPED& state() { return m_state; }
+
+    private:
+        static void callback(void*, BOOLEAN);
+
+        OVERLAPPED m_state;
+        HANDLE m_waitHandle { INVALID_HANDLE_VALUE };
+        Function<void()> m_handler;
+    };
 
     Vector<uint8_t> m_readBuffer;
-    OVERLAPPED m_readState;
+    EventListener m_readListener;
     std::unique_ptr<Encoder> m_pendingWriteEncoder;
-    OVERLAPPED m_writeState;
-    HANDLE m_connectionPipe;
+    EventListener m_writeListener;
+    HANDLE m_connectionPipe { INVALID_HANDLE_VALUE };
 #endif
 };
 
@@ -361,8 +412,30 @@ bool Connection::send(T&& message, uint64_t destinationID, OptionSet<SendOption>
     return sendMessage(WTFMove(encoder), sendOptions);
 }
 
+uint64_t nextAsyncReplyHandlerID();
+void addAsyncReplyHandler(Connection&, uint64_t, CompletionHandler<void(Decoder*)>&&);
+CompletionHandler<void(Decoder*)> takeAsyncReplyHandler(Connection&, uint64_t);
+
+template<typename T, typename... Args>
+void Connection::sendWithAsyncReply(T&& message, CompletionHandler<void(Args...)>&& completionHandler, uint64_t destinationID)
+{
+    COMPILE_ASSERT(!T::isSync, AsyncMessageExpected);
+
+    auto encoder = std::make_unique<Encoder>(T::receiverName(), T::name(), destinationID);
+    uint64_t listenerID = nextAsyncReplyHandlerID();
+    encoder->encode(listenerID);
+    encoder->encode(message.arguments());
+    sendMessage(WTFMove(encoder), { });
+    addAsyncReplyHandler(*this, listenerID, [completionHandler = WTFMove(completionHandler)] (Decoder* decoder) mutable {
+        if (decoder && !decoder->isInvalid())
+            T::callReply(*decoder, WTFMove(completionHandler));
+        else
+            T::cancelReply(WTFMove(completionHandler));
+    });
+}
+
 template<typename T>
-void Connection::sendWithReply(T&& message, uint64_t destinationID, FunctionDispatcher& replyDispatcher, Function<void(std::optional<typename CodingType<typename T::Reply>::Type>)>&& replyHandler)
+void Connection::sendWithReply(T&& message, uint64_t destinationID, FunctionDispatcher& replyDispatcher, Function<void(Optional<typename CodingType<typename T::Reply>::Type>)>&& replyHandler)
 {
     uint64_t requestID = 0;
     std::unique_ptr<Encoder> encoder = createSyncMessageEncoder(T::receiverName(), T::name(), destinationID, requestID);
@@ -378,7 +451,7 @@ void Connection::sendWithReply(T&& message, uint64_t destinationID, FunctionDisp
             }
         }
 
-        replyHandler(std::nullopt);
+        replyHandler(WTF::nullopt);
     });
 }
 

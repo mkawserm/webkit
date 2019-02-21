@@ -30,17 +30,16 @@ class VCMReceiver {
  public:
   // Constructor for current interface, will be removed when the
   // new jitter buffer is in place.
-  VCMReceiver(VCMTiming* timing, Clock* clock, EventFactory* event_factory);
+  VCMReceiver(VCMTiming* timing, Clock* clock);
 
   // Create method for the new jitter buffer.
   VCMReceiver(VCMTiming* timing,
               Clock* clock,
-              EventFactory* event_factory,
               NackSender* nack_sender,
               KeyFrameRequestSender* keyframe_request_sender);
 
-  // Using this constructor, you can specify a different event factory for the
-  // jitter buffer. Useful for unit tests when you want to simulate incoming
+  // Using this constructor, you can specify a different event implemetation for
+  // the jitter buffer. Useful for unit tests when you want to simulate incoming
   // packets, in which case the jitter buffer's wait event is different from
   // that of VCMReceiver itself.
   //
@@ -78,9 +77,6 @@ class VCMReceiver {
                        int max_incomplete_time_ms);
   VCMNackMode NackMode() const;
   std::vector<uint16_t> NackList(bool* request_key_frame);
-
-  // Receiver video delay.
-  int SetMinReceiverDelay(int desired_delay_ms);
 
   // Decoding with errors.
   void SetDecodeErrorMode(VCMDecodeErrorMode decode_error_mode);

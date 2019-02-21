@@ -30,7 +30,6 @@
 #include "PlatformUtilities.h"
 #include "PlatformWebView.h"
 #include "Test.h"
-#include <JavaScriptCore/JSRetainPtr.h>
 #include <JavaScriptCore/JavaScriptCore.h>
 #include <WebKit/WKSerializedScriptValue.h>
 #include <WebKit/WKPagePrivate.h>
@@ -66,7 +65,7 @@ static void isMSEEnabledCallback(WKSerializedScriptValueRef serializedResultValu
     JSGlobalContextRelease(scriptContext);
 }
 
-static void didFinishLoadForFrame(WKPageRef page, WKFrameRef, WKTypeRef, const void*)
+static void didFinishNavigation(WKPageRef page, WKNavigationRef, WKTypeRef, const void*)
 {
     didFinishLoad = true;
 }
@@ -78,13 +77,13 @@ static void isPlayingAudioDidChangeCallback(WKPageRef page, const void*)
 
 static void setUpClients(WKPageRef page)
 {
-    WKPageLoaderClientV0 loaderClient;
+    WKPageNavigationClientV0 loaderClient;
     memset(&loaderClient, 0, sizeof(loaderClient));
 
     loaderClient.base.version = 0;
-    loaderClient.didFinishLoadForFrame = didFinishLoadForFrame;
+    loaderClient.didFinishNavigation = didFinishNavigation;
 
-    WKPageSetPageLoaderClient(page, &loaderClient.base);
+    WKPageSetPageNavigationClient(page, &loaderClient.base);
 
     WKPageUIClientV5 uiClient;
     memset(&uiClient, 0, sizeof(uiClient));
@@ -97,7 +96,7 @@ static void setUpClients(WKPageRef page)
 
 TEST(WebKit, WKPageIsPlayingAudio)
 {
-    WKRetainPtr<WKContextRef> context = adoptWK(WKContextCreate());
+    WKRetainPtr<WKContextRef> context = adoptWK(WKContextCreateWithConfiguration(nullptr));
 
     PlatformWebView webView(context.get());
     setUpClients(webView.page());
@@ -116,7 +115,7 @@ TEST(WebKit, WKPageIsPlayingAudio)
 
 TEST(WebKit, MSEIsPlayingAudio)
 {
-    WKRetainPtr<WKContextRef> context = adoptWK(WKContextCreate());
+    WKRetainPtr<WKContextRef> context = adoptWK(WKContextCreateWithConfiguration(nullptr));
 
     WKRetainPtr<WKPageGroupRef> pageGroup(AdoptWK, WKPageGroupCreateWithIdentifier(Util::toWK("MSEIsPlayingAudioPageGroup").get()));
     WKPreferencesRef preferences = WKPageGroupGetPreferences(pageGroup.get());

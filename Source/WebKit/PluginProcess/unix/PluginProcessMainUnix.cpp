@@ -30,12 +30,12 @@
 
 #if ENABLE(PLUGIN_PROCESS)
 
-#include "ChildProcessMain.h"
+#include "AuxiliaryProcessMain.h"
 #include "Logging.h"
 #include "NetscapePlugin.h"
 #include "PluginProcess.h"
-#include <WebCore/FileSystem.h>
 #include <stdlib.h>
+#include <wtf/FileSystem.h>
 
 #if PLATFORM(GTK)
 #include <gtk/gtk.h>
@@ -44,15 +44,16 @@
 #if PLATFORM(X11)
 #include <WebCore/PlatformDisplayX11.h>
 #include <WebCore/XErrorTrapper.h>
+#include <wtf/NeverDestroyed.h>
 #endif
 
 namespace WebKit {
 
 #if PLATFORM(X11)
-static std::unique_ptr<WebCore::XErrorTrapper> xErrorTrapper;
+static LazyNeverDestroyed<WebCore::XErrorTrapper> xErrorTrapper;
 #endif
 
-class PluginProcessMain final: public ChildProcessMainBase {
+class PluginProcessMain final: public AuxiliaryProcessMainBase {
 public:
     bool platformInitialize() override
     {
@@ -82,18 +83,18 @@ public:
 #if PLATFORM(X11)
         if (WebCore::PlatformDisplay::sharedDisplay().type() == WebCore::PlatformDisplay::Type::X11) {
             auto* display = downcast<WebCore::PlatformDisplayX11>(WebCore::PlatformDisplay::sharedDisplay()).native();
-            xErrorTrapper = std::make_unique<WebCore::XErrorTrapper>(display, WebCore::XErrorTrapper::Policy::Warn);
+            xErrorTrapper.construct(display, WebCore::XErrorTrapper::Policy::Warn);
         }
 #endif
 
         m_parameters.extraInitializationData.add("plugin-path", argv[3]);
-        return ChildProcessMainBase::parseCommandLine(argc, argv);
+        return AuxiliaryProcessMainBase::parseCommandLine(argc, argv);
     }
 };
 
 int PluginProcessMainUnix(int argc, char** argv)
 {
-    return ChildProcessMain<PluginProcess, PluginProcessMain>(argc, argv);
+    return AuxiliaryProcessMain<PluginProcess, PluginProcessMain>(argc, argv);
 }
 
 } // namespace WebKit

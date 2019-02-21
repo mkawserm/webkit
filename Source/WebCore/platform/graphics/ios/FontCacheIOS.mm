@@ -29,7 +29,7 @@
 #import "config.h"
 #import "FontCache.h"
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
 
 #import "FontCascade.h"
 #import "RenderThemeIOS.h"
@@ -45,7 +45,7 @@ namespace WebCore {
 
 bool requiresCustomFallbackFont(UChar32 character)
 {
-    return character == AppleLogo || character == blackCircle || character == narrowNonBreakingSpace;
+    return character == AppleLogo || character == narrowNonBreakingSpace;
 }
 
 FontPlatformData* FontCache::getCustomFallbackFont(const UInt32 c, const FontDescription& description)
@@ -53,16 +53,12 @@ FontPlatformData* FontCache::getCustomFallbackFont(const UInt32 c, const FontDes
     ASSERT(requiresCustomFallbackFont(c));
 
     static NeverDestroyed<AtomicString> helveticaFamily("Helvetica Neue", AtomicString::ConstructFromLiteral);
-    static NeverDestroyed<AtomicString> lockClockFamily("LockClock-Light", AtomicString::ConstructFromLiteral);
     static NeverDestroyed<AtomicString> timesNewRomanPSMTFamily("TimesNewRomanPSMT", AtomicString::ConstructFromLiteral);
 
     AtomicString* family = nullptr;
     switch (c) {
     case AppleLogo:
         family = &helveticaFamily.get();
-        break;
-    case blackCircle:
-        family = &lockClockFamily.get();
         break;
     case narrowNonBreakingSpace:
         family = &timesNewRomanPSMTFamily.get();
@@ -171,4 +167,4 @@ RetainPtr<CTFontRef> platformFontWithFamilySpecialCase(const AtomicString& famil
 
 } // namespace WebCore
 
-#endif // PLATFORM(IOS)
+#endif // PLATFORM(IOS_FAMILY)

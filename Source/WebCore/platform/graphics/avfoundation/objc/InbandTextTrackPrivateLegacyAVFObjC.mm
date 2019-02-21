@@ -25,7 +25,7 @@
 
 #import "config.h"
 
-#if ENABLE(VIDEO) && USE(AVFOUNDATION) && !HAVE(AVFOUNDATION_LEGIBLE_OUTPUT_SUPPORT) && !PLATFORM(IOS)
+#if ENABLE(VIDEO) && USE(AVFOUNDATION) && !HAVE(AVFOUNDATION_LEGIBLE_OUTPUT_SUPPORT) && !PLATFORM(IOS_FAMILY)
 
 #import "InbandTextTrackPrivateLegacyAVFObjC.h"
 
@@ -41,10 +41,10 @@ SOFT_LINK_CLASS(AVFoundation, AVPlayerItem)
 SOFT_LINK_CLASS(AVFoundation, AVMetadataItem)
 #define AVMediaTypeClosedCaption getAVMediaTypeClosedCaption()
 
-SOFT_LINK_POINTER(AVFoundation, AVMediaTypeClosedCaption, NSString *)
-SOFT_LINK_POINTER(AVFoundation, AVMediaCharacteristicLegible, NSString *)
-SOFT_LINK_POINTER(AVFoundation, AVMetadataCommonKeyTitle, NSString *)
-SOFT_LINK_POINTER(AVFoundation, AVMetadataKeySpaceCommon, NSString *)
+SOFT_LINK_CONSTANT(AVFoundation, AVMediaTypeClosedCaption, NSString *)
+SOFT_LINK_CONSTANT(AVFoundation, AVMediaCharacteristicLegible, NSString *)
+SOFT_LINK_CONSTANT(AVFoundation, AVMetadataCommonKeyTitle, NSString *)
+SOFT_LINK_CONSTANT(AVFoundation, AVMetadataKeySpaceCommon, NSString *)
 
 #define AVPlayerItem getAVPlayerItemClass()
 #define AVMetadataItem getAVMetadataItemClass()

@@ -23,8 +23,7 @@
  * THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef PlatformWebView_h
-#define PlatformWebView_h
+#pragma once
 
 #include "TestOptions.h"
 
@@ -49,11 +48,20 @@ typedef RetainPtr<CGImageRef> PlatformImage;
 typedef struct _GtkWidget GtkWidget;
 typedef WKViewRef PlatformWKView;
 typedef GtkWidget* PlatformWindow;
-typedef cairo_surface_t *PlatformImage;
 #elif PLATFORM(WPE)
+namespace WPEToolingBackends {
 class HeadlessViewBackend;
+}
 typedef WKViewRef PlatformWKView;
-typedef HeadlessViewBackend* PlatformWindow;
+typedef WPEToolingBackends::HeadlessViewBackend* PlatformWindow;
+#elif PLATFORM(WIN)
+#include <cairo.h>
+class TestRunnerWindow;
+typedef HWND PlatformWindow;
+typedef WKViewRef PlatformWKView;
+#endif
+
+#if USE(CAIRO)
 typedef cairo_surface_t* PlatformImage;
 #endif
 
@@ -91,11 +99,16 @@ public:
     void makeWebViewFirstResponder();
     void setWindowIsKey(bool);
     bool windowIsKey() const { return m_windowIsKey; }
-    
+
+    bool drawsBackground() const;
+    void setDrawsBackground(bool);
+
+    void setEditable(bool);
+
     void removeFromWindow();
     void addToWindow();
 
-    bool viewSupportsOptions(const TestOptions& options) const { return m_options.hasSameInitializationOptions(options); }
+    bool viewSupportsOptions(const TestOptions& options) const { return !options.runSingly && m_options.hasSameInitializationOptions(options); }
 
     PlatformImage windowSnapshotImage();
     const TestOptions& options() const { return m_options; }
@@ -120,5 +133,3 @@ private:
 };
 
 } // namespace WTR
-
-#endif // PlatformWebView_h

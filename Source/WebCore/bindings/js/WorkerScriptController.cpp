@@ -30,6 +30,7 @@
 #include "JSDOMBinding.h"
 #include "JSDedicatedWorkerGlobalScope.h"
 #include "JSEventTarget.h"
+#include "JSExecState.h"
 #include "JSServiceWorkerGlobalScope.h"
 #include "ScriptSourceCode.h"
 #include "WebCoreJSClientData.h"
@@ -39,6 +40,7 @@
 #include <JavaScriptCore/Exception.h>
 #include <JavaScriptCore/ExceptionHelpers.h>
 #include <JavaScriptCore/GCActivityCallback.h>
+#include <JavaScriptCore/JSCInlines.h>
 #include <JavaScriptCore/JSLock.h>
 #include <JavaScriptCore/PromiseDeferredTimer.h>
 #include <JavaScriptCore/StrongInlines.h>
@@ -86,12 +88,12 @@ void WorkerScriptController::initScript()
         m_workerGlobalScopeWrapper.set(*m_vm, JSDedicatedWorkerGlobalScope::create(*m_vm, structure, static_cast<DedicatedWorkerGlobalScope&>(*m_workerGlobalScope), proxy));
         dedicatedContextPrototypeStructure->setGlobalObject(*m_vm, m_workerGlobalScopeWrapper.get());
         ASSERT(structure->globalObject() == m_workerGlobalScopeWrapper);
-        ASSERT(m_workerGlobalScopeWrapper->structure()->globalObject() == m_workerGlobalScopeWrapper);
-        dedicatedContextPrototype->structure()->setGlobalObject(*m_vm, m_workerGlobalScopeWrapper.get());
-        dedicatedContextPrototype->structure()->setPrototypeWithoutTransition(*m_vm, JSWorkerGlobalScope::prototype(*m_vm, *m_workerGlobalScopeWrapper.get()));
+        ASSERT(m_workerGlobalScopeWrapper->structure(*m_vm)->globalObject() == m_workerGlobalScopeWrapper);
+        dedicatedContextPrototype->structure(*m_vm)->setGlobalObject(*m_vm, m_workerGlobalScopeWrapper.get());
+        dedicatedContextPrototype->structure(*m_vm)->setPrototypeWithoutTransition(*m_vm, JSWorkerGlobalScope::prototype(*m_vm, *m_workerGlobalScopeWrapper.get()));
 
         proxy->setTarget(*m_vm, m_workerGlobalScopeWrapper.get());
-        proxy->structure()->setGlobalObject(*m_vm, m_workerGlobalScopeWrapper.get());
+        proxy->structure(*m_vm)->setGlobalObject(*m_vm, m_workerGlobalScopeWrapper.get());
 #if ENABLE(SERVICE_WORKER)
     } else if (m_workerGlobalScope->isServiceWorkerGlobalScope()) {
         Structure* contextPrototypeStructure = JSServiceWorkerGlobalScopePrototype::createStructure(*m_vm, nullptr, jsNull());
@@ -104,11 +106,11 @@ void WorkerScriptController::initScript()
         contextPrototypeStructure->setGlobalObject(*m_vm, m_workerGlobalScopeWrapper.get());
         ASSERT(structure->globalObject() == m_workerGlobalScopeWrapper);
         ASSERT(m_workerGlobalScopeWrapper->structure()->globalObject() == m_workerGlobalScopeWrapper);
-        contextPrototype->structure()->setGlobalObject(*m_vm, m_workerGlobalScopeWrapper.get());
-        contextPrototype->structure()->setPrototypeWithoutTransition(*m_vm, JSWorkerGlobalScope::prototype(*m_vm, *m_workerGlobalScopeWrapper.get()));
+        contextPrototype->structure(*m_vm)->setGlobalObject(*m_vm, m_workerGlobalScopeWrapper.get());
+        contextPrototype->structure(*m_vm)->setPrototypeWithoutTransition(*m_vm, JSWorkerGlobalScope::prototype(*m_vm, *m_workerGlobalScopeWrapper.get()));
 
         proxy->setTarget(*m_vm, m_workerGlobalScopeWrapper.get());
-        proxy->structure()->setGlobalObject(*m_vm, m_workerGlobalScopeWrapper.get());
+        proxy->structure(*m_vm)->setGlobalObject(*m_vm, m_workerGlobalScopeWrapper.get());
 #endif
     }
     
@@ -143,7 +145,7 @@ void WorkerScriptController::evaluate(const ScriptSourceCode& sourceCode, NakedP
     VM& vm = state.vm();
     JSLockHolder lock { vm };
 
-    JSC::evaluate(&state, sourceCode.jsSourceCode(), m_workerGlobalScopeWrapper->globalThis(), returnedException);
+    JSExecState::profiledEvaluate(&state, JSC::ProfilingReason::Other, sourceCode.jsSourceCode(), m_workerGlobalScopeWrapper->globalThis(), returnedException);
 
     if ((returnedException && isTerminatedExecutionException(vm, returnedException)) || isTerminatingExecution()) {
         forbidExecution();
@@ -158,7 +160,7 @@ void WorkerScriptController::evaluate(const ScriptSourceCode& sourceCode, NakedP
                 *returnedExceptionMessage = returnedException->value().toWTFString(&state);
         } else {
             // Overwrite the detailed error with a generic error.
-            String genericErrorMessage { ASCIILiteral { "Script error." } };
+            String genericErrorMessage { "Script error."_s };
             if (returnedExceptionMessage)
                 *returnedExceptionMessage = genericErrorMessage;
             returnedException = JSC::Exception::create(vm, createError(&state, genericErrorMessage));

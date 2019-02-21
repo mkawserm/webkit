@@ -25,27 +25,36 @@
 
 #pragma once
 
-#include "WebAnimation.h"
+#include "DeclarativeAnimation.h"
 #include <wtf/Ref.h>
 
 namespace WebCore {
 
 class Animation;
 class Element;
+class RenderStyle;
 
-class CSSAnimation final : public WebAnimation {
+class CSSAnimation final : public DeclarativeAnimation {
 public:
-    static Ref<CSSAnimation> create(Element&, const Animation&);
+    static Ref<CSSAnimation> create(Element&, const Animation&, const RenderStyle* oldStyle, const RenderStyle& newStyle);
     ~CSSAnimation() = default;
 
     bool isCSSAnimation() const override { return true; }
     const String& animationName() const { return m_animationName; }
+    const RenderStyle& unanimatedStyle() const { return *m_unanimatedStyle; }
+
+    ExceptionOr<void> bindingsPlay() final;
+    ExceptionOr<void> bindingsPause() final;
+
+protected:
+    void syncPropertiesWithBackingAnimation() final;
 
 private:
-    CSSAnimation(Document&);
+    CSSAnimation(Element&, const Animation&, const RenderStyle&);
 
     String m_animationName;
-
+    std::unique_ptr<RenderStyle> m_unanimatedStyle;
+    bool m_stickyPaused { false };
 };
 
 } // namespace WebCore

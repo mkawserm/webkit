@@ -28,21 +28,49 @@
 
 #include "Animation.h"
 #include "Element.h"
+#include "KeyframeEffect.h"
 
 namespace WebCore {
 
-Ref<CSSTransition> CSSTransition::create(Element& target, const Animation&)
+Ref<CSSTransition> CSSTransition::create(Element& owningElement, CSSPropertyID property, MonotonicTime generationTime, const Animation& backingAnimation, const RenderStyle* oldStyle, const RenderStyle& newStyle, Seconds delay, Seconds duration, const RenderStyle& reversingAdjustedStartStyle, double reversingShorteningFactor)
 {
-    auto& document = target.document();
-
-    auto result = adoptRef(*new CSSTransition(document));
-
+    auto result = adoptRef(*new CSSTransition(owningElement, property, generationTime, backingAnimation, newStyle, reversingAdjustedStartStyle, reversingShorteningFactor));
+    result->initialize(oldStyle, newStyle);
+    result->setTimingProperties(delay, duration);
     return result;
 }
 
-CSSTransition::CSSTransition(Document& document)
-    : WebAnimation(document)
+CSSTransition::CSSTransition(Element& element, CSSPropertyID property, MonotonicTime generationTime, const Animation& backingAnimation, const RenderStyle& targetStyle, const RenderStyle& reversingAdjustedStartStyle, double reversingShorteningFactor)
+    : DeclarativeAnimation(element, backingAnimation)
+    , m_property(property)
+    , m_generationTime(generationTime)
+    , m_targetStyle(RenderStyle::clonePtr(targetStyle))
+    , m_reversingAdjustedStartStyle(RenderStyle::clonePtr(reversingAdjustedStartStyle))
+    , m_reversingShorteningFactor(reversingShorteningFactor)
 {
+}
+
+void CSSTransition::resolve(RenderStyle& targetStyle)
+{
+    DeclarativeAnimation::resolve(targetStyle);
+    m_currentStyle = RenderStyle::clonePtr(targetStyle);
+}
+
+void CSSTransition::setTimingProperties(Seconds delay, Seconds duration)
+{
+    suspendEffectInvalidation();
+
+    // This method is only called from CSSTransition::create() where we're guaranteed to have an effect.
+    auto* animationEffect = effect();
+    ASSERT(animationEffect);
+
+    // In order for CSS Transitions to be seeked backwards, they need to have their fill mode set to backwards
+    // such that the original CSS value applied prior to the transition is used for a negative current time.
+    animationEffect->setFill(FillMode::Backwards);
+    animationEffect->setDelay(delay);
+    animationEffect->setIterationDuration(duration);
+
+    unsuspendEffectInvalidation();
 }
 
 } // namespace WebCore

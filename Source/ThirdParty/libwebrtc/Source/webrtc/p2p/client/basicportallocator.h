@@ -17,38 +17,53 @@
 
 #include "api/turncustomizer.h"
 #include "p2p/base/portallocator.h"
+#include "p2p/client/relayportfactoryinterface.h"
+#include "p2p/client/turnportfactory.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/messagequeue.h"
 #include "rtc_base/network.h"
+#include "rtc_base/system/rtc_export.h"
 #include "rtc_base/thread.h"
 
 namespace cricket {
 
-class BasicPortAllocator : public PortAllocator {
+class RTC_EXPORT BasicPortAllocator : public PortAllocator {
  public:
+  // note: The (optional) relay_port_factory is owned by caller
+  // and must have a life time that exceeds that of BasicPortAllocator.
   BasicPortAllocator(rtc::NetworkManager* network_manager,
                      rtc::PacketSocketFactory* socket_factory,
-                     webrtc::TurnCustomizer* customizer = nullptr);
+                     webrtc::TurnCustomizer* customizer = nullptr,
+                     RelayPortFactoryInterface* relay_port_factory = nullptr);
   explicit BasicPortAllocator(rtc::NetworkManager* network_manager);
   BasicPortAllocator(rtc::NetworkManager* network_manager,
                      rtc::PacketSocketFactory* socket_factory,
                      const ServerAddresses& stun_servers);
   BasicPortAllocator(rtc::NetworkManager* network_manager,
                      const ServerAddresses& stun_servers,
-                     const rtc::SocketAddress& relay_server_udp,
-                     const rtc::SocketAddress& relay_server_tcp,
-                     const rtc::SocketAddress& relay_server_ssl);
+                     const rtc::SocketAddress& relay_address_udp,
+                     const rtc::SocketAddress& relay_address_tcp,
+                     const rtc::SocketAddress& relay_address_ssl);
   ~BasicPortAllocator() override;
 
   // Set to kDefaultNetworkIgnoreMask by default.
   void SetNetworkIgnoreMask(int network_ignore_mask) override;
-  int network_ignore_mask() const { return network_ignore_mask_; }
+  int network_ignore_mask() const {
+    CheckRunOnValidThreadIfInitialized();
+    return network_ignore_mask_;
+  }
 
-  rtc::NetworkManager* network_manager() const { return network_manager_; }
+  rtc::NetworkManager* network_manager() const {
+    CheckRunOnValidThreadIfInitialized();
+    return network_manager_;
+  }
 
   // If socket_factory() is set to NULL each PortAllocatorSession
   // creates its own socket factory.
-  rtc::PacketSocketFactory* socket_factory() { return socket_factory_; }
+  rtc::PacketSocketFactory* socket_factory() {
+    CheckRunOnValidThreadIfInitialized();
+    return socket_factory_;
+  }
 
   PortAllocatorSession* CreateSessionInternal(
       const std::string& content_name,
@@ -59,16 +74,30 @@ class BasicPortAllocator : public PortAllocator {
   // Convenience method that adds a TURN server to the configuration.
   void AddTurnServer(const RelayServerConfig& turn_server);
 
+  RelayPortFactoryInterface* relay_port_factory() {
+    CheckRunOnValidThreadIfInitialized();
+    return relay_port_factory_;
+  }
+
  private:
   void Construct();
 
   void OnIceRegathering(PortAllocatorSession* session,
                         IceRegatheringReason reason);
 
+  // This function makes sure that relay_port_factory_ is set properly.
+  void InitRelayPortFactory(RelayPortFactoryInterface* relay_port_factory);
+
   rtc::NetworkManager* network_manager_;
   rtc::PacketSocketFactory* socket_factory_;
   bool allow_tcp_listen_;
   int network_ignore_mask_ = rtc::kDefaultNetworkIgnoreMask;
+
+  // This is the factory being used.
+  RelayPortFactoryInterface* relay_port_factory_;
+
+  // This instance is created if caller does pass a factory.
+  std::unique_ptr<RelayPortFactoryInterface> default_relay_port_factory_;
 };
 
 struct PortConfiguration;
@@ -82,8 +111,8 @@ enum class SessionState {
               // process will be started.
 };
 
-class BasicPortAllocatorSession : public PortAllocatorSession,
-                                  public rtc::MessageHandler {
+class RTC_EXPORT BasicPortAllocatorSession : public PortAllocatorSession,
+                                             public rtc::MessageHandler {
  public:
   BasicPortAllocatorSession(BasicPortAllocator* allocator,
                             const std::string& content_name,
@@ -109,6 +138,8 @@ class BasicPortAllocatorSession : public PortAllocatorSession,
   bool CandidatesAllocationDone() const override;
   void RegatherOnFailedNetworks() override;
   void RegatherOnAllNetworks() override;
+  void SetStunKeepaliveIntervalForReadyPorts(
+      const absl::optional<int>& stun_keepalive_interval) override;
   void PruneAllPorts() override;
 
  protected:
@@ -156,9 +187,7 @@ class BasicPortAllocatorSession : public PortAllocatorSession,
       }
       has_pairable_candidate_ = has_pairable_candidate;
     }
-    void set_complete() {
-      state_ = STATE_COMPLETE;
-    }
+    void set_complete() { state_ = STATE_COMPLETE; }
     void set_error() {
       RTC_DCHECK(state_ == STATE_INPROGRESS);
       state_ = STATE_ERROR;
@@ -188,7 +217,8 @@ class BasicPortAllocatorSession : public PortAllocatorSession,
   void DisableEquivalentPhases(rtc::Network* network,
                                PortConfiguration* config,
                                uint32_t* flags);
-  void AddAllocatedPort(Port* port, AllocationSequence* seq,
+  void AddAllocatedPort(Port* port,
+                        AllocationSequence* seq,
                         bool prepare_address);
   void OnCandidateReady(Port* port, const Candidate& c);
   void OnPortComplete(Port* port);
@@ -206,9 +236,10 @@ class BasicPortAllocatorSession : public PortAllocatorSession,
 
   bool CheckCandidateFilter(const Candidate& c) const;
   bool CandidatePairable(const Candidate& c, const Port* port) const;
-  // Clear the related address according to the flags and candidate filter
-  // in order to avoid leaking any information.
-  Candidate SanitizeRelatedAddress(const Candidate& c) const;
+  // Clears 1) the address if the candidate is supposedly a hostname candidate;
+  // 2) the related address according to the flags and candidate filter in order
+  // to avoid leaking any information.
+  Candidate SanitizeCandidate(const Candidate& c) const;
 
   std::vector<PortData*> GetUnprunedPorts(
       const std::vector<rtc::Network*>& networks);
@@ -244,7 +275,7 @@ class BasicPortAllocatorSession : public PortAllocatorSession,
 
 // Records configuration information useful in creating ports.
 // TODO(deadbeef): Rename "relay" to "turn_server" in this struct.
-struct PortConfiguration : public rtc::MessageData {
+struct RTC_EXPORT PortConfiguration : public rtc::MessageData {
   // TODO(jiayl): remove |stun_address| when Chrome is updated.
   rtc::SocketAddress stun_address;
   ServerAddresses stun_servers;
@@ -278,8 +309,8 @@ struct PortConfiguration : public rtc::MessageData {
   bool SupportsProtocol(RelayType turn_type, ProtocolType type) const;
   // Helper method returns the server addresses for the matching RelayType and
   // Protocol type.
-  ServerAddresses GetRelayServerAddresses(
-      RelayType turn_type, ProtocolType type) const;
+  ServerAddresses GetRelayServerAddresses(RelayType turn_type,
+                                          ProtocolType type) const;
 };
 
 class UDPPort;
@@ -353,7 +384,7 @@ class AllocationSequence : public rtc::MessageHandler,
                     const char* data,
                     size_t size,
                     const rtc::SocketAddress& remote_addr,
-                    const rtc::PacketTime& packet_time);
+                    const int64_t& packet_time_us);
 
   void OnPortDestroyed(PortInterface* port);
 
@@ -369,7 +400,7 @@ class AllocationSequence : public rtc::MessageHandler,
   std::unique_ptr<rtc::AsyncPacketSocket> udp_socket_;
   // There will be only one udp port per AllocationSequence.
   UDPPort* udp_port_;
-  std::vector<TurnPort*> turn_ports_;
+  std::vector<Port*> relay_ports_;
   int phase_;
 };
 

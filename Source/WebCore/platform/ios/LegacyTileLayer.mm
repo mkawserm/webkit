@@ -26,7 +26,7 @@
 #include "config.h"
 #include "LegacyTileLayer.h"
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
 
 #include "LegacyTileCache.h"
 #include "LegacyTileGrid.h"
@@ -59,12 +59,15 @@ using WebCore::LegacyTileCache;
         WebThreadLock();
 
     CGRect dirtyRect = CGContextGetClipBoundingBox(context);
-    _tileGrid->tileCache().setOverrideVisibleRect(WebCore::FloatRect(dirtyRect));
-    _tileGrid->tileCache().doLayoutTiles();
+    auto useExistingTiles = _tileGrid->tileCache().setOverrideVisibleRect(WebCore::FloatRect(dirtyRect));
+    if (!useExistingTiles)
+        _tileGrid->tileCache().doLayoutTiles();
 
     [super renderInContext:context];
 
-    _tileGrid->tileCache().setOverrideVisibleRect(std::nullopt);
+    _tileGrid->tileCache().clearOverrideVisibleRect();
+    if (!useExistingTiles)
+        _tileGrid->tileCache().doLayoutTiles();
 }
 @end
 
@@ -122,4 +125,4 @@ using WebCore::LegacyTileCache;
 
 @end
 
-#endif // PLATFORM(IOS)
+#endif // PLATFORM(IOS_FAMILY)

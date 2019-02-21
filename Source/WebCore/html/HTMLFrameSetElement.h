@@ -29,6 +29,7 @@
 namespace WebCore {
 
 class HTMLFrameSetElement final : public HTMLElement {
+    WTF_MAKE_ISO_ALLOCATED(HTMLFrameSetElement);
 public:
     static Ref<HTMLFrameSetElement> create(const QualifiedName&, Document&);
 
@@ -47,7 +48,7 @@ public:
     static RefPtr<HTMLFrameSetElement> findContaining(Element* descendant);
     
     Vector<AtomicString> supportedPropertyNames() const;
-    DOMWindow* namedItem(const AtomicString&);
+    WindowProxy* namedItem(const AtomicString&);
 
 private:
     HTMLFrameSetElement(const QualifiedName&, Document&);

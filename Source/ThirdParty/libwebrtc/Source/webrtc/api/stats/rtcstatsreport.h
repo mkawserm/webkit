@@ -20,12 +20,13 @@
 #include "rtc_base/refcount.h"
 #include "rtc_base/refcountedobject.h"
 #include "rtc_base/scoped_ref_ptr.h"
+#include "rtc_base/system/rtc_export.h"
 
 namespace webrtc {
 
 // A collection of stats.
 // This is accessible as a map from |RTCStats::id| to |RTCStats|.
-class RTCStatsReport : public rtc::RefCountInterface {
+class RTC_EXPORT RTCStatsReport : public rtc::RefCountInterface {
  public:
   typedef std::map<std::string, std::unique_ptr<const RTCStats>> StatsMap;
 
@@ -57,12 +58,16 @@ class RTCStatsReport : public rtc::RefCountInterface {
 
   explicit RTCStatsReport(int64_t timestamp_us);
   RTCStatsReport(const RTCStatsReport& other) = delete;
+  rtc::scoped_refptr<RTCStatsReport> Copy() const;
 
   int64_t timestamp_us() const { return timestamp_us_; }
   void AddStats(std::unique_ptr<const RTCStats> stats);
   const RTCStats* Get(const std::string& id) const;
   size_t size() const { return stats_.size(); }
 
+  // Removes the stats object from the report, returning ownership of it or null
+  // if there is no object with |id|.
+  std::unique_ptr<const RTCStats> Take(const std::string& id);
   // Takes ownership of all the stats in |victim|, leaving it empty.
   void TakeMembersFrom(rtc::scoped_refptr<RTCStatsReport> victim);
 
@@ -72,7 +77,7 @@ class RTCStatsReport : public rtc::RefCountInterface {
 
   // Gets the subset of stats that are of type |T|, where |T| is any class
   // descending from |RTCStats|.
-  template<typename T>
+  template <typename T>
   std::vector<const T*> GetStatsOfType() const {
     std::vector<const T*> stats_of_type;
     for (const RTCStats& stats : *this) {

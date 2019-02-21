@@ -37,7 +37,7 @@ namespace WebCore {
 
 static ServiceWorkerRegistrationIdentifier generateServiceWorkerRegistrationIdentifier()
 {
-    return generateObjectIdentifier<ServiceWorkerRegistrationIdentifierType>();
+    return ServiceWorkerRegistrationIdentifier::generate();
 }
 
 SWServerRegistration::SWServerRegistration(SWServer& server, const ServiceWorkerRegistrationKey& key, ServiceWorkerUpdateViaCache updateViaCache, const URL& scopeURL, const URL& scriptURL)
@@ -94,7 +94,7 @@ void SWServerRegistration::updateRegistrationState(ServiceWorkerRegistrationStat
         break;
     };
 
-    std::optional<ServiceWorkerData> serviceWorkerData;
+    Optional<ServiceWorkerData> serviceWorkerData;
     if (worker)
         serviceWorkerData = worker->data();
 
@@ -136,22 +136,22 @@ void SWServerRegistration::fireUpdateFoundEvent()
 void SWServerRegistration::forEachConnection(const WTF::Function<void(SWServer::Connection&)>& apply)
 {
     for (auto connectionIdentifierWithClients : m_connectionsWithClientRegistrations.values()) {
-        if (auto* connection = m_server.getConnection(connectionIdentifierWithClients))
+        if (auto* connection = m_server.connection(connectionIdentifierWithClients))
             apply(*connection);
     }
 }
 
 ServiceWorkerRegistrationData SWServerRegistration::data() const
 {
-    std::optional<ServiceWorkerData> installingWorkerData;
+    Optional<ServiceWorkerData> installingWorkerData;
     if (m_installingWorker)
         installingWorkerData = m_installingWorker->data();
 
-    std::optional<ServiceWorkerData> waitingWorkerData;
+    Optional<ServiceWorkerData> waitingWorkerData;
     if (m_waitingWorker)
         waitingWorkerData = m_waitingWorker->data();
 
-    std::optional<ServiceWorkerData> activeWorkerData;
+    Optional<ServiceWorkerData> activeWorkerData;
     if (m_activeWorker)
         activeWorkerData = m_activeWorker->data();
 
@@ -198,7 +198,7 @@ void SWServerRegistration::notifyClientsOfControllerChange()
     ASSERT(activeWorker());
 
     for (auto& item : m_clientsUsingRegistration) {
-        if (auto* connection = m_server.getConnection(item.key))
+        if (auto* connection = m_server.connection(item.key))
             connection->notifyClientsOfControllerChange(item.value, activeWorker()->data());
     }
 }
@@ -346,7 +346,7 @@ void SWServerRegistration::controlClient(ServiceWorkerClientIdentifier identifie
 
     HashSet<DocumentIdentifier> identifiers;
     identifiers.add(identifier.contextIdentifier);
-    m_server.getConnection(identifier.serverConnectionIdentifier)->notifyClientsOfControllerChange(identifiers, activeWorker()->data());
+    m_server.connection(identifier.serverConnectionIdentifier)->notifyClientsOfControllerChange(identifiers, activeWorker()->data());
 }
 
 void SWServerRegistration::setIsUninstalling(bool value)

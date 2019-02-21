@@ -26,7 +26,7 @@
 #import "config.h"
 #import "WAKViewInternal.h"
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
 
 #import "GraphicsContext.h"
 #import "WAKClipView.h"
@@ -130,47 +130,34 @@ static void notificationCallback (WKViewRef v, WKViewNotificationType type, void
 
 - (BOOL)_selfHandleEvent:(WebEvent *)event
 {
-    WebEventType type = event.type;
-    
-    switch (type) {
-        case WebEventMouseDown: {
-            [self mouseDown:event];
-            break;
-        }
-        case WebEventMouseUp: {
-            [self mouseUp:event];
-            break;
-        }
-        case WebEventMouseMoved: {
-            [self mouseMoved:event];
-            break;
-        }
-        case WebEventKeyDown: {
-            [self keyDown:event];
-            break;
-        }
-        case WebEventKeyUp: {
-            [self keyUp:event];
-            break;
-        }
-        case WebEventScrollWheel: {
-            [self scrollWheel:event];
-            break;
-        }
+    switch (event.type) {
+    case WebEventMouseDown:
+        [self mouseDown:event];
+        return YES;
+    case WebEventMouseUp:
+        [self mouseUp:event];
+        return YES;
+    case WebEventMouseMoved:
+        [self mouseMoved:event];
+        return YES;
+    case WebEventKeyDown:
+        [self keyDown:event];
+        return YES;
+    case WebEventKeyUp:
+        [self keyUp:event];
+        return YES;
+    case WebEventScrollWheel:
+        [self scrollWheel:event];
+        return YES;
+    case WebEventTouchBegin:
+    case WebEventTouchChange:
+    case WebEventTouchEnd:
+    case WebEventTouchCancel:
 #if ENABLE(TOUCH_EVENTS)
-        case WebEventTouchBegin:
-        case WebEventTouchChange:
-        case WebEventTouchEnd:
-        case WebEventTouchCancel: {
-            [self touch:event];
-            break;
-        }
+        [self touch:event];
 #endif
-        default:
-            ASSERT_NOT_REACHED();
-            break;
+        return YES;
     }
-    return YES;
 }
 
 - (NSResponder *)nextResponder
@@ -776,22 +763,20 @@ static CGInterpolationQuality toCGInterpolationQuality(WebCore::InterpolationQua
 
 - (void)_appendDescriptionToString:(NSMutableString *)info atLevel:(int)level
 {
-    NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
+    @autoreleasepool {
+        if ([info length])
+            [info appendString:@"\n"];
 
-    if ([info length] != 0)
-        [info appendString:@"\n"];
+        for (int i = 1; i <= level; i++)
+            [info appendString:@"   | "];
 
-    for (int i = 1; i <= level; i++)
-        [info appendString:@"   | "];
+        [info appendString:[self description]];
 
-    [info appendString:[self description]];
-
-    for (WAKView *subview in [self subviews])
-        [subview _appendDescriptionToString:info atLevel:level + 1];
-
-    [pool release];
+        for (WAKView *subview in [self subviews])
+            [subview _appendDescriptionToString:info atLevel:level + 1];
+    }
 }
 
 @end
 
-#endif // PLATFORM(IOS)
+#endif // PLATFORM(IOS_FAMILY)

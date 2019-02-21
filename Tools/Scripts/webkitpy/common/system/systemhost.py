@@ -1,4 +1,5 @@
 # Copyright (c) 2011 Google Inc. All rights reserved.
+# Copyright (C) 2019 Apple Inc. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are
@@ -27,6 +28,8 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import os
+import platform
+import sys
 
 from . import environment, executive, file_lock, filesystem, platforminfo, user, workspace
 
@@ -35,7 +38,7 @@ class SystemHost(object):
     def __init__(self):
         self.executive = executive.Executive()
         self.filesystem = filesystem.FileSystem()
-        self.platform = platforminfo.PlatformInfo(executive=self.executive)
+        self.platform = platforminfo.PlatformInfo(sys, platform, self.executive)
         self.user = user.User(self.platform)
         self.workspace = workspace.Workspace(self.filesystem, self.executive)
 
@@ -47,3 +50,12 @@ class SystemHost(object):
 
     def symbolicate_crash_log_if_needed(self, path):
         return self.filesystem.read_text_file(path)
+
+    def path_to_lldb_python_directory(self):
+        if not self.platform.is_mac():
+            return ''
+        return self.executive.run_command(['xcrun', 'lldb', '--python-path'], return_stderr=False).rstrip()
+
+    @property
+    def device_type(self):
+        return None

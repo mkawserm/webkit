@@ -27,12 +27,11 @@
 #include "AcceleratedSurfaceWPE.h"
 
 #include "WebPage.h"
-#include <WebCore/PlatformDisplayWPE.h>
-#include <wpe/renderer-backend-egl.h>
-
-using namespace WebCore;
+#include <WebCore/PlatformDisplayLibWPE.h>
+#include <wpe/wpe-egl.h>
 
 namespace WebKit {
+using namespace WebCore;
 
 std::unique_ptr<AcceleratedSurfaceWPE> AcceleratedSurfaceWPE::create(WebPage& webPage, Client& client)
 {
@@ -42,7 +41,6 @@ std::unique_ptr<AcceleratedSurfaceWPE> AcceleratedSurfaceWPE::create(WebPage& we
 AcceleratedSurfaceWPE::AcceleratedSurfaceWPE(WebPage& webPage, Client& client)
     : AcceleratedSurface(webPage, client)
 {
-    m_compositingManager.establishConnection(webPage);
 }
 
 AcceleratedSurfaceWPE::~AcceleratedSurfaceWPE()
@@ -52,7 +50,7 @@ AcceleratedSurfaceWPE::~AcceleratedSurfaceWPE()
 
 void AcceleratedSurfaceWPE::initialize()
 {
-    m_backend = wpe_renderer_backend_egl_target_create(m_compositingManager.releaseConnectionFd());
+    m_backend = wpe_renderer_backend_egl_target_create(m_webPage.releaseHostFileDescriptor());
     static struct wpe_renderer_backend_egl_target_client s_client = {
         // frame_complete
         [](void* data)
@@ -60,10 +58,15 @@ void AcceleratedSurfaceWPE::initialize()
             auto& surface = *reinterpret_cast<AcceleratedSurfaceWPE*>(data);
             surface.m_client.frameComplete();
         },
+        // padding
+        nullptr,
+        nullptr,
+        nullptr,
+        nullptr
     };
     wpe_renderer_backend_egl_target_set_client(m_backend, &s_client, this);
-    wpe_renderer_backend_egl_target_initialize(m_backend, downcast<PlatformDisplayWPE>(PlatformDisplay::sharedDisplay()).backend(),
-        std::max(0, m_size.width()), std::max(0, m_size.height()));
+    wpe_renderer_backend_egl_target_initialize(m_backend, downcast<PlatformDisplayLibWPE>(PlatformDisplay::sharedDisplay()).backend(),
+        std::max(1, m_size.width()), std::max(1, m_size.height()));
 }
 
 void AcceleratedSurfaceWPE::finalize()
@@ -88,15 +91,10 @@ uint64_t AcceleratedSurfaceWPE::surfaceID() const
     return m_webPage.pageID();
 }
 
-bool AcceleratedSurfaceWPE::resize(const IntSize& size)
+void AcceleratedSurfaceWPE::clientResize(const IntSize& size)
 {
     ASSERT(m_backend);
-    if (!AcceleratedSurface::resize(size))
-        return false;
-
-    wpe_renderer_backend_egl_target_resize(m_backend, std::max(0, m_size.width()), std::max(0, m_size.height()));
-
-    return true;
+    wpe_renderer_backend_egl_target_resize(m_backend, std::max(1, m_size.width()), std::max(1, m_size.height()));
 }
 
 void AcceleratedSurfaceWPE::willRenderFrame()

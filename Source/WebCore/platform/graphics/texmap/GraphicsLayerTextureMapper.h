@@ -39,15 +39,15 @@ public:
     void setID(uint32_t id) { m_layer.setID(id); }
 
     // GraphicsLayer
-    bool setChildren(const Vector<GraphicsLayer*>&) override;
-    void addChild(GraphicsLayer*) override;
-    void addChildAtIndex(GraphicsLayer*, int index) override;
-    void addChildAbove(GraphicsLayer*, GraphicsLayer* sibling) override;
-    void addChildBelow(GraphicsLayer*, GraphicsLayer* sibling) override;
-    bool replaceChild(GraphicsLayer* oldChild, GraphicsLayer* newChild) override;
+    bool setChildren(Vector<Ref<GraphicsLayer>>&&) override;
+    void addChild(Ref<GraphicsLayer>&&) override;
+    void addChildAtIndex(Ref<GraphicsLayer>&&, int index) override;
+    void addChildAbove(Ref<GraphicsLayer>&&, GraphicsLayer* sibling) override;
+    void addChildBelow(Ref<GraphicsLayer>&&, GraphicsLayer* sibling) override;
+    bool replaceChild(GraphicsLayer* oldChild, Ref<GraphicsLayer>&& newChild) override;
 
-    void setMaskLayer(GraphicsLayer*) override;
-    void setReplicatedByLayer(GraphicsLayer*) override;
+    void setMaskLayer(RefPtr<GraphicsLayer>&&) override;
+    void setReplicatedByLayer(RefPtr<GraphicsLayer>&&) override;
     void setPosition(const FloatPoint&) override;
     void setAnchorPoint(const FloatPoint3D&) override;
     void setSize(const FloatSize&) override;
@@ -88,19 +88,15 @@ public:
 
     TextureMapperLayer& layer() { return m_layer; }
 
-    void setFixedToViewport(bool);
-    bool fixedToViewport() const { return m_fixedToViewport; }
-
     Color debugBorderColor() const { return m_debugBorderColor; }
     float debugBorderWidth() const { return m_debugBorderWidth; }
-    void setRepaintCount(int);
 
 private:
     // GraphicsLayer
     bool isGraphicsLayerTextureMapper() const override { return true; }
 
     // TextureMapperPlatformLayer::Client
-    void platformLayerWillBeDestroyed() override { setContentsToPlatformLayer(0, NoContentsLayer); }
+    void platformLayerWillBeDestroyed() override { setContentsToPlatformLayer(0, ContentsLayerPurpose::None); }
     void setPlatformLayerNeedsDisplay() override { setContentsNeedsDisplay(); }
 
     void commitLayerChanges();
@@ -148,19 +144,17 @@ private:
         DebugVisualsChange =        (1L << 24),
         RepaintCountChange =        (1L << 25),
 
-        FixedToViewporChange =      (1L << 26),
-        AnimationStarted =          (1L << 27),
+        AnimationStarted =          (1L << 26),
     };
     void notifyChange(ChangeMask);
 
     TextureMapperLayer m_layer;
     RefPtr<TextureMapperTiledBackingStore> m_compositedImage;
     NativeImagePtr m_compositedNativeImagePtr;
-    RefPtr<TextureMapperBackingStore> m_backingStore;
+    RefPtr<TextureMapperTiledBackingStore> m_backingStore;
 
     int m_changeMask;
     bool m_needsDisplay;
-    bool m_fixedToViewport;
     Color m_solidColor;
 
     Color m_debugBorderColor;

@@ -27,6 +27,7 @@
 
 #if PLATFORM(MAC)
 
+#import "OffscreenWindow.h"
 #import "PlatformUtilities.h"
 #import "Test.h"
 #import "TestNavigationDelegate.h"
@@ -35,20 +36,6 @@
 #import <WebKit/WKViewPrivate.h>
 #import <wtf/RetainPtr.h>
 #import <wtf/mac/AppKitCompatibilityDeclarations.h>
-
-@interface CommandBackForwardOffscreenWindow : NSWindow
-@end
-
-@implementation CommandBackForwardOffscreenWindow
-- (BOOL)isKeyWindow
-{
-    return YES;
-}
-- (BOOL)isVisible
-{
-    return YES;
-}
-@end
 
 enum ArrowDirection {
     Left,
@@ -96,11 +83,7 @@ public:
 
     virtual void SetUp()
     {
-        NSWindow *window = [[CommandBackForwardOffscreenWindow alloc] initWithContentRect:NSMakeRect(0, 0, 100, 100) styleMask:NSBorderlessWindowMask backing:NSBackingStoreBuffered defer:YES];
-        [window setColorSpace:[[NSScreen mainScreen] colorSpace]];
-        [window orderBack:nil];
-        [window setAutodisplay:NO];
-        [window setReleasedWhenClosed:NO];
+        window = adoptNS([[OffscreenWindow alloc] initWithSize:CGSizeMake(100, 100)]);
     }
 };
 
@@ -112,28 +95,25 @@ public:
     WKRetainPtr<WKURLRef> file1;
     WKRetainPtr<WKURLRef> file2;
 
-    static void didFinishLoadForFrame(WKPageRef, WKFrameRef, WKTypeRef, const void* clientInfo)
-    {
-        didFinishNavigation = true;
-    }
-
     virtual void SetUp()
     {
         WebKit2_CommandBackForwardTest::SetUp();
 
-        WKRetainPtr<WKContextRef> context = adoptWK(WKContextCreate());
+        WKRetainPtr<WKContextRef> context = adoptWK(WKContextCreateWithConfiguration(nullptr));
         WKRetainPtr<WKPageConfigurationRef> configuration = adoptWK(WKPageConfigurationCreate());        
         WKPageConfigurationSetContext(configuration.get(), context.get());
 
         webView = [[WKView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100) configurationRef:configuration.get()];
 
-        WKPageLoaderClientV6 loaderClient;
+        WKPageNavigationClientV0 loaderClient;
         memset(&loaderClient, 0, sizeof(loaderClient));
 
-        loaderClient.base.version = 6;
-        loaderClient.didFinishLoadForFrame = didFinishLoadForFrame;
+        loaderClient.base.version = 0;
+        loaderClient.didFinishNavigation = [] (WKPageRef, WKNavigationRef, WKTypeRef, const void* clientInfo) {
+            didFinishNavigation = true;
+        };
 
-        WKPageSetPageLoaderClient([webView pageRef], &loaderClient.base);
+        WKPageSetPageNavigationClient([webView pageRef], &loaderClient.base);
         
         file1 = adoptWK(TestWebKitAPI::Util::createURLForResource("simple", "html"));
         file2 = adoptWK(TestWebKitAPI::Util::createURLForResource("simple2", "html"));

@@ -28,12 +28,13 @@
 
 #include <wtf/Function.h>
 #include <wtf/ProcessID.h>
+#include <wtf/text/WTFString.h>
 
 #if !OS(WINDOWS)
 #include <unistd.h>
 #endif
 
-#if PLATFORM(IOS) && !PLATFORM(IOS_SIMULATOR)
+#if PLATFORM(IOS_FAMILY) && !PLATFORM(IOS_FAMILY_SIMULATOR)
 #include <wtf/RetainPtr.h>
 #include <wtf/WeakPtr.h>
 OBJC_CLASS BKSProcessAssertion;
@@ -44,6 +45,7 @@ namespace WebKit {
 enum class AssertionState {
     Suspended,
     Background,
+    Download,
     Foreground
 };
 
@@ -53,9 +55,15 @@ public:
     virtual void assertionWillExpireImminently() = 0;
 };
 
-class ProcessAssertion {
+class ProcessAssertion
+#if PLATFORM(IOS_FAMILY) && !PLATFORM(IOS_FAMILY_SIMULATOR)
+    : public CanMakeWeakPtr<ProcessAssertion>
+#endif
+{
+    WTF_MAKE_FAST_ALLOCATED;
 public:
     ProcessAssertion(ProcessID, AssertionState, Function<void()>&& invalidationCallback = { });
+    ProcessAssertion(ProcessID, const String& reason, AssertionState, Function<void()>&& invalidationCallback = { });
     virtual ~ProcessAssertion();
 
     virtual void setClient(ProcessAssertionClient& client) { m_client = &client; }
@@ -64,20 +72,18 @@ public:
     AssertionState state() const { return m_assertionState; }
     virtual void setState(AssertionState);
 
-#if PLATFORM(IOS) && !PLATFORM(IOS_SIMULATOR)
+#if PLATFORM(IOS_FAMILY) && !PLATFORM(IOS_FAMILY_SIMULATOR)
 protected:
     enum class Validity { No, Yes, Unset };
     Validity validity() const { return m_validity; }
 #endif
 
 private:
-#if PLATFORM(IOS) && !PLATFORM(IOS_SIMULATOR)
-    WeakPtr<ProcessAssertion> createWeakPtr() { return m_weakFactory.createWeakPtr(*this); }
+#if PLATFORM(IOS_FAMILY) && !PLATFORM(IOS_FAMILY_SIMULATOR)
     void markAsInvalidated();
 
     RetainPtr<BKSProcessAssertion> m_assertion;
     Validity m_validity { Validity::Unset };
-    WeakPtrFactory<ProcessAssertion> m_weakFactory;
     Function<void()> m_invalidationCallback;
 #endif
     AssertionState m_assertionState;
@@ -93,7 +99,7 @@ public:
 
     void setState(AssertionState) final;
 
-#if PLATFORM(IOS) && !PLATFORM(IOS_SIMULATOR)
+#if PLATFORM(IOS_FAMILY) && !PLATFORM(IOS_FAMILY_SIMULATOR)
 private:
     void updateRunInBackgroundCount();
 

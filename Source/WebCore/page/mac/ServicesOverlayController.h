@@ -38,14 +38,14 @@ typedef struct __DDHighlight *DDHighlightRef;
 namespace WebCore {
     
 class LayoutRect;
-class MainFrame;
+class Page;
 
 struct GapRects;
 
 class ServicesOverlayController : private PageOverlay::Client {
     WTF_MAKE_FAST_ALLOCATED;
 public:
-    explicit ServicesOverlayController(MainFrame&);
+    explicit ServicesOverlayController(Page&);
     ~ServicesOverlayController();
 
     void selectedTelephoneNumberRangesChanged();
@@ -63,7 +63,7 @@ private:
 
         DDHighlightRef ddHighlight() const { return m_ddHighlight.get(); }
         Range& range() const { return m_range.get(); }
-        GraphicsLayer* layer() const { return m_graphicsLayer.get(); }
+        GraphicsLayer& layer() const { return m_graphicsLayer.get(); }
 
         enum {
             TelephoneNumberType = 1 << 0,
@@ -87,11 +87,11 @@ private:
 
         void didFinishFadeOutAnimation();
 
+        ServicesOverlayController* m_controller;
         RetainPtr<DDHighlightRef> m_ddHighlight;
         Ref<Range> m_range;
-        std::unique_ptr<GraphicsLayer> m_graphicsLayer;
+        Ref<GraphicsLayer> m_graphicsLayer;
         Type m_type;
-        ServicesOverlayController* m_controller;
     };
 
     // PageOverlay::Client
@@ -134,9 +134,10 @@ private:
     void willDestroyHighlight(Highlight*);
     void didFinishFadingOutHighlight(Highlight*);
 
-    MainFrame& mainFrame() const { return m_mainFrame; }
+    Frame& mainFrame() const;
+    Page& page() const { return m_page; }
 
-    MainFrame& m_mainFrame;
+    Page& m_page;
     PageOverlay* m_servicesOverlay { nullptr };
 
     RefPtr<Highlight> m_activeHighlight;

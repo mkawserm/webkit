@@ -35,11 +35,17 @@ namespace TestWebKitAPI {
 
 TEST(WTF, StringCreationFromLiteral)
 {
-    String stringFromLiteral(ASCIILiteral("Explicit construction syntax"));
-    EXPECT_EQ(strlen("Explicit construction syntax"), stringFromLiteral.length());
-    EXPECT_EQ("Explicit construction syntax", stringFromLiteral);
+    String stringFromLiteralViaASCII("Explicit construction syntax"_s);
+    EXPECT_EQ(strlen("Explicit construction syntax"), stringFromLiteralViaASCII.length());
+    EXPECT_EQ("Explicit construction syntax", stringFromLiteralViaASCII);
+    EXPECT_TRUE(stringFromLiteralViaASCII.is8Bit());
+    EXPECT_EQ(String("Explicit construction syntax"), stringFromLiteralViaASCII);
+
+    String stringFromLiteral = "String Literal"_str;
+    EXPECT_EQ(strlen("String Literal"), stringFromLiteral.length());
+    EXPECT_EQ("String Literal", stringFromLiteral);
     EXPECT_TRUE(stringFromLiteral.is8Bit());
-    EXPECT_EQ(String("Explicit construction syntax"), stringFromLiteral);
+    EXPECT_EQ(String("String Literal"), stringFromLiteral);
 
     String stringWithTemplate("Template Literal", String::ConstructFromLiteral);
     EXPECT_EQ(strlen("Template Literal"), stringWithTemplate.length());
@@ -61,14 +67,14 @@ TEST(WTF, StringASCII)
     EXPECT_STREQ("", output.data());
 
     // Regular String.
-    output = String(ASCIILiteral("foobar")).ascii();
+    output = String("foobar"_s).ascii();
     EXPECT_STREQ("foobar", output.data());
 }
 
 static inline const char* testStringNumberFixedPrecision(double number)
 {
-    static char testBuffer[100];
-    std::strncpy(testBuffer, String::number(number).utf8().data(), 100);
+    static char testBuffer[100] = { };
+    std::strncpy(testBuffer, String::number(number).utf8().data(), 99);
     return testBuffer;
 }
 
@@ -116,8 +122,8 @@ TEST(WTF, StringNumberFixedPrecision)
 
 static inline const char* testStringNumberFixedWidth(double number)
 {
-    static char testBuffer[100];
-    std::strncpy(testBuffer, String::numberToStringFixedWidth(number, 6).utf8().data(), 100);
+    static char testBuffer[100] = { };
+    std::strncpy(testBuffer, String::numberToStringFixedWidth(number, 6).utf8().data(), 99);
     return testBuffer;
 }
 
@@ -165,8 +171,8 @@ TEST(WTF, StringNumberFixedWidth)
 
 static inline const char* testStringNumber(double number)
 {
-    static char testBuffer[100];
-    std::strncpy(testBuffer, String::numberToStringECMAScript(number).utf8().data(), 100);
+    static char testBuffer[100] = { };
+    std::strncpy(testBuffer, String::numberToStringECMAScript(number).utf8().data(), 99);
     return testBuffer;
 }
 
@@ -460,43 +466,21 @@ TEST(WTF, StringReverseFindBasic)
     EXPECT_EQ(reference.reverseFind('c', 4), notFound);
 }
 
-WTF_ATTRIBUTE_PRINTF(2, 3)
-static void testWithFormatAndArguments(const char* expected, const char* format, ...)
+TEST(WTF, StringSplitWithConsecutiveSeparators)
 {
-    va_list arguments;
-    va_start(arguments, format);
+    String string { " This     is  a       sentence. " };
 
-#if COMPILER(GCC_OR_CLANG)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wformat-nonliteral"
-#endif
-    String result = String::formatWithArguments(format, arguments);
-#if COMPILER(GCC_OR_CLANG)
-#pragma GCC diagnostic pop
-#endif
+    Vector<String> actual = string.split(' ');
+    Vector<String> expected { "This", "is", "a", "sentence." };
+    ASSERT_EQ(expected.size(), actual.size());
+    for (auto i = 0u; i < actual.size(); ++i)
+        EXPECT_STREQ(expected[i].utf8().data(), actual[i].utf8().data()) << "Vectors differ at index " << i;
 
-    va_end(arguments);
-
-    EXPECT_STREQ(expected, result.utf8().data());
-}
-
-TEST(WTF, StringFormatWithArguments)
-{
-    testWithFormatAndArguments("hello cruel world", "%s %s %s", "hello", "cruel" , "world");
-
-    testWithFormatAndArguments("hello 17890 world", "%s%u%s", "hello ", 17890u, " world");
-
-    testWithFormatAndArguments("hello 17890.000 world", "%s %.3f %s", "hello", 17890.0f, "world");
-    testWithFormatAndArguments("hello 17890.50 world", "%s %.2f %s", "hello", 17890.5f, "world");
-
-    testWithFormatAndArguments("hello -17890 world", "%s %.0f %s", "hello", -17890.0f, "world");
-    testWithFormatAndArguments("hello -17890.5 world", "%s %.1f %s", "hello", -17890.5f, "world");
-
-    testWithFormatAndArguments("hello 17890 world", "%s %.0f %s", "hello", 17890.0, "world");
-    testWithFormatAndArguments("hello 17890.5 world", "%s %.1f %s", "hello", 17890.5, "world");
-
-    testWithFormatAndArguments("hello -17890 world", "%s %.0f %s", "hello", -17890.0, "world");
-    testWithFormatAndArguments("hello -17890.5 world", "%s %.1f %s", "hello", -17890.5, "world");
+    actual = string.splitAllowingEmptyEntries(' ');
+    expected = { "", "This", "", "", "", "", "is", "", "a", "", "", "", "", "", "", "sentence.", "" };
+    ASSERT_EQ(expected.size(), actual.size());
+    for (auto i = 0u; i < actual.size(); ++i)
+        EXPECT_STREQ(expected[i].utf8().data(), actual[i].utf8().data()) << "Vectors differ at index " << i;
 }
 
 } // namespace TestWebKitAPI

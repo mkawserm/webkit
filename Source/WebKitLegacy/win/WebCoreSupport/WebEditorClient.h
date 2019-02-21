@@ -54,7 +54,6 @@ private:
     void willWriteSelectionToPasteboard(WebCore::Range*) final;
     void didWriteSelectionToPasteboard() final;
     void getClientPasteboardDataForRange(WebCore::Range*, Vector<String>& pasteboardTypes, Vector<RefPtr<WebCore::SharedBuffer>>& pasteboardData) final;
-    String replacementURLForResource(Ref<WebCore::SharedBuffer>&&, const String&) final;
 
     void didEndUserTriggeredSelectionChanges() final { }
     void respondToChangedContents() final;
@@ -114,6 +113,8 @@ private:
     void setInputMethodState(bool) final;
     void requestCheckingOfString(WebCore::TextCheckingRequest&, const WebCore::VisibleSelection&) final { }
     bool performTwoStepDrop(WebCore::DocumentFragment&, WebCore::Range&, bool) final { return false; }
+
+    bool requestDOMPasteAccess() final { return false; }
 
     WebCore::TextCheckerClient* textChecker() final { return this; }
 

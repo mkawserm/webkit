@@ -29,10 +29,13 @@
 #include "JSDOMExceptionHandling.h"
 #include "JSDOMOperation.h"
 #include "JSDOMWrapperCache.h"
+#include "ScriptExecutionContext.h"
 #include <JavaScriptCore/FunctionPrototype.h>
+#include <JavaScriptCore/HeapSnapshotBuilder.h>
 #include <JavaScriptCore/JSCInlines.h>
 #include <wtf/GetPtr.h>
 #include <wtf/PointerPreparations.h>
+#include <wtf/URL.h>
 
 
 namespace WebCore {
@@ -88,7 +91,7 @@ static const struct CompactHashIndex JSTestNamedSetterWithUnforgablePropertiesAn
 static const HashTableValue JSTestNamedSetterWithUnforgablePropertiesAndOverrideBuiltinsTableValues[] =
 {
     { "unforgeableAttribute", static_cast<unsigned>(JSC::PropertyAttribute::DontDelete | JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::CustomAccessor | JSC::PropertyAttribute::DOMAttribute), NoIntrinsic, { (intptr_t)static_cast<PropertySlot::GetValueFunc>(jsTestNamedSetterWithUnforgablePropertiesAndOverrideBuiltinsUnforgeableAttribute), (intptr_t) static_cast<PutPropertySlot::PutValueFunc>(0) } },
-    { "unforgeableOperation", static_cast<unsigned>(JSC::PropertyAttribute::DontDelete | JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestNamedSetterWithUnforgablePropertiesAndOverrideBuiltinsInstanceFunctionUnforgeableOperation), (intptr_t) (0) } },
+    { "unforgeableOperation", static_cast<unsigned>(JSC::PropertyAttribute::DontDelete | JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestNamedSetterWithUnforgablePropertiesAndOverrideBuiltinsInstanceFunctionUnforgeableOperation), (intptr_t) (0) } },
 };
 
 static const HashTable JSTestNamedSetterWithUnforgablePropertiesAndOverrideBuiltinsTable = { 2, 3, true, JSTestNamedSetterWithUnforgablePropertiesAndOverrideBuiltins::info(), JSTestNamedSetterWithUnforgablePropertiesAndOverrideBuiltinsTableValues, JSTestNamedSetterWithUnforgablePropertiesAndOverrideBuiltinsTableIndex };
@@ -101,7 +104,7 @@ template<> JSValue JSTestNamedSetterWithUnforgablePropertiesAndOverrideBuiltinsC
 template<> void JSTestNamedSetterWithUnforgablePropertiesAndOverrideBuiltinsConstructor::initializeProperties(VM& vm, JSDOMGlobalObject& globalObject)
 {
     putDirect(vm, vm.propertyNames->prototype, JSTestNamedSetterWithUnforgablePropertiesAndOverrideBuiltins::prototype(vm, globalObject), JSC::PropertyAttribute::DontDelete | JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum);
-    putDirect(vm, vm.propertyNames->name, jsNontrivialString(&vm, String(ASCIILiteral("TestNamedSetterWithUnforgablePropertiesAndOverrideBuiltins"))), JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum);
+    putDirect(vm, vm.propertyNames->name, jsNontrivialString(&vm, String("TestNamedSetterWithUnforgablePropertiesAndOverrideBuiltins"_s)), JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum);
     putDirect(vm, vm.propertyNames->length, jsNumber(0), JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum);
 }
 
@@ -162,11 +165,11 @@ bool JSTestNamedSetterWithUnforgablePropertiesAndOverrideBuiltins::getOwnPropert
     auto* thisObject = jsCast<JSTestNamedSetterWithUnforgablePropertiesAndOverrideBuiltins*>(object);
     ASSERT_GC_OBJECT_INHERITS(thisObject, info());
     using GetterIDLType = IDLDOMString;
-    auto getterFunctor = [] (auto& thisObject, auto propertyName) -> std::optional<typename GetterIDLType::ImplementationType> {
+    auto getterFunctor = [] (auto& thisObject, auto propertyName) -> Optional<typename GetterIDLType::ImplementationType> {
         auto result = thisObject.wrapped().namedItem(propertyNameToAtomicString(propertyName));
         if (!GetterIDLType::isNullValue(result))
             return typename GetterIDLType::ImplementationType { GetterIDLType::extractValueFromNullable(result) };
-        return std::nullopt;
+        return WTF::nullopt;
     };
     if (auto namedProperty = accessVisibleNamedProperty<OverrideBuiltins::Yes>(*state, *thisObject, propertyName, getterFunctor)) {
         auto value = toJS<IDLDOMString>(*state, WTFMove(namedProperty.value()));
@@ -182,11 +185,11 @@ bool JSTestNamedSetterWithUnforgablePropertiesAndOverrideBuiltins::getOwnPropert
     ASSERT_GC_OBJECT_INHERITS(thisObject, info());
     auto propertyName = Identifier::from(state, index);
     using GetterIDLType = IDLDOMString;
-    auto getterFunctor = [] (auto& thisObject, auto propertyName) -> std::optional<typename GetterIDLType::ImplementationType> {
+    auto getterFunctor = [] (auto& thisObject, auto propertyName) -> Optional<typename GetterIDLType::ImplementationType> {
         auto result = thisObject.wrapped().namedItem(propertyNameToAtomicString(propertyName));
         if (!GetterIDLType::isNullValue(result))
             return typename GetterIDLType::ImplementationType { GetterIDLType::extractValueFromNullable(result) };
-        return std::nullopt;
+        return WTF::nullopt;
     };
     if (auto namedProperty = accessVisibleNamedProperty<OverrideBuiltins::Yes>(*state, *thisObject, propertyName, getterFunctor)) {
         auto value = toJS<IDLDOMString>(*state, WTFMove(namedProperty.value()));
@@ -263,19 +266,19 @@ static bool isUnforgeablePropertyName(PropertyName propertyName)
 
 template<> inline JSTestNamedSetterWithUnforgablePropertiesAndOverrideBuiltins* IDLAttribute<JSTestNamedSetterWithUnforgablePropertiesAndOverrideBuiltins>::cast(ExecState& state, EncodedJSValue thisValue)
 {
-    return jsDynamicDowncast<JSTestNamedSetterWithUnforgablePropertiesAndOverrideBuiltins*>(state.vm(), JSValue::decode(thisValue));
+    return jsDynamicCast<JSTestNamedSetterWithUnforgablePropertiesAndOverrideBuiltins*>(state.vm(), JSValue::decode(thisValue));
 }
 
 template<> inline JSTestNamedSetterWithUnforgablePropertiesAndOverrideBuiltins* IDLOperation<JSTestNamedSetterWithUnforgablePropertiesAndOverrideBuiltins>::cast(ExecState& state)
 {
-    return jsDynamicDowncast<JSTestNamedSetterWithUnforgablePropertiesAndOverrideBuiltins*>(state.vm(), state.thisValue());
+    return jsDynamicCast<JSTestNamedSetterWithUnforgablePropertiesAndOverrideBuiltins*>(state.vm(), state.thisValue());
 }
 
 EncodedJSValue jsTestNamedSetterWithUnforgablePropertiesAndOverrideBuiltinsConstructor(ExecState* state, EncodedJSValue thisValue, PropertyName)
 {
     VM& vm = state->vm();
     auto throwScope = DECLARE_THROW_SCOPE(vm);
-    auto* prototype = jsDynamicDowncast<JSTestNamedSetterWithUnforgablePropertiesAndOverrideBuiltinsPrototype*>(vm, JSValue::decode(thisValue));
+    auto* prototype = jsDynamicCast<JSTestNamedSetterWithUnforgablePropertiesAndOverrideBuiltinsPrototype*>(vm, JSValue::decode(thisValue));
     if (UNLIKELY(!prototype))
         return throwVMTypeError(state, throwScope);
     return JSValue::encode(JSTestNamedSetterWithUnforgablePropertiesAndOverrideBuiltins::getConstructor(state->vm(), prototype->globalObject()));
@@ -285,7 +288,7 @@ bool setJSTestNamedSetterWithUnforgablePropertiesAndOverrideBuiltinsConstructor(
 {
     VM& vm = state->vm();
     auto throwScope = DECLARE_THROW_SCOPE(vm);
-    auto* prototype = jsDynamicDowncast<JSTestNamedSetterWithUnforgablePropertiesAndOverrideBuiltinsPrototype*>(vm, JSValue::decode(thisValue));
+    auto* prototype = jsDynamicCast<JSTestNamedSetterWithUnforgablePropertiesAndOverrideBuiltinsPrototype*>(vm, JSValue::decode(thisValue));
     if (UNLIKELY(!prototype)) {
         throwVMTypeError(state, throwScope);
         return false;
@@ -322,10 +325,20 @@ EncodedJSValue JSC_HOST_CALL jsTestNamedSetterWithUnforgablePropertiesAndOverrid
     return IDLOperation<JSTestNamedSetterWithUnforgablePropertiesAndOverrideBuiltins>::call<jsTestNamedSetterWithUnforgablePropertiesAndOverrideBuiltinsInstanceFunctionUnforgeableOperationBody>(*state, "unforgeableOperation");
 }
 
-bool JSTestNamedSetterWithUnforgablePropertiesAndOverrideBuiltinsOwner::isReachableFromOpaqueRoots(JSC::Handle<JSC::Unknown> handle, void*, SlotVisitor& visitor)
+void JSTestNamedSetterWithUnforgablePropertiesAndOverrideBuiltins::heapSnapshot(JSCell* cell, HeapSnapshotBuilder& builder)
+{
+    auto* thisObject = jsCast<JSTestNamedSetterWithUnforgablePropertiesAndOverrideBuiltins*>(cell);
+    builder.setWrappedObjectForCell(cell, &thisObject->wrapped());
+    if (thisObject->scriptExecutionContext())
+        builder.setLabelForCell(cell, "url " + thisObject->scriptExecutionContext()->url().string());
+    Base::heapSnapshot(cell, builder);
+}
+
+bool JSTestNamedSetterWithUnforgablePropertiesAndOverrideBuiltinsOwner::isReachableFromOpaqueRoots(JSC::Handle<JSC::Unknown> handle, void*, SlotVisitor& visitor, const char** reason)
 {
     UNUSED_PARAM(handle);
     UNUSED_PARAM(visitor);
+    UNUSED_PARAM(reason);
     return false;
 }
 
@@ -376,7 +389,7 @@ JSC::JSValue toJS(JSC::ExecState* state, JSDOMGlobalObject* globalObject, TestNa
 
 TestNamedSetterWithUnforgablePropertiesAndOverrideBuiltins* JSTestNamedSetterWithUnforgablePropertiesAndOverrideBuiltins::toWrapped(JSC::VM& vm, JSC::JSValue value)
 {
-    if (auto* wrapper = jsDynamicDowncast<JSTestNamedSetterWithUnforgablePropertiesAndOverrideBuiltins*>(vm, value))
+    if (auto* wrapper = jsDynamicCast<JSTestNamedSetterWithUnforgablePropertiesAndOverrideBuiltins*>(vm, value))
         return &wrapper->wrapped();
     return nullptr;
 }

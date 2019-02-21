@@ -36,15 +36,16 @@ EncodedJSValue JSC_HOST_CALL boundFunctionConstruct(ExecState*);
 EncodedJSValue JSC_HOST_CALL isBoundFunction(ExecState*);
 EncodedJSValue JSC_HOST_CALL hasInstanceBoundFunction(ExecState*);
 
-class JSBoundFunction : public JSFunction {
+class JSBoundFunction final : public JSFunction {
 public:
     typedef JSFunction Base;
-    const static unsigned StructureFlags = ~ImplementsDefaultHasInstance & Base::StructureFlags;
+    const static unsigned StructureFlags = Base::StructureFlags & ~ImplementsDefaultHasInstance;
+    static_assert(StructureFlags & ImplementsHasInstance, "");
 
-    template<typename CellType>
+    template<typename CellType, SubspaceAccess mode>
     static IsoSubspace* subspaceFor(VM& vm)
     {
-        return &vm.boundFunctionSpace;
+        return vm.boundFunctionSpace<mode>();
     }
 
     static JSBoundFunction* create(VM&, ExecState*, JSGlobalObject*, JSObject* targetFunction, JSValue boundThis, JSArray* boundArgs, int, const String& name);

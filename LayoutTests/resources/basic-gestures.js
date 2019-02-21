@@ -10,6 +10,35 @@ function didShowKeyboard()
     });
 }
 
+function doubleTapToZoomAtPoint(x, y)
+{
+    return new Promise(resolve => {
+        testRunner.runUIScript(`
+            (function() {
+                let completionCount = 0;
+                const checkDone = () => {
+                    if (++completionCount == 3)
+                        uiController.uiScriptComplete();
+                };
+                uiController.didEndZoomingCallback = checkDone;
+                uiController.singleTapAtPoint(${x}, ${y}, checkDone);
+                uiController.singleTapAtPoint(${x}, ${y}, checkDone);
+            })();`, resolve);
+    });
+}
+
+function doubleTapAtPoint(x, y)
+{
+    return new Promise(resolve => {
+        testRunner.runUIScript(`
+            (function() {
+                uiController.doubleTapAtPoint(${x}, ${y}, function() {
+                    uiController.uiScriptComplete();
+                });
+            })();`, resolve);
+    });
+}
+
 function longPressAtPoint(x, y)
 {
     return new Promise(resolve => {

@@ -25,9 +25,9 @@
 
 #pragma once
 
+#include "JSCPtrTag.h"
 #include "JSFunction.h"
 #include "MacroAssemblerCodeRef.h"
-#include "PtrTag.h"
 #include <wtf/SentinelLinkedList.h>
 
 namespace JSC {
@@ -50,16 +50,14 @@ struct LLIntCallLinkInfo : public BasicRawSentinelNode<LLIntCallLinkInfo> {
     void unlink()
     {
         callee.clear();
-        machineCodeTarget = MacroAssemblerCodePtr();
-        callPtrTag = NoPtrTag;
+        machineCodeTarget = MacroAssemblerCodePtr<JSEntryPtrTag>();
         if (isOnList())
             remove();
     }
     
     WriteBarrier<JSObject> callee;
     WriteBarrier<JSObject> lastSeenCallee;
-    MacroAssemblerCodePtr machineCodeTarget;
-    PtrTag callPtrTag { NoPtrTag };
+    MacroAssemblerCodePtr<JSEntryPtrTag> machineCodeTarget;
 };
 
 } // namespace JSC

@@ -43,6 +43,7 @@ public:
 
 private:
     explicit RealtimeOutgoingAudioSourceCocoa(Ref<MediaStreamTrackPrivate>&&);
+    ~RealtimeOutgoingAudioSourceCocoa();
 
     void audioSamplesAvailable(const MediaTime&, const PlatformAudioData&, const AudioStreamDescription&, size_t) final;
 
@@ -51,9 +52,6 @@ private:
     bool hasBufferedEnoughData() final;
 
     void pullAudioData() final;
-
-    void handleMutedIfNeeded() final;
-    void sendSilence() final;
 
     Ref<AudioSampleDataSource> m_sampleConverter;
     CAAudioStreamDescription m_inputStreamDescription;

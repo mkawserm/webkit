@@ -47,6 +47,7 @@ namespace WebKit {
 class LibWebRTCSocketFactory;
 
 class LibWebRTCSocket final : public rtc::AsyncPacketSocket {
+    WTF_MAKE_FAST_ALLOCATED;
 public:
     enum class Type { UDP, ServerTCP, ClientTCP, ServerConnectionTCP };
 
@@ -83,6 +84,8 @@ private:
     int GetOption(rtc::Socket::Option, int*) final;
     int SetOption(rtc::Socket::Option, int) final;
 
+    static void sendOnMainThread(Function<void(IPC::Connection&)>&&);
+
     LibWebRTCSocketFactory& m_factory;
     uint64_t m_identifier { 0 };
     Type m_type;
@@ -93,7 +96,7 @@ private:
     State m_state { STATE_BINDING };
 
     static const unsigned MAX_SOCKET_OPTION { rtc::Socket::OPT_RTP_SENDTIME_EXTN_ID + 1 };
-    int m_options[MAX_SOCKET_OPTION];
+    Optional<int> m_options[MAX_SOCKET_OPTION];
 
     Deque<size_t> m_beingSentPacketSizes;
     size_t m_availableSendingBytes { 65536 };

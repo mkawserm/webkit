@@ -10,15 +10,17 @@
 
 #include "media/engine/vp8_encoder_simulcast_proxy.h"
 
-#include "media/engine/scopedvideoencoder.h"
 #include "media/engine/simulcast_encoder_adapter.h"
-#include "rtc_base/checks.h"
 
 namespace webrtc {
-VP8EncoderSimulcastProxy::VP8EncoderSimulcastProxy(VideoEncoderFactory* factory)
-    : factory_(factory), callback_(nullptr) {
-  encoder_ = factory_->CreateVideoEncoder(SdpVideoFormat("VP8"));
+VP8EncoderSimulcastProxy::VP8EncoderSimulcastProxy(VideoEncoderFactory* factory,
+                                                   const SdpVideoFormat& format)
+    : factory_(factory), video_format_(format), callback_(nullptr) {
+  encoder_ = factory_->CreateVideoEncoder(format);
 }
+
+VP8EncoderSimulcastProxy::VP8EncoderSimulcastProxy(VideoEncoderFactory* factory)
+    : VP8EncoderSimulcastProxy(factory, SdpVideoFormat("VP8")) {}
 
 VP8EncoderSimulcastProxy::~VP8EncoderSimulcastProxy() {}
 
@@ -31,7 +33,7 @@ int VP8EncoderSimulcastProxy::InitEncode(const VideoCodec* inst,
                                          size_t max_payload_size) {
   int ret = encoder_->InitEncode(inst, number_of_cores, max_payload_size);
   if (ret == WEBRTC_VIDEO_CODEC_ERR_SIMULCAST_PARAMETERS_NOT_SUPPORTED) {
-    encoder_.reset(new SimulcastEncoderAdapter(factory_));
+    encoder_.reset(new SimulcastEncoderAdapter(factory_, video_format_));
     if (callback_) {
       encoder_->RegisterEncodeCompleteCallback(callback_);
     }
@@ -53,32 +55,14 @@ int VP8EncoderSimulcastProxy::RegisterEncodeCompleteCallback(
   return encoder_->RegisterEncodeCompleteCallback(callback);
 }
 
-int VP8EncoderSimulcastProxy::SetChannelParameters(uint32_t packet_loss,
-                                                   int64_t rtt) {
-  return encoder_->SetChannelParameters(packet_loss, rtt);
-}
-
 int VP8EncoderSimulcastProxy::SetRateAllocation(
-    const BitrateAllocation& bitrate,
+    const VideoBitrateAllocation& bitrate,
     uint32_t new_framerate) {
   return encoder_->SetRateAllocation(bitrate, new_framerate);
 }
 
-VideoEncoder::ScalingSettings VP8EncoderSimulcastProxy::GetScalingSettings()
-    const {
-  return encoder_->GetScalingSettings();
-}
-
-int32_t VP8EncoderSimulcastProxy::SetPeriodicKeyFrames(bool enable) {
-  return encoder_->SetPeriodicKeyFrames(enable);
-}
-
-bool VP8EncoderSimulcastProxy::SupportsNativeHandle() const {
-  return encoder_->SupportsNativeHandle();
-}
-
-const char* VP8EncoderSimulcastProxy::ImplementationName() const {
-  return encoder_->ImplementationName();
+VideoEncoder::EncoderInfo VP8EncoderSimulcastProxy::GetEncoderInfo() const {
+  return encoder_->GetEncoderInfo();
 }
 
 }  // namespace webrtc

@@ -21,20 +21,21 @@
 namespace cricket {
 
 TransportDescriptionFactory::TransportDescriptionFactory()
-    : secure_(SEC_DISABLED) {
-}
+    : secure_(SEC_DISABLED) {}
 
 TransportDescriptionFactory::~TransportDescriptionFactory() = default;
 
 TransportDescription* TransportDescriptionFactory::CreateOffer(
     const TransportOptions& options,
-    const TransportDescription* current_description) const {
+    const TransportDescription* current_description,
+    IceCredentialsIterator* ice_credentials) const {
   std::unique_ptr<TransportDescription> desc(new TransportDescription());
 
   // Generate the ICE credentials if we don't already have them.
   if (!current_description || options.ice_restart) {
-    desc->ice_ufrag = rtc::CreateRandomString(ICE_UFRAG_LENGTH);
-    desc->ice_pwd = rtc::CreateRandomString(ICE_PWD_LENGTH);
+    IceParameters credentials = ice_credentials->GetIceCredentials();
+    desc->ice_ufrag = credentials.ufrag;
+    desc->ice_pwd = credentials.pwd;
   } else {
     desc->ice_ufrag = current_description->ice_ufrag;
     desc->ice_pwd = current_description->ice_pwd;
@@ -60,11 +61,12 @@ TransportDescription* TransportDescriptionFactory::CreateAnswer(
     const TransportDescription* offer,
     const TransportOptions& options,
     bool require_transport_attributes,
-    const TransportDescription* current_description) const {
+    const TransportDescription* current_description,
+    IceCredentialsIterator* ice_credentials) const {
   // TODO(juberti): Figure out why we get NULL offers, and fix this upstream.
   if (!offer) {
     RTC_LOG(LS_WARNING) << "Failed to create TransportDescription answer "
-                        << "because offer is NULL";
+                           "because offer is NULL";
     return NULL;
   }
 
@@ -72,8 +74,9 @@ TransportDescription* TransportDescriptionFactory::CreateAnswer(
   // Generate the ICE credentials if we don't already have them or ice is
   // being restarted.
   if (!current_description || options.ice_restart) {
-    desc->ice_ufrag = rtc::CreateRandomString(ICE_UFRAG_LENGTH);
-    desc->ice_pwd = rtc::CreateRandomString(ICE_PWD_LENGTH);
+    IceParameters credentials = ice_credentials->GetIceCredentials();
+    desc->ice_ufrag = credentials.ufrag;
+    desc->ice_pwd = credentials.pwd;
   } else {
     desc->ice_ufrag = current_description->ice_ufrag;
     desc->ice_pwd = current_description->ice_pwd;
@@ -89,8 +92,9 @@ TransportDescription* TransportDescriptionFactory::CreateAnswer(
     if (secure_ == SEC_ENABLED || secure_ == SEC_REQUIRED) {
       // Fail if we can't create the fingerprint.
       // Setting DTLS role to active.
-      ConnectionRole role = (options.prefer_passive_role) ?
-          CONNECTIONROLE_PASSIVE : CONNECTIONROLE_ACTIVE;
+      ConnectionRole role = (options.prefer_passive_role)
+                                ? CONNECTIONROLE_PASSIVE
+                                : CONNECTIONROLE_ACTIVE;
 
       if (!SetSecurityInfo(desc.get(), role)) {
         return NULL;
@@ -106,8 +110,8 @@ TransportDescription* TransportDescriptionFactory::CreateAnswer(
   return desc.release();
 }
 
-bool TransportDescriptionFactory::SetSecurityInfo(
-    TransportDescription* desc, ConnectionRole role) const {
+bool TransportDescriptionFactory::SetSecurityInfo(TransportDescription* desc,
+                                                  ConnectionRole role) const {
   if (!certificate_) {
     RTC_LOG(LS_ERROR) << "Cannot create identity digest with no certificate";
     return false;
@@ -116,8 +120,8 @@ bool TransportDescriptionFactory::SetSecurityInfo(
   // This digest algorithm is used to produce the a=fingerprint lines in SDP.
   // RFC 4572 Section 5 requires that those lines use the same hash function as
   // the certificate's signature, which is what CreateFromCertificate does.
-  desc->identity_fingerprint.reset(
-      rtc::SSLFingerprint::CreateFromCertificate(certificate_));
+  desc->identity_fingerprint =
+      rtc::SSLFingerprint::CreateFromCertificate(*certificate_);
   if (!desc->identity_fingerprint) {
     return false;
   }

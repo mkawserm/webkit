@@ -28,16 +28,16 @@
 
 #if WK_API_ENABLED
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
 
 #import "GestureTypes.h"
 #import "WKActionSheetAssistant.h"
 #import "WKContentViewInteraction.h"
-#import "WeakObjCPtr.h"
 #import "_WKActivatedElementInfoInternal.h"
 #import <WebCore/LocalizedStrings.h>
 #import <wtf/RetainPtr.h>
 #import <wtf/SoftLinking.h>
+#import <wtf/WeakObjCPtr.h>
 #import <wtf/text/WTFString.h>
 
 #if HAVE(SAFARI_SERVICES_FRAMEWORK)
@@ -52,7 +52,7 @@ typedef void (^WKElementActionHandlerInternal)(WKActionSheetAssistant *, _WKActi
     RetainPtr<NSString> _title;
     WKElementActionHandlerInternal _actionHandler;
     WKElementActionDismissalHandler _dismissalHandler;
-    WebKit::WeakObjCPtr<WKActionSheetAssistant> _defaultActionSheetAssistant;
+    WeakObjCPtr<WKActionSheetAssistant> _defaultActionSheetAssistant;
 }
 
 - (id)_initWithTitle:(NSString *)title actionHandler:(WKElementActionHandlerInternal)handler type:(_WKElementActionType)type assistant:(WKActionSheetAssistant *)assistant
@@ -174,6 +174,6 @@ static void addToReadingList(NSURL *targetURL, NSString *title)
 
 @end
 
-#endif // PLATFORM(IOS)
+#endif // PLATFORM(IOS_FAMILY)
 
 #endif // WK_API_ENABLED

@@ -10,6 +10,7 @@
 
 #include "modules/rtp_rtcp/source/rtcp_packet/remb.h"
 
+#include <cstdint>
 #include <utility>
 
 #include "modules/rtp_rtcp/source/byte_io.h"
@@ -40,6 +41,8 @@ constexpr uint8_t Remb::kFeedbackMessageType;
 //    :  ...                                                          :
 
 Remb::Remb() : bitrate_bps_(0) {}
+
+Remb::Remb(const Remb& rhs) = default;
 
 Remb::~Remb() = default;
 
@@ -104,7 +107,7 @@ size_t Remb::BlockLength() const {
 bool Remb::Create(uint8_t* packet,
                   size_t* index,
                   size_t max_length,
-                  RtcpPacket::PacketReadyCallback* callback) const {
+                  PacketReadyCallback callback) const {
   while (*index + BlockLength() > max_length) {
     if (!OnBufferFull(packet, index, callback))
       return false;

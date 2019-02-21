@@ -48,26 +48,26 @@ TEST(WebKit, WKPageConfigurationEmpty)
 
 static bool didFinishLoad;
 
-static void didFinishLoadForFrame(WKPageRef, WKFrameRef, WKTypeRef, const void*)
+static void didFinishNavigation(WKPageRef, WKNavigationRef, WKTypeRef, const void*)
 {
     didFinishLoad = true;
 }
 
 static void setPageLoaderClient(WKPageRef page)
 {
-    WKPageLoaderClientV0 loaderClient;
+    WKPageNavigationClientV0 loaderClient;
     memset(&loaderClient, 0, sizeof(loaderClient));
 
     loaderClient.base.version = 0;
-    loaderClient.didFinishLoadForFrame = didFinishLoadForFrame;
+    loaderClient.didFinishNavigation = didFinishNavigation;
 
-    WKPageSetPageLoaderClient(page, &loaderClient.base);
+    WKPageSetPageNavigationClient(page, &loaderClient.base);
 }
 
 TEST(WebKit, WKPageConfigurationBasic)
 {
     WKRetainPtr<WKPageConfigurationRef> configuration = adoptWK(WKPageConfigurationCreate());
-    WKRetainPtr<WKContextRef> context = adoptWK(WKContextCreate());
+    WKRetainPtr<WKContextRef> context = adoptWK(WKContextCreateWithConfiguration(nullptr));
     WKPageConfigurationSetContext(configuration.get(), context.get());
     
     PlatformWebView webView(configuration.get());
@@ -86,7 +86,7 @@ TEST(WebKit, WKPageConfigurationBasic)
 TEST(WebKit, WKPageConfigurationBasicWithDataStore)
 {
     WKRetainPtr<WKPageConfigurationRef> configuration = adoptWK(WKPageConfigurationCreate());
-    WKRetainPtr<WKContextRef> context = adoptWK(WKContextCreate());
+    WKRetainPtr<WKContextRef> context = adoptWK(WKContextCreateWithConfiguration(nullptr));
     WKPageConfigurationSetContext(configuration.get(), context.get());
     WKRetainPtr<WKWebsiteDataStoreRef> websiteDataStore = WKWebsiteDataStoreGetDefaultDataStore();
     WKPageConfigurationSetWebsiteDataStore(configuration.get(), websiteDataStore.get());
@@ -108,7 +108,7 @@ TEST(WebKit, WKPageConfigurationBasicWithDataStore)
 TEST(WebKit, WKPageConfigurationBasicWithNonPersistentDataStore)
 {
     WKRetainPtr<WKPageConfigurationRef> configuration = adoptWK(WKPageConfigurationCreate());
-    WKRetainPtr<WKContextRef> context = adoptWK(WKContextCreate());
+    WKRetainPtr<WKContextRef> context = adoptWK(WKContextCreateWithConfiguration(nullptr));
     WKPageConfigurationSetContext(configuration.get(), context.get());
     WKRetainPtr<WKWebsiteDataStoreRef> websiteDataStore = adoptWK(WKWebsiteDataStoreCreateNonPersistentDataStore());
     WKPageConfigurationSetWebsiteDataStore(configuration.get(), websiteDataStore.get());

@@ -51,7 +51,6 @@ public:
     void waitUntilLoadFinished();
     void waitUntilTitleChangedTo(const char* expectedTitle);
     void waitUntilTitleChanged();
-    void waitUntilFileExists(const char*);
     void resizeView(int width, int height);
     void hideView();
     void selectAll();
@@ -70,8 +69,13 @@ public:
     void emitPopupMenuSignal();
 #endif
 
+#if PLATFORM(WPE)
+    void showInWindow();
+#endif
+
     WebKitJavascriptResult* runJavaScriptAndWaitUntilFinished(const char* javascript, GError**);
     WebKitJavascriptResult* runJavaScriptFromGResourceAndWaitUntilFinished(const char* resource, GError**);
+    WebKitJavascriptResult* runJavaScriptInWorldAndWaitUntilFinished(const char* javascript, const char* world, GError**);
 
     // Javascript result helpers.
     static char* javascriptResultToCString(WebKitJavascriptResult*);
@@ -103,7 +107,6 @@ public:
     size_t m_resourceDataSize { 0 };
     cairo_surface_t* m_surface { nullptr };
     bool m_expectedWebProcessCrash { false };
-    GRefPtr<GFile> m_monitoredFile;
 
 #if PLATFORM(GTK)
     GtkWidget* m_parentWindow { nullptr };

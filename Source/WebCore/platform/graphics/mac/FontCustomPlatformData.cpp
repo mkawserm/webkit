@@ -51,29 +51,38 @@ FontPlatformData FontCustomPlatformData::fontPlatformData(const FontDescription&
     return FontPlatformData(font.get(), size, bold, italic, orientation, widthVariant, fontDescription.textRenderingMode());
 }
 
-std::unique_ptr<FontCustomPlatformData> createFontCustomPlatformData(SharedBuffer& buffer, unsigned index)
+std::unique_ptr<FontCustomPlatformData> createFontCustomPlatformData(SharedBuffer& buffer, const String& itemInCollection)
 {
     RetainPtr<CFDataRef> bufferData = buffer.createCFData();
 
     RetainPtr<CTFontDescriptorRef> fontDescriptor;
-#if (PLATFORM(MAC) && __MAC_OS_X_VERSION_MIN_REQUIRED >= 101300) || (PLATFORM(IOS) && __IPHONE_OS_VERSION_MIN_REQUIRED >= 110000)
+#if (PLATFORM(MAC) && __MAC_OS_X_VERSION_MIN_REQUIRED >= 101300) || (PLATFORM(IOS_FAMILY) && __IPHONE_OS_VERSION_MIN_REQUIRED >= 110000)
     auto array = adoptCF(CTFontManagerCreateFontDescriptorsFromData(bufferData.get()));
     if (!array)
         return nullptr;
     auto length = CFArrayGetCount(array.get());
     if (length <= 0)
         return nullptr;
-    if (index > 0)
-        --index;
-    if (index >= static_cast<unsigned>(length))
-        index = 0;
-    fontDescriptor = static_cast<CTFontDescriptorRef>(CFArrayGetValueAtIndex(array.get(), index));
+    if (!itemInCollection.isNull()) {
+        if (auto desiredName = itemInCollection.createCFString()) {
+            for (CFIndex i = 0; i < length; ++i) {
+                auto candidate = static_cast<CTFontDescriptorRef>(CFArrayGetValueAtIndex(array.get(), i));
+                auto postScriptName = adoptCF(static_cast<CFStringRef>(CTFontDescriptorCopyAttribute(candidate, kCTFontNameAttribute)));
+                if (CFStringCompare(postScriptName.get(), desiredName.get(), 0) == kCFCompareEqualTo) {
+                    fontDescriptor = candidate;
+                    break;
+                }
+            }
+        }
+    }
+    if (!fontDescriptor)
+        fontDescriptor = static_cast<CTFontDescriptorRef>(CFArrayGetValueAtIndex(array.get(), 0));
 #else
-    UNUSED_PARAM(index);
+    UNUSED_PARAM(itemInCollection);
     fontDescriptor = adoptCF(CTFontManagerCreateFontDescriptorFromData(bufferData.get()));
-#endif
     if (!fontDescriptor)
         return nullptr;
+#endif
 
     return std::make_unique<FontCustomPlatformData>(fontDescriptor.get());
 }

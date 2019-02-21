@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 Igalia, S.L. All right reserved.
+ * Copyright (C) 2017-2018 Igalia, S.L. All right reserved.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -34,6 +34,8 @@ public:
 
     ~VRPlatformDisplayOpenVR() = default;
     VRPlatformDisplayInfo getDisplayInfo() override { return m_displayInfo; }
+    VRPlatformTrackingInfo getTrackingInfo() override;
+    void updateDisplayInfo() override;
 
 private:
     VRPlatformDisplayInfo::FieldOfView computeFieldOfView(vr::Hmd_Eye);
@@ -47,6 +49,7 @@ private:
     vr::IVRCompositor* m_compositor;
 
     VRPlatformDisplayInfo m_displayInfo;
+    VRPlatformTrackingInfo m_trackingInfo;
 };
 
 }; // namespace WebCore

@@ -69,16 +69,11 @@ WI.FolderizedTreeElement = class FolderizedTreeElement extends WI.GeneralTreeEle
         this._folderizeSettingsMap.set(type, settings);
     }
 
-    // Overrides from TreeElement (Private).
-
     removeChildren()
     {
         super.removeChildren();
 
         this._clearNewChildQueue();
-
-        for (var folder of this._folderTypeMap.values())
-            folder.removeChildren();
 
         this._folderExpandedSettingMap.clear();
         this._folderTypeMap.clear();
@@ -148,7 +143,7 @@ WI.FolderizedTreeElement = class FolderizedTreeElement extends WI.GeneralTreeEle
     {
         let hasChildren = false;
         for (let settings of this._folderizeSettingsMap.values()) {
-            if (settings.representedObject.items.size) {
+            if (settings.representedObject.size) {
                 hasChildren = true;
                 break;
             }
@@ -223,7 +218,7 @@ WI.FolderizedTreeElement = class FolderizedTreeElement extends WI.GeneralTreeEle
         this._insertChildTreeElement(parentTreeElement, childTreeElement);
 
         if (wasSelected)
-            childTreeElement.revealAndSelect(true, false, true, true);
+            childTreeElement.revealAndSelect(true, false, true);
     }
 
     _compareTreeElementsByMainTitle(a, b)
@@ -380,7 +375,7 @@ WI.FolderizedTreeElement = class FolderizedTreeElement extends WI.GeneralTreeEle
 
         // Iterate over all the available child object types.
         for (var settings of this._folderizeSettingsMap.values()) {
-            if (pushCategory(settings.representedObject.items.size))
+            if (pushCategory(settings.representedObject.size))
                 return true;
         }
         return false;

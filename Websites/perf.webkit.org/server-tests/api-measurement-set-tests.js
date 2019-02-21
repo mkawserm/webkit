@@ -16,8 +16,8 @@ describe("/api/measurement-set", function () {
     {
         const db = TestServer.database();
         return Promise.all([
-            db.selectFirstRow('platforms', {name: 'Mountain Lion'}),
-            db.selectFirstRow('test_metrics', {name: 'Time'}),
+            db.selectFirstRow('platforms', {name: platformName}),
+            db.selectFirstRow('test_metrics', {name: metricName}),
         ]).then(function (result) {
             return {platformId: result[0]['id'], metricId: result[1]['id']};
         });
@@ -325,7 +325,7 @@ describe("/api/measurement-set", function () {
                sum: 65,
                squareSum: 855,
                markedOutlier: false,
-               revisions: [[1, repositoryId, '144000', revisionTime]],
+               revisions: [[1, repositoryId, '144000', null, revisionTime]],
                commitTime: revisionTime,
                buildTime: revisionBuildTime,
                buildNumber: '124' });
@@ -393,7 +393,7 @@ describe("/api/measurement-set", function () {
                sum: 15,
                squareSum: 55,
                markedOutlier: false,
-               revisions: [[3, 1, 'macOS 16C68', 0]],
+               revisions: [[3, 1, 'macOS 16C68', 1, 0]],
                commitTime: +Date.UTC(2017, 0, 19, 15, 28, 1),
                buildTime: +Date.UTC(2017, 0, 19, 15, 28, 1),
                buildNumber: '1001' });
@@ -403,7 +403,7 @@ describe("/api/measurement-set", function () {
                 sum: 35,
                 squareSum: 255,
                 markedOutlier: false,
-                revisions: [[2, 1, 'macOS 16A323', 0]],
+                revisions: [[2, 1, 'macOS 16A323', 0, 0]],
                 commitTime: +Date.UTC(2017, 0, 19, 19, 46, 37),
                 buildTime: +Date.UTC(2017, 0, 19, 19, 46, 37),
                 buildNumber: '1002' });
@@ -500,4 +500,136 @@ describe("/api/measurement-set", function () {
         });
     });
 
+    async function reportAfterAddingBuilderAndAggregatorsWithResponse(report)
+    {
+        await addBuilderForReport(report);
+        const db = TestServer.database();
+        await Promise.all([
+            db.insert('aggregators', {name: 'Arithmetic'}),
+            db.insert('aggregators', {name: 'Geometric'}),
+        ]);
+        return await TestServer.remoteAPI().postJSON('/api/report/', [report]);
+    }
+
+    const reportWithBuildRequest = {
+        "buildNumber": "123",
+        "buildTime": "2013-02-28T10:12:03.388304",
+        "builderName": "someBuilder",
+        "builderPassword": "somePassword",
+        "platform": "Mountain Lion",
+        "buildRequest": "700",
+        "tests": {
+            "test": {
+                "metrics": {"FrameRate": { "current": [[[0, 4], [100, 5], [205, 3]]] }}
+            },
+        },
+        "revisions": {
+            "macOS": {
+                "revision": "10.8.2 12C60"
+            },
+            "WebKit": {
+                "revision": "141977",
+                "timestamp": "2013-02-06T08:55:20.9Z"
+            }
+        }
+    };
+
+    it("should allow to report a build request", async () => {
+        await MockData.addMockData(TestServer.database());
+        let response = await reportAfterAddingBuilderAndAggregatorsWithResponse(reportWithBuildRequest);
+        assert.equal(response['status'], 'OK');
+        response = await TestServer.remoteAPI().getJSONWithStatus('/api/measurement-set/?analysisTask=500');
+        assert.equal(response['status'], 'OK');
+        assert.deepEqual(response['measurements'], [[1, 4, 3, 12, 50, [
+                ['1', '9', '10.8.2 12C60', null, 0], ['2', '11', '141977', null, 1360140920900]],
+            1, 1362046323388, '123', 1, 1, 'current']]);
+    });
+
+    const reportWithCommitsNeedsRoundCommitTimeAndBuildRequest = {
+        "buildNumber": "123",
+        "buildTime": "2013-02-28T10:12:03.388304",
+        "builderName": "someBuilder",
+        "builderPassword": "somePassword",
+        "platform": "Mountain Lion",
+        "buildRequest": "700",
+        "tests": {
+            "test": {
+                "metrics": {"FrameRate": { "current": [[[0, 4], [100, 5], [205, 3]]] }}
+            },
+        },
+        "revisions": {
+            "macOS": {
+                "revision": "10.8.2 12C60",
+                "timestamp": '2018-09-27T09:49:52.670499Z',
+            },
+            "WebKit": {
+                "revision": "141977",
+                "timestamp": '2018-09-27T09:49:52.670999Z',
+            }
+        }
+    };
+
+    it("commit time of commits from measurement set queried by analysis task should match the one from `/api/commits`", async () => {
+        const expectedWebKitCommitTime = 1538041792671;
+        const expectedMacOSCommitTime = 1538041792670;
+        const remote = TestServer.remoteAPI();
+        await MockData.addMockData(TestServer.database());
+        let response = await reportAfterAddingBuilderAndAggregatorsWithResponse(reportWithCommitsNeedsRoundCommitTimeAndBuildRequest);
+        assert.equal(response['status'], 'OK');
+
+        const rawWebKitCommit = await remote.getJSONWithStatus(`/api/commits/WebKit/141977`);
+        assert.equal(rawWebKitCommit.commits[0].time, expectedWebKitCommitTime);
+
+        const rawMacOSCommit = await remote.getJSONWithStatus(`/api/commits/macOS/10.8.2%2012C60`);
+        assert.equal(rawMacOSCommit.commits[0].time, expectedMacOSCommitTime);
+
+        response = await TestServer.remoteAPI().getJSONWithStatus('/api/measurement-set/?analysisTask=500');
+        assert.equal(response['status'], 'OK');
+        assert.deepEqual(response['measurements'], [[1, 4, 3, 12, 50, [
+            ['1', '9', '10.8.2 12C60', null, expectedMacOSCommitTime], ['2', '11', '141977', null, expectedWebKitCommitTime]],
+            1, 1362046323388, '123', 1, 1, 'current']]);
+    });
+
+    const reportWithCommitsNeedsRoundCommitTime = {
+        "buildNumber": "123",
+        "buildTime": "2013-02-28T10:12:03.388304",
+        "builderName": "someBuilder",
+        "builderPassword": "somePassword",
+        "platform": "Mountain Lion",
+        "tests": {
+            "test": {
+                "metrics": {"FrameRate": { "current": [[[0, 4], [100, 5], [205, 3]]] }}
+            },
+        },
+        "revisions": {
+            "macOS": {
+                "revision": "10.8.2 12C60",
+                "timestamp": '2018-09-27T09:49:52.670499Z',
+            },
+            "WebKit": {
+                "revision": "141977",
+                "timestamp": '2018-09-27T09:49:52.670999Z',
+            }
+        }
+    };
+
+    it("commit time of commits from measurement set queried by platform and metric should match the one from `/api/commits`", async () => {
+        const expectedWebKitCommitTime = 1538041792671;
+        const expectedMacOSCommitTime = 1538041792670;
+        const remote = TestServer.remoteAPI();
+        await addBuilderForReport(reportWithCommitsNeedsRoundCommitTime);
+        await remote.postJSON('/api/report/', [reportWithCommitsNeedsRoundCommitTime]);
+
+        const rawWebKitCommit = await remote.getJSONWithStatus(`/api/commits/WebKit/141977`);
+        assert.equal(rawWebKitCommit.commits[0].time, expectedWebKitCommitTime);
+
+        const rawMacOSCommit = await remote.getJSONWithStatus(`/api/commits/macOS/10.8.2%2012C60`);
+        assert.equal(rawMacOSCommit.commits[0].time, expectedMacOSCommitTime);
+
+        const result = await queryPlatformAndMetric('Mountain Lion', 'FrameRate');
+        const primaryCluster = await remote.getJSONWithStatus(`/api/measurement-set/?platform=${result.platformId}&metric=${result.metricId}`);
+        assert.deepEqual(primaryCluster.configurations.current, [[1, 4, 3, 12, 50, false, [
+            [1, 1, '10.8.2 12C60', null, expectedMacOSCommitTime], [2, 2, '141977', null, expectedWebKitCommitTime]],
+            expectedWebKitCommitTime, 1, 1362046323388, '123', 1]]);
+    });
 });

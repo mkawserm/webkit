@@ -32,8 +32,8 @@
 #include "IncrementalSweeper.h"
 #include "JSCInlines.h"
 #include "MarkedBlockInlines.h"
+#include "SubspaceInlines.h"
 #include "SuperSampler.h"
-#include "ThreadLocalCacheInlines.h"
 #include "VM.h"
 
 namespace JSC {
@@ -42,11 +42,13 @@ BlockDirectory::BlockDirectory(Heap* heap, size_t cellSize)
     : m_cellSize(static_cast<unsigned>(cellSize))
     , m_heap(heap)
 {
-    heap->threadLocalCacheLayout().allocateOffset(this);
 }
 
 BlockDirectory::~BlockDirectory()
 {
+    auto locker = holdLock(m_localAllocatorsLock);
+    while (!m_localAllocators.isEmpty())
+        m_localAllocators.begin()->remove();
 }
 
 void BlockDirectory::setSubspace(Subspace* subspace)
@@ -89,10 +91,8 @@ MarkedBlock::Handle* BlockDirectory::findBlockForAllocation(LocalAllocator& allo
         
         size_t blockIndex = allocator.m_allocationCursor++;
         MarkedBlock::Handle* result = m_blocks[blockIndex];
-        if (result->securityOriginToken() == allocator.tlc()->securityOriginToken()) {
-            setIsCanAllocateButNotEmpty(NoLockingNecessary, blockIndex, false);
-            return result;
-        }
+        setIsCanAllocateButNotEmpty(NoLockingNecessary, blockIndex, false);
+        return result;
     }
 }
 
@@ -109,7 +109,7 @@ MarkedBlock::Handle* BlockDirectory::tryAllocateBlock()
     return handle;
 }
 
-void BlockDirectory::addBlock(MarkedBlock::Handle* block, SecurityOriginToken securityOriginToken)
+void BlockDirectory::addBlock(MarkedBlock::Handle* block)
 {
     size_t index;
     if (m_freeBlockIndices.isEmpty()) {
@@ -147,7 +147,7 @@ void BlockDirectory::addBlock(MarkedBlock::Handle* block, SecurityOriginToken se
         });
 
     // This is the point at which the block learns of its cellSize() and attributes().
-    block->didAddToDirectory(this, index, securityOriginToken);
+    block->didAddToDirectory(this, index);
     
     setIsLive(NoLockingNecessary, index, true);
     setIsEmpty(NoLockingNecessary, index, true);
@@ -190,6 +190,7 @@ void BlockDirectory::prepareForAllocation()
         });
     
     m_unsweptCursor = 0;
+    m_emptyCursor = 0;
     
     m_eden.clearAll();
 

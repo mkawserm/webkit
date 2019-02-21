@@ -23,16 +23,18 @@
  * THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
 
 #import "WKFormPeripheral.h"
 #import "WKFormPopover.h"
 
+@class UITableViewController;
 @class WKContentView;
 
 @interface WKSelectPopover : WKFormRotatingAccessoryPopover<WKFormControl>
 - (instancetype)initWithView:(WKContentView *)view hasGroups:(BOOL)hasGroups;
 - (void)_userActionDismissedPopover:(id)sender;
+@property (nonatomic, readonly) UITableViewController *tableViewController;
 @end
 
-#endif // PLATFORM(IOS)
+#endif // PLATFORM(IOS_FAMILY)

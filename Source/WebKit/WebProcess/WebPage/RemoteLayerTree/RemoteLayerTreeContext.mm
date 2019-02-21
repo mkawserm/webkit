@@ -32,15 +32,14 @@
 #import "RemoteLayerBackingStoreCollection.h"
 #import "RemoteLayerTreeTransaction.h"
 #import "WebPage.h"
+#import <WebCore/Frame.h>
 #import <WebCore/FrameView.h>
-#import <WebCore/MainFrame.h>
 #import <WebCore/Page.h>
 #import <wtf/SetForScope.h>
 #import <wtf/SystemTracing.h>
 
-using namespace WebCore;
-
 namespace WebKit {
+using namespace WebCore;
 
 RemoteLayerTreeContext::RemoteLayerTreeContext(WebPage& webPage)
     : m_webPage(webPage)
@@ -71,6 +70,7 @@ void RemoteLayerTreeContext::layerWasCreated(PlatformCALayerRemote& layer, Platf
     RemoteLayerTreeTransaction::LayerCreationProperties creationProperties;
     creationProperties.layerID = layerID;
     creationProperties.type = type;
+    creationProperties.embeddedViewID = layer.embeddedViewID();
 
     if (layer.isPlatformCALayerRemoteCustom()) {
         creationProperties.hostingContextID = layer.hostingContextID();
@@ -110,9 +110,9 @@ bool RemoteLayerTreeContext::backingStoreWillBeDisplayed(RemoteLayerBackingStore
     return m_backingStoreCollection.backingStoreWillBeDisplayed(backingStore);
 }
 
-std::unique_ptr<GraphicsLayer> RemoteLayerTreeContext::createGraphicsLayer(WebCore::GraphicsLayer::Type layerType, GraphicsLayerClient& client)
+Ref<GraphicsLayer> RemoteLayerTreeContext::createGraphicsLayer(WebCore::GraphicsLayer::Type layerType, GraphicsLayerClient& client)
 {
-    return std::make_unique<GraphicsLayerCARemote>(layerType, client, *this);
+    return adoptRef(*new GraphicsLayerCARemote(layerType, client, *this));
 }
 
 void RemoteLayerTreeContext::buildTransaction(RemoteLayerTreeTransaction& transaction, PlatformCALayer& rootLayer)

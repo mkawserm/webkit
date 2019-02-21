@@ -7,9 +7,14 @@ list(APPEND WTF_LIBRARIES
     ${READLINE_LIBRARY}
 )
 
-list(APPEND WTF_HEADERS
+list(APPEND WTF_PUBLIC_HEADERS
+    WeakObjCPtr.h
+
+    cf/CFURLExtras.h
     cf/TypeCastsCF.h
 
+    cocoa/Entitlements.h
+    cocoa/NSURLExtras.h
     cocoa/SoftLinking.h
 
     darwin/WeakLinking.h
@@ -19,52 +24,67 @@ list(APPEND WTF_HEADERS
     spi/cf/CFBundleSPI.h
     spi/cf/CFStringSPI.h
 
-    spi/cocoa/NSMapTableSPI.h
+    spi/cocoa/CFXPCBridgeSPI.h
     spi/cocoa/SecuritySPI.h
+    spi/cocoa/objcSPI.h
 
     spi/darwin/SandboxSPI.h
     spi/darwin/XPCSPI.h
     spi/darwin/dyldSPI.h
 
+    spi/mac/MetadataSPI.h
+
     text/cf/TextBreakIteratorCF.h
 )
 
 list(APPEND WTF_SOURCES
-    AutodrainedPoolMac.mm
     BlockObjCExceptions.mm
-    RunLoopTimerCF.cpp
-    SchedulePairCF.cpp
-    SchedulePairMac.mm
 
+    cf/CFURLExtras.cpp
+    cf/FileSystemCF.cpp
     cf/LanguageCF.cpp
     cf/RunLoopCF.cpp
+    cf/RunLoopTimerCF.cpp
+    cf/SchedulePairCF.cpp
+    cf/URLCF.cpp
 
-    text/mac/TextBreakIteratorInternalICUMac.mm
-
-    cocoa/CPUTimeCocoa.mm
+    cocoa/AutodrainedPool.cpp
+    cocoa/CPUTimeCocoa.cpp
+    cocoa/Entitlements.mm
+    cocoa/FileSystemCocoa.mm
+    cocoa/MachSendRight.cpp
+    cocoa/MainThreadCocoa.mm
     cocoa/MemoryFootprintCocoa.cpp
     cocoa/MemoryPressureHandlerCocoa.mm
+    cocoa/NSURLExtras.mm
+    cocoa/URLCocoa.mm
     cocoa/WorkQueueCocoa.cpp
 
     mac/DeprecatedSymbolsUsedBySafari.mm
-    mac/MainThreadMac.mm
+    mac/FileSystemMac.mm
+    mac/SchedulePairMac.mm
+
+    posix/FileSystemPOSIX.cpp
+    posix/OSAllocatorPOSIX.cpp
+    posix/ThreadingPOSIX.cpp
 
     text/cf/AtomicStringImplCF.cpp
     text/cf/StringCF.cpp
     text/cf/StringImplCF.cpp
     text/cf/StringViewCF.cpp
 
-    text/mac/StringImplMac.mm
-    text/mac/StringMac.mm
-    text/mac/StringViewObjC.mm
+    text/cocoa/StringCocoa.mm
+    text/cocoa/StringImplCocoa.mm
+    text/cocoa/StringViewCocoa.mm
+    text/cocoa/TextBreakIteratorInternalICUCocoa.cpp
 )
 
 list(APPEND WTF_PRIVATE_INCLUDE_DIRECTORIES
-    "${WTF_DIR}/icu"
     ${DERIVED_SOURCES_WTF_DIR}
 )
 
 file(COPY mac/MachExceptions.defs DESTINATION ${DERIVED_SOURCES_WTF_DIR})
+file(COPY "${WTF_DIR}/icu/unicode" DESTINATION ${DERIVED_SOURCES_WTF_DIR})
 
 add_custom_command(
     OUTPUT

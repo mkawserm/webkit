@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013 Apple Inc. All rights reserved.
+ * Copyright (C) 2013-2018 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -28,8 +28,8 @@
 #include "ShareableBitmap.h"
 #include <WebCore/FloatRect.h>
 #include <WebCore/IOSurface.h>
-#include <WebCore/MachSendRight.h>
 #include <WebCore/Region.h>
+#include <wtf/MachSendRight.h>
 #include <wtf/MonotonicTime.h>
 
 OBJC_CLASS CALayer;
@@ -90,6 +90,7 @@ public:
         SecondaryBack
     };
 
+    // Returns true if it was able to fulfill the request. This can fail when trying to mark an in-use surface as volatile.
     bool setBufferVolatility(BufferType, bool isVolatile);
 
     MonotonicTime lastDisplayTime() const { return m_lastDisplayTime; }
@@ -139,7 +140,7 @@ private:
     Buffer m_backBuffer;
 #if HAVE(IOSURFACE)
     Buffer m_secondaryBackBuffer;
-    WebCore::MachSendRight m_frontBufferSendRight;
+    WTF::MachSendRight m_frontBufferSendRight;
 #endif
 
     RetainPtr<CGContextRef> m_frontContextPendingFlush;

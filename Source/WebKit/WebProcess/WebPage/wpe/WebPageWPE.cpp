@@ -32,11 +32,14 @@
 #include <WebCore/Settings.h>
 #include <WebCore/SharedBuffer.h>
 
+namespace WebKit {
 using namespace WebCore;
 
-namespace WebKit {
-
 void WebPage::platformInitialize()
+{
+}
+
+void WebPage::platformReinitialize()
 {
 }
 
@@ -55,34 +58,10 @@ bool WebPage::performDefaultBehaviorForKeyEvent(const WebKeyboardEvent&)
     return false;
 }
 
-bool WebPage::platformHasLocalDataForURL(const URL&)
-{
-    notImplemented();
-    return false;
-}
-
-String WebPage::cachedResponseMIMETypeForURL(const URL&)
-{
-    notImplemented();
-    return String();
-}
-
 bool WebPage::platformCanHandleRequest(const ResourceRequest&)
 {
     notImplemented();
     return false;
-}
-
-String WebPage::cachedSuggestedFilenameForURL(const URL&)
-{
-    notImplemented();
-    return String();
-}
-
-RefPtr<SharedBuffer> WebPage::cachedResponseDataForURL(const URL&)
-{
-    notImplemented();
-    return nullptr;
 }
 
 String WebPage::platformUserAgent(const URL&) const

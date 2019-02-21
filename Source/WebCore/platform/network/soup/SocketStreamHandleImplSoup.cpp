@@ -36,11 +36,16 @@
 
 #include "DeprecatedGlobalSettings.h"
 #include "Logging.h"
+#include "NetworkStorageSession.h"
+#include "ResourceError.h"
 #include "SocketStreamError.h"
 #include "SocketStreamHandleClient.h"
-#include "URL.h"
+#include "SoupNetworkSession.h"
+#include "StorageSessionProvider.h"
+#include "URLSoup.h"
 #include <gio/gio.h>
 #include <glib.h>
+#include <wtf/URL.h>
 #include <wtf/Vector.h>
 #include <wtf/glib/GUniquePtr.h>
 #include <wtf/glib/RunLoopSourcePriority.h>
@@ -50,54 +55,53 @@
 
 namespace WebCore {
 
-static gboolean wssConnectionAcceptCertificateCallback(GTlsConnection*, GTlsCertificate*, GTlsCertificateFlags)
+static gboolean acceptCertificateCallback(GTlsConnection*, GTlsCertificate* certificate, GTlsCertificateFlags errors, SocketStreamHandleImpl* handle)
 {
-    return TRUE;
+    // FIXME: Using DeprecatedGlobalSettings from here is a layering violation.
+    if (DeprecatedGlobalSettings::allowsAnySSLCertificate())
+        return TRUE;
+
+    return !SoupNetworkSession::checkTLSErrors(handle->url(), certificate, errors);
 }
 
 #if SOUP_CHECK_VERSION(2, 61, 90)
-static void wssSocketClientEventCallback(SoupSession*, GSocketClientEvent event, GIOStream* connection)
+static void connectProgressCallback(SoupSession*, GSocketClientEvent event, GIOStream* connection, SocketStreamHandleImpl* handle)
 {
     if (event != G_SOCKET_CLIENT_TLS_HANDSHAKING)
         return;
 
-    g_signal_connect(connection, "accept-certificate", G_CALLBACK(wssConnectionAcceptCertificateCallback), nullptr);
+    g_signal_connect(connection, "accept-certificate", G_CALLBACK(acceptCertificateCallback), handle);
 }
 #else
-static void wssSocketClientEventCallback(GSocketClient*, GSocketClientEvent event, GSocketConnectable*, GIOStream* connection)
+static void socketClientEventCallback(GSocketClient*, GSocketClientEvent event, GSocketConnectable*, GIOStream* connection, SocketStreamHandleImpl* handle)
 {
     if (event != G_SOCKET_CLIENT_TLS_HANDSHAKING)
         return;
 
-    g_signal_connect(connection, "accept-certificate", G_CALLBACK(wssConnectionAcceptCertificateCallback), nullptr);
+    g_signal_connect(connection, "accept-certificate", G_CALLBACK(acceptCertificateCallback), handle);
 }
 #endif
 
-Ref<SocketStreamHandleImpl> SocketStreamHandleImpl::create(const URL& url, SocketStreamHandleClient& client, PAL::SessionID sessionID, const String&, SourceApplicationAuditToken&&)
+Ref<SocketStreamHandleImpl> SocketStreamHandleImpl::create(const URL& url, SocketStreamHandleClient& client, PAL::SessionID, const String&, SourceApplicationAuditToken&&, const StorageSessionProvider* storageSessionProvider)
 {
-    Ref<SocketStreamHandleImpl> socket = adoptRef(*new SocketStreamHandleImpl(url, client));
-
-    // FIXME: Using DeprecatedGlobalSettings from here is a layering violation.
-    bool allowsAnySSLCertificate = url.protocolIs("wss") && DeprecatedGlobalSettings::allowsAnySSLCertificate();
+    Ref<SocketStreamHandleImpl> socket = adoptRef(*new SocketStreamHandleImpl(url, client, storageSessionProvider));
 
 #if SOUP_CHECK_VERSION(2, 61, 90)
-    auto* networkStorageSession = NetworkStorageSession::storageSession(sessionID);
+    auto* networkStorageSession = storageSessionProvider ? storageSessionProvider->storageSession() : nullptr;
     if (!networkStorageSession)
         return socket;
 
-    auto uri = url.createSoupURI();
+    auto uri = urlToSoupURI(url);
     Ref<SocketStreamHandle> protectedSocketStreamHandle = socket.copyRef();
-    soup_session_connect_async(networkStorageSession->getOrCreateSoupNetworkSession().soupSession(), uri.get(), socket->m_cancellable.get(),
-        allowsAnySSLCertificate ? reinterpret_cast<SoupSessionConnectProgressCallback>(wssSocketClientEventCallback) : nullptr,
+    soup_session_connect_async(networkStorageSession->soupNetworkSession().soupSession(), uri.get(), socket->m_cancellable.get(),
+        url.protocolIs("wss") ? reinterpret_cast<SoupSessionConnectProgressCallback>(connectProgressCallback) : nullptr,
         reinterpret_cast<GAsyncReadyCallback>(connectedCallback), &protectedSocketStreamHandle.leakRef());
 #else
-    UNUSED_PARAM(sessionID);
     unsigned port = url.port() ? url.port().value() : (url.protocolIs("wss") ? 443 : 80);
     GRefPtr<GSocketClient> socketClient = adoptGRef(g_socket_client_new());
     if (url.protocolIs("wss")) {
         g_socket_client_set_tls(socketClient.get(), TRUE);
-        if (allowsAnySSLCertificate)
-            g_signal_connect(socketClient.get(), "event", G_CALLBACK(wssSocketClientEventCallback), nullptr);
+        g_signal_connect(socketClient.get(), "event", G_CALLBACK(socketClientEventCallback), socket.ptr());
     }
     Ref<SocketStreamHandle> protectedSocketStreamHandle = socket.copyRef();
     g_socket_client_connect_to_host_async(socketClient.get(), url.host().utf8().data(), port, socket->m_cancellable.get(),
@@ -107,8 +111,9 @@ Ref<SocketStreamHandleImpl> SocketStreamHandleImpl::create(const URL& url, Socke
     return socket;
 }
 
-SocketStreamHandleImpl::SocketStreamHandleImpl(const URL& url, SocketStreamHandleClient& client)
+SocketStreamHandleImpl::SocketStreamHandleImpl(const URL& url, SocketStreamHandleClient& client, const StorageSessionProvider* provider)
     : SocketStreamHandle(url, client)
+    , m_storageSessionProvider(provider)
     , m_cancellable(adoptGRef(g_cancellable_new()))
 {
     LOG(Network, "SocketStreamHandle %p new client %p", this, &m_client);
@@ -212,20 +217,20 @@ void SocketStreamHandleImpl::writeReady()
     sendPendingData();
 }
 
-std::optional<size_t> SocketStreamHandleImpl::platformSendInternal(const char* data, size_t length)
+Optional<size_t> SocketStreamHandleImpl::platformSendInternal(const uint8_t* data, size_t length)
 {
     LOG(Network, "SocketStreamHandle %p platformSend", this);
     if (!m_outputStream || !data)
         return 0;
 
     GUniqueOutPtr<GError> error;
-    gssize written = g_pollable_output_stream_write_nonblocking(m_outputStream.get(), data, length, m_cancellable.get(), &error.outPtr());
+    gssize written = g_pollable_output_stream_write_nonblocking(m_outputStream.get(), reinterpret_cast<const char*>(data), length, m_cancellable.get(), &error.outPtr());
     if (error) {
         if (g_error_matches(error.get(), G_IO_ERROR, G_IO_ERROR_WOULD_BLOCK))
             beginWaitingForSocketWritability();
         else
             didFail(SocketStreamError(error->code, String(), error->message));
-        return std::nullopt;
+        return WTF::nullopt;
     }
 
     // If we did not send all the bytes we were given, we know that
@@ -234,7 +239,7 @@ std::optional<size_t> SocketStreamHandleImpl::platformSendInternal(const char* d
         beginWaitingForSocketWritability();
 
     if (written == -1)
-        return std::nullopt;
+        return WTF::nullopt;
 
     return static_cast<size_t>(written);
 }
@@ -268,7 +273,7 @@ void SocketStreamHandleImpl::beginWaitingForSocketWritability()
 
     m_writeReadySource = adoptGRef(g_pollable_output_stream_create_source(m_outputStream.get(), m_cancellable.get()));
     ref();
-    g_source_set_callback(m_writeReadySource.get(), reinterpret_cast<GSourceFunc>(writeReadyCallback), this, [](gpointer handle) { 
+    g_source_set_callback(m_writeReadySource.get(), reinterpret_cast<GSourceFunc>(reinterpret_cast<GCallback>(writeReadyCallback)), this, [](gpointer handle) {
         static_cast<SocketStreamHandleImpl*>(handle)->deref();
     });
     g_source_attach(m_writeReadySource.get(), g_main_context_get_thread_default());

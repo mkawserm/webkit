@@ -10,16 +10,16 @@
 
 package org.webrtc.voiceengine;
 
-import android.annotation.TargetApi;
-import android.content.Context;
 import android.media.AudioFormat;
 import android.media.AudioRecord;
 import android.media.MediaRecorder.AudioSource;
+import android.os.Build;
 import android.os.Process;
 import java.lang.System;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.concurrent.TimeUnit;
-import org.webrtc.ContextUtils;
+import javax.annotation.Nullable;
 import org.webrtc.Logging;
 import org.webrtc.ThreadUtils;
 
@@ -52,14 +52,14 @@ public class WebRtcAudioRecord {
 
   private final long nativeAudioRecord;
 
-  private WebRtcAudioEffects effects = null;
+  private @Nullable WebRtcAudioEffects effects;
 
   private ByteBuffer byteBuffer;
 
-  private AudioRecord audioRecord = null;
-  private AudioRecordThread audioThread = null;
+  private @Nullable AudioRecord audioRecord;
+  private @Nullable AudioRecordThread audioThread;
 
-  private static volatile boolean microphoneMute = false;
+  private static volatile boolean microphoneMute;
   private byte[] emptyBytes;
 
   // Audio recording error handler functions.
@@ -74,11 +74,60 @@ public class WebRtcAudioRecord {
     void onWebRtcAudioRecordError(String errorMessage);
   }
 
-  private static WebRtcAudioRecordErrorCallback errorCallback = null;
+  private static @Nullable WebRtcAudioRecordErrorCallback errorCallback;
 
   public static void setErrorCallback(WebRtcAudioRecordErrorCallback errorCallback) {
     Logging.d(TAG, "Set error callback");
     WebRtcAudioRecord.errorCallback = errorCallback;
+  }
+
+  /**
+   * Contains audio sample information. Object is passed using {@link
+   * WebRtcAudioRecord.WebRtcAudioRecordSamplesReadyCallback}
+   */
+  public static class AudioSamples {
+    /** See {@link AudioRecord#getAudioFormat()} */
+    private final int audioFormat;
+    /** See {@link AudioRecord#getChannelCount()} */
+    private final int channelCount;
+    /** See {@link AudioRecord#getSampleRate()} */
+    private final int sampleRate;
+
+    private final byte[] data;
+
+    private AudioSamples(AudioRecord audioRecord, byte[] data) {
+      this.audioFormat = audioRecord.getAudioFormat();
+      this.channelCount = audioRecord.getChannelCount();
+      this.sampleRate = audioRecord.getSampleRate();
+      this.data = data;
+    }
+
+    public int getAudioFormat() {
+      return audioFormat;
+    }
+
+    public int getChannelCount() {
+      return channelCount;
+    }
+
+    public int getSampleRate() {
+      return sampleRate;
+    }
+
+    public byte[] getData() {
+      return data;
+    }
+  }
+
+  /** Called when new audio samples are ready. This should only be set for debug purposes */
+  public static interface WebRtcAudioRecordSamplesReadyCallback {
+    void onWebRtcAudioRecordSamplesReady(AudioSamples samples);
+  }
+
+  private static @Nullable WebRtcAudioRecordSamplesReadyCallback audioSamplesReadyCallback;
+
+  public static void setOnAudioSamplesReady(WebRtcAudioRecordSamplesReadyCallback callback) {
+    audioSamplesReadyCallback = callback;
   }
 
   /**
@@ -94,6 +143,8 @@ public class WebRtcAudioRecord {
       super(name);
     }
 
+    // TODO(titovartem) make correct fix during webrtc:9175
+    @SuppressWarnings("ByteBufferBackingArray")
     @Override
     public void run() {
       Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_AUDIO);
@@ -108,7 +159,19 @@ public class WebRtcAudioRecord {
             byteBuffer.clear();
             byteBuffer.put(emptyBytes);
           }
-          nativeDataIsRecorded(bytesRead, nativeAudioRecord);
+          // It's possible we've been shut down during the read, and stopRecording() tried and
+          // failed to join this thread. To be a bit safer, try to avoid calling any native methods
+          // in case they've been unregistered after stopRecording() returned.
+          if (keepAlive) {
+            nativeDataIsRecorded(bytesRead, nativeAudioRecord);
+          }
+          if (audioSamplesReadyCallback != null) {
+            // Copy the entire byte buffer array.  Assume that the start of the byteBuffer is
+            // at index 0.
+            byte[] data = Arrays.copyOf(byteBuffer.array(), byteBuffer.capacity());
+            audioSamplesReadyCallback.onWebRtcAudioRecordSamplesReady(
+                new AudioSamples(audioRecord, data));
+          }
         } else {
           String errorMessage = "AudioRecord.read failed: " + bytesRead;
           Logging.e(TAG, errorMessage);
@@ -252,6 +315,7 @@ public class WebRtcAudioRecord {
     audioThread.stopThread();
     if (!ThreadUtils.joinUninterruptibly(audioThread, AUDIO_RECORD_THREAD_JOIN_TIMEOUT_MS)) {
       Logging.e(TAG, "Join of AudioRecordJavaThread timed out");
+      WebRtcAudioUtils.logAudioState(TAG);
     }
     audioThread = null;
     if (effects != null) {
@@ -268,9 +332,8 @@ public class WebRtcAudioRecord {
             + "sample rate: " + audioRecord.getSampleRate());
   }
 
-  @TargetApi(23)
   private void logMainParametersExtended() {
-    if (WebRtcAudioUtils.runningOnMarshmallowOrHigher()) {
+    if (Build.VERSION.SDK_INT >= 23) {
       Logging.d(TAG, "AudioRecord: "
               // The frame count of the native AudioRecord buffer.
               + "buffer size in frames: " + audioRecord.getBufferSizeInFrames());
@@ -312,6 +375,7 @@ public class WebRtcAudioRecord {
 
   // Releases the native AudioRecord resources.
   private void releaseAudioResources() {
+    Logging.d(TAG, "releaseAudioResources");
     if (audioRecord != null) {
       audioRecord.release();
       audioRecord = null;
@@ -320,6 +384,7 @@ public class WebRtcAudioRecord {
 
   private void reportWebRtcAudioRecordInitError(String errorMessage) {
     Logging.e(TAG, "Init recording error: " + errorMessage);
+    WebRtcAudioUtils.logAudioState(TAG);
     if (errorCallback != null) {
       errorCallback.onWebRtcAudioRecordInitError(errorMessage);
     }
@@ -328,6 +393,7 @@ public class WebRtcAudioRecord {
   private void reportWebRtcAudioRecordStartError(
       AudioRecordStartErrorCode errorCode, String errorMessage) {
     Logging.e(TAG, "Start recording error: " + errorCode + ". " + errorMessage);
+    WebRtcAudioUtils.logAudioState(TAG);
     if (errorCallback != null) {
       errorCallback.onWebRtcAudioRecordStartError(errorCode, errorMessage);
     }
@@ -335,6 +401,7 @@ public class WebRtcAudioRecord {
 
   private void reportWebRtcAudioRecordError(String errorMessage) {
     Logging.e(TAG, "Run-time recording error: " + errorMessage);
+    WebRtcAudioUtils.logAudioState(TAG);
     if (errorCallback != null) {
       errorCallback.onWebRtcAudioRecordError(errorMessage);
     }

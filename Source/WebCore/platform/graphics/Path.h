@@ -121,7 +121,7 @@ namespace WebCore {
         
         static Path polygonPathFromPoints(const Vector<FloatPoint>&);
 
-        bool contains(const FloatPoint&, WindRule rule = RULE_NONZERO) const;
+        bool contains(const FloatPoint&, WindRule = WindRule::NonZero) const;
         bool strokeContains(StrokeStyleApplier*, const FloatPoint&) const;
         // fastBoundingRect() should equal or contain boundingRect(); boundingRect()
         // should perfectly bound the points within the path.
@@ -197,9 +197,11 @@ namespace WebCore {
         ID2D1GeometrySink* activePath() const { return m_activePath.get(); }
         void appendGeometry(ID2D1Geometry*);
         void createGeometryWithFillMode(WindRule, COMPtr<ID2D1GeometryGroup>&) const;
-        void drawDidComplete() const;
+        void drawDidComplete();
 
         HRESULT initializePathState();
+        void openFigureAtCurrentPointIfNecessary();
+        void closeAnyOpenGeometries();
 #endif
 
 #ifndef NDEBUG
@@ -211,6 +213,7 @@ namespace WebCore {
         COMPtr<ID2D1GeometryGroup> m_path;
         COMPtr<ID2D1PathGeometry> m_activePathGeometry;
         COMPtr<ID2D1GeometrySink> m_activePath;
+        size_t m_openFigureCount { 0 };
 #else
         PlatformPathPtr m_path { nullptr };
 #endif

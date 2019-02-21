@@ -83,12 +83,12 @@ PlatformWheelEvent::PlatformWheelEvent(HWND hWnd, const FloatSize& delta, const 
     m_wheelTicksY = m_deltaY;
 
     // Global Position is just x, y location of event
-    POINT point = {location.x(), location.y()};
     float inverseScaleFactor = 1.0f / deviceScaleFactorForWindow(hWnd);
-    m_globalPosition = point;
+    m_globalPosition = flooredIntPoint(location);
     m_globalPosition.scale(inverseScaleFactor, inverseScaleFactor);
 
     // Position needs to be translated to our client
+    POINT point;
     ScreenToClient(hWnd, &point);
     m_position = point;
     m_position.scale(inverseScaleFactor, inverseScaleFactor);
@@ -102,14 +102,6 @@ PlatformWheelEvent::PlatformWheelEvent(HWND hWnd, WPARAM wParam, LPARAM lParam, 
 {
     float scaleFactor = deviceScaleFactorForWindow(hWnd);
 
-    // How many pixels should we scroll per line?  Gecko uses the height of the
-    // current line, which means scroll distance changes as you go through the
-    // page or go to different pages.  IE 7 is ~50 px/line, although the value
-    // seems to vary slightly by page and zoom level.  Since IE 7 has a
-    // smoothing algorithm on scrolling, it can get away with slightly larger
-    // scroll values without feeling jerky.  Here we use 100 px per three lines
-    // (the default scroll amount on Windows is three lines per wheel tick).
-    static const float cScrollbarPixelsPerLine = scaleFactor * 100.0f / 3.0f;
     float delta = GET_WHEEL_DELTA_WPARAM(wParam) / (scaleFactor * static_cast<float>(WHEEL_DELTA));
     if (isMouseHWheel) {
         // Windows is <-- -/+ -->, WebKit wants <-- +/- -->, so we negate

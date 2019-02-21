@@ -14,7 +14,6 @@
 #include <map>
 #include <vector>
 
-#include "common_types.h"  // NOLINT(build/include)
 #include "modules/rtp_rtcp/include/rtp_rtcp_defines.h"
 
 namespace webrtc {
@@ -25,7 +24,7 @@ class ReportBlockStats {
   typedef std::map<uint32_t, RTCPReportBlock> ReportBlockMap;
   typedef std::vector<RTCPReportBlock> ReportBlockVector;
   ReportBlockStats();
-  ~ReportBlockStats() {}
+  ~ReportBlockStats();
 
   // Updates stats and stores report blocks.
   // Returns an aggregate of the |report_blocks|.
@@ -59,4 +58,3 @@ class ReportBlockStats {
 }  // namespace webrtc
 
 #endif  // VIDEO_REPORT_BLOCK_STATS_H_
-

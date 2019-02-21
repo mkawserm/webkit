@@ -1,4 +1,4 @@
-list(APPEND PAL_HEADERS
+list(APPEND PAL_PUBLIC_HEADERS
     avfoundation/MediaTimeAVFoundation.h
 
     cf/CoreMediaSoftLink.h
@@ -15,7 +15,7 @@ list(APPEND PAL_HEADERS
 
 if (${USE_DIRECT2D})
 else ()
-    list(APPEND PAL_HEADERS
+    list(APPEND PAL_PUBLIC_HEADERS
         spi/cg/CoreGraphicsSPI.h
         spi/cg/ImageIOSPI.h
     )
@@ -29,6 +29,10 @@ list(APPEND PAL_SOURCES
     avfoundation/MediaTimeAVFoundation.cpp
 
     cf/CoreMediaSoftLink.cpp
+
+    crypto/win/CryptoDigestWin.cpp
+
+    spi/cf/CFNetworkSPIWin.cpp
 )
 
 list(APPEND PAL_PRIVATE_INCLUDE_DIRECTORIES

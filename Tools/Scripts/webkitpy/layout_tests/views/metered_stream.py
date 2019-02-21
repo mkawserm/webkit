@@ -51,9 +51,10 @@ class MeteredStream(object):
     def _ensure_newline(txt):
         return txt if txt.endswith('\n') else txt + '\n'
 
-    def __init__(self, stream=None, verbose=False, logger=None, time_fn=None, pid=None, number_of_columns=None):
+    def __init__(self, stream=None, verbose=False, logger=None, time_fn=None, pid=None, number_of_columns=None, print_timestamps=None):
         self._stream = stream or sys.stderr
         self._verbose = verbose
+        self._print_timestamps = verbose if print_timestamps is None else print_timestamps
         self._time_fn = time_fn or time.time
         self._pid = pid or os.getpid()
         self._isatty = self._stream.isatty()
@@ -97,15 +98,25 @@ class MeteredStream(object):
         self._last_write_time = now
         if self._last_partial_line:
             self._erase_last_partial_line()
-        if self._verbose:
-            now_tuple = time.localtime(now)
-            msg = '%02d:%02d:%02d.%03d %d %s' % (now_tuple.tm_hour, now_tuple.tm_min, now_tuple.tm_sec, int((now * 1000) % 1000), pid, self._ensure_newline(txt))
-        elif self._isatty:
-            msg = txt
-        else:
-            msg = self._ensure_newline(txt)
 
-        self._stream.write(msg)
+        timestamp_string = ''
+        if self._print_timestamps:
+            now_tuple = time.localtime(now)
+            timestamp_string = '%02d:%02d:%02d.%03d %d ' % (now_tuple.tm_hour, now_tuple.tm_min, now_tuple.tm_sec, int((now * 1000) % 1000), pid)
+
+        if not self._isatty or self._verbose:
+            txt = self._ensure_newline(txt)
+
+        try:
+            self._stream.write(timestamp_string + txt)
+        except UnicodeEncodeError:
+            output = ''
+            for c in timestamp_string + txt:
+                try:
+                    output += '{}'.format(c)
+                except UnicodeEncodeError:
+                    output += '?'
+            self._stream.write(output)
 
     def writeln(self, txt, now=None, pid=None):
         self.write(self._ensure_newline(txt), now, pid)

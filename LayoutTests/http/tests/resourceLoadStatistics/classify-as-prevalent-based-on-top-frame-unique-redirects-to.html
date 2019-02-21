@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <script src="/js-test-resources/js-test.js"></script>
+    <script src="resources/util.js"></script>
 </head>
 <body>
 <script>
@@ -16,13 +17,6 @@
     const topFrameOrigin3 = "http://127.0.0.4:8000/temp";
     const topFrameOrigin4 = "http://127.0.0.5:8000/temp";
 
-    function setEnableFeature(enable) {
-        if (!enable)
-            testRunner.statisticsResetToConsistentState();
-        internals.setResourceLoadStatisticsEnabled(enable);
-        testRunner.setCookieStoragePartitioningEnabled(enable);
-    }
-
     function completeTest() {
         if (!testRunner.isStatisticsPrevalentResource(statisticsUrl))
             testFailed("Host did not get classified as prevalent resource.");
@@ -31,8 +25,7 @@
         else
             testPassed("Host classified as prevalent resource.");
 
-        setEnableFeature(false);
-        finishJSTest();
+        setEnableFeature(false, finishJSTest);
     }
 
     function runTest() {
@@ -47,13 +40,15 @@
     }
 
     if (document.location.host === hostUnderTest && window.testRunner && window.internals) {
-        setEnableFeature(true);
-        testRunner.setStatisticsNotifyPagesWhenDataRecordsWereScanned(true);
+        setEnableFeature(true, function() {
+            testRunner.setStatisticsNotifyPagesWhenDataRecordsWereScanned(true);
 
-        testRunner.setStatisticsPrevalentResource(statisticsUrl, false);
-        if (testRunner.isStatisticsPrevalentResource(statisticsUrl))
-            testFailed("Host did not get set as non-prevalent resource.");
-        runTest();
+            testRunner.setStatisticsPrevalentResource(statisticsUrl, false, function() {
+                if (testRunner.isStatisticsPrevalentResource(statisticsUrl))
+                    testFailed("Host did not get set as non-prevalent resource.");
+                runTest();
+            });
+        });
     }
 </script>
 </body>

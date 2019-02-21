@@ -41,7 +41,7 @@ namespace TestWebKitAPI {
 
 static bool testDone;
 
-static void didFinishDocumentLoadForFrame(WKPageRef page, WKFrameRef frame, WKTypeRef userData, const void *clientInfo)
+static void didFinishNavigation(WKPageRef page, WKNavigationRef, WKTypeRef userData, const void *clientInfo)
 {
     WKPageSetScrollPinningBehavior(page, kWKScrollPinningBehaviorPinToBottom);
 
@@ -71,7 +71,7 @@ static void didFinishDocumentLoadForFrame(WKPageRef page, WKFrameRef frame, WKTy
 
 TEST(WebKit, ScrollPinningBehaviors)
 {
-    WKRetainPtr<WKContextRef> context(AdoptWK, WKContextCreate());
+    WKRetainPtr<WKContextRef> context(AdoptWK, WKContextCreateWithConfiguration(nullptr));
 
     // Turn off threaded scrolling; synchronously waiting for the main thread scroll position to
     // update using WKPageForceRepaint would be better, but for some reason doesn't block until
@@ -82,14 +82,14 @@ TEST(WebKit, ScrollPinningBehaviors)
 
     PlatformWebView webView(context.get(), pageGroup.get());
 
-    WKPageLoaderClientV3 loaderClient;
+    WKPageNavigationClientV0 loaderClient;
     memset(&loaderClient, 0, sizeof(loaderClient));
 
-    loaderClient.base.version = 3;
+    loaderClient.base.version = 0;
     loaderClient.base.clientInfo = &webView;
-    loaderClient.didFinishDocumentLoadForFrame = didFinishDocumentLoadForFrame;
+    loaderClient.didFinishNavigation = didFinishNavigation;
 
-    WKPageSetPageLoaderClient(webView.page(), &loaderClient.base);
+    WKPageSetPageNavigationClient(webView.page(), &loaderClient.base);
 
     WKPageLoadURL(webView.page(), adoptWK(Util::createURLForResource("simple-tall", "html")).get());
 

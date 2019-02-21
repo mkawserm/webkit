@@ -26,13 +26,13 @@
 #import "config.h"
 #import "ResourceLoadStatisticsPersistentStorage.h"
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
 
 namespace WebKit {
 
 void ResourceLoadStatisticsPersistentStorage::excludeFromBackup() const
 {
-    [[NSURL fileURLWithPath:(NSString *)m_storageDirectoryPath] setResourceValue:@YES forKey:NSURLIsExcludedFromBackupKey error:nil];
+    [[NSURL fileURLWithPath:(NSString *)m_storageDirectoryPath isDirectory:YES] setResourceValue:@YES forKey:NSURLIsExcludedFromBackupKey error:nil];
 }
 
 }

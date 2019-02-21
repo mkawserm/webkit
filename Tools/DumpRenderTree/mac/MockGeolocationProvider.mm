@@ -26,7 +26,7 @@
 #import "config.h"
 #import "MockGeolocationProvider.h"
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
 #import <WebCore/WebCoreThreadRun.h>
 #endif
 
@@ -76,7 +76,7 @@
 
 - (void)registerWebView:(WebView *)webView
 {
-    _registeredViews.add(webView);
+    _registeredViews.add((__bridge CFTypeRef)webView);
 
     if (!_timer)
         _timer = [NSTimer scheduledTimerWithTimeInterval:0 target:self selector:@selector(timerFired) userInfo:0 repeats:NO];
@@ -84,7 +84,7 @@
 
 - (void)unregisterWebView:(WebView *)webView
 {
-    _registeredViews.remove(webView);
+    _registeredViews.remove((__bridge CFTypeRef)webView);
 }
 
 - (WebGeolocationPosition *)lastPosition
@@ -92,7 +92,7 @@
     return _lastPosition.get();
 }
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
 - (void)setEnableHighAccuracy:(BOOL)enableHighAccuracy
 {
     UNUSED_PARAM(enableHighAccuracy);
@@ -125,15 +125,15 @@
     _timer = 0;
 
     // Expect that views won't be (un)registered while iterating.
-    HashSet<WebView*> views = _registeredViews;
-    for (HashSet<WebView*>::iterator iter = views.begin(); iter != views.end(); ++iter) {
-#if !PLATFORM(IOS)
+    auto copyOfRegisteredViews { _registeredViews };
+    for (auto typelessView : copyOfRegisteredViews) {
+        auto webView = (__bridge WebView *)typelessView;
+#if !PLATFORM(IOS_FAMILY)
         if (_hasError)
-            [*iter _geolocationDidFailWithMessage:_errorMessage.get()];
+            [webView _geolocationDidFailWithMessage:_errorMessage.get()];
         else
-            [*iter _geolocationDidChangePosition:_lastPosition.get()];
+            [webView _geolocationDidChangePosition:_lastPosition.get()];
 #else
-        WebView* webView = *iter;
         WebGeolocationPosition *lastPosition = _lastPosition.get();
         NSString *errorMessage = _errorMessage.get();
         if (_hasError) {

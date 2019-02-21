@@ -75,7 +75,7 @@ NSString * const WebStorageDidModifyOriginNotification = @"WebStorageDidModifyOr
 - (void)deleteAllOrigins
 {
     WebKit::StorageTracker::tracker().deleteAllOrigins();
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
     // FIXME: This needs to be removed once StorageTrackers in multiple processes
     // are in sync: <rdar://problem/9567500> Remove Website Data pane is not kept in sync with Safari
     [[NSFileManager defaultManager] removeItemAtPath:[WebStorageManager _storageDirectoryPath] error:NULL];
@@ -84,7 +84,7 @@ NSString * const WebStorageDidModifyOriginNotification = @"WebStorageDidModifyOr
 
 - (void)deleteOrigin:(WebSecurityOrigin *)origin
 {
-    WebKit::StorageTracker::tracker().deleteOrigin(SecurityOriginData::fromSecurityOrigin(*[origin _core]));
+    WebKit::StorageTracker::tracker().deleteOrigin([origin _core]->data());
 }
 
 - (unsigned long long)diskUsageForOrigin:(WebSecurityOrigin *)origin
@@ -138,7 +138,7 @@ void WebKitInitializeStorageIfNecessary()
     auto *storagePath = [WebStorageManager _storageDirectoryPath];
     WebKit::StorageTracker::initializeTracker(storagePath, WebStorageTrackerClient::sharedWebStorageTrackerClient());
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
     if (linkedOnOrAfter(SDKVersion::FirstToExcludeLocalStorageFromBackup))
         [[NSURL fileURLWithPath:storagePath] setResourceValue:@YES forKey:NSURLIsExcludedFromBackupKey error:nil];
 #endif

@@ -31,6 +31,7 @@
 
 #import "ArgumentCoders.h"
 #import "NetscapePlugin.h"
+#import "PluginInfoStore.h"
 #import "PluginProcessCreationParameters.h"
 #import "PluginProcessProxyMessages.h"
 #import "PluginProcessShim.h"
@@ -39,6 +40,7 @@
 #import "SandboxUtilities.h"
 #import <CoreAudio/AudioHardware.h>
 #import <WebCore/LocalizedStrings.h>
+#import <WebCore/RuntimeEnabledFeatures.h>
 #import <dlfcn.h>
 #import <mach-o/dyld.h>
 #import <mach-o/getsect.h>
@@ -48,12 +50,11 @@
 #import <pal/spi/cg/CoreGraphicsSPI.h>
 #import <pal/spi/cocoa/LaunchServicesSPI.h>
 #import <pal/spi/mac/HIToolboxSPI.h>
+#import <pal/spi/mac/NSApplicationSPI.h>
 #import <pal/spi/mac/NSWindowSPI.h>
 #import <sysexits.h>
 #import <wtf/HashSet.h>
 #import <wtf/NeverDestroyed.h>
-
-using namespace WebCore;
 
 const CFStringRef kLSPlugInBundleIdentifierKey = CFSTR("LSPlugInBundleIdentifierKey");
 
@@ -218,7 +219,7 @@ static bool openCFURLRef(CFURLRef url, int32_t& status, CFURLRef* launchedURL)
         return false;
 
     if (!launchedURLString.isNull() && launchedURL)
-        *launchedURL = URL(ParsedURLString, launchedURLString).createCFURL().leakRef();
+        *launchedURL = URL(URL(), launchedURLString).createCFURL().leakRef();
     return true;
 }
 
@@ -257,13 +258,12 @@ static unsigned modalCount;
 
 static void beginModal()
 {
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+    ALLOW_DEPRECATED_DECLARATIONS_BEGIN
     // Make sure to make ourselves the front process
     ProcessSerialNumber psn;
     GetCurrentProcess(&psn);
     SetFrontProcess(&psn);
-#pragma clang diagnostic pop
+    ALLOW_DEPRECATED_DECLARATIONS_END
 
     if (!modalCount++)
         setModal(true);
@@ -450,8 +450,8 @@ static void initializeCocoaOverrides()
                                                        usingBlock:^(NSNotification *notification) { fullscreenWindowTracker().windowHidden([notification object]); }];
 
     // Leak the two observers so that they observe notifications for the lifetime of the process.
-    CFRetain(orderOnScreenObserver);
-    CFRetain(orderOffScreenObserver);
+    CFRetain((__bridge CFTypeRef)orderOnScreenObserver);
+    CFRetain((__bridge CFTypeRef)orderOffScreenObserver);
 }
 
 void PluginProcess::setModalWindowIsShowing(bool modalWindowIsShowing)
@@ -518,13 +518,21 @@ void PluginProcess::platformInitializePluginProcess(PluginProcessCreationParamet
         initWithMemoryCapacity:pluginMemoryCacheSize
         diskCapacity:pluginDiskCacheSize
         diskPath:m_nsurlCacheDirectory]).get()];
+
+#if PLATFORM(MAC) && __MAC_OS_X_VERSION_MIN_REQUIRED >= 101400
+    // Disable Dark Mode in the plugin process to avoid rendering issues.
+    [NSApp setAppearance:[NSAppearance appearanceNamed:NSAppearanceNameAqua]];
+#endif
 }
 
-void PluginProcess::platformInitializeProcess(const ChildProcessInitializationParameters& parameters)
+void PluginProcess::platformInitializeProcess(const AuxiliaryProcessInitializationParameters& parameters)
 {
     initializeShim();
 
     initializeCocoaOverrides();
+
+    bool experimentalPlugInSandboxProfilesEnabled = parameters.extraInitializationData.get("experimental-sandbox-plugin") == "1";
+    WebCore::RuntimeEnabledFeatures::sharedFeatures().setExperimentalPlugInSandboxProfilesEnabled(experimentalPlugInSandboxProfilesEnabled);
 
     // FIXME: It would be better to proxy SetCursor calls over to the UI process instead of
     // allowing plug-ins to change the mouse cursor at any time.
@@ -615,7 +623,7 @@ void PluginProcess::platformInitializeProcess(const ChildProcessInitializationPa
     }
 }
 
-void PluginProcess::initializeProcessName(const ChildProcessInitializationParameters& parameters)
+void PluginProcess::initializeProcessName(const AuxiliaryProcessInitializationParameters& parameters)
 {
     NSString *applicationName = [NSString stringWithFormat:WEB_UI_STRING("%@ (%@ Internet plug-in)", "visible name of the plug-in host process. The first argument is the plug-in name and the second argument is the application name."), [[(NSString *)m_pluginPath lastPathComponent] stringByDeletingPathExtension], (NSString *)parameters.uiProcessName];
     _LSSetApplicationInformationItem(kLSDefaultSessionID, _LSGetCurrentApplicationASN(), _kLSDisplayNameKey, (CFStringRef)applicationName, nullptr);
@@ -623,7 +631,7 @@ void PluginProcess::initializeProcessName(const ChildProcessInitializationParame
         _LSSetApplicationInformationItem(kLSDefaultSessionID, _LSGetCurrentApplicationASN(), kLSPlugInBundleIdentifierKey, m_pluginBundleIdentifier.createCFString().get(), nullptr);
 }
 
-void PluginProcess::initializeSandbox(const ChildProcessInitializationParameters& parameters, SandboxInitializationParameters& sandboxParameters)
+void PluginProcess::initializeSandbox(const AuxiliaryProcessInitializationParameters& parameters, SandboxInitializationParameters& sandboxParameters)
 {
     // PluginProcess may already be sandboxed if its parent process was sandboxed, and launched a child process instead of an XPC service.
     // This is generally not expected, however we currently always spawn a child process to create a MIME type preferences file.
@@ -631,6 +639,21 @@ void PluginProcess::initializeSandbox(const ChildProcessInitializationParameters
         RELEASE_ASSERT(!parameters.connectionIdentifier.xpcConnection);
         return;
     }
+
+    char cacheDirectory[PATH_MAX];
+    if (!confstr(_CS_DARWIN_USER_CACHE_DIR, cacheDirectory, sizeof(cacheDirectory))) {
+        WTFLogAlways("PluginProcess: couldn't retrieve system cache directory path: %d\n", errno);
+        exit(EX_OSERR);
+    }
+
+    m_nsurlCacheDirectory = [[[NSFileManager defaultManager] stringWithFileSystemRepresentation:cacheDirectory length:strlen(cacheDirectory)] stringByAppendingPathComponent:[[NSBundle mainBundle] bundleIdentifier]];
+    if (![[NSFileManager defaultManager] createDirectoryAtURL:[NSURL fileURLWithPath:m_nsurlCacheDirectory isDirectory:YES] withIntermediateDirectories:YES attributes:nil error:nil]) {
+        WTFLogAlways("PluginProcess: couldn't create NSURL cache directory '%s'\n", cacheDirectory);
+        exit(EX_OSERR);
+    }
+
+    if (PluginInfoStore::shouldAllowPluginToRunUnsandboxed(m_pluginBundleIdentifier))
+        return;
 
     bool parentIsSandboxed = parameters.connectionIdentifier.xpcConnection && connectedProcessIsSandboxed(parameters.connectionIdentifier.xpcConnection.get());
 
@@ -659,18 +682,6 @@ void PluginProcess::initializeSandbox(const ChildProcessInitializationParameters
         exit(EX_OSERR);
     }
 
-    char cacheDirectory[PATH_MAX];
-    if (!confstr(_CS_DARWIN_USER_CACHE_DIR, cacheDirectory, sizeof(cacheDirectory))) {
-        WTFLogAlways("PluginProcess: couldn't retrieve system cache directory path: %d\n", errno);
-        exit(EX_OSERR);
-    }
-
-    m_nsurlCacheDirectory = [[[NSFileManager defaultManager] stringWithFileSystemRepresentation:cacheDirectory length:strlen(temporaryDirectory)] stringByAppendingPathComponent:[[NSBundle mainBundle] bundleIdentifier]];
-    if (![[NSFileManager defaultManager] createDirectoryAtURL:[NSURL fileURLWithPath:m_nsurlCacheDirectory isDirectory:YES] withIntermediateDirectories:YES attributes:nil error:nil]) {
-        WTFLogAlways("PluginProcess: couldn't create NSURL cache directory '%s'\n", temporaryDirectory);
-        exit(EX_OSERR);
-    }
-
     if (strlcpy(temporaryDirectory, [[[[NSFileManager defaultManager] stringWithFileSystemRepresentation:temporaryDirectory length:strlen(temporaryDirectory)] stringByAppendingPathComponent:@"WebKitPlugin-XXXXXX"] fileSystemRepresentation], sizeof(temporaryDirectory)) >= sizeof(temporaryDirectory)
         || !mkdtemp(temporaryDirectory)) {
         WTFLogAlways("PluginProcess: couldn't create private temporary directory '%s'\n", temporaryDirectory);
@@ -684,13 +695,17 @@ void PluginProcess::initializeSandbox(const ChildProcessInitializationParameters
 
     [[NSUserDefaults standardUserDefaults] registerDefaults:@{ @"NSUseRemoteSavePanel" : @YES }];
 
-    ChildProcess::initializeSandbox(parameters, sandboxParameters);
+    AuxiliaryProcess::initializeSandbox(parameters, sandboxParameters);
 }
 
+bool PluginProcess::shouldOverrideQuarantine()
+{
+    return m_pluginBundleIdentifier != "com.cisco.webex.plugin.gpc64";
+}
 
 void PluginProcess::stopRunLoop()
 {
-    ChildProcess::stopNSAppRunLoop();
+    AuxiliaryProcess::stopNSAppRunLoop();
 }
 
 } // namespace WebKit

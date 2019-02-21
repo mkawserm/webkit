@@ -93,11 +93,6 @@ if (DEBUG_FISSION)
     set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--gdb-index")
 endif ()
 
-if (USE_ARM_LLVM_DISASSEMBLER)
-    find_package(LLVM REQUIRED)
-    SET_AND_EXPOSE_TO_BUILD(HAVE_LLVM TRUE)
-endif ()
-
 # Enable the usage of OpenMP.
 #  - At this moment, OpenMP is only used as an alternative implementation
 #    to native threads for the parallelization of the SVG filters.
@@ -107,8 +102,8 @@ if (USE_OPENMP)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
 endif ()
 
-# GTK uses the GNU installation directories as defaults.
-if (NOT PORT STREQUAL "GTK")
+# GTK and WPE use the GNU installation directories as defaults.
+if (NOT PORT STREQUAL "GTK" AND NOT PORT STREQUAL "WPE")
     set(LIB_INSTALL_DIR "${CMAKE_INSTALL_PREFIX}/lib" CACHE PATH "Absolute path to library installation directory")
     set(EXEC_INSTALL_DIR "${CMAKE_INSTALL_PREFIX}/bin" CACHE PATH "Absolute path to executable installation directory")
     set(LIBEXEC_INSTALL_DIR "${CMAKE_INSTALL_PREFIX}/bin" CACHE PATH "Absolute path to install executables executed by the library")
@@ -127,17 +122,22 @@ WEBKIT_CHECK_HAVE_INCLUDE(HAVE_STRINGS_H strings.h)
 WEBKIT_CHECK_HAVE_INCLUDE(HAVE_SYS_PARAM_H sys/param.h)
 WEBKIT_CHECK_HAVE_INCLUDE(HAVE_SYS_TIME_H sys/time.h)
 WEBKIT_CHECK_HAVE_INCLUDE(HAVE_SYS_TIMEB_H sys/timeb.h)
+WEBKIT_CHECK_HAVE_INCLUDE(HAVE_LINUX_MEMFD_H linux/memfd.h)
 
 # Check for functions
 WEBKIT_CHECK_HAVE_FUNCTION(HAVE_ALIGNED_MALLOC _aligned_malloc)
 WEBKIT_CHECK_HAVE_FUNCTION(HAVE_ISDEBUGGERPRESENT IsDebuggerPresent)
 WEBKIT_CHECK_HAVE_FUNCTION(HAVE_LOCALTIME_R localtime_r)
+WEBKIT_CHECK_HAVE_FUNCTION(HAVE_MALLOC_TRIM malloc_trim)
 WEBKIT_CHECK_HAVE_FUNCTION(HAVE_STRNSTR strnstr)
 WEBKIT_CHECK_HAVE_FUNCTION(HAVE_TIMEGM timegm)
 WEBKIT_CHECK_HAVE_FUNCTION(HAVE_VASPRINTF vasprintf)
 
 # Check for symbols
 WEBKIT_CHECK_HAVE_SYMBOL(HAVE_REGEX_H regexec regex.h)
+if (NOT (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin"))
+WEBKIT_CHECK_HAVE_SYMBOL(HAVE_PTHREAD_MAIN_NP pthread_main_np pthread_np.h)
+endif ()
 # Windows has signal.h but is missing symbols that are used in calls to signal.
 WEBKIT_CHECK_HAVE_SYMBOL(HAVE_SIGNAL_H SIGTRAP signal.h)
 

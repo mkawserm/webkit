@@ -27,11 +27,12 @@
 #import "TestRunnerWKWebView.h"
 
 #import "WebKitTestRunnerDraggingInfo.h"
+#import <WebKit/WKUIDelegatePrivate.h>
 #import <wtf/Assertions.h>
 #import <wtf/RetainPtr.h>
 
-#if PLATFORM(IOS)
-#import "UIKitTestSPI.h"
+#if PLATFORM(IOS_FAMILY)
+#import "UIKitSPI.h"
 #import <WebKit/WKWebViewPrivate.h>
 @interface WKWebView ()
 
@@ -46,34 +47,40 @@
 
 #if WK_API_ENABLED
 
-@interface TestRunnerWKWebView () {
-    RetainPtr<NSNumber *> m_stableStateOverride;
+@interface TestRunnerWKWebView () <WKUIDelegatePrivate> {
+    RetainPtr<NSNumber> m_stableStateOverride;
+    BOOL m_isInteractingWithFormControl;
 }
 
 @property (nonatomic, copy) void (^zoomToScaleCompletionHandler)(void);
-@property (nonatomic, copy) void (^showKeyboardCompletionHandler)(void);
 @property (nonatomic, copy) void (^retrieveSpeakSelectionContentCompletionHandler)(void);
-@property (nonatomic) BOOL isShowingKeyboard;
+@property (nonatomic, getter=isShowingKeyboard, setter=setIsShowingKeyboard:) BOOL showingKeyboard;
+@property (nonatomic, getter=isShowingMenu, setter=setIsShowingMenu:) BOOL showingMenu;
 
 @end
 
 @implementation TestRunnerWKWebView
 
 #if PLATFORM(MAC)
+IGNORE_WARNINGS_BEGIN("deprecated-implementations")
 - (void)dragImage:(NSImage *)anImage at:(NSPoint)viewLocation offset:(NSSize)initialOffset event:(NSEvent *)event pasteboard:(NSPasteboard *)pboard source:(id)sourceObj slideBack:(BOOL)slideFlag
+IGNORE_WARNINGS_END
 {
     RetainPtr<WebKitTestRunnerDraggingInfo> draggingInfo = adoptNS([[WebKitTestRunnerDraggingInfo alloc] initWithImage:anImage offset:initialOffset pasteboard:pboard source:sourceObj]);
     [self draggingUpdated:draggingInfo.get()];
 }
 #endif
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
 - (instancetype)initWithFrame:(CGRect)frame configuration:(WKWebViewConfiguration *)configuration
 {
     if (self = [super initWithFrame:frame configuration:configuration]) {
         NSNotificationCenter* center = [NSNotificationCenter defaultCenter];
-        [center addObserver:self selector:@selector(_keyboardDidShow:) name:UIKeyboardDidShowNotification object:nil];
-        [center addObserver:self selector:@selector(_keyboardDidHide:) name:UIKeyboardDidHideNotification object:nil];
+        [center addObserver:self selector:@selector(_invokeShowKeyboardCallbackIfNecessary) name:UIKeyboardDidShowNotification object:nil];
+        [center addObserver:self selector:@selector(_invokeHideKeyboardCallbackIfNecessary) name:UIKeyboardDidHideNotification object:nil];
+        [center addObserver:self selector:@selector(_didShowMenu) name:UIMenuControllerDidShowMenuNotification object:nil];
+        [center addObserver:self selector:@selector(_didHideMenu) name:UIMenuControllerDidHideMenuNotification object:nil];
+        self.UIDelegate = self;
     }
     return self;
 }
@@ -90,11 +97,12 @@
     self.didEndZoomingCallback = nil;
     self.didShowKeyboardCallback = nil;
     self.didHideKeyboardCallback = nil;
+    self.didShowMenuCallback = nil;
+    self.didHideMenuCallback = nil;
     self.didEndScrollingCallback = nil;
     self.rotationDidEndCallback = nil;
 
     self.zoomToScaleCompletionHandler = nil;
-    self.showKeyboardCompletionHandler = nil;
     self.retrieveSpeakSelectionContentCompletionHandler = nil;
 
     [super dealloc];
@@ -102,14 +110,23 @@
 
 - (void)didStartFormControlInteraction
 {
+    m_isInteractingWithFormControl = YES;
+
     if (self.didStartFormControlInteractionCallback)
         self.didStartFormControlInteractionCallback();
 }
 
 - (void)didEndFormControlInteraction
 {
+    m_isInteractingWithFormControl = NO;
+
     if (self.didEndFormControlInteractionCallback)
         self.didEndFormControlInteractionCallback();
+}
+
+- (BOOL)isInteractingWithFormControl
+{
+    return m_isInteractingWithFormControl;
 }
 
 - (void)_didShowForcePressPreview
@@ -139,24 +156,44 @@
     [self.scrollView setZoomScale:scale animated:animated];
 }
 
-- (void)_keyboardDidShow:(NSNotification *)notification
+- (void)_invokeShowKeyboardCallbackIfNecessary
 {
-    if (self.isShowingKeyboard)
+    if (self.showingKeyboard)
         return;
 
-    self.isShowingKeyboard = YES;
+    self.showingKeyboard = YES;
     if (self.didShowKeyboardCallback)
         self.didShowKeyboardCallback();
 }
 
-- (void)_keyboardDidHide:(NSNotification *)notification
+- (void)_invokeHideKeyboardCallbackIfNecessary
 {
-    if (!self.isShowingKeyboard)
+    if (!self.showingKeyboard)
         return;
 
-    self.isShowingKeyboard = NO;
+    self.showingKeyboard = NO;
     if (self.didHideKeyboardCallback)
         self.didHideKeyboardCallback();
+}
+
+- (void)_didShowMenu
+{
+    if (self.showingMenu)
+        return;
+
+    self.showingMenu = YES;
+    if (self.didShowMenuCallback)
+        self.didShowMenuCallback();
+}
+
+- (void)_didHideMenu
+{
+    if (!self.showingMenu)
+        return;
+
+    self.showingMenu = NO;
+    if (self.didHideMenuCallback)
+        self.didHideMenuCallback();
 }
 
 - (void)scrollViewWillBeginZooming:(UIScrollView *)scrollView withView:(UIView *)view
@@ -231,7 +268,21 @@
     return _overrideSafeAreaInsets;
 }
 
-#endif
+#pragma mark - WKUIDelegatePrivate
+
+// In extra zoom mode, fullscreen form control UI takes on the same role as keyboards and input view controllers
+// in UIKit. As such, we allow keyboard presentation and dismissal callbacks to work in extra zoom mode as well.
+- (void)_webView:(WKWebView *)webView didPresentFocusedElementViewController:(UIViewController *)controller
+{
+    [self _invokeShowKeyboardCallbackIfNecessary];
+}
+
+- (void)_webView:(WKWebView *)webView didDismissFocusedElementViewController:(UIViewController *)controller
+{
+    [self _invokeHideKeyboardCallbackIfNecessary];
+}
+
+#endif // PLATFORM(IOS_FAMILY)
 
 @end
 

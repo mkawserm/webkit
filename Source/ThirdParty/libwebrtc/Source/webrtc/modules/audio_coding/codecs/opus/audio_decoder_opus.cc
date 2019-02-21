@@ -10,8 +10,11 @@
 
 #include "modules/audio_coding/codecs/opus/audio_decoder_opus.h"
 
+#include <memory>
 #include <utility>
 
+#include "absl/types/optional.h"
+#include "api/array_view.h"
 #include "rtc_base/checks.h"
 
 namespace webrtc {
@@ -36,7 +39,9 @@ class OpusFrame : public AudioDecoder::EncodedAudioFrame {
     return (ret < 0) ? 0 : static_cast<size_t>(ret);
   }
 
-  rtc::Optional<DecodeResult> Decode(
+  bool IsDtxPacket() const override { return payload_.size() <= 2; }
+
+  absl::optional<DecodeResult> Decode(
       rtc::ArrayView<int16_t> decoded) const override {
     AudioDecoder::SpeechType speech_type = AudioDecoder::kSpeech;
     int ret;
@@ -51,7 +56,7 @@ class OpusFrame : public AudioDecoder::EncodedAudioFrame {
     }
 
     if (ret < 0)
-      return rtc::nullopt;
+      return absl::nullopt;
 
     return DecodeResult{static_cast<size_t>(ret), speech_type};
   }

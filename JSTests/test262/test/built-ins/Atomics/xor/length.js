@@ -21,10 +21,13 @@ info: |
     object has the attributes { [[Writable]]: false, [[Enumerable]]: false,
     [[Configurable]]: true }.
 includes: [propertyHelper.js]
+features: [Atomics]
 ---*/
 
-assert.sameValue(Atomics.xor.length, 3);
+verifyProperty(Atomics.xor, 'length', {
+  value: 3,
+  enumerable: false,
+  writable: false,
+  configurable: true,
+});
 
-verifyNotEnumerable(Atomics.xor, "length");
-verifyNotWritable(Atomics.xor, "length");
-verifyConfigurable(Atomics.xor, "length");

@@ -26,7 +26,7 @@
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#if !PLATFORM(IOS)
+#if !PLATFORM(IOS_FAMILY)
 
 #import "WebNSPasteboardExtras.h"
 
@@ -113,9 +113,7 @@ static NSArray *_writableTypesForImageWithArchive (void)
         WebURLNamePboardType,
         legacyStringPasteboardType(),
         legacyFilenamesPasteboardType(),
-#if __MAC_OS_X_VERSION_MIN_REQUIRED >= 101200
         legacyFilesPromisePasteboardType(),
-#endif
         nil];
 }
 
@@ -184,10 +182,9 @@ static NSArray *_writableTypesForImageWithArchive (void)
 
 + (int)_web_setFindPasteboardString:(NSString *)string withOwner:(id)owner
 {
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+    ALLOW_DEPRECATED_DECLARATIONS_BEGIN
     NSPasteboard *findPasteboard = [NSPasteboard pasteboardWithName:NSFindPboard];
-#pragma clang diagnostic pop
+    ALLOW_DEPRECATED_DECLARATIONS_END
     [findPasteboard declareTypes:[NSArray arrayWithObject:legacyStringPasteboardType()] owner:owner];
     [findPasteboard setString:string forType:legacyStringPasteboardType()];
     return [findPasteboard changeCount];
@@ -212,13 +209,16 @@ static NSArray *_writableTypesForImageWithArchive (void)
     // or the main resource (standalone image case).
     NSArray *subresources = [archive subresources];
     WebResource *resource = [archive mainResource];
-    if (containsImage && [subresources count] > 0 
-        && MIMETypeRegistry::isSupportedImageResourceMIMEType([[subresources objectAtIndex:0] MIMEType]))
-        resource = (WebResource *)[subresources objectAtIndex:0];
+    if (containsImage && [subresources count] > 0) {
+        WebResource *subresource = [subresources objectAtIndex:0];
+        NSString *subresourceMIMEType = [subresource MIMEType];
+        if (MIMETypeRegistry::isSupportedImageMIMEType(subresourceMIMEType) || MIMETypeRegistry::isPDFOrPostScriptMIMEType(subresourceMIMEType))
+            resource = subresource;
+    }
     ASSERT(resource != nil);
     
-    ASSERT(!containsImage || MIMETypeRegistry::isSupportedImageResourceMIMEType([resource MIMEType]));
-    if (!containsImage || MIMETypeRegistry::isSupportedImageResourceMIMEType([resource MIMEType]))
+    ASSERT(!containsImage || MIMETypeRegistry::isSupportedImageMIMEType([resource MIMEType]) || MIMETypeRegistry::isPDFOrPostScriptMIMEType([resource MIMEType]));
+    if (!containsImage || MIMETypeRegistry::isSupportedImageMIMEType([resource MIMEType]) || MIMETypeRegistry::isPDFOrPostScriptMIMEType([resource MIMEType]))
         [self _web_writeFileWrapperAsRTFDAttachment:[resource _fileWrapperRepresentation]];
     
 }
@@ -276,10 +276,9 @@ static CachedImage* imageFromElement(DOMElement *domElement)
                                    archive:(WebArchive *)archive
                                     source:(WebHTMLView *)source
 {
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+    ALLOW_DEPRECATED_DECLARATIONS_BEGIN
     ASSERT(self == [NSPasteboard pasteboardWithName:NSDragPboard]);
-#pragma clang diagnostic pop
+    ALLOW_DEPRECATED_DECLARATIONS_END
 
     NSString *extension = @"";
     RetainPtr<NSMutableArray> types = adoptNS([[NSMutableArray alloc] initWithObjects:legacyFilesPromisePasteboardType(), nil]);
@@ -317,4 +316,4 @@ static CachedImage* imageFromElement(DOMElement *domElement)
 
 @end
 
-#endif // !PLATFORM(IOS)
+#endif // !PLATFORM(IOS_FAMILY)

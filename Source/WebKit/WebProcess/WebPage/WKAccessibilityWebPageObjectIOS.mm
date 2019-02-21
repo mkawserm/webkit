@@ -26,12 +26,12 @@
 #import "config.h"
 #import "WKAccessibilityWebPageObjectIOS.h"
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
 
 #import "WebFrame.h"
 #import "WebPage.h"
+#import <WebCore/Frame.h>
 #import <WebCore/IntPoint.h>
-#import <WebCore/MainFrame.h>
 #import <WebCore/FrameView.h>
 #import <WebCore/Page.h>
 #import <WebCore/WAKAppKitStubs.h>
@@ -81,5 +81,5 @@
 
 @end
 
-#endif // PLATFORM(IOS)
+#endif // PLATFORM(IOS_FAMILY)
 

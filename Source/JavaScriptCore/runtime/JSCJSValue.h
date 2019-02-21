@@ -39,6 +39,7 @@
 namespace JSC {
 
 class AssemblyHelpers;
+class JSBigInt;
 class ExecState;
 class JSCell;
 class JSValueSource;
@@ -58,7 +59,7 @@ class OSRExitCompiler;
 class SpeculativeJIT;
 }
 #endif
-#if !ENABLE(JIT)
+#if ENABLE(C_LOOP)
 namespace LLInt {
 class CLoop;
 }
@@ -107,8 +108,8 @@ union EncodedValueDescriptor {
 #endif
 };
 
-#define TagOffset (OBJECT_OFFSETOF(EncodedValueDescriptor, asBits.tag))
-#define PayloadOffset (OBJECT_OFFSETOF(EncodedValueDescriptor, asBits.payload))
+#define TagOffset (offsetof(EncodedValueDescriptor, asBits.tag))
+#define PayloadOffset (offsetof(EncodedValueDescriptor, asBits.payload))
 
 #if USE(JSVALUE64)
 #define CellPayloadOffset 0
@@ -124,7 +125,7 @@ enum WhichValueWord {
 int64_t tryConvertToInt52(double);
 bool isInt52(double);
 
-enum class SourceCodeRepresentation {
+enum class SourceCodeRepresentation : uint8_t {
     Other,
     Integer,
     Double
@@ -146,7 +147,7 @@ class JSValue {
     friend class DFG::OSRExitCompiler;
     friend class DFG::SpeculativeJIT;
 #endif
-#if !ENABLE(JIT)
+#if ENABLE(C_LOOP)
     friend class LLInt::CLoop;
 #endif
 
@@ -217,11 +218,10 @@ public:
 
     // Querying the type.
     bool isEmpty() const;
-    bool isFunction() const;
-    bool isFunction(CallType&, CallData&) const;
-    bool isCallable(CallType&, CallData&) const;
-    bool isConstructor() const;
-    bool isConstructor(ConstructType&, ConstructData&) const;
+    bool isFunction(VM&) const;
+    bool isCallable(VM&, CallType&, CallData&) const;
+    bool isConstructor(VM&) const;
+    bool isConstructor(VM&, ConstructType&, ConstructData&) const;
     bool isUndefined() const;
     bool isNull() const;
     bool isUndefinedOrNull() const;
@@ -236,6 +236,7 @@ public:
     bool isCustomGetterSetter() const;
     bool isObject() const;
     bool inherits(VM&, const ClassInfo*) const;
+    template<typename Target> bool inherits(VM&) const;
     const ClassInfo* classInfoOrNull(VM&) const;
         
     // Extracting the value.
@@ -256,9 +257,12 @@ public:
     // toNumber conversion is expected to be side effect free if an exception has
     // been set in the ExecState already.
     double toNumber(ExecState*) const;
+    
+    Variant<JSBigInt*, double> toNumeric(ExecState*) const;
+    Variant<JSBigInt*, int32_t> toBigIntOrInt32(ExecState*) const;
 
     // toNumber conversion if it can be done without side effects.
-    std::optional<double> toNumberFromPrimitive() const;
+    Optional<double> toNumberFromPrimitive() const;
 
     JSString* toString(ExecState*) const; // On exception, this returns the empty string.
     JSString* toStringOrNull(ExecState*) const; // On exception, this returns null, to make exception checks faster.
@@ -289,6 +293,8 @@ public:
     bool getPropertySlot(ExecState*, PropertyName, PropertySlot&) const;
     template<typename CallbackWhenNoException> typename std::result_of<CallbackWhenNoException(bool, PropertySlot&)>::type getPropertySlot(ExecState*, PropertyName, CallbackWhenNoException) const;
     template<typename CallbackWhenNoException> typename std::result_of<CallbackWhenNoException(bool, PropertySlot&)>::type getPropertySlot(ExecState*, PropertyName, PropertySlot&, CallbackWhenNoException) const;
+
+    bool getOwnPropertySlot(ExecState*, PropertyName, PropertySlot&) const;
 
     bool put(ExecState*, PropertyName, JSValue, PutPropertySlot&);
     bool putInline(ExecState*, PropertyName, JSValue, PutPropertySlot&);
@@ -545,7 +551,7 @@ ALWAYS_INLINE JSValue jsNumber(double d)
     return JSValue(d);
 }
 
-ALWAYS_INLINE JSValue jsNumber(MediaTime t)
+ALWAYS_INLINE JSValue jsNumber(const MediaTime& t)
 {
     return jsNumber(t.toDouble());
 }

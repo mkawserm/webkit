@@ -41,6 +41,7 @@
 #import <QuartzCore/CAContext.h>
 #import <QuartzCore/CALayerHost.h>
 #import <QuartzCore/CALayerPrivate.h>
+#import <QuartzCore/CAMediaTimingFunctionPrivate.h>
 #import <QuartzCore/QuartzCorePrivate.h>
 
 #if PLATFORM(MAC)
@@ -72,6 +73,11 @@ typedef struct _CARenderContext CARenderContext;
 - (mach_port_t)createFencePort;
 - (void)setFencePort:(mach_port_t)port;
 - (void)setFencePort:(mach_port_t)port commitHandler:(void(^)(void))block;
+
+#if PLATFORM(MAC) && __MAC_OS_X_VERSION_MIN_REQUIRED >= 101400
++ (void)setAllowsCGSConnections:(BOOL)flag;
+#endif
+
 #if PLATFORM(MAC)
 @property uint32_t commitPriority;
 @property BOOL colorMatchUntaggedContent;
@@ -88,12 +94,15 @@ typedef struct _CARenderContext CARenderContext;
 - (CGSize)size;
 - (void *)regionBeingDrawn;
 - (void)reloadValueForKeyPath:(NSString *)keyPath;
+- (void)setCornerRadius:(CGFloat)cornerRadius;
 @property BOOL allowsGroupBlending;
+@property BOOL allowsHitTesting;
 @property BOOL canDrawConcurrently;
 @property BOOL contentsOpaque;
 @property BOOL hitTestsAsOpaque;
 @property BOOL needsLayoutOnGeometryChange;
 @property BOOL shadowPathIsBounds;
+@property BOOL continuousCorners;
 @end
 
 #if ENABLE(FILTERS_LEVEL_2)
@@ -132,7 +141,7 @@ typedef enum {
 @interface CATransaction ()
 + (void)addCommitHandler:(void(^)(void))block forPhase:(CATransactionPhase)phase;
 
-#if PLATFORM(IOS) && __IPHONE_OS_VERSION_MIN_REQUIRED >= 110000
+#if PLATFORM(IOS_FAMILY) && __IPHONE_OS_VERSION_MIN_REQUIRED >= 110000
 + (CATransactionPhase)currentPhase;
 #endif
 
@@ -145,6 +154,10 @@ typedef enum {
 
 @interface CASpringAnimation (Private)
 @property CGFloat velocity;
+@end
+
+@interface CAMediaTimingFunction ()
+- (float)_solveForInput:(float)t;
 @end
 
 #endif // __OBJC__
@@ -224,7 +237,7 @@ extern NSString * const kCAContextDisplayId;
 extern NSString * const kCAContextIgnoresHitTest;
 extern NSString * const kCAContextPortNumber;
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
 extern NSString * const kCAContentsFormatRGBA10XR;
 #endif
 

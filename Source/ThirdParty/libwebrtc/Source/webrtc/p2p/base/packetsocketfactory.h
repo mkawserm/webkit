@@ -11,8 +11,13 @@
 #ifndef P2P_BASE_PACKETSOCKETFACTORY_H_
 #define P2P_BASE_PACKETSOCKETFACTORY_H_
 
+#include <string>
+#include <vector>
+
 #include "rtc_base/constructormagic.h"
 #include "rtc_base/proxyinfo.h"
+#include "rtc_base/sslcertificate.h"
+#include "rtc_base/system/rtc_export.h"
 
 namespace rtc {
 
@@ -24,12 +29,15 @@ struct PacketSocketTcpOptions {
   int opts = 0;
   std::vector<std::string> tls_alpn_protocols;
   std::vector<std::string> tls_elliptic_curves;
+  // An optional custom SSL certificate verifier that an API user can provide to
+  // inject their own certificate verification logic.
+  SSLCertificateVerifier* tls_cert_verifier = nullptr;
 };
 
 class AsyncPacketSocket;
 class AsyncResolverInterface;
 
-class PacketSocketFactory {
+class RTC_EXPORT PacketSocketFactory {
  public:
   enum Options {
     OPT_STUN = 0x04,
@@ -43,7 +51,7 @@ class PacketSocketFactory {
     OPT_SSLTCP = OPT_TLS_FAKE,
   };
 
-  PacketSocketFactory() { }
+  PacketSocketFactory() {}
   virtual ~PacketSocketFactory() = default;
 
   virtual AsyncPacketSocket* CreateUdpSocket(const SocketAddress& address,

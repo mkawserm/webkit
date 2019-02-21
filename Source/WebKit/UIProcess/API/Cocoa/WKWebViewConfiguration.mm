@@ -37,21 +37,21 @@
 #import "WKUserContentController.h"
 #import "WKWebView.h"
 #import "WKWebViewContentProviderRegistry.h"
-#import "WeakObjCPtr.h"
 #import "WebKit2Initialize.h"
+#import "WebURLSchemeHandlerCocoa.h"
+#import "_WKApplicationManifestInternal.h"
 #import "_WKVisitedLinkStore.h"
 #import "_WKWebsiteDataStoreInternal.h"
 #import <WebCore/RuntimeApplicationChecks.h>
 #import <WebCore/Settings.h>
-#import <WebCore/URLParser.h>
 #import <wtf/RetainPtr.h>
+#import <wtf/URLParser.h>
+#import <wtf/WeakObjCPtr.h>
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
 #import "UIKitSPI.h"
 #import <WebCore/Device.h>
 #endif
-
-using namespace WebCore;
 
 template<typename T> class LazyInitialized {
 public:
@@ -90,7 +90,7 @@ private:
     T m_value;
 };
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
 
 static _WKDragLiftDelay toDragLiftDelay(NSUInteger value)
 {
@@ -104,18 +104,17 @@ static _WKDragLiftDelay toDragLiftDelay(NSUInteger value)
 #endif
 
 @implementation WKWebViewConfiguration {
+    RefPtr<API::PageConfiguration> _pageConfiguration;
     LazyInitialized<RetainPtr<WKProcessPool>> _processPool;
     LazyInitialized<RetainPtr<WKPreferences>> _preferences;
     LazyInitialized<RetainPtr<WKUserContentController>> _userContentController;
     LazyInitialized<RetainPtr<_WKVisitedLinkStore>> _visitedLinkStore;
     LazyInitialized<RetainPtr<WKWebsiteDataStore>> _websiteDataStore;
-    WebKit::WeakObjCPtr<WKWebView> _relatedWebView;
-    WebKit::WeakObjCPtr<WKWebView> _alternateWebViewForNavigationGestures;
+    WeakObjCPtr<WKWebView> _relatedWebView;
+    WeakObjCPtr<WKWebView> _alternateWebViewForNavigationGestures;
     RetainPtr<NSString> _groupIdentifier;
     LazyInitialized<RetainPtr<NSString>> _applicationNameForUserAgent;
-    LazyInitialized<RetainPtr<NSMutableDictionary<NSString *, id <WKURLSchemeHandler>>>> _urlSchemeHandlers;
     NSTimeInterval _incrementalRenderingSuppressionTimeout;
-    BOOL _treatsSHA1SignedCertificatesAsInsecure;
     BOOL _respectsImageOrientation;
     BOOL _printsBackgrounds;
     BOOL _allowsJavaScriptMarkup;
@@ -123,37 +122,32 @@ static _WKDragLiftDelay toDragLiftDelay(NSUInteger value)
     BOOL _allowsMetaRefresh;
     BOOL _allowUniversalAccessFromFileURLs;
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
     LazyInitialized<RetainPtr<WKWebViewContentProviderRegistry>> _contentProviderRegistry;
-    BOOL _alwaysRunsAtForegroundPriority;
     BOOL _allowsInlineMediaPlayback;
     BOOL _inlineMediaPlaybackRequiresPlaysInlineAttribute;
     BOOL _allowsInlineMediaPlaybackAfterFullscreen;
     _WKDragLiftDelay _dragLiftDelay;
     BOOL _textInteractionGesturesEnabled;
     BOOL _longPressActionsEnabled;
+    BOOL _systemPreviewEnabled;
 #endif
 
     BOOL _invisibleAutoplayNotPermitted;
     BOOL _mediaDataLoadsAutomatically;
     BOOL _attachmentElementEnabled;
+    Class _attachmentFileWrapperClass;
     BOOL _mainContentUserGestureOverrideEnabled;
 
 #if PLATFORM(MAC)
     WKRetainPtr<WKPageGroupRef> _pageGroup;
-    double _cpuLimit;
     BOOL _showsURLsInToolTips;
     BOOL _serviceControlsEnabled;
     BOOL _imageControlsEnabled;
     BOOL _requiresUserActionForEditingControlsManager;
 #endif
-    BOOL _initialCapitalizationEnabled;
     BOOL _waitsForPaintAfterViewDidMoveToWindow;
     BOOL _controlledByAutomation;
-
-#if ENABLE(APPLICATION_MANIFEST)
-    RetainPtr<_WKApplicationManifest> _applicationManifest;
-#endif
 
 #if ENABLE(APPLE_PAY)
     BOOL _applePayEnabled;
@@ -161,9 +155,15 @@ static _WKDragLiftDelay toDragLiftDelay(NSUInteger value)
     BOOL _needsStorageAccessFromFileURLsQuirk;
     BOOL _legacyEncryptedMediaAPIEnabled;
     BOOL _allowMediaContentTypesRequiringHardwareSupportAsFallback;
+    BOOL _colorFilterEnabled;
+    BOOL _incompleteImageBorderEnabled;
+    BOOL _shouldDeferAsynchronousScriptsUntilAfterDocumentLoad;
+    BOOL _drawsBackground;
+    BOOL _editableImagesEnabled;
+    BOOL _undoManagerAPIEnabled;
 
-    RetainPtr<NSString> _overrideContentSecurityPolicy;
     RetainPtr<NSString> _mediaContentTypesRequiringHardwareSupport;
+    RetainPtr<NSArray<NSString *>> _additionalSupportedImageTypes;
 }
 
 - (instancetype)init
@@ -173,15 +173,17 @@ static _WKDragLiftDelay toDragLiftDelay(NSUInteger value)
 
     WebKit::InitializeWebKit2();
 
-#if PLATFORM(IOS)
-#if !ENABLE(EXTRA_ZOOM_MODE)
+    _pageConfiguration = API::PageConfiguration::create();
+
+#if PLATFORM(IOS_FAMILY)
+#if !PLATFORM(WATCHOS)
     _allowsPictureInPictureMediaPlayback = YES;
 #endif
     _allowsInlineMediaPlayback = WebCore::deviceClass() == MGDeviceClassiPad;
     _inlineMediaPlaybackRequiresPlaysInlineAttribute = !_allowsInlineMediaPlayback;
     _allowsInlineMediaPlaybackAfterFullscreen = !_allowsInlineMediaPlayback;
     _mediaDataLoadsAutomatically = NO;
-#if !ENABLE(EXTRA_ZOOM_MODE)
+#if !PLATFORM(WATCHOS)
     if (WebKit::linkedOnOrAfter(WebKit::SDKVersion::FirstWithMediaTypesRequiringUserActionForPlayback))
         _mediaTypesRequiringUserActionForPlayback = WKAudiovisualMediaTypeAudio;
     else
@@ -199,13 +201,12 @@ static _WKDragLiftDelay toDragLiftDelay(NSUInteger value)
     _invisibleAutoplayNotPermitted = NO;
     _attachmentElementEnabled = NO;
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
     _respectsImageOrientation = YES;
     _printsBackgrounds = YES;
 #endif
 
 #if PLATFORM(MAC)
-    _cpuLimit = 0;
     _printsBackgrounds = NO;
     _respectsImageOrientation = NO;
     _showsURLsInToolTips = NO;
@@ -213,7 +214,6 @@ static _WKDragLiftDelay toDragLiftDelay(NSUInteger value)
     _imageControlsEnabled = NO;
     _requiresUserActionForEditingControlsManager = NO;
 #endif
-    _initialCapitalizationEnabled = YES;
     _waitsForPaintAfterViewDidMoveToWindow = YES;
 
 #if ENABLE(WIRELESS_PLAYBACK_TARGET)
@@ -225,23 +225,31 @@ static _WKDragLiftDelay toDragLiftDelay(NSUInteger value)
     _convertsPositionStyleOnCopy = NO;
     _allowsMetaRefresh = YES;
     _allowUniversalAccessFromFileURLs = NO;
-    _treatsSHA1SignedCertificatesAsInsecure = YES;
     _needsStorageAccessFromFileURLsQuirk = YES;
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
     _selectionGranularity = WKSelectionGranularityDynamic;
     _dragLiftDelay = toDragLiftDelay([[NSUserDefaults standardUserDefaults] integerForKey:@"WebKitDebugDragLiftDelay"]);
-#if ENABLE(EXTRA_ZOOM_MODE)
+#if PLATFORM(WATCHOS)
     _textInteractionGesturesEnabled = NO;
     _longPressActionsEnabled = NO;
 #else
     _textInteractionGesturesEnabled = YES;
     _longPressActionsEnabled = YES;
 #endif
-#endif // PLATFORM(IOS)
+    _systemPreviewEnabled = NO;
+#endif // PLATFORM(IOS_FAMILY)
 
-    _mediaContentTypesRequiringHardwareSupport = Settings::defaultMediaContentTypesRequiringHardwareSupport();
+    _mediaContentTypesRequiringHardwareSupport = WebCore::Settings::defaultMediaContentTypesRequiringHardwareSupport();
     _allowMediaContentTypesRequiringHardwareSupportAsFallback = YES;
+
+    _colorFilterEnabled = NO;
+    _incompleteImageBorderEnabled = NO;
+    _shouldDeferAsynchronousScriptsUntilAfterDocumentLoad = NO;
+    _drawsBackground = YES;
+
+    _editableImagesEnabled = NO;
+    _undoManagerAPIEnabled = NO;
 
     return self;
 }
@@ -256,8 +264,6 @@ static _WKDragLiftDelay toDragLiftDelay(NSUInteger value)
     return YES;
 }
 
-// FIXME: Encode the process pool, user content controller and website data store.
-
 - (void)encodeWithCoder:(NSCoder *)coder
 {
     [coder encodeObject:self.processPool forKey:@"processPool"];
@@ -269,7 +275,9 @@ static _WKDragLiftDelay toDragLiftDelay(NSUInteger value)
     [coder encodeObject:self.applicationNameForUserAgent forKey:@"applicationNameForUserAgent"];
     [coder encodeBool:self.allowsAirPlayForMediaPlayback forKey:@"allowsAirPlayForMediaPlayback"];
 
-#if PLATFORM(IOS)
+    [coder encodeBool:self._drawsBackground forKey:@"drawsBackground"];
+
+#if PLATFORM(IOS_FAMILY)
     [coder encodeInteger:self.dataDetectorTypes forKey:@"dataDetectorTypes"];
     [coder encodeBool:self.allowsInlineMediaPlayback forKey:@"allowsInlineMediaPlayback"];
     [coder encodeBool:self._allowsInlineMediaPlaybackAfterFullscreen forKey:@"allowsInlineMediaPlaybackAfterFullscreen"];
@@ -280,6 +288,7 @@ static _WKDragLiftDelay toDragLiftDelay(NSUInteger value)
     [coder encodeInteger:self._dragLiftDelay forKey:@"dragLiftDelay"];
     [coder encodeBool:self._textInteractionGesturesEnabled forKey:@"textInteractionGesturesEnabled"];
     [coder encodeBool:self._longPressActionsEnabled forKey:@"longPressActionsEnabled"];
+    [coder encodeBool:self._systemPreviewEnabled forKey:@"systemPreviewEnabled"];
 #else
     [coder encodeInteger:self.userInterfaceDirectionPolicy forKey:@"userInterfaceDirectionPolicy"];
 #endif
@@ -299,7 +308,10 @@ static _WKDragLiftDelay toDragLiftDelay(NSUInteger value)
     self.applicationNameForUserAgent = decodeObjectOfClassForKeyFromCoder([NSString class], @"applicationNameForUserAgent", coder);
     self.allowsAirPlayForMediaPlayback = [coder decodeBoolForKey:@"allowsAirPlayForMediaPlayback"];
 
-#if PLATFORM(IOS)
+    if ([coder containsValueForKey:@"drawsBackground"])
+        self._drawsBackground = [coder decodeBoolForKey:@"drawsBackground"];
+
+#if PLATFORM(IOS_FAMILY)
     self.dataDetectorTypes = [coder decodeIntegerForKey:@"dataDetectorTypes"];
     self.allowsInlineMediaPlayback = [coder decodeBoolForKey:@"allowsInlineMediaPlayback"];
     self._allowsInlineMediaPlaybackAfterFullscreen = [coder decodeBoolForKey:@"allowsInlineMediaPlaybackAfterFullscreen"];
@@ -310,6 +322,7 @@ static _WKDragLiftDelay toDragLiftDelay(NSUInteger value)
     self._dragLiftDelay = toDragLiftDelay([coder decodeIntegerForKey:@"dragLiftDelay"]);
     self._textInteractionGesturesEnabled = [coder decodeBoolForKey:@"textInteractionGesturesEnabled"];
     self._longPressActionsEnabled = [coder decodeBoolForKey:@"longPressActionsEnabled"];
+    self._systemPreviewEnabled = [coder decodeBoolForKey:@"systemPreviewEnabled"];
 #else
     auto userInterfaceDirectionPolicyCandidate = static_cast<WKUserInterfaceDirectionPolicy>([coder decodeIntegerForKey:@"userInterfaceDirectionPolicy"]);
     if (userInterfaceDirectionPolicyCandidate == WKUserInterfaceDirectionPolicyContent || userInterfaceDirectionPolicyCandidate == WKUserInterfaceDirectionPolicySystem)
@@ -323,6 +336,7 @@ static _WKDragLiftDelay toDragLiftDelay(NSUInteger value)
 {
     WKWebViewConfiguration *configuration = [(WKWebViewConfiguration *)[[self class] allocWithZone:zone] init];
 
+    configuration->_pageConfiguration = _pageConfiguration->copy();
     configuration.processPool = self.processPool;
     configuration.preferences = self.preferences;
     configuration.userContentController = self.userContentController;
@@ -330,8 +344,7 @@ static _WKDragLiftDelay toDragLiftDelay(NSUInteger value)
     configuration._visitedLinkStore = self._visitedLinkStore;
     configuration._relatedWebView = _relatedWebView.get().get();
     configuration._alternateWebViewForNavigationGestures = _alternateWebViewForNavigationGestures.get().get();
-    configuration->_treatsSHA1SignedCertificatesAsInsecure = _treatsSHA1SignedCertificatesAsInsecure;
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
     configuration._contentProviderRegistry = self._contentProviderRegistry;
 #endif
 
@@ -349,26 +362,25 @@ static _WKDragLiftDelay toDragLiftDelay(NSUInteger value)
     configuration->_invisibleAutoplayNotPermitted = self->_invisibleAutoplayNotPermitted;
     configuration->_mediaDataLoadsAutomatically = self->_mediaDataLoadsAutomatically;
     configuration->_attachmentElementEnabled = self->_attachmentElementEnabled;
+    configuration->_attachmentFileWrapperClass = self->_attachmentFileWrapperClass;
     configuration->_mediaTypesRequiringUserActionForPlayback = self->_mediaTypesRequiringUserActionForPlayback;
     configuration->_mainContentUserGestureOverrideEnabled = self->_mainContentUserGestureOverrideEnabled;
-    configuration->_initialCapitalizationEnabled = self->_initialCapitalizationEnabled;
     configuration->_waitsForPaintAfterViewDidMoveToWindow = self->_waitsForPaintAfterViewDidMoveToWindow;
     configuration->_controlledByAutomation = self->_controlledByAutomation;
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
     configuration->_allowsInlineMediaPlayback = self->_allowsInlineMediaPlayback;
     configuration->_allowsInlineMediaPlaybackAfterFullscreen = self->_allowsInlineMediaPlaybackAfterFullscreen;
     configuration->_inlineMediaPlaybackRequiresPlaysInlineAttribute = self->_inlineMediaPlaybackRequiresPlaysInlineAttribute;
     configuration->_allowsPictureInPictureMediaPlayback = self->_allowsPictureInPictureMediaPlayback;
-    configuration->_alwaysRunsAtForegroundPriority = _alwaysRunsAtForegroundPriority;
     configuration->_selectionGranularity = self->_selectionGranularity;
     configuration->_ignoresViewportScaleLimits = self->_ignoresViewportScaleLimits;
     configuration->_dragLiftDelay = self->_dragLiftDelay;
     configuration->_textInteractionGesturesEnabled = self->_textInteractionGesturesEnabled;
     configuration->_longPressActionsEnabled = self->_longPressActionsEnabled;
+    configuration->_systemPreviewEnabled = self->_systemPreviewEnabled;
 #endif
 #if PLATFORM(MAC)
-    configuration->_cpuLimit = self->_cpuLimit;
     configuration->_userInterfaceDirectionPolicy = self->_userInterfaceDirectionPolicy;
     configuration->_showsURLsInToolTips = self->_showsURLsInToolTips;
     configuration->_serviceControlsEnabled = self->_serviceControlsEnabled;
@@ -376,7 +388,7 @@ static _WKDragLiftDelay toDragLiftDelay(NSUInteger value)
     configuration->_requiresUserActionForEditingControlsManager = self->_requiresUserActionForEditingControlsManager;
     configuration->_pageGroup = self._pageGroup;
 #endif
-#if ENABLE(DATA_DETECTION) && PLATFORM(IOS)
+#if ENABLE(DATA_DETECTION) && PLATFORM(IOS_FAMILY)
     configuration->_dataDetectorTypes = self->_dataDetectorTypes;
 #endif
 #if ENABLE(WIRELESS_TARGET_PLAYBACK)
@@ -385,18 +397,21 @@ static _WKDragLiftDelay toDragLiftDelay(NSUInteger value)
 #if ENABLE(APPLE_PAY)
     configuration->_applePayEnabled = self->_applePayEnabled;
 #endif
-#if ENABLE(APPLICATION_MANIFEST)
-    configuration->_applicationManifest = self->_applicationManifest;
-#endif
     configuration->_needsStorageAccessFromFileURLsQuirk = self->_needsStorageAccessFromFileURLsQuirk;
-    configuration->_overrideContentSecurityPolicy = adoptNS([self->_overrideContentSecurityPolicy copyWithZone:zone]);
 
-    configuration->_urlSchemeHandlers.set(adoptNS([self._urlSchemeHandlers mutableCopyWithZone:zone]));
     configuration->_mediaContentTypesRequiringHardwareSupport = adoptNS([self._mediaContentTypesRequiringHardwareSupport copyWithZone:zone]);
+    configuration->_additionalSupportedImageTypes = adoptNS([self->_additionalSupportedImageTypes copyWithZone:zone]);
     configuration->_legacyEncryptedMediaAPIEnabled = self->_legacyEncryptedMediaAPIEnabled;
     configuration->_allowMediaContentTypesRequiringHardwareSupportAsFallback = self->_allowMediaContentTypesRequiringHardwareSupportAsFallback;
 
     configuration->_groupIdentifier = adoptNS([self->_groupIdentifier copyWithZone:zone]);
+    configuration->_colorFilterEnabled = self->_colorFilterEnabled;
+    configuration->_incompleteImageBorderEnabled = self->_incompleteImageBorderEnabled;
+    configuration->_shouldDeferAsynchronousScriptsUntilAfterDocumentLoad = self->_shouldDeferAsynchronousScriptsUntilAfterDocumentLoad;
+    configuration->_drawsBackground = self->_drawsBackground;
+
+    configuration->_editableImagesEnabled = self->_editableImagesEnabled;
+    configuration->_undoManagerAPIEnabled = self->_undoManagerAPIEnabled;
 
     return configuration;
 }
@@ -443,8 +458,8 @@ static _WKDragLiftDelay toDragLiftDelay(NSUInteger value)
 
 static NSString *defaultApplicationNameForUserAgent()
 {
-#if PLATFORM(IOS)
-    return [@"Mobile/" stringByAppendingString:[UIDevice currentDevice].buildVersion];
+#if PLATFORM(IOS_FAMILY)
+    return @"Mobile/15E148";
 #else
     return nil;
 #endif
@@ -472,55 +487,51 @@ static NSString *defaultApplicationNameForUserAgent()
 
 - (void)setURLSchemeHandler:(id <WKURLSchemeHandler>)urlSchemeHandler forURLScheme:(NSString *)urlScheme
 {
-    auto *urlSchemeHandlers = _urlSchemeHandlers.get([] { return adoptNS([[NSMutableDictionary alloc] init]); });
-
     if ([WKWebView handlesURLScheme:urlScheme])
         [NSException raise:NSInvalidArgumentException format:@"'%@' is a URL scheme that WKWebView handles natively", urlScheme];
 
-    auto canonicalScheme = WebCore::URLParser::maybeCanonicalizeScheme(urlScheme);
+    auto canonicalScheme = WTF::URLParser::maybeCanonicalizeScheme(urlScheme);
     if (!canonicalScheme)
         [NSException raise:NSInvalidArgumentException format:@"'%@' is not a valid URL scheme", urlScheme];
 
-    if ([urlSchemeHandlers objectForKey:(NSString *)canonicalScheme.value()])
+    if (_pageConfiguration->urlSchemeHandlerForURLScheme(*canonicalScheme))
         [NSException raise:NSInvalidArgumentException format:@"URL scheme '%@' already has a registered URL scheme handler", urlScheme];
 
-    [urlSchemeHandlers setObject:urlSchemeHandler forKey:(NSString *)canonicalScheme.value()];
+    _pageConfiguration->setURLSchemeHandlerForURLScheme(WebKit::WebURLSchemeHandlerCocoa::create(urlSchemeHandler), *canonicalScheme);
 }
 
-- (nullable id <WKURLSchemeHandler>)urlSchemeHandlerForURLScheme:(NSString *)urlScheme
+- (id <WKURLSchemeHandler>)urlSchemeHandlerForURLScheme:(NSString *)urlScheme
 {
-    auto canonicalScheme = WebCore::URLParser::maybeCanonicalizeScheme(urlScheme);
+    auto canonicalScheme = WTF::URLParser::maybeCanonicalizeScheme(urlScheme);
     if (!canonicalScheme)
         return nil;
 
-    auto *urlSchemeHandlers = _urlSchemeHandlers.get([] { return adoptNS([[NSMutableDictionary alloc] init]); });
-    return [urlSchemeHandlers objectForKey:(NSString *)canonicalScheme.value()];
+    auto handler = _pageConfiguration->urlSchemeHandlerForURLScheme(*canonicalScheme);
+    return handler ? static_cast<WebKit::WebURLSchemeHandlerCocoa*>(handler.get())->apiHandler() : nil;
 }
 
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+ALLOW_DEPRECATED_DECLARATIONS_BEGIN
 
+IGNORE_WARNINGS_BEGIN("deprecated-implementations")
 - (_WKWebsiteDataStore *)_websiteDataStore
+IGNORE_WARNINGS_END
 {
     return self.websiteDataStore ? adoptNS([[_WKWebsiteDataStore alloc] initWithDataStore:self.websiteDataStore]).autorelease() : nullptr;
 }
 
+IGNORE_WARNINGS_BEGIN("deprecated-implementations")
 - (void)_setWebsiteDataStore:(_WKWebsiteDataStore *)websiteDataStore
+IGNORE_WARNINGS_END
 {
     self.websiteDataStore = websiteDataStore ? websiteDataStore->_dataStore.get() : nullptr;
 }
 
-#pragma clang diagnostic pop
+ALLOW_DEPRECATED_DECLARATIONS_END
 
-- (NSMutableDictionary<NSString *, id <WKURLSchemeHandler>> *)_urlSchemeHandlers
-{
-    return _urlSchemeHandlers.get([] { return adoptNS([[NSMutableDictionary alloc] init]); });
-}
-
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
 - (WKWebViewContentProviderRegistry *)_contentProviderRegistry
 {
-    return _contentProviderRegistry.get([] { return adoptNS([[WKWebViewContentProviderRegistry alloc] init]); });
+    return _contentProviderRegistry.get([self] { return adoptNS([[WKWebViewContentProviderRegistry alloc] initWithConfiguration:self]); });
 }
 
 - (void)_setContentProviderRegistry:(WKWebViewContentProviderRegistry *)registry
@@ -528,6 +539,11 @@ static NSString *defaultApplicationNameForUserAgent()
     _contentProviderRegistry.set(registry);
 }
 #endif
+
+- (Ref<API::PageConfiguration>)copyPageConfiguration
+{
+    return _pageConfiguration->copy();
+}
 
 @end
 
@@ -565,12 +581,12 @@ static NSString *defaultApplicationNameForUserAgent()
 
 - (BOOL)_treatsSHA1SignedCertificatesAsInsecure
 {
-    return _treatsSHA1SignedCertificatesAsInsecure;
+    return _pageConfiguration->treatsSHA1SignedCertificatesAsInsecure();
 }
 
 - (void)_setTreatsSHA1SignedCertificatesAsInsecure:(BOOL)insecure
 {
-    _treatsSHA1SignedCertificatesAsInsecure = insecure;
+    _pageConfiguration->setTreatsSHA1SignedCertificatesAsInsecure(insecure);
 }
 
 - (BOOL)_respectsImageOrientation
@@ -643,15 +659,15 @@ static NSString *defaultApplicationNameForUserAgent()
     _allowsMetaRefresh = allowsMetaRefresh;
 }
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
 - (BOOL)_alwaysRunsAtForegroundPriority
 {
-    return _alwaysRunsAtForegroundPriority;
+    return _pageConfiguration->alwaysRunsAtForegroundPriority();
 }
 
 - (void)_setAlwaysRunsAtForegroundPriority:(BOOL)alwaysRunsAtForegroundPriority
 {
-    _alwaysRunsAtForegroundPriority = alwaysRunsAtForegroundPriority;
+    _pageConfiguration->setAlwaysRunsAtForegroundPriority(alwaysRunsAtForegroundPriority);
 }
 
 - (BOOL)_inlineMediaPlaybackRequiresPlaysInlineAttribute
@@ -704,8 +720,17 @@ static NSString *defaultApplicationNameForUserAgent()
     _longPressActionsEnabled = enabled;
 }
 
+- (BOOL)_systemPreviewEnabled
+{
+    return _systemPreviewEnabled;
+}
 
-#endif // PLATFORM(IOS)
+- (void)_setSystemPreviewEnabled:(BOOL)enabled
+{
+    _systemPreviewEnabled = enabled;
+}
+
+#endif // PLATFORM(IOS_FAMILY)
 
 - (BOOL)_invisibleAutoplayNotPermitted
 {
@@ -735,6 +760,59 @@ static NSString *defaultApplicationNameForUserAgent()
 - (void)_setAttachmentElementEnabled:(BOOL)attachmentElementEnabled
 {
     _attachmentElementEnabled = attachmentElementEnabled;
+}
+
+- (Class)_attachmentFileWrapperClass
+{
+    return _attachmentFileWrapperClass;
+}
+
+- (void)_setAttachmentFileWrapperClass:(Class)attachmentFileWrapperClass
+{
+    if (attachmentFileWrapperClass && ![attachmentFileWrapperClass isSubclassOfClass:[NSFileWrapper self]])
+        [NSException raise:NSInvalidArgumentException format:@"Class %@ does not inherit from NSFileWrapper", attachmentFileWrapperClass];
+
+    _attachmentFileWrapperClass = attachmentFileWrapperClass;
+}
+
+- (BOOL)_colorFilterEnabled
+{
+    return _colorFilterEnabled;
+}
+
+- (void)_setColorFilterEnabled:(BOOL)colorFilterEnabled
+{
+    _colorFilterEnabled = colorFilterEnabled;
+}
+
+- (BOOL)_incompleteImageBorderEnabled
+{
+    return _incompleteImageBorderEnabled;
+}
+
+- (void)_setIncompleteImageBorderEnabled:(BOOL)incompleteImageBorderEnabled
+{
+    _incompleteImageBorderEnabled = incompleteImageBorderEnabled;
+}
+
+- (BOOL)_shouldDeferAsynchronousScriptsUntilAfterDocumentLoad
+{
+    return _shouldDeferAsynchronousScriptsUntilAfterDocumentLoad;
+}
+
+- (void)_setShouldDeferAsynchronousScriptsUntilAfterDocumentLoad:(BOOL)shouldDeferAsynchronousScriptsUntilAfterDocumentLoad
+{
+    _shouldDeferAsynchronousScriptsUntilAfterDocumentLoad = shouldDeferAsynchronousScriptsUntilAfterDocumentLoad;
+}
+
+- (BOOL)_drawsBackground
+{
+    return _drawsBackground;
+}
+
+- (void)_setDrawsBackground:(BOOL)drawsBackground
+{
+    _drawsBackground = drawsBackground;
 }
 
 - (BOOL)_requiresUserActionForVideoPlayback
@@ -775,12 +853,12 @@ static NSString *defaultApplicationNameForUserAgent()
 
 - (BOOL)_initialCapitalizationEnabled
 {
-    return _initialCapitalizationEnabled;
+    return _pageConfiguration->initialCapitalizationEnabled();
 }
 
 - (void)_setInitialCapitalizationEnabled:(BOOL)initialCapitalizationEnabled
 {
-    _initialCapitalizationEnabled = initialCapitalizationEnabled;
+    _pageConfiguration->setInitialCapitalizationEnabled(initialCapitalizationEnabled);
 }
 
 - (BOOL)_waitsForPaintAfterViewDidMoveToWindow
@@ -805,18 +883,12 @@ static NSString *defaultApplicationNameForUserAgent()
 
 - (_WKApplicationManifest *)_applicationManifest
 {
-#if ENABLE(APPLICATION_MANIFEST)
-    return _applicationManifest.get();
-#else
-    return nil;
-#endif
+    return wrapper(_pageConfiguration->applicationManifest());
 }
 
 - (void)_setApplicationManifest:(_WKApplicationManifest *)applicationManifest
 {
-#if ENABLE(APPLICATION_MANIFEST)
-    _applicationManifest = applicationManifest;
-#endif
+    _pageConfiguration->setApplicationManifest(applicationManifest ? applicationManifest->_applicationManifest.get() : nullptr);
 }
 
 #if PLATFORM(MAC)
@@ -872,12 +944,12 @@ static NSString *defaultApplicationNameForUserAgent()
 
 - (void)_setCPULimit:(double)cpuLimit
 {
-    _cpuLimit = cpuLimit;
+    _pageConfiguration->setCPULimit(cpuLimit);
 }
 
 - (double)_cpuLimit
 {
-    return _cpuLimit;
+    return _pageConfiguration->cpuLimit().valueOr(0);
 }
 
 #endif // PLATFORM(MAC)
@@ -910,12 +982,12 @@ static NSString *defaultApplicationNameForUserAgent()
 
 - (NSString *)_overrideContentSecurityPolicy
 {
-    return _overrideContentSecurityPolicy.get();
+    return _pageConfiguration->overrideContentSecurityPolicy();
 }
 
 - (void)_setOverrideContentSecurityPolicy:(NSString *)overrideContentSecurityPolicy
 {
-    _overrideContentSecurityPolicy = adoptNS([overrideContentSecurityPolicy copy]);
+    _pageConfiguration->setOverrideContentSecurityPolicy(overrideContentSecurityPolicy);
 }
 
 - (NSString *)_mediaContentTypesRequiringHardwareSupport
@@ -926,6 +998,16 @@ static NSString *defaultApplicationNameForUserAgent()
 - (void)_setMediaContentTypesRequiringHardwareSupport:(NSString *)mediaContentTypesRequiringHardwareSupport
 {
     _mediaContentTypesRequiringHardwareSupport = adoptNS([mediaContentTypesRequiringHardwareSupport copy]);
+}
+
+- (NSArray<NSString *> *)_additionalSupportedImageTypes
+{
+    return _additionalSupportedImageTypes.get();
+}
+
+- (void)_setAdditionalSupportedImageTypes:(NSArray<NSString *> *)additionalSupportedImageTypes
+{
+    _additionalSupportedImageTypes = adoptNS([additionalSupportedImageTypes copy]);
 }
 
 - (void)_setLegacyEncryptedMediaAPIEnabled:(BOOL)enabled
@@ -948,11 +1030,31 @@ static NSString *defaultApplicationNameForUserAgent()
     return _allowMediaContentTypesRequiringHardwareSupportAsFallback;
 }
 
+- (void)_setEditableImagesEnabled:(BOOL)enabled
+{
+    _editableImagesEnabled = enabled;
+}
+
+- (BOOL)_editableImagesEnabled
+{
+    return _editableImagesEnabled;
+}
+
+- (void)_setUndoManagerAPIEnabled:(BOOL)enabled
+{
+    _undoManagerAPIEnabled = enabled;
+}
+
+- (BOOL)_undoManagerAPIEnabled
+{
+    return _undoManagerAPIEnabled;
+}
+
 @end
 
 @implementation WKWebViewConfiguration (WKDeprecated)
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
 - (BOOL)mediaPlaybackAllowsAirPlay
 {
     return self.allowsAirPlayForMediaPlayback;
@@ -983,7 +1085,7 @@ static NSString *defaultApplicationNameForUserAgent()
     self.mediaTypesRequiringUserActionForPlayback = requiresUserActionForMediaPlayback ? WKAudiovisualMediaTypeAll : WKAudiovisualMediaTypeNone;
 }
 
-#endif // PLATFORM(IOS)
+#endif // PLATFORM(IOS_FAMILY)
 
 @end
 

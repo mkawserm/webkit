@@ -30,8 +30,6 @@
 #include <JavaScriptCore/HeapInlines.h>
 #include <JavaScriptCore/JSGlobalObject.h>
 #include <JavaScriptCore/LockDuringMarking.h>
-#include <JavaScriptCore/StructureInlines.h>
-#include <JavaScriptCore/ThreadLocalCache.h>
 
 namespace WebCore {
 
@@ -49,7 +47,7 @@ class WEBCORE_EXPORT JSDOMGlobalObject : public JSC::JSGlobalObject {
 protected:
     struct JSDOMGlobalObjectData;
 
-    JSDOMGlobalObject(JSC::VM&, JSC::Structure*, Ref<DOMWrapperWorld>&&, const JSC::GlobalObjectMethodTable* = nullptr, RefPtr<JSC::ThreadLocalCache>&& = nullptr);
+    JSDOMGlobalObject(JSC::VM&, JSC::Structure*, Ref<DOMWrapperWorld>&&, const JSC::GlobalObjectMethodTable* = nullptr);
     static void destroy(JSC::JSCell*);
     void finishCreation(JSC::VM&);
     void finishCreation(JSC::VM&, JSC::JSObject*);
@@ -92,6 +90,8 @@ public:
     }
 
 protected:
+    static void promiseRejectionTracker(JSC::JSGlobalObject*, JSC::ExecState*, JSC::JSPromise*, JSC::JSPromiseRejectionOperation);
+
     JSDOMStructureMap m_structures;
     JSDOMConstructorMap m_constructors;
     DOMGuardedObjectSet m_guardedObjects;

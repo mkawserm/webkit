@@ -6,23 +6,20 @@ add_definitions(-iframework ${APPLICATIONSERVICES_LIBRARY}/Versions/Current/Fram
 list(APPEND WebKitLegacy_INCLUDE_DIRECTORIES
     "${DERIVED_SOURCES_WEBKITLEGACY_DIR}"
     "${CMAKE_SOURCE_DIR}/WebKitLibraries"
-)
-
-list(APPEND WebKitLegacy_SYSTEM_INCLUDE_DIRECTORIES
-    mac
-    mac/Carbon
-    mac/DefaultDelegates
-    mac/DOM
-    mac/History
-    mac/icu
-    mac/Misc
-    mac/Panels
-    mac/Plugins
-    mac/Plugins/Hosted
-    mac/Storage
-    mac/WebCoreSupport
-    mac/WebInspector
-    mac/WebView
+    "${WEBKITLEGACY_DIR}/mac"
+    "${WEBKITLEGACY_DIR}/mac/Carbon"
+    "${WEBKITLEGACY_DIR}/mac/DefaultDelegates"
+    "${WEBKITLEGACY_DIR}/mac/DOM"
+    "${WEBKITLEGACY_DIR}/mac/History"
+    "${WEBKITLEGACY_DIR}/mac/icu"
+    "${WEBKITLEGACY_DIR}/mac/Misc"
+    "${WEBKITLEGACY_DIR}/mac/Panels"
+    "${WEBKITLEGACY_DIR}/mac/Plugins"
+    "${WEBKITLEGACY_DIR}/mac/Plugins/Hosted"
+    "${WEBKITLEGACY_DIR}/mac/Storage"
+    "${WEBKITLEGACY_DIR}/mac/WebCoreSupport"
+    "${WEBKITLEGACY_DIR}/mac/WebInspector"
+    "${WEBKITLEGACY_DIR}/mac/WebView"
 )
 
 list(APPEND WebKitLegacy_SOURCES
@@ -271,7 +268,6 @@ list(APPEND WebKitLegacy_SOURCES
     mac/WebCoreSupport/WebProgressTrackerClient.mm
     mac/WebCoreSupport/WebSecurityOrigin.mm
     mac/WebCoreSupport/WebSelectionServiceController.mm
-    mac/WebCoreSupport/WebUserMediaClient.mm
     mac/WebCoreSupport/WebValidationMessageClient.mm
     mac/WebCoreSupport/WebVisitedLinkStore.mm
 
@@ -396,7 +392,7 @@ set(C99_FILES
 foreach (_file ${WebKitLegacy_SOURCES})
     list(FIND C99_FILES ${_file} _c99_index)
     if (${_c99_index} EQUAL -1)
-        set_source_files_properties(${_file} PROPERTIES COMPILE_FLAGS "-ObjC++ -std=c++14")
+        set_source_files_properties(${_file} PROPERTIES COMPILE_FLAGS "-ObjC++ -std=c++17")
     else ()
         set_source_files_properties(${_file} PROPERTIES COMPILE_FLAGS -std=c99)
     endif ()

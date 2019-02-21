@@ -36,8 +36,8 @@ OBJC_CLASS NSColor;
 
 namespace WebCore {
 
-// These functions assume NSColors are in DeviceRGB colorspace
 WEBCORE_EXPORT Color colorFromNSColor(NSColor *);
+Color semanticColorFromNSColor(NSColor *);
 WEBCORE_EXPORT NSColor *nsColor(const Color&);
 
 WEBCORE_EXPORT bool usesTestModeFocusRingColor();

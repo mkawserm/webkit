@@ -1,3 +1,4 @@
+include(GtkDoc)
 include(WebKitDist)
 
 add_subdirectory(${WEBCORE_DIR}/platform/gtk/po)
@@ -14,26 +15,18 @@ list(APPEND DocumentationDependencies
 )
 
 if (ENABLE_GTKDOC)
-    install(DIRECTORY ${CMAKE_BINARY_DIR}/Documentation/webkit2gtk-${WEBKITGTK_API_VERSION}/html/
-            DESTINATION "${CMAKE_INSTALL_DATADIR}/gtk-doc/html/webkit2gtk-${WEBKITGTK_API_VERSION}"
+    install(DIRECTORY ${CMAKE_BINARY_DIR}/Documentation/webkit2gtk-${WEBKITGTK_API_VERSION}/html/webkit2gtk-${WEBKITGTK_API_VERSION}
+            DESTINATION "${CMAKE_INSTALL_DATADIR}/gtk-doc/html"
     )
-    install(DIRECTORY ${CMAKE_BINARY_DIR}/Documentation/webkitdomgtk-${WEBKITGTK_API_VERSION}/html/
-            DESTINATION "${CMAKE_INSTALL_DATADIR}/gtk-doc/html/webkitdomgtk-${WEBKITGTK_API_VERSION}"
+    install(DIRECTORY ${CMAKE_BINARY_DIR}/Documentation/webkitdomgtk-${WEBKITGTK_API_VERSION}/html/webkitdomgtk-${WEBKITGTK_API_VERSION}
+            DESTINATION "${CMAKE_INSTALL_DATADIR}/gtk-doc/html"
+    )
+    install(DIRECTORY ${CMAKE_BINARY_DIR}/Documentation/jsc-glib-${WEBKITGTK_API_VERSION}/html/jsc-glib-${WEBKITGTK_API_VERSION}
+            DESTINATION "${CMAKE_INSTALL_DATADIR}/gtk-doc/html"
     )
 endif ()
 
-macro(ADD_GTKDOC_GENERATOR _stamp_name _extra_args)
-    add_custom_command(
-        OUTPUT "${CMAKE_BINARY_DIR}/${_stamp_name}"
-        DEPENDS ${DocumentationDependencies}
-        COMMAND ${CMAKE_COMMAND} -E env "CC=${CMAKE_C_COMPILER}" "CFLAGS=${CMAKE_C_FLAGS} -Wno-unused-parameter" ${CMAKE_SOURCE_DIR}/Tools/gtk/generate-gtkdoc ${_extra_args}
-        COMMAND touch ${_stamp_name}
-        WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"
-        VERBATIM
-    )
-endmacro()
-
-ADD_GTKDOC_GENERATOR("docs-build.stamp" "")
+ADD_GTKDOC_GENERATOR("docs-build.stamp" "--gtk")
 if (ENABLE_GTKDOC)
     add_custom_target(gtkdoc ALL DEPENDS "${CMAKE_BINARY_DIR}/docs-build.stamp")
 elseif (NOT ENABLED_COMPILER_SANITIZERS AND NOT CMAKE_CROSSCOMPILING AND NOT APPLE)
@@ -43,14 +36,15 @@ elseif (NOT ENABLED_COMPILER_SANITIZERS AND NOT CMAKE_CROSSCOMPILING AND NOT APP
     # or errors. This is useful to prevent breaking documentation inadvertently during
     # the course of development.
     if (DEVELOPER_MODE)
-        ADD_GTKDOC_GENERATOR("docs-build-no-html.stamp" "--skip-html")
+        ADD_GTKDOC_GENERATOR("docs-build-no-html.stamp" "--gtk;--skip-html")
         add_custom_target(gtkdoc-no-html ALL DEPENDS "${CMAKE_BINARY_DIR}/docs-build-no-html.stamp")
     endif ()
 endif ()
 
 add_custom_target(check
     COMMAND ${TOOLS_DIR}/Scripts/run-gtk-tests
-    COMMAND ${TOOLS_DIR}/gtk/check-for-webkitdom-api-breaks
+    WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"
+    VERBATIM
 )
 
 if (DEVELOPER_MODE)

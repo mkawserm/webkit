@@ -27,7 +27,7 @@
 
 #if WK_API_ENABLED
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
 
 #import <wtf/text/WTFString.h>
 
@@ -35,9 +35,12 @@ namespace WebKit {
 class WebPageProxy;
 }
 
+@class WKWebViewConfiguration;
 @protocol WKWebViewContentProvider;
 
 @interface WKWebViewContentProviderRegistry : NSObject
+
+- (instancetype)initWithConfiguration:(WKWebViewConfiguration *)configuration;
 
 - (void)addPage:(WebKit::WebPageProxy&)page;
 - (void)removePage:(WebKit::WebPageProxy&)page;
@@ -49,6 +52,6 @@ class WebPageProxy;
 
 @end
 
-#endif // PLATFORM(IOS)
+#endif // PLATFORM(IOS_FAMILY)
 
 #endif // WK_API_ENABLED

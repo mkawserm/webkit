@@ -52,7 +52,7 @@ class RenderView;
 class VisibleSelection;
 class Widget;
     
-class AccessibilityRenderObject : public AccessibilityNodeObject {
+class AccessibilityRenderObject : public AccessibilityNodeObject, public CanMakeWeakPtr<AccessibilityRenderObject> {
 public:
     static Ref<AccessibilityRenderObject> create(RenderObject*);
     virtual ~AccessibilityRenderObject();
@@ -106,7 +106,7 @@ public:
     bool ariaRoleHasPresentationalChildren() const override;
     
     // Should be called on the root accessibility object to kick off a hit test.
-    AccessibilityObject* accessibilityHitTest(const IntPoint&) const override;
+    AccessibilityObjectInterface* accessibilityHitTest(const IntPoint&) const override;
 
     Element* anchorElement() const override;
     
@@ -176,7 +176,7 @@ public:
     bool supportsARIADropping() const override;
     bool supportsARIADragging() const override;
     bool isARIAGrabbed() override;
-    void determineARIADropEffects(Vector<String>&) override;
+    Vector<String> determineARIADropEffects() override;
     
     VisiblePosition visiblePositionForPoint(const IntPoint&) const override;
     VisiblePosition visiblePositionForIndex(unsigned indexValue, bool lastIndexOK) const override;
@@ -200,8 +200,6 @@ public:
     AccessibilityRole roleValueForMSAA() const override;
 
     String passwordFieldValue() const override;
-    
-    WeakPtr<AccessibilityRenderObject> createWeakPtr() { return m_weakPtrFactory.createWeakPtr(*this); }
 
 protected:
     explicit AccessibilityRenderObject(RenderObject*);
@@ -220,7 +218,6 @@ protected:
     WeakPtr<RenderObject> m_renderer;
 
 private:
-    WeakPtrFactory<AccessibilityRenderObject> m_weakPtrFactory;
     bool isAccessibilityRenderObject() const final { return true; }
     void ariaListboxSelectedChildren(AccessibilityChildrenVector&);
     void ariaListboxVisibleChildren(AccessibilityChildrenVector&);
@@ -242,7 +239,7 @@ private:
     AccessibilityObject* internalLinkElement() const;
     AccessibilityObject* accessibilityImageMapHitTest(HTMLAreaElement*, const IntPoint&) const;
     AccessibilityObject* accessibilityParentForImageMap(HTMLMapElement*) const;
-    AccessibilityObject* elementAccessibilityHitTest(const IntPoint&) const override;
+    AccessibilityObjectInterface* elementAccessibilityHitTest(const IntPoint&) const override;
 
     bool renderObjectIsObservable(RenderObject&) const;
     RenderObject* renderParentObject() const;
@@ -252,7 +249,7 @@ private:
     void detachRemoteSVGRoot();
     enum CreationChoice { Create, Retrieve };
     AccessibilitySVGRoot* remoteSVGRootElement(CreationChoice createIfNecessary) const;
-    AccessibilityObject* remoteSVGElementHitTest(const IntPoint&) const;
+    AccessibilityObjectInterface* remoteSVGElementHitTest(const IntPoint&) const;
     void offsetBoundingBoxForRemoteSVGElement(LayoutRect&) const;
     bool supportsPath() const override;
 
@@ -274,7 +271,7 @@ private:
     bool elementAttributeValue(const QualifiedName&) const;
     void setElementAttributeValue(const QualifiedName&, bool);
     
-    ESpeakAs speakAsProperty() const override;
+    OptionSet<SpeakAs> speakAsProperty() const override;
     
     const String liveRegionStatus() const override;
     const String liveRegionRelevant() const override;

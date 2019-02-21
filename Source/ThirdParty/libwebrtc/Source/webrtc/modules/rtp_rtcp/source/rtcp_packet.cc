@@ -10,6 +10,7 @@
 
 #include "modules/rtp_rtcp/source/rtcp_packet.h"
 
+#include "modules/rtp_rtcp/include/rtp_rtcp_defines.h"
 #include "rtc_base/checks.h"
 
 namespace webrtc {
@@ -28,9 +29,9 @@ rtc::Buffer RtcpPacket::Build() const {
   return packet;
 }
 
-bool RtcpPacket::BuildExternalBuffer(uint8_t* buffer,
-                                     size_t max_length,
-                                     PacketReadyCallback* callback) const {
+bool RtcpPacket::Build(size_t max_length, PacketReadyCallback callback) const {
+  RTC_CHECK_LE(max_length, IP_PACKET_SIZE);
+  uint8_t buffer[IP_PACKET_SIZE];
   size_t index = 0;
   if (!Create(buffer, &index, max_length, callback))
     return false;
@@ -39,11 +40,11 @@ bool RtcpPacket::BuildExternalBuffer(uint8_t* buffer,
 
 bool RtcpPacket::OnBufferFull(uint8_t* packet,
                               size_t* index,
-                              PacketReadyCallback* callback) const {
+                              PacketReadyCallback callback) const {
   if (*index == 0)
     return false;
   RTC_DCHECK(callback) << "Fragmentation not supported.";
-  callback->OnPacketReady(packet, *index);
+  callback(rtc::ArrayView<const uint8_t>(packet, *index));
   *index = 0;
   return true;
 }
@@ -74,8 +75,8 @@ void RtcpPacket::CreateHeader(
   RTC_DCHECK_LE(count_or_format, 0x1f);
   constexpr uint8_t kVersionBits = 2 << 6;
   constexpr uint8_t kNoPaddingBit = 0 << 5;
-  buffer[*pos + 0] = kVersionBits | kNoPaddingBit |
-                     static_cast<uint8_t>(count_or_format);
+  buffer[*pos + 0] =
+      kVersionBits | kNoPaddingBit | static_cast<uint8_t>(count_or_format);
   buffer[*pos + 1] = packet_type;
   buffer[*pos + 2] = (length >> 8) & 0xff;
   buffer[*pos + 3] = length & 0xff;

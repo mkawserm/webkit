@@ -29,14 +29,14 @@ class TestClient : public sigslot::has_slots<> {
     Packet(const SocketAddress& a,
            const char* b,
            size_t s,
-           const PacketTime& packet_time);
+           int64_t packet_time_us);
     Packet(const Packet& p);
     virtual ~Packet();
 
     SocketAddress addr;
-    char*  buf;
+    char* buf;
     size_t size;
-    PacketTime packet_time;
+    int64_t packet_time_us;
   };
 
   // Default timeout for NextPacket reads.
@@ -93,9 +93,11 @@ class TestClient : public sigslot::has_slots<> {
   // Workaround for the fact that AsyncPacketSocket::GetConnState doesn't exist.
   Socket::ConnState GetState();
   // Slot for packets read on the socket.
-  void OnPacket(AsyncPacketSocket* socket, const char* buf, size_t len,
+  void OnPacket(AsyncPacketSocket* socket,
+                const char* buf,
+                size_t len,
                 const SocketAddress& remote_addr,
-                const PacketTime& packet_time);
+                const int64_t& packet_time_us);
   void OnReadyToSend(AsyncPacketSocket* socket);
   bool CheckTimestamp(int64_t packet_timestamp);
   void AdvanceTime(int ms);

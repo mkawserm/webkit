@@ -25,10 +25,16 @@
 
 #include "AvailableMemory.h"
 
+#include "Environment.h"
+#if BPLATFORM(IOS_FAMILY)
+#include "MemoryStatusSPI.h"
+#endif
+#include "PerProcess.h"
+#include "Scavenger.h"
 #include "Sizes.h"
 #include <mutex>
 #if BOS(DARWIN)
-#if BPLATFORM(IOS)
+#if BPLATFORM(IOS_FAMILY)
 #import <algorithm>
 #endif
 #import <dispatch/dispatch.h>
@@ -44,12 +50,14 @@ namespace bmalloc {
 
 static const size_t availableMemoryGuess = 512 * bmalloc::MB;
 
-static size_t computeAvailableMemory()
+#if BOS(DARWIN)
+static size_t memorySizeAccordingToKernel()
 {
-#if BPLATFORM(IOS_SIMULATOR)
-    // Pretend we have 512MB of memory to make cache sizes behave like on device.
-    return availableMemoryGuess;
-#elif BOS(DARWIN)
+#if BPLATFORM(IOS_FAMILY_SIMULATOR)
+    BUNUSED_PARAM(availableMemoryGuess);
+    // Pretend we have 1024MB of memory to make cache sizes behave like on device.
+    return 1024 * bmalloc::MB;
+#else
     host_basic_info_data_t hostInfo;
 
     mach_port_t host = mach_host_self();
@@ -58,13 +66,34 @@ static size_t computeAvailableMemory()
     mach_port_deallocate(mach_task_self(), host);
     if (r != KERN_SUCCESS)
         return availableMemoryGuess;
-    
+
     if (hostInfo.max_mem > std::numeric_limits<size_t>::max())
         return std::numeric_limits<size_t>::max();
 
-    size_t sizeAccordingToKernel = static_cast<size_t>(hostInfo.max_mem);
-#if BPLATFORM(IOS)
-    sizeAccordingToKernel = std::min(sizeAccordingToKernel, 840 * bmalloc::MB);
+    return static_cast<size_t>(hostInfo.max_mem);
+#endif
+}
+#endif
+
+#if BPLATFORM(IOS_FAMILY)
+static size_t jetsamLimit()
+{
+    memorystatus_memlimit_properties_t properties;
+    pid_t pid = getpid();
+    if (memorystatus_control(MEMORYSTATUS_CMD_GET_MEMLIMIT_PROPERTIES, pid, 0, &properties, sizeof(properties)))
+        return 840 * bmalloc::MB;
+    if (properties.memlimit_active < 0)
+        return std::numeric_limits<size_t>::max();
+    return static_cast<size_t>(properties.memlimit_active) * bmalloc::MB;
+}
+#endif
+
+static size_t computeAvailableMemory()
+{
+#if BOS(DARWIN)
+    size_t sizeAccordingToKernel = memorySizeAccordingToKernel();
+#if BPLATFORM(IOS_FAMILY)
+    sizeAccordingToKernel = std::min(sizeAccordingToKernel, jetsamLimit());
 #endif
     size_t multiple = 128 * bmalloc::MB;
 
@@ -92,7 +121,7 @@ size_t availableMemory()
     return availableMemory;
 }
 
-#if BPLATFORM(IOS)
+#if BPLATFORM(IOS_FAMILY)
 MemoryStatus memoryStatus()
 {
     task_vm_info_data_t vmInfo;

@@ -285,7 +285,9 @@ class Upload(AbstractPatchUploadingCommand):
         steps.SuggestReviewers,
         steps.EnsureBugIsOpenAndAssigned,
         steps.PostDiff,
+        steps.AddRadar,
         steps.SubmitToEWS,
+        steps.WPTChangeExport,
     ]
     long_help = """upload uploads the current diff to bugs.webkit.org.
     If no bug id is provided, upload will create a bug.
@@ -459,6 +461,7 @@ class CreateBug(Command):
     def __init__(self):
         options = [
             steps.Options.cc,
+            steps.Options.cc_radar,
             steps.Options.component,
             make_option("--no-prompt", action="store_false", dest="prompt", default=True, help="Do not prompt for bug title and comment; use commit log instead."),
             make_option("--no-review", action="store_false", dest="review", default=True, help="Do not mark the patch for review."),
@@ -524,6 +527,11 @@ class CreateBug(Command):
         return (bug_title, comment_text)
 
     def execute(self, options, args, tool):
+        if options.cc_radar:
+            if options.cc:
+                options.cc = "webkit-bug-importer@group.apple.com,%s" % options.cc
+            else:
+                options.cc = "webkit-bug-importer@group.apple.com"
         if len(args):
             if (not tool.scm().supports_local_commits()):
                 _log.error("Extra arguments not supported; patch is taken from working directory.")
@@ -531,3 +539,25 @@ class CreateBug(Command):
             self.create_bug_from_commit(options, args, tool)
         else:
             self.create_bug_from_patch(options, args, tool)
+
+
+class WPTChangeExport(AbstractPatchUploadingCommand):
+    name = "wpt-change-export"
+    help_text = "Opens a pull request to synchronize any changes in the LayoutTests/imported/w3c/web-platform-tests directory"
+    argument_names = "[BUGID]"
+    steps = [
+        steps.WPTChangeExport,
+    ]
+
+    long_help = """Opens a pull request to the w3c/web-platform-tests
+    github repo for any changes in the
+    LayoutTests/imported/w3c/web-platform-tests directory. This step
+    will noop if there are no changes in the web-platform-tests directory.
+    The user will be prompted to provide a github username and OAuth token
+    the first time this is run.
+    """
+
+    def _prepare_state(self, options, args, tool):
+        state = {}
+        state["bug_id"] = self._bug_id(options, args, tool, state)
+        return state

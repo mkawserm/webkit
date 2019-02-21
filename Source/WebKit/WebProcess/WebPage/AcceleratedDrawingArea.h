@@ -56,6 +56,7 @@ protected:
 
     WebCore::GraphicsLayerFactory* graphicsLayerFactory() override;
     void setRootCompositingLayer(WebCore::GraphicsLayer*) override;
+    void scheduleInitialDeferredPaint() override;
     void scheduleCompositingLayerFlush() override;
     void scheduleCompositingLayerFlushImmediately() override;
 
@@ -68,14 +69,13 @@ protected:
     void destroyNativeSurfaceHandleForCompositing(bool&) override;
 #endif
 
-    void activityStateDidChange(WebCore::ActivityState::Flags, bool /* wantsDidUpdateActivityState */, const Vector<CallbackID>& /* callbackIDs */) override;
-    void attachViewOverlayGraphicsLayer(WebCore::Frame*, WebCore::GraphicsLayer*) override;
+    void activityStateDidChange(OptionSet<WebCore::ActivityState::Flag>, ActivityStateChangeID, const Vector<CallbackID>& /* callbackIDs */) override;
+    void attachViewOverlayGraphicsLayer(WebCore::GraphicsLayer*) override;
 
     void layerHostDidFlushLayers() override;
 
 #if USE(COORDINATED_GRAPHICS)
     void didChangeViewportAttributes(WebCore::ViewportAttributes&&) override;
-    void resetUpdateAtlasForTesting() override;
 #endif
 
 #if USE(COORDINATED_GRAPHICS) || USE(TEXTURE_MAPPER)

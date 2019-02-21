@@ -1,6 +1,7 @@
 add_definitions(/bigobj -D__STDC_CONSTANT_MACROS)
 
 list(APPEND WebCore_INCLUDE_DIRECTORIES
+    "${DERIVED_SOURCES_DIR}/ForwardingHeaders"
     "${CMAKE_BINARY_DIR}/../include/private"
     "${CMAKE_BINARY_DIR}/../include/private/JavaScriptCore"
     "${WEBCORE_DIR}/accessibility/win"
@@ -9,11 +10,11 @@ list(APPEND WebCore_INCLUDE_DIRECTORIES
     "${WEBCORE_DIR}/platform/graphics/opengl"
     "${WEBCORE_DIR}/platform/graphics/opentype"
     "${WEBCORE_DIR}/platform/graphics/win"
+    "${WEBCORE_DIR}/platform/mediacapabilities"
     "${WEBCORE_DIR}/platform/network/win"
     "${WEBCORE_DIR}/platform/win"
     "${THIRDPARTY_DIR}/ANGLE/include"
     "${THIRDPARTY_DIR}/ANGLE/include/egl"
-    "${DERIVED_SOURCES_PAL_DIR}"
 )
 
 list(APPEND WebCore_SOURCES
@@ -83,7 +84,6 @@ list(APPEND WebCore_SOURCES
     platform/win/DragDataWin.cpp
     platform/win/DragImageWin.cpp
     platform/win/EventLoopWin.cpp
-    platform/win/FileSystemWin.cpp
     platform/win/GDIObjectCounter.cpp
     platform/win/GDIUtilities.cpp
     platform/win/KeyEventWin.cpp
@@ -92,16 +92,17 @@ list(APPEND WebCore_SOURCES
     platform/win/MIMETypeRegistryWin.cpp
     platform/win/MainThreadSharedTimerWin.cpp
     platform/win/PasteboardWin.cpp
-    platform/win/PathWalker.cpp
     platform/win/PlatformMouseEventWin.cpp
     platform/win/PlatformScreenWin.cpp
     platform/win/PopupMenuWin.cpp
     platform/win/SSLKeyGeneratorWin.cpp
     platform/win/ScrollbarThemeWin.cpp
+    platform/win/SearchPopupMenuDB.cpp
     platform/win/SearchPopupMenuWin.cpp
     platform/win/SharedBufferWin.cpp
     platform/win/StructuredExceptionHandlerSuppressor.cpp
     platform/win/SystemInfo.cpp
+    platform/win/UserAgentWin.cpp
     platform/win/WCDataObject.cpp
     platform/win/WebCoreBundleWin.cpp
     platform/win/WebCoreInstanceHandle.cpp
@@ -125,6 +126,7 @@ set(WebCore_FORWARDING_HEADERS_DIRECTORIES
     bindings
     bridge
     contentextensions
+    crypto
     css
     dom
     editing
@@ -137,6 +139,7 @@ set(WebCore_FORWARDING_HEADERS_DIRECTORIES
     platform
     plugins
     rendering
+    replay
     storage
     style
     svg
@@ -178,7 +181,6 @@ set(WebCore_FORWARDING_HEADERS_DIRECTORIES
     loader/cache
     loader/icon
 
-
     page/animation
     page/csp
     page/scrolling
@@ -187,6 +189,7 @@ set(WebCore_FORWARDING_HEADERS_DIRECTORIES
     platform/animation
     platform/audio
     platform/graphics
+    platform/mediacapabilities
     platform/mock
     platform/network
     platform/sql
@@ -226,6 +229,7 @@ if (ENABLE_WEBKIT)
 
         inspector/agents
 
+        platform/mediacapabilities
         platform/mediastream
 
         workers/service/context
@@ -242,12 +246,9 @@ if (USE_CF)
     list(APPEND WebCore_SOURCES
         loader/archive/cf/LegacyWebArchive.cpp
 
-        platform/cf/CFURLExtras.cpp
-        platform/cf/FileSystemCF.cpp
         platform/cf/KeyedDecoderCF.cpp
         platform/cf/KeyedEncoderCF.cpp
         platform/cf/SharedBufferCF.cpp
-        platform/cf/URLCF.cpp
 
         platform/cf/win/CertificateCFWin.cpp
 
@@ -282,8 +283,8 @@ endif ()
 
 make_directory(${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/WebKit.resources/en.lproj)
 file(COPY
-    "${WEBCORE_DIR}/English.lproj/Localizable.strings"
-    "${WEBCORE_DIR}/English.lproj/mediaControlsLocalizedStrings.js"
+    "${WEBCORE_DIR}/en.lproj/Localizable.strings"
+    "${WEBCORE_DIR}/en.lproj/mediaControlsLocalizedStrings.js"
     DESTINATION
     ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/WebKit.resources/en.lproj
 )
@@ -308,7 +309,7 @@ endif ()
 
 WEBKIT_MAKE_FORWARDING_HEADERS(WebCore
     DIRECTORIES ${WebCore_FORWARDING_HEADERS_DIRECTORIES}
-    DERIVED_SOURCE_DIRECTORIES ${DERIVED_SOURCES_WEBCORE_DIR} ${DERIVED_SOURCES_PAL_DIR}
+    DERIVED_SOURCE_DIRECTORIES ${DERIVED_SOURCES_WEBCORE_DIR}
     FLATTENED
 )
 

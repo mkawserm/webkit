@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014 Apple Inc. All rights reserved.
+ * Copyright (C) 2014, 2018 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -27,24 +27,23 @@
 
 #if WK_API_ENABLED
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
 
 #import <WebKit/WKPageLoadTypes.h>
 #import <WebKit/_WKFindOptions.h>
 
 @class NSData;
+@class UIEvent;
 @class UIScrollView;
 @class UIView;
 @class WKWebView;
 @protocol NSObject;
-@protocol UIScrollViewDelegate;
 struct CGSize;
 struct UIEdgeInsets;
 
-// FIXME: This should be API (and probably should not be a UIScrollViewDelegate).
-@protocol WKWebViewContentProvider <NSObject, UIScrollViewDelegate>
+@protocol WKWebViewContentProvider <NSObject>
 
-- (instancetype)web_initWithFrame:(CGRect) frame webView:(WKWebView *)webView;
+- (instancetype)web_initWithFrame:(CGRect)frame webView:(WKWebView *)webView mimeType:(NSString *)mimeType __attribute__((objc_method_family(init)));
 - (void)web_setContentProviderData:(NSData *)data suggestedFilename:(NSString *)filename;
 - (void)web_setMinimumSize:(CGSize)size;
 - (void)web_setOverlaidAccessoryViewsInset:(CGSize)inset;
@@ -54,10 +53,22 @@ struct UIEdgeInsets;
 - (void)web_countStringMatches:(NSString *)string options:(_WKFindOptions)options maxCount:(NSUInteger)maxCount;
 - (void)web_findString:(NSString *)string options:(_WKFindOptions)options maxCount:(NSUInteger)maxCount;
 - (void)web_hideFindUI;
+@property (nonatomic, readonly) UIView *web_contentView;
+
+@optional
+- (void)web_scrollViewDidScroll:(UIScrollView *)scrollView;
+- (void)web_scrollViewWillBeginZooming:(UIScrollView *)scrollView withView:(UIView *)view;
+- (void)web_scrollViewDidEndZooming:(UIScrollView *)scrollView withView:(UIView *)view atScale:(CGFloat)scale;
+- (void)web_scrollViewDidZoom:(UIScrollView *)scrollView;
+- (void)web_beginAnimatedResizeWithUpdates:(void (^)(void))updateBlock;
+- (BOOL)web_handleKeyEvent:(UIEvent *)event;
+@property (nonatomic, readonly) NSData *web_dataRepresentation;
+@property (nonatomic, readonly) NSString *web_suggestedFilename;
+@property (nonatomic, readonly) BOOL web_isBackground;
 
 @end
 
-#endif // PLATFORM(IOS)
+#endif // PLATFORM(IOS_FAMILY)
 
 #endif // WK_API_ENABLED
 

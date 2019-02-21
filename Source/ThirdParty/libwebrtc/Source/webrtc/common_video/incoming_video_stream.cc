@@ -11,11 +11,12 @@
 #include "common_video/include/incoming_video_stream.h"
 
 #include <memory>
+#include <utility>
 
+#include "absl/types/optional.h"
 #include "common_video/video_render_frames.h"
-#include "rtc_base/timeutils.h"
+#include "rtc_base/checks.h"
 #include "rtc_base/trace_event.h"
-#include "system_wrappers/include/event_wrapper.h"
 
 namespace webrtc {
 namespace {
@@ -70,7 +71,7 @@ void IncomingVideoStream::OnFrame(const VideoFrame& video_frame) {
 void IncomingVideoStream::Dequeue() {
   TRACE_EVENT0("webrtc", "IncomingVideoStream::Dequeue");
   RTC_DCHECK(incoming_render_queue_.IsCurrent());
-  rtc::Optional<VideoFrame> frame_to_render = render_buffers_.FrameToRender();
+  absl::optional<VideoFrame> frame_to_render = render_buffers_.FrameToRender();
   if (frame_to_render)
     callback_->OnFrame(*frame_to_render);
 

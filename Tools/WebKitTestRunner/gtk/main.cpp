@@ -32,6 +32,8 @@
 
 int main(int argc, char** argv)
 {
+    g_setenv("WEBKIT_DISABLE_MEMORY_PRESSURE_MONITOR", "1", FALSE);
+
     gtk_init(&argc, &argv);
 
     GRefPtr<GPtrArray> languages = adoptGRef(g_ptr_array_new());

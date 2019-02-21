@@ -15,15 +15,14 @@
 #include <map>
 #include <memory>
 
+#include "absl/types/optional.h"
 #include "api/array_view.h"
 #include "api/audio_codecs/audio_decoder.h"
 #include "api/audio_codecs/audio_encoder.h"
-#include "api/optional.h"
 #include "modules/audio_coding/include/audio_coding_module_typedefs.h"
 #include "modules/audio_coding/neteq/neteq_decoder_enum.h"
 #include "rtc_base/constructormagic.h"
 #include "rtc_base/scoped_ref_ptr.h"
-#include "typedefs.h"  // NOLINT(build/include)
 
 namespace webrtc {
 
@@ -32,8 +31,7 @@ class LockedIsacBandwidthInfo;
 
 namespace acm2 {
 
-class RentACodec {
- public:
+struct RentACodec {
   enum class CodecId {
 #if defined(WEBRTC_CODEC_ISAC) || defined(WEBRTC_CODEC_ISACFX)
     kISAC,
@@ -107,92 +105,36 @@ class RentACodec {
     return static_cast<size_t>(CodecId::kNumCodecs);
   }
 
-  static inline rtc::Optional<int> CodecIndexFromId(CodecId codec_id) {
+  static inline absl::optional<int> CodecIndexFromId(CodecId codec_id) {
     const int i = static_cast<int>(codec_id);
     return i >= 0 && i < static_cast<int>(NumberOfCodecs())
-               ? rtc::Optional<int>(i)
-               : rtc::nullopt;
+               ? absl::optional<int>(i)
+               : absl::nullopt;
   }
 
-  static inline rtc::Optional<CodecId> CodecIdFromIndex(int codec_index) {
+  static inline absl::optional<CodecId> CodecIdFromIndex(int codec_index) {
     return static_cast<size_t>(codec_index) < NumberOfCodecs()
-               ? rtc::Optional<RentACodec::CodecId>(
+               ? absl::optional<RentACodec::CodecId>(
                      static_cast<RentACodec::CodecId>(codec_index))
-               : rtc::nullopt;
+               : absl::nullopt;
   }
 
-  static rtc::Optional<CodecId> CodecIdByParams(const char* payload_name,
-                                                int sampling_freq_hz,
-                                                size_t channels);
-  static rtc::Optional<CodecInst> CodecInstById(CodecId codec_id);
-  static rtc::Optional<CodecId> CodecIdByInst(const CodecInst& codec_inst);
-  static rtc::Optional<CodecInst> CodecInstByParams(const char* payload_name,
-                                                    int sampling_freq_hz,
-                                                    size_t channels);
-  static bool IsCodecValid(const CodecInst& codec_inst);
+  static absl::optional<CodecId> CodecIdByParams(const char* payload_name,
+                                                 int sampling_freq_hz,
+                                                 size_t channels);
+  static absl::optional<CodecInst> CodecInstById(CodecId codec_id);
+  static absl::optional<CodecId> CodecIdByInst(const CodecInst& codec_inst);
+  static absl::optional<CodecInst> CodecInstByParams(const char* payload_name,
+                                                     int sampling_freq_hz,
+                                                     size_t channels);
 
   static inline bool IsPayloadTypeValid(int payload_type) {
     return payload_type >= 0 && payload_type <= 127;
   }
 
-  static rtc::ArrayView<const CodecInst> Database();
-
-  static rtc::Optional<bool> IsSupportedNumChannels(CodecId codec_id,
-                                                    size_t num_channels);
-
-  static rtc::Optional<NetEqDecoder> NetEqDecoderFromCodecId(
+  static absl::optional<NetEqDecoder> NetEqDecoderFromCodecId(
       CodecId codec_id,
       size_t num_channels);
-
-  // Parse codec_inst and extract payload types. If the given CodecInst was for
-  // the wrong sort of codec, return kSkip; otherwise, if the rate was illegal,
-  // return kBadFreq; otherwise, update the given RTP timestamp rate (Hz) ->
-  // payload type map and return kOk.
-  enum class RegistrationResult { kOk, kSkip, kBadFreq };
-  static RegistrationResult RegisterCngPayloadType(std::map<int, int>* pt_map,
-                                                   const CodecInst& codec_inst);
-  static RegistrationResult RegisterRedPayloadType(std::map<int, int>* pt_map,
-                                                   const CodecInst& codec_inst);
-
-  RentACodec();
-  ~RentACodec();
-
-  // Creates and returns an audio encoder built to the given specification.
-  // Returns null in case of error.
-  std::unique_ptr<AudioEncoder> RentEncoder(const CodecInst& codec_inst);
-
-  struct StackParameters {
-    StackParameters();
-    ~StackParameters();
-
-    std::unique_ptr<AudioEncoder> speech_encoder;
-
-    bool use_codec_fec = false;
-    bool use_red = false;
-    bool use_cng = false;
-    ACMVADMode vad_mode = VADNormal;
-
-    // Maps from RTP timestamp rate (in Hz) to payload type.
-    std::map<int, int> cng_payload_types;
-    std::map<int, int> red_payload_types;
-  };
-
-  // Creates and returns an audio encoder stack constructed to the given
-  // specification. If the specification isn't compatible with the encoder, it
-  // will be changed to match (things will be switched off). The speech encoder
-  // will be stolen. If the specification isn't complete, returns nullptr.
-  std::unique_ptr<AudioEncoder> RentEncoderStack(StackParameters* param);
-
-  // Creates and returns an iSAC decoder.
-  std::unique_ptr<AudioDecoder> RentIsacDecoder(int sample_rate_hz);
-
- private:
-  std::unique_ptr<AudioEncoder> speech_encoder_;
-  std::unique_ptr<AudioEncoder> cng_encoder_;
-  std::unique_ptr<AudioEncoder> red_encoder_;
-  rtc::scoped_refptr<LockedIsacBandwidthInfo> isac_bandwidth_info_;
-
-  RTC_DISALLOW_COPY_AND_ASSIGN(RentACodec);
 };
 
 }  // namespace acm2

@@ -47,7 +47,7 @@
 OBJC_CLASS NSView;
 #endif
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
 OBJC_CLASS WebEvent;
 #endif
 
@@ -55,7 +55,7 @@ OBJC_CLASS WebEvent;
 OBJC_CLASS NSEvent;
 #endif
 
-#if PLATFORM(IOS) && defined(__OBJC__)
+#if PLATFORM(IOS_FAMILY) && defined(__OBJC__)
 #include "WAKAppKitStubs.h"
 #endif
 
@@ -100,6 +100,7 @@ struct DragState;
 extern const int LinkDragHysteresis;
 extern const int ImageDragHysteresis;
 extern const int TextDragHysteresis;
+extern const int ColorDragHystersis;
 extern const int GeneralDragHysteresis;
 #endif
 
@@ -128,6 +129,8 @@ public:
 
     void clear();
     void nodeWillBeRemoved(Node&);
+
+    WEBCORE_EXPORT VisiblePosition selectionExtentRespectingEditingBoundary(const VisibleSelection&, const LayoutPoint&, Node*);
 
 #if ENABLE(DRAG_SUPPORT)
     void updateSelectionForMouseDrag();
@@ -158,16 +161,8 @@ public:
 
 #if ENABLE(DRAG_SUPPORT)
     struct DragTargetResponse {
-#if !COMPILER_SUPPORTS(NSDMI_FOR_AGGREGATES)
-        DragTargetResponse() = default;
-        DragTargetResponse(bool accept, std::optional<DragOperation> operation)
-            : accept(accept)
-            , operation(operation)
-        {
-        }
-#endif
         bool accept { false };
-        std::optional<DragOperation> operation;
+        Optional<DragOperation> operation;
     };
     DragTargetResponse updateDragAndDrop(const PlatformMouseEvent&, const std::function<std::unique_ptr<Pasteboard>()>&, DragOperation sourceOperation, bool draggingFiles);
     void cancelDragAndDrop(const PlatformMouseEvent&, std::unique_ptr<Pasteboard>&&, DragOperation, bool draggingFiles);
@@ -244,7 +239,7 @@ public:
     WEBCORE_EXPORT bool handleGestureEvent(const PlatformGestureEvent&);
 #endif
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
     void defaultTouchEventHandler(Node&, TouchEvent&);
 #endif
 
@@ -261,6 +256,7 @@ public:
     WEBCORE_EXPORT bool handleAccessKey(const PlatformKeyboardEvent&);
     WEBCORE_EXPORT bool keyEvent(const PlatformKeyboardEvent&);
     void defaultKeyboardEventHandler(KeyboardEvent&);
+    WEBCORE_EXPORT void capsLockStateMayHaveChanged() const;
 
     bool accessibilityPreventsEventPropagation(KeyboardEvent&);
     WEBCORE_EXPORT void handleKeyboardSelectionMovementForAccessibility(KeyboardEvent&);
@@ -290,7 +286,7 @@ public:
     WEBCORE_EXPORT bool wheelEvent(NSEvent *);
 #endif
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
     WEBCORE_EXPORT void mouseDown(WebEvent *);
     WEBCORE_EXPORT void mouseUp(WebEvent *);
     WEBCORE_EXPORT void mouseMoved(WebEvent *);
@@ -313,7 +309,7 @@ public:
     static NSEvent *correspondingPressureEvent();
 #endif
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
     static WebEvent *currentEvent();
 
     void invalidateClick();
@@ -333,11 +329,11 @@ public:
 
     static Widget* widgetForEventTarget(Element* eventTarget);
 
-#if ENABLE(DATA_INTERACTION)
-    WEBCORE_EXPORT bool tryToBeginDataInteractionAtPoint(const IntPoint& clientPosition, const IntPoint& globalPosition);
+#if PLATFORM(IOS_FAMILY) && ENABLE(DRAG_SUPPORT)
+    WEBCORE_EXPORT bool tryToBeginDragAtPoint(const IntPoint& clientPosition, const IntPoint& globalPosition);
 #endif
     
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
     WEBCORE_EXPORT void startSelectionAutoscroll(RenderObject* renderer, const FloatPoint& positionInWindow);
     WEBCORE_EXPORT void cancelSelectionAutoscroll();
     IntPoint m_targetAutoscrollPositionInWindow;
@@ -373,7 +369,7 @@ private:
 
     bool internalKeyEvent(const PlatformKeyboardEvent&);
 
-    std::optional<Cursor> selectCursor(const HitTestResult&, bool shiftKey);
+    Optional<Cursor> selectCursor(const HitTestResult&, bool shiftKey);
     void updateCursor(FrameView&, const HitTestResult&, bool shiftKey);
 
     void hoverTimerFired();
@@ -402,7 +398,7 @@ private:
     bool dispatchSyntheticTouchEventIfEnabled(const PlatformMouseEvent&);
 #endif
 
-#if !PLATFORM(IOS)
+#if !PLATFORM(IOS_FAMILY)
     void invalidateClick();
 #endif
 
@@ -497,6 +493,8 @@ private:
 
     void clearOrScheduleClearingLatchedStateIfNeeded(const PlatformWheelEvent&);
     void clearLatchedState();
+
+    bool shouldSendMouseEventsToInactiveWindows() const;
 
     Frame& m_frame;
 
@@ -606,6 +604,10 @@ private:
     RefPtr<Document> m_originatingTouchPointDocument;
     unsigned m_originatingTouchPointTargetKey { 0 };
     bool m_touchPressed { false };
+#endif
+
+#if ENABLE(IOS_TOUCH_EVENTS)
+    unsigned touchIdentifierForMouseEvents { 0 };
 #endif
 
     double m_maxMouseMovedDuration { 0 };

@@ -39,74 +39,67 @@ static bool test1Done;
 struct State {
     State()
         : didDecidePolicyForNavigationAction(false)
-        , didStartProvisionalLoadForFrame(false)
-        , didCommitLoadForFrame(false)
+        , didStartProvisionalNavigation(false)
+        , didCommitNavigation(false)
     {
     }
 
     bool didDecidePolicyForNavigationAction;
-    bool didStartProvisionalLoadForFrame;
-    bool didCommitLoadForFrame;
+    bool didStartProvisionalNavigation;
+    bool didCommitNavigation;
 };
 
-static void didStartProvisionalLoadForFrame(WKPageRef page, WKFrameRef frame, WKTypeRef userData, const void* clientInfo)
+static void didStartProvisionalNavigation(WKPageRef page, WKNavigationRef, WKTypeRef userData, const void* clientInfo)
 {
     State* state = reinterpret_cast<State*>(const_cast<void*>(clientInfo));
     EXPECT_TRUE(state->didDecidePolicyForNavigationAction);
-    EXPECT_FALSE(state->didCommitLoadForFrame);
+    EXPECT_FALSE(state->didCommitNavigation);
 
     // The commited URL should be null.
-    EXPECT_NULL(WKFrameCopyURL(frame));
+    EXPECT_NULL(WKFrameCopyURL(WKPageGetMainFrame(page)));
 
-    EXPECT_FALSE(state->didStartProvisionalLoadForFrame);
+    EXPECT_FALSE(state->didStartProvisionalNavigation);
 
-    state->didStartProvisionalLoadForFrame = true;
+    state->didStartProvisionalNavigation = true;
 }
 
-static void didCommitLoadForFrame(WKPageRef page, WKFrameRef frame, WKTypeRef userData, const void* clientInfo)
+static void didCommitNavigation(WKPageRef page, WKNavigationRef, WKTypeRef userData, const void* clientInfo)
 {
     State* state = reinterpret_cast<State*>(const_cast<void*>(clientInfo));
     EXPECT_TRUE(state->didDecidePolicyForNavigationAction);
-    EXPECT_TRUE(state->didStartProvisionalLoadForFrame);
+    EXPECT_TRUE(state->didStartProvisionalNavigation);
 
     // The provisional URL should be null.
-    EXPECT_NULL(WKFrameCopyProvisionalURL(frame));
+    EXPECT_NULL(WKFrameCopyProvisionalURL(WKPageGetMainFrame(page)));
 
-    state->didCommitLoadForFrame = true;
+    state->didCommitNavigation = true;
 }
 
-static void didFinishLoadForFrame(WKPageRef page, WKFrameRef frame, WKTypeRef userData, const void* clientInfo)
+static void didFinishNavigation(WKPageRef page, WKNavigationRef, WKTypeRef userData, const void* clientInfo)
 {
     State* state = reinterpret_cast<State*>(const_cast<void*>(clientInfo));
     EXPECT_TRUE(state->didDecidePolicyForNavigationAction);
-    EXPECT_TRUE(state->didStartProvisionalLoadForFrame);
-    EXPECT_TRUE(state->didCommitLoadForFrame);
+    EXPECT_TRUE(state->didStartProvisionalNavigation);
+    EXPECT_TRUE(state->didCommitNavigation);
 
     // The provisional URL should be null.
-    EXPECT_NULL(WKFrameCopyProvisionalURL(frame));
+    EXPECT_NULL(WKFrameCopyProvisionalURL(WKPageGetMainFrame(page)));
 
     test1Done = true;
 }
 
-static void decidePolicyForNavigationAction(WKPageRef page, WKFrameRef frame, WKFrameNavigationType navigationType, WKEventModifiers modifiers, WKEventMouseButton mouseButton, WKFrameRef originatingFrame, WKURLRequestRef request, WKFramePolicyListenerRef listener, WKTypeRef userData, const void* clientInfo)
+static void decidePolicyForNavigationAction(WKPageRef page, WKNavigationActionRef navigationAction, WKFramePolicyListenerRef listener, WKTypeRef userData, const void* clientInfo)
 {
     State* state = reinterpret_cast<State*>(const_cast<void*>(clientInfo));
-    EXPECT_FALSE(state->didStartProvisionalLoadForFrame);
-    EXPECT_FALSE(state->didCommitLoadForFrame);
-    EXPECT_TRUE(mouseButton == kWKEventMouseButtonNoButton);
+    EXPECT_FALSE(state->didStartProvisionalNavigation);
+    EXPECT_FALSE(state->didCommitNavigation);
 
     state->didDecidePolicyForNavigationAction = true;
 
     WKFramePolicyListenerUse(listener);
 }
 
-static void decidePolicyForNewWindowAction(WKPageRef page, WKFrameRef frame, WKFrameNavigationType navigationType, WKEventModifiers modifiers, WKEventMouseButton mouseButton, WKURLRequestRef request, WKStringRef frameName, WKFramePolicyListenerRef listener, WKTypeRef userData, const void* clientInfo)
-{
-    EXPECT_TRUE(mouseButton == kWKEventMouseButtonNoButton);
-    WKFramePolicyListenerUse(listener);
-}
-
-static void decidePolicyForResponse(WKPageRef page, WKFrameRef frame, WKURLResponseRef response, WKURLRequestRef request, bool canShowMIMEType, WKFramePolicyListenerRef listener, WKTypeRef userData, const void* clientInfo)
+static void decidePolicyForResponse(WKPageRef page, WKNavigationResponseRef navigationResponse, WKFramePolicyListenerRef listener, WKTypeRef userData, const void* clientInfo)
 {
     WKFramePolicyListenerUse(listener);
 }
@@ -115,30 +108,21 @@ TEST(WebKit, PageLoadBasic)
 {
     State state;
 
-    WKRetainPtr<WKContextRef> context(AdoptWK, WKContextCreate());
+    WKRetainPtr<WKContextRef> context(AdoptWK, WKContextCreateWithConfiguration(nullptr));
     PlatformWebView webView(context.get());
 
-    WKPageLoaderClientV0 loaderClient;
+    WKPageNavigationClientV0 loaderClient;
     memset(&loaderClient, 0, sizeof(loaderClient));
 
     loaderClient.base.version = 0;
     loaderClient.base.clientInfo = &state;
-    loaderClient.didStartProvisionalLoadForFrame = didStartProvisionalLoadForFrame;
-    loaderClient.didCommitLoadForFrame = didCommitLoadForFrame;
-    loaderClient.didFinishLoadForFrame = didFinishLoadForFrame;
+    loaderClient.didStartProvisionalNavigation = didStartProvisionalNavigation;
+    loaderClient.didCommitNavigation = didCommitNavigation;
+    loaderClient.didFinishNavigation = didFinishNavigation;
+    loaderClient.decidePolicyForNavigationAction = decidePolicyForNavigationAction;
+    loaderClient.decidePolicyForNavigationResponse = decidePolicyForResponse;
 
-    WKPageSetPageLoaderClient(webView.page(), &loaderClient.base);
-
-    WKPagePolicyClientV1 policyClient;
-    memset(&policyClient, 0, sizeof(policyClient));
-
-    policyClient.base.version = 1;
-    policyClient.base.clientInfo = &state;
-    policyClient.decidePolicyForNavigationAction = decidePolicyForNavigationAction;
-    policyClient.decidePolicyForNewWindowAction = decidePolicyForNewWindowAction;
-    policyClient.decidePolicyForResponse = decidePolicyForResponse;
-
-    WKPageSetPagePolicyClient(webView.page(), &policyClient.base);
+    WKPageSetPageNavigationClient(webView.page(), &loaderClient.base);
 
     // Before loading anything, the active url should be null
     EXPECT_NULL(WKPageCopyActiveURL(webView.page()));
@@ -156,7 +140,7 @@ TEST(WebKit, PageLoadBasic)
 
 TEST(WebKit, PageReload)
 {
-    WKRetainPtr<WKContextRef> context(AdoptWK, WKContextCreate());
+    WKRetainPtr<WKContextRef> context(AdoptWK, WKContextCreateWithConfiguration(nullptr));
     PlatformWebView webView(context.get());
 
     // Reload test before url loading.
@@ -172,6 +156,39 @@ TEST(WebKit, PageReload)
     WKRetainPtr<WKURLRef> activeUrl = adoptWK(WKPageCopyActiveURL(webView.page()));
     ASSERT_NOT_NULL(activeUrl.get());
     EXPECT_TRUE(WKURLIsEqual(activeUrl.get(), url.get()));
+}
+
+TEST(WebKit, PageLoadTwiceAndReload)
+{
+    WKRetainPtr<WKContextRef> context(AdoptWK, WKContextCreateWithConfiguration(nullptr));
+    PlatformWebView webView(context.get());
+
+    test1Done = false;
+    static unsigned loadsCount = 0;
+
+    WKPageNavigationClientV0 loaderClient;
+    memset(&loaderClient, 0, sizeof(loaderClient));
+    loaderClient.base.version = 0;
+    loaderClient.base.clientInfo = nullptr;
+    loaderClient.didFailProvisionalNavigation = [](WKPageRef page, WKNavigationRef, WKErrorRef error, WKTypeRef userData, const void *clientInfo) {
+        loadsCount++;
+        WKPageReload(page);
+    };
+    loaderClient.didFinishNavigation = [](WKPageRef page, WKNavigationRef, WKTypeRef userData, const void* clientInfo) {
+        if (++loadsCount == 3) {
+            test1Done = true;
+            return;
+        }
+        WKPageReload(page);
+    };
+    WKPageSetPageNavigationClient(webView.page(), &loaderClient.base);
+
+    WKRetainPtr<WKURLRef> url1(AdoptWK, Util::createURLForResource("simple", "html"));
+    WKRetainPtr<WKURLRef> url2(AdoptWK, Util::createURLForResource("simple2", "html"));
+    WKPageLoadURL(webView.page(), url1.get());
+    WKPageLoadURL(webView.page(), url2.get());
+
+    Util::run(&test1Done);
 }
 
 } // namespace TestWebKitAPI

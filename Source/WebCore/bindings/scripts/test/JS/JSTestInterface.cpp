@@ -32,11 +32,14 @@
 #include "JSDOMExceptionHandling.h"
 #include "JSDOMOperation.h"
 #include "JSDOMWrapperCache.h"
+#include "ScriptExecutionContext.h"
 #include "TestSupplemental.h"
 #include <JavaScriptCore/FunctionPrototype.h>
+#include <JavaScriptCore/HeapSnapshotBuilder.h>
 #include <JavaScriptCore/JSCInlines.h>
 #include <wtf/GetPtr.h>
 #include <wtf/PointerPreparations.h>
+#include <wtf/URL.h>
 
 #if ENABLE(Condition1) || ENABLE(Condition11) || ENABLE(Condition12) || ENABLE(Condition2) || ENABLE(Condition22) || ENABLE(Condition23)
 #include "JSDOMConvertStrings.h"
@@ -51,6 +54,11 @@
 #include "JSDOMGlobalObject.h"
 #include "JSNode.h"
 #include "JSTestObj.h"
+#endif
+
+#if ENABLE(Condition22) || ENABLE(Condition23)
+#include "JSDOMConvertSequences.h"
+#include <JavaScriptCore/JSArray.h>
 #endif
 
 
@@ -70,6 +78,9 @@ JSC::EncodedJSValue JSC_HOST_CALL jsTestInterfacePrototypeFunctionImplementsMeth
 #endif
 #if ENABLE(Condition22) || ENABLE(Condition23)
 JSC::EncodedJSValue JSC_HOST_CALL jsTestInterfaceConstructorFunctionImplementsMethod4(JSC::ExecState*);
+#endif
+#if ENABLE(Condition22) || ENABLE(Condition23)
+JSC::EncodedJSValue JSC_HOST_CALL jsTestInterfacePrototypeFunctionTakeNodes(JSC::ExecState*);
 #endif
 #if ENABLE(Condition11) || ENABLE(Condition12)
 JSC::EncodedJSValue JSC_HOST_CALL jsTestInterfacePrototypeFunctionSupplementalMethod1(JSC::ExecState*);
@@ -209,12 +220,12 @@ static const HashTableValue JSTestInterfaceConstructorTableValues[] =
     { 0, 0, NoIntrinsic, { 0, 0 } },
 #endif
 #if ENABLE(Condition22) || ENABLE(Condition23)
-    { "implementsMethod4", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestInterfaceConstructorFunctionImplementsMethod4), (intptr_t) (0) } },
+    { "implementsMethod4", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestInterfaceConstructorFunctionImplementsMethod4), (intptr_t) (0) } },
 #else
     { 0, 0, NoIntrinsic, { 0, 0 } },
 #endif
 #if ENABLE(Condition11) || ENABLE(Condition12)
-    { "supplementalMethod4", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestInterfaceConstructorFunctionSupplementalMethod4), (intptr_t) (0) } },
+    { "supplementalMethod4", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestInterfaceConstructorFunctionSupplementalMethod4), (intptr_t) (0) } },
 #else
     { 0, 0, NoIntrinsic, { 0, 0 } },
 #endif
@@ -247,7 +258,7 @@ template<> EncodedJSValue JSC_HOST_CALL JSTestInterfaceConstructor::construct(Ex
         return throwConstructorScriptExecutionContextUnavailableError(*state, throwScope, "TestInterface");
     auto str1 = convert<IDLDOMString>(*state, state->uncheckedArgument(0));
     RETURN_IF_EXCEPTION(throwScope, encodedJSValue());
-    auto str2 = state->argument(1).isUndefined() ? ASCIILiteral("defaultString") : convert<IDLDOMString>(*state, state->uncheckedArgument(1));
+    auto str2 = state->argument(1).isUndefined() ? "defaultString"_s : convert<IDLDOMString>(*state, state->uncheckedArgument(1));
     RETURN_IF_EXCEPTION(throwScope, encodedJSValue());
     auto object = TestInterface::create(*context, WTFMove(str1), WTFMove(str2));
     return JSValue::encode(toJSNewlyCreated<IDLInterface<TestInterface>>(*state, *castedThis->globalObject(), throwScope, WTFMove(object)));
@@ -262,7 +273,7 @@ template<> JSValue JSTestInterfaceConstructor::prototypeForStructure(JSC::VM& vm
 template<> void JSTestInterfaceConstructor::initializeProperties(VM& vm, JSDOMGlobalObject& globalObject)
 {
     putDirect(vm, vm.propertyNames->prototype, JSTestInterface::prototype(vm, globalObject), JSC::PropertyAttribute::DontDelete | JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum);
-    putDirect(vm, vm.propertyNames->name, jsNontrivialString(&vm, String(ASCIILiteral("TestInterface"))), JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum);
+    putDirect(vm, vm.propertyNames->name, jsNontrivialString(&vm, String("TestInterface"_s)), JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum);
     putDirect(vm, vm.propertyNames->length, jsNumber(1), JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum);
     reifyStaticProperties(vm, JSTestInterface::info(), JSTestInterfaceConstructorTableValues, *this);
 }
@@ -325,32 +336,37 @@ static const HashTableValue JSTestInterfacePrototypeTableValues[] =
     { 0, 0, NoIntrinsic, { 0, 0 } },
 #endif
 #if ENABLE(Condition22) || ENABLE(Condition23)
-    { "implementsMethod1", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestInterfacePrototypeFunctionImplementsMethod1), (intptr_t) (0) } },
+    { "implementsMethod1", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestInterfacePrototypeFunctionImplementsMethod1), (intptr_t) (0) } },
 #else
     { 0, 0, NoIntrinsic, { 0, 0 } },
 #endif
 #if ENABLE(Condition22) || ENABLE(Condition23)
-    { "implementsMethod2", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestInterfacePrototypeFunctionImplementsMethod2), (intptr_t) (2) } },
+    { "implementsMethod2", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestInterfacePrototypeFunctionImplementsMethod2), (intptr_t) (2) } },
 #else
     { 0, 0, NoIntrinsic, { 0, 0 } },
 #endif
 #if ENABLE(Condition22) || ENABLE(Condition23)
-    { "implementsMethod3", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestInterfacePrototypeFunctionImplementsMethod3), (intptr_t) (0) } },
+    { "implementsMethod3", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestInterfacePrototypeFunctionImplementsMethod3), (intptr_t) (0) } },
+#else
+    { 0, 0, NoIntrinsic, { 0, 0 } },
+#endif
+#if ENABLE(Condition22) || ENABLE(Condition23)
+    { "takeNodes", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestInterfacePrototypeFunctionTakeNodes), (intptr_t) (0) } },
 #else
     { 0, 0, NoIntrinsic, { 0, 0 } },
 #endif
 #if ENABLE(Condition11) || ENABLE(Condition12)
-    { "supplementalMethod1", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestInterfacePrototypeFunctionSupplementalMethod1), (intptr_t) (0) } },
+    { "supplementalMethod1", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestInterfacePrototypeFunctionSupplementalMethod1), (intptr_t) (0) } },
 #else
     { 0, 0, NoIntrinsic, { 0, 0 } },
 #endif
 #if ENABLE(Condition11) || ENABLE(Condition12)
-    { "supplementalMethod2", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestInterfacePrototypeFunctionSupplementalMethod2), (intptr_t) (2) } },
+    { "supplementalMethod2", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestInterfacePrototypeFunctionSupplementalMethod2), (intptr_t) (2) } },
 #else
     { 0, 0, NoIntrinsic, { 0, 0 } },
 #endif
 #if ENABLE(Condition11) || ENABLE(Condition12)
-    { "supplementalMethod3", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestInterfacePrototypeFunctionSupplementalMethod3), (intptr_t) (0) } },
+    { "supplementalMethod3", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestInterfacePrototypeFunctionSupplementalMethod3), (intptr_t) (0) } },
 #else
     { 0, 0, NoIntrinsic, { 0, 0 } },
 #endif
@@ -426,19 +442,19 @@ void JSTestInterface::destroy(JSC::JSCell* cell)
 
 template<> inline JSTestInterface* IDLAttribute<JSTestInterface>::cast(ExecState& state, EncodedJSValue thisValue)
 {
-    return jsDynamicDowncast<JSTestInterface*>(state.vm(), JSValue::decode(thisValue));
+    return jsDynamicCast<JSTestInterface*>(state.vm(), JSValue::decode(thisValue));
 }
 
 template<> inline JSTestInterface* IDLOperation<JSTestInterface>::cast(ExecState& state)
 {
-    return jsDynamicDowncast<JSTestInterface*>(state.vm(), state.thisValue());
+    return jsDynamicCast<JSTestInterface*>(state.vm(), state.thisValue());
 }
 
 EncodedJSValue jsTestInterfaceConstructor(ExecState* state, EncodedJSValue thisValue, PropertyName)
 {
     VM& vm = state->vm();
     auto throwScope = DECLARE_THROW_SCOPE(vm);
-    auto* prototype = jsDynamicDowncast<JSTestInterfacePrototype*>(vm, JSValue::decode(thisValue));
+    auto* prototype = jsDynamicCast<JSTestInterfacePrototype*>(vm, JSValue::decode(thisValue));
     if (UNLIKELY(!prototype))
         return throwVMTypeError(state, throwScope);
     return JSValue::encode(JSTestInterface::getConstructor(state->vm(), prototype->globalObject()));
@@ -448,7 +464,7 @@ bool setJSTestInterfaceConstructor(ExecState* state, EncodedJSValue thisValue, E
 {
     VM& vm = state->vm();
     auto throwScope = DECLARE_THROW_SCOPE(vm);
-    auto* prototype = jsDynamicDowncast<JSTestInterfacePrototype*>(vm, JSValue::decode(thisValue));
+    auto* prototype = jsDynamicCast<JSTestInterfacePrototype*>(vm, JSValue::decode(thisValue));
     if (UNLIKELY(!prototype)) {
         throwVMTypeError(state, throwScope);
         return false;
@@ -911,6 +927,23 @@ EncodedJSValue JSC_HOST_CALL jsTestInterfaceConstructorFunctionImplementsMethod4
 
 #endif
 
+#if ENABLE(Condition22) || ENABLE(Condition23)
+static inline JSC::EncodedJSValue jsTestInterfacePrototypeFunctionTakeNodesBody(JSC::ExecState* state, typename IDLOperation<JSTestInterface>::ClassParameter castedThis, JSC::ThrowScope& throwScope)
+{
+    UNUSED_PARAM(state);
+    UNUSED_PARAM(throwScope);
+    auto& impl = castedThis->wrapped();
+    auto implResult = impl.takeNodes();
+    return JSValue::encode(toJS<IDLSequence<IDLInterface<Node>>>(*state, *castedThis->globalObject(), WTFMove(implResult.nodes)));
+}
+
+EncodedJSValue JSC_HOST_CALL jsTestInterfacePrototypeFunctionTakeNodes(ExecState* state)
+{
+    return IDLOperation<JSTestInterface>::call<jsTestInterfacePrototypeFunctionTakeNodesBody>(*state, "takeNodes");
+}
+
+#endif
+
 #if ENABLE(Condition11) || ENABLE(Condition12)
 static inline JSC::EncodedJSValue jsTestInterfacePrototypeFunctionSupplementalMethod1Body(JSC::ExecState* state, typename IDLOperation<JSTestInterface>::ClassParameter castedThis, JSC::ThrowScope& throwScope)
 {
@@ -984,12 +1017,25 @@ EncodedJSValue JSC_HOST_CALL jsTestInterfaceConstructorFunctionSupplementalMetho
 
 #endif
 
-bool JSTestInterfaceOwner::isReachableFromOpaqueRoots(JSC::Handle<JSC::Unknown> handle, void*, SlotVisitor& visitor)
+void JSTestInterface::heapSnapshot(JSCell* cell, HeapSnapshotBuilder& builder)
+{
+    auto* thisObject = jsCast<JSTestInterface*>(cell);
+    builder.setWrappedObjectForCell(cell, &thisObject->wrapped());
+    if (thisObject->scriptExecutionContext())
+        builder.setLabelForCell(cell, "url " + thisObject->scriptExecutionContext()->url().string());
+    Base::heapSnapshot(cell, builder);
+}
+
+bool JSTestInterfaceOwner::isReachableFromOpaqueRoots(JSC::Handle<JSC::Unknown> handle, void*, SlotVisitor& visitor, const char** reason)
 {
     auto* jsTestInterface = jsCast<JSTestInterface*>(handle.slot()->asCell());
-    if (jsTestInterface->wrapped().hasPendingActivity())
+    if (jsTestInterface->wrapped().hasPendingActivity()) {
+        if (UNLIKELY(reason))
+            *reason = "ActiveDOMObject with pending activity";
         return true;
+     }
     UNUSED_PARAM(visitor);
+    UNUSED_PARAM(reason);
     return false;
 }
 
@@ -1017,7 +1063,7 @@ JSC::JSValue toJS(JSC::ExecState* state, JSDOMGlobalObject* globalObject, TestIn
 
 TestInterface* JSTestInterface::toWrapped(JSC::VM& vm, JSC::JSValue value)
 {
-    if (auto* wrapper = jsDynamicDowncast<JSTestInterface*>(vm, value))
+    if (auto* wrapper = jsDynamicCast<JSTestInterface*>(vm, value))
         return &wrapper->wrapped();
     return nullptr;
 }

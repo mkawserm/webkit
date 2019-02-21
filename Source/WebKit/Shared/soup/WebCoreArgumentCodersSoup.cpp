@@ -51,49 +51,67 @@ bool ArgumentCoder<ResourceRequest>::decodePlatformData(Decoder& decoder, Resour
 
 void ArgumentCoder<CertificateInfo>::encode(Encoder& encoder, const CertificateInfo& certificateInfo)
 {
-    if (!certificateInfo.certificate()) {
-        encoder << false;
+    auto* certificate = certificateInfo.certificate();
+    if (!certificate) {
+        encoder << 0;
         return;
     }
 
-    GByteArray* certificateData = 0;
-    g_object_get(G_OBJECT(certificateInfo.certificate()), "certificate", &certificateData, NULL);
-    if (!certificateData) {
-        encoder << false;
-        return;
+    Vector<GRefPtr<GByteArray>> certificatesDataList;
+    for (; certificate; certificate = g_tls_certificate_get_issuer(certificate)) {
+        GByteArray* certificateData = nullptr;
+        g_object_get(G_OBJECT(certificate), "certificate", &certificateData, nullptr);
+
+        if (!certificateData) {
+            certificatesDataList.clear();
+            break;
+        }
+
+        certificatesDataList.append(adoptGRef(certificateData));
     }
 
-    encoder << true;
-    GRefPtr<GByteArray> certificate = adoptGRef(certificateData);
-    encoder.encodeVariableLengthByteArray(IPC::DataReference(certificate->data, certificate->len));
+    encoder << static_cast<uint32_t>(certificatesDataList.size());
+
+    if (certificatesDataList.isEmpty())
+        return;
+
+    // Encode starting from the root certificate.
+    for (size_t i = certificatesDataList.size(); i > 0; --i) {
+        GByteArray* certificate = certificatesDataList[i - 1].get();
+        encoder.encodeVariableLengthByteArray(IPC::DataReference(certificate->data, certificate->len));
+    }
+
     encoder << static_cast<uint32_t>(certificateInfo.tlsErrors());
 }
 
 bool ArgumentCoder<CertificateInfo>::decode(Decoder& decoder, CertificateInfo& certificateInfo)
 {
-    bool hasCertificate;
-    if (!decoder.decode(hasCertificate))
+    uint32_t chainLength;
+    if (!decoder.decode(chainLength))
         return false;
 
-    if (!hasCertificate)
+    if (!chainLength)
         return true;
 
-    IPC::DataReference certificateDataReference;
-    if (!decoder.decodeVariableLengthByteArray(certificateDataReference))
-        return false;
+    GType certificateType = g_tls_backend_get_certificate_type(g_tls_backend_get_default());
+    GRefPtr<GTlsCertificate> certificate;
+    for (uint32_t i = 0; i < chainLength; i++) {
+        IPC::DataReference certificateDataReference;
+        if (!decoder.decodeVariableLengthByteArray(certificateDataReference))
+            return false;
 
-    GByteArray* certificateData = g_byte_array_sized_new(certificateDataReference.size());
-    certificateData = g_byte_array_append(certificateData, certificateDataReference.data(), certificateDataReference.size());
-    GRefPtr<GByteArray> certificateBytes = adoptGRef(certificateData);
+        GByteArray* certificateData = g_byte_array_sized_new(certificateDataReference.size());
+        GRefPtr<GByteArray> certificateBytes = adoptGRef(g_byte_array_append(certificateData, certificateDataReference.data(), certificateDataReference.size()));
 
-    GTlsBackend* backend = g_tls_backend_get_default();
-    GRefPtr<GTlsCertificate> certificate = adoptGRef(G_TLS_CERTIFICATE(g_initable_new(
-        g_tls_backend_get_certificate_type(backend), 0, 0, "certificate", certificateBytes.get(), nullptr)));
-    certificateInfo.setCertificate(certificate.get());
+        certificate = adoptGRef(G_TLS_CERTIFICATE(g_initable_new(
+            certificateType, nullptr, nullptr, "certificate", certificateBytes.get(), "issuer", certificate.get(), nullptr)));
+    }
 
     uint32_t tlsErrors;
     if (!decoder.decode(tlsErrors))
         return false;
+
+    certificateInfo.setCertificate(certificate.get());
     certificateInfo.setTLSErrors(static_cast<GTlsCertificateFlags>(tlsErrors));
 
     return true;
@@ -101,10 +119,6 @@ bool ArgumentCoder<CertificateInfo>::decode(Decoder& decoder, CertificateInfo& c
 
 void ArgumentCoder<ResourceError>::encodePlatformData(Encoder& encoder, const ResourceError& resourceError)
 {
-    encoder.encodeEnum(resourceError.type());
-    if (resourceError.isNull())
-        return;
-
     encoder << resourceError.domain();
     encoder << resourceError.errorCode();
     encoder << resourceError.failingURL().string();
@@ -115,14 +129,6 @@ void ArgumentCoder<ResourceError>::encodePlatformData(Encoder& encoder, const Re
 
 bool ArgumentCoder<ResourceError>::decodePlatformData(Decoder& decoder, ResourceError& resourceError)
 {
-    ResourceErrorBase::Type errorType;
-    if (!decoder.decodeEnum(errorType))
-        return false;
-    if (errorType == ResourceErrorBase::Type::Null) {
-        resourceError = { };
-        return true;
-    }
-
     String domain;
     if (!decoder.decode(domain))
         return false;
@@ -140,7 +146,6 @@ bool ArgumentCoder<ResourceError>::decodePlatformData(Decoder& decoder, Resource
         return false;
 
     resourceError = ResourceError(domain, errorCode, URL(URL(), failingURL), localizedDescription);
-    resourceError.setType(errorType);
 
     CertificateInfo certificateInfo;
     if (!decoder.decode(certificateInfo))

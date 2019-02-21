@@ -31,10 +31,13 @@
 #include "JSDOMConvertVariadic.h"
 #include "JSDOMExceptionHandling.h"
 #include "JSDOMWrapperCache.h"
+#include "ScriptExecutionContext.h"
 #include <JavaScriptCore/FunctionPrototype.h>
+#include <JavaScriptCore/HeapSnapshotBuilder.h>
 #include <JavaScriptCore/JSCInlines.h>
 #include <wtf/GetPtr.h>
 #include <wtf/PointerPreparations.h>
+#include <wtf/URL.h>
 
 
 namespace WebCore {
@@ -148,11 +151,11 @@ template<> EncodedJSValue JSC_HOST_CALL JSTestOverloadedConstructorsConstructor:
     }
     if (argsCount == 1) {
         JSValue distinguishingArg = state->uncheckedArgument(0);
-        if (distinguishingArg.isObject() && asObject(distinguishingArg)->inherits(vm, JSArrayBuffer::info()))
+        if (distinguishingArg.isObject() && asObject(distinguishingArg)->inherits<JSArrayBuffer>(vm))
             return constructJSTestOverloadedConstructors1(state);
-        if (distinguishingArg.isObject() && asObject(distinguishingArg)->inherits(vm, JSArrayBufferView::info()))
+        if (distinguishingArg.isObject() && asObject(distinguishingArg)->inherits<JSArrayBufferView>(vm))
             return constructJSTestOverloadedConstructors2(state);
-        if (distinguishingArg.isObject() && asObject(distinguishingArg)->inherits(vm, JSBlob::info()))
+        if (distinguishingArg.isObject() && asObject(distinguishingArg)->inherits<JSBlob>(vm))
             return constructJSTestOverloadedConstructors3(state);
         if (distinguishingArg.isNumber())
             return constructJSTestOverloadedConstructors5(state);
@@ -170,7 +173,7 @@ template<> JSValue JSTestOverloadedConstructorsConstructor::prototypeForStructur
 template<> void JSTestOverloadedConstructorsConstructor::initializeProperties(VM& vm, JSDOMGlobalObject& globalObject)
 {
     putDirect(vm, vm.propertyNames->prototype, JSTestOverloadedConstructors::prototype(vm, globalObject), JSC::PropertyAttribute::DontDelete | JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum);
-    putDirect(vm, vm.propertyNames->name, jsNontrivialString(&vm, String(ASCIILiteral("TestOverloadedConstructors"))), JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum);
+    putDirect(vm, vm.propertyNames->name, jsNontrivialString(&vm, String("TestOverloadedConstructors"_s)), JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum);
     putDirect(vm, vm.propertyNames->length, jsNumber(0), JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum);
 }
 
@@ -230,7 +233,7 @@ EncodedJSValue jsTestOverloadedConstructorsConstructor(ExecState* state, Encoded
 {
     VM& vm = state->vm();
     auto throwScope = DECLARE_THROW_SCOPE(vm);
-    auto* prototype = jsDynamicDowncast<JSTestOverloadedConstructorsPrototype*>(vm, JSValue::decode(thisValue));
+    auto* prototype = jsDynamicCast<JSTestOverloadedConstructorsPrototype*>(vm, JSValue::decode(thisValue));
     if (UNLIKELY(!prototype))
         return throwVMTypeError(state, throwScope);
     return JSValue::encode(JSTestOverloadedConstructors::getConstructor(state->vm(), prototype->globalObject()));
@@ -240,7 +243,7 @@ bool setJSTestOverloadedConstructorsConstructor(ExecState* state, EncodedJSValue
 {
     VM& vm = state->vm();
     auto throwScope = DECLARE_THROW_SCOPE(vm);
-    auto* prototype = jsDynamicDowncast<JSTestOverloadedConstructorsPrototype*>(vm, JSValue::decode(thisValue));
+    auto* prototype = jsDynamicCast<JSTestOverloadedConstructorsPrototype*>(vm, JSValue::decode(thisValue));
     if (UNLIKELY(!prototype)) {
         throwVMTypeError(state, throwScope);
         return false;
@@ -249,10 +252,20 @@ bool setJSTestOverloadedConstructorsConstructor(ExecState* state, EncodedJSValue
     return prototype->putDirect(vm, vm.propertyNames->constructor, JSValue::decode(encodedValue));
 }
 
-bool JSTestOverloadedConstructorsOwner::isReachableFromOpaqueRoots(JSC::Handle<JSC::Unknown> handle, void*, SlotVisitor& visitor)
+void JSTestOverloadedConstructors::heapSnapshot(JSCell* cell, HeapSnapshotBuilder& builder)
+{
+    auto* thisObject = jsCast<JSTestOverloadedConstructors*>(cell);
+    builder.setWrappedObjectForCell(cell, &thisObject->wrapped());
+    if (thisObject->scriptExecutionContext())
+        builder.setLabelForCell(cell, "url " + thisObject->scriptExecutionContext()->url().string());
+    Base::heapSnapshot(cell, builder);
+}
+
+bool JSTestOverloadedConstructorsOwner::isReachableFromOpaqueRoots(JSC::Handle<JSC::Unknown> handle, void*, SlotVisitor& visitor, const char** reason)
 {
     UNUSED_PARAM(handle);
     UNUSED_PARAM(visitor);
+    UNUSED_PARAM(reason);
     return false;
 }
 
@@ -303,7 +316,7 @@ JSC::JSValue toJS(JSC::ExecState* state, JSDOMGlobalObject* globalObject, TestOv
 
 TestOverloadedConstructors* JSTestOverloadedConstructors::toWrapped(JSC::VM& vm, JSC::JSValue value)
 {
-    if (auto* wrapper = jsDynamicDowncast<JSTestOverloadedConstructors*>(vm, value))
+    if (auto* wrapper = jsDynamicCast<JSTestOverloadedConstructors*>(vm, value))
         return &wrapper->wrapped();
     return nullptr;
 }

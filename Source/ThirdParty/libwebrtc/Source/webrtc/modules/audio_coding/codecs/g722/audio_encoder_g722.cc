@@ -10,10 +10,9 @@
 
 #include "modules/audio_coding/codecs/g722/audio_encoder_g722.h"
 
-#include <algorithm>
+#include <cstdint>
 
-#include <limits>
-#include "common_types.h"  // NOLINT(build/include)
+#include "common_types.h"
 #include "modules/audio_coding/codecs/g722/g722_interface.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/numerics/safe_conversions.h"
@@ -123,7 +122,7 @@ AudioEncoder::EncodedInfo AudioEncoderG722Impl::EncodeImpl(
   const size_t bytes_to_encode = samples_per_channel / 2 * num_channels_;
   EncodedInfo info;
   info.encoded_bytes = encoded->AppendData(
-      bytes_to_encode, [&] (rtc::ArrayView<uint8_t> encoded) {
+      bytes_to_encode, [&](rtc::ArrayView<uint8_t> encoded) {
         // Interleave the encoded bytes of the different channels. Each separate
         // channel and the interleaved stream encodes two samples per byte, most
         // significant half first.

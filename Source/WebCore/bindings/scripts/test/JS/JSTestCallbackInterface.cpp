@@ -64,14 +64,14 @@ template<> JSString* convertEnumerationToJS(ExecState& state, TestCallbackInterf
     return jsStringWithCache(&state, convertEnumerationToString(enumerationValue));
 }
 
-template<> std::optional<TestCallbackInterface::Enum> parseEnumeration<TestCallbackInterface::Enum>(ExecState& state, JSValue value)
+template<> Optional<TestCallbackInterface::Enum> parseEnumeration<TestCallbackInterface::Enum>(ExecState& state, JSValue value)
 {
     auto stringValue = value.toWTFString(&state);
     if (stringValue == "value1")
         return TestCallbackInterface::Enum::Value1;
     if (stringValue == "value2")
         return TestCallbackInterface::Enum::Value2;
-    return std::nullopt;
+    return WTF::nullopt;
 }
 
 template<> const char* expectedEnumerationValues<TestCallbackInterface::Enum>()
@@ -160,7 +160,7 @@ template<> JSValue JSTestCallbackInterfaceConstructor::prototypeForStructure(JSC
 template<> void JSTestCallbackInterfaceConstructor::initializeProperties(VM& vm, JSDOMGlobalObject& globalObject)
 {
     UNUSED_PARAM(globalObject);
-    putDirect(vm, vm.propertyNames->name, jsNontrivialString(&vm, String(ASCIILiteral("TestCallbackInterface"))), JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum);
+    putDirect(vm, vm.propertyNames->name, jsNontrivialString(&vm, String("TestCallbackInterface"_s)), JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum);
     putDirect(vm, vm.propertyNames->length, jsNumber(0), JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum);
     reifyStaticProperties(vm, nullptr, JSTestCallbackInterfaceConstructorTableValues, *this);
 }

@@ -47,6 +47,7 @@ exclude .*\/(Configurations|mac|ios|cf|cg|cocoa|Cocoa|objc|avfoundation|ca|curl|
 
 directory Source
 exclude Source/JavaScriptCore/tests
+exclude Source/ThirdParty/capstone
 exclude Source/ThirdParty/libwebrtc
 exclude Source/ThirdParty/qunit
 exclude Source/ThirdParty/openvr
@@ -66,7 +67,7 @@ exclude Source/WebKit/gtk/NEWS$
 # We do want to include the NEWS, but we want it to be in the root of the archive.
 file Source/WebKit/gtk/NEWS NEWS
 
-file Source/WebCore/English.lproj/mediaControlsLocalizedStrings.js Source/WebCore/English.lproj/mediaControlsLocalizedStrings.js
+file Source/WebCore/en.lproj/mediaControlsLocalizedStrings.js Source/WebCore/en.lproj/mediaControlsLocalizedStrings.js
 file Source/WebInspectorUI/Localizations/en.lproj/localizedStrings.js Source/WebInspectorUI/Localizations/en.lproj/localizedStrings.js
 
 # Include only the resources we actually build
@@ -89,11 +90,14 @@ exclude Tools/gtk/ycm_extra_conf.py
 file Tools/glib/common.py
 file Tools/glib/generate-inspector-gresource-manifest.py
 
+directory Tools/gtkdoc
 directory Tools/MiniBrowser
 directory Tools/TestWebKitAPI
 
 file CMakeLists.txt
 file Tools/CMakeLists.txt
+file Tools/PlatformGTK.cmake
 
-directory ${CMAKE_BINARY_DIR}/Documentation/webkit2gtk-${WEBKITGTK_API_VERSION}/html Documentation/webkit2gtk-${WEBKITGTK_API_VERSION}/html
-directory ${CMAKE_BINARY_DIR}/Documentation/webkitdomgtk-${WEBKITGTK_API_VERSION}/html Documentation/webkitdomgtk-${WEBKITGTK_API_VERSION}/html
+directory ${CMAKE_BINARY_DIR}/Documentation/webkit2gtk-${WEBKITGTK_API_VERSION}/html/webkit2gtk-${WEBKITGTK_API_VERSION} Documentation/webkit2gtk-${WEBKITGTK_API_VERSION}/html
+directory ${CMAKE_BINARY_DIR}/Documentation/webkitdomgtk-${WEBKITGTK_API_VERSION}/html/webkitdomgtk-${WEBKITGTK_API_VERSION} Documentation/webkitdomgtk-${WEBKITGTK_API_VERSION}/html
+directory ${CMAKE_BINARY_DIR}/Documentation/jsc-glib-${WEBKITGTK_API_VERSION}/html/jsc-glib-${WEBKITGTK_API_VERSION} Documentation/jsc-glib-${WEBKITGTK_API_VERSION}/html

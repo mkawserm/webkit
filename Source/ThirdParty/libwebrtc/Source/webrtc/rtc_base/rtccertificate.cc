@@ -14,6 +14,9 @@
 
 #include "rtc_base/checks.h"
 #include "rtc_base/refcountedobject.h"
+#include "rtc_base/sslcertificate.h"
+#include "rtc_base/sslidentity.h"
+#include "rtc_base/timeutils.h"
 
 namespace rtc {
 
@@ -22,16 +25,14 @@ scoped_refptr<RTCCertificate> RTCCertificate::Create(
   return new RefCountedObject<RTCCertificate>(identity.release());
 }
 
-RTCCertificate::RTCCertificate(SSLIdentity* identity)
-    : identity_(identity) {
+RTCCertificate::RTCCertificate(SSLIdentity* identity) : identity_(identity) {
   RTC_DCHECK(identity_);
 }
 
-RTCCertificate::~RTCCertificate() {
-}
+RTCCertificate::~RTCCertificate() {}
 
 uint64_t RTCCertificate::Expires() const {
-  int64_t expires = ssl_certificate().CertificateExpirationTime();
+  int64_t expires = GetSSLCertificate().CertificateExpirationTime();
   if (expires != -1)
     return static_cast<uint64_t>(expires) * kNumMillisecsPerSec;
   // If the expiration time could not be retrieved return an expired timestamp.
@@ -42,19 +43,28 @@ bool RTCCertificate::HasExpired(uint64_t now) const {
   return Expires() <= now;
 }
 
+const SSLCertificate& RTCCertificate::GetSSLCertificate() const {
+  return identity_->certificate();
+}
+
+// Deprecated: TODO(benwright) - Remove once chromium is updated.
 const SSLCertificate& RTCCertificate::ssl_certificate() const {
   return identity_->certificate();
 }
 
+const SSLCertChain& RTCCertificate::GetSSLCertificateChain() const {
+  return identity_->cert_chain();
+}
+
 RTCCertificatePEM RTCCertificate::ToPEM() const {
   return RTCCertificatePEM(identity_->PrivateKeyToPEMString(),
-                           ssl_certificate().ToPEMString());
+                           GetSSLCertificate().ToPEMString());
 }
 
 scoped_refptr<RTCCertificate> RTCCertificate::FromPEM(
     const RTCCertificatePEM& pem) {
-  std::unique_ptr<SSLIdentity> identity(SSLIdentity::FromPEMStrings(
-      pem.private_key(), pem.certificate()));
+  std::unique_ptr<SSLIdentity> identity(
+      SSLIdentity::FromPEMStrings(pem.private_key(), pem.certificate()));
   if (!identity)
     return nullptr;
   return new RefCountedObject<RTCCertificate>(identity.release());

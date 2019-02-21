@@ -32,10 +32,13 @@
 #include "JSDOMOperation.h"
 #include "JSDOMWrapperCache.h"
 #include "JSNode.h"
+#include "ScriptExecutionContext.h"
 #include <JavaScriptCore/FunctionPrototype.h>
+#include <JavaScriptCore/HeapSnapshotBuilder.h>
 #include <JavaScriptCore/JSCInlines.h>
 #include <wtf/GetPtr.h>
 #include <wtf/PointerPreparations.h>
+#include <wtf/URL.h>
 
 
 namespace WebCore {
@@ -102,7 +105,7 @@ template<> JSValue JSTestActiveDOMObjectConstructor::prototypeForStructure(JSC::
 template<> void JSTestActiveDOMObjectConstructor::initializeProperties(VM& vm, JSDOMGlobalObject& globalObject)
 {
     putDirect(vm, vm.propertyNames->prototype, JSTestActiveDOMObject::prototype(vm, globalObject), JSC::PropertyAttribute::DontDelete | JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum);
-    putDirect(vm, vm.propertyNames->name, jsNontrivialString(&vm, String(ASCIILiteral("TestActiveDOMObject"))), JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum);
+    putDirect(vm, vm.propertyNames->name, jsNontrivialString(&vm, String("TestActiveDOMObject"_s)), JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum);
     putDirect(vm, vm.propertyNames->length, jsNumber(0), JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum);
 }
 
@@ -113,8 +116,8 @@ template<> const ClassInfo JSTestActiveDOMObjectConstructor::s_info = { "TestAct
 static const HashTableValue JSTestActiveDOMObjectPrototypeTableValues[] =
 {
     { "constructor", static_cast<unsigned>(JSC::PropertyAttribute::DontEnum), NoIntrinsic, { (intptr_t)static_cast<PropertySlot::GetValueFunc>(jsTestActiveDOMObjectConstructor), (intptr_t) static_cast<PutPropertySlot::PutValueFunc>(setJSTestActiveDOMObjectConstructor) } },
-    { "excitingFunction", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestActiveDOMObjectPrototypeFunctionExcitingFunction), (intptr_t) (1) } },
-    { "postMessage", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestActiveDOMObjectPrototypeFunctionPostMessage), (intptr_t) (1) } },
+    { "excitingFunction", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestActiveDOMObjectPrototypeFunctionExcitingFunction), (intptr_t) (1) } },
+    { "postMessage", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestActiveDOMObjectPrototypeFunctionPostMessage), (intptr_t) (1) } },
 };
 
 const ClassInfo JSTestActiveDOMObjectPrototype::s_info = { "TestActiveDOMObjectPrototype", &Base::s_info, nullptr, nullptr, CREATE_METHOD_TABLE(JSTestActiveDOMObjectPrototype) };
@@ -162,19 +165,19 @@ void JSTestActiveDOMObject::destroy(JSC::JSCell* cell)
 
 template<> inline JSTestActiveDOMObject* IDLAttribute<JSTestActiveDOMObject>::cast(ExecState& state, EncodedJSValue thisValue)
 {
-    return jsDynamicDowncast<JSTestActiveDOMObject*>(state.vm(), JSValue::decode(thisValue));
+    return jsDynamicCast<JSTestActiveDOMObject*>(state.vm(), JSValue::decode(thisValue));
 }
 
 template<> inline JSTestActiveDOMObject* IDLOperation<JSTestActiveDOMObject>::cast(ExecState& state)
 {
-    return jsDynamicDowncast<JSTestActiveDOMObject*>(state.vm(), state.thisValue());
+    return jsDynamicCast<JSTestActiveDOMObject*>(state.vm(), state.thisValue());
 }
 
 EncodedJSValue jsTestActiveDOMObjectConstructor(ExecState* state, EncodedJSValue thisValue, PropertyName)
 {
     VM& vm = state->vm();
     auto throwScope = DECLARE_THROW_SCOPE(vm);
-    auto* prototype = jsDynamicDowncast<JSTestActiveDOMObjectPrototype*>(vm, JSValue::decode(thisValue));
+    auto* prototype = jsDynamicCast<JSTestActiveDOMObjectPrototype*>(vm, JSValue::decode(thisValue));
     if (UNLIKELY(!prototype))
         return throwVMTypeError(state, throwScope);
     return JSValue::encode(JSTestActiveDOMObject::getConstructor(state->vm(), prototype->globalObject()));
@@ -184,7 +187,7 @@ bool setJSTestActiveDOMObjectConstructor(ExecState* state, EncodedJSValue thisVa
 {
     VM& vm = state->vm();
     auto throwScope = DECLARE_THROW_SCOPE(vm);
-    auto* prototype = jsDynamicDowncast<JSTestActiveDOMObjectPrototype*>(vm, JSValue::decode(thisValue));
+    auto* prototype = jsDynamicCast<JSTestActiveDOMObjectPrototype*>(vm, JSValue::decode(thisValue));
     if (UNLIKELY(!prototype)) {
         throwVMTypeError(state, throwScope);
         return false;
@@ -197,7 +200,7 @@ static inline JSValue jsTestActiveDOMObjectExcitingAttrGetter(ExecState& state, 
 {
     UNUSED_PARAM(throwScope);
     UNUSED_PARAM(state);
-    if (!BindingSecurity::shouldAllowAccessToFrame(&state, thisObject.wrapped().frame(), ThrowSecurityError))
+    if (!BindingSecurity::shouldAllowAccessToDOMWindow(&state, thisObject.wrapped().window(), ThrowSecurityError))
         return jsUndefined();
     auto& impl = thisObject.wrapped();
     JSValue result = toJS<IDLLong>(state, throwScope, impl.excitingAttr());
@@ -213,7 +216,7 @@ static inline JSC::EncodedJSValue jsTestActiveDOMObjectPrototypeFunctionExciting
 {
     UNUSED_PARAM(state);
     UNUSED_PARAM(throwScope);
-    if (!BindingSecurity::shouldAllowAccessToFrame(state, castedThis->wrapped().frame(), ThrowSecurityError))
+    if (!BindingSecurity::shouldAllowAccessToDOMWindow(state, castedThis->wrapped().window(), ThrowSecurityError))
         return JSValue::encode(jsUndefined());
     auto& impl = castedThis->wrapped();
     if (UNLIKELY(state->argumentCount() < 1))
@@ -247,10 +250,20 @@ EncodedJSValue JSC_HOST_CALL jsTestActiveDOMObjectPrototypeFunctionPostMessage(E
     return IDLOperation<JSTestActiveDOMObject>::call<jsTestActiveDOMObjectPrototypeFunctionPostMessageBody>(*state, "postMessage");
 }
 
-bool JSTestActiveDOMObjectOwner::isReachableFromOpaqueRoots(JSC::Handle<JSC::Unknown> handle, void*, SlotVisitor& visitor)
+void JSTestActiveDOMObject::heapSnapshot(JSCell* cell, HeapSnapshotBuilder& builder)
+{
+    auto* thisObject = jsCast<JSTestActiveDOMObject*>(cell);
+    builder.setWrappedObjectForCell(cell, &thisObject->wrapped());
+    if (thisObject->scriptExecutionContext())
+        builder.setLabelForCell(cell, "url " + thisObject->scriptExecutionContext()->url().string());
+    Base::heapSnapshot(cell, builder);
+}
+
+bool JSTestActiveDOMObjectOwner::isReachableFromOpaqueRoots(JSC::Handle<JSC::Unknown> handle, void*, SlotVisitor& visitor, const char** reason)
 {
     UNUSED_PARAM(handle);
     UNUSED_PARAM(visitor);
+    UNUSED_PARAM(reason);
     return false;
 }
 
@@ -301,7 +314,7 @@ JSC::JSValue toJS(JSC::ExecState* state, JSDOMGlobalObject* globalObject, TestAc
 
 TestActiveDOMObject* JSTestActiveDOMObject::toWrapped(JSC::VM& vm, JSC::JSValue value)
 {
-    if (auto* wrapper = jsDynamicDowncast<JSTestActiveDOMObject*>(vm, value))
+    if (auto* wrapper = jsDynamicCast<JSTestActiveDOMObject*>(vm, value))
         return &wrapper->wrapped();
     return nullptr;
 }

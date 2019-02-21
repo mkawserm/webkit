@@ -47,7 +47,9 @@ public:
     void prepare();
     void resetAfterTest();
 
-    void dumpBackForwardList(WTF::StringBuilder&);
+    String dumpHistory();
+
+    static uint64_t responseHeaderCount(WKURLResponseRef);
 
 private:
     // Loader Client
@@ -75,6 +77,7 @@ private:
     static void didFinishLoadForResource(WKBundlePageRef, WKBundleFrameRef, uint64_t identifier, const void*);
     static void didFailLoadForResource(WKBundlePageRef, WKBundleFrameRef, uint64_t identifier, WKErrorRef, const void*);
     static bool shouldCacheResponse(WKBundlePageRef, WKBundleFrameRef, uint64_t identifier, const void*);
+    static void willInjectUserScriptForFrame(WKBundlePageRef, WKBundleFrameRef, WKBundleScriptWorldRef, const void*);
 
     void didStartProvisionalLoadForFrame(WKBundleFrameRef);
     void didReceiveServerRedirectForProvisionalLoadForFrame(WKBundleFrameRef);
@@ -93,6 +96,7 @@ private:
     void didDisplayInsecureContentForFrame(WKBundleFrameRef);
     void didRunInsecureContentForFrame(WKBundleFrameRef);
     void didDetectXSSForFrame(WKBundleFrameRef);
+    void willInjectUserScriptForFrame();
 
     // Resource Load Client
     void didInitiateLoadForResource(WKBundlePageRef, WKBundleFrameRef, uint64_t identifier, WKURLRequestRef, bool pageLoadIsProvisional);
@@ -175,7 +179,6 @@ private:
 
     WKBundlePageRef m_page;
     WKRetainPtr<WKBundleScriptWorldRef> m_world;
-    WKRetainPtr<WKBundleBackForwardListItemRef> m_previousTestBackForwardListItem;
 };
 
 } // namespace WTR

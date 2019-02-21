@@ -11,7 +11,7 @@
 #ifndef LOGGING_RTC_EVENT_LOG_EVENTS_RTC_EVENT_H_
 #define LOGGING_RTC_EVENT_LOG_EVENTS_RTC_EVENT_H_
 
-#include <typedefs.h>
+#include <memory>
 
 #include "rtc_base/timeutils.h"
 
@@ -30,14 +30,15 @@ class RtcEvent {
   // superclass, but the *actual* information - rtclog::StreamConfig, etc. -
   // is kept separate.
   enum class Type {
+    AlrStateEvent,
     AudioNetworkAdaptation,
     AudioPlayout,
     AudioReceiveStreamConfig,
     AudioSendStreamConfig,
     BweUpdateDelayBased,
     BweUpdateLossBased,
-    LoggingStarted,
-    LoggingStopped,
+    IceCandidatePairConfig,
+    IceCandidatePairEvent,
     ProbeClusterCreated,
     ProbeResultFailure,
     ProbeResultSuccess,
@@ -55,6 +56,12 @@ class RtcEvent {
   virtual Type GetType() const = 0;
 
   virtual bool IsConfigEvent() const = 0;
+
+  int64_t timestamp_ms() const { return timestamp_us_ / 1000; }
+  int64_t timestamp_us() const { return timestamp_us_; }
+
+ protected:
+  explicit RtcEvent(int64_t timestamp_us) : timestamp_us_(timestamp_us) {}
 
   const int64_t timestamp_us_;
 };

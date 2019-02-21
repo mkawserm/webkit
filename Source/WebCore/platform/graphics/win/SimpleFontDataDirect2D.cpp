@@ -34,6 +34,7 @@
 #include "GlyphPage.h"
 #include "GraphicsContext.h"
 #include "HWndDC.h"
+#include "NotImplemented.h"
 #include <comutil.h>
 #include <dwrite.h>
 #include <mlang.h>
@@ -151,7 +152,7 @@ void Font::platformInit()
         // Measure the actual character "x", since it's possible for it to extend below the baseline, and we need the
         // reported x-height to only include the portion of the glyph that is above the baseline.
         Vector<DWRITE_GLYPH_METRICS> glyphMetrics(1);
-        HRESULT hr = fontFace->GetDesignGlyphMetrics(&xGlyph, 1, glyphMetrics.data(), m_platformData.orientation() == Vertical);
+        HRESULT hr = fontFace->GetDesignGlyphMetrics(&xGlyph, 1, glyphMetrics.data(), m_platformData.orientation() == FontOrientation::Vertical);
         RELEASE_ASSERT(SUCCEEDED(hr));
         m_fontMetrics.setXHeight(scaleEmToUnits(glyphMetrics.first().verticalOriginY, unitsPerEm) * pointSize);
     } else {
@@ -177,10 +178,10 @@ FloatRect Font::platformBoundsForGlyph(Glyph glyph) const
     RELEASE_ASSERT(fontFace);
 
     float pointSize = m_platformData.size();
-    bool vertical = m_platformData.orientation() == Vertical;
+    bool vertical = m_platformData.orientation() == FontOrientation::Vertical;
 
     Vector<DWRITE_GLYPH_METRICS> glyphMetrics(1);
-    HRESULT hr = fontFace->GetDesignGlyphMetrics(&glyph, 1, glyphMetrics.data(), m_platformData.orientation() == Vertical);
+    HRESULT hr = fontFace->GetDesignGlyphMetrics(&glyph, 1, glyphMetrics.data(), m_platformData.orientation() == FontOrientation::Vertical);
     RELEASE_ASSERT(SUCCEEDED(hr));
 
     const auto& metrics = glyphMetrics.first();
@@ -206,15 +207,13 @@ float Font::platformWidthForGlyph(Glyph glyph) const
     if (m_platformData.useGDI())
         return widthForGDIGlyph(glyph);
 
-    ASSERT(glyph);
-
     auto font = m_platformData.dwFont();
     RELEASE_ASSERT(font);
 
     auto fontFace = m_platformData.dwFontFace();
     RELEASE_ASSERT(fontFace);
 
-    bool isVertical = m_platformData.orientation() == Vertical;
+    bool isVertical = m_platformData.orientation() == FontOrientation::Vertical;
 
     Vector<DWRITE_GLYPH_METRICS> glyphMetrics(1);
     HRESULT hr = fontFace->GetDesignGlyphMetrics(&glyph, 1, glyphMetrics.data(), isVertical);
@@ -228,6 +227,12 @@ float Font::platformWidthForGlyph(Glyph glyph) const
     float width = scaleEmToUnits(widthInEm, unitsPerEm) * pointSize;
 
     return width + m_syntheticBoldOffset;
+}
+
+Path Font::platformPathForGlyph(Glyph) const
+{
+    notImplemented();
+    return Path();
 }
 
 }

@@ -39,7 +39,6 @@
 #include "TileController.h"
 #include "WebTiledBackingLayerWin.h"
 #include <QuartzCore/CoreAnimationCF.h>
-#include <WebKitSystemInterface/WebKitSystemInterface.h>
 #include <wtf/text/CString.h>
 #include <wtf/text/StringBuilder.h>
 
@@ -73,7 +72,10 @@ static CFStringRef toCACFFilterType(PlatformCALayer::FilterType type)
 static AbstractCACFLayerTreeHost* layerTreeHostForLayer(const PlatformCALayer* layer)
 {
     // We need the AbstractCACFLayerTreeHost associated with this layer, which is stored in the UserData of the CACFContext
-    void* userData = wkCACFLayerGetContextUserData(layer->platformLayer());
+    void* userData = nullptr;
+    if (CACFContextRef context = CACFLayerGetContext(layer->platformLayer()))
+        userData = CACFContextGetUserData(context);
+
     if (!userData)
         return nullptr;
 
@@ -132,7 +134,6 @@ static void layoutSublayersProc(CACFLayerRef caLayer)
 
 PlatformCALayerWin::PlatformCALayerWin(LayerType layerType, PlatformLayer* layer, PlatformCALayerClient* owner)
     : PlatformCALayer(layer ? LayerTypeCustom : layerType, owner)
-    , m_customAppearance(GraphicsLayer::NoCustomAppearance)
 {
     if (layer) {
         m_layer = layer;
@@ -535,6 +536,11 @@ void PlatformCALayerWin::setSupportsSubpixelAntialiasedText(bool)
 {
 }
 
+bool PlatformCALayerWin::hasContents() const
+{
+    return !!CACFLayerGetContents(m_layer.get());
+}
+
 CFTypeRef PlatformCALayerWin::contents() const
 {
     return CACFLayerGetContents(m_layer.get());
@@ -670,7 +676,7 @@ void PlatformCALayerWin::setShapeRoundedRect(const FloatRoundedRect&)
 WindRule PlatformCALayerWin::shapeWindRule() const
 {
     // FIXME: implement.
-    return RULE_NONZERO;
+    return WindRule::NonZero;
 }
 
 void PlatformCALayerWin::setShapeWindRule(WindRule)
@@ -758,6 +764,7 @@ static void printLayer(StringBuilder& builder, const PlatformCALayer* layer, int
     char* layerTypeName = nullptr;
     switch (layer->layerType()) {
     case PlatformCALayer::LayerTypeLayer: layerTypeName = "layer"; break;
+    case PlatformCALayer::LayerTypeEditableImageLayer:
     case PlatformCALayer::LayerTypeWebLayer: layerTypeName = "web-layer"; break;
     case PlatformCALayer::LayerTypeSimpleLayer: layerTypeName = "simple-layer"; break;
     case PlatformCALayer::LayerTypeTransformLayer: layerTypeName = "transform-layer"; break;
@@ -771,7 +778,7 @@ static void printLayer(StringBuilder& builder, const PlatformCALayer* layer, int
     case PlatformCALayer::LayerTypeShapeLayer: layerTypeName = "shape-layer"; break;
     case PlatformCALayer::LayerTypeLightSystemBackdropLayer: layerTypeName = "light-system-backdrop-layer"; break;
     case PlatformCALayer::LayerTypeDarkSystemBackdropLayer: layerTypeName = "dark-system-backdrop-layer"; break;
-    case PlatformCALayer::LayerTypeScrollingLayer: layerTypeName = "scrolling-layer"; break;
+    case PlatformCALayer::LayerTypeScrollContainerLayer: layerTypeName = "scroll-container-layer"; break;
     case PlatformCALayer::LayerTypeCustom: layerTypeName = "custom-layer"; break;
     }
 
@@ -942,6 +949,12 @@ Ref<PlatformCALayer> PlatformCALayerWin::createCompatibleLayer(PlatformCALayer::
     return PlatformCALayerWin::create(layerType, client);
 }
 
+GraphicsLayer::EmbeddedViewID PlatformCALayerWin::embeddedViewID() const
+{
+    ASSERT_NOT_REACHED();
+    return 0;
+}
+
 TiledBacking* PlatformCALayerWin::tiledBacking()
 {
     if (!usesTiledBackingLayer())
@@ -963,7 +976,7 @@ void PlatformCALayerWin::drawTextAtPoint(CGContextRef context, CGFloat x, CGFloa
 
     desc.setComputedSize(scale.width * fontSize);
 
-    FontCascade font = FontCascade(desc, 0, 0);
+    FontCascade font = FontCascade(WTFMove(desc), 0, 0);
     font.update(nullptr);
 
     GraphicsContext cg(context);

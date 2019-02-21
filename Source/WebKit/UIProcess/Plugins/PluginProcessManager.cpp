@@ -81,7 +81,7 @@ uint64_t PluginProcessManager::pluginProcessToken(const PluginModuleInfo& plugin
     return token;
 }
 
-void PluginProcessManager::getPluginProcessConnection(uint64_t pluginProcessToken, Ref<Messages::WebProcessProxy::GetPluginProcessConnection::DelayedReply>&& reply)
+void PluginProcessManager::getPluginProcessConnection(uint64_t pluginProcessToken, Messages::WebProcessProxy::GetPluginProcessConnection::DelayedReply&& reply)
 {
     ASSERT(pluginProcessToken);
 
@@ -123,13 +123,21 @@ void PluginProcessManager::deleteWebsiteDataForHostNames(const PluginModuleInfo&
 
 PluginProcessProxy* PluginProcessManager::getPluginProcess(uint64_t pluginProcessToken)
 {
-    for (auto pluginProcess : m_pluginProcesses) {
+    for (const auto& pluginProcess : m_pluginProcesses) {
         if (pluginProcess->pluginProcessToken() == pluginProcessToken)
             return pluginProcess.get();
     }
 
     return nullptr;
 }
+
+#if OS(LINUX)
+void PluginProcessManager::sendMemoryPressureEvent(bool isCritical)
+{
+    for (auto& pluginProcess : m_pluginProcesses)
+        pluginProcess->sendMemoryPressureEvent(isCritical);
+}
+#endif
 
 PluginProcessProxy* PluginProcessManager::getOrCreatePluginProcess(uint64_t pluginProcessToken)
 {

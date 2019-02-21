@@ -27,9 +27,9 @@
 
 #if WK_API_ENABLED
 
-#import <WebCore/LayoutMilestones.h>
+#import <WebCore/LayoutMilestone.h>
 
-static inline _WKRenderingProgressEvents renderingProgressEvents(WebCore::LayoutMilestones milestones)
+static inline _WKRenderingProgressEvents renderingProgressEvents(OptionSet<WebCore::LayoutMilestone> milestones)
 {
     _WKRenderingProgressEvents events = 0;
 
@@ -50,6 +50,12 @@ static inline _WKRenderingProgressEvents renderingProgressEvents(WebCore::Layout
 
     if (milestones & WebCore::DidFirstPaintAfterSuppressedIncrementalRendering)
         events |= _WKRenderingProgressEventFirstPaintAfterSuppressedIncrementalRendering;
+
+    if (milestones & WebCore::DidRenderSignificantAmountOfText)
+        events |= _WKRenderingProgressEventDidRenderSignificantAmountOfText;
+
+    if (milestones & WebCore::DidFirstMeaningfulPaint)
+        events |= _WKRenderingProgressEventFirstMeaningfulPaint;
 
     return events;
 }

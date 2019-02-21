@@ -29,7 +29,7 @@
 #import "config.h"
 #import "DumpRenderTreeDraggingInfo.h"
 
-#if !PLATFORM(IOS)
+#if !PLATFORM(IOS_FAMILY)
 
 #import "DumpRenderTree.h"
 #import "DumpRenderTreeFileDraggingSource.h"
@@ -96,7 +96,7 @@
     [super dealloc];
 }
 
-static NSURL *copyFile(NSURL *sourceURL, NSURL *destinationDirectory, NSError *&error)
+static std::pair<NSURL *, NSError *> copyFile(NSURL *sourceURL, NSURL *destinationDirectory)
 {
     // Emulate how CFPasteboard finds unique destination file names by inserting " 2", " 3", and so
     // on between the file name's base and extension until a new file is successfully created in
@@ -105,16 +105,16 @@ static NSURL *copyFile(NSURL *sourceURL, NSURL *destinationDirectory, NSError *&
     NSUInteger number = 2;
     NSString *fileName = sourceURL.lastPathComponent;
     NSURL *destinationURL = [NSURL fileURLWithPath:fileName relativeToURL:destinationDirectory];
+    NSError *error;
     while (![NSFileManager.defaultManager copyItemAtURL:sourceURL toURL:destinationURL error:&error]) {
         if (error.domain != NSCocoaErrorDomain || error.code != NSFileWriteFileExistsError)
-            return nil;
+            return { nil, error };
 
         NSString *newFileName = [NSString stringWithFormat:@"%@ %lu.%@", fileName.stringByDeletingPathExtension, (unsigned long)number++, fileName.pathExtension];
         destinationURL = [NSURL fileURLWithPath:newFileName relativeToURL:destinationDirectory];
-        error = nil;
     }
 
-    return destinationURL;
+    return { destinationURL, nil };
 }
 
 - (void)receivePromisedFilesAtDestination:(NSURL *)destinationDirectory options:(NSDictionary *)options operationQueue:(NSOperationQueue *)operationQueue reader:(void (^)(NSURL *fileURL, NSError * __nullable errorOrNil))reader
@@ -125,8 +125,9 @@ static NSURL *copyFile(NSURL *sourceURL, NSURL *destinationDirectory, NSError *&
     NSArray<NSURL *> *sourceURLs = _draggingSource.promisedFileURLs;
     for (NSURL *sourceURL in sourceURLs) {
         [operationQueue addOperationWithBlock:^{
-            NSError *error = nil;
-            NSURL *destinationURL = copyFile(sourceURL, destinationDirectory, error);
+            NSError *error;
+            NSURL *destinationURL;
+            std::tie(destinationURL, error) = copyFile(sourceURL, destinationDirectory);
             if (destinationURL) {
                 dispatch_async(dispatch_get_main_queue(), ^{
                     [_destinationURLs addObject:destinationURL];
@@ -276,7 +277,7 @@ static NSMutableArray<NSFilePromiseReceiver *> *allFilePromiseReceivers()
         [receiver setDraggingSource:draggingSource];
         [allFilePromiseReceivers() addObject:receiver.get()];
 
-        auto item = adoptNS([NSDraggingItem new]);
+        auto item = adoptNS([[NSDraggingItem alloc] initWithPasteboardWriter:(id <NSPasteboardWriting>)receiver.get()]); // FIXME: <https://webkit.org/b/194060> Pass an object of the right type.
         [item setItem:receiver.get()];
 
         block(item.get(), 0, &stop);
@@ -296,4 +297,4 @@ static NSMutableArray<NSFilePromiseReceiver *> *allFilePromiseReceivers()
 
 @end
 
-#endif // !PLATFORM(IOS)
+#endif // !PLATFORM(IOS_FAMILY)

@@ -182,7 +182,7 @@ h6
 hr
       AXRole: AXSplitter
       AXSubrole: AXContentSeparator
-      AXRoleDescription: rule
+      AXRoleDescription: separator
       
 i
       AXRole: 
@@ -225,9 +225,9 @@ input[type='button']
       AXRoleDescription: button
       
 input[type='color']
-      AXRole: AXColorWell
+      AXRole: AXTextField
       AXSubrole: 
-      AXRoleDescription: color well
+      AXRoleDescription: text field
       
 input[type='checkbox']
       AXRole: AXCheckBox
@@ -531,7 +531,7 @@ mtd
       
 meter
       AXRole: AXProgressIndicator
-      AXSubrole: 
+      AXSubrole: AXMeter
       AXRoleDescription: progress indicator
       
 nav
@@ -834,10 +834,20 @@ div[role=banner]
       AXSubrole: AXLandmarkBanner
       AXRoleDescription: banner
       
+div[role=blockquote]
+      AXRole: AXGroup
+      AXSubrole: 
+      AXRoleDescription: group
+      
 div[role=button]
       AXRole: AXButton
       AXSubrole: 
       AXRoleDescription: button
+      
+div[role=caption]
+      AXRole: AXGroup
+      AXSubrole: 
+      AXRoleDescription: group
       
 div[role=checkbox]
       AXRole: AXCheckBox
@@ -1243,6 +1253,11 @@ div[role=note]
       AXRole: AXGroup
       AXSubrole: AXDocumentNote
       AXRoleDescription: note
+      
+div[role=paragraph]
+      AXRole: AXGroup
+      AXSubrole: 
+      AXRoleDescription: group
       
 div[role=presentation]
       AXRole: 

@@ -10,9 +10,12 @@
 
 #include "modules/audio_coding/audio_network_adaptor/debug_dump_writer.h"
 
+#include "absl/types/optional.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/ignore_wundef.h"
+#include "rtc_base/numerics/safe_conversions.h"
 #include "rtc_base/protobuf_utils.h"
+#include "rtc_base/system/file_wrapper.h"
 
 #if WEBRTC_ENABLE_PROTOBUF
 RTC_PUSH_IGNORING_WUNDEF()
@@ -37,7 +40,7 @@ void DumpEventToFile(const Event& event, FileWrapper* dump_file) {
   RTC_CHECK(dump_file->is_open());
   ProtoString dump_data;
   event.SerializeToString(&dump_data);
-  int32_t size = event.ByteSize();
+  int32_t size = rtc::checked_cast<int32_t>(event.ByteSizeLong());
   dump_file->Write(&size, sizeof(size));
   dump_file->Write(dump_data.data(), dump_data.length());
 }

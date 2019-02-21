@@ -11,6 +11,7 @@
 #ifndef MODULES_RTP_RTCP_SOURCE_RTCP_RECEIVER_H_
 #define MODULES_RTP_RTCP_SOURCE_RTCP_RECEIVER_H_
 
+#include <list>
 #include <map>
 #include <set>
 #include <string>
@@ -22,7 +23,6 @@
 #include "rtc_base/criticalsection.h"
 #include "rtc_base/thread_annotations.h"
 #include "system_wrappers/include/ntp_time.h"
-#include "typedefs.h"  // NOLINT(build/include)
 
 namespace webrtc {
 class VideoBitrateAllocationObserver;
@@ -56,6 +56,7 @@ class RTCPReceiver {
                RtcpIntraFrameObserver* rtcp_intra_frame_observer,
                TransportFeedbackObserver* transport_feedback_observer,
                VideoBitrateAllocationObserver* bitrate_allocation_observer,
+               int report_interval_ms,
                ModuleRtpRtcp* owner);
   virtual ~RTCPReceiver();
 
@@ -77,7 +78,7 @@ class RTCPReceiver {
            uint32_t* rtcp_arrival_time_frac,
            uint32_t* rtcp_timestamp) const;
 
-  bool LastReceivedXrReferenceTimeInfo(rtcp::ReceiveTimeInfo* info) const;
+  std::vector<rtcp::ReceiveTimeInfo> ConsumeReceivedXrReferenceTimeInfo();
 
   // Get rtt.
   int32_t RTT(uint32_t remote_ssrc,
@@ -94,13 +95,13 @@ class RTCPReceiver {
 
   // Returns true if we haven't received an RTCP RR for several RTCP
   // intervals, but only triggers true once.
-  bool RtcpRrTimeout(int64_t rtcp_interval_ms);
+  bool RtcpRrTimeout();
 
   // Returns true if we haven't received an RTCP RR telling the receive side
   // has not received RTP packets for too long, i.e. extended highest sequence
   // number hasn't increased for several RTCP intervals. The function only
   // returns true once until a new RR is received.
-  bool RtcpRrSequenceNumberTimeout(int64_t rtcp_interval_ms);
+  bool RtcpRrSequenceNumberTimeout();
 
   std::vector<rtcp::TmmbItem> TmmbrReceived();
   // Return true if new bandwidth should be set.
@@ -115,6 +116,7 @@ class RTCPReceiver {
  private:
   struct PacketInformation;
   struct TmmbrInformation;
+  struct RrtrInformation;
   struct ReportBlockWithRtt;
   struct LastFirStatus;
   // RTCP report blocks mapped by remote SSRC.
@@ -214,6 +216,7 @@ class RTCPReceiver {
   RtcpIntraFrameObserver* const rtcp_intra_frame_observer_;
   TransportFeedbackObserver* const transport_feedback_observer_;
   VideoBitrateAllocationObserver* const bitrate_allocation_observer_;
+  const int report_interval_ms_;
 
   rtc::CriticalSection rtcp_receiver_lock_;
   uint32_t main_ssrc_ RTC_GUARDED_BY(rtcp_receiver_lock_);
@@ -226,10 +229,13 @@ class RTCPReceiver {
   // When did we receive the last send report.
   NtpTime last_received_sr_ntp_ RTC_GUARDED_BY(rtcp_receiver_lock_);
 
-  // Received XR receive time report.
-  rtcp::ReceiveTimeInfo remote_time_info_;
-  // Time when the report was received.
-  NtpTime last_received_xr_ntp_;
+  // Received RRTR information in ascending receive time order.
+  std::list<RrtrInformation> received_rrtrs_
+      RTC_GUARDED_BY(rtcp_receiver_lock_);
+  // Received RRTR information mapped by remote ssrc.
+  std::map<uint32_t, std::list<RrtrInformation>::iterator>
+      received_rrtrs_ssrc_it_ RTC_GUARDED_BY(rtcp_receiver_lock_);
+
   // Estimated rtt, zero when there is no valid estimate.
   bool xr_rrtr_status_ RTC_GUARDED_BY(rtcp_receiver_lock_);
   int64_t xr_rr_rtt_ms_;

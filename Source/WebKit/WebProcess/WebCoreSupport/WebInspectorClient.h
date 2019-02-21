@@ -50,6 +50,7 @@ public:
 private:
     // WebCore::InspectorClient
     void inspectedPageDestroyed() override;
+    void frontendCountChanged(unsigned) override;
 
     Inspector::FrontendChannel* openLocalFrontend(WebCore::InspectorController*) override;
     void bringFrontendToFront() override;
@@ -58,7 +59,7 @@ private:
     void highlight() override;
     void hideHighlight() override;
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
     void showInspectorIndication() override;
     void hideInspectorIndication() override;
 
@@ -83,7 +84,7 @@ private:
     
     RefPtr<WebCore::PageOverlay> m_paintRectOverlay;
     std::unique_ptr<RepaintIndicatorLayerClient> m_paintIndicatorLayerClient;
-    HashSet<WebCore::GraphicsLayer*> m_paintRectLayers; // Ideally this would be HashSet<std::unique_ptr<GraphicsLayer>> but that doesn't work yet. webkit.org/b/136166
+    HashSet<Ref<WebCore::GraphicsLayer>> m_paintRectLayers;
 };
 
 } // namespace WebKit

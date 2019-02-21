@@ -23,16 +23,20 @@
  * THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY) && ENABLE(AIRPLAY_PICKER)
 
 #if __IPHONE_OS_VERSION_MIN_REQUIRED >= 110000 && !PLATFORM(WATCHOS) && !PLATFORM(APPLETV)
 
 #import <Foundation/Foundation.h>
 
+namespace WebCore {
+enum class RouteSharingPolicy : uint8_t;
+}
+
 @class UIView;
 
 @interface WKAirPlayRoutePicker : NSObject
-- (void)showFromView:(UIView *)view;
+- (void)showFromView:(UIView *)view routeSharingPolicy:(WebCore::RouteSharingPolicy)policy routingContextUID:(NSString *)contextUID hasVideo:(BOOL)hasVideo;
 @end
 
 #else
@@ -48,5 +52,5 @@
 
 #endif
 
-#endif // PLATFORM(IOS)
+#endif // PLATFORM(IOS_FAMILY) && ENABLE(AIRPLAY_PICKER)
 

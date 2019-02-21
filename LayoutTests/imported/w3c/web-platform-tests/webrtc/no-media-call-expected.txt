@@ -1,8 +1,6 @@
 
-Harness Error (TIMEOUT), message = null
-
-TIMEOUT Can set up a basic WebRTC call with no data. Test timed out
+PASS Can set up a basic WebRTC call with no data. 
 iceConnectionState info
 
-First: checking
-Second: new
+First: completed
+Second: connected

@@ -42,6 +42,7 @@ public:
     static Ref<PlatformCALayerRemote> create(WebCore::PlatformCALayer::LayerType, WebCore::PlatformCALayerClient*, RemoteLayerTreeContext&);
     static Ref<PlatformCALayerRemote> create(PlatformLayer *, WebCore::PlatformCALayerClient*, RemoteLayerTreeContext&);
     static Ref<PlatformCALayerRemote> create(const PlatformCALayerRemote&, WebCore::PlatformCALayerClient*, RemoteLayerTreeContext&);
+    static Ref<PlatformCALayerRemote> createForEmbeddedView(WebCore::PlatformCALayer::LayerType, WebCore::GraphicsLayer::EmbeddedViewID, WebCore::PlatformCALayerClient*, RemoteLayerTreeContext&);
 
     virtual ~PlatformCALayerRemote();
 
@@ -120,6 +121,7 @@ public:
     bool supportsSubpixelAntialiasedText() const override;
     void setSupportsSubpixelAntialiasedText(bool) override;
 
+    bool hasContents() const override;
     CFTypeRef contents() const override;
     void setContents(CFTypeRef) override;
 
@@ -172,6 +174,8 @@ public:
     WebCore::GraphicsLayer::CustomAppearance customAppearance() const override;
     void updateCustomAppearance(WebCore::GraphicsLayer::CustomAppearance) override;
 
+    WebCore::GraphicsLayer::EmbeddedViewID embeddedViewID() const override;
+
     WebCore::TiledBacking* tiledBacking() override { return nullptr; }
 
     Ref<WebCore::PlatformCALayer> clone(WebCore::PlatformCALayerClient* owner) const override;
@@ -196,6 +200,7 @@ public:
 
 protected:
     PlatformCALayerRemote(WebCore::PlatformCALayer::LayerType, WebCore::PlatformCALayerClient* owner, RemoteLayerTreeContext&);
+    PlatformCALayerRemote(WebCore::PlatformCALayer::LayerType, WebCore::GraphicsLayer::EmbeddedViewID, WebCore::PlatformCALayerClient* owner, RemoteLayerTreeContext&);
     PlatformCALayerRemote(const PlatformCALayerRemote&, WebCore::PlatformCALayerClient*, RemoteLayerTreeContext&);
 
     void updateClonedLayerProperties(PlatformCALayerRemote& clone, bool copyContents = true) const;
@@ -215,6 +220,8 @@ private:
     PlatformCALayerRemote* m_superlayer { nullptr };
     PlatformCALayerRemote* m_maskLayer { nullptr };
     HashMap<String, RefPtr<WebCore::PlatformCAAnimation>> m_animations;
+
+    WebCore::GraphicsLayer::EmbeddedViewID m_embeddedViewID;
 
     bool m_acceleratesDrawing { false };
     bool m_wantsDeepColorBackingStore { false };

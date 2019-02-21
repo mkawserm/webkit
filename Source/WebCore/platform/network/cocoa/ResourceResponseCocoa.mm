@@ -33,7 +33,6 @@
 #import <Foundation/Foundation.h>
 #import <limits>
 #import <pal/spi/cf/CFNetworkSPI.h>
-#import <wtf/AutodrainedPool.h>
 #import <wtf/NeverDestroyed.h>
 #import <wtf/StdLibExtras.h>
 #import <wtf/cf/TypeCastsCF.h>
@@ -78,9 +77,7 @@ void ResourceResponse::disableLazyInitialization()
 
 CertificateInfo ResourceResponse::platformCertificateInfo() const
 {
-    ASSERT(m_nsResponse || source() == Source::ServiceWorker || source() == Source::ApplicationCache);
     CFURLResponseRef cfResponse = [m_nsResponse _CFURLResponse];
-
     if (!cfResponse)
         return { };
 
@@ -99,7 +96,10 @@ CertificateInfo ResourceResponse::platformCertificateInfo() const
         return { };
 
     if (trustResultType == kSecTrustResultInvalid) {
+        // FIXME: This is deprecated <rdar://problem/45894288>.
+        ALLOW_DEPRECATED_DECLARATIONS_BEGIN
         result = SecTrustEvaluate(trust, &trustResultType);
+        ALLOW_DEPRECATED_DECLARATIONS_END
         if (result != errSecSuccess)
             return { };
     }
@@ -111,8 +111,8 @@ CertificateInfo ResourceResponse::platformCertificateInfo() const
 #endif
 }
 
-static NSString* const commonHeaderFields[] = {
-    @"Age", @"Cache-Control", @"Content-Type", @"Date", @"Etag", @"Expires", @"Last-Modified", @"Pragma"
+static CFStringRef const commonHeaderFields[] = {
+    CFSTR("Age"), CFSTR("Cache-Control"), CFSTR("Content-Type"), CFSTR("Date"), CFSTR("Etag"), CFSTR("Expires"), CFSTR("Last-Modified"), CFSTR("Pragma")
 };
 
 NSURLResponse *ResourceResponse::nsURLResponse() const
@@ -137,23 +137,14 @@ static inline AtomicString stripLeadingAndTrailingDoubleQuote(const String& valu
     return StringView(value).substring(1, length - 2).toAtomicString();
 }
 
-enum class OnlyCommonHeaders { No, Yes };
-static inline void initializeHTTPHeaders(OnlyCommonHeaders onlyCommonHeaders, NSHTTPURLResponse *httpResponse, HTTPHeaderMap& headersMap)
+static inline HTTPHeaderMap initializeHTTPHeaders(CFHTTPMessageRef messageRef)
 {
-    headersMap.clear();
-    auto messageRef = CFURLResponseGetHTTPResponse([httpResponse _CFURLResponse]);
-
     // Avoid calling [NSURLResponse allHeaderFields] to minimize copying (<rdar://problem/26778863>).
     auto headers = adoptCF(CFHTTPMessageCopyAllHeaderFields(messageRef));
-    if (onlyCommonHeaders == OnlyCommonHeaders::Yes) {
-        for (auto& commonHeader : commonHeaderFields) {
-            const void* value;
-            if (CFDictionaryGetValueIfPresent(headers.get(), commonHeader, &value))
-                headersMap.set(commonHeader, (CFStringRef) value);
-        }
-        return;
-    }
+
+    HTTPHeaderMap headersMap;
     CFDictionaryApplyFunction(headers.get(), addToHTTPHeaderMap, &headersMap);
+    return headersMap;
 }
 
 static inline AtomicString extractHTTPStatusText(CFHTTPMessageRef messageRef)
@@ -175,26 +166,24 @@ void ResourceResponse::platformLazyInit(InitLevel initLevel)
     if (m_isNull || !m_nsResponse)
         return;
     
-    AutodrainedPool pool;
+    @autoreleasepool {
 
-    NSHTTPURLResponse *httpResponse = [m_nsResponse.get() isKindOfClass:[NSHTTPURLResponse class]] ? (NSHTTPURLResponse *)m_nsResponse.get() : nullptr;
+        auto messageRef = [m_nsResponse.get() isKindOfClass:[NSHTTPURLResponse class]] ? CFURLResponseGetHTTPResponse([ (NSHTTPURLResponse *)m_nsResponse.get() _CFURLResponse]) : nullptr;
 
-    if (m_initLevel < CommonFieldsOnly) {
-        m_url = [m_nsResponse.get() URL];
-        m_mimeType = [m_nsResponse.get() MIMEType];
-        m_expectedContentLength = [m_nsResponse.get() expectedContentLength];
-        // Stripping double quotes as a workaround for <rdar://problem/8757088>, can be removed once that is fixed.
-        m_textEncodingName = stripLeadingAndTrailingDoubleQuote([m_nsResponse.get() textEncodingName]);
-        m_httpStatusCode = httpResponse ? [httpResponse statusCode] : 0;
-    }
-    if (httpResponse) {
-        if (initLevel == AllFields) {
-            auto messageRef = CFURLResponseGetHTTPResponse([httpResponse _CFURLResponse]);
+        if (m_initLevel < CommonFieldsOnly) {
+            m_url = [m_nsResponse.get() URL];
+            m_mimeType = [m_nsResponse.get() MIMEType];
+            m_expectedContentLength = [m_nsResponse.get() expectedContentLength];
+            // Stripping double quotes as a workaround for <rdar://problem/8757088>, can be removed once that is fixed.
+            m_textEncodingName = stripLeadingAndTrailingDoubleQuote([m_nsResponse.get() textEncodingName]);
+            m_httpStatusCode = messageRef ? CFHTTPMessageGetResponseStatusCode(messageRef) : 0;
+            if (messageRef)
+                m_httpHeaderFields = initializeHTTPHeaders(messageRef);
+        }
+        if (messageRef && initLevel == AllFields) {
             m_httpStatusText = extractHTTPStatusText(messageRef);
             m_httpVersion = String(adoptCF(CFHTTPMessageCopyVersion(messageRef)).get()).convertToASCIIUppercase();
-            initializeHTTPHeaders(OnlyCommonHeaders::No, httpResponse, m_httpHeaderFields);
-        } else
-            initializeHTTPHeaders(OnlyCommonHeaders::Yes, httpResponse, m_httpHeaderFields);
+        }
     }
 
     m_initLevel = initLevel;

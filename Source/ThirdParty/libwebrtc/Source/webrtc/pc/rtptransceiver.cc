@@ -12,6 +12,8 @@
 
 #include <string>
 
+#include "pc/rtpmediautils.h"
+
 namespace webrtc {
 
 RtpTransceiver::RtpTransceiver(cricket::MediaType media_type)
@@ -36,39 +38,48 @@ RtpTransceiver::~RtpTransceiver() {
   Stop();
 }
 
-void RtpTransceiver::SetChannel(cricket::BaseChannel* channel) {
+void RtpTransceiver::SetChannel(cricket::ChannelInterface* channel) {
+  // Cannot set a non-null channel on a stopped transceiver.
+  if (stopped_ && channel) {
+    return;
+  }
+
   if (channel) {
     RTC_DCHECK_EQ(media_type(), channel->media_type());
   }
-  channel_ = channel;
-  for (auto sender : senders_) {
-    if (media_type() == cricket::MEDIA_TYPE_AUDIO) {
-      static_cast<AudioRtpSender*>(sender->internal())
-          ->SetChannel(static_cast<cricket::VoiceChannel*>(channel));
-    } else {
-      static_cast<VideoRtpSender*>(sender->internal())
-          ->SetChannel(static_cast<cricket::VideoChannel*>(channel));
-    }
+
+  if (channel_) {
+    channel_->SignalFirstPacketReceived().disconnect(this);
   }
-  for (auto receiver : receivers_) {
-    if (!channel) {
+
+  channel_ = channel;
+
+  if (channel_) {
+    channel_->SignalFirstPacketReceived().connect(
+        this, &RtpTransceiver::OnFirstPacketReceived);
+  }
+
+  for (const auto& sender : senders_) {
+    sender->internal()->SetMediaChannel(channel_ ? channel_->media_channel()
+                                                 : nullptr);
+  }
+
+  for (const auto& receiver : receivers_) {
+    if (!channel_) {
       receiver->internal()->Stop();
     }
-    if (media_type() == cricket::MEDIA_TYPE_AUDIO) {
-      static_cast<AudioRtpReceiver*>(receiver->internal())
-          ->SetChannel(static_cast<cricket::VoiceChannel*>(channel));
-    } else {
-      static_cast<VideoRtpReceiver*>(receiver->internal())
-          ->SetChannel(static_cast<cricket::VideoChannel*>(channel));
-    }
+
+    receiver->internal()->SetMediaChannel(channel_ ? channel_->media_channel()
+                                                   : nullptr);
   }
 }
 
 void RtpTransceiver::AddSender(
     rtc::scoped_refptr<RtpSenderProxyWithInternal<RtpSenderInternal>> sender) {
+  RTC_DCHECK(!stopped_);
   RTC_DCHECK(!unified_plan_);
   RTC_DCHECK(sender);
-  RTC_DCHECK_EQ(media_type(), sender->internal()->media_type());
+  RTC_DCHECK_EQ(media_type(), sender->media_type());
   RTC_DCHECK(std::find(senders_.begin(), senders_.end(), sender) ==
              senders_.end());
   senders_.push_back(sender);
@@ -91,9 +102,10 @@ bool RtpTransceiver::RemoveSender(RtpSenderInterface* sender) {
 void RtpTransceiver::AddReceiver(
     rtc::scoped_refptr<RtpReceiverProxyWithInternal<RtpReceiverInternal>>
         receiver) {
+  RTC_DCHECK(!stopped_);
   RTC_DCHECK(!unified_plan_);
   RTC_DCHECK(receiver);
-  RTC_DCHECK_EQ(media_type(), receiver->internal()->media_type());
+  RTC_DCHECK_EQ(media_type(), receiver->media_type());
   RTC_DCHECK(std::find(receivers_.begin(), receivers_.end(), receiver) ==
              receivers_.end());
   receivers_.push_back(receiver);
@@ -113,8 +125,31 @@ bool RtpTransceiver::RemoveReceiver(RtpReceiverInterface* receiver) {
   return true;
 }
 
-rtc::Optional<std::string> RtpTransceiver::mid() const {
+rtc::scoped_refptr<RtpSenderInternal> RtpTransceiver::sender_internal() const {
+  RTC_DCHECK(unified_plan_);
+  RTC_CHECK_EQ(1u, senders_.size());
+  return senders_[0]->internal();
+}
+
+rtc::scoped_refptr<RtpReceiverInternal> RtpTransceiver::receiver_internal()
+    const {
+  RTC_DCHECK(unified_plan_);
+  RTC_CHECK_EQ(1u, receivers_.size());
+  return receivers_[0]->internal();
+}
+
+cricket::MediaType RtpTransceiver::media_type() const {
+  return media_type_;
+}
+
+absl::optional<std::string> RtpTransceiver::mid() const {
   return mid_;
+}
+
+void RtpTransceiver::OnFirstPacketReceived(cricket::ChannelInterface*) {
+  for (const auto& receiver : receivers_) {
+    receiver->internal()->NotifyFirstPacketReceived();
+  }
 }
 
 rtc::scoped_refptr<RtpSenderInterface> RtpTransceiver::sender() const {
@@ -129,6 +164,24 @@ rtc::scoped_refptr<RtpReceiverInterface> RtpTransceiver::receiver() const {
   return receivers_[0];
 }
 
+void RtpTransceiver::set_current_direction(RtpTransceiverDirection direction) {
+  RTC_LOG(LS_INFO) << "Changing transceiver (MID=" << mid_.value_or("<not set>")
+                   << ") current direction from "
+                   << (current_direction_ ? RtpTransceiverDirectionToString(
+                                                *current_direction_)
+                                          : "<not set>")
+                   << " to " << RtpTransceiverDirectionToString(direction)
+                   << ".";
+  current_direction_ = direction;
+  if (RtpTransceiverDirectionHasSend(*current_direction_)) {
+    has_ever_been_used_to_send_ = true;
+  }
+}
+
+void RtpTransceiver::set_fired_direction(RtpTransceiverDirection direction) {
+  fired_direction_ = direction;
+}
+
 bool RtpTransceiver::stopped() const {
   return stopped_;
 }
@@ -138,23 +191,35 @@ RtpTransceiverDirection RtpTransceiver::direction() const {
 }
 
 void RtpTransceiver::SetDirection(RtpTransceiverDirection new_direction) {
-  // TODO(steveanton): This should fire OnNegotiationNeeded.
+  if (stopped()) {
+    return;
+  }
+  if (new_direction == direction_) {
+    return;
+  }
   direction_ = new_direction;
+  SignalNegotiationNeeded();
 }
 
-rtc::Optional<RtpTransceiverDirection> RtpTransceiver::current_direction()
+absl::optional<RtpTransceiverDirection> RtpTransceiver::current_direction()
     const {
   return current_direction_;
 }
 
+absl::optional<RtpTransceiverDirection> RtpTransceiver::fired_direction()
+    const {
+  return fired_direction_;
+}
+
 void RtpTransceiver::Stop() {
-  for (auto sender : senders_) {
+  for (const auto& sender : senders_) {
     sender->internal()->Stop();
   }
-  for (auto receiver : receivers_) {
+  for (const auto& receiver : receivers_) {
     receiver->internal()->Stop();
   }
   stopped_ = true;
+  current_direction_ = absl::nullopt;
 }
 
 void RtpTransceiver::SetCodecPreferences(

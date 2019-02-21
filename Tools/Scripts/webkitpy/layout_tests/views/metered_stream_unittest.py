@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 # Copyright (C) 2010, 2012 Google Inc. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -37,6 +39,7 @@ from webkitpy.layout_tests.views.metered_stream import MeteredStream
 class RegularTest(unittest.TestCase):
     verbose = False
     isatty = False
+    print_timestamps = None
 
     def setUp(self):
         self.stream = StringIO.StringIO()
@@ -51,7 +54,7 @@ class RegularTest(unittest.TestCase):
         # add a dummy time counter for a default behavior.
         self.times = range(10)
 
-        self.meter = MeteredStream(self.stream, self.verbose, self.logger, self.time_fn, 8675)
+        self.meter = MeteredStream(self.stream, self.verbose, self.logger, self.time_fn, 8675, print_timestamps=self.print_timestamps)
 
     def tearDown(self):
         if self.meter:
@@ -71,7 +74,7 @@ class RegularTest(unittest.TestCase):
         root_logger.addHandler(handler)
         root_logger.setLevel(logging.DEBUG)
         try:
-            self.meter = MeteredStream(self.stream, self.verbose, None, self.time_fn, 8675)
+            self.meter = MeteredStream(self.stream, self.verbose, None, self.time_fn, 8675, print_timestamps=self.print_timestamps)
             self.meter.write_throttled_update('foo')
             self.meter.write_update('bar')
             self.meter.write('baz')
@@ -106,6 +109,31 @@ class RegularTest(unittest.TestCase):
     def test_log_args(self):
         self.logger.info('foo %s %d', 'bar', 2)
         self.assertEqual(self.buflist, ['foo bar 2\n'])
+
+    def test_unicode(self):
+        self.logger.info(u'\u2713')
+        self.assertEqual(self.buflist[-1][-2:], u'\u2713\n')
+
+        self.logger.info('‘example’')
+        self.assertEqual(self.buflist[-1][-14:], '‘example’\n')
+
+    def test_stream_with_encoding(self):
+        class AsciiStream(StringIO.StringIO):
+            def write(self, s):
+                return StringIO.StringIO.write(self, '{}'.format(s))
+
+        stream = AsciiStream()
+
+        logger = logging.getLogger(__name__)
+        logger.setLevel(logging.DEBUG)
+        logger.propagate = False
+
+        try:
+            meter = MeteredStream(stream, self.verbose, logger, self.time_fn, 8675, print_timestamps=self.print_timestamps)
+            self.logger.info(u'\u2713')
+            self.assertEqual(stream.buflist[-1][-2:], '?\n')
+        finally:
+            meter.cleanup()
 
 
 class TtyTest(RegularTest):
@@ -152,3 +180,17 @@ class VerboseTest(RegularTest):
         self.logger.info('foo %s %d', 'bar', 2)
         self.assertEqual(len(self.buflist), 1)
         self.assertTrue(self.buflist[0].endswith('foo bar 2\n'))
+
+
+class VerboseWithOutTimestamp(RegularTest):
+    isatty = True
+    verbose = True
+    print_timestamps = False
+
+    def test_basic(self):
+        buflist = self._basic([0, 1, 2.1, 13, 14.1234])
+        self.assertTrue(re.match('foo\n', buflist[0]))
+        self.assertTrue(re.match('bar\n', buflist[1]))
+        self.assertTrue(re.match('baz 2\n', buflist[2]))
+        self.assertTrue(re.match('done\n', buflist[3]))
+        self.assertEqual(len(buflist), 4)

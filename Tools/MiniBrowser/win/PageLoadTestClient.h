@@ -101,12 +101,12 @@ private:
     RetainPtr<CFRunLoopTimerRef> m_timer;
 };
 
-class MiniBrowser;
+class WebKitLegacyBrowserWindow;
 
 class PageLoadTestClient {
     WTF_MAKE_NONCOPYABLE(PageLoadTestClient);
 public:
-    PageLoadTestClient(MiniBrowser* host, bool pageLoadTesting = false);
+    PageLoadTestClient(WebKitLegacyBrowserWindow* host, bool pageLoadTesting = false);
 
 #if OS(WINDOWS)
     void setPageURL(const _bstr_t&);
@@ -127,11 +127,11 @@ private:
     void clearPageLoadState();
     bool shouldConsiderPageLoadEnded() const;
 
-    virtual void pageLoadStartedAtTime(CFAbsoluteTime);
-    virtual void pageLoadEndedAtTime(CFAbsoluteTime);
+    void pageLoadStartedAtTime(CFAbsoluteTime);
+    void pageLoadEndedAtTime(CFAbsoluteTime);
     void dumpRunStatistics();
 
-    MiniBrowser* m_host;
+    WebKitLegacyBrowserWindow* m_host;
     CFAbsoluteTime m_pageLoadEndTime { 0 };
     CFTimeInterval m_totalTime { 0 };
     CFTimeInterval m_totalSquareRootsOfTime { 0 };
@@ -146,7 +146,6 @@ private:
     double m_geometricMeanProductSum { 1.0 };
     unsigned m_frames { 0 };
     unsigned m_onLoadEvents { 0 };
-    unsigned m_currentURLIndex { 0 };
     unsigned m_currentRepetition { 0 };
     unsigned m_pagesTimed { 0 };
     unsigned m_repetitions;

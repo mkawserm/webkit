@@ -33,7 +33,7 @@
  */
 
 #include "config.h"
-#include "dtoa.h"
+#include <wtf/dtoa.h>
 
 #include <stdio.h>
 #include <wtf/Lock.h>
@@ -55,7 +55,7 @@
 
 namespace WTF {
 
-static StaticLock s_dtoaP5Mutex;
+static Lock s_dtoaP5Mutex;
 
 typedef union {
     double d;
@@ -360,7 +360,7 @@ struct P5Node {
 public:
     P5Node() { }
     BigInt val;
-    P5Node* next;
+    P5Node* next { nullptr };
 };
 
 static P5Node* p5s;
@@ -1272,7 +1272,7 @@ static inline const char* formatStringTruncatingTrailingZerosIfNeeded(NumberToSt
 
 const char* numberToFixedPrecisionString(double d, unsigned significantFigures, NumberToStringBuffer buffer, bool truncateTrailingZeros)
 {
-    // Mimic String::format("%.[precision]g", ...), but use dtoas rounding facilities.
+    // Mimic sprintf("%.[precision]g", ...), but use dtoas rounding facilities.
     // "g": Signed value printed in f or e format, whichever is more compact for the given value and precision.
     // The e format is used only when the exponent of the value is less than –4 or greater than or equal to the
     // precision argument. Trailing zeros are truncated, and the decimal point appears only if one or more digits follow it.
@@ -1287,7 +1287,7 @@ const char* numberToFixedPrecisionString(double d, unsigned significantFigures, 
 
 const char* numberToFixedWidthString(double d, unsigned decimalPlaces, NumberToStringBuffer buffer)
 {
-    // Mimic String::format("%.[precision]f", ...), but use dtoas rounding facilities.
+    // Mimic sprintf("%.[precision]f", ...), but use dtoas rounding facilities.
     // "f": Signed value having the form [ – ]dddd.dddd, where dddd is one or more decimal digits.
     // The number of digits before the decimal point depends on the magnitude of the number, and
     // the number of digits after the decimal point depends on the requested precision.

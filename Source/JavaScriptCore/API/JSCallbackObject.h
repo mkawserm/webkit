@@ -124,7 +124,7 @@ public:
 
     
 template <class Parent>
-class JSCallbackObject : public Parent {
+class JSCallbackObject final : public Parent {
 protected:
     JSCallbackObject(ExecState*, Structure*, JSClassRef, void* data);
     JSCallbackObject(VM&, JSClassRef, Structure*);
@@ -134,7 +134,8 @@ protected:
 
 public:
     typedef Parent Base;
-    static const unsigned StructureFlags = Base::StructureFlags | ProhibitsPropertyCaching | OverridesGetOwnPropertySlot | InterceptsGetOwnPropertySlotByIndexEvenWhenLengthIsNotZero | ImplementsHasInstance | OverridesGetPropertyNames | TypeOfShouldCallGetCallData;
+    static const unsigned StructureFlags = Base::StructureFlags | ProhibitsPropertyCaching | OverridesGetOwnPropertySlot | InterceptsGetOwnPropertySlotByIndexEvenWhenLengthIsNotZero | ImplementsHasInstance | OverridesGetPropertyNames | OverridesGetCallData;
+    static_assert(!(StructureFlags & ImplementsDefaultHasInstance), "using customHasInstance");
 
     ~JSCallbackObject();
 
@@ -158,18 +159,9 @@ public:
     void* getPrivate();
 
     // FIXME: We should fix the warnings for extern-template in JSObject template classes: https://bugs.webkit.org/show_bug.cgi?id=161979
-#if COMPILER(CLANG)
-#if __has_warning("-Wundefined-var-template")
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wundefined-var-template"
-#endif
-#endif
+    IGNORE_CLANG_WARNINGS_BEGIN("undefined-var-template")
     DECLARE_INFO;
-#if COMPILER(CLANG)
-#if __has_warning("-Wundefined-var-template")
-#pragma clang diagnostic pop
-#endif
-#endif
+    IGNORE_CLANG_WARNINGS_END
 
     JSClassRef classRef() const { return m_callbackObjectData->jsClass; }
     bool inherits(JSClassRef) const;
@@ -194,7 +186,8 @@ public:
     using Parent::methodTable;
 
 private:
-    static String className(const JSObject*);
+    static String className(const JSObject*, VM&);
+    static String toStringName(const JSObject*, ExecState*);
 
     static JSValue defaultValue(const JSObject*, ExecState*, PreferredPrimitiveType);
 

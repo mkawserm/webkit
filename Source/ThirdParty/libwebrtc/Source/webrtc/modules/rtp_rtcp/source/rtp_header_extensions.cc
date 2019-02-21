@@ -10,16 +10,20 @@
 
 #include "modules/rtp_rtcp/source/rtp_header_extensions.h"
 
+#include <string.h>
+#include <cmath>
+
 #include "modules/rtp_rtcp/include/rtp_cvo.h"
 #include "modules/rtp_rtcp/source/byte_io.h"
+// TODO(bug:9855) Move kNoSpatialIdx from vp9_globals.h to common_constants
+#include "modules/video_coding/codecs/interface/common_constants.h"
 #include "rtc_base/checks.h"
-#include "rtc_base/logging.h"
 
 namespace webrtc {
 // Absolute send time in RTP streams.
 //
 // The absolute send time is signaled to the receiver in-band using the
-// general mechanism for RTP header extensions [RFC5285]. The payload
+// general mechanism for RTP header extensions [RFC8285]. The payload
 // of this extension (the transmitted value) is a 24-bit unsigned integer
 // containing the sender's current time in seconds as a fixed point number
 // with 18 bits fractional part.
@@ -43,9 +47,11 @@ bool AbsoluteSendTime::Parse(rtc::ArrayView<const uint8_t> data,
   return true;
 }
 
-bool AbsoluteSendTime::Write(uint8_t* data, uint32_t time_24bits) {
+bool AbsoluteSendTime::Write(rtc::ArrayView<uint8_t> data,
+                             uint32_t time_24bits) {
+  RTC_DCHECK_EQ(data.size(), 3);
   RTC_DCHECK_LE(time_24bits, 0x00FFFFFF);
-  ByteWriter<uint32_t, 3>::WriteBigEndian(data, time_24bits);
+  ByteWriter<uint32_t, 3>::WriteBigEndian(data.data(), time_24bits);
   return true;
 }
 
@@ -75,9 +81,10 @@ bool AudioLevel::Parse(rtc::ArrayView<const uint8_t> data,
   return true;
 }
 
-bool AudioLevel::Write(uint8_t* data,
+bool AudioLevel::Write(rtc::ArrayView<uint8_t> data,
                        bool voice_activity,
                        uint8_t audio_level) {
+  RTC_DCHECK_EQ(data.size(), 1);
   RTC_CHECK_LE(audio_level, 0x7f);
   data[0] = (voice_activity ? 0x80 : 0x00) | audio_level;
   return true;
@@ -86,7 +93,7 @@ bool AudioLevel::Write(uint8_t* data,
 // From RFC 5450: Transmission Time Offsets in RTP Streams.
 //
 // The transmission time is signaled to the receiver in-band using the
-// general mechanism for RTP header extensions [RFC5285]. The payload
+// general mechanism for RTP header extensions [RFC8285]. The payload
 // of this extension (the transmitted value) is a 24-bit signed integer.
 // When added to the RTP timestamp of the packet, it represents the
 // "effective" RTP transmission time of the packet, on the RTP
@@ -111,9 +118,10 @@ bool TransmissionOffset::Parse(rtc::ArrayView<const uint8_t> data,
   return true;
 }
 
-bool TransmissionOffset::Write(uint8_t* data, int32_t rtp_time) {
+bool TransmissionOffset::Write(rtc::ArrayView<uint8_t> data, int32_t rtp_time) {
+  RTC_DCHECK_EQ(data.size(), 3);
   RTC_DCHECK_LE(rtp_time, 0x00ffffff);
-  ByteWriter<int32_t, 3>::WriteBigEndian(data, rtp_time);
+  ByteWriter<int32_t, 3>::WriteBigEndian(data.data(), rtp_time);
   return true;
 }
 
@@ -134,8 +142,10 @@ bool TransportSequenceNumber::Parse(rtc::ArrayView<const uint8_t> data,
   return true;
 }
 
-bool TransportSequenceNumber::Write(uint8_t* data, uint16_t value) {
-  ByteWriter<uint16_t>::WriteBigEndian(data, value);
+bool TransportSequenceNumber::Write(rtc::ArrayView<uint8_t> data,
+                                    uint16_t value) {
+  RTC_DCHECK_EQ(data.size(), 2);
+  ByteWriter<uint16_t>::WriteBigEndian(data.data(), value);
   return true;
 }
 
@@ -162,7 +172,9 @@ bool VideoOrientation::Parse(rtc::ArrayView<const uint8_t> data,
   return true;
 }
 
-bool VideoOrientation::Write(uint8_t* data, VideoRotation rotation) {
+bool VideoOrientation::Write(rtc::ArrayView<uint8_t> data,
+                             VideoRotation rotation) {
+  RTC_DCHECK_EQ(data.size(), 1);
   data[0] = ConvertVideoRotationToCVOByte(rotation);
   return true;
 }
@@ -175,7 +187,8 @@ bool VideoOrientation::Parse(rtc::ArrayView<const uint8_t> data,
   return true;
 }
 
-bool VideoOrientation::Write(uint8_t* data, uint8_t value) {
+bool VideoOrientation::Write(rtc::ArrayView<uint8_t> data, uint8_t value) {
+  RTC_DCHECK_EQ(data.size(), 1);
   data[0] = value;
   return true;
 }
@@ -204,15 +217,17 @@ bool PlayoutDelayLimits::Parse(rtc::ArrayView<const uint8_t> data,
   return true;
 }
 
-bool PlayoutDelayLimits::Write(uint8_t* data,
+bool PlayoutDelayLimits::Write(rtc::ArrayView<uint8_t> data,
                                const PlayoutDelay& playout_delay) {
+  RTC_DCHECK_EQ(data.size(), 3);
   RTC_DCHECK_LE(0, playout_delay.min_ms);
   RTC_DCHECK_LE(playout_delay.min_ms, playout_delay.max_ms);
   RTC_DCHECK_LE(playout_delay.max_ms, kMaxMs);
   // Convert MS to value to be sent on extension header.
   uint32_t min_delay = playout_delay.min_ms / kGranularityMs;
   uint32_t max_delay = playout_delay.max_ms / kGranularityMs;
-  ByteWriter<uint32_t, 3>::WriteBigEndian(data, (min_delay << 12) | max_delay);
+  ByteWriter<uint32_t, 3>::WriteBigEndian(data.data(),
+                                          (min_delay << 12) | max_delay);
   return true;
 }
 
@@ -239,8 +254,9 @@ bool VideoContentTypeExtension::Parse(rtc::ArrayView<const uint8_t> data,
   return false;
 }
 
-bool VideoContentTypeExtension::Write(uint8_t* data,
+bool VideoContentTypeExtension::Write(rtc::ArrayView<uint8_t> data,
                                       VideoContentType content_type) {
+  RTC_DCHECK_EQ(data.size(), 1);
   data[0] = static_cast<uint8_t>(content_type);
   return true;
 }
@@ -303,36 +319,248 @@ bool VideoTimingExtension::Parse(rtc::ArrayView<const uint8_t> data,
   return true;
 }
 
-bool VideoTimingExtension::Write(uint8_t* data, const VideoSendTiming& timing) {
-  ByteWriter<uint8_t>::WriteBigEndian(data + VideoSendTiming::kFlagsOffset,
-                                      timing.flags);
+bool VideoTimingExtension::Write(rtc::ArrayView<uint8_t> data,
+                                 const VideoSendTiming& timing) {
+  RTC_DCHECK_EQ(data.size(), 1 + 2 * 6);
+  ByteWriter<uint8_t>::WriteBigEndian(
+      data.data() + VideoSendTiming::kFlagsOffset, timing.flags);
   ByteWriter<uint16_t>::WriteBigEndian(
-      data + VideoSendTiming::kEncodeStartDeltaOffset,
+      data.data() + VideoSendTiming::kEncodeStartDeltaOffset,
       timing.encode_start_delta_ms);
   ByteWriter<uint16_t>::WriteBigEndian(
-      data + VideoSendTiming::kEncodeFinishDeltaOffset,
+      data.data() + VideoSendTiming::kEncodeFinishDeltaOffset,
       timing.encode_finish_delta_ms);
   ByteWriter<uint16_t>::WriteBigEndian(
-      data + VideoSendTiming::kPacketizationFinishDeltaOffset,
+      data.data() + VideoSendTiming::kPacketizationFinishDeltaOffset,
       timing.packetization_finish_delta_ms);
   ByteWriter<uint16_t>::WriteBigEndian(
-      data + VideoSendTiming::kPacerExitDeltaOffset,
+      data.data() + VideoSendTiming::kPacerExitDeltaOffset,
       timing.pacer_exit_delta_ms);
   ByteWriter<uint16_t>::WriteBigEndian(
-      data + VideoSendTiming::kNetworkTimestampDeltaOffset,
+      data.data() + VideoSendTiming::kNetworkTimestampDeltaOffset,
       timing.network_timestamp_delta_ms);
   ByteWriter<uint16_t>::WriteBigEndian(
-      data + VideoSendTiming::kNetwork2TimestampDeltaOffset,
+      data.data() + VideoSendTiming::kNetwork2TimestampDeltaOffset,
       timing.network2_timestamp_delta_ms);
   return true;
 }
 
-bool VideoTimingExtension::Write(uint8_t* data,
+bool VideoTimingExtension::Write(rtc::ArrayView<uint8_t> data,
                                  uint16_t time_delta_ms,
                                  uint8_t offset) {
+  RTC_DCHECK_GE(data.size(), offset + 2);
   RTC_DCHECK_LE(offset, kValueSizeBytes - sizeof(uint16_t));
-  ByteWriter<uint16_t>::WriteBigEndian(data + offset, time_delta_ms);
+  ByteWriter<uint16_t>::WriteBigEndian(data.data() + offset, time_delta_ms);
   return true;
+}
+
+// Frame Marking.
+//
+// Meta-information about an RTP stream outside the encrypted media payload,
+// useful for an RTP switch to do codec-agnostic selective forwarding
+// without decrypting the payload.
+//
+// For non-scalable streams:
+//    0                   1
+//    0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5
+//   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//   |  ID   | L = 0 |S|E|I|D|0 0 0 0|
+//   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//
+// For scalable streams:
+//    0                   1                   2                   3
+//    0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+//   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//   |  ID   | L = 2 |S|E|I|D|B| TID |      LID      |   TL0PICIDX   |
+//   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+constexpr RTPExtensionType FrameMarkingExtension::kId;
+constexpr const char FrameMarkingExtension::kUri[];
+
+bool FrameMarkingExtension::IsScalable(uint8_t temporal_id, uint8_t layer_id) {
+  return temporal_id != kNoTemporalIdx || layer_id != kNoSpatialIdx;
+}
+
+bool FrameMarkingExtension::Parse(rtc::ArrayView<const uint8_t> data,
+                                  FrameMarking* frame_marking) {
+  RTC_DCHECK(frame_marking);
+
+  if (data.size() != 1 && data.size() != 3)
+    return false;
+
+  frame_marking->start_of_frame = (data[0] & 0x80) != 0;
+  frame_marking->end_of_frame = (data[0] & 0x40) != 0;
+  frame_marking->independent_frame = (data[0] & 0x20) != 0;
+  frame_marking->discardable_frame = (data[0] & 0x10) != 0;
+
+  if (data.size() == 3) {
+    frame_marking->base_layer_sync = (data[0] & 0x08) != 0;
+    frame_marking->temporal_id = data[0] & 0x7;
+    frame_marking->layer_id = data[1];
+    frame_marking->tl0_pic_idx = data[2];
+  } else {
+    // non-scalable
+    frame_marking->base_layer_sync = false;
+    frame_marking->temporal_id = kNoTemporalIdx;
+    frame_marking->layer_id = kNoSpatialIdx;
+    frame_marking->tl0_pic_idx = 0;
+  }
+  return true;
+}
+
+size_t FrameMarkingExtension::ValueSize(const FrameMarking& frame_marking) {
+  if (IsScalable(frame_marking.temporal_id, frame_marking.layer_id))
+    return 3;
+  else
+    return 1;
+}
+
+bool FrameMarkingExtension::Write(rtc::ArrayView<uint8_t> data,
+                                  const FrameMarking& frame_marking) {
+  RTC_DCHECK_GE(data.size(), 1);
+  RTC_CHECK_LE(frame_marking.temporal_id, 0x07);
+  data[0] = frame_marking.start_of_frame ? 0x80 : 0x00;
+  data[0] |= frame_marking.end_of_frame ? 0x40 : 0x00;
+  data[0] |= frame_marking.independent_frame ? 0x20 : 0x00;
+  data[0] |= frame_marking.discardable_frame ? 0x10 : 0x00;
+
+  if (IsScalable(frame_marking.temporal_id, frame_marking.layer_id)) {
+    RTC_DCHECK_EQ(data.size(), 3);
+    data[0] |= frame_marking.base_layer_sync ? 0x08 : 0x00;
+    data[0] |= frame_marking.temporal_id & 0x07;
+    data[1] = frame_marking.layer_id;
+    data[2] = frame_marking.tl0_pic_idx;
+  }
+  return true;
+}
+
+// HDR Metadata.
+//
+// RTP header extension to carry HDR metadata.
+// Float values are upscaled by a static factor and transmitted as integers.
+//
+//    0                   1                   2                   3
+//    0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2
+//   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//   |       ID      |     length    |                 luminance_max   |
+//   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//   |               |                  luminance_min                  |
+//   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//   |              mastering_metadata.primary_r.x and .y              |
+//   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//   |              mastering_metadata.primary_g.x and .y              |
+//   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//   |              mastering_metadata.primary_b.x and .y              |
+//   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//   |                mastering_metadata.white.x and .y                |
+//   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//   |                     max_content_light_level                     |
+//   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//   |                  max_frame_average_light_level                  |
+//   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+constexpr RTPExtensionType HdrMetadataExtension::kId;
+constexpr uint8_t HdrMetadataExtension::kValueSizeBytes;
+constexpr const char HdrMetadataExtension::kUri[];
+
+bool HdrMetadataExtension::Parse(rtc::ArrayView<const uint8_t> data,
+                                 HdrMetadata* hdr_metadata) {
+  RTC_DCHECK(hdr_metadata);
+  if (data.size() != kValueSizeBytes)
+    return false;
+
+  size_t offset = 0;
+  offset += ParseLuminance(data.data() + offset,
+                           &hdr_metadata->mastering_metadata.luminance_max,
+                           kLuminanceMaxDenominator);
+  offset += ParseLuminance(data.data() + offset,
+                           &hdr_metadata->mastering_metadata.luminance_min,
+                           kLuminanceMinDenominator);
+  offset += ParseChromaticity(data.data() + offset,
+                              &hdr_metadata->mastering_metadata.primary_r);
+  offset += ParseChromaticity(data.data() + offset,
+                              &hdr_metadata->mastering_metadata.primary_g);
+  offset += ParseChromaticity(data.data() + offset,
+                              &hdr_metadata->mastering_metadata.primary_b);
+  offset += ParseChromaticity(data.data() + offset,
+                              &hdr_metadata->mastering_metadata.white_point);
+  // TODO(kron): Do we need 32 bit here or is it enough with 16 bits?
+  // Also, what resolution is needed?
+  hdr_metadata->max_content_light_level =
+      ByteReader<uint32_t>::ReadBigEndian(data.data() + offset);
+  offset += 4;
+  hdr_metadata->max_frame_average_light_level =
+      ByteReader<uint32_t>::ReadBigEndian(data.data() + offset);
+  RTC_DCHECK_EQ(kValueSizeBytes, offset + 4);
+  return true;
+}
+
+bool HdrMetadataExtension::Write(rtc::ArrayView<uint8_t> data,
+                                 const HdrMetadata& hdr_metadata) {
+  RTC_DCHECK_EQ(data.size(), kValueSizeBytes);
+  size_t offset = 0;
+  offset += WriteLuminance(data.data() + offset,
+                           hdr_metadata.mastering_metadata.luminance_max,
+                           kLuminanceMaxDenominator);
+  offset += WriteLuminance(data.data() + offset,
+                           hdr_metadata.mastering_metadata.luminance_min,
+                           kLuminanceMinDenominator);
+  offset += WriteChromaticity(data.data() + offset,
+                              hdr_metadata.mastering_metadata.primary_r);
+  offset += WriteChromaticity(data.data() + offset,
+                              hdr_metadata.mastering_metadata.primary_g);
+  offset += WriteChromaticity(data.data() + offset,
+                              hdr_metadata.mastering_metadata.primary_b);
+  offset += WriteChromaticity(data.data() + offset,
+                              hdr_metadata.mastering_metadata.white_point);
+
+  // TODO(kron): Do we need 32 bit here or is it enough with 16 bits?
+  // Also, what resolution is needed?
+  ByteWriter<uint32_t>::WriteBigEndian(data.data() + offset,
+                                       hdr_metadata.max_content_light_level);
+  offset += 4;
+  ByteWriter<uint32_t>::WriteBigEndian(
+      data.data() + offset, hdr_metadata.max_frame_average_light_level);
+  RTC_DCHECK_EQ(kValueSizeBytes, offset + 4);
+  return true;
+}
+
+size_t HdrMetadataExtension::ParseChromaticity(
+    const uint8_t* data,
+    HdrMasteringMetadata::Chromaticity* p) {
+  uint16_t chromaticity_x_scaled = ByteReader<uint16_t>::ReadBigEndian(data);
+  uint16_t chromaticity_y_scaled =
+      ByteReader<uint16_t>::ReadBigEndian(data + 2);
+  p->x = static_cast<float>(chromaticity_x_scaled) / kChromaticityDenominator;
+  p->y = static_cast<float>(chromaticity_y_scaled) / kChromaticityDenominator;
+  return 4;  // Return number of bytes read.
+}
+
+size_t HdrMetadataExtension::ParseLuminance(const uint8_t* data,
+                                            float* f,
+                                            int denominator) {
+  uint32_t luminance_scaled = ByteReader<uint32_t, 3>::ReadBigEndian(data);
+  *f = static_cast<float>(luminance_scaled) / denominator;
+  return 3;  // Return number of bytes read.
+}
+
+size_t HdrMetadataExtension::WriteChromaticity(
+    uint8_t* data,
+    const HdrMasteringMetadata::Chromaticity& p) {
+  RTC_DCHECK_GE(p.x, 0.0f);
+  RTC_DCHECK_GE(p.y, 0.0f);
+  ByteWriter<uint16_t>::WriteBigEndian(
+      data, std::round(p.x * kChromaticityDenominator));
+  ByteWriter<uint16_t>::WriteBigEndian(
+      data + 2, std::round(p.y * kChromaticityDenominator));
+  return 4;  // Return number of bytes written.
+}
+
+size_t HdrMetadataExtension::WriteLuminance(uint8_t* data,
+                                            float f,
+                                            int denominator) {
+  RTC_DCHECK_GE(f, 0.0f);
+  ByteWriter<uint32_t, 3>::WriteBigEndian(data, std::round(f * denominator));
+  return 3;  // Return number of bytes written.
 }
 
 bool BaseRtpStringExtension::Parse(rtc::ArrayView<const uint8_t> data,
@@ -344,11 +572,12 @@ bool BaseRtpStringExtension::Parse(rtc::ArrayView<const uint8_t> data,
   return true;
 }
 
-bool BaseRtpStringExtension::Write(uint8_t* data,
+bool BaseRtpStringExtension::Write(rtc::ArrayView<uint8_t> data,
                                    const StringRtpHeaderExtension& str) {
+  RTC_DCHECK_EQ(data.size(), str.size());
   RTC_DCHECK_GE(str.size(), 1);
   RTC_DCHECK_LE(str.size(), StringRtpHeaderExtension::kMaxSize);
-  memcpy(data, str.data(), str.size());
+  memcpy(data.data(), str.data(), str.size());
   return true;
 }
 
@@ -364,10 +593,14 @@ bool BaseRtpStringExtension::Parse(rtc::ArrayView<const uint8_t> data,
   return true;
 }
 
-bool BaseRtpStringExtension::Write(uint8_t* data, const std::string& str) {
+bool BaseRtpStringExtension::Write(rtc::ArrayView<uint8_t> data,
+                                   const std::string& str) {
+  if (str.size() > StringRtpHeaderExtension::kMaxSize) {
+    return false;
+  }
+  RTC_DCHECK_EQ(data.size(), str.size());
   RTC_DCHECK_GE(str.size(), 1);
-  RTC_DCHECK_LE(str.size(), StringRtpHeaderExtension::kMaxSize);
-  memcpy(data, str.data(), str.size());
+  memcpy(data.data(), str.data(), str.size());
   return true;
 }
 

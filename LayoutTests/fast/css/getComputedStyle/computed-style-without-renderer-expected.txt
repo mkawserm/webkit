@@ -216,7 +216,6 @@ perspective: none
 perspective-origin: 50% 50%
 -webkit-print-color-adjust: economy
 -webkit-rtl-ordering: logical
-shape-outside: none
 -webkit-text-combine: none
 -webkit-text-decorations-in-effect: none
 -webkit-text-emphasis-color: rgb(0, 0, 0)
@@ -240,7 +239,6 @@ clip-path: none
 clip-rule: nonzero
 mask: none
 mask-type: luminance
-filter: none
 flood-color: rgb(0, 0, 0)
 flood-opacity: 1
 lighting-color: rgb(255, 255, 255)
@@ -272,7 +270,6 @@ text-anchor: start
 writing-mode: horizontal-tb
 glyph-orientation-horizontal: 0deg
 glyph-orientation-vertical: auto
--webkit-svg-shadow: none
 vector-effect: none
 background-position-x: 0%
 background-position-y: 0%

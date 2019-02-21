@@ -30,20 +30,26 @@
 #include <AppKit/NSAppearance.h>
 
 namespace WebCore {
-    
-LocalDefaultSystemAppearance::LocalDefaultSystemAppearance()
-    : m_savedSystemAppearance()
+
+LocalDefaultSystemAppearance::LocalDefaultSystemAppearance(bool useDarkAppearance)
 {
+#if HAVE(OS_DARK_MODE_SUPPORT)
     m_savedSystemAppearance = [NSAppearance currentAppearance];
-    NSAppearance *newAppearance = [NSAppearance appearanceNamed:NSAppearanceNameAqua];
-    [NSAppearance setCurrentAppearance:newAppearance];
+    m_usingDarkAppearance = useDarkAppearance;
+
+    [NSAppearance setCurrentAppearance:[NSAppearance appearanceNamed:m_usingDarkAppearance ? NSAppearanceNameDarkAqua : NSAppearanceNameAqua]];
+#else
+    UNUSED_PARAM(useDarkAppearance);
+#endif
 }
 
 LocalDefaultSystemAppearance::~LocalDefaultSystemAppearance()
 {
+#if HAVE(OS_DARK_MODE_SUPPORT)
     [NSAppearance setCurrentAppearance:m_savedSystemAppearance.get()];
+#endif
 }
-    
+
 }
 
 #endif // USE(APPKIT)

@@ -30,32 +30,21 @@
 
 #import "WebPageProxy.h"
 #import "WebPaymentCoordinatorProxyCocoa.h"
-#import <pal/spi/cocoa/PassKitSPI.h>
+#import <pal/cocoa/PassKitSoftLink.h>
 #import <wtf/BlockPtr.h>
-#import <wtf/SoftLinking.h>
-
-SOFT_LINK_PRIVATE_FRAMEWORK_OPTIONAL(PassKit)
-
-SOFT_LINK_CLASS(PassKit, PKPaymentAuthorizationViewController);
-SOFT_LINK_CONSTANT(PassKit, PKExtensionPaymentAuthorizationUIExtensionPointName, NSString *);
 
 namespace WebKit {
 
-void WebPaymentCoordinatorProxy::platformShowPaymentUI(const WebCore::URL& originatingURL, const Vector<WebCore::URL>& linkIconURLStrings, const WebCore::ApplePaySessionPaymentRequest& request, WTF::Function<void (bool)>&& completionHandler)
+void WebPaymentCoordinatorProxy::platformShowPaymentUI(const URL& originatingURL, const Vector<URL>& linkIconURLStrings, const WebCore::ApplePaySessionPaymentRequest& request, CompletionHandler<void(bool)>&& completionHandler)
 {
-    if (!PassKitLibrary()) {
-        completionHandler(false);
-        return;
-    }
-
     auto paymentRequest = toPKPaymentRequest(m_webPageProxy, originatingURL, linkIconURLStrings, request);
 
     auto showPaymentUIRequestSeed = m_showPaymentUIRequestSeed;
-    auto weakThis = m_weakPtrFactory.createWeakPtr(*this);
-    [getPKPaymentAuthorizationViewControllerClass() requestViewControllerWithPaymentRequest:paymentRequest.get() completion:BlockPtr<void (PKPaymentAuthorizationViewController *, NSError *)>::fromCallable([paymentRequest, showPaymentUIRequestSeed, weakThis, completionHandler = WTFMove(completionHandler)](PKPaymentAuthorizationViewController *viewController, NSError *error) {
+    auto weakThis = makeWeakPtr(*this);
+    [PAL::getPKPaymentAuthorizationViewControllerClass() requestViewControllerWithPaymentRequest:paymentRequest.get() completion:makeBlockPtr([paymentRequest, showPaymentUIRequestSeed, weakThis, completionHandler = WTFMove(completionHandler)](PKPaymentAuthorizationViewController *viewController, NSError *error) mutable {
         auto paymentCoordinatorProxy = weakThis.get();
         if (!paymentCoordinatorProxy)
-            return;
+            return completionHandler(false);
 
         if (error) {
             LOG_ERROR("+[PKPaymentAuthorizationViewController requestViewControllerWithPaymentRequest:completion:] error %@", error);
@@ -66,7 +55,7 @@ void WebPaymentCoordinatorProxy::platformShowPaymentUI(const WebCore::URL& origi
 
         if (showPaymentUIRequestSeed != paymentCoordinatorProxy->m_showPaymentUIRequestSeed) {
             // We've already been asked to hide the payment UI. Don't attempt to show it.
-            return;
+            return completionHandler(false);
         }
 
         ASSERT(viewController);

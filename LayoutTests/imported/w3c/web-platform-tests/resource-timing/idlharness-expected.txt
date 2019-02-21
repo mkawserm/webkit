@@ -1,6 +1,7 @@
 Resource Timing IDL tests
 
 
+PASS Partial interface Performance: original interface defined 
 PASS Performance interface: operation clearResourceTimings() 
 PASS Performance interface: operation setResourceTimingBufferSize(unsigned long) 
 PASS Performance interface: attribute onresourcetimingbufferfull 
@@ -13,6 +14,7 @@ PASS PerformanceResourceTiming interface object length
 PASS PerformanceResourceTiming interface object name 
 PASS PerformanceResourceTiming interface: existence and properties of interface prototype object 
 PASS PerformanceResourceTiming interface: existence and properties of interface prototype object's "constructor" property 
+PASS PerformanceResourceTiming interface: existence and properties of interface prototype object's @@unscopables property 
 PASS PerformanceResourceTiming interface: attribute initiatorType 
 PASS PerformanceResourceTiming interface: attribute nextHopProtocol 
 PASS PerformanceResourceTiming interface: attribute workerStart 

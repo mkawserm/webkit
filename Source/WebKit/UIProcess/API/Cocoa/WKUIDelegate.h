@@ -50,7 +50,7 @@ NS_ASSUME_NONNULL_BEGIN
 /*! @abstract Creates a new web view.
  @param webView The web view invoking the delegate method.
  @param configuration The configuration to use when creating the new web
- view.
+ view. This configuration is a copy of webView.configuration.
  @param navigationAction The navigation action causing the new web view to
  be created.
  @param windowFeatures Window features requested by the webpage.
@@ -102,7 +102,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 /*! @abstract Displays a JavaScript text input panel.
  @param webView The web view invoking the delegate method.
- @param message The message to display.
+ @param prompt The prompt to display.
  @param defaultText The initial text to display in the text entry field.
  @param frame Information about the frame whose JavaScript initiated this call.
  @param completionHandler The completion handler to call after the text

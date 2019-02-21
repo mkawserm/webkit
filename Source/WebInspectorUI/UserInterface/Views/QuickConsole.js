@@ -32,7 +32,8 @@ WI.QuickConsole = class QuickConsole extends WI.View
         this._toggleOrFocusKeyboardShortcut = new WI.KeyboardShortcut(null, WI.KeyboardShortcut.Key.Escape, this._toggleOrFocus.bind(this));
         this._toggleOrFocusKeyboardShortcut.implicitlyPreventsDefault = false;
 
-        this._mainExecutionContextPathComponent = this._createExecutionContextPathComponent(WI.mainTarget.executionContext);
+        this._mainExecutionContextPathComponent = null;
+        this.initializeMainExecutionContextPathComponent();
 
         this._otherExecutionContextPathComponents = [];
         this._frameToPathComponent = new Map;
@@ -44,7 +45,6 @@ WI.QuickConsole = class QuickConsole extends WI.View
         this.element.addEventListener("mousedown", this._handleMouseDown.bind(this));
 
         this.prompt = new WI.ConsolePrompt(null, "text/javascript");
-        this.prompt.element.classList.add("text-prompt");
         this.addSubview(this.prompt);
 
         // FIXME: CodeMirror 4 has a default "Esc" key handler that always prevents default.
@@ -66,6 +66,9 @@ WI.QuickConsole = class QuickConsole extends WI.View
 
         this._rebuildExecutionContextPathComponents();
 
+        WI.consoleDrawer.toggleButtonShortcutTooltip(this._toggleOrFocusKeyboardShortcut);
+        WI.consoleDrawer.addEventListener(WI.ConsoleDrawer.Event.CollapsedStateChanged, this._updateStyles, this);
+
         WI.Frame.addEventListener(WI.Frame.Event.PageExecutionContextChanged, this._framePageExecutionContextsChanged, this);
         WI.Frame.addEventListener(WI.Frame.Event.ExecutionContextsCleared, this._frameExecutionContextsCleared, this);
 
@@ -75,8 +78,6 @@ WI.QuickConsole = class QuickConsole extends WI.View
 
         WI.targetManager.addEventListener(WI.TargetManager.Event.TargetAdded, this._targetAdded, this);
         WI.targetManager.addEventListener(WI.TargetManager.Event.TargetRemoved, this._targetRemoved, this);
-
-        WI.consoleDrawer.addEventListener(WI.ConsoleDrawer.Event.CollapsedStateChanged, this._updateStyles, this);
 
         WI.TabBrowser.addEventListener(WI.TabBrowser.Event.SelectedTabContentViewDidChange, this._updateStyles, this);
     }
@@ -108,6 +109,14 @@ WI.QuickConsole = class QuickConsole extends WI.View
         WI.TabBrowser.removeEventListener(null, null, this);
 
         super.closed();
+    }
+
+    initializeMainExecutionContextPathComponent()
+    {
+        if (!WI.mainTarget || !WI.mainTarget.executionContext)
+            return;
+
+        this._mainExecutionContextPathComponent = this._createExecutionContextPathComponent(WI.mainTarget.executionContext);
     }
 
     // Protected
@@ -208,7 +217,7 @@ WI.QuickConsole = class QuickConsole extends WI.View
 
     _createExecutionContextPathComponentFromFrame(frame)
     {
-        let preferredName = frame.name ? frame.name + " \u2014 " + frame.mainResource.displayName : frame.mainResource.displayName;
+        let preferredName = frame.name ? WI.UIString("%s (%s)").format(frame.name, frame.mainResource.displayName) : frame.mainResource.displayName;
         return this._createExecutionContextPathComponent(frame.pageExecutionContext, preferredName);
     }
 
@@ -309,6 +318,9 @@ WI.QuickConsole = class QuickConsole extends WI.View
     _targetAdded(event)
     {
         let target = event.data.target;
+        if (target.type !== WI.Target.Type.Worker)
+            return;
+
         console.assert(target.type === WI.Target.Type.Worker);
         let preferredName = WI.UIString("Worker \u2014 %s").format(target.displayName);
         let executionContextPathComponent = this._createExecutionContextPathComponent(target.executionContext, preferredName);
@@ -320,6 +332,9 @@ WI.QuickConsole = class QuickConsole extends WI.View
     _targetRemoved(event)
     {
         let target = event.data.target;
+        if (target.type !== WI.Target.Type.Worker)
+            return;
+
         let executionContextPathComponent = this._targetToPathComponent.take(target);
         this._removeOtherExecutionContextPathComponent(executionContextPathComponent);
 

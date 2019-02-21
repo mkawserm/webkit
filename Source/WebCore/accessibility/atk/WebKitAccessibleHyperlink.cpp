@@ -260,8 +260,8 @@ static gint webkitAccessibleHyperlinkGetStartIndex(AtkHyperlink* link)
     if (!parentNode)
         return 0;
 
-    RefPtr<Range> range = Range::create(node->document(), firstPositionInOrBeforeNode(parentNode), firstPositionInOrBeforeNode(node));
-    return getRangeLengthForObject(coreObject, range.get());
+    auto range = Range::create(node->document(), firstPositionInOrBeforeNode(parentNode), firstPositionInOrBeforeNode(node));
+    return getRangeLengthForObject(coreObject, range.ptr());
 }
 
 static gint webkitAccessibleHyperlinkGetEndIndex(AtkHyperlink* link)
@@ -286,8 +286,8 @@ static gint webkitAccessibleHyperlinkGetEndIndex(AtkHyperlink* link)
     if (!parentNode)
         return 0;
 
-    RefPtr<Range> range = Range::create(node->document(), firstPositionInOrBeforeNode(parentNode), lastPositionInOrAfterNode(node));
-    return getRangeLengthForObject(coreObject, range.get());
+    auto range = Range::create(node->document(), firstPositionInOrBeforeNode(parentNode), lastPositionInOrAfterNode(node));
+    return getRangeLengthForObject(coreObject, range.ptr());
 }
 
 static gboolean webkitAccessibleHyperlinkIsValid(AtkHyperlink* link)
@@ -342,7 +342,7 @@ static void webkitAccessibleHyperlinkSetProperty(GObject* object, guint propId, 
         // No need to check and unref previous values of
         // priv->hyperlinkImpl as this is a CONSTRUCT ONLY property
         priv->hyperlinkImpl = WEBKIT_ACCESSIBLE(g_value_get_object(value));
-        g_object_weak_ref(G_OBJECT(priv->hyperlinkImpl), (GWeakNotify)g_object_unref, object);
+        g_object_weak_ref(G_OBJECT(priv->hyperlinkImpl), (GWeakNotify)(GCallback)g_object_unref, object);
         break;
     default:
         G_OBJECT_WARN_INVALID_PROPERTY_ID(object, propId, pspec);
@@ -397,17 +397,17 @@ GType webkitAccessibleHyperlinkGetType()
             sizeof(WebKitAccessibleHyperlinkClass),
             (GBaseInitFunc) 0,
             (GBaseFinalizeFunc) 0,
-            (GClassInitFunc) webkitAccessibleHyperlinkClassInit,
+            (GClassInitFunc)(GCallback) webkitAccessibleHyperlinkClassInit,
             (GClassFinalizeFunc) 0,
             0, /* class data */
             sizeof(WebKitAccessibleHyperlink), /* instance size */
             0, /* nb preallocs */
-            (GInstanceInitFunc) webkitAccessibleHyperlinkInit,
+            (GInstanceInitFunc)(GCallback) webkitAccessibleHyperlinkInit,
             0 /* value table */
         };
 
         static const GInterfaceInfo actionInfo = {
-            (GInterfaceInitFunc)(GInterfaceInitFunc)atkActionInterfaceInit,
+            (GInterfaceInitFunc)(GCallback)atkActionInterfaceInit,
             (GInterfaceFinalizeFunc) 0, 0
         };
 

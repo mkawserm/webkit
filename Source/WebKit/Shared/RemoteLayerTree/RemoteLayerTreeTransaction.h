@@ -25,6 +25,8 @@
 
 #pragma once
 
+#include "DrawingAreaInfo.h"
+#include "DynamicViewportSizeUpdate.h"
 #include "EditorState.h"
 #include "GenericCallback.h"
 #include "PlatformCAAnimationRemote.h"
@@ -33,7 +35,7 @@
 #include <WebCore/FilterOperations.h>
 #include <WebCore/FloatPoint3D.h>
 #include <WebCore/FloatSize.h>
-#include <WebCore/LayoutMilestones.h>
+#include <WebCore/LayoutMilestone.h>
 #include <WebCore/PlatformCALayer.h>
 #include <WebCore/TransformationMatrix.h>
 #include <wtf/HashMap.h>
@@ -52,8 +54,7 @@ class PlatformCALayerRemote;
 
 class RemoteLayerTreeTransaction {
 public:
-    enum LayerChanges {
-        NoChange                        = 0,
+    enum LayerChange {
         NameChanged                     = 1LLU << 1,
         ChildrenChanged                 = 1LLU << 2,
         PositionChanged                 = 1LLU << 3,
@@ -92,16 +93,17 @@ public:
         CustomAppearanceChanged         = 1LLU << 36,
         UserInteractionEnabledChanged   = 1LLU << 37,
     };
-    typedef uint64_t LayerChange;
 
     struct LayerCreationProperties {
         LayerCreationProperties();
 
         void encode(IPC::Encoder&) const;
-        static std::optional<LayerCreationProperties> decode(IPC::Decoder&);
+        static Optional<LayerCreationProperties> decode(IPC::Decoder&);
 
         WebCore::GraphicsLayer::PlatformLayerID layerID;
         WebCore::PlatformCALayer::LayerType type;
+
+        WebCore::GraphicsLayer::EmbeddedViewID embeddedViewID;
 
         uint32_t hostingContextID;
         float hostingDeviceScaleFactor;
@@ -114,19 +116,17 @@ public:
         void encode(IPC::Encoder&) const;
         static bool decode(IPC::Decoder&, LayerProperties&);
 
-        void notePropertiesChanged(LayerChange changeFlags)
+        void notePropertiesChanged(OptionSet<LayerChange> changeFlags)
         {
-            changedProperties |= changeFlags;
-            everChangedProperties |= changeFlags;
+            changedProperties.add(changeFlags);
         }
 
         void resetChangedProperties()
         {
-            changedProperties = RemoteLayerTreeTransaction::NoChange;
+            changedProperties = { };
         }
 
-        LayerChange changedProperties;
-        LayerChange everChangedProperties;
+        OptionSet<LayerChange> changedProperties;
 
         String name;
         std::unique_ptr<WebCore::TransformationMatrix> transform;
@@ -218,10 +218,8 @@ public:
     WebCore::Color pageExtendedBackgroundColor() const { return m_pageExtendedBackgroundColor; }
     void setPageExtendedBackgroundColor(WebCore::Color color) { m_pageExtendedBackgroundColor = color; }
 
-#if PLATFORM(MAC)
     WebCore::IntPoint scrollPosition() const { return m_scrollPosition; }
     void setScrollPosition(WebCore::IntPoint p) { m_scrollPosition = p; }
-#endif
 
     double pageScaleFactor() const { return m_pageScaleFactor; }
     void setPageScaleFactor(double pageScaleFactor) { m_pageScaleFactor = pageScaleFactor; }
@@ -262,16 +260,22 @@ public:
     uint64_t transactionID() const { return m_transactionID; }
     void setTransactionID(uint64_t transactionID) { m_transactionID = transactionID; }
 
+    ActivityStateChangeID activityStateChangeID() const { return m_activityStateChangeID; }
+    void setActivityStateChangeID(ActivityStateChangeID activityStateChangeID) { m_activityStateChangeID = activityStateChangeID; }
+
     typedef CallbackID TransactionCallbackID;
     const Vector<TransactionCallbackID>& callbackIDs() const { return m_callbackIDs; }
     void setCallbackIDs(Vector<TransactionCallbackID>&& callbackIDs) { m_callbackIDs = WTFMove(callbackIDs); }
 
-    WebCore::LayoutMilestones newlyReachedLayoutMilestones() const { return m_newlyReachedLayoutMilestones; }
-    void setNewlyReachedLayoutMilestones(WebCore::LayoutMilestones milestones) { m_newlyReachedLayoutMilestones = milestones; }
+    OptionSet<WebCore::LayoutMilestone> newlyReachedLayoutMilestones() const { return m_newlyReachedLayoutMilestones; }
+    void setNewlyReachedLayoutMilestones(OptionSet<WebCore::LayoutMilestone> milestones) { m_newlyReachedLayoutMilestones = milestones; }
 
     bool hasEditorState() const { return !!m_editorState; }
     const EditorState& editorState() const { return m_editorState.value(); }
     void setEditorState(const EditorState& editorState) { m_editorState = editorState; }
+
+    Optional<DynamicViewportSizeUpdateID> dynamicViewportSizeUpdateID() const { return m_dynamicViewportSizeUpdateID; }
+    void setDynamicViewportSizeUpdateID(DynamicViewportSizeUpdateID resizeID) { m_dynamicViewportSizeUpdateID = resizeID; }
     
 private:
     WebCore::GraphicsLayer::PlatformLayerID m_rootLayerID;
@@ -290,9 +294,7 @@ private:
     WebCore::LayoutSize m_baseLayoutViewportSize;
     WebCore::LayoutPoint m_minStableLayoutViewportOrigin;
     WebCore::LayoutPoint m_maxStableLayoutViewportOrigin;
-#if PLATFORM(MAC)
     WebCore::IntPoint m_scrollPosition;
-#endif
     WebCore::Color m_pageExtendedBackgroundColor;
     double m_pageScaleFactor { 1 };
     double m_minimumScaleFactor { 1 };
@@ -301,7 +303,8 @@ private:
     double m_viewportMetaTagWidth { -1 };
     uint64_t m_renderTreeSize { 0 };
     uint64_t m_transactionID { 0 };
-    WebCore::LayoutMilestones m_newlyReachedLayoutMilestones { 0 };
+    ActivityStateChangeID m_activityStateChangeID { ActivityStateChangeAsynchronous };
+    OptionSet<WebCore::LayoutMilestone> m_newlyReachedLayoutMilestones;
     bool m_scaleWasSetByUIProcess { false };
     bool m_allowsUserScaling { false };
     bool m_avoidsUnsafeArea { true };
@@ -309,7 +312,8 @@ private:
     bool m_viewportMetaTagCameFromImageDocument { false };
     bool m_isInStableState { false };
 
-    std::optional<EditorState> m_editorState { std::nullopt };
+    Optional<EditorState> m_editorState;
+    Optional<DynamicViewportSizeUpdateID> m_dynamicViewportSizeUpdateID;
 };
 
 } // namespace WebKit

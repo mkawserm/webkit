@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014 Apple Inc. All rights reserved.
+ * Copyright (C) 2014-2018 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -32,7 +32,7 @@
 #include <WebCore/FloatRect.h>
 #include <wtf/CompletionHandler.h>
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
 OBJC_CLASS NSArray;
 OBJC_CLASS _WKActivatedElementInfo;
 OBJC_CLASS UIViewController;
@@ -40,6 +40,7 @@ OBJC_CLASS UIViewController;
 
 namespace WebCore {
 class ResourceRequest;
+struct FontAttributes;
 struct SecurityOriginData;
 struct WindowFeatures;
 }
@@ -80,7 +81,7 @@ public:
     virtual void hasVideoInPictureInPictureDidChange(WebKit::WebPageProxy*, bool) { }
     virtual void close(WebKit::WebPageProxy*) { }
 
-    virtual void takeFocus(WebKit::WebPageProxy*, WKFocusDirection) { }
+    virtual bool takeFocus(WebKit::WebPageProxy*, WKFocusDirection) { return false; }
     virtual void focus(WebKit::WebPageProxy*) { }
     virtual void unfocus(WebKit::WebPageProxy*) { }
 
@@ -89,7 +90,7 @@ public:
     virtual void runJavaScriptPrompt(WebKit::WebPageProxy*, const WTF::String&, const WTF::String&, WebKit::WebFrameProxy*, const WebCore::SecurityOriginData&, Function<void (const WTF::String&)>&& completionHandler) { completionHandler(WTF::String()); }
 
     virtual void setStatusText(WebKit::WebPageProxy*, const WTF::String&) { }
-    virtual void mouseDidMoveOverElement(WebKit::WebPageProxy&, const WebKit::WebHitTestResultData&, WebKit::WebEvent::Modifiers, Object*) { }
+    virtual void mouseDidMoveOverElement(WebKit::WebPageProxy&, const WebKit::WebHitTestResultData&, OptionSet<WebKit::WebEvent::Modifier>, Object*) { }
 #if ENABLE(NETSCAPE_PLUGIN_API)
     virtual void unavailablePluginButtonClicked(WebKit::WebPageProxy&, WKPluginUnavailabilityReason, Dictionary&) { }
 #endif // ENABLE(NETSCAPE_PLUGIN_API)
@@ -123,11 +124,15 @@ public:
         completionHandler(currentQuota);
     }
 
+    virtual bool needsFontAttributes() const { return false; }
+    virtual void didChangeFontAttributes(const WebCore::FontAttributes&) { }
+
     virtual bool runOpenPanel(WebKit::WebPageProxy*, WebKit::WebFrameProxy*, const WebCore::SecurityOriginData&, OpenPanelParameters*, WebKit::WebOpenPanelResultListenerProxy*) { return false; }
     virtual void decidePolicyForGeolocationPermissionRequest(WebKit::WebPageProxy&, WebKit::WebFrameProxy&, SecurityOrigin&, Function<void(bool)>&) { }
-    virtual bool decidePolicyForUserMediaPermissionRequest(WebKit::WebPageProxy&, WebKit::WebFrameProxy&, SecurityOrigin&, SecurityOrigin&, WebKit::UserMediaPermissionRequestProxy&) { return false; }
-    virtual bool checkUserMediaPermissionForOrigin(WebKit::WebPageProxy&, WebKit::WebFrameProxy&, SecurityOrigin&, SecurityOrigin&, WebKit::UserMediaPermissionCheckProxy&) { return false; }
+    virtual void decidePolicyForUserMediaPermissionRequest(WebKit::WebPageProxy&, WebKit::WebFrameProxy&, SecurityOrigin&, SecurityOrigin&, WebKit::UserMediaPermissionRequestProxy& request) { request.deny(); }
+    virtual void checkUserMediaPermissionForOrigin(WebKit::WebPageProxy&, WebKit::WebFrameProxy&, SecurityOrigin&, SecurityOrigin&, WebKit::UserMediaPermissionCheckProxy& request) { request.deny(); }
     virtual void decidePolicyForNotificationPermissionRequest(WebKit::WebPageProxy&, SecurityOrigin&, Function<void(bool)>&& completionHandler) { completionHandler(false); }
+    virtual void requestStorageAccessConfirm(WebKit::WebPageProxy&, WebKit::WebFrameProxy*, const WTF::String& requestingDomain, const WTF::String& currentDomain, CompletionHandler<void(bool)>&& completionHandler) { completionHandler(true); }
 
     // Printing.
     virtual float headerHeight(WebKit::WebPageProxy&, WebKit::WebFrameProxy&) { return 0; }
@@ -139,7 +144,7 @@ public:
     virtual bool canRunModal() const { return false; }
     virtual void runModal(WebKit::WebPageProxy&) { }
 
-    virtual void saveDataToFileInDownloadsFolder(WebKit::WebPageProxy*, const WTF::String&, const WTF::String&, const WebCore::URL&, Data&) { }
+    virtual void saveDataToFileInDownloadsFolder(WebKit::WebPageProxy*, const WTF::String&, const WTF::String&, const WTF::URL&, Data&) { }
 
     virtual void pinnedStateDidChange(WebKit::WebPageProxy&) { }
 
@@ -151,7 +156,7 @@ public:
     virtual void mediaSessionMetadataDidChange(WebKit::WebPageProxy&, WebKit::WebMediaSessionMetadata*) { }
 #endif
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
 #if HAVE(APP_LINKS)
     virtual bool shouldIncludeAppLinkActionsForElement(_WKActivatedElementInfo *) { return true; }
 #endif
@@ -170,9 +175,14 @@ public:
 
     virtual void didClickAutoFillButton(WebKit::WebPageProxy&, Object*) { }
 
+    virtual void didResignInputElementStrongPasswordAppearance(WebKit::WebPageProxy&, Object*) { }
+
     virtual void imageOrMediaDocumentSizeChanged(const WebCore::IntSize&) { }
 
     virtual void didExceedBackgroundResourceLimitWhileInForeground(WebKit::WebPageProxy&, WKResourceLimit) { }
+    
+    virtual void didShowSafeBrowsingWarning() { }
+    virtual void didClickGoBackFromSafeBrowsingWarning() { }
 };
 
 } // namespace API

@@ -28,16 +28,18 @@
 #if PLATFORM(MAC)
 
 #include "PluginComplexTextInputState.h"
+#include "ShareableBitmap.h"
 #include "WKDragDestinationAction.h"
 #include "WKLayoutMode.h"
-#include "WeakObjCPtr.h"
-#include "WebPageProxy.h"
 #include "_WKOverlayScrollbarStyle.h"
+#include <WebCore/FocusDirection.h>
+#include <WebCore/ScrollTypes.h>
 #include <WebCore/TextIndicatorWindow.h>
 #include <WebCore/UserInterfaceLayoutDirection.h>
 #include <pal/spi/cocoa/AVKitSPI.h>
 #include <wtf/BlockPtr.h>
 #include <wtf/RetainPtr.h>
+#include <wtf/WeakObjCPtr.h>
 #include <wtf/WeakPtr.h>
 #include <wtf/text/WTFString.h>
 
@@ -49,13 +51,19 @@ OBJC_CLASS NSTextInputContext;
 OBJC_CLASS NSView;
 OBJC_CLASS WKAccessibilitySettingsObserver;
 OBJC_CLASS WKBrowsingContextController;
-OBJC_CLASS WKEditorUndoTargetObjC;
+OBJC_CLASS WKEditorUndoTarget;
 OBJC_CLASS WKFullScreenWindowController;
 OBJC_CLASS WKImmediateActionController;
+OBJC_CLASS WKSafeBrowsingWarning;
 OBJC_CLASS WKViewLayoutStrategy;
 OBJC_CLASS WKWebView;
 OBJC_CLASS WKWindowVisibilityObserver;
+OBJC_CLASS _WKRemoteObjectRegistry;
 OBJC_CLASS _WKThumbnailView;
+
+#if WK_API_ENABLED
+OBJC_CLASS WKShareSheet;
+#endif
 
 #if HAVE(TOUCH_BAR)
 OBJC_CLASS NSCandidateListTouchBarItem;
@@ -66,6 +74,16 @@ OBJC_CLASS NSPopoverTouchBarItem;
 OBJC_CLASS WKTextTouchBarItemController;
 OBJC_CLASS WebPlaybackControlsManager;
 #endif // HAVE(TOUCH_BAR)
+
+namespace API {
+class HitTestResult;
+class Object;
+class PageConfiguration;
+}
+
+namespace WebCore {
+struct ShareDataWithParsedURL;
+}
 
 @protocol WebViewImplDelegate
 
@@ -96,6 +114,7 @@ OBJC_CLASS WebPlaybackControlsManager;
 
 #if ENABLE(DRAG_SUPPORT) && WK_API_ENABLED
 - (WKDragDestinationAction)_web_dragDestinationActionForDraggingInfo:(id <NSDraggingInfo>)draggingInfo;
+- (void)_web_didPerformDragOperation:(BOOL)handled;
 #endif
 
 @optional
@@ -108,23 +127,33 @@ OBJC_CLASS WebPlaybackControlsManager;
 
 namespace WebCore {
 struct DragItem;
-struct KeyPressCommand;
+struct KeypressCommand;
 }
 
 namespace WebKit {
 
+class PageClient;
 class PageClientImpl;
 class DrawingAreaProxy;
+class SafeBrowsingWarning;
 class ViewGestureController;
+class ViewSnapshot;
+class WebBackForwardListItem;
 class WebEditCommandProxy;
+class WebFrameProxy;
 class WebPageProxy;
+class WebProcessPool;
 struct ColorSpaceData;
+struct WebHitTestResultData;
+
+enum class ContinueUnsafeLoad : bool;
+enum class UndoOrRedo : bool;
 
 typedef id <NSValidatedUserInterfaceItem> ValidationItem;
 typedef Vector<RetainPtr<ValidationItem>> ValidationVector;
 typedef HashMap<String, ValidationVector> ValidationMap;
 
-class WebViewImpl {
+class WebViewImpl : public CanMakeWeakPtr<WebViewImpl> {
     WTF_MAKE_FAST_ALLOCATED;
     WTF_MAKE_NONCOPYABLE(WebViewImpl);
 public:
@@ -136,12 +165,15 @@ public:
 
     WebPageProxy& page() { return m_page.get(); }
 
+    void processWillSwap();
     void processDidExit();
     void pageClosed();
     void didRelaunchProcess();
 
     void setDrawsBackground(bool);
     bool drawsBackground() const;
+    void setBackgroundColor(NSColor *);
+    NSColor *backgroundColor() const;
     bool isOpaque() const;
 
     void setShouldSuppressFirstResponderChanges(bool);
@@ -165,7 +197,7 @@ public:
     void setFixedLayoutSize(CGSize);
     CGSize fixedLayoutSize() const;
 
-    std::unique_ptr<DrawingAreaProxy> createDrawingAreaProxy();
+    std::unique_ptr<DrawingAreaProxy> createDrawingAreaProxy(WebProcessProxy&);
     bool isUsingUISideCompositing() const;
     void setDrawingAreaSize(CGSize);
     void updateLayer();
@@ -195,6 +227,10 @@ public:
 
     void setViewScale(CGFloat);
     CGFloat viewScale() const;
+
+    void showSafeBrowsingWarning(const SafeBrowsingWarning&, CompletionHandler<void(Variant<ContinueUnsafeLoad, URL>&&)>&&);
+    void clearSafeBrowsingWarning();
+    void clearSafeBrowsingWarningIfForMainFrameNavigation();
 
     WKLayoutMode layoutMode() const;
     void setLayoutMode(WKLayoutMode);
@@ -243,8 +279,8 @@ public:
     _WKRectEdge rubberBandingEnabled();
     void setRubberBandingEnabled(_WKRectEdge);
 
-    void setOverlayScrollbarStyle(std::optional<WebCore::ScrollbarOverlayStyle> scrollbarStyle);
-    std::optional<WebCore::ScrollbarOverlayStyle> overlayScrollbarStyle() const;
+    void setOverlayScrollbarStyle(Optional<WebCore::ScrollbarOverlayStyle> scrollbarStyle);
+    Optional<WebCore::ScrollbarOverlayStyle> overlayScrollbarStyle() const;
 
     void beginDeferringViewInWindowChanges();
     // FIXME: Merge these two?
@@ -288,16 +324,19 @@ public:
     bool isEditable() const;
     bool executeSavedCommandBySelector(SEL);
     void executeEditCommandForSelector(SEL, const String& argument = String());
-    void registerEditCommand(Ref<WebEditCommandProxy>&&, WebPageProxy::UndoOrRedo);
+    void registerEditCommand(Ref<WebEditCommandProxy>&&, UndoOrRedo);
     void clearAllEditCommands();
     bool writeSelectionToPasteboard(NSPasteboard *, NSArray *types);
     bool readSelectionFromPasteboard(NSPasteboard *);
     id validRequestorForSendAndReturnTypes(NSString *sendType, NSString *returnType);
     void centerSelectionInVisibleArea();
     void selectionDidChange();
+    
     void didBecomeEditable();
-    void updateFontPanelIfNeeded();
-    void changeFontFromFontPanel();
+    void updateFontManagerIfNeeded();
+    void changeFontFromFontManager();
+    void changeFontAttributesFromSender(id);
+    void changeFontColorFromSender(id);
     bool validateUserInterfaceItem(id <NSValidatedUserInterfaceItem>);
     void setEditableElementIsFocused(bool);
 
@@ -347,7 +386,7 @@ public:
     void prepareForDictionaryLookup();
     void setAllowsLinkPreview(bool);
     bool allowsLinkPreview() const { return m_allowsLinkPreview; }
-    void* immediateActionAnimationControllerForHitTestResult(API::HitTestResult*, uint32_t type, API::Object* userData);
+    NSObject *immediateActionAnimationControllerForHitTestResult(API::HitTestResult*, uint32_t type, API::Object* userData);
     void didPerformImmediateActionHitTest(const WebHitTestResultData&, bool contentPreventsDefault, API::Object* userData);
     void prepareForImmediateActionAnimation();
     void cancelImmediateActionAnimation();
@@ -370,7 +409,7 @@ public:
     bool accessibilityIsIgnored() const { return false; }
     id accessibilityHitTest(CGPoint);
     void enableAccessibilityIfNecessary();
-    id accessibilityAttributeValue(NSString *);
+    id accessibilityAttributeValue(NSString *, id parameter = nil);
 
     NSTrackingArea *primaryTrackingArea() const { return m_primaryTrackingArea.get(); }
     void setPrimaryTrackingArea(NSTrackingArea *);
@@ -392,10 +431,15 @@ public:
 
     void setInspectorAttachmentView(NSView *);
     NSView *inspectorAttachmentView();
+    
+    void showShareSheet(const WebCore::ShareDataWithParsedURL&, WTF::CompletionHandler<void(bool)>&&, WKWebView *);
+    void shareSheetDidDismiss(WKShareSheet *);
 
     _WKRemoteObjectRegistry *remoteObjectRegistry();
 
+    ALLOW_DEPRECATED_DECLARATIONS_BEGIN
     WKBrowsingContextController *browsingContextController();
+    ALLOW_DEPRECATED_DECLARATIONS_END
 #endif // WK_API_ENABLED
 
 #if ENABLE(DRAG_SUPPORT)
@@ -407,6 +451,14 @@ public:
     bool performDragOperation(id <NSDraggingInfo>);
     NSView *hitTestForDragTypes(CGPoint, NSSet *types);
     void registerDraggedTypes();
+
+    NSDragOperation dragSourceOperationMask(NSDraggingSession *, NSDraggingContext);
+    void draggingSessionEnded(NSDraggingSession *, NSPoint, NSDragOperation);
+
+    NSString *fileNameForFilePromiseProvider(NSFilePromiseProvider *, NSString *fileType);
+    void writeToURLForFilePromiseProvider(NSFilePromiseProvider *, NSURL *, void(^)(NSError *));
+
+    void didPerformDragOperation(bool handled);
 #endif
 
     void startWindowDrag();
@@ -421,6 +473,8 @@ public:
     RefPtr<ViewSnapshot> takeViewSnapshot();
     void saveBackForwardSnapshotForCurrentItem();
     void saveBackForwardSnapshotForItem(WebBackForwardListItem&);
+
+    WKSafeBrowsingWarning *safeBrowsingWarning() { return m_safeBrowsingWarning.get(); }
 
     ViewGestureController* gestureController() { return m_gestureController.get(); }
     ViewGestureController& ensureGestureController();
@@ -482,6 +536,7 @@ public:
     void attributedSubstringForProposedRange(NSRange, void(^)(NSAttributedString *attrString, NSRange actualRange));
     void firstRectForCharacterRange(NSRange, void(^)(NSRect firstRect, NSRange actualRange));
     void characterIndexForPoint(NSPoint, void(^)(NSUInteger));
+    void typingAttributesWithCompletionHandler(void(^)(NSDictionary<NSString *, id> *));
 
     void mouseMoved(NSEvent *);
     void mouseDown(NSEvent *);
@@ -509,12 +564,19 @@ public:
 
     void handleAcceptedCandidate(NSTextCheckingResult *acceptedCandidate);
 
+    void doAfterProcessingAllPendingMouseEvents(dispatch_block_t action);
+    void didFinishProcessingAllPendingMouseEvents();
+
 #if HAVE(TOUCH_BAR)
     NSTouchBar *makeTouchBar();
     void updateTouchBar();
     NSTouchBar *currentTouchBar() const { return m_currentTouchBar.get(); }
     NSCandidateListTouchBarItem *candidateListTouchBarItem() const;
 #if ENABLE(WEB_PLAYBACK_CONTROLS_MANAGER)
+    bool isPictureInPictureActive();
+    void togglePictureInPicture();
+    void updateMediaPlaybackControlsManager();
+
 #if __MAC_OS_X_VERSION_MIN_REQUIRED >= 101300
     AVTouchBarScrubber *mediaPlaybackControlsView() const;
 #else
@@ -529,10 +591,20 @@ public:
 
     void updateTouchBarAndRefreshTextBarIdentifiers();
     void setIsCustomizingTouchBar(bool isCustomizingTouchBar) { m_isCustomizingTouchBar = isCustomizingTouchBar; };
+
+    bool canTogglePictureInPicture();
 #endif // HAVE(TOUCH_BAR)
 
     bool beginBackSwipeForTesting();
     bool completeBackSwipeForTesting();
+    
+    void setUseSystemAppearance(bool);
+    bool useSystemAppearance();
+
+    void effectiveAppearanceDidChange();
+    bool effectiveAppearanceIsDark();
+
+    void takeFocus(WebCore::FocusDirection);
 
 private:
 #if HAVE(TOUCH_BAR)
@@ -571,8 +643,6 @@ private:
 #endif // ENABLE(WEB_PLAYBACK_CONTROLS_MANAGER)
 #endif // HAVE(TOUCH_BAR)
 
-    WeakPtr<WebViewImpl> createWeakPtr() { return m_weakPtrFactory.createWeakPtr(*this); }
-
     bool supportsArbitraryLayoutModes() const;
     float intrinsicDeviceScaleFactor() const;
     void dispatchSetTopContentInset();
@@ -597,16 +667,21 @@ private:
     void mouseUpInternal(NSEvent *);
     void mouseDraggedInternal(NSEvent *);
 
+    void handleProcessSwapOrExit();
+
     bool mightBeginDragWhileInactive();
     bool mightBeginScrollWhileInactive();
 
     void handleRequestedCandidates(NSInteger sequenceNumber, NSArray<NSTextCheckingResult *> *candidates);
+    void flushPendingMouseEventCallbacks();
+
+#if ENABLE(DRAG_SUPPORT)
+    void sendDragEndToPage(CGPoint endPoint, NSDragOperation);
+#endif
 
     WeakObjCPtr<NSView<WebViewImplDelegate>> m_view;
     std::unique_ptr<PageClient> m_pageClient;
     Ref<WebPageProxy> m_page;
-
-    WeakPtrFactory<WebViewImpl> m_weakPtrFactory;
 
     bool m_willBecomeFirstResponderAgain { false };
     bool m_inBecomeFirstResponder { false };
@@ -634,7 +709,7 @@ private:
     CGSize m_lastRequestedFixedLayoutSize { 0, 0 };
 
     bool m_inSecureInputState { false };
-    RetainPtr<WKEditorUndoTargetObjC> m_undoTarget;
+    RetainPtr<WKEditorUndoTarget> m_undoTarget;
 
     ValidationMap m_validationMap;
 
@@ -646,6 +721,10 @@ private:
 
 #if ENABLE(FULLSCREEN_API)
     RetainPtr<WKFullScreenWindowController> m_fullScreenWindowController;
+#endif
+    
+#if WK_API_ENABLED
+    RetainPtr<WKShareSheet> _shareSheet;
 #endif
 
     RetainPtr<WKWindowVisibilityObserver> m_windowVisibilityObserver;
@@ -661,6 +740,8 @@ private:
 
     RetainPtr<NSColorSpace> m_colorSpace;
 
+    RetainPtr<NSColor> m_backgroundColor;
+
     RetainPtr<NSEvent> m_lastMouseDownEvent;
     RetainPtr<NSEvent> m_lastPressureEvent;
 
@@ -672,7 +753,6 @@ private:
     RetainPtr<NSImmediateActionGestureRecognizer> m_immediateActionGestureRecognizer;
 
     bool m_allowsLinkPreview { true };
-    bool m_didRegisterForLookupPopoverCloseNotifications { false };
 
     RetainPtr<NSTrackingArea> m_primaryTrackingArea;
 
@@ -688,7 +768,9 @@ private:
 
     RetainPtr<_WKRemoteObjectRegistry> m_remoteObjectRegistry;
 
+    ALLOW_DEPRECATED_DECLARATIONS_BEGIN
     RetainPtr<WKBrowsingContextController> m_browsingContextController;
+    ALLOW_DEPRECATED_DECLARATIONS_END
 #endif
 
     std::unique_ptr<ViewGestureController> m_gestureController;
@@ -701,7 +783,7 @@ private:
     String m_promisedFilename;
     String m_promisedURL;
 
-    std::optional<NSInteger> m_spellCheckerDocumentTag;
+    Optional<NSInteger> m_spellCheckerDocumentTag;
 
     CGFloat m_totalHeightOfBanners { 0 };
 
@@ -712,6 +794,7 @@ private:
     // that has been already sent to WebCore.
     RetainPtr<NSEvent> m_keyDownEventBeingResent;
     Vector<WebCore::KeypressCommand>* m_collectedKeypressCommands { nullptr };
+    Vector<BlockPtr<void()>> m_callbackHandlersAfterProcessingPendingMouseEvents;
 
     String m_lastStringForCandidateRequest;
     NSInteger m_lastCandidateRequestSequenceNumber;
@@ -720,6 +803,7 @@ private:
     bool m_requiresUserActionForEditingControlsManager { false };
     bool m_editableElementIsFocused { false };
     bool m_isTextInsertionReplacingSoftSpace { false };
+    RetainPtr<WKSafeBrowsingWarning> m_safeBrowsingWarning;
     
 #if ENABLE(DRAG_SUPPORT)
     NSInteger m_initialNumberOfValidItemsForDrop { 0 };

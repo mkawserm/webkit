@@ -10,9 +10,9 @@
 
 #include "call/rtcp_demuxer.h"
 
+#include "api/rtp_headers.h"
 #include "call/rtcp_packet_sink_interface.h"
 #include "call/rtp_rtcp_demuxer_helper.h"
-#include "common_types.h"  // NOLINT(build/include)
 #include "rtc_base/checks.h"
 
 namespace webrtc {
@@ -34,7 +34,7 @@ void RtcpDemuxer::AddSink(uint32_t sender_ssrc, RtcpPacketSinkInterface* sink) {
 
 void RtcpDemuxer::AddSink(const std::string& rsid,
                           RtcpPacketSinkInterface* sink) {
-  RTC_DCHECK(StreamId::IsLegalName(rsid));
+  RTC_DCHECK(StreamId::IsLegalRsidName(rsid));
   RTC_DCHECK(sink);
   RTC_DCHECK(!ContainerHasKey(broadcast_sinks_, sink));
   RTC_DCHECK(!MultimapAssociationExists(rsid_sinks_, rsid, sink));
@@ -65,7 +65,7 @@ void RtcpDemuxer::RemoveBroadcastSink(const RtcpPacketSinkInterface* sink) {
 
 void RtcpDemuxer::OnRtcpPacket(rtc::ArrayView<const uint8_t> packet) {
   // Perform sender-SSRC-based demuxing for packets with a sender-SSRC.
-  rtc::Optional<uint32_t> sender_ssrc = ParseRtcpPacketSenderSsrc(packet);
+  absl::optional<uint32_t> sender_ssrc = ParseRtcpPacketSenderSsrc(packet);
   if (sender_ssrc) {
     auto it_range = ssrc_sinks_.equal_range(*sender_ssrc);
     for (auto it = it_range.first; it != it_range.second; ++it) {

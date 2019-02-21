@@ -23,7 +23,9 @@ rtc_executable("conversational_speech_generator") {
   deps = [
     ":lib",
     "../../../../rtc_base:rtc_base_approved",
+    "../../../../test:fileutils",
     "../../../../test:test_support",
+    "//third_party/abseil-cpp/absl/memory",
   ]
 }
 
@@ -47,7 +49,10 @@ rtc_static_library("lib") {
     "../../../..:webrtc_common",
     "../../../../api:array_view",
     "../../../../common_audio",
+    "../../../../rtc_base:checks",
     "../../../../rtc_base:rtc_base_approved",
+    "../../../../test:fileutils",
+    "//third_party/abseil-cpp/absl/memory",
   ]
   visibility = [ ":*" ]  # Only targets in this file can depend on this.
 }
@@ -65,11 +70,11 @@ rtc_source_set("unittest") {
     ":lib",
     "../../../..:webrtc_common",
     "../../../../api:array_view",
-    "../../../../api:optional",
     "../../../../common_audio",
     "../../../../rtc_base:rtc_base_approved",
+    "../../../../test:fileutils",
     "../../../../test:test_support",
-    "//testing/gmock",
     "//testing/gtest",
+    "//third_party/abseil-cpp/absl/types:optional",
   ]
 }

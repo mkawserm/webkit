@@ -10,22 +10,19 @@
 
 #include "p2p/base/transportdescription.h"
 
+#include "absl/strings/match.h"
 #include "p2p/base/p2pconstants.h"
 #include "rtc_base/arraysize.h"
-#include "rtc_base/stringutils.h"
 
 namespace cricket {
 
 bool StringToConnectionRole(const std::string& role_str, ConnectionRole* role) {
   const char* const roles[] = {
-      CONNECTIONROLE_ACTIVE_STR,
-      CONNECTIONROLE_PASSIVE_STR,
-      CONNECTIONROLE_ACTPASS_STR,
-      CONNECTIONROLE_HOLDCONN_STR
-  };
+      CONNECTIONROLE_ACTIVE_STR, CONNECTIONROLE_PASSIVE_STR,
+      CONNECTIONROLE_ACTPASS_STR, CONNECTIONROLE_HOLDCONN_STR};
 
   for (size_t i = 0; i < arraysize(roles); ++i) {
-    if (_stricmp(roles[i], role_str.c_str()) == 0) {
+    if (absl::EqualsIgnoreCase(roles[i], role_str)) {
       *role = static_cast<ConnectionRole>(CONNECTIONROLE_ACTIVE + i);
       return true;
     }

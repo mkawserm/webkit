@@ -30,12 +30,12 @@
 #import "DOMNodeInternal.h"
 #import <WebCore/DOMWindow.h>
 #import "ExceptionHandlers.h"
-#import <WebCore/JSMainThreadExecState.h>
+#import <WebCore/JSExecState.h>
 #import <WebCore/TextEvent.h>
 #import <WebCore/ThreadCheck.h>
-#import <WebCore/URL.h>
 #import <WebCore/WebScriptObjectPrivate.h>
 #import <wtf/GetPtr.h>
+#import <wtf/URL.h>
 
 #define IMPL static_cast<WebCore::TextEvent*>(reinterpret_cast<WebCore::Event*>(_internal))
 
@@ -50,7 +50,7 @@
 - (void)initTextEvent:(NSString *)typeArg canBubbleArg:(BOOL)canBubbleArg cancelableArg:(BOOL)cancelableArg viewArg:(DOMAbstractView *)viewArg dataArg:(NSString *)dataArg
 {
     WebCore::JSMainThreadNullState state;
-    IMPL->initTextEvent(typeArg, canBubbleArg, cancelableArg, core(viewArg), dataArg);
+    IMPL->initTextEvent(typeArg, canBubbleArg, cancelableArg, toWindowProxy(viewArg), dataArg);
 }
 
 @end

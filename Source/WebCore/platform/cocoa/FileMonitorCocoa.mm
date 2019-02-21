@@ -26,9 +26,9 @@
 #import "config.h"
 #import "FileMonitor.h"
 
-#import "FileSystem.h"
 #import "Logging.h"
 #import <wtf/BlockPtr.h>
+#import <wtf/FileSystem.h>
 
 namespace WebCore {
     
@@ -50,11 +50,11 @@ FileMonitor::FileMonitor(const String& path, Ref<WorkQueue>&& handlerQueue, WTF:
     }
 
     // The source (platformMonitor) retains the dispatch queue.
-    m_platformMonitor = adoptDispatch(dispatch_source_create(DISPATCH_SOURCE_TYPE_VNODE, handle, monitorMask, handlerQueue->dispatchQueue()));
+    m_platformMonitor = adoptOSObject(dispatch_source_create(DISPATCH_SOURCE_TYPE_VNODE, handle, monitorMask, handlerQueue->dispatchQueue()));
 
     LOG(ResourceLoadStatistics, "Creating monitor %p", m_platformMonitor.get());
 
-    dispatch_source_set_event_handler(m_platformMonitor.get(), BlockPtr<void()>::fromCallable([modificationHandler = WTFMove(modificationHandler), fileMonitor = m_platformMonitor] {
+    dispatch_source_set_event_handler(m_platformMonitor.get(), makeBlockPtr([modificationHandler = WTFMove(modificationHandler), fileMonitor = m_platformMonitor] {
         // If this is getting called after the monitor was cancelled, just drop the notification.
         if (dispatch_source_testcancel(fileMonitor.get()))
             return;

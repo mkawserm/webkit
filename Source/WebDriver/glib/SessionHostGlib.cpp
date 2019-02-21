@@ -41,6 +41,8 @@ namespace WebDriver {
 
 SessionHost::~SessionHost()
 {
+    if (m_dbusConnection)
+        g_signal_handlers_disconnect_matched(m_dbusConnection.get(), G_SIGNAL_MATCH_DATA, 0, 0, nullptr, nullptr, this);
     g_cancellable_cancel(m_cancellable.get());
     if (m_browser)
         g_subprocess_force_exit(m_browser.get());
@@ -99,18 +101,19 @@ const GDBusInterfaceVTable SessionHost::s_interfaceVTable = {
     { 0 }
 };
 
-void SessionHost::connectToBrowser(Function<void (std::optional<String> error)>&& completionHandler)
+void SessionHost::connectToBrowser(Function<void (Optional<String> error)>&& completionHandler)
 {
     launchBrowser(WTFMove(completionHandler));
 }
 
 bool SessionHost::isConnected() const
 {
-    return !!m_browser;
+    // Session is connected when launching or when dbus connection hasn't been closed.
+    return m_browser && (!m_dbusConnection || !g_dbus_connection_is_closed(m_dbusConnection.get()));
 }
 
 struct ConnectToBrowserAsyncData {
-    ConnectToBrowserAsyncData(SessionHost* sessionHost, GUniquePtr<char>&& dbusAddress, GCancellable* cancellable, Function<void (std::optional<String> error)>&& completionHandler)
+    ConnectToBrowserAsyncData(SessionHost* sessionHost, GUniquePtr<char>&& dbusAddress, GCancellable* cancellable, Function<void (Optional<String> error)>&& completionHandler)
         : sessionHost(sessionHost)
         , dbusAddress(WTFMove(dbusAddress))
         , cancellable(cancellable)
@@ -121,7 +124,7 @@ struct ConnectToBrowserAsyncData {
     SessionHost* sessionHost;
     GUniquePtr<char> dbusAddress;
     GRefPtr<GCancellable> cancellable;
-    Function<void (std::optional<String> error)> completionHandler;
+    Function<void (Optional<String> error)> completionHandler;
 };
 
 static guint16 freePort()
@@ -136,7 +139,7 @@ static guint16 freePort()
     return g_inet_socket_address_get_port(G_INET_SOCKET_ADDRESS(address.get()));
 }
 
-void SessionHost::launchBrowser(Function<void (std::optional<String> error)>&& completionHandler)
+void SessionHost::launchBrowser(Function<void (Optional<String> error)>&& completionHandler)
 {
     m_cancellable = adoptGRef(g_cancellable_new());
     GRefPtr<GSubprocessLauncher> launcher = adoptGRef(g_subprocess_launcher_new(G_SUBPROCESS_FLAGS_NONE));
@@ -147,11 +150,11 @@ void SessionHost::launchBrowser(Function<void (std::optional<String> error)>&& c
     g_subprocess_launcher_setenv(launcher.get(), "GTK_OVERLAY_SCROLLING", m_capabilities.useOverlayScrollbars.value() ? "1" : "0", TRUE);
 #endif
 
-    const auto& browserArguments = m_capabilities.browserArguments.value();
-    GUniquePtr<char*> args(g_new0(char*, browserArguments.size() + 2));
+    size_t browserArgumentsSize = m_capabilities.browserArguments ? m_capabilities.browserArguments->size() : 0;
+    GUniquePtr<char*> args(g_new0(char*, browserArgumentsSize + 2));
     args.get()[0] = g_strdup(m_capabilities.browserBinary.value().utf8().data());
-    for (unsigned i = 0; i < browserArguments.size(); ++i)
-        args.get()[i + 1] = g_strdup(browserArguments[i].utf8().data());
+    for (unsigned i = 0; i < browserArgumentsSize; ++i)
+        args.get()[i + 1] = g_strdup(m_capabilities.browserArguments.value()[i].utf8().data());
 
     GUniqueOutPtr<GError> error;
     m_browser = adoptGRef(g_subprocess_launcher_spawnv(launcher.get(), args.get(), &error.outPtr()));
@@ -201,7 +204,7 @@ void SessionHost::connectToBrowser(std::unique_ptr<ConnectToBrowserAsyncData>&& 
                     return;
                 }
                 data->sessionHost->setupConnection(WTFMove(connection));
-                data->completionHandler(std::nullopt);
+                data->completionHandler(WTF::nullopt);
         }, data);
     });
 }
@@ -261,17 +264,40 @@ bool SessionHost::matchCapabilities(GVariant* capabilities)
     return didMatch;
 }
 
-void SessionHost::startAutomationSession(Function<void (bool, std::optional<String>)>&& completionHandler)
+bool SessionHost::buildSessionCapabilities(GVariantBuilder* builder) const
+{
+    if (!m_capabilities.acceptInsecureCerts && !m_capabilities.certificates)
+        return false;
+
+    g_variant_builder_init(builder, G_VARIANT_TYPE("a{sv}"));
+    if (m_capabilities.acceptInsecureCerts)
+        g_variant_builder_add(builder, "{sv}", "acceptInsecureCerts", g_variant_new_boolean(m_capabilities.acceptInsecureCerts.value()));
+
+    if (m_capabilities.certificates) {
+        GVariantBuilder arrayBuilder;
+        g_variant_builder_init(&arrayBuilder, G_VARIANT_TYPE("a(ss)"));
+        for (auto& certificate : *m_capabilities.certificates) {
+            g_variant_builder_add_value(&arrayBuilder, g_variant_new("(ss)",
+                certificate.first.utf8().data(), certificate.second.utf8().data()));
+        }
+        g_variant_builder_add(builder, "{sv}", "certificates", g_variant_builder_end(&arrayBuilder));
+    }
+
+    return true;
+}
+
+void SessionHost::startAutomationSession(Function<void (bool, Optional<String>)>&& completionHandler)
 {
     ASSERT(m_dbusConnection);
     ASSERT(!m_startSessionCompletionHandler);
     m_startSessionCompletionHandler = WTFMove(completionHandler);
     m_sessionID = createCanonicalUUIDString();
+    GVariantBuilder builder;
     g_dbus_connection_call(m_dbusConnection.get(), nullptr,
         INSPECTOR_DBUS_OBJECT_PATH,
         INSPECTOR_DBUS_INTERFACE,
         "StartAutomationSession",
-        g_variant_new("(s)", m_sessionID.utf8().data()),
+        g_variant_new("(sa{sv})", m_sessionID.utf8().data(), buildSessionCapabilities(&builder) ? &builder : nullptr),
         nullptr, G_DBUS_CALL_FLAGS_NO_AUTO_START,
         -1, m_cancellable.get(), [](GObject* source, GAsyncResult* result, gpointer userData) {
             GUniqueOutPtr<GError> error;
@@ -282,13 +308,13 @@ void SessionHost::startAutomationSession(Function<void (bool, std::optional<Stri
             auto sessionHost = static_cast<SessionHost*>(userData);
             if (!resultVariant) {
                 auto completionHandler = std::exchange(sessionHost->m_startSessionCompletionHandler, nullptr);
-                completionHandler(false, String("Failed to start automation session"));
+                completionHandler(false, makeString("Failed to start automation session: ", String::fromUTF8(error->message)));
                 return;
             }
 
             if (!sessionHost->matchCapabilities(resultVariant.get())) {
                 auto completionHandler = std::exchange(sessionHost->m_startSessionCompletionHandler, nullptr);
-                completionHandler(false, std::nullopt);
+                completionHandler(false, WTF::nullopt);
                 return;
             }
         }, this
@@ -305,7 +331,11 @@ void SessionHost::setTargetList(uint64_t connectionID, Vector<Target>&& targetLi
     ASSERT(targetList.size() <= 1);
     if (targetList.isEmpty()) {
         m_target = Target();
-        m_connectionID = 0;
+        if (m_connectionID) {
+            if (m_dbusConnection)
+                g_dbus_connection_close(m_dbusConnection.get(), nullptr, nullptr, nullptr);
+            m_connectionID = 0;
+        }
         return;
     }
 
@@ -330,7 +360,7 @@ void SessionHost::setTargetList(uint64_t connectionID, Vector<Target>&& targetLi
         -1, m_cancellable.get(), dbusConnectionCallAsyncReadyCallback, nullptr);
 
     auto startSessionCompletionHandler = std::exchange(m_startSessionCompletionHandler, nullptr);
-    startSessionCompletionHandler(true, std::nullopt);
+    startSessionCompletionHandler(true, WTF::nullopt);
 }
 
 void SessionHost::sendMessageToFrontend(uint64_t connectionID, uint64_t targetID, const char* message)
@@ -366,8 +396,8 @@ void SessionHost::sendMessageToBackend(long messageID, const String& message)
                 auto responseHandler = messageContext->host->m_commandRequests.take(messageContext->messageID);
                 if (responseHandler) {
                     auto errorObject = JSON::Object::create();
-                    errorObject->setInteger(ASCIILiteral("code"), -32603);
-                    errorObject->setString(ASCIILiteral("message"), String::fromUTF8(error->message));
+                    errorObject->setInteger("code"_s, -32603);
+                    errorObject->setString("message"_s, String::fromUTF8(error->message));
                     responseHandler({ WTFMove(errorObject), true });
                 }
             }

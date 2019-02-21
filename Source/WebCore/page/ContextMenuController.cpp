@@ -43,6 +43,7 @@
 #include "Event.h"
 #include "EventHandler.h"
 #include "FormState.h"
+#include "Frame.h"
 #include "FrameLoadRequest.h"
 #include "FrameLoader.h"
 #include "FrameLoaderClient.h"
@@ -53,7 +54,6 @@
 #include "HitTestResult.h"
 #include "InspectorController.h"
 #include "LocalizedStrings.h"
-#include "MainFrame.h"
 #include "MouseEvent.h"
 #include "NavigationAction.h"
 #include "Node.h"
@@ -73,8 +73,8 @@
 
 
 namespace WebCore {
-using namespace WTF;
-using namespace Unicode;
+
+using namespace WTF::Unicode;
 
 ContextMenuController::ContextMenuController(Page& page, ContextMenuClient& client)
     : m_page(page)
@@ -196,7 +196,7 @@ static void openNewWindow(const URL& urlToLoad, Frame& frame, ShouldOpenExternal
     if (!newPage)
         return;
     newPage->chrome().show();
-    newPage->mainFrame().loader().loadFrameRequest(WTFMove(frameLoadRequest), nullptr, nullptr);
+    newPage->mainFrame().loader().loadFrameRequest(WTFMove(frameLoadRequest), nullptr, { });
 }
 
 #if PLATFORM(GTK)
@@ -360,7 +360,7 @@ void ContextMenuController::contextMenuItemSelected(ContextMenuAction action, co
     case ContextMenuItemTagSpellingGuess: {
         VisibleSelection selection = frame->selection().selection();
         if (frame->editor().shouldInsertText(title, selection.toNormalizedRange().get(), EditorInsertAction::Pasted)) {
-            ReplaceSelectionCommand::CommandOptions replaceOptions = ReplaceSelectionCommand::MatchStyle | ReplaceSelectionCommand::PreventNesting;
+            OptionSet<ReplaceSelectionCommand::CommandOption> replaceOptions { ReplaceSelectionCommand::MatchStyle, ReplaceSelectionCommand::PreventNesting };
 
             if (frame->editor().behavior().shouldAllowSpellingSuggestionsWithoutSelection()) {
                 ASSERT(selection.isCaretOrRange());
@@ -369,7 +369,7 @@ void ContextMenuController::contextMenuItemSelected(ContextMenuAction action, co
                 frame->selection().setSelection(wordSelection);
             } else {
                 ASSERT(frame->editor().selectedText().length());
-                replaceOptions |= ReplaceSelectionCommand::SelectReplacement;
+                replaceOptions.add(ReplaceSelectionCommand::SelectReplacement);
             }
 
             Document* document = frame->document();
@@ -397,7 +397,7 @@ void ContextMenuController::contextMenuItemSelected(ContextMenuAction action, co
         if (Frame* targetFrame = m_context.hitTestResult().targetFrame()) {
             ResourceRequest resourceRequest { m_context.hitTestResult().absoluteLinkURL(), frame->loader().outgoingReferrer() };
             FrameLoadRequest frameLoadRequest { *frame->document(), frame->document()->securityOrigin(), resourceRequest, { }, LockHistory::No, LockBackForwardList::No, MaybeSendReferrer, AllowNavigationToInvalidURL::Yes, NewFrameOpenerPolicy::Suppress, targetFrame->isMainFrame() ? ShouldOpenExternalURLsPolicy::ShouldAllow : ShouldOpenExternalURLsPolicy::ShouldNotAllow, InitiatedByMainFrame::Unknown };
-            targetFrame->loader().loadFrameRequest(WTFMove(frameLoadRequest), nullptr, nullptr);
+            targetFrame->loader().loadFrameRequest(WTFMove(frameLoadRequest), nullptr,  { });
         } else
             openNewWindow(m_context.hitTestResult().absoluteLinkURL(), *frame, ShouldOpenExternalURLsPolicy::ShouldAllow);
         break;
@@ -429,13 +429,13 @@ void ContextMenuController::contextMenuItemSelected(ContextMenuAction action, co
         m_client.stopSpeaking();
         break;
     case ContextMenuItemTagDefaultDirection:
-        frame->editor().setBaseWritingDirection(NaturalWritingDirection);
+        frame->editor().setBaseWritingDirection(WritingDirection::Natural);
         break;
     case ContextMenuItemTagLeftToRight:
-        frame->editor().setBaseWritingDirection(LeftToRightWritingDirection);
+        frame->editor().setBaseWritingDirection(WritingDirection::LeftToRight);
         break;
     case ContextMenuItemTagRightToLeft:
-        frame->editor().setBaseWritingDirection(RightToLeftWritingDirection);
+        frame->editor().setBaseWritingDirection(WritingDirection::RightToLeft);
         break;
     case ContextMenuItemTagTextDirectionDefault:
         frame->editor().command("MakeTextWritingDirectionNatural").execute();
@@ -1336,7 +1336,7 @@ void ContextMenuController::checkOrEnableIfNeeded(ContextMenuItem& item) const
             break;
         case ContextMenuItemTagDownloadImageToDisk:
 #if PLATFORM(MAC)
-            if (WebCore::protocolIs(m_context.hitTestResult().absoluteImageURL(), "file"))
+            if (WTF::protocolIs(m_context.hitTestResult().absoluteImageURL(), "file"))
                 shouldEnable = false;
 #endif
             break;
@@ -1351,7 +1351,7 @@ void ContextMenuController::checkOrEnableIfNeeded(ContextMenuItem& item) const
                 item.setTitle(contextMenuItemTagDownloadVideoToDisk());
             else
                 item.setTitle(contextMenuItemTagDownloadAudioToDisk());
-            if (WebCore::protocolIs(m_context.hitTestResult().absoluteImageURL(), "file"))
+            if (WTF::protocolIs(m_context.hitTestResult().absoluteImageURL(), "file"))
                 shouldEnable = false;
             break;
         case ContextMenuItemTagCopyMediaLinkToClipboard:

@@ -25,7 +25,7 @@
 
 #pragma once
 
-#if USE(REQUEST_ANIMATION_FRAME_DISPLAY_MONITOR) && PLATFORM(IOS)
+#if USE(REQUEST_ANIMATION_FRAME_DISPLAY_MONITOR) && PLATFORM(IOS_FAMILY)
 
 #include "DisplayRefreshMonitor.h"
 #include <wtf/RetainPtr.h>
@@ -43,7 +43,7 @@ public:
     
     virtual ~DisplayRefreshMonitorIOS();
 
-    void displayLinkFired();
+    void displayLinkFired() override;
     bool requestRefreshCallback() override;
 
 private:
@@ -53,4 +53,4 @@ private:
 
 }
 
-#endif // USE(REQUEST_ANIMATION_FRAME_DISPLAY_MONITOR) && PLATFORM(IOS)
+#endif // USE(REQUEST_ANIMATION_FRAME_DISPLAY_MONITOR) && PLATFORM(IOS_FAMILY)

@@ -13,9 +13,13 @@ combobox accessible set value to: combobox new value
 
 Test Contenteditable.
 contenteditable accessible set value to: contenteditable new value
+PASS axNode.stringValue is 'AXValue: contenteditable new value'
 
 Test Slider.
 slider accessible set value to: 70
+
+Test DOM Level 1 event.
+scroller accessible set value to: 70
 
 Test Scrollbar.
 scroller accessible set value to: 60

@@ -33,13 +33,15 @@
 #import <CoreMedia/CMBufferQueue.h>
 #import <CoreMedia/CMFormatDescription.h>
 #import <pal/avfoundation/MediaTimeAVFoundation.h>
+#import <pal/cf/CoreMediaSoftLink.h>
 #import <wtf/MainThread.h>
 #import <wtf/MediaTime.h>
+#import <wtf/MonotonicTime.h>
 #import <wtf/StringPrintStream.h>
 #import <wtf/Vector.h>
+#import <wtf/WTFSemaphore.h>
 #import <wtf/cf/TypeCastsCF.h>
 
-#import <pal/cf/CoreMediaSoftLink.h>
 #import "CoreVideoSoftLink.h"
 #import "VideoToolboxSoftLink.h"
 
@@ -53,7 +55,6 @@ WebCoreDecompressionSession::WebCoreDecompressionSession(Mode mode)
     : m_mode(mode)
     , m_decompressionQueue(adoptOSObject(dispatch_queue_create("WebCoreDecompressionSession Decompression Queue", DISPATCH_QUEUE_SERIAL)))
     , m_enqueingQueue(adoptOSObject(dispatch_queue_create("WebCoreDecompressionSession Enqueueing Queue", DISPATCH_QUEUE_SERIAL)))
-    , m_hasAvailableImageSemaphore(adoptOSObject(dispatch_semaphore_create(0)))
 {
 }
 
@@ -219,17 +220,17 @@ void WebCoreDecompressionSession::ensureDecompressionSessionForSample(CMSampleBu
 
     if (!m_decompressionSession) {
         CMVideoFormatDescriptionRef videoFormatDescription = CMSampleBufferGetFormatDescription(sample);
-        NSDictionary* videoDecoderSpecification = @{ (NSString *)kVTVideoDecoderSpecification_EnableHardwareAcceleratedVideoDecoder: @YES };
+        auto videoDecoderSpecification = @{ (__bridge NSString *)kVTVideoDecoderSpecification_EnableHardwareAcceleratedVideoDecoder: @YES };
 
         NSDictionary *attributes;
         if (m_mode == OpenGL) {
             attributes = nil;
         } else {
             ASSERT(m_mode == RGB);
-            attributes = @{(NSString *)kCVPixelBufferPixelFormatTypeKey: @(kCVPixelFormatType_32BGRA)};
+            attributes = @{ (__bridge NSString *)kCVPixelBufferPixelFormatTypeKey: @(kCVPixelFormatType_32BGRA) };
         }
         VTDecompressionSessionRef decompressionSessionOut = nullptr;
-        if (noErr == VTDecompressionSessionCreate(kCFAllocatorDefault, videoFormatDescription, (CFDictionaryRef)videoDecoderSpecification, (CFDictionaryRef)attributes, nullptr, &decompressionSessionOut)) {
+        if (noErr == VTDecompressionSessionCreate(kCFAllocatorDefault, videoFormatDescription, (__bridge CFDictionaryRef)videoDecoderSpecification, (__bridge CFDictionaryRef)attributes, nullptr, &decompressionSessionOut)) {
             m_decompressionSession = adoptCF(decompressionSessionOut);
             CFArrayRef rawSuggestedQualityOfServiceTiers = nullptr;
             VTSessionCopyProperty(decompressionSessionOut, kVTDecompressionPropertyKey_SuggestedQualityOfServiceTiers, kCFAllocatorDefault, &rawSuggestedQualityOfServiceTiers);
@@ -277,10 +278,13 @@ RetainPtr<CVPixelBufferRef> WebCoreDecompressionSession::decodeSampleSync(CMSamp
 
     RetainPtr<CVPixelBufferRef> pixelBuffer;
     VTDecodeInfoFlags flags { 0 };
+    WTF::Semaphore syncDecompressionOutputSemaphore { 0 };
     VTDecompressionSessionDecodeFrameWithOutputHandler(m_decompressionSession.get(), sample, flags, nullptr, [&] (OSStatus, VTDecodeInfoFlags, CVImageBufferRef imageBuffer, CMTime, CMTime) mutable {
         if (imageBuffer && CFGetTypeID(imageBuffer) == CVPixelBufferGetTypeID())
             pixelBuffer = (CVPixelBufferRef)imageBuffer;
+        syncDecompressionOutputSemaphore.signal();
     });
+    syncDecompressionOutputSemaphore.wait();
     return pixelBuffer;
 }
 
@@ -562,7 +566,7 @@ void WebCoreDecompressionSession::resetQosTier()
         return;
 
     auto tier = (CFDictionaryRef)CFArrayGetValueAtIndex(m_qosTiers.get(), m_currentQosTier);
-    LOG(Media, "WebCoreDecompressionSession::resetQosTier(%p) - currentQosTier(%ld), tier(%@)", this, m_currentQosTier, [(NSDictionary *)tier description]);
+    LOG(Media, "WebCoreDecompressionSession::resetQosTier(%p) - currentQosTier(%ld), tier(%@)", this, m_currentQosTier, [(__bridge NSDictionary *)tier description]);
 
     VTSessionSetProperties(m_decompressionSession.get(), tier);
     m_framesSinceLastQosCheck = 0;

@@ -29,6 +29,7 @@
 #include "Logging.h"
 #include "NetworkCacheCoders.h"
 #include "NetworkProcess.h"
+#include "WebCoreArgumentCoders.h"
 #include <WebCore/ResourceRequest.h>
 #include <WebCore/SharedBuffer.h>
 #include <wtf/text/StringBuilder.h>
@@ -94,6 +95,8 @@ Storage::Record Entry::encodeAsStorageRecord() const
     if (isRedirect)
         m_redirectRequest->encodeWithoutPlatformData(encoder);
 
+    encoder << m_maxAgeCap;
+    
     encoder.encodeChecksum();
 
     Data header(encoder.buffer(), encoder.bufferSize());
@@ -112,8 +115,6 @@ std::unique_ptr<Entry> Entry::decodeStorageRecord(const Storage::Record& storage
     if (!decoder.decode(entry->m_response))
         return nullptr;
     entry->m_response.setSource(WebCore::ResourceResponse::Source::DiskCache);
-    if (storageEntry.bodyHash)
-        entry->m_response.setCacheBodyKey(*storageEntry.bodyHash);
 
     bool hasVaryingRequestHeaders;
     if (!decoder.decode(hasVaryingRequestHeaders))
@@ -134,6 +135,8 @@ std::unique_ptr<Entry> Entry::decodeStorageRecord(const Storage::Record& storage
             return nullptr;
     }
 
+    decoder.decode(entry->m_maxAgeCap);
+    
     if (!decoder.verifyChecksum()) {
         LOG(NetworkCache, "(NetworkProcess) checksum verification failure\n");
         return nullptr;
@@ -142,13 +145,21 @@ std::unique_ptr<Entry> Entry::decodeStorageRecord(const Storage::Record& storage
     return entry;
 }
 
+#if ENABLE(RESOURCE_LOAD_STATISTICS)
+bool Entry::hasReachedPrevalentResourceAgeCap() const
+{
+    return m_maxAgeCap && WebCore::computeCurrentAge(response(), timeStamp()) > m_maxAgeCap;
+}
+
+void Entry::capMaxAge(const Seconds seconds)
+{
+    m_maxAgeCap = seconds;
+}
+#endif
+
 #if ENABLE(SHAREABLE_RESOURCE)
 void Entry::initializeShareableResourceHandleFromStorageRecord() const
 {
-    auto* cache = NetworkProcess::singleton().cache();
-    if (!cache || !cache->canUseSharedMemoryForBodyData())
-        return;
-
     auto sharedMemory = m_sourceStorageRecord.body.tryCreateSharedMemory();
     if (!sharedMemory)
         return;
@@ -195,13 +206,6 @@ bool Entry::needsValidation() const
 
 void Entry::setNeedsValidation(bool value)
 {
-    if (value) {
-        // Validation keeps the entry alive waiting for the network response. Pull data from a mapped file into a buffer early
-        // to protect against map disappearing due to device becoming locked.
-        // FIXME: Cache files should be Class B/C, or we shoudn't use mapped files at all in these cases.
-        if (!NetworkProcess::singleton().cache()->canUseSharedMemoryForBodyData())
-            buffer();
-    }
     m_response.setSource(value ? WebCore::ResourceResponse::Source::DiskCacheAfterValidation : WebCore::ResourceResponse::Source::DiskCache);
 }
 

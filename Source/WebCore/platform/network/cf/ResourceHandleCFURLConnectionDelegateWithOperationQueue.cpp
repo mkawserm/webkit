@@ -119,7 +119,7 @@ static CFRunLoopRef getRunLoop()
             while (true)
                 CFRunLoopRunInMode(kCFRunLoopDefaultMode, 1E30, true);
         });
-        sem.wait(TimeWithDynamicClockType(WallTime::infinity()));
+        sem.wait();
     }
 
     return runLoop;
@@ -172,7 +172,7 @@ CFURLRequestRef ResourceHandleCFURLConnectionDelegateWithOperationQueue::willSen
         m_messageQueue->append(std::make_unique<Function<void()>>(WTFMove(work)));
     else
         callOnMainThread(WTFMove(work));
-    m_semaphore.wait(TimeWithDynamicClockType(WallTime::infinity()));
+    m_semaphore.wait();
 
     return m_requestResult.leakRef();
 }
@@ -210,7 +210,7 @@ void ResourceHandleCFURLConnectionDelegateWithOperationQueue::didReceiveResponse
         m_messageQueue->append(std::make_unique<Function<void()>>(WTFMove(work)));
     else
         callOnMainThread(WTFMove(work));
-    m_semaphore.wait(TimeWithDynamicClockType(WallTime::infinity()));
+    m_semaphore.wait();
 }
 
 void ResourceHandleCFURLConnectionDelegateWithOperationQueue::didReceiveData(CFDataRef data, CFIndex originalLength)
@@ -294,24 +294,27 @@ CFCachedURLResponseRef ResourceHandleCFURLConnectionDelegateWithOperationQueue::
     }
 
     auto protectedThis = makeRef(*this);
-    auto work = [protectedThis = makeRef(*this), cachedResponse = RetainPtr<CFCachedURLResponseRef>(cachedResponse)] () {
+    auto work = [protectedThis = makeRef(*this), cachedResponse = RetainPtr<CFCachedURLResponseRef>(cachedResponse)] () mutable {
         auto& handle = protectedThis->m_handle;
-        
-        if (!protectedThis->hasHandle() || !handle->client() || !handle->connection()) {
-            protectedThis->continueWillCacheResponse(nullptr);
-            return;
-        }
+
+        auto completionHandler = [protectedThis = WTFMove(protectedThis)] (CFCachedURLResponseRef response) mutable {
+            protectedThis->m_cachedResponseResult = response;
+            protectedThis->m_semaphore.signal();
+        };
+
+        if (!handle || !handle->client() || !handle->connection())
+            return completionHandler(nullptr);
 
         LOG(Network, "CFNet - ResourceHandleCFURLConnectionDelegateWithOperationQueue::willCacheResponse(handle=%p) (%s)", handle, handle->firstRequest().url().string().utf8().data());
 
-        handle->client()->willCacheResponseAsync(handle, cachedResponse.get());
+        handle->client()->willCacheResponseAsync(handle, cachedResponse.get(), WTFMove(completionHandler));
     };
     
     if (m_messageQueue)
         m_messageQueue->append(std::make_unique<Function<void()>>(WTFMove(work)));
     else
         callOnMainThread(WTFMove(work));
-    m_semaphore.wait(TimeWithDynamicClockType(WallTime::infinity()));
+    m_semaphore.wait();
     return m_cachedResponseResult.leakRef();
 }
 
@@ -363,22 +366,24 @@ Boolean ResourceHandleCFURLConnectionDelegateWithOperationQueue::canRespondToPro
     auto work = [protectedThis = makeRef(*this), protectionSpace = RetainPtr<CFURLProtectionSpaceRef>(protectionSpace)] () mutable {
         auto& handle = protectedThis->m_handle;
         
-        if (!protectedThis->hasHandle()) {
-            protectedThis->continueCanAuthenticateAgainstProtectionSpace(false);
-            return;
+        auto completionHandler = [protectedThis = WTFMove(protectedThis)] (bool result) mutable {
+            protectedThis->m_boolResult = canAuthenticate;
+            protectedThis->m_semaphore.signal();
         }
+        
+        if (!handle)
+            return completionHandler(false);
 
         LOG(Network, "CFNet - ResourceHandleCFURLConnectionDelegateWithOperationQueue::canRespondToProtectionSpace(handle=%p) (%s)", handle, handle->firstRequest().url().string().utf8().data());
 
-        ProtectionSpace coreProtectionSpace = ProtectionSpace(protectionSpace.get());
-        handle->canAuthenticateAgainstProtectionSpace(coreProtectionSpace);
+        handle->canAuthenticateAgainstProtectionSpace(ProtectionSpace(protectionSpace.get()), WTFMove(completionHandler));
     };
     
     if (m_messageQueue)
         m_messageQueue->append(std::make_unique<Function<void()>>(WTFMove(work)));
     else
         callOnMainThread(WTFMove(work));
-    m_semaphore.wait(TimeWithDynamicClockType(WallTime::infinity()));
+    m_semaphore.wait();
     return m_boolResult;
 }
 
@@ -388,12 +393,6 @@ void ResourceHandleCFURLConnectionDelegateWithOperationQueue::continueCanAuthent
     m_semaphore.signal();
 }
 #endif // USE(PROTECTION_SPACE_AUTH_CALLBACK)
-
-void ResourceHandleCFURLConnectionDelegateWithOperationQueue::continueWillCacheResponse(CFCachedURLResponseRef response)
-{
-    m_cachedResponseResult = response;
-    m_semaphore.signal();
-}
 
 } // namespace WebCore
 

@@ -12,12 +12,13 @@
 
 #include <algorithm>
 #include <memory>
+#include <vector>
 
+#include "absl/memory/memory.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/helpers.h"
 #include "rtc_base/logging.h"
-#include "rtc_base/ptr_util.h"
-#include "rtc_base/stringencode.h"
+#include "rtc_base/timeutils.h"  // For TimeMillis
 
 namespace cricket {
 
@@ -40,13 +41,11 @@ const int STUN_MAX_RETRANSMISSIONS = 8;  // Total sends: 9
 // work well.
 const int STUN_MAX_RTO = 8000;  // milliseconds, or 5 doublings
 
-StunRequestManager::StunRequestManager(rtc::Thread* thread)
-    : thread_(thread) {
-}
+StunRequestManager::StunRequestManager(rtc::Thread* thread) : thread_(thread) {}
 
 StunRequestManager::~StunRequestManager() {
   while (requests_.begin() != requests_.end()) {
-    StunRequest *request = requests_.begin()->second;
+    StunRequest* request = requests_.begin()->second;
     requests_.erase(requests_.begin());
     delete request;
   }
@@ -70,7 +69,7 @@ void StunRequestManager::SendDelayed(StunRequest* request, int delay) {
 }
 
 void StunRequestManager::Flush(int msg_type) {
-  for (const auto kv : requests_) {
+  for (const auto& kv : requests_) {
     StunRequest* request = kv.second;
     if (msg_type == kAllRequests || msg_type == request->type()) {
       thread_->Clear(request, MSG_STUN_SEND);
@@ -80,7 +79,7 @@ void StunRequestManager::Flush(int msg_type) {
 }
 
 bool StunRequestManager::HasRequest(int msg_type) {
-  for (const auto kv : requests_) {
+  for (const auto& kv : requests_) {
     StunRequest* request = kv.second;
     if (msg_type == kAllRequests || msg_type == request->type()) {
       return true;
@@ -166,17 +165,17 @@ bool StunRequestManager::CheckResponse(const char* data, size_t size) {
 }
 
 StunRequest::StunRequest()
-    : count_(0), timeout_(false), manager_(0),
-      msg_(new StunMessage()), tstamp_(0) {
-  msg_->SetTransactionID(
-      rtc::CreateRandomString(kStunTransactionIdLength));
+    : count_(0),
+      timeout_(false),
+      manager_(0),
+      msg_(new StunMessage()),
+      tstamp_(0) {
+  msg_->SetTransactionID(rtc::CreateRandomString(kStunTransactionIdLength));
 }
 
 StunRequest::StunRequest(StunMessage* request)
-    : count_(0), timeout_(false), manager_(0),
-      msg_(request), tstamp_(0) {
-  msg_->SetTransactionID(
-      rtc::CreateRandomString(kStunTransactionIdLength));
+    : count_(0), timeout_(false), manager_(0), msg_(request), tstamp_(0) {
+  msg_->SetTransactionID(rtc::CreateRandomString(kStunTransactionIdLength));
 }
 
 StunRequest::~StunRequest() {
@@ -191,8 +190,8 @@ StunRequest::~StunRequest() {
 void StunRequest::Construct() {
   if (msg_->type() == 0) {
     if (!origin_.empty()) {
-      msg_->AddAttribute(
-          rtc::MakeUnique<StunByteStringAttribute>(STUN_ATTR_ORIGIN, origin_));
+      msg_->AddAttribute(absl::make_unique<StunByteStringAttribute>(
+          STUN_ATTR_ORIGIN, origin_));
     }
     Prepare(msg_);
     RTC_DCHECK(msg_->type() != 0);
@@ -215,7 +214,6 @@ StunMessage* StunRequest::mutable_msg() {
 int StunRequest::Elapsed() const {
   return static_cast<int>(rtc::TimeMillis() - tstamp_);
 }
-
 
 void StunRequest::set_manager(StunRequestManager* manager) {
   RTC_DCHECK(!manager_);

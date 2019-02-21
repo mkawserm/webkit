@@ -432,8 +432,6 @@ rect: style.getPropertyValue(-webkit-print-color-adjust) : economy
 rect: style.getPropertyCSSValue(-webkit-print-color-adjust) : [object CSSPrimitiveValue]
 rect: style.getPropertyValue(-webkit-rtl-ordering) : logical
 rect: style.getPropertyCSSValue(-webkit-rtl-ordering) : [object CSSPrimitiveValue]
-rect: style.getPropertyValue(shape-outside) : none
-rect: style.getPropertyCSSValue(shape-outside) : [object CSSPrimitiveValue]
 rect: style.getPropertyValue(-webkit-text-combine) : none
 rect: style.getPropertyCSSValue(-webkit-text-combine) : [object CSSPrimitiveValue]
 rect: style.getPropertyValue(-webkit-text-decorations-in-effect) : none
@@ -480,8 +478,6 @@ rect: style.getPropertyValue(mask) : none
 rect: style.getPropertyCSSValue(mask) : [object CSSPrimitiveValue]
 rect: style.getPropertyValue(mask-type) : luminance
 rect: style.getPropertyCSSValue(mask-type) : [object CSSPrimitiveValue]
-rect: style.getPropertyValue(filter) : none
-rect: style.getPropertyCSSValue(filter) : [object CSSPrimitiveValue]
 rect: style.getPropertyValue(flood-color) : rgb(0, 0, 0)
 rect: style.getPropertyCSSValue(flood-color) : [object CSSPrimitiveValue]
 rect: style.getPropertyValue(flood-opacity) : 1
@@ -544,8 +540,6 @@ rect: style.getPropertyValue(glyph-orientation-horizontal) : 0deg
 rect: style.getPropertyCSSValue(glyph-orientation-horizontal) : [object CSSPrimitiveValue]
 rect: style.getPropertyValue(glyph-orientation-vertical) : auto
 rect: style.getPropertyCSSValue(glyph-orientation-vertical) : [object CSSPrimitiveValue]
-rect: style.getPropertyValue(-webkit-svg-shadow) : none
-rect: style.getPropertyCSSValue(-webkit-svg-shadow) : [object CSSPrimitiveValue]
 rect: style.getPropertyValue(vector-effect) : none
 rect: style.getPropertyCSSValue(vector-effect) : [object CSSPrimitiveValue]
 g: style.getPropertyValue(background-attachment) : scroll
@@ -982,8 +976,6 @@ g: style.getPropertyValue(-webkit-print-color-adjust) : economy
 g: style.getPropertyCSSValue(-webkit-print-color-adjust) : [object CSSPrimitiveValue]
 g: style.getPropertyValue(-webkit-rtl-ordering) : logical
 g: style.getPropertyCSSValue(-webkit-rtl-ordering) : [object CSSPrimitiveValue]
-g: style.getPropertyValue(shape-outside) : none
-g: style.getPropertyCSSValue(shape-outside) : [object CSSPrimitiveValue]
 g: style.getPropertyValue(-webkit-text-combine) : none
 g: style.getPropertyCSSValue(-webkit-text-combine) : [object CSSPrimitiveValue]
 g: style.getPropertyValue(-webkit-text-decorations-in-effect) : none
@@ -1030,8 +1022,6 @@ g: style.getPropertyValue(mask) : none
 g: style.getPropertyCSSValue(mask) : [object CSSPrimitiveValue]
 g: style.getPropertyValue(mask-type) : luminance
 g: style.getPropertyCSSValue(mask-type) : [object CSSPrimitiveValue]
-g: style.getPropertyValue(filter) : none
-g: style.getPropertyCSSValue(filter) : [object CSSPrimitiveValue]
 g: style.getPropertyValue(flood-color) : rgb(0, 0, 0)
 g: style.getPropertyCSSValue(flood-color) : [object CSSPrimitiveValue]
 g: style.getPropertyValue(flood-opacity) : 1
@@ -1094,8 +1084,6 @@ g: style.getPropertyValue(glyph-orientation-horizontal) : 0deg
 g: style.getPropertyCSSValue(glyph-orientation-horizontal) : [object CSSPrimitiveValue]
 g: style.getPropertyValue(glyph-orientation-vertical) : auto
 g: style.getPropertyCSSValue(glyph-orientation-vertical) : [object CSSPrimitiveValue]
-g: style.getPropertyValue(-webkit-svg-shadow) : none
-g: style.getPropertyCSSValue(-webkit-svg-shadow) : [object CSSPrimitiveValue]
 g: style.getPropertyValue(vector-effect) : none
 g: style.getPropertyCSSValue(vector-effect) : [object CSSPrimitiveValue]
 

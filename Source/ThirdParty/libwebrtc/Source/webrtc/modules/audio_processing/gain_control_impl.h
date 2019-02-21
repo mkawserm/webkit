@@ -11,14 +11,16 @@
 #ifndef MODULES_AUDIO_PROCESSING_GAIN_CONTROL_IMPL_H_
 #define MODULES_AUDIO_PROCESSING_GAIN_CONTROL_IMPL_H_
 
+#include <stddef.h>
+#include <stdint.h>
 #include <memory>
 #include <vector>
 
-#include "modules/audio_processing/include/audio_processing.h"
-#include "modules/audio_processing/render_queue_item_verifier.h"
+#include "absl/types/optional.h"
+#include "api/array_view.h"
+#include "modules/audio_processing/include/gain_control.h"
 #include "rtc_base/constructormagic.h"
 #include "rtc_base/criticalsection.h"
-#include "rtc_base/swap_queue.h"
 #include "rtc_base/thread_annotations.h"
 
 namespace webrtc {
@@ -86,8 +88,8 @@ class GainControlImpl : public GainControl {
 
   std::vector<std::unique_ptr<GainController>> gain_controllers_;
 
-  rtc::Optional<size_t> num_proc_channels_ RTC_GUARDED_BY(crit_capture_);
-  rtc::Optional<int> sample_rate_hz_ RTC_GUARDED_BY(crit_capture_);
+  absl::optional<size_t> num_proc_channels_ RTC_GUARDED_BY(crit_capture_);
+  absl::optional<int> sample_rate_hz_ RTC_GUARDED_BY(crit_capture_);
 
   static int instance_counter_;
   RTC_DISALLOW_IMPLICIT_CONSTRUCTORS(GainControlImpl);

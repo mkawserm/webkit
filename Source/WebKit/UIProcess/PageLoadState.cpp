@@ -206,9 +206,9 @@ bool PageLoadState::hasOnlySecureContent(const Data& data)
         return false;
 
     if (data.state == State::Provisional)
-        return WebCore::protocolIs(data.provisionalURL, "https");
+        return WTF::protocolIs(data.provisionalURL, "https");
 
-    return WebCore::protocolIs(data.url, "https");
+    return WTF::protocolIs(data.url, "https");
 }
 
 bool PageLoadState::hasOnlySecureContent() const
@@ -407,6 +407,11 @@ bool PageLoadState::isLoading(const Data& data)
     return false;
 }
 
+void PageLoadState::didSwapWebProcesses()
+{
+    callObserverCallback(&Observer::didSwapWebProcesses);
+}
+
 void PageLoadState::willChangeProcessIsResponsive()
 {
     callObserverCallback(&Observer::willChangeWebProcessIsResponsive);
@@ -419,8 +424,17 @@ void PageLoadState::didChangeProcessIsResponsive()
 
 void PageLoadState::callObserverCallback(void (Observer::*callback)())
 {
-    for (auto* observer : m_observers)
+    auto protectedPage = makeRef(m_webPageProxy);
+
+    auto observerCopy = m_observers;
+    for (auto* observer : observerCopy) {
+        // This appears potentially inefficient on the surface (searching in a Vector)
+        // but in practice - using only API - there will only ever be (1) observer.
+        if (!m_observers.contains(observer))
+            continue;
+
         (observer->*callback)();
+    }
 }
 
 } // namespace WebKit

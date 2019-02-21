@@ -108,6 +108,7 @@ public:
     bool supportsSubpixelAntialiasedText() const override;
     void setSupportsSubpixelAntialiasedText(bool) override;
 
+    bool hasContents() const override;
     CFTypeRef contents() const override;
     void setContents(CFTypeRef) override;
 
@@ -156,6 +157,8 @@ public:
     GraphicsLayer::CustomAppearance customAppearance() const override { return m_customAppearance; }
     void updateCustomAppearance(GraphicsLayer::CustomAppearance customAppearance) override { m_customAppearance = customAppearance; }
 
+    GraphicsLayer::EmbeddedViewID embeddedViewID() const override;
+
     TiledBacking* tiledBacking() override;
     
     PlatformCALayer* rootLayer() const override;
@@ -174,7 +177,7 @@ private:
 
     HashMap<String, RefPtr<PlatformCAAnimation>> m_animations;
     std::unique_ptr<PlatformCALayerList> m_customSublayers;
-    GraphicsLayer::CustomAppearance m_customAppearance;
+    GraphicsLayer::CustomAppearance m_customAppearance { GraphicsLayer::CustomAppearance::None };
 };
 
 }

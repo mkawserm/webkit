@@ -20,8 +20,8 @@
 		31012E2918B97B9B0039062F /* DirectiveHandler.h in Headers */ = {isa = PBXBuildFile; fileRef = 31012DB818B97B9B0039062F /* DirectiveHandler.h */; };
 		31012E2A18B97B9B0039062F /* ExtensionBehavior.h in Headers */ = {isa = PBXBuildFile; fileRef = 31012DB918B97B9B0039062F /* ExtensionBehavior.h */; };
 		31012E2D18B97B9B0039062F /* glslang.h in Headers */ = {isa = PBXBuildFile; fileRef = 31012DBD18B97B9B0039062F /* glslang.h */; };
-		31012E3018B97B9B0039062F /* glslang_lex.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 31012DC018B97B9B0039062F /* glslang_lex.cpp */; };
-		31012E3118B97B9B0039062F /* glslang_tab.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 31012DC118B97B9B0039062F /* glslang_tab.cpp */; };
+		31012E3018B97B9B0039062F /* glslang_lex.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 31012DC018B97B9B0039062F /* glslang_lex.cpp */; settings = {COMPILER_FLAGS = "-Wno-unreachable-code"; }; };
+		31012E3118B97B9B0039062F /* glslang_tab.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 31012DC118B97B9B0039062F /* glslang_tab.cpp */; settings = {COMPILER_FLAGS = "-Wno-unreachable-code"; }; };
 		31012E3218B97B9B0039062F /* glslang_tab.h in Headers */ = {isa = PBXBuildFile; fileRef = 31012DC218B97B9B0039062F /* glslang_tab.h */; };
 		31012E3318B97B9B0039062F /* HashNames.h in Headers */ = {isa = PBXBuildFile; fileRef = 31012DC318B97B9B0039062F /* HashNames.h */; };
 		31012E3418B97B9B0039062F /* InfoSink.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 31012DC418B97B9B0039062F /* InfoSink.cpp */; };
@@ -516,8 +516,8 @@
 		5CCD81C01DBFEA5C006066B8 /* UseInterfaceBlockFields.h in Headers */ = {isa = PBXBuildFile; fileRef = 5CCD81A91DBFEA5C006066B8 /* UseInterfaceBlockFields.h */; };
 		5CCD81C31DBFEAD9006066B8 /* EmulateGLFragColorBroadcast.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 5CCD81C11DBFEAD9006066B8 /* EmulateGLFragColorBroadcast.cpp */; };
 		5CCD81C41DBFEAD9006066B8 /* EmulateGLFragColorBroadcast.h in Headers */ = {isa = PBXBuildFile; fileRef = 5CCD81C21DBFEAD9006066B8 /* EmulateGLFragColorBroadcast.h */; };
-		72309A56183C27DE00370B93 /* Tokenizer.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 72309A55183C27DB00370B93 /* Tokenizer.cpp */; };
-		72309A58183C27F300370B93 /* ExpressionParser.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 72309A57183C27F100370B93 /* ExpressionParser.cpp */; };
+		72309A56183C27DE00370B93 /* Tokenizer.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 72309A55183C27DB00370B93 /* Tokenizer.cpp */; settings = {COMPILER_FLAGS = "-Wno-unreachable-code"; }; };
+		72309A58183C27F300370B93 /* ExpressionParser.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 72309A57183C27F100370B93 /* ExpressionParser.cpp */; settings = {COMPILER_FLAGS = "-Wno-unreachable-code"; }; };
 		A08C3CDC16D6CB61003F0B83 /* ArrayBoundsClamper.cpp in Sources */ = {isa = PBXBuildFile; fileRef = A08C3CDA16D6CB61003F0B83 /* ArrayBoundsClamper.cpp */; };
 		A08C3CDD16D6CB61003F0B83 /* ArrayBoundsClamper.h in Headers */ = {isa = PBXBuildFile; fileRef = A08C3CDB16D6CB61003F0B83 /* ArrayBoundsClamper.h */; };
 		A264F8AC16974DED006FAA5A /* DiagnosticsBase.cpp in Sources */ = {isa = PBXBuildFile; fileRef = A264F89316974DED006FAA5A /* DiagnosticsBase.cpp */; };
@@ -550,7 +550,7 @@
 		312BDB0B15FECAB00097EBC7 /* CopyFiles */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 8;
-			dstPath = "$(INSTALL_PATH_PREFIX)/usr/local/OpenSourceVersions";
+			dstPath = "$(ANGLE_INSTALL_PATH_PREFIX)/usr/local/OpenSourceVersions";
 			dstSubfolderSpec = 0;
 			files = (
 				312BDB0C15FECAC90097EBC7 /* ANGLE.plist in CopyFiles */,
@@ -560,7 +560,7 @@
 		312BDB0D15FECACE0097EBC7 /* CopyFiles */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 8;
-			dstPath = "$(INSTALL_PATH_PREFIX)/usr/local/OpenSourceLicenses";
+			dstPath = "$(ANGLE_INSTALL_PATH_PREFIX)/usr/local/OpenSourceLicenses";
 			dstSubfolderSpec = 0;
 			files = (
 				312BDB0E15FECAE50097EBC7 /* ANGLE.txt in CopyFiles */,
@@ -1097,6 +1097,7 @@
 		72309A57183C27F100370B93 /* ExpressionParser.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = ExpressionParser.cpp; sourceTree = "<group>"; };
 		A08C3CDA16D6CB61003F0B83 /* ArrayBoundsClamper.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = ArrayBoundsClamper.cpp; path = src/third_party/compiler/ArrayBoundsClamper.cpp; sourceTree = "<group>"; };
 		A08C3CDB16D6CB61003F0B83 /* ArrayBoundsClamper.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = ArrayBoundsClamper.h; path = src/third_party/compiler/ArrayBoundsClamper.h; sourceTree = "<group>"; };
+		A1B89B89221E003A00EB4CEA /* SDKVariant.xcconfig */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xcconfig; path = SDKVariant.xcconfig; sourceTree = "<group>"; };
 		A264F89316974DED006FAA5A /* DiagnosticsBase.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = DiagnosticsBase.cpp; sourceTree = "<group>"; };
 		A264F89416974DED006FAA5A /* DiagnosticsBase.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = DiagnosticsBase.h; sourceTree = "<group>"; };
 		A264F89516974DED006FAA5A /* DirectiveHandlerBase.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = DirectiveHandlerBase.cpp; sourceTree = "<group>"; };
@@ -1411,8 +1412,7 @@
 		315EBE251FCF806A00AC7A89 /* smhasher */ = {
 			isa = PBXGroup;
 			children = (
-				315EBE261FCF808C00AC7A89 /* PMurHash.cpp */,
-				315EBE271FCF808C00AC7A89 /* PMurHash.h */,
+				44B8F2972135FBC200A99829 /* src */,
 			);
 			name = smhasher;
 			sourceTree = "<group>";
@@ -1423,6 +1423,15 @@
 				31A331E11EA5EFB800FD2203 /* trace_event.h */,
 			);
 			name = trace_event;
+			sourceTree = "<group>";
+		};
+		44B8F2972135FBC200A99829 /* src */ = {
+			isa = PBXGroup;
+			children = (
+				315EBE261FCF808C00AC7A89 /* PMurHash.cpp */,
+				315EBE271FCF808C00AC7A89 /* PMurHash.h */,
+			);
+			name = src;
 			sourceTree = "<group>";
 		};
 		5C1BAA931DFB60E2002906BB /* EGL */ = {
@@ -1803,6 +1812,7 @@
 				5D7C59C51208C68B001C873E /* ANGLE.xcconfig */,
 				5D7C59C61208C68B001C873E /* Base.xcconfig */,
 				5D7C59C71208C68B001C873E /* DebugRelease.xcconfig */,
+				A1B89B89221E003A00EB4CEA /* SDKVariant.xcconfig */,
 			);
 			path = Configurations;
 			sourceTree = "<group>";
@@ -2274,7 +2284,7 @@
 			isa = PBXProject;
 			attributes = {
 				LastSwiftUpdateCheck = 0700;
-				LastUpgradeCheck = 0700;
+				LastUpgradeCheck = 1000;
 			};
 			buildConfigurationList = FB39D0731200ED9200088E69 /* Build configuration list for PBXProject "ANGLE" */;
 			compatibilityVersion = "Xcode 3.2";

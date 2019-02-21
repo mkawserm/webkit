@@ -14,14 +14,12 @@
 #include <string.h>  // size_t
 #include <memory>
 
-#include "modules/audio_coding/neteq/audio_multi_vector.h"
-#include "modules/audio_coding/neteq/include/neteq.h"
 #include "rtc_base/constructormagic.h"
-#include "typedefs.h"  // NOLINT(build/include)
 
 namespace webrtc {
 
 // Forward declarations.
+class AudioMultiVector;
 class PostDecodeVad;
 
 // This class handles estimation of background noise parameters.
@@ -38,8 +36,7 @@ class BackgroundNoise {
 
   // Updates the parameter estimates based on the signal currently in the
   // |sync_buffer|, and on the latest decision in |vad| if it is running.
-  void Update(const AudioMultiVector& sync_buffer,
-              const PostDecodeVad& vad);
+  void Update(const AudioMultiVector& sync_buffer, const PostDecodeVad& vad);
 
   // Returns |energy_| for |channel|.
   int32_t Energy(size_t channel) const;
@@ -68,11 +65,6 @@ class BackgroundNoise {
 
   // Accessors.
   bool initialized() const { return initialized_; }
-  NetEq::BackgroundNoiseMode mode() const { return mode_; }
-
-  // Sets the mode of the background noise playout for cases when there is long
-  // duration of packet loss.
-  void set_mode(NetEq::BackgroundNoiseMode mode) { mode_ = mode; }
 
  private:
   static const int kThresholdIncrement = 229;  // 0.0035 in Q16.
@@ -83,9 +75,7 @@ class BackgroundNoise {
 
   struct ChannelParameters {
     // Constructor.
-    ChannelParameters() {
-      Reset();
-    }
+    ChannelParameters() { Reset(); }
 
     void Reset() {
       energy = 2500;
@@ -95,7 +85,7 @@ class BackgroundNoise {
       memset(filter_state, 0, sizeof(filter_state));
       memset(filter, 0, sizeof(filter));
       filter[0] = 4096;
-      mute_factor = 0,
+      mute_factor = 0;
       scale = 20000;
       scale_shift = 24;
     }
@@ -128,7 +118,6 @@ class BackgroundNoise {
   size_t num_channels_;
   std::unique_ptr<ChannelParameters[]> channel_parameters_;
   bool initialized_;
-  NetEq::BackgroundNoiseMode mode_;
 
   RTC_DISALLOW_COPY_AND_ASSIGN(BackgroundNoise);
 };

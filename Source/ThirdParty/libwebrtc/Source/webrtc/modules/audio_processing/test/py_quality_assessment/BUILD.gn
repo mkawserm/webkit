@@ -117,6 +117,7 @@ rtc_executable("fake_polqa") {
   output_name = "py_quality_assessment/quality_assessment/fake_polqa"
   deps = [
     "../../../..:webrtc_common",
+    "../../../../rtc_base:checks",
     "../../../../rtc_base:rtc_base_approved",
   ]
 }
@@ -135,6 +136,19 @@ rtc_executable("vad") {
 rtc_executable("apm_vad") {
   sources = [
     "quality_assessment/apm_vad.cc",
+  ]
+  deps = [
+    "../..",
+    "../../../..:webrtc_common",
+    "../../../../common_audio",
+    "../../../../rtc_base:rtc_base_approved",
+    "../../vad",
+  ]
+}
+
+rtc_executable("sound_level") {
+  sources = [
+    "quality_assessment/sound_level.cc",
   ]
   deps = [
     "../..",

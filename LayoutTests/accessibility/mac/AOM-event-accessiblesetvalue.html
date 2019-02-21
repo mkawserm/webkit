@@ -8,7 +8,7 @@
 <div contenteditable="true" id="contenteditable">current</div>
 <div id="combobox" role="combobox" aria-expanded="false" aria-label="Test"></div>
 <input id="slider" type="range">
-<div id="scroller" aria-valuenow="55" role="scrollbar">scrollbar</div>
+<div id="scroller" aria-valuenow="55" role="scrollbar" onaccessiblesetvalue="domLevel1Callback(event)">scrollbar</div>
 
 </div>
 
@@ -63,8 +63,16 @@
            axNode = accessibilityController.accessibleElementById("contenteditable");
            node.onaccessiblesetvalue = function(event) {
               debug("contenteditable accessible set value to: " + event.value);
-              testSlider();
            };
+           accessibilityController.addNotificationListener(function(element, notification) {
+               if (notification == "AXValueChanged") {
+                   shouldBe("axNode.stringValue", "'AXValue: contenteditable new value'");
+                   node.blur();
+                   accessibilityController.removeNotificationListener();
+                   testSlider();
+               }
+           });
+           node.focus();
            axNode.setValue("contenteditable new value");
        }
        
@@ -74,8 +82,20 @@
            axNode = accessibilityController.accessibleElementById("slider");
            node.onaccessiblesetvalue = function(event) {
               debug("slider accessible set value to: " + event.value);
-              testScrollbar();
+              testDOMLevel1Event();
            };
+           axNode.setValue("70");
+       }
+
+       function domLevel1Callback(event) {
+           debug("scroller accessible set value to: " + event.value);
+           document.getElementById("scroller").removeAttribute("onaccessiblesetvalue");
+           testScrollbar();
+       }
+
+       function testDOMLevel1Event() {
+           debug("\nTest DOM Level 1 event."); 
+           axNode = accessibilityController.accessibleElementById("scroller");
            axNode.setValue("70");
        }
        

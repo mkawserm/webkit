@@ -25,7 +25,7 @@
 
 #import <config.h>
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
 
 #import "FindController.h"
 #import "FindIndicatorOverlayClientIOS.h"
@@ -35,29 +35,28 @@
 #import "WebPageProxyMessages.h"
 #import <WebCore/Editor.h>
 #import <WebCore/FocusController.h>
+#import <WebCore/Frame.h>
 #import <WebCore/FrameView.h>
 #import <WebCore/GraphicsContext.h>
-#import <WebCore/MainFrame.h>
 #import <WebCore/Page.h>
 #import <WebCore/PageOverlayController.h>
 #import <WebCore/PathUtilities.h>
 #import <WebCore/Settings.h>
 #import <WebCore/TextIndicator.h>
 
+namespace WebKit {
 using namespace WebCore;
 
 const int cornerRadius = 3;
-const int totalHorizontalMargin = 2;
+const int totalHorizontalMargin = 1;
 const int totalVerticalMargin = 1;
 
-const TextIndicatorOptions findTextIndicatorOptions = TextIndicatorOptionTightlyFitContent | TextIndicatorOptionIncludeMarginIfRangeMatchesSelection | TextIndicatorOptionDoNotClipToVisibleRect;
+const TextIndicatorOptions findTextIndicatorOptions = TextIndicatorOptionIncludeMarginIfRangeMatchesSelection | TextIndicatorOptionDoNotClipToVisibleRect;
 
 static Color highlightColor()
 {
     return Color(255, 228, 56, 255);
 }
-
-namespace WebKit {
 
 void FindIndicatorOverlayClientIOS::drawRect(PageOverlay& overlay, GraphicsContext& context, const IntRect& dirtyRect)
 {
@@ -90,32 +89,29 @@ void FindIndicatorOverlayClientIOS::drawRect(PageOverlay& overlay, GraphicsConte
 bool FindController::updateFindIndicator(Frame& selectedFrame, bool isShowingOverlay, bool shouldAnimate)
 {
     if (m_findIndicatorOverlay) {
-        m_webPage->mainFrame()->pageOverlayController().uninstallPageOverlay(*m_findIndicatorOverlay, PageOverlay::FadeMode::DoNotFade);
+        m_webPage->corePage()->pageOverlayController().uninstallPageOverlay(*m_findIndicatorOverlay, PageOverlay::FadeMode::DoNotFade);
         m_findIndicatorOverlay = nullptr;
         m_isShowingFindIndicator = false;
     }
 
-    RefPtr<TextIndicator> textIndicator = TextIndicator::createWithSelectionInFrame(selectedFrame, findTextIndicatorOptions, TextIndicatorPresentationTransition::None, FloatSize(totalHorizontalMargin, totalVerticalMargin));
+    auto textIndicator = TextIndicator::createWithSelectionInFrame(selectedFrame, findTextIndicatorOptions, TextIndicatorPresentationTransition::None, FloatSize(totalHorizontalMargin, totalVerticalMargin));
     if (!textIndicator)
         return false;
 
     m_findIndicatorOverlayClient = std::make_unique<FindIndicatorOverlayClientIOS>(selectedFrame, textIndicator.get());
     m_findIndicatorOverlay = PageOverlay::create(*m_findIndicatorOverlayClient, PageOverlay::OverlayType::Document);
-    m_webPage->mainFrame()->pageOverlayController().installPageOverlay(*m_findIndicatorOverlay, PageOverlay::FadeMode::DoNotFade);
+    m_webPage->corePage()->pageOverlayController().installPageOverlay(*m_findIndicatorOverlay, PageOverlay::FadeMode::DoNotFade);
 
     m_findIndicatorOverlay->setFrame(enclosingIntRect(textIndicator->textBoundingRectInRootViewCoordinates()));
     m_findIndicatorOverlay->setNeedsDisplay();
 
-    if (isShowingOverlay || shouldAnimate) {
-        FloatRect visibleContentRect = m_webPage->mainFrameView()->unobscuredContentRectIncludingScrollbars();
-
+    if (shouldAnimate) {
         bool isReplaced;
         const VisibleSelection& visibleSelection = selectedFrame.selection().selection();
         FloatRect renderRect = visibleSelection.start().containerNode()->renderRect(&isReplaced);
-
         IntRect startRect = visibleSelection.visibleStart().absoluteCaretBounds();
 
-        m_webPage->send(Messages::SmartMagnificationController::Magnify(startRect.center(), renderRect, visibleContentRect, m_webPage->minimumPageScaleFactor(), m_webPage->maximumPageScaleFactor()));
+        m_webPage->send(Messages::SmartMagnificationController::ScrollToRect(startRect.center(), renderRect));
     }
 
     m_isShowingFindIndicator = true;
@@ -128,7 +124,7 @@ void FindController::hideFindIndicator()
     if (!m_isShowingFindIndicator)
         return;
 
-    m_webPage->mainFrame()->pageOverlayController().uninstallPageOverlay(*m_findIndicatorOverlay, PageOverlay::FadeMode::DoNotFade);
+    m_webPage->corePage()->pageOverlayController().uninstallPageOverlay(*m_findIndicatorOverlay, PageOverlay::FadeMode::DoNotFade);
     m_findIndicatorOverlay = nullptr;
     m_isShowingFindIndicator = false;
     m_foundStringMatchIndex = -1;
@@ -160,7 +156,10 @@ void FindController::didFindString()
 
     // Scrolling the main frame is handled by the SmartMagnificationController class but we still
     // need to consider overflow nodes and subframes here.
-    frame.selection().revealSelection(SelectionRevealMode::RevealUpToMainFrame, ScrollAlignment::alignToEdgeIfNeeded, WebCore::DoNotRevealExtent);
+    // Many sites have overlay headers or footers that may overlap with the highlighted
+    // text, so we reveal the text at the center of the viewport.
+    // FIXME: Find a better way to estimate the obscured area (https://webkit.org/b/183889).
+    frame.selection().revealSelection(SelectionRevealMode::RevealUpToMainFrame, ScrollAlignment::alignCenterAlways, WebCore::DoNotRevealExtent);
 }
 
 void FindController::didFailToFindString()
@@ -171,6 +170,16 @@ void FindController::didFailToFindString()
 void FindController::didHideFindIndicator()
 {
     setSelectionChangeUpdatesEnabledInAllFrames(*m_webPage, false);
+}
+    
+unsigned FindController::findIndicatorRadius() const
+{
+    return cornerRadius;
+}
+    
+bool FindController::shouldHideFindIndicatorOnScroll() const
+{
+    return false;
 }
 
 } // namespace WebKit

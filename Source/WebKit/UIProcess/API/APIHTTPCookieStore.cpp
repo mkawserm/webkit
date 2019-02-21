@@ -37,9 +37,11 @@ using namespace WebKit;
 
 namespace API {
 
-HTTPCookieStore::HTTPCookieStore(WebsiteDataStore& websiteDataStore)
-    : m_owningDataStore(websiteDataStore.websiteDataStore())
+HTTPCookieStore::HTTPCookieStore(WebKit::WebsiteDataStore& websiteDataStore)
+    : m_owningDataStore(websiteDataStore)
 {
+    if (!m_owningDataStore->processPoolForCookieStorageOperations())
+        registerForNewProcessPoolNotifications();
 }
 
 HTTPCookieStore::~HTTPCookieStore()
@@ -47,75 +49,76 @@ HTTPCookieStore::~HTTPCookieStore()
     ASSERT(m_observers.isEmpty());
     ASSERT(!m_observedCookieManagerProxy);
     ASSERT(!m_cookieManagerProxyObserver);
-    ASSERT(!m_observingUIProcessCookies);
 
     unregisterForNewProcessPoolNotifications();
 }
 
-void HTTPCookieStore::cookies(Function<void (const Vector<WebCore::Cookie>&)>&& completionHandler)
+void HTTPCookieStore::cookies(CompletionHandler<void(const Vector<WebCore::Cookie>&)>&& completionHandler)
 {
     auto* pool = m_owningDataStore->processPoolForCookieStorageOperations();
     if (!pool) {
         Vector<WebCore::Cookie> allCookies;
         if (m_owningDataStore->sessionID() == PAL::SessionID::defaultSessionID())
-            allCookies = WebCore::NetworkStorageSession::defaultStorageSession().getAllCookies();
-        else
-            allCookies = m_owningDataStore->pendingCookies();
+            allCookies = getAllDefaultUIProcessCookieStoreCookies();
+        allCookies.appendVector(m_owningDataStore->pendingCookies());
 
-        callOnMainThread([completionHandler = WTFMove(completionHandler), allCookies]() {
+        callOnMainThread([completionHandler = WTFMove(completionHandler), allCookies] () mutable {
             completionHandler(allCookies);
         });
         return;
     }
 
     auto* cookieManager = pool->supplement<WebKit::WebCookieManagerProxy>();
-    cookieManager->getAllCookies(m_owningDataStore->sessionID(), [pool = WTFMove(pool), completionHandler = WTFMove(completionHandler)](const Vector<WebCore::Cookie>& cookies, CallbackBase::Error error) {
+    cookieManager->getAllCookies(m_owningDataStore->sessionID(), [pool = WTFMove(pool), completionHandler = WTFMove(completionHandler)] (const Vector<WebCore::Cookie>& cookies, CallbackBase::Error error) mutable {
         completionHandler(cookies);
     });
 }
 
-void HTTPCookieStore::setCookie(const WebCore::Cookie& cookie, Function<void ()>&& completionHandler)
+void HTTPCookieStore::setCookie(const WebCore::Cookie& cookie, CompletionHandler<void()>&& completionHandler)
 {
     auto* pool = m_owningDataStore->processPoolForCookieStorageOperations();
     if (!pool) {
-        if (m_owningDataStore->sessionID() == PAL::SessionID::defaultSessionID())
-            WebCore::NetworkStorageSession::defaultStorageSession().setCookie(cookie);
+        // FIXME: pendingCookies used for defaultSession because session cookies cannot be propagated to Network Process with uiProcessCookieStorageIdentifier.
+        if (m_owningDataStore->sessionID() == PAL::SessionID::defaultSessionID() && !cookie.session)
+            setCookieInDefaultUIProcessCookieStore(cookie);
         else
             m_owningDataStore->addPendingCookie(cookie);
 
-        callOnMainThread([completionHandler = WTFMove(completionHandler)]() {
+        callOnMainThread([completionHandler = WTFMove(completionHandler)] () mutable {
             completionHandler();
         });
         return;
     }
 
     auto* cookieManager = pool->supplement<WebKit::WebCookieManagerProxy>();
-    cookieManager->setCookie(m_owningDataStore->sessionID(), cookie, [pool = WTFMove(pool), completionHandler = WTFMove(completionHandler)](CallbackBase::Error error) {
+    cookieManager->setCookie(m_owningDataStore->sessionID(), cookie, [pool = WTFMove(pool), completionHandler = WTFMove(completionHandler)] (CallbackBase::Error error) mutable {
         completionHandler();
     });
 }
 
-void HTTPCookieStore::deleteCookie(const WebCore::Cookie& cookie, Function<void ()>&& completionHandler)
+void HTTPCookieStore::deleteCookie(const WebCore::Cookie& cookie, CompletionHandler<void()>&& completionHandler)
 {
     auto* pool = m_owningDataStore->processPoolForCookieStorageOperations();
     if (!pool) {
-        if (m_owningDataStore->sessionID() == PAL::SessionID::defaultSessionID())
-            WebCore::NetworkStorageSession::defaultStorageSession().deleteCookie(cookie);
+        if (m_owningDataStore->sessionID() == PAL::SessionID::defaultSessionID() && !cookie.session)
+            deleteCookieFromDefaultUIProcessCookieStore(cookie);
         else
             m_owningDataStore->removePendingCookie(cookie);
-        callOnMainThread([completionHandler = WTFMove(completionHandler)]() {
+
+        callOnMainThread([completionHandler = WTFMove(completionHandler)] () mutable {
             completionHandler();
         });
         return;
     }
 
     auto* cookieManager = pool->supplement<WebKit::WebCookieManagerProxy>();
-    cookieManager->deleteCookie(m_owningDataStore->sessionID(), cookie, [pool = WTFMove(pool), completionHandler = WTFMove(completionHandler)](CallbackBase::Error error) {
+    cookieManager->deleteCookie(m_owningDataStore->sessionID(), cookie, [pool = WTFMove(pool), completionHandler = WTFMove(completionHandler)](CallbackBase::Error error) mutable {
         completionHandler();
     });
 }
 
 class APIWebCookieManagerProxyObserver : public WebCookieManagerProxy::Observer {
+    WTF_MAKE_FAST_ALLOCATED;
 public:
     explicit APIWebCookieManagerProxyObserver(API::HTTPCookieStore& cookieStore)
         : m_cookieStore(cookieStore)
@@ -150,16 +153,14 @@ void HTTPCookieStore::registerObserver(Observer& observer)
     auto* pool = m_owningDataStore->processPoolForCookieStorageOperations();
 
     if (!pool) {
-        registerForNewProcessPoolNotifications();
         ASSERT(!m_observingUIProcessCookies);
 
         // Listen for cookie notifications in the UIProcess in the meantime.
-        WebCore::startObservingCookieChanges(WebCore::NetworkStorageSession::defaultStorageSession(), [this] () {
+        startObservingChangesToDefaultUIProcessCookieStore([this] () {
             cookiesDidChange();
         });
 
         m_observingUIProcessCookies = true;
-
         return;
     }
 
@@ -178,7 +179,7 @@ void HTTPCookieStore::unregisterObserver(Observer& observer)
         m_observedCookieManagerProxy->unregisterObserver(m_owningDataStore->sessionID(), *m_cookieManagerProxyObserver);
 
     if (m_observingUIProcessCookies)
-        WebCore::stopObservingCookieChanges(WebCore::NetworkStorageSession::defaultStorageSession());
+        stopObservingChangesToDefaultUIProcessCookieStore();
 
     if (m_processPoolCreationListenerIdentifier)
         WebProcessPool::unregisterProcessPoolCreationListener(m_processPoolCreationListenerIdentifier);
@@ -202,10 +203,8 @@ void HTTPCookieStore::cookieManagerDestroyed()
 
     auto* pool = m_owningDataStore->processPoolForCookieStorageOperations();
 
-    if (!pool) {
-        registerForNewProcessPoolNotifications();
+    if (!pool)
         return;
-    }
 
     m_observedCookieManagerProxy = pool->supplement<WebKit::WebCookieManagerProxy>();
     m_observedCookieManagerProxy->registerObserver(m_owningDataStore->sessionID(), *m_cookieManagerProxyObserver);
@@ -216,19 +215,18 @@ void HTTPCookieStore::registerForNewProcessPoolNotifications()
     ASSERT(!m_processPoolCreationListenerIdentifier);
 
     m_processPoolCreationListenerIdentifier = WebProcessPool::registerProcessPoolCreationListener([this](WebProcessPool& newProcessPool) {
-        ASSERT(m_cookieManagerProxyObserver);
-
         if (!m_owningDataStore->isAssociatedProcessPool(newProcessPool))
             return;
 
         // Now that an associated process pool exists, we need to flush the UI process cookie store
         // to make sure any changes are reflected within the new process pool.
-        WebCore::NetworkStorageSession::defaultStorageSession().flushCookieStore();
+        flushDefaultUIProcessCookieStore();
         newProcessPool.ensureNetworkProcess();
 
-
-        m_observedCookieManagerProxy = newProcessPool.supplement<WebKit::WebCookieManagerProxy>();
-        m_observedCookieManagerProxy->registerObserver(m_owningDataStore->sessionID(), *m_cookieManagerProxyObserver);
+        if (m_cookieManagerProxyObserver) {
+            m_observedCookieManagerProxy = newProcessPool.supplement<WebKit::WebCookieManagerProxy>();
+            m_observedCookieManagerProxy->registerObserver(m_owningDataStore->sessionID(), *m_cookieManagerProxyObserver);
+        }
         unregisterForNewProcessPoolNotifications();
     });
 }
@@ -241,4 +239,13 @@ void HTTPCookieStore::unregisterForNewProcessPoolNotifications()
     m_processPoolCreationListenerIdentifier = 0;
 }
 
+#if !PLATFORM(COCOA)
+void HTTPCookieStore::flushDefaultUIProcessCookieStore() { }
+Vector<WebCore::Cookie> HTTPCookieStore::getAllDefaultUIProcessCookieStoreCookies() { return { }; }
+void HTTPCookieStore::setCookieInDefaultUIProcessCookieStore(const WebCore::Cookie&) { }
+void HTTPCookieStore::deleteCookieFromDefaultUIProcessCookieStore(const WebCore::Cookie&) { }
+void HTTPCookieStore::startObservingChangesToDefaultUIProcessCookieStore(Function<void()>&&) { }
+void HTTPCookieStore::stopObservingChangesToDefaultUIProcessCookieStore() { }
+#endif
+    
 } // namespace API

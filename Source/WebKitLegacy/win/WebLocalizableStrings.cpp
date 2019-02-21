@@ -45,7 +45,7 @@ WebLocalizableStringsBundle WebKitLocalizableStringsBundle = { "com.apple.WebKit
 
 typedef HashMap<String, LocalizedString*> LocalizedStringMap;
 
-static StaticLock mainBundleLocStringsLock;
+static Lock mainBundleLocStringsLock;
 
 static LocalizedStringMap& mainBundleLocStrings()
 {
@@ -53,7 +53,7 @@ static LocalizedStringMap& mainBundleLocStrings()
     return map;
 }
 
-static StaticLock frameworkLocStringsLock;
+static Lock frameworkLocStringsLock;
 
 static LocalizedStringMap frameworkLocStrings()
 {
@@ -161,7 +161,7 @@ static CFStringRef copyLocalizedStringFromBundle(WebLocalizableStringsBundle* st
 
     CFStringRef result = CFCopyLocalizedStringWithDefaultValue(key.createCFString().get(), 0, bundle, notFound, 0);
 
-    ASSERT_WITH_MESSAGE(result != notFound, "could not find localizable string %s in bundle", key);
+    ASSERT_WITH_MESSAGE(result != notFound, "could not find localizable string %s in bundle", key.utf8().data());
     return result;
 }
 

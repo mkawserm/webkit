@@ -26,7 +26,7 @@
 #include "config.h"
 #include "CoreAudioCaptureSourceIOS.h"
 
-#if ENABLE(MEDIA_STREAM) && PLATFORM(IOS)
+#if ENABLE(MEDIA_STREAM) && PLATFORM(IOS_FAMILY)
 
 #import "Logging.h"
 #import <AVFoundation/AVAudioSession.h>
@@ -38,9 +38,9 @@ typedef AVAudioSession AVAudioSessionType;
 SOFT_LINK_FRAMEWORK(AVFoundation)
 SOFT_LINK_CLASS(AVFoundation, AVAudioSession)
 
-SOFT_LINK_POINTER(AVFoundation, AVAudioSessionInterruptionNotification, NSString *)
-SOFT_LINK_POINTER(AVFoundation, AVAudioSessionInterruptionTypeKey, NSString *)
-SOFT_LINK_POINTER(AVFoundation, AVAudioSessionMediaServicesWereResetNotification, NSString *)
+SOFT_LINK_CONSTANT(AVFoundation, AVAudioSessionInterruptionNotification, NSString *)
+SOFT_LINK_CONSTANT(AVFoundation, AVAudioSessionInterruptionTypeKey, NSString *)
+SOFT_LINK_CONSTANT(AVFoundation, AVAudioSessionMediaServicesWereResetNotification, NSString *)
 
 #define AVAudioSession getAVAudioSessionClass()
 #define AVAudioSessionInterruptionNotification getAVAudioSessionInterruptionNotification()
@@ -141,4 +141,4 @@ CoreAudioCaptureSourceFactory& CoreAudioCaptureSourceFactory::singleton()
 
 }
 
-#endif // ENABLE(MEDIA_STREAM) && PLATFORM(IOS)
+#endif // ENABLE(MEDIA_STREAM) && PLATFORM(IOS_FAMILY)

@@ -42,7 +42,7 @@ async function load() {
     document.body.appendChild(canvas);
 
     ctx.save();
-    ctx.save(); // This matches the `restore` call in `performActions`.
+    cancelActions();
 
     runTest();
 }
@@ -54,25 +54,23 @@ function ignoreException(func){
 }
 
 let timeoutID = NaN;
-let restoreCalled = false;
+let saveCount = 1;
 
 function cancelActions() {
-    if (!isNaN(timeoutID)) {
+    for (let i = 0; i < saveCount; ++i)
         ctx.restore();
-        if (!restoreCalled)
-            ctx.restore();
-    }
+    ctx.restore(); // Ensures the state is reset between test cases.
 
     clearTimeout(timeoutID);
     timeoutID = NaN;
 
-    ctx.save();
-    ctx.save();
+    ctx.save(); // Ensures the state is reset between test cases.
+    ctx.save(); // This matches the `restore` call in `performActions`.
+    saveCount = 1;
+
     ctx.resetTransform();
     ctx.beginPath();
     ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-
-    restoreCalled = false;
 }
 
 function performActions() {
@@ -257,14 +255,14 @@ function performActions() {
         },
         () => {
             ctx.restore();
-
-            restoreCalled = true;
+            --saveCount;
         },
         () => {
             ctx.rotate(1);
         },
         () => {
             ctx.save();
+            ++saveCount;
         },
         () => {
             ctx.scale(1, 2);
@@ -386,6 +384,14 @@ function performActions() {
             ctx.webkitLineDashOffset = 1;
         },
         () => {
+            ctx.canvas.width;
+            ctx.canvas.width = 2;
+        },
+        () => {
+            ctx.canvas.height;
+            ctx.canvas.height = 2;
+        },
+        () => {
             TestPage.dispatchEventToFrontend("LastFrame");
         },
     ];
@@ -408,6 +414,25 @@ function performConsoleActions() {
     ctx.stroke();
 }
 
+function performSavePreActions() {
+    cancelActions();
+    ctx.restore();
+    ctx.restore();
+
+    function saveFillStyle(value) {
+        ctx.save();
+        ctx.fillStyle = value;
+    }
+
+    saveFillStyle("#ff0000");
+    saveFillStyle("#00ff00");
+    saveFillStyle("#0000ff");
+}
+
+function performSavePostActions() {
+    ctx.fill();
+}
+
 function performNaNActions() {
     ctx.globalAlpha = NaN;
 }
@@ -419,7 +444,7 @@ function test() {
         name: "Canvas.recording2D.singleFrame",
         description: "Check that the recording is stopped after a single frame.",
         test(resolve, reject) {
-            startRecording(WI.Canvas.ContextType.Canvas2D, resolve, reject, {singleFrame: true});
+            startRecording(WI.Canvas.ContextType.Canvas2D, resolve, reject, {frameCount: 1});
         },
     });
 
@@ -427,16 +452,7 @@ function test() {
         name: "Canvas.recording2D.multipleFrames",
         description: "Check that recording data is serialized correctly for multiple frames.",
         test(resolve, reject) {
-            let canvas = startRecording(WI.Canvas.ContextType.Canvas2D, resolve, reject, {singleFrame: false});
-
-            InspectorTest.singleFireEventListener("LastFrame", () => {
-                CanvasAgent.stopRecording(canvas.identifier, (error) => {
-                    if (error) {
-                        reject(error);
-                        return;
-                    }
-                });
-            });
+            startRecording(WI.Canvas.ContextType.Canvas2D, resolve, reject);
         },
     });
 
@@ -452,7 +468,7 @@ function test() {
         name: "Canvas.recording2D.Console",
         description: "Check that a recording can be triggered by console.record().",
         test(resolve, reject) {
-            consoleRecord(resolve, reject);
+            consoleRecord(WI.Canvas.ContextType.Canvas2D, resolve, reject);
         },
     });
 
@@ -466,7 +482,7 @@ function test() {
                 return;
             }
 
-            WI.canvasManager.awaitEvent(WI.CanvasManager.Event.RecordingStopped)
+            canvas.awaitEvent(WI.Canvas.Event.RecordingStopped)
             .then((event) => {
                 let recording = event.data.recording.toJSON();
 
@@ -480,15 +496,59 @@ function test() {
             })
             .then(resolve, reject);
 
-            const singleFrame = true;
-            CanvasAgent.startRecording(canvas.identifier, singleFrame, (error) => {
-                if (error) {
-                    reject(error);
-                    return;
-                }
-
+            canvas.awaitEvent(WI.Canvas.Event.RecordingStarted)
+            .then((event) => {
                 InspectorTest.evaluateInPage(`performNaNActions()`);
             });
+
+            const frameCount = 1;
+            CanvasAgent.startRecording(canvas.identifier, frameCount)
+            .catch(reject);
+        },
+    });
+
+    suite.addTestCase({
+        name: "Canvas.recording2D.ExistingSaves",
+        description: "Check that existing save calls are sent to the frontend.",
+        test(resolve, reject) {
+            let canvas = getCanvas(WI.Canvas.ContextType.Canvas2D);
+            if (!canvas) {
+                reject("Missing 2D canvas.");
+                return;
+            }
+
+            async function logStates(recording) {
+                async function compare(index, expected) {
+                    let state = await WI.RecordingState.swizzleInitialState(recording, recording.initialState.states[index]);
+                    InspectorTest.expectEqual(state.get("fillStyle"), expected, `State ${index} should match expected fillStyle value.`)
+                }
+
+                await compare(0, "#000000");
+                await compare(1, "#ff0000");
+                await compare(2, "#00ff00");
+                await compare(3, "#0000ff");
+            }
+
+            canvas.awaitEvent(WI.Canvas.Event.RecordingStopped)
+            .then((event) => {
+                let {recording} = event.data;
+
+                InspectorTest.expectEqual(recording.initialState.states.length, 4, "There should be 4 existing states.");
+
+                logStates(recording)
+                .then(resolve, reject);
+            });
+
+            canvas.awaitEvent(WI.Canvas.Event.RecordingStarted)
+            .then((event) => {
+                InspectorTest.evaluateInPage(`performSavePostActions()`).catch(reject);
+            });
+
+            InspectorTest.evaluateInPage(`performSavePreActions()`)
+            .then(() => {
+                const frameCount = 1;
+                CanvasAgent.startRecording(canvas.identifier, frameCount).catch(reject);
+            }, reject);
         },
     });
 
@@ -504,26 +564,25 @@ function test() {
 
             let eventCount = 0;
             function handleRecordingStopped(event) {
-                InspectorTest.assert(event.data.canvas === canvas, "We should have stopped recording the selected canvas.");
                 InspectorTest.assert(!event.data.recording, "The recording payload should be null.");
 
                 ++eventCount;
-                if (eventCount == 1)
+                if (eventCount == 1) {
                     InspectorTest.pass("A recording should have been started and stopped once.");
-                else if (eventCount >= 2) {
+
+                    canvas.startRecording();
+                    canvas.stopRecording();
+                } else if (eventCount >= 2) {
                     InspectorTest.pass("A recording should have been started and stopped twice.");
 
-                    WI.canvasManager.removeEventListener(handleRecordingStopped);
+                    canvas.removeEventListener(WI.Canvas.Event.RecordingStopped, handleRecordingStopped);
                     resolve();
                 }
             }
-            WI.canvasManager.addEventListener(WI.CanvasManager.Event.RecordingStopped, handleRecordingStopped);
+            canvas.addEventListener(WI.Canvas.Event.RecordingStopped, handleRecordingStopped);
 
-            WI.canvasManager.startRecording(canvas);
-            WI.canvasManager.stopRecording();
-
-            WI.canvasManager.startRecording(canvas);
-            WI.canvasManager.stopRecording();
+            canvas.startRecording();
+            canvas.stopRecording();
         },
     });
 

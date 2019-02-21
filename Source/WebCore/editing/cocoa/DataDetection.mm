@@ -50,9 +50,17 @@
 #import "VisibleUnits.h"
 #import <pal/spi/ios/DataDetectorsUISPI.h>
 #import <pal/spi/mac/DataDetectorsSPI.h>
+#import <wtf/cf/TypeCastsCF.h>
 #import <wtf/text/StringBuilder.h>
 
 #import "DataDetectorsCoreSoftLink.h"
+
+#if PLATFORM(MAC) && __MAC_OS_X_VERSION_MIN_REQUIRED >= 101400
+template <>
+struct WTF::CFTypeTrait<DDResultRef> {
+    static inline CFTypeID typeID(void) { return DDResultGetCFTypeID(); }
+};
+#endif
 
 namespace WebCore {
 
@@ -78,8 +86,11 @@ static RetainPtr<DDActionContext> detectItemAtPositionWithRange(VisiblePosition 
     RefPtr<Range> mainResultRange;
     CFIndex resultCount = CFArrayGetCount(results.get());
     for (CFIndex i = 0; i < resultCount; i++) {
-        // FIXME: <rdar://problem/36241894> Implement checked cast for DDResultRef once DDResultGetTypeID() is available
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= 101400
+        DDResultRef result = checked_cf_cast<DDResultRef>(CFArrayGetValueAtIndex(results.get(), i));
+#else
         DDResultRef result = static_cast<DDResultRef>(const_cast<CF_BRIDGED_TYPE(id) void*>(CFArrayGetValueAtIndex(results.get(), i)));
+#endif
         CFRange resultRangeInContext = DDResultGetRange(result);
         if (hitLocation >= resultRangeInContext.location && (hitLocation - resultRangeInContext.location) < resultRangeInContext.length) {
             mainResult = result;
@@ -92,7 +103,7 @@ static RetainPtr<DDActionContext> detectItemAtPositionWithRange(VisiblePosition 
         return nullptr;
 
     RetainPtr<DDActionContext> actionContext = adoptNS([allocDDActionContextInstance() init]);
-    [actionContext setAllResults:@[ (id)mainResult ]];
+    [actionContext setAllResults:@[ (__bridge id)mainResult ]];
     [actionContext setMainResult:mainResult];
 
     Vector<FloatQuad> quads;
@@ -152,7 +163,7 @@ RetainPtr<DDActionContext> DataDetection::detectItemAroundHitTestResult(const Hi
 }
 #endif // PLATFORM(MAC)
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
 
 bool DataDetection::canBePresentedByDataDetectors(const URL& url)
 {
@@ -191,8 +202,7 @@ bool DataDetection::shouldCancelDefaultAction(Element& element)
     NSArray *results = element.document().frame()->dataDetectionResults();
     if (!results)
         return false;
-    Vector<String> resultIndices;
-    resultAttribute.string().split('/', resultIndices);
+    Vector<String> resultIndices = resultAttribute.string().split('/');
     DDResultRef result = [[results objectAtIndex:resultIndices[0].toInt()] coreResult];
     // Handle the case of a signature block, where we need to check the correct subresult.
     for (size_t i = 1; i < resultIndices.size(); i++) {
@@ -238,7 +248,7 @@ static NSString *constructURLStringForResult(DDResultRef currentResult, NSString
 
 static void removeResultLinksFromAnchor(Element& element)
 {
-    // Perform a depth-first search for anchor nodes, which have the DDURLScheme attribute set to true,
+    // Perform a depth-first search for anchor nodes, which have the data detectors attribute set to true,
     // take their children and insert them before the anchor, and then remove the anchor.
 
     // Note that this is not using ElementChildIterator because we potentially prepend children as we iterate over them.
@@ -313,20 +323,20 @@ static String dataDetectorStringForPath(NSIndexPath *path)
     case 0:
         return { };
     case 1:
-        return String::number((unsigned long)[path indexAtPosition:0]);
+        return String::number([path indexAtPosition:0]);
     case 2: {
         StringBuilder stringBuilder;
-        stringBuilder.appendNumber((unsigned long)[path indexAtPosition:0]);
+        stringBuilder.appendNumber([path indexAtPosition:0]);
         stringBuilder.append('/');
-        stringBuilder.appendNumber((unsigned long)[path indexAtPosition:1]);
+        stringBuilder.appendNumber([path indexAtPosition:1]);
         return stringBuilder.toString();
     }
     default: {
         StringBuilder stringBuilder;
-        stringBuilder.appendNumber((unsigned long)[path indexAtPosition:0]);
+        stringBuilder.appendNumber([path indexAtPosition:0]);
         for (NSUInteger i = 1 ; i < length ; i++) {
             stringBuilder.append('/');
-            stringBuilder.appendNumber((unsigned long)[path indexAtPosition:i]);
+            stringBuilder.appendNumber([path indexAtPosition:i]);
         }
 
         return stringBuilder.toString();
@@ -417,6 +427,16 @@ static inline CFComparisonResult queryOffsetCompare(DDQueryOffset o1, DDQueryOff
     if (o1.offset > o2.offset)
         return kCFCompareGreaterThan;
     return kCFCompareEqualTo;
+}
+
+void DataDetection::removeDataDetectedLinksInDocument(Document& document)
+{
+    Vector<Ref<HTMLAnchorElement>> allAnchorElements;
+    for (auto& anchor : descendantsOfType<HTMLAnchorElement>(document))
+        allAnchorElements.append(anchor);
+
+    for (auto& anchor : allAnchorElements)
+        removeResultLinksFromAnchor(anchor.get());
 }
 
 NSArray *DataDetection::detectContentInRange(RefPtr<Range>& contextRange, DataDetectorTypes types, NSDictionary *context)
@@ -606,7 +626,7 @@ NSArray *DataDetection::detectContentInRange(RefPtr<Range>& contextRange, DataDe
                         auto underlineColor = Color(colorWithOverrideAlpha(textColor.rgb(), overrideAlpha));
 
                         anchorElement->setInlineStyleProperty(CSSPropertyColor, textColor.cssText());
-                        anchorElement->setInlineStyleProperty(CSSPropertyWebkitTextDecorationColor, underlineColor.cssText());
+                        anchorElement->setInlineStyleProperty(CSSPropertyTextDecorationColor, underlineColor.cssText());
                     }
                 }
             } else if (is<StyledElement>(*parentNode)) {
@@ -633,14 +653,20 @@ NSArray *DataDetection::detectContentInRange(RefPtr<Range>& contextRange, DataDe
     if (lastTextNodeToUpdate)
         lastTextNodeToUpdate->setData(lastNodeContent);
     
-    return [get_DataDetectorsCore_DDScannerResultClass() resultsFromCoreResults:scannerResults.get()];
+    return [getDDScannerResultClass() resultsFromCoreResults:scannerResults.get()];
 }
 
 #else
+
 NSArray *DataDetection::detectContentInRange(RefPtr<Range>&, DataDetectorTypes, NSDictionary *)
 {
     return nil;
 }
+
+void DataDetection::removeDataDetectedLinksInDocument(Document&)
+{
+}
+
 #endif
 
 const String& DataDetection::dataDetectorURLProtocol()

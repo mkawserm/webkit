@@ -15,12 +15,16 @@
     left: 0;
     width: 200px;
     font: 20px/1 Ahem;
+    line-height: 1.2;
 }
 </style>
 </head>
 <body>
 <div id="expected" contenteditable="true"></div>
 <script>
+if (window.internals)
+    internals.setContinuousSpellCheckingEnabled(true);
+
 var expected = document.getElementById("expected");
 
 typeText("mispelled a", expected);

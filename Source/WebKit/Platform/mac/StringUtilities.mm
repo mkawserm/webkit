@@ -29,7 +29,7 @@
 #import "WKSharedAPICast.h"
 #import "WKStringCF.h"
 #import <JavaScriptCore/RegularExpression.h>
-#import <wtf/ObjcRuntimeExtras.h>
+#import <wtf/ObjCRuntimeExtras.h>
 #import <wtf/SoftLinking.h>
 #import <wtf/text/StringBuilder.h>
 
@@ -62,7 +62,7 @@ NSString *formattedPhoneNumberString(NSString *originalPhoneNumber)
 {
     NSString *countryCode = [[[NSLocale currentLocale] objectForKey:NSLocaleCountryCode] lowercaseString];
 
-    RetainPtr<CFPhoneNumberRef> phoneNumber = adoptCF(CFPhoneNumberCreate(kCFAllocatorDefault, (CFStringRef)originalPhoneNumber, (CFStringRef)countryCode));
+    RetainPtr<CFPhoneNumberRef> phoneNumber = adoptCF(CFPhoneNumberCreate(kCFAllocatorDefault, (__bridge CFStringRef)originalPhoneNumber, (__bridge CFStringRef)countryCode));
     if (!phoneNumber)
         return originalPhoneNumber;
 
@@ -70,7 +70,7 @@ NSString *formattedPhoneNumberString(NSString *originalPhoneNumber)
     if (!phoneNumberString)
         phoneNumberString = CFPhoneNumberCopyUnformattedRepresentation(phoneNumber.get());
 
-    return [(NSString *)phoneNumberString autorelease];
+    return CFBridgingRelease(phoneNumberString);
 }
 
 #else

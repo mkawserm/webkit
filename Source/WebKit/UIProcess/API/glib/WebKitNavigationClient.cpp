@@ -105,19 +105,21 @@ private:
         webkitWebViewHandleAuthenticationChallenge(m_webView, &authenticationChallenge);
     }
 
-    void processDidTerminate(WebPageProxy&, ProcessTerminationReason reason) override
+    bool processDidTerminate(WebPageProxy&, ProcessTerminationReason reason) override
     {
         switch (reason) {
         case ProcessTerminationReason::Crash:
             webkitWebViewWebProcessTerminated(m_webView, WEBKIT_WEB_PROCESS_CRASHED);
-            break;
+            return true;
         case ProcessTerminationReason::ExceededMemoryLimit:
             webkitWebViewWebProcessTerminated(m_webView, WEBKIT_WEB_PROCESS_EXCEEDED_MEMORY_LIMIT);
-            break;
+            return true;
         case ProcessTerminationReason::ExceededCPULimit:
         case ProcessTerminationReason::RequestedByClient:
+        case ProcessTerminationReason::NavigationSwap:
             break;
         }
+        return false;
     }
 
     void decidePolicyForNavigationAction(WebPageProxy&, Ref<API::NavigationAction>&& navigationAction, Ref<WebFramePolicyListenerProxy>&& listener, API::Object* /* userData */) override
@@ -138,6 +140,6 @@ private:
 
 void attachNavigationClientToView(WebKitWebView* webView)
 {
-    webkitWebViewGetPage(webView).setNavigationClient(std::make_unique<NavigationClient>(webView));
+    webkitWebViewGetPage(webView).setNavigationClient(makeUniqueRef<NavigationClient>(webView));
 }
 

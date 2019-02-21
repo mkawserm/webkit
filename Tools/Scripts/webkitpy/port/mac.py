@@ -45,7 +45,7 @@ _log = logging.getLogger(__name__)
 class MacPort(DarwinPort):
     port_name = "mac"
 
-    CURRENT_VERSION = Version(10, 13)
+    CURRENT_VERSION = Version(10, 14)
 
     SDK = 'macosx'
 
@@ -57,9 +57,10 @@ class MacPort(DarwinPort):
         DarwinPort.__init__(self, host, port_name, **kwargs)
         version_name_map = VersionNameMap.map(host.platform)
         self._os_version = None
-        if port_name.split('-') > 1:
-            self._os_version = version_name_map.from_name(port_name.split('-')[1])[1]
-        elif self.host.platform.is_mac():
+        split_port_name = port_name.split('-')
+        if len(split_port_name) > 1 and split_port_name[1] != 'wk2':
+            self._os_version = version_name_map.from_name(split_port_name[1])[1]
+        elif self.host.platform.is_mac() and apple_additions():
             self._os_version = self.host.platform.os_version
         if not self._os_version:
             self._os_version = MacPort.CURRENT_VERSION
@@ -68,8 +69,7 @@ class MacPort(DarwinPort):
     def _build_driver_flags(self):
         return ['ARCHS=i386'] if self.architecture() == 'x86' else []
 
-    @memoized
-    def default_baseline_search_path(self):
+    def default_baseline_search_path(self, **kwargs):
         versions_to_fallback = []
         version_name_map = VersionNameMap.map(self.host.platform)
 
@@ -134,6 +134,13 @@ class MacPort(DarwinPort):
                 config_map[version_name.lower().replace(' ', '') + '+'] = version_names
         return config_map
 
+    def environment_for_api_tests(self):
+        result = super(MacPort, self).environment_for_api_tests()
+        if self.get_option('guard_malloc'):
+            result['DYLD_INSERT_LIBRARIES'] = '/usr/lib/libgmalloc.dylib'
+            result['__XPC_DYLD_INSERT_LIBRARIES'] = '/usr/lib/libgmalloc.dylib'
+        return result
+
     def setup_environ_for_server(self, server_name=None):
         env = super(MacPort, self).setup_environ_for_server(server_name)
         if server_name == self.driver_name():
@@ -180,7 +187,7 @@ class MacPort(DarwinPort):
     def is_mavericks(self):
         return self._version == 'mavericks'
 
-    def default_child_processes(self):
+    def default_child_processes(self, **kwargs):
         default_count = super(MacPort, self).default_child_processes()
 
         # FIXME: https://bugs.webkit.org/show_bug.cgi?id=95906  With too many WebProcess WK2 tests get stuck in resource contention.

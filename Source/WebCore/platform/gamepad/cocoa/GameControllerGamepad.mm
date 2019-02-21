@@ -25,7 +25,7 @@
 #include "config.h"
 #include "GameControllerGamepad.h"
 
-#if ENABLE(GAMEPAD) && (defined(__LP64__) || PLATFORM(IOS))
+#if ENABLE(GAMEPAD) && (defined(__LP64__) || PLATFORM(IOS_FAMILY))
 #include "GameControllerGamepadProvider.h"
 #include <GameController/GameController.h>
 
@@ -54,7 +54,7 @@ void GameControllerGamepad::setupAsExtendedGamepad()
 {
     ASSERT(m_extendedGamepad);
 
-    m_id = makeString(String(m_gcController.get().vendorName), ASCIILiteral(" Extended Gamepad"));
+    m_id = makeString(String(m_gcController.get().vendorName), " Extended Gamepad"_s);
 
     m_extendedGamepad.get().valueChangedHandler = ^(GCExtendedGamepad *, GCControllerElement *) {
         m_lastUpdateTime = MonotonicTime::now();
@@ -145,13 +145,15 @@ void GameControllerGamepad::setupAsGamepad()
 {
     ASSERT(m_gamepad);
 
-    m_id = makeString(String(m_gcController.get().vendorName), ASCIILiteral(" Gamepad"));
+    m_id = makeString(String(m_gcController.get().vendorName), " Gamepad"_s);
 
+    ALLOW_DEPRECATED_DECLARATIONS_BEGIN // GCGamepad
     m_gamepad.get().valueChangedHandler = ^(GCGamepad *, GCControllerElement *) {
         m_lastUpdateTime = MonotonicTime::now();
         GameControllerGamepadProvider::singleton().gamepadHadInput(*this, m_hadButtonPresses);
         m_hadButtonPresses = false;
     };
+    ALLOW_DEPRECATED_DECLARATIONS_END
 
     m_buttonValues.resize(6);
     m_buttonValues[0] = m_extendedGamepad.get().buttonA.value;
@@ -206,4 +208,4 @@ void GameControllerGamepad::setupAsGamepad()
 
 } // namespace WebCore
 
-#endif // ENABLE(GAMEPAD) && (defined(__LP64__) || PLATFORM(IOS))
+#endif // ENABLE(GAMEPAD) && (defined(__LP64__) || PLATFORM(IOS_FAMILY))

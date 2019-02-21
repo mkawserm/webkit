@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013, 2015 Apple Inc. All rights reserved.
+ * Copyright (C) 2013-2018 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -88,7 +88,7 @@ WI.SourceCodeTextEditor = class SourceCodeTextEditor extends WI.TextEditor
             this._activeCallFrameDidChange();
         }
 
-        WI.issueManager.addEventListener(WI.IssueManager.Event.IssueWasAdded, this._issueWasAdded, this);
+        WI.consoleManager.addEventListener(WI.ConsoleManager.Event.IssueAdded, this._issueWasAdded, this);
 
         if (this._sourceCode instanceof WI.SourceMapResource || this._sourceCode.sourceMaps.length > 0)
             WI.notifications.addEventListener(WI.Notification.GlobalModifierKeysDidChange, this._updateTokenTrackingControllerState, this);
@@ -99,7 +99,7 @@ WI.SourceCodeTextEditor = class SourceCodeTextEditor extends WI.TextEditor
 
         new WI.KeyboardShortcut(WI.KeyboardShortcut.Modifier.Control, "G", this.showGoToLineDialog.bind(this), this.element);
 
-        WI.logManager.addEventListener(WI.LogManager.Event.Cleared, this._logCleared, this);
+        WI.consoleManager.addEventListener(WI.ConsoleManager.Event.Cleared, this._logCleared, this);
     }
 
     // Public
@@ -126,7 +126,7 @@ WI.SourceCodeTextEditor = class SourceCodeTextEditor extends WI.TextEditor
     {
         super.shown();
 
-        if (WI.showJavaScriptTypeInformationSetting.value) {
+        if (WI.settings.showJavaScriptTypeInformation.value) {
             if (this._typeTokenAnnotator)
                 this._typeTokenAnnotator.resume();
             if (!this._typeTokenScrollHandler && this._typeTokenAnnotator)
@@ -136,7 +136,7 @@ WI.SourceCodeTextEditor = class SourceCodeTextEditor extends WI.TextEditor
                 this._setTypeTokenAnnotatorEnabledState(false);
         }
 
-        if (WI.enableControlFlowProfilerSetting.value) {
+        if (WI.settings.enableControlFlowProfiler.value) {
             if (this._basicBlockAnnotator)
                 this._basicBlockAnnotator.resume();
 
@@ -178,7 +178,7 @@ WI.SourceCodeTextEditor = class SourceCodeTextEditor extends WI.TextEditor
             }
         }
 
-        WI.issueManager.removeEventListener(WI.IssueManager.Event.IssueWasAdded, this._issueWasAdded, this);
+        WI.consoleManager.removeEventListener(WI.ConsoleManager.Event.IssueAdded, this._issueWasAdded, this);
 
         if (this._sourceCode instanceof WI.SourceMapResource || this._sourceCode.sourceMaps.length > 0)
             WI.notifications.removeEventListener(WI.Notification.GlobalModifierKeysDidChange, this._updateTokenTrackingControllerState, this);
@@ -275,14 +275,11 @@ WI.SourceCodeTextEditor = class SourceCodeTextEditor extends WI.TextEditor
         return !isNaN(lineNumber) && lineNumber > 0 && lineNumber <= this.lineCount;
     }
 
-    dialogWasDismissed(goToLineDialog)
+    dialogWasDismissedWithRepresentedObject(goToLineDialog, lineNumber)
     {
-        let lineNumber = goToLineDialog.representedObject;
         let position = new WI.SourceCodePosition(lineNumber - 1, 0);
         let range = new WI.TextRange(lineNumber - 1, 0, lineNumber, 0);
-
         this.revealPosition(position, range, false, true);
-        this.focus();
     }
 
     contentDidChange(replacedRanges, newRanges)
@@ -309,7 +306,7 @@ WI.SourceCodeTextEditor = class SourceCodeTextEditor extends WI.TextEditor
     toggleTypeAnnotations()
     {
         if (!this._typeTokenAnnotator)
-            return false;
+            return Promise.reject(new Error("TypeTokenAnnotator is not initialized."));
 
         var newActivatedState = !this._typeTokenAnnotator.isActive();
         if (newActivatedState && this._isProbablyMinified && !this.formatted) {
@@ -325,7 +322,7 @@ WI.SourceCodeTextEditor = class SourceCodeTextEditor extends WI.TextEditor
     toggleUnexecutedCodeHighlights()
     {
         if (!this._basicBlockAnnotator)
-            return false;
+            return Promise.reject(new Error("BasicBlockAnnotator is not initialized."));
 
         let newActivatedState = !this._basicBlockAnnotator.isActive();
         if (newActivatedState && this._isProbablyMinified && !this.formatted) {
@@ -467,11 +464,11 @@ WI.SourceCodeTextEditor = class SourceCodeTextEditor extends WI.TextEditor
         this.string = content;
 
         this._createBasicBlockAnnotator();
-        if (WI.enableControlFlowProfilerSetting.value && this._basicBlockAnnotator)
+        if (WI.settings.enableControlFlowProfiler.value && this._basicBlockAnnotator)
             this._basicBlockAnnotatorEnabled = true;
 
         this._createTypeTokenAnnotator();
-        if (WI.showJavaScriptTypeInformationSetting.value)
+        if (WI.settings.showJavaScriptTypeInformation.value)
             this._setTypeTokenAnnotatorEnabledState(true);
 
         this._contentDidPopulate();
@@ -547,7 +544,13 @@ WI.SourceCodeTextEditor = class SourceCodeTextEditor extends WI.TextEditor
         this._fullContentPopulated = true;
         this._invalidLineNumbers = {};
 
+        // If we had partial content (such as inline script content) before we had full content, we
+        // will want to re-restore the revealed position now that we are populating with full content.
+        this.repeatReveal = !!this.string;
+
         this._populateWithContent(content);
+
+        this.repeatReveal = false;
     }
 
     _breakpointStatusDidChange(event)
@@ -664,13 +667,13 @@ WI.SourceCodeTextEditor = class SourceCodeTextEditor extends WI.TextEditor
 
     _targetAdded(event)
     {
-        if (WI.targets.size === 2)
+        if (WI.targets.length === 2)
             this._reinsertAllThreadIndicators();
     }
 
     _targetRemoved(event)
     {
-        if (WI.targets.size === 1) {
+        if (WI.targets.length === 1) {
             // Back to one thread, remove thread indicators.
             this._reinsertAllThreadIndicators();
             return;
@@ -682,7 +685,7 @@ WI.SourceCodeTextEditor = class SourceCodeTextEditor extends WI.TextEditor
 
     _callFramesDidChange(event)
     {
-        if (WI.targets.size === 1)
+        if (WI.targets.length === 1)
             return;
 
         let target = event.data.target;
@@ -768,7 +771,7 @@ WI.SourceCodeTextEditor = class SourceCodeTextEditor extends WI.TextEditor
         if (!widget)
             return;
 
-        console.assert(WI.targets.size > 1);
+        console.assert(WI.targets.length > 1);
 
         let widgetElement = widget.widgetElement;
         widgetElement.removeChildren();
@@ -776,9 +779,6 @@ WI.SourceCodeTextEditor = class SourceCodeTextEditor extends WI.TextEditor
         widget[WI.SourceCodeTextEditor.WidgetContainsMultipleThreadsSymbol] = threads.length > 1;
 
         if (widgetElement.classList.contains("inline") || threads.length === 1) {
-            let arrowElement = widgetElement.appendChild(document.createElement("span"));
-            arrowElement.className = "arrow";
-
             let textElement = widgetElement.appendChild(document.createElement("span"));
             textElement.className = "text";
             textElement.textContent = threads.length === 1 ? threads[0].displayName : WI.UIString("%d Threads").format(threads.length);
@@ -1002,7 +1002,7 @@ WI.SourceCodeTextEditor = class SourceCodeTextEditor extends WI.TextEditor
     _issueWasAdded(event)
     {
         var issue = event.data.issue;
-        if (!WI.IssueManager.issueMatchSourceCode(issue, this._sourceCode))
+        if (!WI.ConsoleManager.issueMatchSourceCode(issue, this._sourceCode))
             return;
 
         this._addIssue(issue);
@@ -1083,9 +1083,6 @@ WI.SourceCodeTextEditor = class SourceCodeTextEditor extends WI.TextEditor
         widgetElement.removeChildren();
 
         if (widgetElement.classList.contains("inline") || issues.length === 1) {
-            var arrowElement = widgetElement.appendChild(document.createElement("span"));
-            arrowElement.className = "arrow";
-
             var iconElement = widgetElement.appendChild(document.createElement("span"));
             iconElement.className = "icon";
 
@@ -1404,25 +1401,39 @@ WI.SourceCodeTextEditor = class SourceCodeTextEditor extends WI.TextEditor
         this._reinsertAllThreadIndicators();
     }
 
-    textEditorExecutionHighlightRange(offset, position, characterAtOffset, callback)
+    textEditorExecutionHighlightRange(currentPosition, callback)
     {
+        let position = this.currentPositionToOriginalPosition(currentPosition);
+
         let script = this._getAssociatedScript(position);
         if (!script) {
             callback(null);
             return;
         }
 
-        // If this is an inline script, then convert to offset within the inline script.
-        let adjustment = script.range.startOffset || 0;
-        offset = offset - adjustment;
+        let {startLine, startColumn} = script.range;
 
-        // When returning offsets, convert to offsets within the SourceCode being viewed.
-        function convertRangeOffsetsToSourceCodeOffsets(range) {
-            return range.map((offset) => offset + adjustment);
+        function toInlineScriptPosition(position) {
+            let columnNumber = position.lineNumber === startLine ? position.columnNumber - startColumn : position.columnNumber;
+            return new WI.SourceCodePosition(position.lineNumber - startLine, columnNumber);
         }
 
+        function fromInlineScriptPosition(position) {
+            let columnNumber = position.lineNumber ? position.columnNumber : position.columnNumber + startColumn;
+            return new WI.SourceCodePosition(position.lineNumber + startLine, columnNumber);
+        }
+
+        // When returning positions, convert to positions relative to the TextEditor content.
+        let highlightSourceCodeRange = (startPosition, endPosition) => {
+            startPosition = this.originalPositionToCurrentPosition(fromInlineScriptPosition(startPosition));
+            endPosition = this.originalPositionToCurrentPosition(fromInlineScriptPosition(endPosition));
+            callback({startPosition, endPosition});
+        };
+
         script.requestScriptSyntaxTree((syntaxTree) => {
-            let nodes = syntaxTree.containersOfOffset(offset);
+            // Convert to the position within the inline script before querying the AST.
+            position = toInlineScriptPosition(position);
+            let nodes = syntaxTree.containersOfPosition(position);
             if (!nodes.length) {
                 callback(null);
                 return;
@@ -1432,18 +1443,17 @@ WI.SourceCodeTextEditor = class SourceCodeTextEditor extends WI.TextEditor
             // Avoid highlighting the entire program if this is the start of the first statement.
             // Special case the assignment expression inside of a for..of and for..in to highlight a larger range.
             for (let node of nodes) {
-                let startOffset = node.range[0];
-                if (startOffset === offset && node.type !== WI.ScriptSyntaxTree.NodeType.Program) {
-                    callback(convertRangeOffsetsToSourceCodeOffsets(node.range));
+                if (node.startPosition.equals(position) && node.type !== WI.ScriptSyntaxTree.NodeType.Program) {
+                    highlightSourceCodeRange(node.startPosition, node.endPosition);
                     return;
                 }
                 if (node.type === WI.ScriptSyntaxTree.NodeType.ForInStatement || node.type === WI.ScriptSyntaxTree.NodeType.ForOfStatement) {
-                    if (node.left.range[0] === offset) {
-                        callback(convertRangeOffsetsToSourceCodeOffsets([node.left.range[0], node.right.range[1]]));
+                    if (node.left.startPosition.equals(position)) {
+                        highlightSourceCodeRange(node.left.startPosition, node.right.endPosition);
                         return;
                     }
                 }
-                if (startOffset > offset)
+                if (node.startPosition.isAfter(position))
                     break;
             }
 
@@ -1451,16 +1461,14 @@ WI.SourceCodeTextEditor = class SourceCodeTextEditor extends WI.TextEditor
             // We check this after ensuring nothing starts with this offset,
             // as that would be more important.
             for (let node of nodes) {
-                let startOffset = node.range[0];
-                let endOffset = node.range[1];
-                if (endOffset === offset) {
+                if (node.endPosition.equals(position)) {
                     if (node.type === WI.ScriptSyntaxTree.NodeType.BlockStatement) {
                         // Closing brace of a block, only highlight the closing brace character.
-                        callback(convertRangeOffsetsToSourceCodeOffsets([offset - 1, offset]));
+                        highlightSourceCodeRange(position.offsetColumn(-1), position);
                         return;
                     }
                 }
-                if (startOffset > offset)
+                if (node.startPosition.isAfter(position))
                     break;
             }
 
@@ -1472,7 +1480,8 @@ WI.SourceCodeTextEditor = class SourceCodeTextEditor extends WI.TextEditor
                 return aLength - bLength;
             });
 
-            let characterAtOffsetIsDotOrBracket = characterAtOffset === "." || characterAtOffset === "[";
+            let characterAtPosition = this.getTextInRange(currentPosition, currentPosition.offsetColumn(1));
+            let characterAtPositionIsDotOrBracket = characterAtPosition === "." || characterAtPosition === "[";
 
             for (let i = 0; i < nodes.length; ++i) {
                 let node = nodes[i];
@@ -1481,7 +1490,7 @@ WI.SourceCodeTextEditor = class SourceCodeTextEditor extends WI.TextEditor
                 if (node.type === WI.ScriptSyntaxTree.NodeType.CallExpression
                     || node.type === WI.ScriptSyntaxTree.NodeType.NewExpression
                     || node.type === WI.ScriptSyntaxTree.NodeType.ThrowStatement) {
-                    callback(convertRangeOffsetsToSourceCodeOffsets(node.range));
+                    highlightSourceCodeRange(node.startPosition, node.endPosition);
                     return;
                 }
 
@@ -1500,24 +1509,24 @@ WI.SourceCodeTextEditor = class SourceCodeTextEditor extends WI.TextEditor
                 //     foo["x"]*["y"]["z"] => inside y looking at parent call frame => |foo["x"]["y"]|["z"]
                 //
                 if (node.type === WI.ScriptSyntaxTree.NodeType.ThisExpression
-                    || (characterAtOffsetIsDotOrBracket && (node.type === WI.ScriptSyntaxTree.NodeType.Identifier || node.type === WI.ScriptSyntaxTree.NodeType.MemberExpression))) {
+                    || (characterAtPositionIsDotOrBracket && (node.type === WI.ScriptSyntaxTree.NodeType.Identifier || node.type === WI.ScriptSyntaxTree.NodeType.MemberExpression))) {
                     let memberExpressionNode = null;
                     for (let j = i + 1; j < nodes.length; ++j) {
                         let nextNode = nodes[j];
                         if (nextNode.type === WI.ScriptSyntaxTree.NodeType.MemberExpression) {
                             memberExpressionNode = nextNode;
-                            if (offset === memberExpressionNode.range[1])
+                            if (position.equals(memberExpressionNode.endPosition))
                                 continue;
                         }
                         break;
                     }
 
                     if (memberExpressionNode) {
-                        callback(convertRangeOffsetsToSourceCodeOffsets(memberExpressionNode.range));
+                        highlightSourceCodeRange(memberExpressionNode.startPosition, memberExpressionNode.endPosition);
                         return;
                     }
 
-                    callback(convertRangeOffsetsToSourceCodeOffsets(node.range));
+                    highlightSourceCodeRange(node.startPosition, node.endPosition);
                     return;
                 }
             }
@@ -1540,7 +1549,7 @@ WI.SourceCodeTextEditor = class SourceCodeTextEditor extends WI.TextEditor
         this._issuesLineNumberMap.clear();
         this._clearIssueWidgets();
 
-        let issues = WI.issueManager.issuesForSourceCode(this._sourceCode);
+        let issues = WI.consoleManager.issuesForSourceCode(this._sourceCode);
         for (let issue of issues)
             this._addIssue(issue);
     }
@@ -1560,8 +1569,9 @@ WI.SourceCodeTextEditor = class SourceCodeTextEditor extends WI.TextEditor
         // Clear other maps.
         this._threadTargetMap.clear();
 
-        if (WI.targets.size > 1) {
-            for (let target of WI.targets)
+        let debuggableTargets = WI.targets;
+        if (debuggableTargets.length > 1) {
+            for (let target of debuggableTargets)
                 this._addThreadIndicatorForTarget(target);
         }
     }
@@ -1716,6 +1726,9 @@ WI.SourceCodeTextEditor = class SourceCodeTextEditor extends WI.TextEditor
     {
         console.assert(candidate.expression);
 
+        let target = WI.debuggerManager.activeCallFrame ? WI.debuggerManager.activeCallFrame.target : this.target;
+        let expression = appendWebInspectorSourceURL(candidate.expression);
+
         function populate(error, result, wasThrown)
         {
             if (error || wasThrown)
@@ -1724,7 +1737,7 @@ WI.SourceCodeTextEditor = class SourceCodeTextEditor extends WI.TextEditor
             if (candidate !== this.tokenTrackingController.candidate)
                 return;
 
-            let data = WI.RemoteObject.fromPayload(result, this.target);
+            let data = WI.RemoteObject.fromPayload(result, target);
             switch (data.type) {
             case "function":
                 this._showPopoverForFunction(data);
@@ -1745,8 +1758,6 @@ WI.SourceCodeTextEditor = class SourceCodeTextEditor extends WI.TextEditor
             }
         }
 
-        let target = WI.debuggerManager.activeCallFrame ? WI.debuggerManager.activeCallFrame.target : this.target;
-        let expression = appendWebInspectorSourceURL(candidate.expression);
 
         if (WI.debuggerManager.activeCallFrame) {
             target.DebuggerAgent.evaluateOnCallFrame.invoke({callFrameId: WI.debuggerManager.activeCallFrame.id, expression, objectGroup: "popover", doNotPauseOnExceptionsAndMuteConsole: true}, populate.bind(this), target.DebuggerAgent);
@@ -1808,6 +1819,12 @@ WI.SourceCodeTextEditor = class SourceCodeTextEditor extends WI.TextEditor
             var rects = this.rectsForRange(candidate.hoveredTokenRange);
             bounds = WI.Rect.unionOfRects(rects);
 
+            if (this._popover && this._popover.visible) {
+                let intersection = bounds.intersectionWithRect(this._popover.frame);
+                if (intersection.size.width && intersection.size.height)
+                    return;
+            }
+
             shouldHighlightRange = true;
         }
 
@@ -1860,19 +1877,19 @@ WI.SourceCodeTextEditor = class SourceCodeTextEditor extends WI.TextEditor
                 mode: "text/javascript",
                 readOnly: "nocursor",
             });
-            codeMirror.on("update", () => {
-                this._popover.update();
-            });
 
             const isModule = false;
             const indentString = WI.indentString();
             const includeSourceMapData = false;
             let workerProxy = WI.FormatterWorkerProxy.singleton();
             workerProxy.formatJavaScript(data.description, isModule, indentString, includeSourceMapData, ({formattedText}) => {
-                codeMirror.setValue(formattedText || data.description);
-            });
+                if (candidate !== this.tokenTrackingController.candidate)
+                    return;
 
-            this._showPopover(content);
+                this._showPopover(content);
+                codeMirror.setValue(formattedText || data.description);
+                this._popover.update();
+            });
         }
 
         data.target.DebuggerAgent.getFunctionDetails(data.objectId, didGetDetails.bind(this));
@@ -1893,13 +1910,13 @@ WI.SourceCodeTextEditor = class SourceCodeTextEditor extends WI.TextEditor
                 if (!nodeId)
                     return;
 
-                var domNode = WI.domTreeManager.nodeForId(nodeId);
+                var domNode = WI.domManager.nodeForId(nodeId);
                 if (!domNode.ownerDocument)
                     return;
 
                 var goToButton = titleElement.appendChild(WI.createGoToArrowButton());
                 goToButton.addEventListener("click", function() {
-                    WI.domTreeManager.inspectElement(nodeId);
+                    WI.domManager.inspectElement(nodeId);
                 });
             });
         }
@@ -2083,7 +2100,7 @@ WI.SourceCodeTextEditor = class SourceCodeTextEditor extends WI.TextEditor
                 this._disableScrollEventsForTypeTokenAnnotator();
         }
 
-        WI.showJavaScriptTypeInformationSetting.value = shouldActivate;
+        WI.settings.showJavaScriptTypeInformation.value = shouldActivate;
 
         this._updateTokenTrackingControllerState();
     }
@@ -2108,7 +2125,7 @@ WI.SourceCodeTextEditor = class SourceCodeTextEditor extends WI.TextEditor
                 this._disableScrollEventsForControlFlowAnnotator();
         }
 
-        WI.enableControlFlowProfilerSetting.value = shouldActivate;
+        WI.settings.enableControlFlowProfiler.value = shouldActivate;
     }
 
     _getAssociatedScript(position)
@@ -2138,7 +2155,7 @@ WI.SourceCodeTextEditor = class SourceCodeTextEditor extends WI.TextEditor
     _createTypeTokenAnnotator()
     {
         // COMPATIBILITY (iOS 8): Runtime.getRuntimeTypesForVariablesAtOffsets did not exist yet.
-        if (!RuntimeAgent.getRuntimeTypesForVariablesAtOffsets)
+        if (!this.target.RuntimeAgent.getRuntimeTypesForVariablesAtOffsets)
             return;
 
         var script = this._getAssociatedScript();
@@ -2151,7 +2168,7 @@ WI.SourceCodeTextEditor = class SourceCodeTextEditor extends WI.TextEditor
     _createBasicBlockAnnotator()
     {
         // COMPATIBILITY (iOS 8): Runtime.getBasicBlocks did not exist yet.
-        if (!RuntimeAgent.getBasicBlocks)
+        if (!this.target.RuntimeAgent.getBasicBlocks)
             return;
 
         var script = this._getAssociatedScript();

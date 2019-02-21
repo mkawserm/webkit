@@ -9,6 +9,7 @@ info: |
   ...
 features: [BigInt]
 ---*/
+assert.sameValue(typeof BigInt, 'function');
 
 assert.throws(TypeError, function() {
   new BigInt();
@@ -16,6 +17,8 @@ assert.throws(TypeError, function() {
 
 assert.throws(TypeError, function() {
   new BigInt({
-    valueOf: function() { throw new Test262Error("unreachable"); }
+    valueOf: function() {
+      throw new Test262Error("unreachable");
+    }
   });
 });

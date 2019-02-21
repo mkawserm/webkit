@@ -111,8 +111,8 @@ void AudioBufferSourceNode::process(size_t framesToProcess)
         return;
     }
 
-    size_t quantumFrameOffset;
-    size_t bufferFramesToProcess;
+    size_t quantumFrameOffset = 0;
+    size_t bufferFramesToProcess = 0;
     updateSchedulingInfo(framesToProcess, outputBus, quantumFrameOffset, bufferFramesToProcess);
 
     if (!bufferFramesToProcess) {
@@ -437,7 +437,7 @@ unsigned AudioBufferSourceNode::numberOfChannels()
     return output(0)->numberOfChannels();
 }
 
-ExceptionOr<void> AudioBufferSourceNode::start(double when, double grainOffset, std::optional<double> optionalGrainDuration)
+ExceptionOr<void> AudioBufferSourceNode::start(double when, double grainOffset, Optional<double> optionalGrainDuration)
 {
     double grainDuration = 0;
     if (optionalGrainDuration)
@@ -529,7 +529,7 @@ bool AudioBufferSourceNode::looping()
 {
     static bool firstTime = true;
     if (firstTime && context().scriptExecutionContext()) {
-        context().scriptExecutionContext()->addConsoleMessage(MessageSource::JS, MessageLevel::Warning, ASCIILiteral("AudioBufferSourceNode 'looping' attribute is deprecated.  Use 'loop' instead."));
+        context().scriptExecutionContext()->addConsoleMessage(MessageSource::JS, MessageLevel::Warning, "AudioBufferSourceNode 'looping' attribute is deprecated.  Use 'loop' instead."_s);
         firstTime = false;
     }
 
@@ -540,7 +540,7 @@ void AudioBufferSourceNode::setLooping(bool looping)
 {
     static bool firstTime = true;
     if (firstTime && context().scriptExecutionContext()) {
-        context().scriptExecutionContext()->addConsoleMessage(MessageSource::JS, MessageLevel::Warning, ASCIILiteral("AudioBufferSourceNode 'looping' attribute is deprecated.  Use 'loop' instead."));
+        context().scriptExecutionContext()->addConsoleMessage(MessageSource::JS, MessageLevel::Warning, "AudioBufferSourceNode 'looping' attribute is deprecated.  Use 'loop' instead."_s);
         firstTime = false;
     }
 

@@ -31,13 +31,12 @@
 
 #include <WebCore/CoordinatedGraphicsLayer.h>
 #include <WebCore/CoordinatedGraphicsState.h>
-#include <WebCore/CoordinatedImageBacking.h>
 #include <WebCore/FloatPoint.h>
 #include <WebCore/GraphicsLayerClient.h>
 #include <WebCore/GraphicsLayerFactory.h>
 #include <WebCore/IntRect.h>
 #include <WebCore/NicosiaBuffer.h>
-#include <WebCore/UpdateAtlas.h>
+#include <WebCore/NicosiaPlatformLayer.h>
 
 namespace Nicosia {
 class PaintingEngine;
@@ -53,8 +52,6 @@ namespace WebKit {
 
 class CompositingCoordinator final : public WebCore::GraphicsLayerClient
     , public WebCore::CoordinatedGraphicsLayerClient
-    , public WebCore::CoordinatedImageBacking::Client
-    , public WebCore::UpdateAtlas::Client
     , public WebCore::GraphicsLayerFactory {
     WTF_MAKE_NONCOPYABLE(CompositingCoordinator);
 public:
@@ -63,27 +60,24 @@ public:
         virtual void didFlushRootLayer(const WebCore::FloatRect& visibleContentRect) = 0;
         virtual void notifyFlushRequired() = 0;
         virtual void commitSceneState(const WebCore::CoordinatedGraphicsState&) = 0;
-        virtual void releaseUpdateAtlases(const Vector<uint32_t>&) = 0;
     };
 
     CompositingCoordinator(WebCore::Page*, CompositingCoordinator::Client&);
     virtual ~CompositingCoordinator();
 
     void invalidate();
-    void clearUpdateAtlases();
 
     void setRootCompositingLayer(WebCore::GraphicsLayer*);
     void setViewOverlayRootLayer(WebCore::GraphicsLayer*);
     void sizeDidChange(const WebCore::IntSize&);
     void deviceOrPageScaleFactorChanged();
 
-    void setVisibleContentsRect(const WebCore::FloatRect&, const WebCore::FloatPoint&);
+    void setVisibleContentsRect(const WebCore::FloatRect&);
     void renderNextFrame();
 
     void createRootLayer(const WebCore::IntSize&);
     WebCore::GraphicsLayer* rootLayer() const { return m_rootLayer.get(); }
     WebCore::GraphicsLayer* rootCompositingLayer() const { return m_rootCompositingLayer; }
-    WebCore::CoordinatedGraphicsLayer* mainContentsLayer();
 
     void forceFrameSync() { m_shouldSyncFrame = true; }
 
@@ -95,65 +89,44 @@ public:
     double nextAnimationServiceTime() const;
 
 private:
-    enum ReleaseAtlasPolicy {
-        ReleaseInactive,
-        ReleaseUnused
-    };
-
     // GraphicsLayerClient
     void notifyFlushRequired(const WebCore::GraphicsLayer*) override;
     float deviceScaleFactor() const override;
     float pageScaleFactor() const override;
 
-    // CoordinatedImageBacking::Client
-    void createImageBacking(WebCore::CoordinatedImageBackingID) override;
-    void updateImageBacking(WebCore::CoordinatedImageBackingID, RefPtr<Nicosia::Buffer>&&) override;
-    void clearImageBackingContents(WebCore::CoordinatedImageBackingID) override;
-    void removeImageBacking(WebCore::CoordinatedImageBackingID) override;
-
     // CoordinatedGraphicsLayerClient
     bool isFlushingLayerChanges() const override { return m_isFlushingLayerChanges; }
     WebCore::FloatRect visibleContentsRect() const override;
-    Ref<WebCore::CoordinatedImageBacking> createImageBackingIfNeeded(WebCore::Image&) override;
     void detachLayer(WebCore::CoordinatedGraphicsLayer*) override;
-    Ref<Nicosia::Buffer> getCoordinatedBuffer(const WebCore::IntSize&, Nicosia::Buffer::Flags, uint32_t&, WebCore::IntRect&) override;
+    void attachLayer(WebCore::CoordinatedGraphicsLayer*) override;
     Nicosia::PaintingEngine& paintingEngine() override;
-    void syncLayerState(WebCore::CoordinatedLayerID, WebCore::CoordinatedGraphicsLayerState&) override;
-
-    // UpdateAtlas::Client
-    void createUpdateAtlas(WebCore::UpdateAtlas::ID, Ref<Nicosia::Buffer>&&) override;
-    void removeUpdateAtlas(WebCore::UpdateAtlas::ID) override;
+    void syncLayerState() override;
 
     // GraphicsLayerFactory
-    std::unique_ptr<WebCore::GraphicsLayer> createGraphicsLayer(WebCore::GraphicsLayer::Type, WebCore::GraphicsLayerClient&) override;
+    Ref<WebCore::GraphicsLayer> createGraphicsLayer(WebCore::GraphicsLayer::Type, WebCore::GraphicsLayerClient&) override;
 
     void initializeRootCompositingLayerIfNeeded();
-    void flushPendingImageBackingChanges();
-    void clearPendingStateChanges();
 
     void purgeBackingStores();
-
-    void scheduleReleaseInactiveAtlases();
-    void releaseInactiveAtlasesTimerFired();
-    void releaseAtlases(ReleaseAtlasPolicy);
 
     double timestamp() const;
 
     WebCore::Page* m_page;
     CompositingCoordinator::Client& m_client;
 
-    std::unique_ptr<WebCore::GraphicsLayer> m_rootLayer;
+    RefPtr<WebCore::GraphicsLayer> m_rootLayer;
     WebCore::GraphicsLayer* m_rootCompositingLayer { nullptr };
     WebCore::GraphicsLayer* m_overlayCompositingLayer { nullptr };
 
+    struct {
+        RefPtr<Nicosia::Scene> scene;
+        Nicosia::Scene::State state;
+    } m_nicosia;
     WebCore::CoordinatedGraphicsState m_state;
 
-    HashMap<WebCore::CoordinatedLayerID, WebCore::CoordinatedGraphicsLayer*> m_registeredLayers;
-    HashMap<WebCore::CoordinatedImageBackingID, RefPtr<WebCore::CoordinatedImageBacking>> m_imageBackings;
+    HashMap<Nicosia::PlatformLayer::LayerID, WebCore::CoordinatedGraphicsLayer*> m_registeredLayers;
 
     std::unique_ptr<Nicosia::PaintingEngine> m_paintingEngine;
-    Vector<std::unique_ptr<WebCore::UpdateAtlas>> m_updateAtlases;
-    Vector<uint32_t> m_atlasesToRemove;
 
     // We don't send the messages related to releasing resources to renderer during purging, because renderer already had removed all resources.
     bool m_isDestructing { false };
@@ -163,7 +136,6 @@ private:
     bool m_didInitializeRootCompositingLayer { false };
 
     WebCore::FloatRect m_visibleContentsRect;
-    RunLoop::Timer<CompositingCoordinator> m_releaseInactiveAtlasesTimer;
 
     double m_lastAnimationServiceTime { 0 };
 };

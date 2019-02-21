@@ -29,15 +29,17 @@
 
 #if !LOG_DISABLED || !RELEASE_LOG_DISABLED
 
+#include <windows.h>
 #include <wtf/StdLibExtras.h>
 #include <wtf/text/WTFString.h>
 
 namespace WebKit {
 
-static char* const loggingEnvironmentVariable = "WebKitLogging";
-
 String logLevelString()
 {
+#if !LOG_DISABLED
+    static char* const loggingEnvironmentVariable = "WebKitLogging";
+
     DWORD length = GetEnvironmentVariableA(loggingEnvironmentVariable, 0, 0);
     if (!length)
         return emptyString();
@@ -48,6 +50,9 @@ String logLevelString()
         return emptyString();
 
     return String(buffer.data());
+#else
+    return String();
+#endif
 }
 
 } // namespace WebKit

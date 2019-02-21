@@ -8,9 +8,9 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include <memory>
 #include <signal.h>
 #include <stdarg.h>
+#include <memory>
 
 #include "rtc_base/gunit.h"
 #include "rtc_base/logging.h"
@@ -39,34 +39,25 @@ class PhysicalSocketTest;
 class FakeSocketDispatcher : public SocketDispatcher {
  public:
   explicit FakeSocketDispatcher(PhysicalSocketServer* ss)
-    : SocketDispatcher(ss) {
-  }
+      : SocketDispatcher(ss) {}
 
   FakeSocketDispatcher(SOCKET s, PhysicalSocketServer* ss)
-    : SocketDispatcher(s, ss) {
-  }
+      : SocketDispatcher(s, ss) {}
 
  protected:
   SOCKET DoAccept(SOCKET socket, sockaddr* addr, socklen_t* addrlen) override;
   int DoSend(SOCKET socket, const char* buf, int len, int flags) override;
-  int DoSendTo(SOCKET socket, const char* buf, int len, int flags,
-               const struct sockaddr* dest_addr, socklen_t addrlen) override;
+  int DoSendTo(SOCKET socket,
+               const char* buf,
+               int len,
+               int flags,
+               const struct sockaddr* dest_addr,
+               socklen_t addrlen) override;
 };
 
 class FakePhysicalSocketServer : public PhysicalSocketServer {
  public:
-  explicit FakePhysicalSocketServer(PhysicalSocketTest* test)
-    : test_(test) {
-  }
-
-  AsyncSocket* CreateAsyncSocket(int type) override {
-    SocketDispatcher* dispatcher = new FakeSocketDispatcher(this);
-    if (!dispatcher->Create(type)) {
-      delete dispatcher;
-      return nullptr;
-    }
-    return dispatcher;
-  }
+  explicit FakePhysicalSocketServer(PhysicalSocketTest* test) : test_(test) {}
 
   AsyncSocket* CreateAsyncSocket(int family, int type) override {
     SocketDispatcher* dispatcher = new FakeSocketDispatcher(this);
@@ -120,10 +111,10 @@ class PhysicalSocketTest : public SocketTest {
 
  protected:
   PhysicalSocketTest()
-    : server_(new FakePhysicalSocketServer(this)),
-      thread_(server_.get()),
-      fail_accept_(false),
-      max_send_size_(-1) {}
+      : server_(new FakePhysicalSocketServer(this)),
+        thread_(server_.get()),
+        fail_accept_(false),
+        max_send_size_(-1) {}
 
   void ConnectInternalAcceptError(const IPAddress& loopback);
   void WritableAfterPartialWrite(const IPAddress& loopback);
@@ -146,8 +137,10 @@ SOCKET FakeSocketDispatcher::DoAccept(SOCKET socket,
   return SocketDispatcher::DoAccept(socket, addr, addrlen);
 }
 
-int FakeSocketDispatcher::DoSend(SOCKET socket, const char* buf, int len,
-    int flags) {
+int FakeSocketDispatcher::DoSend(SOCKET socket,
+                                 const char* buf,
+                                 int len,
+                                 int flags) {
   FakePhysicalSocketServer* ss =
       static_cast<FakePhysicalSocketServer*>(socketserver());
   if (ss->GetTest()->MaxSendSize() >= 0) {
@@ -157,8 +150,12 @@ int FakeSocketDispatcher::DoSend(SOCKET socket, const char* buf, int len,
   return SocketDispatcher::DoSend(socket, buf, len, flags);
 }
 
-int FakeSocketDispatcher::DoSendTo(SOCKET socket, const char* buf, int len,
-    int flags, const struct sockaddr* dest_addr, socklen_t addrlen) {
+int FakeSocketDispatcher::DoSendTo(SOCKET socket,
+                                   const char* buf,
+                                   int len,
+                                   int flags,
+                                   const struct sockaddr* dest_addr,
+                                   socklen_t addrlen) {
   FakePhysicalSocketServer* ss =
       static_cast<FakePhysicalSocketServer*>(socketserver());
   if (ss->GetTest()->MaxSendSize() >= 0) {
@@ -166,7 +163,7 @@ int FakeSocketDispatcher::DoSendTo(SOCKET socket, const char* buf, int len,
   }
 
   return SocketDispatcher::DoSendTo(socket, buf, len, flags, dest_addr,
-      addrlen);
+                                    addrlen);
 }
 
 TEST_F(PhysicalSocketTest, TestConnectIPv4) {
@@ -201,13 +198,13 @@ void PhysicalSocketTest::ConnectInternalAcceptError(const IPAddress& loopback) {
       server_->CreateAsyncSocket(loopback.family(), SOCK_STREAM));
   sink.Monitor(client1.get());
   EXPECT_EQ(AsyncSocket::CS_CLOSED, client1->GetState());
-  EXPECT_PRED1(IsUnspecOrEmptyIP, client1->GetLocalAddress().ipaddr());
+  EXPECT_TRUE(IsUnspecOrEmptyIP(client1->GetLocalAddress().ipaddr()));
 
   std::unique_ptr<AsyncSocket> client2(
       server_->CreateAsyncSocket(loopback.family(), SOCK_STREAM));
   sink.Monitor(client2.get());
   EXPECT_EQ(AsyncSocket::CS_CLOSED, client2->GetState());
-  EXPECT_PRED1(IsUnspecOrEmptyIP, client2->GetLocalAddress().ipaddr());
+  EXPECT_TRUE(IsUnspecOrEmptyIP(client2->GetLocalAddress().ipaddr()));
 
   // Create server and listen.
   std::unique_ptr<AsyncSocket> server(
@@ -289,9 +286,11 @@ void PhysicalSocketTest::WritableAfterPartialWrite(const IPAddress& loopback) {
 
 // https://bugs.chromium.org/p/webrtc/issues/detail?id=6167
 #if defined(WEBRTC_WIN)
-#define MAYBE_TestWritableAfterPartialWriteIPv4 DISABLED_TestWritableAfterPartialWriteIPv4
+#define MAYBE_TestWritableAfterPartialWriteIPv4 \
+  DISABLED_TestWritableAfterPartialWriteIPv4
 #else
-#define MAYBE_TestWritableAfterPartialWriteIPv4 TestWritableAfterPartialWriteIPv4
+#define MAYBE_TestWritableAfterPartialWriteIPv4 \
+  TestWritableAfterPartialWriteIPv4
 #endif
 TEST_F(PhysicalSocketTest, MAYBE_TestWritableAfterPartialWriteIPv4) {
   MAYBE_SKIP_IPV4;
@@ -300,9 +299,11 @@ TEST_F(PhysicalSocketTest, MAYBE_TestWritableAfterPartialWriteIPv4) {
 
 // https://bugs.chromium.org/p/webrtc/issues/detail?id=6167
 #if defined(WEBRTC_WIN)
-#define MAYBE_TestWritableAfterPartialWriteIPv6 DISABLED_TestWritableAfterPartialWriteIPv6
+#define MAYBE_TestWritableAfterPartialWriteIPv6 \
+  DISABLED_TestWritableAfterPartialWriteIPv6
 #else
-#define MAYBE_TestWritableAfterPartialWriteIPv6 TestWritableAfterPartialWriteIPv6
+#define MAYBE_TestWritableAfterPartialWriteIPv6 \
+  TestWritableAfterPartialWriteIPv6
 #endif
 TEST_F(PhysicalSocketTest, MAYBE_TestWritableAfterPartialWriteIPv6) {
   MAYBE_SKIP_IPV6;
@@ -321,7 +322,6 @@ TEST_F(PhysicalSocketTest, TestConnectWithDnsLookupFailIPv4) {
 TEST_F(PhysicalSocketTest, TestConnectWithDnsLookupFailIPv6) {
   SocketTest::TestConnectWithDnsLookupFailIPv6();
 }
-
 
 TEST_F(PhysicalSocketTest, TestConnectWithClosedSocketIPv4) {
   MAYBE_SKIP_IPV4;
@@ -472,8 +472,7 @@ TEST_F(PhysicalSocketTest,
 }
 
 // Network binder shouldn't be used if the socket is bound to the "any" IP.
-TEST_F(PhysicalSocketTest,
-       NetworkBinderIsNotUsedForAnyIp) {
+TEST_F(PhysicalSocketTest, NetworkBinderIsNotUsedForAnyIp) {
   MAYBE_SKIP_IPV4;
   FakeNetworkBinder fake_network_binder;
   server_->set_network_binder(&fake_network_binder);
@@ -538,7 +537,7 @@ class PosixSignalDeliveryTest : public testing::Test {
   }
 
   static std::vector<int> signals_received_;
-  static Thread *signaled_thread_;
+  static Thread* signaled_thread_;
 
   std::unique_ptr<PhysicalSocketServer> ss_;
 };
@@ -548,7 +547,13 @@ Thread* PosixSignalDeliveryTest::signaled_thread_ = nullptr;
 
 // Test receiving a synchronous signal while not in Wait() and then entering
 // Wait() afterwards.
-TEST_F(PosixSignalDeliveryTest, RaiseThenWait) {
+// TODO(webrtc:7864): Fails on real iOS devices
+#if defined(WEBRTC_IOS) && defined(WEBRTC_ARCH_ARM_FAMILY)
+#define MAYBE_RaiseThenWait DISABLED_RaiseThenWait
+#else
+#define MAYBE_RaiseThenWait RaiseThenWait
+#endif
+TEST_F(PosixSignalDeliveryTest, MAYBE_RaiseThenWait) {
   ASSERT_TRUE(ss_->SetPosixSignalHandler(SIGTERM, &RecordSignal));
   raise(SIGTERM);
   EXPECT_TRUE(ss_->Wait(0, true));
@@ -558,7 +563,13 @@ TEST_F(PosixSignalDeliveryTest, RaiseThenWait) {
 
 // Test that we can handle getting tons of repeated signals and that we see all
 // the different ones.
-TEST_F(PosixSignalDeliveryTest, InsanelyManySignals) {
+// TODO(webrtc:7864): Fails on real iOS devices
+#if defined(WEBRTC_IOS) && defined(WEBRTC_ARCH_ARM_FAMILY)
+#define MAYBE_InsanelyManySignals DISABLED_InsanelyManySignals
+#else
+#define MAYBE_InsanelyManySignals InsanelyManySignals
+#endif
+TEST_F(PosixSignalDeliveryTest, MAYBE_InsanelyManySignals) {
   ss_->SetPosixSignalHandler(SIGTERM, &RecordSignal);
   ss_->SetPosixSignalHandler(SIGINT, &RecordSignal);
   for (int i = 0; i < 10000; ++i) {
@@ -598,7 +609,13 @@ class RaiseSigTermRunnable : public Runnable {
 
 // Test that it works no matter what thread the kernel chooses to give the
 // signal to (since it's not guaranteed to be the one that Wait() runs on).
-TEST_F(PosixSignalDeliveryTest, SignalOnDifferentThread) {
+// TODO(webrtc:7864): Fails on real iOS devices
+#if defined(WEBRTC_IOS) && defined(WEBRTC_ARCH_ARM_FAMILY)
+#define MAYBE_SignalOnDifferentThread DISABLED_SignalOnDifferentThread
+#else
+#define MAYBE_SignalOnDifferentThread SignalOnDifferentThread
+#endif
+TEST_F(PosixSignalDeliveryTest, DISABLED_SignalOnDifferentThread) {
   ss_->SetPosixSignalHandler(SIGTERM, &RecordSignal);
   // Mask out SIGTERM so that it can't be delivered to this thread.
   sigset_t mask;

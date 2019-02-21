@@ -23,8 +23,7 @@
  * THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef SessionStateConversion_h
-#define SessionStateConversion_h
+#pragma once
 
 #include <wtf/Forward.h>
 
@@ -34,11 +33,9 @@ class HistoryItem;
 
 namespace WebKit {
 
-struct PageState;
+struct BackForwardListItemState;
 
-PageState toPageState(const WebCore::HistoryItem&);
-Ref<WebCore::HistoryItem> toHistoryItem(const PageState&);
+BackForwardListItemState toBackForwardListItemState(const WebCore::HistoryItem&);
+Ref<WebCore::HistoryItem> toHistoryItem(const BackForwardListItemState&);
 
 } // namespace WebKit
-
-#endif // SessionStateConversion_h

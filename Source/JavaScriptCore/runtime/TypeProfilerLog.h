@@ -53,10 +53,10 @@ public:
     };
 
 
-    TypeProfilerLog();
+    TypeProfilerLog(VM&);
     ~TypeProfilerLog();
 
-    JS_EXPORT_PRIVATE void processLogEntries(const String&);
+    JS_EXPORT_PRIVATE void processLogEntries(VM&, const String&);
     LogEntry* logEndPtr() const { return m_logEndPtr; }
 
     void visit(SlotVisitor&);
@@ -67,6 +67,7 @@ public:
 private:
     friend class LLIntOffsetsExtractor;
 
+    VM& m_vm;
     unsigned m_logSize;
     LogEntry* m_logStartPtr;
     LogEntry* m_currentLogEntryPtr;

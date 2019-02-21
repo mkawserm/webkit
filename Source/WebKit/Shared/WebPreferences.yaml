@@ -1,3 +1,17 @@
+BlankAnchorTargetImpliesNoOpenerEnabled:
+   type: bool
+   defaultValue: true
+   webcoreBinding: RuntimeEnabledFeatures
+   humanReadableName: "Blank anchor target implies rel=noopener"
+   humanReadableDescription: "target=_blank on anchor elements implies rel=noopener"
+   category: experimental
+
+DeviceOrientationEventEnabled:
+  type: bool
+  defaultValue: true
+  condition: ENABLE(DEVICE_ORIENTATION)
+  webcoreName: deviceOrientationEventEnabled
+
 JavaScriptEnabled:
   type: bool
   defaultValue: true
@@ -20,6 +34,20 @@ LoadsSiteIconsIgnoringImageLoadingPreference:
 PluginsEnabled:
   type: bool
   defaultValue: false
+
+HTTPSUpgradeEnabled:
+   type: bool
+   defaultValue: false
+   humanReadableName: "Automatic HTTPS upgrade"
+   humanReadableDescription: "Automatic HTTPS upgrade for known supported sites"
+   category: experimental
+
+ThirdPartyIframeRedirectBlockingEnabled:
+   type: bool
+   defaultValue: true
+   humanReadableName: "Block top-level redirects by third-party iframes"
+   humanReadableDescription: "Block top-level redirects by third-party iframes"
+   category: experimental
 
 JavaEnabled:
   type: bool
@@ -45,6 +73,11 @@ DatabasesEnabled:
 XSSAuditorEnabled:
   type: bool
   defaultValue: true
+
+SafeBrowsingEnabled:
+  type: bool
+  defaultValue: false
+  webcoreBinding: none
 
 PrivateBrowsingEnabled:
   type: bool
@@ -91,18 +124,6 @@ ForceSoftwareWebGLRendering:
 Accelerated2dCanvasEnabled:
   type: bool
   defaultValue: false
-
-CSSAnimationTriggersEnabled:
-  type: bool
-  defaultValue: true
-  webcoreBinding: RuntimeEnabledFeatures
-  webcoreName: animationTriggersEnabled
-  condition: ENABLE(CSS_ANIMATIONS_LEVEL_2)
-
-CSSAnimationsAndCSSTransitionsBackedByWebAnimationsEnabled:
-  type: bool
-  defaultValue: false
-  webcoreBinding: RuntimeEnabledFeatures
 
 ForceFTPDirectoryListings:
   type: bool
@@ -163,11 +184,6 @@ LinkPreconnect:
   defaultValue: DEFAULT_LINK_PRECONNECT_ENABLED
   webcoreName: linkPreconnectEnabled
 
-FullScreenEnabled:
-  type: bool
-  defaultValue: false
-  condition: ENABLE(FULLSCREEN_API)
-
 AsynchronousSpellCheckingEnabled:
   type: bool
   defaultValue: false
@@ -194,7 +210,7 @@ AllowCrossOriginSubresourcesToAskForCredentials:
 
 AVFoundationEnabled:
   type: bool
-  defaultValue: true
+  defaultValue: DEFAULT_AVFOUNDATION_ENABLED
   getter: isAVFoundationEnabled
   webcoreBinding: DeprecatedGlobalSettings
   condition: USE(AVFOUNDATION)
@@ -442,10 +458,6 @@ ShowsURLsInToolTipsEnabled:
   defaultValue: false
   webcoreName: showsURLsInToolTips
 
-AcceleratedCompositingForOverflowScrollEnabled:
-  type: bool
-  defaultValue: false
-
 HiddenPageDOMTimerThrottlingEnabled:
   type: bool
   defaultValue: DEFAULT_HIDDEN_PAGE_DOM_TIMER_THROTTLING_ENABLED
@@ -460,7 +472,7 @@ HiddenPageCSSAnimationSuspensionEnabled:
 
 LowPowerVideoAudioBufferSizeEnabled:
   type: bool
-  defaultValue: false
+  defaultValue: true
   webcoreBinding: DeprecatedGlobalSettings
 
 ThreadedScrollingEnabled:
@@ -480,6 +492,15 @@ UseGiantTiles:
   type: bool
   defaultValue: false
 
+MediaRecorderEnabled:
+    type: bool
+    defaultValue: false
+    webcoreBinding: RuntimeEnabledFeatures
+    condition: ENABLE(MEDIA_STREAM)
+    humanReadableName: "MediaRecorder"
+    humanReadableDescription: "MediaRecorder"
+    category: experimental
+
 MediaDevicesEnabled:
   type: bool
   defaultValue: false
@@ -494,14 +515,53 @@ MediaStreamEnabled:
 
 ScreenCaptureEnabled:
   type: bool
-  defaultValue: false
+  defaultValue: true
   webcoreBinding: RuntimeEnabledFeatures
-  condition: ENABLE(MEDIA_STREAM)
+  condition: ENABLE(MEDIA_STREAM) && PLATFORM(MAC)
+  humanReadableName: "ScreenCapture"
+  humanReadableDescription: "Enable ScreenCapture"
+  category: experimental
 
 PeerConnectionEnabled:
   type: bool
   defaultValue: WebCore::LibWebRTCProvider::webRTCAvailable()
   webcoreBinding: RuntimeEnabledFeatures
+  condition: ENABLE(WEB_RTC)
+
+WebRTCUnifiedPlanEnabled:
+  type: bool
+  defaultValue: true
+  webcoreBinding: RuntimeEnabledFeatures
+  condition: ENABLE(WEB_RTC)
+  humanReadableName: "WebRTC Unified Plan"
+  humanReadableDescription: "Use WebRTC Unified Plan"
+  category: experimental
+
+WebRTCVP8CodecEnabled:
+  type: bool
+  defaultValue: true
+  webcoreBinding: RuntimeEnabledFeatures
+  condition: ENABLE(WEB_RTC)
+  humanReadableName: "WebRTC VP8 codec"
+  humanReadableDescription: "Enable WebRTC VP8 codec"
+  category: experimental
+
+WebRTCH264SimulcastEnabled:
+  type: bool
+  defaultValue: true
+  webcoreBinding: RuntimeEnabledFeatures
+  condition: ENABLE(WEB_RTC)
+  humanReadableName: "WebRTC H264 Simulcast"
+  humanReadableDescription: "Enable WebRTC H264 Simulcast"
+  category: experimental
+
+WebRTCMDNSICECandidatesEnabled:
+  type: bool
+  defaultValue: true
+  humanReadableName: "WebRTC mDNS ICE candidates"
+  humanReadableDescription: "Enable WebRTC mDNS ICE candidates"
+  webcoreBinding: RuntimeEnabledFeatures
+  category: experimental
   condition: ENABLE(WEB_RTC)
 
 UseLegacyTextAlignPositionedElementBehavior:
@@ -514,7 +574,7 @@ SpatialNavigationEnabled:
 
 MediaSourceEnabled:
   type: bool
-  defaultValue: true
+  defaultValue: WebCore::Settings::platformDefaultMediaSourceEnabled()
   condition: ENABLE(MEDIA_SOURCE)
 
 ViewGestureDebuggingEnabled:
@@ -569,33 +629,15 @@ HTTPEquivEnabled:
   defaultValue: true
   webcoreName: httpEquivEnabled
 
-MockCaptureDevicesEnabled:
-  type: bool
-  defaultValue: false
-  webcoreBinding: DeprecatedGlobalSettings
-  condition: ENABLE(MEDIA_STREAM)
-
 MockCaptureDevicesPromptEnabled:
   type: bool
   defaultValue: true
   webcoreBinding: none
 
-MediaCaptureRequiresSecureConnection:
-  type: bool
-  defaultValue: true
-  webcoreBinding: DeprecatedGlobalSettings
-  condition: ENABLE(MEDIA_STREAM)
-
 # FIXME: What is this for?
 EnumeratingAllNetworkInterfacesEnabled:
   type: bool
   defaultValue: false
-  webcoreBinding: none
-
-# FIXME: What is this for?
-ICECandidateFilteringEnabled:
-  type: bool
-  defaultValue: true
   webcoreBinding: none
 
 ShadowDOMEnabled:
@@ -634,6 +676,10 @@ VisualViewportEnabled:
   type: bool
   defaultValue: true
 
+LayoutViewportHeightExpansionFactor:
+  type: double
+  defaultValue: DEFAULT_VISUAL_VIEWPORT_HEIGHT_EXPANSION_FACTOR
+
 NeedsStorageAccessFromFileURLsQuirk:
   type: bool
   defaultValue: true
@@ -656,24 +702,10 @@ MenuItemElementEnabled:
   defaultValue: false
   webcoreBinding: RuntimeEnabledFeatures
 
-EncryptedMediaAPIEnabled:
-  type: bool
-  defaultValue: false
-  webcoreBinding: RuntimeEnabledFeatures
-  condition: ENABLE(ENCRYPTED_MEDIA)
-
 MediaPreloadingEnabled:
   type: bool
   defaultValue: false
   webcoreBinding: RuntimeEnabledFeatures
-
-IntersectionObserverEnabled:
-  type: bool
-  defaultValue: false
-  humanReadableName: "Intersection Observer"
-  humanReadableDescription: "Enable Intersection Observer support"
-  webcoreBinding: RuntimeEnabledFeatures
-  condition: ENABLE(INTERSECTION_OBSERVER)
 
 InteractiveFormValidationEnabled:
   type: bool
@@ -685,14 +717,6 @@ InteractiveFormValidationEnabled:
 ShouldSuppressTextInputFromEditingDuringProvisionalNavigation:
   type: bool
   defaultValue: false
-
-CSSGridLayoutEnabled:
-  type: bool
-  defaultValue: true
-  humanReadableName: "CSS Grid"
-  humanReadableDescription: "CSS Grid Layout Module support"
-  binding: RuntimeEnabledFeatures
-  webcoreBinding: RuntimeEnabledFeatures
 
 GamepadsEnabled:
   type: bool
@@ -715,6 +739,16 @@ WebAuthenticationEnabled:
   humanReadableName: "Web Authentication"
   humanReadableDescription: "Enable Web Authentication support"
   webcoreBinding: RuntimeEnabledFeatures
+  category: experimental
+  condition: ENABLE(WEB_AUTHN)
+
+WebAuthenticationLocalAuthenticatorEnabled:
+  type: bool
+  defaultValue: false
+  humanReadableName: "Web Authentication Local Authenticator"
+  humanReadableDescription: "Enable Web Authentication local authenticator support"
+  webcoreBinding: RuntimeEnabledFeatures
+  condition: ENABLE(WEB_AUTHN)
 
 ModernMediaControlsEnabled:
   type: bool
@@ -745,7 +779,7 @@ BeaconAPIEnabled:
 
 LegacyEncryptedMediaAPIEnabled:
   type: bool
-  defaultValue: DEFAULT_LEGACY_ENCRYPTED_MEDIA_API_ENABLED
+  defaultValue: true
   humanReadableName: "Enable Legacy EME API"
   humanReadableDescription: "Enable legacy EME API"
   webcoreBinding: RuntimeEnabledFeatures
@@ -781,8 +815,15 @@ DataTransferItemsEnabled:
 CustomPasteboardDataEnabled:
   type: bool
   defaultValue: defaultCustomPasteboardDataEnabled()
-  humanReadableName: "Custom pateboard data"
+  humanReadableName: "Custom pasteboard data"
   humanReadableDescription: "Enable custom clipboard types and better security model for clipboard API."
+  webcoreBinding: RuntimeEnabledFeatures
+
+WebShareEnabled:
+  type: bool
+  defaultValue: DEFAULT_WEB_SHARE_ENABLED
+  humanReadableName: "Web Share"
+  humanReadableDescription: "Enable support for share sheet via Web Share API"
   webcoreBinding: RuntimeEnabledFeatures
 
 ViewportFitEnabled:
@@ -837,12 +878,6 @@ PasswordEchoDuration:
   type: double
   defaultValue: 2
   webcoreName: passwordEchoDurationInSeconds
-
-# FIXME: 
-FontSmoothingLevel:
-  type: uint32_t
-  defaultValue: FontSmoothingLevelMedium
-  webcoreBinding: none
 
 LayoutFallbackWidth:
   type: uint32_t
@@ -902,10 +937,13 @@ SystemLayoutDirection:
   defaultValue: 0
   webcoreBinding: custom
 
-FrameFlattening:
-  type: uint32_t
+FrameFlatteningEnabled:
+  type: bool
   defaultValue: DEFAULT_FRAME_FLATTENING
   webcoreBinding: custom
+  humanReadableName: "Frame flattening"
+  humanReadableDescription: "Enable frame flattening, which adjusts the height of an iframe to fit its contents"
+  category: internal
 
 StandardFontFamily:
   type: String
@@ -954,7 +992,7 @@ InspectorWindowFrame:
 
 InactiveMediaCaptureSteamRepromptIntervalInMinutes:
   type: double
-  defaultValue: DEFAULT_INTERACTIVE_MNEDIA_CAPTURE_STREAM_REPROMPT_INTERVAL_IN_MINUTES
+  defaultValue: DEFAULT_INTERACTIVE_MEDIA_CAPTURE_STREAM_REPROMPT_INTERVAL_IN_MINUTES
   webcoreBinding: none
 
 LongRunningMediaCaptureStreamRepromptIntervalInHours:
@@ -966,6 +1004,10 @@ PassiveTouchListenersAsDefaultOnDocument:
   type: bool
   defaultValue: defaultPassiveTouchListenersAsDefaultOnDocument()
   webcoreName: passiveTouchListenersAsDefaultOnDocument
+
+ShouldIgnoreMetaViewport:
+  type: bool
+  defaultValue: false
 
 # Debug Preferences
 
@@ -1002,6 +1044,12 @@ TiledScrollingIndicatorVisible:
   category: debug
   webcoreName: showTiledScrollingIndicator
 
+DisableScreenSizeOverride:
+  type: bool
+  defaultValue: false
+  category: debug
+  condition: PLATFORM(IOS_FAMILY)
+
 SimpleLineLayoutDebugBordersEnabled:
   type: bool
   defaultValue: false
@@ -1022,14 +1070,14 @@ IgnoreViewportScalingConstraints:
   defaultValue: true
   category: debug
   webcoreBinding: none
-  condition: PLATFORM(IOS)
+  condition: PLATFORM(IOS_FAMILY)
 
 ForceAlwaysUserScalable:
   type: bool
   defaultValue: false
   category: debug
   webcoreBinding: none
-  condition: PLATFORM(IOS)
+  condition: PLATFORM(IOS_FAMILY)
 
 ResourceUsageOverlayVisible:
   type: bool
@@ -1042,45 +1090,111 @@ VisibleDebugOverlayRegions:
   defaultValue: 0
   category: debug
 
+ShouldEnableTextAutosizingBoost:
+  type: bool
+  defaultValue: false
+  condition: ENABLE(TEXT_AUTOSIZING)
+
 ShouldAllowUserInstalledFonts:
   type: bool
   defaultValue: true
 
 MediaCapabilitiesEnabled:
-    type: bool
-    defaultValue: false
-    webcoreBinding: RuntimeEnabledFeatures
+  type: bool
+  defaultValue: true
+
+SystemPreviewEnabled:
+  type: bool
+  defaultValue: false
+  webcoreBinding: RuntimeEnabledFeatures
+  condition: USE(SYSTEM_PREVIEW)
+
+CacheAPIEnabled:
+  type: bool
+  defaultValue: true
+  webcoreBinding: RuntimeEnabledFeatures
+
+ConstantPropertiesEnabled:
+  type: bool
+  defaultValue: true
+
+SubresourceIntegrityEnabled:
+  type: bool
+  defaultValue: true
+
+CrossOriginResourcePolicyEnabled:
+  type: bool
+  defaultValue: true
+  webcoreBinding: RuntimeEnabledFeatures
+
+DisabledAdaptationsMetaTagEnabled:
+  type: bool
+  defaultValue: DISABLED_ADAPTATIONS_META_TAG_ENABLED
+  webcoreBinding: RuntimeEnabledFeatures
+
+ColorFilterEnabled:
+  type: bool
+  defaultValue: false
+
+PunchOutWhiteBackgroundsInDarkMode:
+  type: bool
+  defaultValue: false
+
+IncompleteImageBorderEnabled:
+  type: bool
+  defaultValue: false
+
+ShouldDeferAsynchronousScriptsUntilAfterDocumentLoad:
+  type: bool
+  defaultValue: false
+
+StorageAccessAPIEnabled:
+  type: bool
+  defaultValue: true
+
+StorageAccessPromptsEnabled:
+  type: bool
+  defaultValue: true
+  webcoreBinding: RuntimeEnabledFeatures
+
+LinkPreloadEnabled:
+  type: bool
+  defaultValue: true
+  webcoreBinding: RuntimeEnabledFeatures
+
+IsSecureContextAttributeEnabled:
+  type: bool
+  defaultValue: true
+  webcoreBinding: RuntimeEnabledFeatures
+
+SourceBufferChangeTypeEnabled:
+  type: bool
+  defaultValue: true
+  condition: ENABLE(MEDIA_SOURCE)
+
+EncryptedMediaAPIEnabled:
+  type: bool
+  defaultValue: true
+  webcoreBinding: RuntimeEnabledFeatures
+  condition: ENABLE(ENCRYPTED_MEDIA)
+
+VideoQualityIncludesDisplayCompositingEnabled:
+  type: bool
+  defaultValue: false
+  condition: ENABLE(VIDEO)
+
+EditableImagesEnabled:
+  type: bool
+  defaultValue: false
 
 # For experimental features:
 # The type should be boolean.
-# You must provide a humanReadableName and humanReadableName for all experimental features. They
+# You must provide a humanReadableName and humanReadableDescription for all experimental features. They
 #   are the text exposed to the user from the WebKit client.
 # The default value may be either false (for unstable features) or
 #   DEFAULT_EXPERIMENTAL_FEATURES_ENABLED (for features that are ready for
 #   wider testing).
 
-
-AsyncFrameScrollingEnabled:
-  type: bool
-  defaultValue: false
-  humanReadableName: "Async Frame Scrolling"
-  humanReadableDescription: "Perform frame scrolling in a dedicated thread or process"
-  category: experimental
-
-CacheAPIEnabled:
-  type: bool
-  defaultValue: DEFAULT_EXPERIMENTAL_FEATURES_ENABLED
-  humanReadableName: "Cache API"
-  humanReadableDescription: "Enable Cache API"
-  category: experimental
-  webcoreBinding: RuntimeEnabledFeatures
-
-ConstantPropertiesEnabled:
-  type: bool
-  defaultValue: DEFAULT_EXPERIMENTAL_FEATURES_ENABLED
-  humanReadableName: "Constant Properties"
-  humanReadableDescription: "Enable CSS constant() properties"
-  category: experimental
 
 SpringTimingFunctionEnabled:
   type: bool
@@ -1091,81 +1205,56 @@ SpringTimingFunctionEnabled:
 
 ImageBitmapOffscreenCanvasEnabled:
   type: bool
-  defaultValue: true
+  defaultValue: DEFAULT_EXPERIMENTAL_FEATURES_ENABLED
   humanReadableName: "ImageBitmap and OffscreenCanvas"
   humanReadableDescription: "Support for the ImageBitmap and OffscreenCanvas APIs"
   category: experimental
   webcoreBinding: RuntimeEnabledFeatures
 
-LinkPreloadEnabled:
-  type: bool
-  defaultValue: DEFAULT_EXPERIMENTAL_FEATURES_ENABLED
-  humanReadableName: "Link Preload"
-  humanReadableDescription: "Link preload support"
-  category: experimental
-  webcoreBinding: RuntimeEnabledFeatures
-
-WebRTCLegacyAPIEnabled:
-  type: bool
-  defaultValue: false
-  humanReadableName: "Enable Legacy WebRTC API"
-  humanReadableDescription: "Enable Legacy WebRTC API"
-  webcoreBinding: RuntimeEnabledFeatures
-  condition: ENABLE(WEB_RTC)
-
-IsSecureContextAttributeEnabled:
-  type: bool
-  defaultValue: DEFAULT_EXPERIMENTAL_FEATURES_ENABLED
-  humanReadableName: "Secure Contexts API"
-  humanReadableDescription: "Enable Secure Contexts API"
-  category: experimental
-  webcoreBinding: RuntimeEnabledFeatures
-
-FetchAPIKeepAliveEnabled:
-  type: bool
-  defaultValue: false
-  humanReadableName: "Fetch API Request KeepAlive"
-  humanReadableDescription: "Enable Fetch API Request KeepAlive"
-  category: experimental
-  webcoreBinding: RuntimeEnabledFeatures
-  webcoreName: fetchAPIKeepAliveEnabled
-
-ServiceWorkersEnabled:
-  type: bool
-  defaultValue: DEFAULT_SERVICE_WORKERS_ENABLED
-  humanReadableName: "ServiceWorkers"
-  humanReadableDescription: "Enable ServiceWorkers"
-  category: experimental
-  webcoreBinding: RuntimeEnabledFeatures
-  webcoreName: serviceWorkerEnabled
-  condition: ENABLE(SERVICE_WORKER)
-
-StorageAccessAPIEnabled:
+IntersectionObserverEnabled:
   type: bool
   defaultValue: true
-  humanReadableName: "Storage Access API"
-  humanReadableDescription: "Enable Storage Access API"
+  humanReadableName: "Intersection Observer"
+  humanReadableDescription: "Enable Intersection Observer support"
+  webcoreBinding: RuntimeEnabledFeatures
   category: experimental
-
-SubresourceIntegrityEnabled:
-  type: bool
-  defaultValue: DEFAULT_EXPERIMENTAL_FEATURES_ENABLED
-  humanReadableName: "SubresourceIntegrity"
-  humanReadableDescription: "Enable SubresourceIntegrity"
-  category: experimental
+  condition: ENABLE(INTERSECTION_OBSERVER)
 
 VisualViewportAPIEnabled:
   type: bool
-  defaultValue: DEFAULT_EXPERIMENTAL_FEATURES_ENABLED
-  humanReadableName: "VisualViewportAPI"
+  defaultValue: true
+  humanReadableName: "Visual Viewport API"
   humanReadableDescription: "Enable Visual Viewport API"
   category: experimental
 
+PointerEventsEnabled:
+  type: bool
+  defaultValue: DEFAULT_POINTER_EVENTS_ENABLED
+  humanReadableName: "Pointer Events"
+  humanReadableDescription: "Enable Pointer Events"
+  webcoreBinding: RuntimeEnabledFeatures
+  category: experimental
+
+CSSOMViewScrollingAPIEnabled:
+  type: bool
+  defaultValue: true
+  humanReadableName: "CSSOM View Scrolling API"
+  humanReadableDescription: "Implement standard behavior for scrollLeft, scrollTop, scrollWidth, scrollHeight, scrollTo, scrollBy and scrollingElement."
+  category: internal
+
 WebAnimationsEnabled:
   type: bool
-  defaultValue: false
+  defaultValue: DEFAULT_EXPERIMENTAL_FEATURES_ENABLED
   humanReadableName: "Web Animations"
   humanReadableDescription: "Web Animations prototype"
+  category: experimental
+  webcoreBinding: RuntimeEnabledFeatures
+
+WebAnimationsCSSIntegrationEnabled:
+  type: bool
+  defaultValue: DEFAULT_EXPERIMENTAL_FEATURES_ENABLED
+  humanReadableName: "CSS Animations via Web Animations"
+  humanReadableDescription: "Expose CSS Animations and CSS Transitions through getAnimations()"
   category: experimental
   webcoreBinding: RuntimeEnabledFeatures
 
@@ -1182,18 +1271,27 @@ WebGPUEnabled:
   type: bool
   defaultValue: false
   humanReadableName: "WebGPU"
-  humanReadableDescription: "WebGPU prototype"
+  humanReadableDescription: "WebGPU Sketch prototype"
   category: experimental
   webcoreBinding: RuntimeEnabledFeatures
   condition: ENABLE(WEBGPU)
 
+WebMetalEnabled:
+  type: bool
+  defaultValue: false
+  humanReadableName: "WebMetal"
+  humanReadableDescription: "WebMetal prototype"
+  category: experimental
+  webcoreBinding: RuntimeEnabledFeatures
+  condition: ENABLE(WEBMETAL)
+
 AccessibilityObjectModelEnabled:
-    type: bool
-    defaultValue: false
-    humanReadableName: "Accessibility Object Model"
-    humanReadableDescription: "Accessibility Object Model support"
-    category: experimental
-    webcoreBinding: RuntimeEnabledFeatures
+  type: bool
+  defaultValue: false
+  humanReadableName: "Accessibility Object Model"
+  humanReadableDescription: "Accessibility Object Model support"
+  category: experimental
+  webcoreBinding: RuntimeEnabledFeatures
 
 WebVREnabled:
   type: bool
@@ -1204,10 +1302,275 @@ WebVREnabled:
   category: experimental
   condition: PLATFORM(GTK) || PLATFORM(WPE)
 
-ResourceLoadStatisticsDebugMode:
+ServerTimingEnabled:
+  type: bool
+  defaultValue: false
+  humanReadableName: "Server Timing"
+  humanReadableDescription: "Enable Server Timing API"
+  category: experimental
+  webcoreBinding: RuntimeEnabledFeatures
+  webcoreName: serverTimingEnabled
+
+CSSCustomPropertiesAndValuesEnabled:
+  type: bool
+  defaultValue: false
+  humanReadableName: "CSS Custom Properties and Values API"
+  humanReadableDescription: "Enable CSS Custom Properties and Values API"
+  webcoreBinding: RuntimeEnabledFeatures
+  category: experimental
+
+DarkModeCSSEnabled:
+  type: bool
+  defaultValue: true
+  humanReadableName: "Dark Mode CSS Support"
+  humanReadableDescription: "Enable Dark Mode CSS Support"
+  webcoreBinding: RuntimeEnabledFeatures
+  category: experimental
+  condition: ENABLE(DARK_MODE_CSS)
+
+CSSPaintingAPIEnabled:
+  type: bool
+  defaultValue: false
+  humanReadableName: "CSS Painting API"
+  humanReadableDescription: "Enable the CSS Painting API"
+  webcoreBinding: RuntimeEnabledFeatures
+  category: experimental
+  condition: ENABLE(CSS_PAINTING_API)
+
+CSSTypedOMEnabled:
+  type: bool
+  defaultValue: false
+  humanReadableName: "CSS Typed OM"
+  humanReadableDescription: "Enable the CSS Typed OM"
+  webcoreBinding: RuntimeEnabledFeatures
+  category: experimental
+  condition: ENABLE(CSS_TYPED_OM)
+
+WebSQLDisabled:
+  type: bool
+  defaultValue: true
+  humanReadableName: "Disable Web SQL"
+  humanReadableDescription: "Disable Web SQL"
+  webcoreBinding: RuntimeEnabledFeatures
+  category: experimental
+
+ProcessSwapOnCrossSiteNavigationEnabled:
+  type: bool
+  defaultValue: DEFAULT_PROCESS_SWAP_ON_CROSS_SITE_NAVIGATION_ENABLED
+  humanReadableName: "Swap Processes on Cross-Site Navigation"
+  humanReadableDescription: "Swap WebContent processes on cross-site navigations"
+  category: experimental
+  webcoreBinding: none
+
+# For internal features:
+# The type should be boolean.
+# You must provide a humanReadableName and humanReadableDescription for all debug features. They
+#   are the text exposed to the user from the WebKit client.
+
+ExperimentalPlugInSandboxProfilesEnabled:
+  type: bool
+  defaultValue: false
+  humanReadableName: "Sandbox Plug-Ins"
+  humanReadableDescription: "Enable Plug-In sandboxing"
+  category: internal
+  webcoreBinding: RuntimeEnabledFeatures
+  webcoreName: experimentalPlugInSandboxProfilesEnabled
+
+ItpDebugModeEnabled:
   type: bool
   defaultValue: false
   humanReadableName: "ITP Debug Mode"
   humanReadableDescription: "Intelligent Tracking Prevention Debug Mode"
-  category: experimental
   webcoreBinding: RuntimeEnabledFeatures
+
+ServiceWorkersEnabled:
+  type: bool
+  defaultValue: DEFAULT_SERVICE_WORKERS_ENABLED
+  humanReadableName: "Service Workers"
+  humanReadableDescription: "Enable Service Workers"
+  category: internal
+  webcoreBinding: RuntimeEnabledFeatures
+  webcoreName: serviceWorkerEnabled
+  condition: ENABLE(SERVICE_WORKER)
+
+AsyncFrameScrollingEnabled:
+  type: bool
+  defaultValue: false
+  humanReadableName: "Async Frame Scrolling"
+  humanReadableDescription: "Perform frame scrolling off the main thread"
+  category: internal
+
+AsyncOverflowScrollingEnabled:
+  type: bool
+  defaultValue: false
+  humanReadableName: "Async Overflow Scrolling"
+  humanReadableDescription: "Perform overflow scrolling off the main thread"
+  category: internal
+
+FetchAPIKeepAliveEnabled:
+  type: bool
+  defaultValue: false
+  humanReadableName: "Fetch API Request KeepAlive"
+  humanReadableDescription: "Enable Fetch API Request KeepAlive"
+  category: internal
+  webcoreBinding: RuntimeEnabledFeatures
+  webcoreName: fetchAPIKeepAliveEnabled
+
+WebGLCompressedTextureASTCSupportEnabled:
+  type: bool
+  defaultValue: false
+  humanReadableName: "ASTC Texture Support"
+  humanReadableDescription: "Support for ASTC compressed texture formats in WebGL"
+  category: internal
+  webcoreBinding: RuntimeEnabledFeatures
+
+FullScreenEnabled:
+  type: bool
+  defaultValue: false
+  condition: ENABLE(FULLSCREEN_API)
+  hidden: EXPERIMENTAL_FULLSCREEN_API_HIDDEN
+  humanReadableName: "Fullscreen API"
+  humanReadableDescription: "Fullscreen API"
+  category: internal
+
+AriaReflectionEnabled:
+  type: bool
+  defaultValue: true
+  humanReadableName: "ARIA Reflection"
+  humanReadableDescription: "ARIA Reflection support"
+  category: internal
+  webcoreBinding: RuntimeEnabledFeatures
+
+WebAPIStatisticsEnabled:
+  type: bool
+  defaultValue: false
+  humanReadableName: "Web API Statistics"
+  humanReadableDescription: "Enable Web API Statistics"
+  webcoreBinding: RuntimeEnabledFeatures
+  category: internal
+
+SelectionAcrossShadowBoundariesEnabled:
+  type: bool
+  defaultValue: true
+  humanReadableName: "Selection across shadow DOM"
+  humanReadableDescription: "Allow user-initiated selection across shadow DOM boundaries"
+  category: internal
+  webcoreName: selectionAcrossShadowBoundariesEnabled
+
+InputTypeColorEnabled:
+  type: bool
+  defaultValue: DEFAULT_INPUT_TYPE_COLOR_ENABLED
+  humanReadableName: "Color Inputs"
+  humanReadableDescription: "Enable input elements of type color"
+  category: internal
+  webcoreBinding: RuntimeEnabledFeatures
+  condition: ENABLE(INPUT_TYPE_COLOR)
+
+DataListElementEnabled:
+  type: bool
+  defaultValue: DEFAULT_DATALIST_ELEMENT_ENABLED
+  humanReadableName: "DataList Element"
+  humanReadableDescription: "Enable datalist elements"
+  category: internal
+  webcoreBinding: RuntimeEnabledFeatures
+  condition: ENABLE(DATALIST_ELEMENT)
+
+LayoutFormattingContextEnabled:
+  type: bool
+  defaultValue: false
+  humanReadableName: "Next-gen layout"
+  humanReadableDescription: "Enable next-gen layout"
+  category: internal
+  webcoreBinding: RuntimeEnabledFeatures
+  condition: ENABLE(LAYOUT_FORMATTING_CONTEXT)
+
+CaptureAudioInUIProcessEnabled:
+  type: bool
+  defaultValue: DEFAULT_CAPTURE_AUDIO_IN_UIPROCESS
+  humanReadableName: "Capture audio in UIProcess"
+  humanReadableDescription: "Enable audio capture in UIProcess"
+  category: internal
+  webcoreBinding: none
+  condition: ENABLE(MEDIA_STREAM)
+
+CaptureVideoInUIProcessEnabled:
+  type: bool
+  defaultValue: false
+  humanReadableName: "Capture video in UIProcess"
+  humanReadableDescription: "Enable video capture in UIProcess"
+  category: internal
+  webcoreBinding: none
+  condition: ENABLE(MEDIA_STREAM)
+
+RestrictedHTTPResponseAccess:
+  type: bool
+  defaultValue: true
+  humanReadableName: "Filter HTTP Response for WebProcesses"
+  humanReadableDescription: "Enable HTTP Response filtering for WebProcesses"
+  category: internal
+  webcoreBinding: RuntimeEnabledFeatures
+
+UndoManagerAPIEnabled:
+  type: bool
+  defaultValue: false
+  humanReadableName: "UndoManager DOM API"
+  humanReadableDescription: "Enable the UndoManager DOM API"
+  category: internal
+  webcoreBinding: RuntimeEnabledFeatures
+
+CSSLogicalEnabled:
+  type: bool
+  defaultValue: false
+  humanReadableName: "CSS Logical Properties and Values"
+  humanReadableDescription: "Enable CSS Logical Properties and Values"
+  webcoreBinding: RuntimeEnabledFeatures
+  category: internal
+
+AdClickAttributionEnabled:
+  type: bool
+  defaultValue: false
+  humanReadableName: "Ad Click Attribution"
+  humanReadableDescription: "Enable Ad Click Attribution for Cross-Site Link Navigations"
+  webcoreBinding: RuntimeEnabledFeatures
+  category: internal
+
+DOMPasteAccessRequestsEnabled:
+  type: bool
+  defaultValue: DEFAULT_DOM_PASTE_ACCESS_REQUESTS_ENABLED
+  humanReadableName: "DOM Paste Access Requests"
+  humanReadableDescription: "Enable DOM Paste Access Requests"
+  category: internal
+
+MouseEventsSimulationEnabled:
+  type: bool
+  defaultValue: false
+  humanReadableName: "Mouse events simulation"
+  humanReadableDescription: "Enable mouse events dispatch along with touch events on iOS"
+  webcoreBinding: RuntimeEnabledFeatures
+  category: internal
+  condition: ENABLE(TOUCH_EVENTS)
+
+MousemoveEventHandlingPreventsDefaultEnabled:
+  type: bool
+  defaultValue: false
+  humanReadableName: "Prevent default for mousemove events"
+  humanReadableDescription: "Allows handling of mousemove events to implicitly call preventDefault() on iOS"
+  webcoreBinding: RuntimeEnabledFeatures
+  category: internal
+  condition: ENABLE(TOUCH_EVENTS)
+
+# Deprecated
+
+ICECandidateFilteringEnabled:
+  type: bool
+  defaultValue: true
+
+MockCaptureDevicesEnabled:
+  type: bool
+  defaultValue: DEFAULT_MOCK_CAPTURE_DEVICES_ENABLED
+  condition: ENABLE(MEDIA_STREAM)
+
+MediaCaptureRequiresSecureConnection:
+  type: bool
+  defaultValue: true
+  condition: ENABLE(MEDIA_STREAM)

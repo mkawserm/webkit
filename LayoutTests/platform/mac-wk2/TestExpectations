@@ -5,25 +5,36 @@
 # Platform-specific directories. Skipped globally, then re-enabled here.
 #//////////////////////////////////////////////////////////////////////////////////////////
 
-tiled-drawing [ Pass ]
-tiled-drawing/ios [ Skip ]
+editing/find [ Pass ]
+editing/undo-manager [ Pass ]
 fast/visual-viewport/tiled-drawing [ Pass ]
+fast/web-share [ Pass ]
+scrollingcoordinator [ Pass ]
+scrollingcoordinator/ios [ Skip ]
 swipe [ Pass ]
+tiled-drawing [ Pass ]
 
 fast/events/autoscroll-when-zoomed.html [ Pass ]
 fast/events/autoscroll-main-document.html [ Pass ]
 
 accessibility/smart-invert.html [ Pass ]
-accessibility/smart-invert-reference.html [ Pass ]
+webkit.org/b/189818 accessibility/smart-invert-reference.html [ Pass ImageOnlyFailure ]
 fast/media/mq-inverted-colors-live-update.html [ Pass ]
 fast/media/mq-inverted-colors-live-update-in-subframes.html [ Pass ]
 fast/media/mq-monochrome-live-update.html [ Pass ]
 fast/media/mq-prefers-reduced-motion-live-update.html [ Pass ]
 
 [ Sierra+ ] http/tests/ssl/applepay/ [ Pass ]
+[ Sierra ] http/tests/ssl/applepay/ApplePayButtonV4.html [ Skip ]
 [ Sierra ] http/tests/ssl/applepay/ApplePayError.html [ Skip ]
 [ Sierra ] http/tests/ssl/applepay/ApplePaySessionV3.html [ Skip ]
+[ Sierra ] http/tests/ssl/applepay/ApplePaySessionV4.html [ Skip ]
+[ Sierra ] http/tests/ssl/applepay/ApplePaySessionV5.html [ Skip ]
 [ Sierra ] http/tests/ssl/applepay/ApplePayRequestShippingContactV3.https.html [ Skip ]
+[ Sierra ] http/tests/ssl/applepay/ApplePayShippingAddressChangeEventErrorsV3.https.html [ Skip ]
+[ HighSierra ] http/tests/ssl/applepay/ApplePayButtonV4.html [ Skip ]
+[ HighSierra ] http/tests/ssl/applepay/ApplePaySessionV4.html [ Skip ]
+[ HighSierra ] http/tests/ssl/applepay/ApplePaySessionV5.html [ Skip ]
 
 fast/visual-viewport/rubberbanding-viewport-rects.html [ Pass ]
 fast/visual-viewport/rubberbanding-viewport-rects-header-footer.html  [ Pass ]
@@ -38,31 +49,36 @@ webkit.org/b/175611 imported/w3c/web-platform-tests/payment-request/allowpayment
 webkit.org/b/175611 imported/w3c/web-platform-tests/payment-request/allowpaymentrequest/setting-allowpaymentrequest.https.sub.html [ Skip ]
 
 # skip in favor of tests in http/tests/paymentrequest
-imported/w3c/web-platform-tests/payment-request/payment-request-show-method.https.html [ WontFix ]
 imported/w3c/web-platform-tests/payment-request/payment-request-abort-method.https.html [ WontFix ]
-imported/w3c/web-platform-tests/payment-request/payment-request-canmakepayment-method.https.html [ WontFix ]
+imported/w3c/web-platform-tests/payment-request/payment-request-show-method.https.html [ WontFix ]
 imported/w3c/web-platform-tests/payment-request/rejects_if_not_active.https.html [ WontFix ]
-
-# skip manual payment-request tests
-imported/w3c/web-platform-tests/payment-request/algorithms-manual.https.html [ Skip ]
-imported/w3c/web-platform-tests/payment-request/change-shipping-option-manual.https.html [ Skip ]
-imported/w3c/web-platform-tests/payment-request/payment-response/complete-method-manual.https.html [ Skip ]
-imported/w3c/web-platform-tests/payment-request/payment-response/methodName-attribute-manual.https.html [ Skip ]
-imported/w3c/web-platform-tests/payment-request/payment-response/payerEmail-attribute-manual.https.html [ Skip ]
-imported/w3c/web-platform-tests/payment-request/payment-response/payerName-attribute-manual.https.html [ Skip ]
-imported/w3c/web-platform-tests/payment-request/payment-response/payerPhone-attribute-manual.https.html [ Skip ]
-imported/w3c/web-platform-tests/payment-request/payment-response/requestId-attribute-manual.https.html [ Skip ]
-imported/w3c/web-platform-tests/payment-request/payment-response/shippingAddress-attribute-manual.https.html [ Skip ]
-imported/w3c/web-platform-tests/payment-request/payment-response/shippingOption-attribute-manual.https.html [ Skip ]
-imported/w3c/web-platform-tests/payment-request/PaymentAddress/attributes-and-toJSON-method-manual.https.html [ Skip ]
-imported/w3c/web-platform-tests/payment-request/shipping-address-changed-manual.https.html [ Skip ]
-imported/w3c/web-platform-tests/payment-request/updateWith-method-pmi-handling-manual.https.html [ Skip ]
-imported/w3c/web-platform-tests/payment-request/user-abort-algorithm-manual.https.html [ Skip ]
-imported/w3c/web-platform-tests/payment-request/user-accepts-payment-request-algo-manual.https.html [ Skip ]
 
 http/tests/security/contentSecurityPolicy/manifest-src-allowed.html [ Pass ]
 http/tests/security/contentSecurityPolicy/manifest-src-blocked.html [ Pass ]
 applicationmanifest/ [ Pass ]
+
+webkit.org/b/187183 http/tests/security/pasteboard-file-url.html [ Pass ]
+
+[ Mojave+ ] fast/canvas/webgl/context-update-on-display-configuration.html [ Pass ]
+
+webkit.org/b/190828 [ Mojave+ Debug ]  http/tests/workers/service/self_registration.html [ Pass Failure ]
+
+fast/misc/valid-primary-screen-displayID.html [ Pass ]
+
+# Skipped because of <rdar://problem/45388584>.
+http/tests/webAPIStatistics [ Skip ]
+
+webkit.org/b/184569 storage/indexeddb/modern/transactions-stop-on-navigation.html [ Pass Failure ]
+
+[ Mojave+ ] fast/events/detect-caps-lock.html [ Pass ]
+[ Mojave+ ] fast/forms/auto-fill-button/caps-lock-indicator-should-be-visible-after-hiding-auto-fill-strong-password-button.html [ Pass ]
+[ Mojave+ ] fast/forms/auto-fill-button/caps-lock-indicator-should-not-be-visible-when-auto-fill-strong-password-button-is-visible.html [ Pass ]
+[ Mojave+ ] fast/forms/password-scrolled-after-caps-lock-toggled.html [ Pass ]
+webkit.org/b/194170 [ Mojave+ Release ] fast/repaint/placeholder-after-caps-lock-hidden.html [ Pass Failure ]
+
+fast/events/inactive-window-no-mouse-event.html [ Pass ]
+
+fast/animation/request-animation-frame-in-two-pages.html [ Pass ]
 
 #//////////////////////////////////////////////////////////////////////////////////////////
 # End platform-specific directories.
@@ -86,24 +102,6 @@ applicationmanifest/ [ Pass ]
 editing/pasteboard/4947130.html
 editing/pasteboard/cleanup-on-move.html
 editing/pasteboard/copy-standalone-image-crash.html
-editing/pasteboard/drag-and-drop-image-contenteditable.html
-editing/pasteboard/drag-and-drop-inputimage-contenteditable.html
-editing/pasteboard/drag-and-drop-objectimage-contenteditable.html
-editing/pasteboard/drag-drop-copy-content.html
-editing/pasteboard/drag-drop-dead-frame.html
-editing/pasteboard/drag-drop-input-textarea.html
-editing/pasteboard/drag-drop-list.html
-editing/pasteboard/drag-drop-modifies-page.html
-editing/pasteboard/drag-drop-url-text.html
-editing/pasteboard/drag-image-in-about-blank-frame.html
-editing/pasteboard/drag-image-to-contenteditable-in-iframe.html
-editing/pasteboard/drag-list-item.html
-editing/pasteboard/drag-selected-image-to-contenteditable.html
-editing/pasteboard/drop-file-svg.html
-editing/pasteboard/drop-inputtext-acquires-style.html
-editing/pasteboard/drop-link.html
-editing/pasteboard/drop-text-events.html
-editing/pasteboard/drop-text-without-selection.html
 editing/pasteboard/emacs-cntl-y-001.html
 editing/pasteboard/emacs-ctrl-k-y-001.html
 editing/pasteboard/files-during-page-drags.html
@@ -139,6 +137,7 @@ fast/events/drag-and-drop.html
 fast/events/drag-and-drop-link.html
 fast/events/drag-and-drop-link-fast-multiple-times-does-not-crash.html
 fast/events/drag-and-drop-link-containing-block.html
+fast/events/drag-image-with-border-image.html
 fast/events/drag-in-frames.html
 fast/events/drag-parent-node.html
 fast/events/draggable-div-nodata.html
@@ -197,6 +196,9 @@ webkit.org/b/105616 editing/spelling/spelling-with-punctuation-selection.html
 webkit.org/b/105616 editing/spelling/spelling-with-whitespace-selection.html
 webkit.org/b/105616 editing/spelling/grammar.html
 webkit.org/b/105616 editing/spelling/markers.html
+webkit.org/b/105616 editing/spelling/retro-correction-spelling-markers.html
+webkit.org/b/105616 editing/spelling/text-replacement-after-typing-to-word.html
+webkit.org/b/105616 editing/spelling/spelling-markers-after-pasting-sentence.html
 webkit.org/b/105616 editing/mac/spelling/autocorrection-delete.html [ Failure ]
 webkit.org/b/105616 editing/mac/spelling/autocorrection-removing-underline-after-paste.html [ Failure ]
 webkit.org/b/105616 editing/mac/spelling/autocorrection-removing-underline.html [ Failure ]
@@ -250,6 +252,8 @@ webkit.org/b/90156 editing/mac/spelling/autocorrection-blockquote-crash.html [ F
 
 webkit.org/b/95043 http/tests/security/local-user-CSS-from-remote.html [ Failure ]
 
+webkit.org/b/186055 [ Release ] media/video-trackmenu-selection.html [ Pass Failure ]
+
 # These tests test the Shadow DOM based HTML form validation UI but Mac WK2 is using native dialogs instead.
 fast/forms/validation-message-on-listbox.html
 fast/forms/validation-message-on-menulist.html
@@ -296,9 +300,6 @@ webkit.org/b/107018 svg/animations/mozilla/animateMotion-mpath-pathLength-1.svg 
 # Color space issues from switching to tiled drawing.
 webkit.org/b/122234 css3/filters/null-effect-check.html [ ImageOnlyFailure ]
 
-# Tiled background images that intersect the tiles are getting weird fringing.
-webkit.org/b/122235 css3/masking/mask-repeat-space-border.html [ ImageOnlyFailure ]
-
 webkit.org/b/124476 platform/mac-wk2/plugins/slow/asynchronous-plugin-initialization-multiple.html [ Pass Failure ]
 
 # uiElementForSearchPredicate() is not returning an undefined object when the search returns no results
@@ -343,6 +344,7 @@ webkit.org/b/179796 http/tests/cache/disk-cache/disk-cache-validation-back-navig
 webkit.org/b/150241 webarchive/loading/object.html [ Pass Crash ] 
 
 webkit.org/b/150942 animations/multiple-backgrounds.html [ Pass ImageOnlyFailure ]
+webkit.org/b/150942 legacy-animation-engine/animations/multiple-backgrounds.html [ Pass ImageOnlyFailure ]
 
 webkit.org/b/151326 webarchive/loading/missing-data.html [ Pass Crash ]
 
@@ -351,8 +353,6 @@ webkit.org/b/151455 [ Release ] http/tests/xmlhttprequest/workers/methods-async.
 webkit.org/b/150542 fast/forms/state-restore-per-form.html [ Pass Timeout ]
 
 webkit.org/b/151709 [ Release ] http/tests/xmlhttprequest/workers/methods.html [ Pass Timeout ]
-
-webkit.org/b/155151 [ Debug ElCapitan ] media/track/track-cues-pause-on-exit.html [ Pass Timeout ]
 
 webkit.org/b/155312 inspector/heap/getPreview.html [ Pass Timeout ]
 
@@ -424,20 +424,10 @@ webkit.org/b/140084 js/dom/dfg-inline-resolve.html [ Pass Timeout ]
 
 webkit.org/b/139828 svg/animations/animateMotion-additive-2a.svg [ Pass ImageOnlyFailure ]
 webkit.org/b/139828 svg/animations/animateMotion-additive-2b.svg [ Pass ImageOnlyFailure ]
+webkit.org/b/139828 svg/animations/animateMotion-additive-2c.svg [ Pass ImageOnlyFailure ]
+webkit.org/b/139828 svg/animations/animateMotion-additive-2d.svg [ Pass ImageOnlyFailure ]
 
 [ Debug ] editing/undo/remove-css-property-and-remove-style.html [ Pass Failure ]
-
-# This test fails every time on El Capitan
-[ ElCapitan ] fast/mediastream/MediaStream-video-element-video-tracks-disabled.html [ Skip ]
-
-webkit.org/b/175061 [ ElCapitan ] imported/w3c/web-platform-tests/fetch/api/basic/mode-no-cors-worker.html [ Failure ]
-webkit.org/b/175061 [ ElCapitan ] imported/w3c/web-platform-tests/fetch/api/basic/mode-no-cors.html [ Failure ]
-webkit.org/b/175061 [ ElCapitan ] imported/w3c/web-platform-tests/fetch/api/cors/cors-basic.any.html [ Failure ]
-webkit.org/b/175061 [ ElCapitan ] imported/w3c/web-platform-tests/fetch/api/cors/cors-basic.any.worker.html [ Failure ]
-webkit.org/b/175061 [ ElCapitan ] imported/w3c/web-platform-tests/fetch/api/cors/cors-no-preflight.any.html [ Failure ]
-webkit.org/b/175061 [ ElCapitan ] imported/w3c/web-platform-tests/fetch/api/cors/cors-no-preflight.any.worker.html [ Failure ]
-webkit.org/b/175061 [ ElCapitan ] imported/w3c/web-platform-tests/fetch/api/cors/cors-origin.any.html [ Failure ]
-webkit.org/b/175061 [ ElCapitan ] imported/w3c/web-platform-tests/fetch/api/cors/cors-origin.any.worker.html [ Failure ]
 
 ### END OF (3) Unclassified failures
 ########################################
@@ -528,6 +518,7 @@ webkit.org/b/141085 http/tests/media/video-query-url.html [ Pass Timeout ]
 
 # Content Extensions tests must be enabled explicitly on mac-wk2.
 http/tests/contentextensions [ Pass ]
+http/tests/inspector/network/contentextensions [ Pass ]
 http/tests/websocket/tests/hybi/contentextensions [ Pass ]
 [ Sierra+ ] http/wpt/beacon/contentextensions [ Pass ]
 
@@ -547,7 +538,7 @@ imported/blink/http/tests/plugins/get-url-notify-on-removal.html [ Pass Timeout 
 imported/blink/fast/multicol/newmulticol/multicol-becomes-regular-block.html [ Pass ImageOnlyFailure ]
 imported/blink/fast/transforms/transform-update-frame-overflow.html [ Pass ImageOnlyFailure ]
 
-webkit.org/b/155757 [ ElCapitan+ ] media/media-document-audio-repaint.html [ Pass Failure ]
+webkit.org/b/155757 [ Sierra+ ] media/media-document-audio-repaint.html [ Pass Failure ]
 
 webkit.org/b/157589 fast/text-autosizing/ios/text-autosizing-after-back.html [ Pass Timeout ]
 
@@ -556,13 +547,11 @@ webkit.org/b/158237 fast/scrolling/scroll-container-horizontally.html [ Pass Tim
 # PiP tests are only enabled for Sierra WebKit2.
 # rdar://problem/27574303
 [ Sierra+ ] media/controls/picture-in-picture.html [ Pass ]
-[ Sierra+ ] media/controls/pip-placeholder-without-video-controls.html [ Pass ]
+webkit.org/b/170620 [ Sierra+ ] media/controls/pip-placeholder-without-video-controls.html [ Pass Failure ]
 [ Sierra+ ] media/element-containing-pip-video-going-into-fullscreen.html [ Pass Timeout ]
 webkit.org/b/172998 [ Sierra+ ] media/fullscreen-api-enabled-media-with-presentation-mode.html [ Failure ]
-[ Sierra+ ] media/fullscreen-video-going-into-pip.html [ Pass ]
-[ Sierra+ ] media/navigate-with-pip-should-not-crash.html [ Pass ]
+webkit.org/b/173199 [ Sierra+ ] media/navigate-with-pip-should-not-crash.html [ Pass Failure ]
 [ Sierra+ ] media/pip-video-going-into-fullscreen.html [ Pass ]
-[ Sierra+ ] media/video-contained-in-fullscreen-element-going-into-pip.html [ Pass ]
 
 # RTL Scrollbars are enabled on Sierra WebKit2.
 webkit.org/b/179455 [ Sierra+ ] fast/scrolling/rtl-scrollbars.html [ Pass ImageOnlyFailure ]
@@ -593,8 +582,6 @@ webkit.org/b/179455 [ Sierra+ ] fast/scrolling/rtl-scrollbars.html [ Pass ImageO
 [ Sierra+ ] fast/scrolling/rtl-scrollbars-alternate-body-dir-attr-does-not-update-scrollbar-placement-2.html [ Pass ]
 webkit.org/b/162638 [ Sierra+ ] fast/scrolling/rtl-scrollbars-alternate-iframe-body-dir-attr-does-not-update-scrollbar-placement.html [ Pass ImageOnlyFailure ]
 [ Sierra+ ] fast/scrolling/rtl-scrollbars-animation-property.html [ Pass ]
-# This test only produces an RTL token on Sierra.
-[ ElCapitan ] fast/scrolling/rtl-scrollbars-animation-property.html [ Failure ]
 
 # <rdar://problem/25063128>
 [ Sierra+ ] media/media-controls-drag-timeline-set-controls-property.html [ Pass Timeout ]
@@ -616,11 +603,11 @@ webkit.org/b/167517 gamepad/gamepad-visibility-1.html [ Pass Failure ]
 
 webkit.org/b/161633 [ Debug ] storage/indexeddb/objectstore-cursor.html [ Pass Timeout ]
 
-webkit.org/b/161539 [ Release ] http/tests/security/cross-origin-plugin-allowed.html [ Pass Failure ]
-
 webkit.org/b/161742 [ Debug ] imported/w3c/web-platform-tests/IndexedDB/keyorder.htm [ Pass Failure ]
 
 webkit.org/b/161547 [ Debug ] tiled-drawing/scrolling/fixed/four-bars-zoomed.html [ Pass Failure ]
+webkit.org/b/188096 [ Release ] tiled-drawing/scrolling/fixed/four-bars-zoomed.html [ Pass Failure ]
+
 
 webkit.org/b/162081 editing/inserting/typing-space-to-trigger-smart-link.html [ Failure ]
 webkit.org/b/162081 editing/inserting/smart-quote-with-all-configurations.html [ Failure ]
@@ -628,8 +615,6 @@ webkit.org/b/162081 editing/inserting/smart-quote-with-all-configurations.html [
 webkit.org/b/160017 js/regress-139548.html [ Pass Timeout ]
 
 webkit.org/b/162524 [ Sierra Release ] http/tests/cache/disk-cache/disk-cache-redirect.html [ Pass Timeout ]
-
-webkit.org/b/161745 http/tests/security/anchor-download-allow-data.html [ Pass Failure ]
 
 webkit.org/b/161926 storage/indexeddb/index-cursor.html [ Pass Timeout ]
 
@@ -650,11 +635,10 @@ webkit.org/b/163453 [ Sierra Release ] http/tests/security/contentSecurityPolicy
 webkit.org/b/163702 platform/mac-wk2/plugins/muted-state.html [ Failure ]
 
 webkit.org/b/164870 [ Debug ] imported/w3c/web-platform-tests/IndexedDB/idbcursor_iterating.htm [ Pass Failure ]
-webkit.org/b/164870 [ ElCapitan Release ] imported/w3c/web-platform-tests/IndexedDB/idbcursor_iterating.htm [ Pass Failure ]
+
+webkit.org/b/187935 [ Release ] imported/w3c/web-platform-tests/service-workers/cache-storage/serviceworker/cache-storage-match.https.html  [ Pass Failure ]
 
 webkit.org/b/165352 fast/dom/Window/window-resize-contents.html [ Pass Timeout ]
-
-webkit.org/b/165392 [ ElCapitan Release ] imported/mathml-in-html5/mathml/presentation-markup/fractions/frac-parameters-1.html [ Pass Failure ]
 
 webkit.org/b/167653 http/tests/contentextensions/block-everything-unless-domain.html [ Pass Timeout ]
 
@@ -668,23 +652,11 @@ webkit.org/b/168085 tiled-drawing/scrolling/latched-to-deleted-node.html [ Pass 
 
 webkit.org/b/168336 [ Debug ] imported/w3c/web-platform-tests/streams/readable-streams/garbage-collection.html [ Pass Timeout ]
 
-webkit.org/b/168089 [ Release ] animations/trigger-container-scroll-empty.html [ Pass Failure ]
-
-webkit.org/b/168391 [ ElCapitan Debug ] storage/indexeddb/modern/idbcursor-continue-primary-key-1.html [ Pass Timeout ]
-
-
-webkit.org/b/168380 [ ElCapitan Debug ] imported/w3c/web-platform-tests/IndexedDB/idb-binary-key-roundtrip.htm [ Pass Failure ]
-
 # Skipped because Mac doesn't have a key to show the context menu
 fast/events/context-activated-by-key-event.html [ Skip ]
 
 webkit.org/b/169621 imported/w3c/web-platform-tests/IndexedDB/fire-error-event-exception.html [ Pass Failure ]
 webkit.org/b/169760 imported/w3c/web-platform-tests/IndexedDB/fire-success-event-exception.html [ Pass Failure ]
-
-webkit.org/b/169640 imported/w3c/web-platform-tests/html/webappapis/scripting/events/event-handler-javascript.html [ Failure ]
-
-# Media loading via network cache requires Sierra or newer.
-[ ElCapitan ] http/tests/cache/disk-cache/disk-cache-media-small.html [ Failure ]
 
 compositing/tiling/non-visible-window-tile-coverage.html [ Pass ]
 
@@ -707,6 +679,7 @@ webkit.org/b/171935 [ Sierra ] tiled-drawing/scrolling/fast-scroll-select-latche
 webkit.org/b/171939 [ Sierra Release ] media/track/track-cue-rendering-on-resize.html [ Pass Timeout ]
 
 webkit.org/b/171947 [ Sierra Release ] transitions/extra-transition.html [ Pass Failure ]
+webkit.org/b/171947 [ Sierra Release ] legacy-animation-engine/transitions/extra-transition.html [ Pass Failure ]
 
 webkit.org/b/170699 [ Release ] imported/w3c/web-platform-tests/html/webappapis/timers/negative-settimeout.html [ Pass Failure ]
 
@@ -720,46 +693,40 @@ webkit.org/b/172666 [ Debug ] fast/images/slower-decoding-than-animation-image.h
 
 webkit.org/b/173188 fast/mediastream/getUserMedia-grant-persistency3.html [ Pass Failure ]
 
-webkit.org/b/172834 [ ElCapitan ] imported/w3c/web-platform-tests/IndexedDB/idbindex_getAll.html [ Pass Failure ]
-
-webkit.org/b/172834 [ ElCapitan ] imported/w3c/web-platform-tests/IndexedDB/idbindex_getAllKeys.html [ Pass Failure ]
-
-webkit.org/b/172834 [ ElCapitan ] imported/w3c/web-platform-tests/IndexedDB/idbobjectstore_getAllKeys.html [ Pass Failure ]
-
-# Beacon is not supported on WK2 for the non NETWORK_SESSION code path.
-[ ElCapitan ] http/tests/blink/sendbeacon/ [ Skip ]
-[ ElCapitan ] http/tests/inspector/network/beacon-type.html [ Skip ]
-[ ElCapitan ] http/wpt/beacon/ [ Skip ]
-[ ElCapitan ] imported/blink/fast/beacon/ [ Skip ]
-[ ElCapitan ] imported/w3c/web-platform-tests/beacon/ [ Skip ]
-
 webkit.org/b/172201 webaudio/silent-audio-interrupted-in-background.html [ Pass Timeout ]
 
 webkit.org/b/167757 workers/bomb.html [ Pass Timeout ]
 
-webkit.org/b/172397 [ Debug ] animations/needs-layout.html [ Pass ImageOnlyFailure ]
+webkit.org/b/187649 editing/selection/update-selection-by-style-change.html [ Pass ImageOnlyFailure ]
+
+webkit.org/b/172397 legacy-animation-engine/animations/needs-layout.html [ Pass ImageOnlyFailure ]
 
 # Touch events are not available on open source bots, thus only tested on Mac.
 http/tests/resourceLoadStatistics/user-interaction-in-cross-origin-sub-frame.html [ Pass ]
 http/tests/resourceLoadStatistics/user-interaction-reported-after-website-data-removal.html [ Pass ]
-[ HighSierra+ ] http/tests/storageAccess/request-and-grant-storage-access-cross-origin-non-sandboxed-iframe.html [ Pass ]
-[ HighSierra+ ] http/tests/storageAccess/request-and-grant-storage-access-cross-origin-sandboxed-iframe.html [ Pass ]
+
+[ HighSierra+ ] http/tests/storageAccess/has-storage-access-crash.html [ Pass ]
+[ HighSierra+ ] http/tests/storageAccess/request-and-grant-access-cross-origin-non-sandboxed-iframe.html [ Pass ]
+[ HighSierra+ ] http/tests/storageAccess/request-and-grant-access-cross-origin-sandboxed-iframe.html [ Pass ]
+[ HighSierra+ ] http/tests/storageAccess/request-storage-access-crash.html [ Pass ]
 [ HighSierra+ ] http/tests/storageAccess/request-storage-access-cross-origin-sandboxed-iframe-with-unique-origin.html [ Pass ]
 [ HighSierra+ ] http/tests/storageAccess/request-storage-access-cross-origin-sandboxed-iframe-without-allow-token.html [ Pass ]
 [ HighSierra+ ] http/tests/storageAccess/request-storage-access-same-origin-iframe.html [ Pass ]
 [ HighSierra+ ] http/tests/storageAccess/request-storage-access-same-origin-sandboxed-iframe-without-allow-token.html [ Pass ]
 [ HighSierra+ ] http/tests/storageAccess/request-storage-access-same-origin-sandboxed-iframe.html [ Pass ]
-[ HighSierra+ ] http/tests/storageAccess/request-and-grant-storage-access-cross-origin-sandboxed-nested-iframe.html [ Pass ]
-[ HighSierra+ ] http/tests/storageAccess/request-and-grant-storage-access-cross-origin-sandboxed-iframe-from-prevalent-domain-with-recent-user-interaction.html [ Pass ]
-[ HighSierra+ ] http/tests/storageAccess/request-and-grant-storage-access-cross-origin-sandboxed-iframe-from-prevalent-domain-with-non-recent-user-interaction-and-try-access-from-right-frame.html [ Pass ]
-[ HighSierra+ ] http/tests/storageAccess/request-and-grant-storage-access-cross-origin-sandboxed-iframe-from-prevalent-domain-with-non-recent-user-interaction-but-try-access-from-wrong-frame.html [ Pass ]
-[ HighSierra+ ] http/tests/storageAccess/request-and-grant-storage-access-cross-origin-sandboxed-iframe-from-prevalent-domain-without-user-interaction.html [ Pass ]
+[ HighSierra+ ] http/tests/storageAccess/request-and-grant-access-cross-origin-sandboxed-nested-iframe.html [ Pass ]
+[ HighSierra+ ] http/tests/storageAccess/request-and-grant-access-cross-origin-sandboxed-iframe-from-prevalent-domain-with-user-interaction.html [ Pass ]
+[ HighSierra+ ] http/tests/storageAccess/request-and-grant-access-cross-origin-sandboxed-iframe-from-prevalent-domain-with-user-interaction-and-access-from-right-frame.html [ Pass ]
+[ HighSierra+ ] http/tests/storageAccess/request-and-grant-access-cross-origin-sandboxed-iframe-from-prevalent-domain-with-user-interaction-but-access-from-wrong-frame.html [ Pass ]
+[ HighSierra+ ] http/tests/storageAccess/request-and-grant-access-cross-origin-sandboxed-iframe-from-prevalent-domain-without-user-interaction.html [ Pass ]
 [ HighSierra+ ] http/tests/storageAccess/request-storage-access-top-frame.html [ Pass ]
 [ HighSierra+ ] http/tests/storageAccess/request-storage-access-cross-origin-sandboxed-iframe-without-user-gesture.html [ Pass ]
-[ HighSierra+ ] http/tests/storageAccess/has-storage-access-from-prevalent-domain-with-non-recent-user-interaction.html [ Pass ]
-[ HighSierra+ ] http/tests/storageAccess/has-storage-access-from-prevalent-domain-with-recent-user-interaction.html [ Pass ]
+[ HighSierra+ ] http/tests/storageAccess/has-storage-access-from-prevalent-domain-with-user-interaction.html [ Pass ]
 [ HighSierra+ ] http/tests/storageAccess/request-and-grant-access-then-detach-should-not-have-access.html [ Pass ]
-[ HighSierra+ ] http/tests/storageAccess/request-and-grant-access-then-navigate-should-not-have-access.html [ Pass ]
+[ HighSierra+ ] http/tests/storageAccess/request-and-grant-access-then-navigate-cross-site-should-not-have-access.html [ Pass ]
+[ HighSierra+ ] http/tests/storageAccess/request-and-grant-access-then-navigate-same-site-should-have-access.html [ Pass ]
+[ HighSierra+ ] http/tests/storageAccess/deny-storage-access-under-opener.html [ Pass ]
+[ HighSierra+ ] http/tests/storageAccess/deny-storage-access-under-opener-if-auto-dismiss.html [ Pass ]
 
 # As of https://trac.webkit.org/changeset/227762 the timestampResolution is just 5 seconds which makes this test flaky
 http/tests/resourceLoadStatistics/user-interaction-only-reported-once-within-short-period-of-time.html [ Skip ]
@@ -793,58 +760,54 @@ webkit.org/b/169238 fast/events/mouse-cursor-no-mousemove.html [ Pass Failure ]
 
 webkit.org/b/176122 media/video-controls-drop-and-restore-timeline.html [ Pass Failure ]
 
+# These are flaky media tests
+webkit.org/b/185962 media/video-play-require-user-gesture.html [ Pass Failure ]
+webkit.org/b/185962 media/video-play-audio-require-user-gesture.html [ Pass Failure ]
+
+webkit.org/b/185994 fast/text/user-installed-fonts/shadow-family.html [ Pass ImageOnlyFailure ]
+webkit.org/b/185994 fast/text/user-installed-fonts/shadow-postscript-family.html [ Pass ImageOnlyFailure ]
+
 # <rdar://problem/25010307>
 [ HighSierra+ ] http/tests/ssl/applepay/ApplePayError.html [ Pass ]
 [ HighSierra+ ] http/tests/ssl/applepay/ApplePaySessionV3.html [ Pass ]
+[ Mojave+ ] http/tests/ssl/applepay/ApplePaySessionV4.html [ Pass ]
+[ Mojave+ ] http/tests/ssl/applepay/ApplePaySessionV5.html [ Pass ]
 [ HighSierra+ ] http/tests/ssl/applepay/ApplePayRequestShippingContactV3.https.html [ Pass ]
+[ HighSierra+ ] http/tests/ssl/applepay/ApplePayShippingAddressChangeEventErrorsV3.https.html [ Pass ]
 # <rdar://problem/31634451>
-[ HighSierra+ ] http/tests/resourceLoadStatistics/partitioned-cookies-with-and-without-user-interaction.html [ Pass ]
-[ HighSierra+ ] http/tests/resourceLoadStatistics/partitioned-and-unpartitioned-cookie-with-partitioning-timeout.html [ Pass ]
-[ HighSierra+ ] http/tests/resourceLoadStatistics/third-party-cookie-with-and-without-user-interaction.html [ Pass ]
-[ HighSierra+ ] http/tests/resourceLoadStatistics/partitioned-and-unpartitioned-cookie-deletion.html [ Pass Failure ]
+[ HighSierra+ ] http/tests/resourceLoadStatistics/cookies-with-and-without-user-interaction.html [ Pass ]
+[ HighSierra+ ] http/tests/resourceLoadStatistics/cookie-deletion.html [ Pass ]
 [ HighSierra+ ] http/tests/resourceLoadStatistics/non-prevalent-resources-can-access-cookies-in-a-third-party-context.html [ Pass ]
-[ HighSierra+ ] http/tests/resourceLoadStatistics/add-partitioning-to-redirect.html [ Pass ]
 [ HighSierra+ ] http/tests/resourceLoadStatistics/add-blocking-to-redirect.html [ Pass ]
-[ HighSierra+ ] http/tests/resourceLoadStatistics/remove-partitioning-in-redirect.html [ Pass ]
 [ HighSierra+ ] http/tests/resourceLoadStatistics/remove-blocking-in-redirect.html [ Pass ]
 [ HighSierra+ ] http/tests/resourceLoadStatistics/clear-in-memory-and-persistent-store.html [ Pass ]
 [ HighSierra+ ] http/tests/resourceLoadStatistics/clear-in-memory-and-persistent-store-one-hour.html [ Pass ]
 [ HighSierra+ ] http/tests/resourceLoadStatistics/grandfathering.html [ Pass ]
 [ HighSierra+ ] http/tests/resourceLoadStatistics/strip-referrer-to-origin-for-prevalent-subresource-redirects.html [ Pass ]
 [ HighSierra+ ] http/tests/resourceLoadStatistics/strip-referrer-to-origin-for-prevalent-subresource-requests.html [ Pass ]
+[ HighSierra+ ] http/tests/resourceLoadStatistics/cap-cache-max-age-for-prevalent-resource.html [ Pass ]
 
 # Skipped in general expectations since they only work on iOS and Mac, WK2.
 http/tests/security/strip-referrer-to-origin-for-third-party-redirects-in-private-mode.html [ Pass ]
 http/tests/security/strip-referrer-to-origin-for-third-party-requests-in-private-mode.html [ Pass ]
-
-# <rdar://problem/33555759>
-webkit.org/b/177616 [ HighSierra+ ] http/tests/media/video-buffered-range-contains-currentTime.html [ Pass Timeout ]
+media/deactivate-audio-session.html [ Pass ]
 
 # Link preconnect is disabled on pre-High Sierra because the CFNetwork SPI is missing.
-[ ElCapitan Sierra ] http/tests/preconnect [ Skip ]
-
-webkit.org/b/176486 [ ElCapitan Debug ] imported/w3c/web-platform-tests/background-fetch/interfaces-worker.https.html [ Pass Failure ]
+[ Sierra ] http/tests/preconnect [ Skip ]
 
 webkit.org/b/171839 [ Debug ] tiled-drawing/scrolling/scroll-snap/scroll-snap-mandatory-mainframe-vertical-then-horizontal.html [ Pass Failure ]
-
-webkit.org/b/177214 [ ElCapitan Debug ] imported/w3c/web-platform-tests/FileAPI/historical.https.html [ Pass Failure ]
 
 webkit.org/b/177687 http/tests/inspector/network/resource-sizes-memory-cache.html [ Pass Failure ]
 
 webkit.org/b/178472 http/tests/resourceLoadStatistics/prevalent-resource-handled-keydown.html [ Skip ]
+webkit.org/b/183093 http/tests/resourceLoadStatistics/prevalent-resource-unhandled-keydown.html [ Skip ]
+webkit.org/b/178472 http/tests/resourceLoadStatistics/prevalent-resource-with-user-interaction-timeout.html [ Skip ]
 
 webkit.org/b/176881 plugins/js-from-destroy.html [ Pass Failure ]
 
 webkit.org/b/178553 [ HighSierra Release ] imported/w3c/web-platform-tests/html/dom/dynamic-markup-insertion/opening-the-input-stream/011.html [ Skip ]
 
-webkit.org/b/177501 webrtc/video-mute.html [ Pass Timeout ]
-
-webkit.org/b/177828 http/tests/appcache/decide-navigation-policy-after-delay.html [ Skip ]
-webkit.org/b/177828 http/tests/contentfiltering/load-substitute-data-from-appcache.html [ Skip ]
-
-webkit.org/b/165620 [ ElCapitan Sierra ] http/tests/cache/disk-cache/disk-cache-request-headers.html [ Pass Failure ]
-
-webkit.org/b/179176 [ Release ] svg/wicd/test-rightsizing-a.xhtml [ Pass Failure ]
+webkit.org/b/165620 [ Sierra ] http/tests/cache/disk-cache/disk-cache-request-headers.html [ Pass Failure ]
 
 webkit.org/b/179773 imported/w3c/web-platform-tests/fetch/api/abort/serviceworker-intercepted.https.html [ Pass Failure ]
 
@@ -854,21 +817,13 @@ webkit.org/b/173742 security/contentSecurityPolicy/plugins-types-allows-youtube-
 
 webkit.org/b/181167 imported/w3c/web-platform-tests/service-workers/service-worker/ServiceWorkerGlobalScope/update.https.html [ Pass Failure ]
 
-webkit.org/b/181069 fast/mediastream/MediaStream-MediaElement-setObject-null.html [ Pass Failure ]
-
 webkit.org/b/181107 http/wpt/cache-storage/cache-put-stream.https.any.html [ Pass Failure ]
-
-webkit.org/b/172879 webrtc/video-unmute.html [ Skip ]
 
 webkit.org/b/181502 swipe/pushstate-with-manual-scrollrestoration.html [ Failure ]
 
-webkit.org/b/181750 imported/w3c/web-platform-tests/service-workers/service-worker/fetch-request-redirect.https.html [ Pass Failure ]
+webkit.org/b/181750 imported/w3c/web-platform-tests/service-workers/service-worker/fetch-request-redirect.https.html [ DumpJSConsoleLogInStdErr Pass Failure ]
 
 webkit.org/b/181839 [ Debug ] inspector/debugger/breakpoint-action-log.html [ Pass Timeout ]
-
-webkit.org/b/181753 [ HighSierra Release ] http/wpt/service-workers/update-service-worker.https.html [ Pass Failure ]
-
-webkit.org/b/181957 [ Release ] http/tests/misc/resource-timing-resolution.html [ Pass Failure ]
 
 webkit.org/b/181835 webrtc/captureCanvas-webrtc.html [ Pass Timeout ]
 
@@ -878,10 +833,93 @@ webkit.org/b/182341 imported/w3c/web-platform-tests/service-workers/service-work
 
 webkit.org/b/179352 imported/w3c/web-platform-tests/service-workers/service-worker/windowclient-navigate.https.html [ Pass Failure Slow ]
 
-webkit.org/b/182630 http/tests/workers/service/basic-messageport.html [ Pass Failure ]
-
-webkit.org/b/182849 imported/w3c/web-platform-tests/XMLHttpRequest/event-upload-progress-crossorigin.htm [ Pass Failure ]
+webkit.org/b/182849 imported/w3c/web-platform-tests/xhr/event-upload-progress-crossorigin.htm [ Pass Failure ]
 
 webkit.org/b/183164 fast/dom/Window/window-focus-self.html [ Pass Failure ]
 
 webkit.org/b/180982 [ Debug ] imported/w3c/web-platform-tests/service-workers/service-worker/registration-updateviacache.https.html [ Slow ]
+
+webkit.org/b/182176 imported/w3c/web-platform-tests/service-workers/service-worker/appcache-ordering-main.https.html [ Skip ]
+
+webkit.org/b/183869 [ HighSierra+ ] media/modern-media-controls/seek-backward-support/seek-backward-support.html [ Pass Failure ]
+
+webkit.org/b/183879 [ Debug ] fast/scrolling/latching/scroll-div-no-latching.html [ Pass Failure ]
+
+webkit.org/b/183860 [ Sierra Release ] http/wpt/service-workers/third-party-registration.html [ Pass Failure ]
+
+webkit.org/b/184245 http/tests/workers/service/service-worker-cache-api.https.html [ Pass Failure ]
+
+webkit.org/b/177380 http/tests/cache-storage/cache-records-persistency.https.html [ Pass Failure ]
+
+webkit.org/b/184937 transitions/opacity-transition-zindex.html [ Skip ]
+
+webkit.org/b/186362 [ Release ] http/tests/resourceLoadStatistics/prevalent-resource-with-user-interaction.html [ Skip ]
+
+webkit.org/b/190808 [ Debug ] imported/w3c/web-platform-tests/intersection-observer/containing-block.html [ Pass Failure ]
+webkit.org/b/191002 [ Debug ] imported/w3c/web-platform-tests/intersection-observer/bounding-box.html [ Pass Failure ]
+webkit.org/b/191002 [ Debug ] imported/w3c/web-platform-tests/intersection-observer/display-none.html [ Pass Failure ]
+webkit.org/b/191002 [ Debug ] imported/w3c/web-platform-tests/intersection-observer/edge-inclusive-intersection.html [ Pass Failure ]
+webkit.org/b/191002 [ Debug ] imported/w3c/web-platform-tests/intersection-observer/remove-element.html [ Pass Failure ]
+webkit.org/b/191002 [ Debug ] imported/w3c/web-platform-tests/intersection-observer/shadow-content.html [ Pass Failure ]
+webkit.org/b/191002 [ Debug ] imported/w3c/web-platform-tests/intersection-observer/unclipped-root.html [ Pass Failure ]
+
+# skip manual payment-request tests
+imported/w3c/web-platform-tests/payment-request/PaymentRequestUpdateEvent/updateWith-call-immediate-manual.https.html [ Skip ]
+imported/w3c/web-platform-tests/payment-request/PaymentRequestUpdateEvent/updateWith-duplicate-shipping-options-manual.https.html [ Skip ]
+imported/w3c/web-platform-tests/payment-request/PaymentRequestUpdateEvent/updateWith-incremental-update-manual.https.html [ Skip ]
+imported/w3c/web-platform-tests/payment-request/PaymentRequestUpdateEvent/updateWith-method-abort-update-manual.https.html [ Skip ]
+imported/w3c/web-platform-tests/payment-request/PaymentRequestUpdateEvent/updateWith-state-checks-manual.https.html [ Skip ]
+imported/w3c/web-platform-tests/payment-request/PaymentValidationErrors/retry-shows-error-member-manual.https.html [ Skip ]
+imported/w3c/web-platform-tests/payment-request/PaymentValidationErrors/retry-shows-payer-member-manual.https.html [ Skip ]
+imported/w3c/web-platform-tests/payment-request/PaymentValidationErrors/retry-shows-shippingAddress-member-manual.https.html [ Skip ]
+imported/w3c/web-platform-tests/payment-request/algorithms-manual.https.html [ Skip ]
+imported/w3c/web-platform-tests/payment-request/change-shipping-option-manual.https.html [ Skip ]
+imported/w3c/web-platform-tests/payment-request/change-shipping-option-select-last-manual.https.html [ Skip ]
+imported/w3c/web-platform-tests/payment-request/payment-response/complete-method-manual.https.html [ Skip ]
+imported/w3c/web-platform-tests/payment-request/payment-response/methodName-attribute-manual.https.html [ Skip ]
+imported/w3c/web-platform-tests/payment-request/payment-response/onpayerdetailchange-attribute-manual.https.html [ Skip ]
+imported/w3c/web-platform-tests/payment-request/payment-response/payerEmail-attribute-manual.https.html [ Skip ]
+imported/w3c/web-platform-tests/payment-request/payment-response/payerName-attribute-manual.https.html [ Skip ]
+imported/w3c/web-platform-tests/payment-request/payment-response/payerPhone-attribute-manual.https.html [ Skip ]
+imported/w3c/web-platform-tests/payment-request/payment-response/rejects_if_not_active-manual.https.html [ Skip ]
+imported/w3c/web-platform-tests/payment-request/payment-response/requestId-attribute-manual.https.html [ Skip ]
+imported/w3c/web-platform-tests/payment-request/payment-response/retry-method-manual.https.html [ Skip ]
+imported/w3c/web-platform-tests/payment-request/payment-response/shippingAddress-attribute-manual.https.html [ Skip ]
+imported/w3c/web-platform-tests/payment-request/payment-response/shippingOption-attribute-manual.https.html [ Skip ]
+imported/w3c/web-platform-tests/payment-request/PaymentAddress/attributes-and-toJSON-method-manual.https.html [ Skip ]
+imported/w3c/web-platform-tests/payment-request/shipping-address-changed-manual.https.html [ Skip ]
+imported/w3c/web-platform-tests/payment-request/show-method-optional-promise-rejects-manual.https.html [ Skip ]
+imported/w3c/web-platform-tests/payment-request/show-method-optional-promise-resolves-manual.https.html [ Skip ]
+imported/w3c/web-platform-tests/payment-request/show-method-postmessage-manual.https.html [ Skip ]
+imported/w3c/web-platform-tests/payment-request/updateWith-method-pmi-handling-manual.https.html [ Skip ]
+imported/w3c/web-platform-tests/payment-request/user-abort-algorithm-manual.https.html [ Skip ]
+imported/w3c/web-platform-tests/payment-request/user-accepts-payment-request-algo-manual.https.html [ Skip ]
+
+webkit.org/b/189598 compositing/backing/backing-store-attachment-fill-forwards-animation.html [ Pass Failure ]
+
+# Skip local authenticator tests for mac now.
+http/wpt/webauthn/public-key-credential-create-failure-local.https.html [ Skip ]
+http/wpt/webauthn/public-key-credential-create-success-local.https.html [ Skip ]
+http/wpt/webauthn/public-key-credential-get-failure-local.https.html [ Skip ]
+http/wpt/webauthn/public-key-credential-get-success-local.https.html [ Skip ]
+# The following tests require PublicKeyCredential objects. We can only produce them via local authenticators now.
+http/wpt/credential-management/credentialscontainer-store-basics.https.html [ Skip ]
+http/wpt/webauthn/idl.https.html [ Skip ]
+
+webkit.org/b/183878 media/modern-media-controls/tracks-panel/tracks-panel-up-click-over-media-does-not-dimiss-media-controls-when-media-is-playing.html [ Pass Timeout ] 
+
+webkit.org/b/191644 [ Sierra ] fast/workers/worker-cloneport.html [ Pass Failure ]
+
+webkit.org/b/191658 [ Sierra Release ] fast/layers/no-clipping-overflow-hidden-added-after-transform.html [ Pass ImageOnlyFailure ]
+
+webkit.org/b/193976 http/tests/cache-storage/cache-clearing-origin.https.html [ Pass Failure ]
+
+webkit.org/b/194826 http/tests/resourceLoadStatistics/do-not-block-top-level-navigation-redirect.html [ Pass Timeout ]
+
+webkit.org/b/194368 http/tests/workers/service/basic-register-exceptions.html [ Pass Failure ]
+
+webkit.org/b/194225 [ Mojave Debug ] http/tests/cookies/same-site/fetch-after-top-level-navigation-from-cross-origin-page.html [ Pass Crash ]
+
+webkit.org/b/194253 scrollingcoordinator/scrolling-tree/fixed-inside-frame.html [ Pass Failure ]
+
+webkit.org/b/194350 http/tests/security/contentSecurityPolicy/block-all-mixed-content/insecure-image-in-iframe-with-enforced-and-report-policies.html [ Pass Failure ]

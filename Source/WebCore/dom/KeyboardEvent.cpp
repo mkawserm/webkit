@@ -23,6 +23,7 @@
 #include "config.h"
 #include "KeyboardEvent.h"
 
+#include "DOMWindow.h"
 #include "Document.h"
 #include "Editor.h"
 #include "EventHandler.h"
@@ -92,8 +93,9 @@ static inline KeyboardEvent::KeyLocationCode keyLocationCode(const PlatformKeybo
 
 inline KeyboardEvent::KeyboardEvent() = default;
 
-inline KeyboardEvent::KeyboardEvent(const PlatformKeyboardEvent& key, DOMWindow* view)
-    : UIEventWithKeyState(eventTypeForKeyboardEventType(key.type()), true, true, key.timestamp().approximateMonotonicTime(), view, 0, key.ctrlKey(), key.altKey(), key.shiftKey(), key.metaKey(), false, key.modifiers().contains(PlatformEvent::Modifier::CapsLockKey))
+inline KeyboardEvent::KeyboardEvent(const PlatformKeyboardEvent& key, RefPtr<WindowProxy>&& view)
+    : UIEventWithKeyState(eventTypeForKeyboardEventType(key.type()), CanBubble::Yes, IsCancelable::Yes, IsComposed::Yes,
+        key.timestamp().approximateMonotonicTime(), view.copyRef(), 0, key.modifiers(), IsTrusted::Yes)
     , m_underlyingPlatformEvent(std::make_unique<PlatformKeyboardEvent>(key))
 #if ENABLE(KEYBOARD_KEY_ATTRIBUTE)
     , m_key(key.key())
@@ -104,7 +106,7 @@ inline KeyboardEvent::KeyboardEvent(const PlatformKeyboardEvent& key, DOMWindow*
     , m_keyIdentifier(key.keyIdentifier())
     , m_location(keyLocationCode(key))
     , m_repeat(key.isAutoRepeat())
-    , m_isComposing(view && view->frame() && view->frame()->editor().hasComposition())
+    , m_isComposing(view && is<DOMWindow>(view->window()) && downcast<DOMWindow>(*view->window()).frame() && downcast<DOMWindow>(*view->window()).frame()->editor().hasComposition())
 #if USE(APPKIT)
     , m_handledByInputMethod(key.handledByInputMethod())
     , m_keypressCommands(key.commands())
@@ -112,8 +114,8 @@ inline KeyboardEvent::KeyboardEvent(const PlatformKeyboardEvent& key, DOMWindow*
 {
 }
 
-inline KeyboardEvent::KeyboardEvent(const AtomicString& eventType, const Init& initializer, IsTrusted isTrusted)
-    : UIEventWithKeyState(eventType, initializer, isTrusted)
+inline KeyboardEvent::KeyboardEvent(const AtomicString& eventType, const Init& initializer)
+    : UIEventWithKeyState(eventType, initializer)
 #if ENABLE(KEYBOARD_KEY_ATTRIBUTE)
     , m_key(initializer.key)
 #endif
@@ -132,9 +134,9 @@ inline KeyboardEvent::KeyboardEvent(const AtomicString& eventType, const Init& i
 
 KeyboardEvent::~KeyboardEvent() = default;
 
-Ref<KeyboardEvent> KeyboardEvent::create(const PlatformKeyboardEvent& platformEvent, DOMWindow* view)
+Ref<KeyboardEvent> KeyboardEvent::create(const PlatformKeyboardEvent& platformEvent, RefPtr<WindowProxy>&& view)
 {
-    return adoptRef(*new KeyboardEvent(platformEvent, view));
+    return adoptRef(*new KeyboardEvent(platformEvent, WTFMove(view)));
 }
 
 Ref<KeyboardEvent> KeyboardEvent::createForBindings()
@@ -142,33 +144,30 @@ Ref<KeyboardEvent> KeyboardEvent::createForBindings()
     return adoptRef(*new KeyboardEvent);
 }
 
-Ref<KeyboardEvent> KeyboardEvent::create(const AtomicString& type, const Init& initializer, IsTrusted isTrusted)
+Ref<KeyboardEvent> KeyboardEvent::create(const AtomicString& type, const Init& initializer)
 {
-    return adoptRef(*new KeyboardEvent(type, initializer, isTrusted));
+    return adoptRef(*new KeyboardEvent(type, initializer));
 }
 
-void KeyboardEvent::initKeyboardEvent(const AtomicString& type, bool canBubble, bool cancelable, DOMWindow* view,
+void KeyboardEvent::initKeyboardEvent(const AtomicString& type, bool canBubble, bool cancelable, RefPtr<WindowProxy>&& view,
     const String& keyIdentifier, unsigned location, bool ctrlKey, bool altKey, bool shiftKey, bool metaKey, bool altGraphKey)
 {
     if (isBeingDispatched())
         return;
 
-    initUIEvent(type, canBubble, cancelable, view, 0);
+    initUIEvent(type, canBubble, cancelable, WTFMove(view), 0);
 
     m_keyIdentifier = keyIdentifier;
     m_location = location;
-    m_ctrlKey = ctrlKey;
-    m_shiftKey = shiftKey;
-    m_altKey = altKey;
-    m_metaKey = metaKey;
-    m_altGraphKey = altGraphKey;
 
-    m_charCode = std::nullopt;
+    setModifierKeys(ctrlKey, altKey, shiftKey, metaKey, altGraphKey);
+
+    m_charCode = WTF::nullopt;
     m_isComposing = false;
-    m_keyCode = std::nullopt;
+    m_keyCode = WTF::nullopt;
     m_repeat = false;
     m_underlyingPlatformEvent = nullptr;
-    m_which = std::nullopt;
+    m_which = WTF::nullopt;
 
 #if ENABLE(KEYBOARD_CODE_ATTRIBUTE)
     m_code = { };
@@ -182,24 +181,6 @@ void KeyboardEvent::initKeyboardEvent(const AtomicString& type, bool canBubble, 
     m_handledByInputMethod = false;
     m_keypressCommands = { };
 #endif
-}
-
-bool KeyboardEvent::getModifierState(const String& keyIdentifier) const
-{
-    if (keyIdentifier == "Control")
-        return ctrlKey();
-    if (keyIdentifier == "Shift")
-        return shiftKey();
-    if (keyIdentifier == "Alt")
-        return altKey();
-    if (keyIdentifier == "Meta")
-        return metaKey();
-    if (keyIdentifier == "AltGraph")
-        return altGraphKey();
-    if (keyIdentifier == "CapsLock")
-        return capsLockKey();
-    // FIXME: The specification also has Fn, FnLock, Hyper, NumLock, Super, ScrollLock, Symbol, SymbolLock.
-    return false;
 }
 
 int KeyboardEvent::keyCode() const
@@ -227,8 +208,9 @@ int KeyboardEvent::charCode() const
     // Firefox: 0 for keydown/keyup events, character code for keypress
     // We match Firefox, unless in backward compatibility mode, where we always return the character code.
     bool backwardCompatibilityMode = false;
-    if (view() && view()->frame())
-        backwardCompatibilityMode = view()->frame()->eventHandler().needsKeyboardEventDisambiguationQuirks();
+    auto* window = view() ? view()->window() : nullptr;
+    if (is<DOMWindow>(window) && downcast<DOMWindow>(*window).frame())
+        backwardCompatibilityMode = downcast<DOMWindow>(*window).frame()->eventHandler().needsKeyboardEventDisambiguationQuirks();
 
     if (!m_underlyingPlatformEvent || (type() != eventNames().keypressEvent && !backwardCompatibilityMode))
         return 0;

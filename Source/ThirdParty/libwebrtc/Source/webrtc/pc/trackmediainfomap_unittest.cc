@@ -12,16 +12,17 @@
 
 #include <initializer_list>
 #include <memory>
+#include <string>
 #include <utility>
 #include <vector>
 
 #include "api/rtpreceiverinterface.h"
 #include "api/rtpsenderinterface.h"
-#include "api/test/mock_rtpreceiver.h"
-#include "api/test/mock_rtpsender.h"
 #include "media/base/mediachannel.h"
 #include "pc/audiotrack.h"
 #include "pc/test/fakevideotracksource.h"
+#include "pc/test/mock_rtpreceiverinternal.h"
+#include "pc/test/mock_rtpsenderinternal.h"
 #include "pc/videotrack.h"
 #include "rtc_base/refcount.h"
 #include "test/gtest.h"
@@ -41,7 +42,7 @@ RtpParameters CreateRtpParametersWithSsrcs(
   return params;
 }
 
-rtc::scoped_refptr<MockRtpSender> CreateMockRtpSender(
+rtc::scoped_refptr<MockRtpSenderInternal> CreateMockRtpSender(
     cricket::MediaType media_type,
     std::initializer_list<uint32_t> ssrcs,
     rtc::scoped_refptr<MediaStreamTrackInterface> track) {
@@ -51,8 +52,8 @@ rtc::scoped_refptr<MockRtpSender> CreateMockRtpSender(
   } else {
     first_ssrc = 0;
   }
-  rtc::scoped_refptr<MockRtpSender> sender(
-      new rtc::RefCountedObject<MockRtpSender>());
+  rtc::scoped_refptr<MockRtpSenderInternal> sender(
+      new rtc::RefCountedObject<MockRtpSenderInternal>());
   EXPECT_CALL(*sender, track())
       .WillRepeatedly(testing::Return(std::move(track)));
   EXPECT_CALL(*sender, ssrc()).WillRepeatedly(testing::Return(first_ssrc));
@@ -60,21 +61,23 @@ rtc::scoped_refptr<MockRtpSender> CreateMockRtpSender(
       .WillRepeatedly(testing::Return(media_type));
   EXPECT_CALL(*sender, GetParameters())
       .WillRepeatedly(testing::Return(CreateRtpParametersWithSsrcs(ssrcs)));
+  EXPECT_CALL(*sender, AttachmentId()).WillRepeatedly(testing::Return(1));
   return sender;
 }
 
-rtc::scoped_refptr<MockRtpReceiver> CreateMockRtpReceiver(
+rtc::scoped_refptr<MockRtpReceiverInternal> CreateMockRtpReceiver(
     cricket::MediaType media_type,
     std::initializer_list<uint32_t> ssrcs,
     rtc::scoped_refptr<MediaStreamTrackInterface> track) {
-  rtc::scoped_refptr<MockRtpReceiver> receiver(
-      new rtc::RefCountedObject<MockRtpReceiver>());
+  rtc::scoped_refptr<MockRtpReceiverInternal> receiver(
+      new rtc::RefCountedObject<MockRtpReceiverInternal>());
   EXPECT_CALL(*receiver, track())
       .WillRepeatedly(testing::Return(std::move(track)));
   EXPECT_CALL(*receiver, media_type())
       .WillRepeatedly(testing::Return(media_type));
   EXPECT_CALL(*receiver, GetParameters())
       .WillRepeatedly(testing::Return(CreateRtpParametersWithSsrcs(ssrcs)));
+  EXPECT_CALL(*receiver, AttachmentId()).WillRepeatedly(testing::Return(1));
   return receiver;
 }
 
@@ -105,7 +108,7 @@ class TrackMediaInfoMapTest : public testing::Test {
 
   void AddRtpSenderWithSsrcs(std::initializer_list<uint32_t> ssrcs,
                              MediaStreamTrackInterface* local_track) {
-    rtc::scoped_refptr<MockRtpSender> rtp_sender = CreateMockRtpSender(
+    rtc::scoped_refptr<MockRtpSenderInternal> rtp_sender = CreateMockRtpSender(
         local_track->kind() == MediaStreamTrackInterface::kAudioKind
             ? cricket::MEDIA_TYPE_AUDIO
             : cricket::MEDIA_TYPE_VIDEO,
@@ -133,7 +136,7 @@ class TrackMediaInfoMapTest : public testing::Test {
 
   void AddRtpReceiverWithSsrcs(std::initializer_list<uint32_t> ssrcs,
                                MediaStreamTrackInterface* remote_track) {
-    rtc::scoped_refptr<MockRtpReceiver> rtp_receiver = CreateMockRtpReceiver(
+    auto rtp_receiver = CreateMockRtpReceiver(
         remote_track->kind() == MediaStreamTrackInterface::kAudioKind
             ? cricket::MEDIA_TYPE_AUDIO
             : cricket::MEDIA_TYPE_VIDEO,
@@ -170,8 +173,8 @@ class TrackMediaInfoMapTest : public testing::Test {
  protected:
   cricket::VoiceMediaInfo* voice_media_info_;
   cricket::VideoMediaInfo* video_media_info_;
-  std::vector<rtc::scoped_refptr<RtpSenderInterface>> rtp_senders_;
-  std::vector<rtc::scoped_refptr<RtpReceiverInterface>> rtp_receivers_;
+  std::vector<rtc::scoped_refptr<RtpSenderInternal>> rtp_senders_;
+  std::vector<rtc::scoped_refptr<RtpReceiverInternal>> rtp_receivers_;
   std::unique_ptr<TrackMediaInfoMap> map_;
   rtc::scoped_refptr<AudioTrack> local_audio_track_;
   rtc::scoped_refptr<AudioTrack> remote_audio_track_;
@@ -384,6 +387,28 @@ TEST_F(TrackMediaInfoMapTest, SingleSenderReceiverPerTrackWithSsrcNotUnique) {
             &video_media_info_->receivers[0]);
   EXPECT_EQ(map_->GetVideoTrack(video_media_info_->receivers[0]),
             remote_video_track_.get());
+}
+
+TEST_F(TrackMediaInfoMapTest, SsrcLookupFunction) {
+  AddRtpSenderWithSsrcs({1}, local_audio_track_);
+  AddRtpReceiverWithSsrcs({2}, remote_audio_track_);
+  AddRtpSenderWithSsrcs({3}, local_video_track_);
+  AddRtpReceiverWithSsrcs({4}, remote_video_track_);
+  CreateMap();
+  EXPECT_TRUE(map_->GetVoiceSenderInfoBySsrc(1));
+  EXPECT_TRUE(map_->GetVoiceReceiverInfoBySsrc(2));
+  EXPECT_TRUE(map_->GetVideoSenderInfoBySsrc(3));
+  EXPECT_TRUE(map_->GetVideoReceiverInfoBySsrc(4));
+  EXPECT_FALSE(map_->GetVoiceSenderInfoBySsrc(2));
+  EXPECT_FALSE(map_->GetVoiceSenderInfoBySsrc(1024));
+}
+
+TEST_F(TrackMediaInfoMapTest, GetAttachmentIdByTrack) {
+  AddRtpSenderWithSsrcs({1}, local_audio_track_);
+  CreateMap();
+  EXPECT_EQ(rtp_senders_[0]->AttachmentId(),
+            map_->GetAttachmentIdByTrack(local_audio_track_));
+  EXPECT_EQ(absl::nullopt, map_->GetAttachmentIdByTrack(local_video_track_));
 }
 
 // Death tests.

@@ -27,6 +27,7 @@ import android.support.test.filters.MediumTest;
 import android.support.test.filters.SmallTest;
 import java.io.IOException;
 import java.util.concurrent.CountDownLatch;
+import javax.annotation.Nullable;
 import org.chromium.base.test.BaseJUnit4ClassRunner;
 import org.junit.After;
 import org.junit.Before;
@@ -46,7 +47,7 @@ public class Camera2CapturerTest {
     final LooperThread looperThread;
     final CountDownLatch openDoneSignal;
     final Object cameraDeviceLock;
-    CameraDevice cameraDevice; // Guarded by cameraDeviceLock
+    @Nullable CameraDevice cameraDevice; // Guarded by cameraDeviceLock
     boolean openSucceeded; // Guarded by cameraDeviceLock
 
     private class LooperThread extends Thread {
@@ -245,12 +246,6 @@ public class Camera2CapturerTest {
     fixtures.cameraEventsInvoked();
   }
 
-  @Test
-  @MediumTest
-  public void testUpdateMediaRecorder() throws InterruptedException, IOException {
-    fixtures.updateMediaRecorder(true /* useSurfaceCapture */);
-  }
-
   // Test what happens when attempting to call e.g. switchCamera() after camera has been stopped.
   @Test
   @MediumTest
@@ -305,6 +300,14 @@ public class Camera2CapturerTest {
   @MediumTest
   public void testScaleCameraOutput() throws InterruptedException {
     fixtures.scaleCameraOutput();
+  }
+
+  // This test that frames forwarded to a renderer is cropped to a new orientation if
+  // adaptOutputFormat is called in such a way. This test both Java and C++ parts of of the stack.
+  @Test
+  @MediumTest
+  public void testCropCameraOutput() throws InterruptedException {
+    fixtures.cropCameraOutput();
   }
 
   // This test that an error is reported if the camera is already opened

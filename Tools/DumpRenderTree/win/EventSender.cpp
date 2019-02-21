@@ -39,6 +39,7 @@
 
 #include <JavaScriptCore/JavaScriptCore.h>
 #include <WebCore/COMPtr.h>
+#include <WebCore/PlatformWheelEvent.h>
 #include <WebKitLegacy/WebKit.h>
 #include <windows.h>
 #include <wtf/ASCIICType.h>
@@ -119,7 +120,7 @@ static DWORD currentEventTime()
 
 static MSG makeMsg(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
-    MSG result = {0};
+    MSG result { };
     result.hwnd = hwnd;
     result.message = message;
     result.wParam = wParam;
@@ -361,7 +362,7 @@ void replaySavedEvents(HRESULT* oleDragAndDropReturnValue)
 {
     replayingSavedEvents = true;
   
-    MSG msg = { 0 };
+    MSG msg { };
 
     while (startOfQueue < endOfQueue && !msgQueue[startOfQueue].delay) {
         msg = msgQueue[startOfQueue++].msg;
@@ -695,7 +696,7 @@ static JSValueRef beginDragWithFilesCallback(JSContextRef context, JSObjectRef f
     // We should append "0" in the end of |files| so that |DragQueryFileW| retrieved the number of files correctly from Ole Clipboard.
     files.append(0);
 
-    STGMEDIUM hDropMedium = {0};
+    STGMEDIUM hDropMedium { };
     hDropMedium.tymed = TYMED_HGLOBAL;
     SIZE_T dropFilesSize = sizeof(DROPFILES) + (sizeof(WCHAR) * files.size());
     hDropMedium.hGlobal = GlobalAlloc(GMEM_MOVEABLE | GMEM_DDESHARE, dropFilesSize);
@@ -712,7 +713,7 @@ static JSValueRef beginDragWithFilesCallback(JSContextRef context, JSObjectRef f
         data[i] = files[i];
     GlobalUnlock(hDropMedium.hGlobal); 
 
-    STGMEDIUM hFileNameMedium = {0};
+    STGMEDIUM hFileNameMedium { };
     hFileNameMedium.tymed = TYMED_HGLOBAL;
     SIZE_T hFileNameSize = sizeof(WCHAR) * files.size();
     hFileNameMedium.hGlobal = GlobalAlloc(GMEM_MOVEABLE | GMEM_DDESHARE, hFileNameSize);
@@ -788,15 +789,12 @@ void mouseScrollBy(double x, double y, bool continuous)
     RECT rect;
     ::GetWindowRect(webViewWindow, &rect);
 
-    // This value is taken from Source/WebCore/platform/win/WheelEventWin.cpp
-    const float cScrollbarPixelsPerLine = 100.0f / 3.0f;
-
     if (x) {
         UINT scrollChars = 1;
         ::SystemParametersInfo(SPI_GETWHEELSCROLLCHARS, 0, &scrollChars, 0);
         x *= WHEEL_DELTA / scrollChars;
         if (continuous)
-            x /= cScrollbarPixelsPerLine;
+            x /= WebCore::cScrollbarPixelsPerLine;
         MSG msg = makeMsg(webViewWindow, WM_MOUSEHWHEEL, MAKEWPARAM(0, x), MAKELPARAM(rect.left + lastMousePosition.x, rect.top + lastMousePosition.y));
         dispatchMessage(&msg);
     }
@@ -806,7 +804,7 @@ void mouseScrollBy(double x, double y, bool continuous)
         ::SystemParametersInfo(SPI_GETWHEELSCROLLLINES, 0, &scrollLines, 0);
         y *= WHEEL_DELTA / scrollLines;
         if (continuous)
-            y /= cScrollbarPixelsPerLine;
+            y /= WebCore::cScrollbarPixelsPerLine;
         MSG msg = makeMsg(webViewWindow, WM_MOUSEWHEEL, MAKEWPARAM(0, y), MAKELPARAM(rect.left + lastMousePosition.x, rect.top + lastMousePosition.y));
         dispatchMessage(&msg);
     }
@@ -927,7 +925,7 @@ static JSClassRef getClass(JSContextRef context)
     static JSClassRef eventSenderClass = 0;
 
     if (!eventSenderClass) {
-        JSClassDefinition classDefinition = {0};
+        JSClassDefinition classDefinition { };
         classDefinition.staticFunctions = staticFunctions;
         classDefinition.staticValues = staticValues;
 

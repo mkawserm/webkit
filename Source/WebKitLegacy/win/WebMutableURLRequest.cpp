@@ -300,14 +300,12 @@ HRESULT WebMutableURLRequest::setHTTPBody(_In_opt_ IStream* data)
     if (stat.cbSize.HighPart || !stat.cbSize.LowPart)
         return E_FAIL;
 
-    RefPtr<FormData> httpBody = FormData::create();
-    char* formData = httpBody->expandDataStore(stat.cbSize.LowPart);
-
+    size_t length = stat.cbSize.LowPart;
+    Vector<char> vector(length);
     ULONG bytesRead = 0;
-    if (FAILED(data->Read(formData, stat.cbSize.LowPart, &bytesRead)))
+    if (FAILED(data->Read(vector.data(), stat.cbSize.LowPart, &bytesRead)))
         return E_FAIL;
-
-    m_request.setHTTPBody(WTFMove(httpBody));
+    m_request.setHTTPBody(FormData::create(WTFMove(vector)));
     return S_OK;
 }
 
@@ -356,7 +354,7 @@ HRESULT WebMutableURLRequest::setValue(_In_ BSTR value, _In_ BSTR field)
 
 HRESULT WebMutableURLRequest::setAllowsAnyHTTPSCertificate()
 {
-    ResourceHandle::setHostAllowsAnyHTTPSCertificate(m_request.url().host());
+    ResourceHandle::setHostAllowsAnyHTTPSCertificate(m_request.url().host().toString());
 
     return S_OK;
 }
@@ -368,7 +366,7 @@ HRESULT WebMutableURLRequest::setClientCertificate(ULONG_PTR cert)
 
     PCCERT_CONTEXT certContext = reinterpret_cast<PCCERT_CONTEXT>(cert);
     RetainPtr<CFDataRef> certData = WebCore::copyCertificateToData(certContext);
-    ResourceHandle::setClientCertificate(m_request.url().host(), certData.get());
+    ResourceHandle::setClientCertificate(m_request.url().host().toString(), certData.get());
     return S_OK;
 }
 

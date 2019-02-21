@@ -2,7 +2,7 @@
  * Copyright (C) 1999 Lars Knoll (knoll@kde.org)
  *           (C) 1999 Antti Koivisto (koivisto@kde.org)
  *           (C) 2000 Dirk Mueller (mueller@kde.org)
- * Copyright (C) 2004-2017 Apple Inc. All rights reserved.
+ * Copyright (C) 2004-2018 Apple Inc. All rights reserved.
  * Copyright (C) 2012 Samsung Electronics. All rights reserved.
  *
  * This library is free software; you can redistribute it and/or
@@ -28,8 +28,9 @@
 #include "HTMLTextFormControlElement.h"
 #include "StepRange.h"
 #include <memory>
+#include <wtf/WeakPtr.h>
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
 #include "DateComponents.h"
 #endif
 
@@ -43,7 +44,6 @@ class Icon;
 class InputType;
 class ListAttributeTargetObserver;
 class RadioButtonGroups;
-class URL;
 
 struct DateTimeChooserParameters;
 
@@ -54,7 +54,8 @@ struct InputElementClickState {
     RefPtr<HTMLInputElement> checkedRadioButton;
 };
 
-class HTMLInputElement : public HTMLTextFormControlElement {
+class HTMLInputElement : public HTMLTextFormControlElement, public CanMakeWeakPtr<HTMLInputElement> {
+    WTF_MAKE_ISO_ALLOCATED(HTMLInputElement);
 public:
     static Ref<HTMLInputElement> create(const QualifiedName&, Document&, HTMLFormElement*, bool createdByParser);
     virtual ~HTMLInputElement();
@@ -85,11 +86,13 @@ public:
     StepRange createStepRange(AnyStepHandling) const;
 
 #if ENABLE(DATALIST_ELEMENT)
-    std::optional<Decimal> findClosestTickMarkValue(const Decimal&);
+    Optional<Decimal> findClosestTickMarkValue(const Decimal&);
 #endif
 
     WEBCORE_EXPORT ExceptionOr<void> stepUp(int = 1);
     WEBCORE_EXPORT ExceptionOr<void> stepDown(int = 1);
+
+    bool isPresentingAttachedView() const;
 
     // stepUp()/stepDown() for user-interaction.
     bool isSteppable() const;
@@ -105,7 +108,7 @@ public:
     bool isRangeControl() const;
 
 #if ENABLE(INPUT_TYPE_COLOR)
-    bool isColorControl() const;
+    WEBCORE_EXPORT bool isColorControl() const;
 #endif
 
     // FIXME: It's highly likely that any call site calling this function should instead
@@ -128,7 +131,7 @@ public:
     WEBCORE_EXPORT bool isTimeField() const;
     WEBCORE_EXPORT bool isWeekField() const;
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
     DateComponents::Type dateType() const;
 #endif
 
@@ -146,9 +149,12 @@ public:
     HTMLElement* sliderTrackElement() const;
     HTMLElement* placeholderElement() const final;
     WEBCORE_EXPORT HTMLElement* autoFillButtonElement() const;
+#if ENABLE(DATALIST_ELEMENT)
+    WEBCORE_EXPORT HTMLElement* dataListButtonElement() const;
+#endif
 
     bool checked() const { return m_isChecked; }
-    WEBCORE_EXPORT void setChecked(bool, TextFieldEventBehavior = DispatchNoEvent);
+    WEBCORE_EXPORT void setChecked(bool);
 
     // 'indeterminate' is a state independent of the checked state that causes the control to draw in a way that hides the actual state.
     bool indeterminate() const { return m_isIndeterminate; }
@@ -240,7 +246,7 @@ public:
     AutoFillButtonType autoFillButtonType() const { return static_cast<AutoFillButtonType>(m_autoFillButtonType); }
     WEBCORE_EXPORT void setShowAutoFillButton(AutoFillButtonType);
 
-    bool hasAutoFillStrongPasswordButton() const  { return autoFillButtonType() == AutoFillButtonType::StrongPassword || autoFillButtonType() == AutoFillButtonType::StrongConfirmationPassword; }
+    bool hasAutoFillStrongPasswordButton() const  { return autoFillButtonType() == AutoFillButtonType::StrongPassword; }
 
     bool isAutoFillAvailable() const { return m_isAutoFillAvailable; }
     void setAutoFillAvailable(bool autoFillAvailable) { m_isAutoFillAvailable = autoFillAvailable; }
@@ -267,7 +273,7 @@ public:
     bool willRespondToMouseClickEvents() override;
 
 #if ENABLE(DATALIST_ELEMENT)
-    RefPtr<HTMLElement> list() const;
+    WEBCORE_EXPORT RefPtr<HTMLElement> list() const;
     RefPtr<HTMLDataListElement> dataList() const;
     void listAttributeTargetChanged();
 #endif
@@ -289,6 +295,7 @@ public:
 
     Color valueAsColor() const; // Returns transparent color if not type=color.
     WEBCORE_EXPORT void selectColor(StringView); // Does nothing if not type=color. Simulates user selection of color; intended for testing.
+    WEBCORE_EXPORT Vector<Color> suggestedColors() const;
 
     String defaultToolTip() const;
 
@@ -376,6 +383,8 @@ private:
     FormControlState saveFormControlState() const final;
     void restoreFormControlState(const FormControlState&) final;
 
+    void resignStrongPasswordAppearance();
+
     bool canStartSelection() const final;
 
     void accessKeyAction(bool sendMouseEvents) final;
@@ -425,13 +434,15 @@ private:
     bool isOptionalFormControl() const final { return !isRequiredFormControl(); }
     bool isRequiredFormControl() const final;
     bool computeWillValidate() const final;
-    void requiredAttributeChanged() final;
+    void requiredStateChanged() final;
 
     void initializeInputType();
     void updateType();
     void runPostTypeUpdateTasks();
-    
+
     void subtreeHasChanged() final;
+    void disabledStateChanged() final;
+    void readOnlyStateChanged() final;
 
 #if ENABLE(DATALIST_ELEMENT)
     void resetListAttributeTargetObserver();
@@ -443,12 +454,14 @@ private:
     void addToRadioButtonGroup();
     void removeFromRadioButtonGroup();
 
+    void setDefaultSelectionAfterFocus(SelectionRevealMode);
+
     AtomicString m_name;
     String m_valueIfDirty;
     unsigned m_size;
-    short m_maxResults;
+    short m_maxResults { -1 };
     bool m_isChecked : 1;
-    bool m_reflectsCheckedAttribute : 1;
+    bool m_dirtyCheckednessFlag : 1;
     bool m_isIndeterminate : 1;
     bool m_hasType : 1;
     bool m_isActivatedSubmit : 1;
@@ -469,7 +482,7 @@ private:
     bool m_hasTouchEventHandler : 1;
 #endif
     bool m_isSpellcheckDisabledExceptTextReplacement : 1;
-    std::unique_ptr<InputType> m_inputType;
+    RefPtr<InputType> m_inputType;
     // The ImageLoader must be owned by this element because the loader code assumes
     // that it lives as long as its owning element lives. If we move the loader into
     // the ImageInput object we may delete the loader while this element lives on.

@@ -11,17 +11,16 @@
 #ifndef LOGGING_RTC_EVENT_LOG_RTC_EVENT_LOG_H_
 #define LOGGING_RTC_EVENT_LOG_RTC_EVENT_LOG_H_
 
+#include <stdint.h>
 #include <memory>
-#include <string>
-#include <utility>
 
 #include "api/rtceventlogoutput.h"
 #include "logging/rtc_event_log/events/rtc_event.h"
+#include "rtc_base/task_queue.h"
 
 namespace webrtc {
 
-class Clock;
-
+// TODO(terelius): Move this to the parser.
 enum PacketDirection { kIncomingPacket = 0, kOutgoingPacket };
 
 class RtcEventLog {
@@ -29,22 +28,20 @@ class RtcEventLog {
   enum : size_t { kUnlimitedOutput = 0 };
   enum : int64_t { kImmediateOutput = 0 };
 
-  // TODO(eladalon): Two stages are upcoming.
-  // 1. Extend this to actually support the new encoding.
-  // 2. Get rid of the legacy encoding, allowing us to get rid of this enum.
-  enum class EncodingType { Legacy };
+  // TODO(eladalon):  Get rid of the legacy encoding and this enum once all
+  // clients have migrated to the new format.
+  enum class EncodingType { Legacy, NewFormat };
 
   virtual ~RtcEventLog() {}
 
   // Factory method to create an RtcEventLog object.
   static std::unique_ptr<RtcEventLog> Create(EncodingType encoding_type);
-  // TODO(nisse): webrtc::Clock is deprecated. Delete this method and
-  // above forward declaration of Clock when
-  // webrtc/system_wrappers/include/clock.h is deleted.
-  static std::unique_ptr<RtcEventLog> Create(const Clock*,
-                                             EncodingType encoding_type) {
-    return Create(encoding_type);
-  }
+
+  // Factory method to create an RtcEventLog object which uses the given
+  // rtc::TaskQueue for emitting output.
+  static std::unique_ptr<RtcEventLog> Create(
+      EncodingType encoding_type,
+      std::unique_ptr<rtc::TaskQueue> task_queue);
 
   // Create an RtcEventLog object that does nothing.
   static std::unique_ptr<RtcEventLog> CreateNull();
@@ -65,12 +62,10 @@ class RtcEventLog {
 // No-op implementation is used if flag is not set, or in tests.
 class RtcEventLogNullImpl : public RtcEventLog {
  public:
-  bool StartLogging(std::unique_ptr<RtcEventLogOutput>,
-                    int64_t) override {
-    return false;
-  }
+  bool StartLogging(std::unique_ptr<RtcEventLogOutput> output,
+                    int64_t output_period_ms) override;
   void StopLogging() override {}
-  void Log(std::unique_ptr<RtcEvent>) override {}
+  void Log(std::unique_ptr<RtcEvent> event) override {}
 };
 
 }  // namespace webrtc

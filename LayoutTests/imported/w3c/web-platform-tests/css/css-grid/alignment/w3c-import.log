@@ -1,7 +1,7 @@
 The tests in this directory were imported from the W3C repository.
 Do NOT modify these tests directly in WebKit.
 Instead, create a pull request on the WPT github:
-	https://github.com/w3c/web-platform-tests
+	https://github.com/web-platform-tests/wpt
 
 Then run the Tools/Scripts/import-w3c-tests in WebKit to reimport
 
@@ -9,9 +9,9 @@ Do NOT modify or remove this file.
 
 ------------------------------------------------------------------------
 Properties requiring vendor prefixes:
-None
+text-orientation
 Property values requiring vendor prefixes:
-None
+sticky
 ------------------------------------------------------------------------
 List of files:
 /LayoutTests/imported/w3c/web-platform-tests/css/css-grid/alignment/grid-alignment-implies-size-change-001.html
@@ -50,6 +50,14 @@ List of files:
 /LayoutTests/imported/w3c/web-platform-tests/css/css-grid/alignment/grid-alignment-implies-size-change-034.html
 /LayoutTests/imported/w3c/web-platform-tests/css/css-grid/alignment/grid-alignment-implies-size-change-035.html
 /LayoutTests/imported/w3c/web-platform-tests/css/css-grid/alignment/grid-alignment-implies-size-change-036.html
+/LayoutTests/imported/w3c/web-platform-tests/css/css-grid/alignment/grid-alignment-style-changes-001.html
+/LayoutTests/imported/w3c/web-platform-tests/css/css-grid/alignment/grid-alignment-style-changes-002.html
+/LayoutTests/imported/w3c/web-platform-tests/css/css-grid/alignment/grid-alignment-style-changes-003.html
+/LayoutTests/imported/w3c/web-platform-tests/css/css-grid/alignment/grid-alignment-style-changes-004.html
+/LayoutTests/imported/w3c/web-platform-tests/css/css-grid/alignment/grid-alignment-style-changes-005.html
+/LayoutTests/imported/w3c/web-platform-tests/css/css-grid/alignment/grid-alignment-style-changes-006.html
+/LayoutTests/imported/w3c/web-platform-tests/css/css-grid/alignment/grid-alignment-style-changes-007.html
+/LayoutTests/imported/w3c/web-platform-tests/css/css-grid/alignment/grid-alignment-style-changes-008.html
 /LayoutTests/imported/w3c/web-platform-tests/css/css-grid/alignment/grid-column-axis-alignment-positioned-items-001.html
 /LayoutTests/imported/w3c/web-platform-tests/css/css-grid/alignment/grid-column-axis-alignment-positioned-items-002.html
 /LayoutTests/imported/w3c/web-platform-tests/css/css-grid/alignment/grid-column-axis-alignment-positioned-items-003.html
@@ -67,6 +75,14 @@ List of files:
 /LayoutTests/imported/w3c/web-platform-tests/css/css-grid/alignment/grid-column-axis-alignment-positioned-items-015.html
 /LayoutTests/imported/w3c/web-platform-tests/css/css-grid/alignment/grid-column-axis-alignment-positioned-items-016.html
 /LayoutTests/imported/w3c/web-platform-tests/css/css-grid/alignment/grid-column-axis-alignment-positioned-items-017.html
+/LayoutTests/imported/w3c/web-platform-tests/css/css-grid/alignment/grid-column-axis-alignment-sticky-positioned-items-001.html
+/LayoutTests/imported/w3c/web-platform-tests/css/css-grid/alignment/grid-column-axis-alignment-sticky-positioned-items-002.html
+/LayoutTests/imported/w3c/web-platform-tests/css/css-grid/alignment/grid-column-axis-self-baseline-synthesized-001.html
+/LayoutTests/imported/w3c/web-platform-tests/css/css-grid/alignment/grid-column-axis-self-baseline-synthesized-002.html
+/LayoutTests/imported/w3c/web-platform-tests/css/css-grid/alignment/grid-column-axis-self-baseline-synthesized-003.html
+/LayoutTests/imported/w3c/web-platform-tests/css/css-grid/alignment/grid-column-axis-self-baseline-synthesized-004.html
+/LayoutTests/imported/w3c/web-platform-tests/css/css-grid/alignment/grid-content-alignment-second-pass-001.html
+/LayoutTests/imported/w3c/web-platform-tests/css/css-grid/alignment/grid-content-alignment-second-pass-002.html
 /LayoutTests/imported/w3c/web-platform-tests/css/css-grid/alignment/grid-content-distribution-001-expected.html
 /LayoutTests/imported/w3c/web-platform-tests/css/css-grid/alignment/grid-content-distribution-001.html
 /LayoutTests/imported/w3c/web-platform-tests/css/css-grid/alignment/grid-content-distribution-002-expected.html
@@ -186,6 +202,12 @@ List of files:
 /LayoutTests/imported/w3c/web-platform-tests/css/css-grid/alignment/grid-gutters-009.html
 /LayoutTests/imported/w3c/web-platform-tests/css/css-grid/alignment/grid-gutters-010-expected.html
 /LayoutTests/imported/w3c/web-platform-tests/css/css-grid/alignment/grid-gutters-010.html
+/LayoutTests/imported/w3c/web-platform-tests/css/css-grid/alignment/grid-gutters-011-expected.html
+/LayoutTests/imported/w3c/web-platform-tests/css/css-grid/alignment/grid-gutters-011.html
+/LayoutTests/imported/w3c/web-platform-tests/css/css-grid/alignment/grid-gutters-012-expected.html
+/LayoutTests/imported/w3c/web-platform-tests/css/css-grid/alignment/grid-gutters-012.html
+/LayoutTests/imported/w3c/web-platform-tests/css/css-grid/alignment/grid-gutters-013-expected.xht
+/LayoutTests/imported/w3c/web-platform-tests/css/css-grid/alignment/grid-gutters-013.html
 /LayoutTests/imported/w3c/web-platform-tests/css/css-grid/alignment/grid-row-axis-alignment-positioned-items-001.html
 /LayoutTests/imported/w3c/web-platform-tests/css/css-grid/alignment/grid-row-axis-alignment-positioned-items-002.html
 /LayoutTests/imported/w3c/web-platform-tests/css/css-grid/alignment/grid-row-axis-alignment-positioned-items-003.html
@@ -203,6 +225,12 @@ List of files:
 /LayoutTests/imported/w3c/web-platform-tests/css/css-grid/alignment/grid-row-axis-alignment-positioned-items-015.html
 /LayoutTests/imported/w3c/web-platform-tests/css/css-grid/alignment/grid-row-axis-alignment-positioned-items-016.html
 /LayoutTests/imported/w3c/web-platform-tests/css/css-grid/alignment/grid-row-axis-alignment-positioned-items-017.html
+/LayoutTests/imported/w3c/web-platform-tests/css/css-grid/alignment/grid-row-axis-alignment-sticky-positioned-items-001.html
+/LayoutTests/imported/w3c/web-platform-tests/css/css-grid/alignment/grid-row-axis-alignment-sticky-positioned-items-002.html
+/LayoutTests/imported/w3c/web-platform-tests/css/css-grid/alignment/grid-row-axis-self-baseline-synthesized-001.html
+/LayoutTests/imported/w3c/web-platform-tests/css/css-grid/alignment/grid-row-axis-self-baseline-synthesized-002.html
+/LayoutTests/imported/w3c/web-platform-tests/css/css-grid/alignment/grid-row-axis-self-baseline-synthesized-003.html
+/LayoutTests/imported/w3c/web-platform-tests/css/css-grid/alignment/grid-row-axis-self-baseline-synthesized-004.html
 /LayoutTests/imported/w3c/web-platform-tests/css/css-grid/alignment/grid-self-alignment-non-static-positioned-items-001.html
 /LayoutTests/imported/w3c/web-platform-tests/css/css-grid/alignment/grid-self-alignment-non-static-positioned-items-002.html
 /LayoutTests/imported/w3c/web-platform-tests/css/css-grid/alignment/grid-self-alignment-non-static-positioned-items-003.html
@@ -279,3 +307,6 @@ List of files:
 /LayoutTests/imported/w3c/web-platform-tests/css/css-grid/alignment/grid-self-alignment-stretch-vertical-rl-014.html
 /LayoutTests/imported/w3c/web-platform-tests/css/css-grid/alignment/grid-self-alignment-stretch-vertical-rl-015.html
 /LayoutTests/imported/w3c/web-platform-tests/css/css-grid/alignment/grid-self-alignment-stretch-vertical-rl-016.html
+/LayoutTests/imported/w3c/web-platform-tests/css/css-grid/alignment/grid-self-baseline-not-applied-if-sizing-cyclic-dependency-001.html
+/LayoutTests/imported/w3c/web-platform-tests/css/css-grid/alignment/grid-self-baseline-not-applied-if-sizing-cyclic-dependency-002.html
+/LayoutTests/imported/w3c/web-platform-tests/css/css-grid/alignment/grid-self-baseline-not-applied-if-sizing-cyclic-dependency-003.html

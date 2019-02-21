@@ -85,9 +85,9 @@ public:
 
     static GRefPtr<WebKitWebView> adoptView(gpointer view)
     {
-        g_assert(WEBKIT_IS_WEB_VIEW(view));
+        g_assert_true(WEBKIT_IS_WEB_VIEW(view));
 #if PLATFORM(GTK)
-        g_assert(g_object_is_floating(view));
+        g_assert_true(g_object_is_floating(view));
         return GRefPtr<WebKitWebView>(WEBKIT_WEB_VIEW(view));
 #elif PLATFORM(WPE)
         return adoptGRef(WEBKIT_WEB_VIEW(view));
@@ -108,17 +108,16 @@ public:
         GUniquePtr<char> diskCacheDirectory(g_build_filename(dataDirectory(), "disk-cache", nullptr));
         GUniquePtr<char> applicationCacheDirectory(g_build_filename(dataDirectory(), "appcache", nullptr));
         GUniquePtr<char> webSQLDirectory(g_build_filename(dataDirectory(), "websql", nullptr));
-        GUniquePtr<char> resourceLoadStatisticsDirectory(g_build_filename(dataDirectory(), "resource-load-statistics", nullptr));
         GRefPtr<WebKitWebsiteDataManager> websiteDataManager = adoptGRef(webkit_website_data_manager_new(
             "local-storage-directory", localStorageDirectory.get(), "indexeddb-directory", indexedDBDirectory.get(),
             "disk-cache-directory", diskCacheDirectory.get(), "offline-application-cache-directory", applicationCacheDirectory.get(),
-            "websql-directory", webSQLDirectory.get(), "resource-load-statistics-directory", resourceLoadStatisticsDirectory.get(), nullptr));
+            "websql-directory", webSQLDirectory.get(), nullptr));
 
         m_webContext = adoptGRef(webkit_web_context_new_with_website_data_manager(websiteDataManager.get()));
         g_signal_connect(m_webContext.get(), "initialize-web-extensions", G_CALLBACK(initializeWebExtensionsCallback), this);
     }
 
-    ~Test()
+    virtual ~Test()
     {
         g_signal_handlers_disconnect_matched(m_webContext.get(), G_SIGNAL_MATCH_DATA, 0, 0, nullptr, nullptr, this);
         m_webContext = nullptr;
@@ -131,7 +130,7 @@ public:
             g_print(" %s(%p)", g_type_name_from_instance(reinterpret_cast<GTypeInstance*>(*it)), *it);
         g_print("\n");
 
-        g_assert(m_watchedObjects.isEmpty());
+        g_assert_true(m_watchedObjects.isEmpty());
     }
 
     virtual void initializeWebExtensions()
@@ -143,12 +142,13 @@ public:
 #if PLATFORM(WPE)
     static WebKitWebViewBackend* createWebViewBackend()
     {
-        const char* useHeadlessViewBackend = g_getenv("WPE_USE_HEADLESS_VIEW_BACKEND");
-        if (!useHeadlessViewBackend || !strcmp(useHeadlessViewBackend, "0"))
-            return nullptr;
-        auto* headlessBackend = new HeadlessViewBackend;
+        auto* headlessBackend = new WPEToolingBackends::HeadlessViewBackend(800, 600);
+#if defined(WPE_BACKEND_CHECK_VERSION) && WPE_BACKEND_CHECK_VERSION(1, 1, 0)
+        // Make the view initially hidden for consistency with GTK+ tests.
+        wpe_view_backend_remove_activity_state(headlessBackend->backend(), wpe_view_activity_state_visible | wpe_view_activity_state_focused);
+#endif
         return webkit_web_view_backend_new(headlessBackend->backend(), [](gpointer userData) {
-            delete static_cast<HeadlessViewBackend*>(userData);
+            delete static_cast<WPEToolingBackends::HeadlessViewBackend*>(userData);
         }, headlessBackend);
     }
 #endif

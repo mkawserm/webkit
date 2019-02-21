@@ -17,16 +17,16 @@ info: |
 
     2. If Type(obj) is not Object, throw a TypeError exception.
 
-features: [cross-realm, Symbol]
+features: [cross-realm, Proxy, Symbol]
 ---*/
 
 var other = $262.createRealm().global;
 var p = new other.Proxy({}, {
-    ownKeys: function() {
-        return undefined;
-    }
+  ownKeys: function() {
+    return undefined;
+  }
 });
 
 assert.throws(TypeError, function() {
-    Object.keys(p);
+  Object.keys(p);
 });

@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2010 Google Inc. All rights reserved.
- * Copyright (C) 2011-2017 Apple Inc. All rights reserved.
+ * Copyright (C) 2011-2018 Apple Inc. All rights reserved.
  * Copyright (C) 2012 Samsung Electronics. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -37,9 +37,10 @@
 #include "StepRange.h"
 #include <wtf/FastMalloc.h>
 #include <wtf/Forward.h>
+#include <wtf/RefCounted.h>
 #include <wtf/RefPtr.h>
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
 #include "DateComponents.h"
 #endif
 
@@ -68,13 +69,15 @@ struct InputElementClickState;
 // An InputType object represents the type-specific part of an HTMLInputElement.
 // Do not expose instances of InputType and classes derived from it to classes
 // other than HTMLInputElement.
-class InputType {
+class InputType : public RefCounted<InputType> {
     WTF_MAKE_FAST_ALLOCATED;
 
 public:
-    static std::unique_ptr<InputType> create(HTMLInputElement&, const AtomicString&);
-    static std::unique_ptr<InputType> createText(HTMLInputElement&);
+    static Ref<InputType> create(HTMLInputElement&, const AtomicString&);
+    static Ref<InputType> createText(HTMLInputElement&);
     virtual ~InputType();
+
+    void detachFromElement() { m_element = nullptr; }
 
     static bool themeSupportsDataListUI(InputType*);
 
@@ -225,6 +228,9 @@ public:
     virtual HTMLElement* sliderThumbElement() const { return nullptr; }
     virtual HTMLElement* sliderTrackElement() const { return nullptr; }
     virtual HTMLElement* placeholderElement() const;
+#if ENABLE(DATALIST_ELEMENT)
+    virtual HTMLElement* dataListButtonElement() const { return nullptr; }
+#endif
 
     // Miscellaneous functions.
 
@@ -233,11 +239,6 @@ public:
     virtual void addSearchResult();
     virtual void attach();
     virtual void detach();
-    virtual void minOrMaxAttributeChanged();
-    virtual void stepAttributeChanged();
-    virtual void altAttributeChanged();
-    virtual void srcAttributeChanged();
-    virtual void maxResultsAttributeChanged();
     virtual bool shouldRespectAlignAttribute();
     virtual FileList* files();
     virtual void setFiles(RefPtr<FileList>&&);
@@ -256,19 +257,20 @@ public:
     virtual bool supportsReadOnly() const;
     virtual void updateInnerTextValue();
     virtual void updatePlaceholderText();
-    virtual void attributeChanged(const QualifiedName&);
-    virtual void multipleAttributeChanged();
-    virtual void disabledAttributeChanged();
-    virtual void readonlyAttributeChanged();
-    virtual void requiredAttributeChanged();
+    virtual void attributeChanged(const QualifiedName&) { }
+    virtual void disabledStateChanged() { }
+    virtual void readOnlyStateChanged() { }
+    virtual void requiredStateChanged() { }
     virtual void capsLockStateMayHaveChanged();
     virtual void updateAutoFillButton();
     virtual String defaultToolTip() const;
     virtual bool matchesIndeterminatePseudoClass() const;
     virtual bool shouldAppearIndeterminate() const;
+    virtual bool isPresentingAttachedView() const;
     virtual bool supportsSelectionAPI() const;
     virtual Color valueAsColor() const;
     virtual void selectColor(StringView);
+    virtual Vector<Color> suggestedColors() const;
 
     // Parses the specified string for the type, and return
     // the Decimal value for the parsing result if the parsing
@@ -296,21 +298,22 @@ public:
 
 #if ENABLE(DATALIST_ELEMENT)
     virtual void listAttributeTargetChanged();
-    virtual std::optional<Decimal> findClosestTickMarkValue(const Decimal&);
+    virtual Optional<Decimal> findClosestTickMarkValue(const Decimal&);
 #endif
 
 #if ENABLE(DRAG_SUPPORT)
     virtual bool receiveDroppedFiles(const DragData&);
 #endif
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
     virtual DateComponents::Type dateType() const;
 #endif
     virtual String displayString() const;
 
 protected:
-    explicit InputType(HTMLInputElement& element) : m_element(element) { }
-    HTMLInputElement& element() const { return m_element; }
+    explicit InputType(HTMLInputElement& element)
+        : m_element(makeWeakPtr(element)) { }
+    HTMLInputElement* element() const { return m_element.get(); }
     Chrome* chrome() const;
     Decimal parseToNumberOrNaN(const String&) const;
 
@@ -318,8 +321,8 @@ private:
     // Helper for stepUp()/stepDown(). Adds step value * count to the current value.
     ExceptionOr<void> applyStep(int count, AnyStepHandling, TextFieldEventBehavior);
 
-    // Raw pointer because the HTMLInputElement object owns this InputType object.
-    HTMLInputElement& m_element;
+    // m_element is null if this InputType is no longer associated with an element (either the element died or changed input type).
+    WeakPtr<HTMLInputElement> m_element;
 };
 
 } // namespace WebCore

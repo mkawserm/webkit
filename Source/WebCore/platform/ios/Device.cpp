@@ -26,7 +26,7 @@
 #include "config.h"
 #include "Device.h"
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
 
 #include <wtf/NeverDestroyed.h>
 #include <wtf/RetainPtr.h>
@@ -59,7 +59,7 @@ const String& deviceName()
 #if TARGET_OS_IOS
     static const NeverDestroyed<String> deviceName = adoptCF(static_cast<CFStringRef>(MGCopyAnswer(kMGQDeviceName, nullptr))).get();
 #else
-    static const NeverDestroyed<String> deviceName = ASCIILiteral { "iPhone" };
+    static const NeverDestroyed<String> deviceName { "iPhone"_s };
 #endif
     return deviceName;
 }
@@ -72,4 +72,4 @@ bool deviceHasIPadCapability()
 
 } // namespace WebCore
 
-#endif // PLATFORM(IOS)
+#endif // PLATFORM(IOS_FAMILY)

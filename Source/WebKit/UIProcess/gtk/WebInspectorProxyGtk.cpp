@@ -29,6 +29,7 @@
 #include "config.h"
 #include "WebInspectorProxy.h"
 
+#include "APINavigation.h"
 #include "APINavigationAction.h"
 #include "WKArray.h"
 #include "WKContextMenuItem.h"
@@ -40,9 +41,10 @@
 #include "WebPageGroup.h"
 #include "WebProcessPool.h"
 #include "WebProcessProxy.h"
-#include <WebCore/FileSystem.h>
+#include <WebCore/CertificateInfo.h>
 #include <WebCore/GtkUtilities.h>
 #include <WebCore/NotImplemented.h>
+#include <wtf/FileSystem.h>
 #include <wtf/text/CString.h>
 #include <wtf/text/WTFString.h>
 
@@ -136,7 +138,7 @@ WebPageProxy* WebInspectorProxy::platformCreateFrontendPage()
     ASSERT(inspectedPage());
     ASSERT(!m_inspectorView);
 
-    RefPtr<WebPreferences> preferences = WebPreferences::create(String(), "WebKit2.", "WebKit2.");
+    auto preferences = WebPreferences::create(String(), "WebKit2.", "WebKit2.");
 #if ENABLE(DEVELOPER_MODE)
     // Allow developers to inspect the Web Inspector in debug builds without changing settings.
     preferences->setDeveloperExtrasEnabled(true);
@@ -144,12 +146,12 @@ WebPageProxy* WebInspectorProxy::platformCreateFrontendPage()
 #endif
     preferences->setJavaScriptRuntimeFlags({
     });
-    RefPtr<WebPageGroup> pageGroup = WebPageGroup::create(inspectorPageGroupIdentifierForPage(inspectedPage()), false, false);
+    auto pageGroup = WebPageGroup::create(inspectorPageGroupIdentifierForPage(inspectedPage()));
 
     auto pageConfiguration = API::PageConfiguration::create();
     pageConfiguration->setProcessPool(&inspectorProcessPool(inspectionLevel()));
-    pageConfiguration->setPreferences(preferences.get());
-    pageConfiguration->setPageGroup(pageGroup.get());
+    pageConfiguration->setPreferences(preferences.ptr());
+    pageConfiguration->setPageGroup(pageGroup.ptr());
     m_inspectorView = GTK_WIDGET(webkitWebViewBaseCreate(*pageConfiguration.ptr()));
     g_object_add_weak_pointer(G_OBJECT(m_inspectorView), reinterpret_cast<void**>(&m_inspectorView));
     g_signal_connect(m_inspectorView, "destroy", G_CALLBACK(inspectorViewDestroyed), this);
@@ -336,19 +338,24 @@ void WebInspectorProxy::platformInspectedURLChanged(const String& url)
         updateInspectorWindowTitle();
 }
 
+void WebInspectorProxy::platformShowCertificate(const CertificateInfo&)
+{
+    notImplemented();
+}
+
 String WebInspectorProxy::inspectorPageURL()
 {
-    return String("resource:///org/webkitgtk/inspector/UserInterface/Main.html");
+    return String("resource:///org/webkit/inspector/UserInterface/Main.html");
 }
 
 String WebInspectorProxy::inspectorTestPageURL()
 {
-    return String("resource:///org/webkitgtk/inspector/UserInterface/Test.html");
+    return String("resource:///org/webkit/inspector/UserInterface/Test.html");
 }
 
 String WebInspectorProxy::inspectorBaseURL()
 {
-    return String("resource:///org/webkitgtk/inspector/UserInterface/");
+    return String("resource:///org/webkit/inspector/UserInterface/");
 }
 
 unsigned WebInspectorProxy::platformInspectedWindowHeight()

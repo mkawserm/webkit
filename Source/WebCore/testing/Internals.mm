@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Apple Inc. All rights reserved.
+ * Copyright (C) 2015-2018 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -23,34 +23,50 @@
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "config.h"
-#include "Internals.h"
+#import "config.h"
+#import "Internals.h"
 
-#include "DOMURL.h"
-#include "WebCoreNSURLExtras.h"
-#include <wtf/SoftLinking.h>
-
-#if PLATFORM(IOS)
-SOFT_LINK_FRAMEWORK(UIKit)
-SOFT_LINK(UIKit, UIAccessibilityIsReduceMotionEnabled, BOOL, (void), ())
-#endif
+#import "DOMURL.h"
+#import "DictionaryLookup.h"
+#import "Document.h"
+#import "EventHandler.h"
+#import "HitTestResult.h"
+#import "Range.h"
+#import <pal/ios/UIKitSoftLink.h>
+#import <wtf/cocoa/NSURLExtras.h>
 
 namespace WebCore {
 
 String Internals::userVisibleString(const DOMURL& url)
 {
-    return WebCore::userVisibleString(url.href());
+    return WTF::userVisibleString(url.href());
 }
 
-#if PLATFORM(COCOA)
 bool Internals::userPrefersReducedMotion() const
 {
-#if PLATFORM(IOS)
-    return UIAccessibilityIsReduceMotionEnabled();
+#if PLATFORM(IOS_FAMILY)
+    return PAL::softLink_UIKit_UIAccessibilityIsReduceMotionEnabled();
 #else
     return [[NSWorkspace sharedWorkspace] accessibilityDisplayShouldReduceMotion];
 #endif
 }
+
+#if PLATFORM(MAC)
+
+ExceptionOr<RefPtr<Range>> Internals::rangeForDictionaryLookupAtLocation(int x, int y)
+{
+    auto* document = contextDocument();
+    if (!document || !document->frame())
+        return Exception { InvalidAccessError };
+
+    document->updateLayoutIgnorePendingStylesheets();
+
+    HitTestResult result = document->frame()->mainFrame().eventHandler().hitTestResultAtPoint(IntPoint(x, y));
+    RefPtr<Range> range;
+    std::tie(range, std::ignore) = DictionaryLookup::rangeAtHitTestResult(result);
+    return WTFMove(range);
+}
+
 #endif
 
 }

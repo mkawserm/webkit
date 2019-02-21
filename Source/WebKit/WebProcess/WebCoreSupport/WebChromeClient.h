@@ -109,18 +109,11 @@ private:
     void invalidateContentsForSlowScroll(const WebCore::IntRect&) final;
     void scroll(const WebCore::IntSize& scrollDelta, const WebCore::IntRect& scrollRect, const WebCore::IntRect& clipRect) final;
 
-#if USE(COORDINATED_GRAPHICS)
-    void delegatedScrollRequested(const WebCore::IntPoint& scrollOffset) final;
-    void resetUpdateAtlasForTesting() final;
-#endif
-
     WebCore::IntPoint screenToRootView(const WebCore::IntPoint&) const final;
     WebCore::IntRect rootViewToScreen(const WebCore::IntRect&) const final;
 
-#if PLATFORM(IOS)
     WebCore::IntPoint accessibilityScreenToRootView(const WebCore::IntPoint&) const final;
     WebCore::IntRect rootViewToAccessibilityScreen(const WebCore::IntRect&) const final;
-#endif
 
     PlatformPageClient platformPageClient() const final;
     void contentsSizeChanged(WebCore::Frame&, const WebCore::IntSize&) const final;
@@ -134,8 +127,6 @@ private:
     void setToolTip(const String&, WebCore::TextDirection) final;
     
     void print(WebCore::Frame&) final;
-
-    void testIncomingSyncIPCMessageWhileWaitingForSyncReply() final;
 
     void exceededDatabaseQuota(WebCore::Frame&, const String& databaseName, WebCore::DatabaseDetails) final;
 
@@ -153,11 +144,15 @@ private:
     std::unique_ptr<WebCore::ColorChooser> createColorChooser(WebCore::ColorChooserClient&, const WebCore::Color&) final;
 #endif
 
+#if ENABLE(DATALIST_ELEMENT)
+    std::unique_ptr<WebCore::DataListSuggestionPicker> createDataListSuggestionPicker(WebCore::DataListSuggestionsClient&) final;
+#endif
+
 #if ENABLE(IOS_TOUCH_EVENTS)
     void didPreventDefaultForEvent() final;
 #endif
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
     void didReceiveMobileDocType(bool) final;
     void setNeedsScrollNotifications(WebCore::Frame&, bool) final;
     void observedContentChange(WebCore::Frame&) final;
@@ -178,9 +173,13 @@ private:
     void removeScrollingLayer(WebCore::Node*, PlatformLayer* scrollingLayer, PlatformLayer* contentsLayer) final;
 
     void webAppOrientationsUpdated() final;
-    void showPlaybackTargetPicker(bool hasVideo) final;
+    void showPlaybackTargetPicker(bool hasVideo, WebCore::RouteSharingPolicy, const String&) final;
 
     Seconds eventThrottlingDelay() final;
+
+    void associateEditableImageWithAttachment(WebCore::GraphicsLayer::EmbeddedViewID, const String& attachmentID) final;
+    void didCreateEditableImage(WebCore::GraphicsLayer::EmbeddedViewID) final;
+    void didDestroyEditableImage(WebCore::GraphicsLayer::EmbeddedViewID) final;
 #endif
 
 #if ENABLE(ORIENTATION_EVENTS)
@@ -188,9 +187,10 @@ private:
 #endif
 
     void runOpenPanel(WebCore::Frame&, WebCore::FileChooser&) final;
+    void showShareSheet(WebCore::ShareDataWithParsedURL&, WTF::CompletionHandler<void(bool)>&&) final;
     void loadIconForFiles(const Vector<String>&, WebCore::FileIconLoader&) final;
 
-#if !PLATFORM(IOS)
+#if !PLATFORM(IOS_FAMILY)
     void setCursor(const WebCore::Cursor&) final;
     void setCursorHiddenUntilMouseMoves(bool) final;
 #endif
@@ -210,13 +210,19 @@ private:
 
     WebCore::GraphicsLayerFactory* graphicsLayerFactory() const final;
     void attachRootGraphicsLayer(WebCore::Frame&, WebCore::GraphicsLayer*) final;
-    void attachViewOverlayGraphicsLayer(WebCore::Frame&, WebCore::GraphicsLayer*) final;
+    void attachViewOverlayGraphicsLayer(WebCore::GraphicsLayer*) final;
     void setNeedsOneShotDrawingSynchronization() final;
     void scheduleCompositingLayerFlush() final;
     bool adjustLayerFlushThrottling(WebCore::LayerFlushThrottleState::Flags) final;
 
-    void contentRuleListNotification(const WebCore::URL&, const HashSet<std::pair<String, String>>&) final;
-    
+    void contentRuleListNotification(const URL&, const HashSet<std::pair<String, String>>&) final;
+
+#if PLATFORM(WIN)
+    void setLastSetCursorToCurrentCursor() final { }
+    void AXStartFrameLoad() final { }
+    void AXFinishFrameLoad() final { }
+#endif
+
 #if USE(REQUEST_ANIMATION_FRAME_DISPLAY_MONITOR)
     RefPtr<WebCore::DisplayRefreshMonitor> createDisplayRefreshMonitor(WebCore::PlatformDisplayID) const final;
 #endif
@@ -228,26 +234,23 @@ private:
             VideoTrigger |
             PluginTrigger|
             CanvasTrigger |
-#if PLATFORM(MAC) || PLATFORM(IOS)
+#if PLATFORM(MAC) || PLATFORM(IOS_FAMILY)
             ScrollableNonMainFrameTrigger |
 #endif
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
             AnimatedOpacityTrigger | // Allow opacity animations to trigger compositing mode for iPhone: <rdar://problem/7830677>
 #endif
             AnimationTrigger);
     }
 
     bool layerTreeStateIsFrozen() const final;
+    bool layerFlushThrottlingIsActive() const final;
 
 #if ENABLE(ASYNC_SCROLLING)
     RefPtr<WebCore::ScrollingCoordinator> createScrollingCoordinator(WebCore::Page&) const final;
 #endif
 
-#if PLATFORM(IOS)
-    void elementDidRefocus(WebCore::Element&) final;
-#endif
-
-#if (PLATFORM(IOS) && HAVE(AVKIT)) || (PLATFORM(MAC) && ENABLE(VIDEO_PRESENTATION_MODE))
+#if (PLATFORM(IOS_FAMILY) && HAVE(AVKIT)) || (PLATFORM(MAC) && ENABLE(VIDEO_PRESENTATION_MODE))
     bool supportsVideoFullscreen(WebCore::HTMLMediaElementEnums::VideoFullscreenMode) final;
     bool supportsVideoFullscreenStandby() final;
     void setUpPlaybackControlsManager(WebCore::HTMLMediaElement&) final;
@@ -269,6 +272,8 @@ private:
 #if PLATFORM(COCOA)
     void elementDidFocus(WebCore::Element&) final;
     void elementDidBlur(WebCore::Element&) final;
+    void elementDidRefocus(WebCore::Element&) final;
+    void focusedElementDidChangeInputMode(WebCore::Element&, WebCore::InputMode) final;
 
     void makeFirstResponder() final;
     void assistiveTechnologyMakeFirstResponder() final;
@@ -277,17 +282,19 @@ private:
     void enableSuddenTermination() final;
     void disableSuddenTermination() final;
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
     WebCore::FloatSize screenSize() const final;
     WebCore::FloatSize availableScreenSize() const final;
+    WebCore::FloatSize overrideScreenSize() const final;
 #endif
 
+    void dispatchDisabledAdaptationsDidChange(const OptionSet<WebCore::DisabledAdaptations>&) const final;
     void dispatchViewportPropertiesDidChange(const WebCore::ViewportArguments&) const final;
 
     void notifyScrollerThumbIsVisibleInRect(const WebCore::IntRect&) final;
     void recommendedScrollbarStyleDidChange(WebCore::ScrollbarStyle newStyle) final;
 
-    std::optional<WebCore::ScrollbarOverlayStyle> preferredScrollbarOverlayStyle() final;
+    Optional<WebCore::ScrollbarOverlayStyle> preferredScrollbarOverlayStyle() final;
 
     WebCore::Color underlayColor() const final;
 
@@ -314,10 +321,12 @@ private:
     void focusedContentMediaElementDidChange(uint64_t) final;
 #endif
 
-#if ENABLE(SUBTLE_CRYPTO)
+#if ENABLE(WEB_CRYPTO)
     bool wrapCryptoKey(const Vector<uint8_t>&, Vector<uint8_t>&) const final;
     bool unwrapCryptoKey(const Vector<uint8_t>&, Vector<uint8_t>&) const final;
 #endif
+
+    String signedPublicKeyAndChallengeString(unsigned keySizeIndex, const String& challengeString, const URL&) const final;
 
 #if ENABLE(TELEPHONE_NUMBER_DETECTION) && PLATFORM(MAC)
     void handleTelephoneNumberClick(const String& number, const WebCore::IntPoint&) final;
@@ -332,7 +341,9 @@ private:
 
     void handleAutoFillButtonClick(WebCore::HTMLInputElement&) final;
 
-#if ENABLE(WIRELESS_PLAYBACK_TARGET) && !PLATFORM(IOS)
+    void inputElementDidResignStrongPasswordAppearance(WebCore::HTMLInputElement&) final;
+
+#if ENABLE(WIRELESS_PLAYBACK_TARGET) && !PLATFORM(IOS_FAMILY)
     void addPlaybackTargetPickerClient(uint64_t /*contextId*/) final;
     void removePlaybackTargetPickerClient(uint64_t /*contextId*/) final;
     void showPlaybackTargetPicker(uint64_t contextId, const WebCore::IntPoint&, bool) final;
@@ -351,7 +362,7 @@ private:
 
     void didInvalidateDocumentMarkerRects() final;
 
-#if HAVE(CFNETWORK_STORAGE_PARTITIONING)
+#if ENABLE(RESOURCE_LOAD_STATISTICS)
     void hasStorageAccess(String&& subFrameHost, String&& topFrameHost, uint64_t frameID, uint64_t pageID, WTF::CompletionHandler<void (bool)>&&) final;
     void requestStorageAccess(String&& subFrameHost, String&& topFrameHost, uint64_t frameID, uint64_t pageID, WTF::CompletionHandler<void (bool)>&&) final;
 #endif

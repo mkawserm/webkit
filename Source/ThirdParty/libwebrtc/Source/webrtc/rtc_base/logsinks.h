@@ -11,6 +11,7 @@
 #ifndef RTC_BASE_LOGSINKS_H_
 #define RTC_BASE_LOGSINKS_H_
 
+#include <stddef.h>
 #include <memory>
 #include <string>
 
@@ -35,6 +36,9 @@ class FileRotatingLogSink : public LogSink {
   // Writes the message to the current file. It will spill over to the next
   // file if needed.
   void OnLogMessage(const std::string& message) override;
+  void OnLogMessage(const std::string& message,
+                    LoggingSeverity sev,
+                    const char* tag) override;
 
   // Deletes any existing files in the directory and creates a new log file.
   virtual bool Init();

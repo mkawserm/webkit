@@ -31,7 +31,6 @@
 #include <WebCore/ApplicationManifestParser.h>
 #include <wtf/RunLoop.h>
 
-using namespace WTF;
 using namespace WebCore;
 
 namespace WebCore {
@@ -292,7 +291,7 @@ TEST_F(ApplicationManifestParserTest, Scope)
 
 TEST_F(ApplicationManifestParserTest, Whitespace)
 {
-    auto manifest = parseString(ASCIILiteral("  { \"name\": \"PASS\" }\n"));
+    auto manifest = parseString("  { \"name\": \"PASS\" }\n"_s);
 
     EXPECT_STREQ("PASS", manifest.name.utf8().data());
 }

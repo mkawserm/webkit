@@ -28,6 +28,7 @@
 #include "APIObject.h"
 #include "WebBackForwardListItem.h"
 #include "WebPageProxy.h"
+#include <WebCore/BackForwardItemIdentifier.h>
 #include <wtf/Ref.h>
 #include <wtf/Vector.h>
 
@@ -45,7 +46,9 @@ public:
 
     virtual ~WebBackForwardList();
 
-    void addItem(WebBackForwardListItem*);
+    WebBackForwardListItem* itemForID(const WebCore::BackForwardItemIdentifier&);
+
+    void addItem(Ref<WebBackForwardListItem>&&);
     void goToItem(WebBackForwardListItem&);
     void removeAllItems();
     void clear();
@@ -57,9 +60,8 @@ public:
 
     const BackForwardListItemVector& entries() const { return m_entries; }
 
-    uint32_t currentIndex() const { return m_currentIndex; }
-    int backListCount() const;
-    int forwardListCount() const;
+    unsigned backListCount() const;
+    unsigned forwardListCount() const;
 
     Ref<API::Array> backList() const;
     Ref<API::Array> forwardList() const;
@@ -71,6 +73,11 @@ public:
     void restoreFromState(BackForwardListState);
 
     Vector<BackForwardListItemState> itemStates() const;
+    Vector<BackForwardListItemState> filteredItemStates(Function<bool(WebBackForwardListItem&)>&&) const;
+
+#if !LOG_DISABLED
+    const char* loggingString();
+#endif
 
 private:
     explicit WebBackForwardList(WebPageProxy&);
@@ -79,11 +86,7 @@ private:
 
     WebPageProxy* m_page;
     BackForwardListItemVector m_entries;
-    
-    // FIXME: m_currentIndex should be a std::optional<size_t>
-    bool m_hasCurrentIndex;
-    size_t m_currentIndex;
-    size_t m_capacity;
+    Optional<size_t> m_currentIndex;
 };
 
 } // namespace WebKit

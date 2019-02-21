@@ -32,8 +32,6 @@ WI.SpreadsheetRulesStyleDetailsPanel = class SpreadsheetRulesStyleDetailsPanel e
         const label = WI.UIString("Styles \u2014 Rules");
         super(delegate, className, identifier, label);
 
-        this.element.classList.add("spreadsheet-style-panel");
-
         // Make the styles sidebar always left-to-right since CSS is strictly an LTR language.
         this.element.dir = "ltr";
 
@@ -43,6 +41,7 @@ WI.SpreadsheetRulesStyleDetailsPanel = class SpreadsheetRulesStyleDetailsPanel e
         this._ruleMediaAndInherticanceList = [];
         this._propertyToSelectAndHighlight = null;
         this._filterText = null;
+        this._shouldRefreshSubviews = false;
 
         this._emptyFilterResultsElement = WI.createMessageTextView(WI.UIString("No Results Found"));
     }
@@ -53,96 +52,10 @@ WI.SpreadsheetRulesStyleDetailsPanel = class SpreadsheetRulesStyleDetailsPanel e
     {
         // We only need to do a rebuild on significant changes. Other changes are handled
         // by the sections and text editors themselves.
-        if (!significantChange) {
-            super.refresh(significantChange);
-            return;
+        if (significantChange) {
+            this._shouldRefreshSubviews = true;
+            this.needsLayout();
         }
-
-        this.removeAllSubviews();
-
-        let previousStyle = null;
-        this._headerMap.clear();
-        this._sections = [];
-
-        let uniqueOrderedStyles = (orderedStyles) => {
-            let uniqueStyles = [];
-
-            for (let style of orderedStyles) {
-                let rule = style.ownerRule;
-                if (!rule) {
-                    uniqueStyles.push(style);
-                    continue;
-                }
-
-                let found = false;
-                for (let existingStyle of uniqueStyles) {
-                    if (rule.isEqualTo(existingStyle.ownerRule)) {
-                        found = true;
-                        break;
-                    }
-                }
-                if (!found)
-                    uniqueStyles.push(style);
-            }
-
-            return uniqueStyles;
-        };
-
-        let createHeader = (text, node) => {
-            let header = this.element.appendChild(document.createElement("h2"));
-            header.classList.add("section-header");
-            header.append(text);
-            header.append(" ", WI.linkifyNodeReference(node, {
-                maxLength: 100,
-                excludeRevealElement: true,
-            }));
-
-            this._headerMap.set(node, header);
-        };
-
-        let createSection = (style) => {
-            let section = style[WI.SpreadsheetRulesStyleDetailsPanel.RuleSection];
-            if (!section) {
-                section = new WI.SpreadsheetCSSStyleDeclarationSection(this, style);
-                style[WI.SpreadsheetRulesStyleDetailsPanel.RuleSection] = section;
-            }
-
-            section.addEventListener(WI.SpreadsheetCSSStyleDeclarationSection.Event.FilterApplied, this._handleSectionFilterApplied, this);
-
-            if (this._newRuleSelector === style.selectorText && !style.hasProperties())
-                section.startEditingRuleSelector();
-
-            this.addSubview(section);
-            section.needsLayout();
-            this._sections.push(section);
-
-            previousStyle = style;
-        };
-
-        for (let style of uniqueOrderedStyles(this.nodeStyles.orderedStyles)) {
-            if (style.inherited && (!previousStyle || previousStyle.node !== style.node))
-                createHeader(WI.UIString("Inherited From"), style.node);
-
-            createSection(style);
-        }
-
-        let pseudoElements = Array.from(this.nodeStyles.node.pseudoElements().values());
-        Promise.all(pseudoElements.map((pseudoElement) => WI.cssStyleManager.stylesForNode(pseudoElement).refreshIfNeeded()))
-        .then((pseudoNodeStyles) => {
-            for (let pseudoNodeStyle of pseudoNodeStyles) {
-                createHeader(WI.UIString("Pseudo Element"), pseudoNodeStyle.node);
-
-                for (let style of uniqueOrderedStyles(pseudoNodeStyle.orderedStyles))
-                    createSection(style);
-            }
-        });
-
-        this._newRuleSelector = null;
-
-        this.element.append(this._emptyFilterResultsElement);
-
-        if (this._filterText)
-            this.applyFilter(this._filterText);
 
         super.refresh(significantChange);
     }
@@ -191,7 +104,7 @@ WI.SpreadsheetRulesStyleDetailsPanel = class SpreadsheetRulesStyleDetailsPanel e
         if (this.nodeStyles.node.isInUserAgentShadowTree())
             return;
 
-        let styleSheets = WI.cssStyleManager.styleSheets.filter(styleSheet => styleSheet.hasInfo() && !styleSheet.isInlineStyleTag() && !styleSheet.isInlineStyleAttributeStyleSheet());
+        let styleSheets = WI.cssManager.styleSheets.filter(styleSheet => styleSheet.hasInfo() && !styleSheet.isInlineStyleTag() && !styleSheet.isInlineStyleAttributeStyleSheet());
         if (!styleSheets.length)
             return;
 
@@ -215,31 +128,6 @@ WI.SpreadsheetRulesStyleDetailsPanel = class SpreadsheetRulesStyleDetailsPanel e
         }
     }
 
-    cssStyleDeclarationSectionStartEditingNextRule(currentSection)
-    {
-        let currentIndex = this._sections.indexOf(currentSection);
-        let index = currentIndex < this._sections.length - 1 ? currentIndex + 1 : 0;
-        this._sections[index].startEditingRuleSelector();
-    }
-
-    cssStyleDeclarationSectionStartEditingPreviousRule(currentSection)
-    {
-        let index = this._sections.indexOf(currentSection);
-        console.assert(index > -1);
-
-        while (true) {
-            index--;
-            if (index < 0)
-                break;
-
-            let section = this._sections[index];
-            if (section.editable) {
-                section._propertiesEditor.startEditingLastProperty();
-                break;
-            }
-        }
-    }
-
     applyFilter(filterText)
     {
         this._filterText = filterText;
@@ -257,7 +145,132 @@ WI.SpreadsheetRulesStyleDetailsPanel = class SpreadsheetRulesStyleDetailsPanel e
             section.applyFilter(this._filterText);
     }
 
+    focusFirstSection()
+    {
+        this.spreadsheetCSSStyleDeclarationSectionStartEditingAdjacentRule(null, 1);
+    }
+
+    focusLastSection()
+    {
+        this.spreadsheetCSSStyleDeclarationSectionStartEditingAdjacentRule(null, -1);
+    }
+
+    // SpreadsheetCSSStyleDeclarationSection delegate
+
+    spreadsheetCSSStyleDeclarationSectionStartEditingAdjacentRule(currentSection, delta)
+    {
+        console.assert(delta !== 0);
+
+        let index = this._sections.indexOf(currentSection);
+        if (index < 0) {
+            if (delta < 0)
+                index = this._sections.length;
+            else if (delta > 0)
+                index = -1;
+        }
+        index += delta;
+
+        while (this._sections[index] !== currentSection) {
+            if (index < 0) {
+                if (this._delegate && this._delegate.styleDetailsPanelFocusLastPseudoClassCheckbox) {
+                    this._delegate.styleDetailsPanelFocusLastPseudoClassCheckbox(this);
+                    break;
+                }
+
+                index = this._sections.length - 1;
+            } else if (index >= this._sections.length) {
+                if (this._delegate && this._delegate.styleDetailsPanelFocusFilterBar) {
+                    this._delegate.styleDetailsPanelFocusFilterBar(this);
+                    break;
+                }
+
+                index = 0;
+            }
+
+            let section = this._sections[index];
+            if (section.editable) {
+                if (delta < 0)
+                    section._propertiesEditor.startEditingLastProperty();
+                else
+                    section.startEditingRuleSelector();
+                break;
+            }
+
+            index += delta;
+        }
+    }
+
     // Protected
+
+    layout()
+    {
+        if (!this._shouldRefreshSubviews)
+            return;
+
+        this._shouldRefreshSubviews = false;
+
+        this.removeAllSubviews();
+
+        let previousStyle = null;
+        this._headerMap.clear();
+        this._sections = [];
+
+        let createHeader = (text, node) => {
+            let header = this.element.appendChild(document.createElement("h2"));
+            header.classList.add("section-header");
+            header.append(text);
+            header.append(" ", WI.linkifyNodeReference(node, {
+                maxLength: 100,
+                excludeRevealElement: true,
+            }));
+
+            this._headerMap.set(node, header);
+        };
+
+        let createSection = (style) => {
+            let section = style[WI.SpreadsheetRulesStyleDetailsPanel.RuleSection];
+            if (!section) {
+                section = new WI.SpreadsheetCSSStyleDeclarationSection(this, style);
+                style[WI.SpreadsheetRulesStyleDetailsPanel.RuleSection] = section;
+            }
+
+            section.addEventListener(WI.SpreadsheetCSSStyleDeclarationSection.Event.FilterApplied, this._handleSectionFilterApplied, this);
+
+            if (this._newRuleSelector === style.selectorText && style.enabledProperties.length === 0)
+                section.startEditingRuleSelector();
+
+            this.addSubview(section);
+            section.needsLayout();
+            this._sections.push(section);
+
+            previousStyle = style;
+        };
+
+        for (let style of this.nodeStyles.uniqueOrderedStyles) {
+            if (style.inherited && (!previousStyle || previousStyle.node !== style.node))
+                createHeader(WI.UIString("Inherited From"), style.node);
+
+            createSection(style);
+        }
+
+        let pseudoElements = Array.from(this.nodeStyles.node.pseudoElements().values());
+        Promise.all(pseudoElements.map((pseudoElement) => WI.cssManager.stylesForNode(pseudoElement).refreshIfNeeded()))
+        .then((pseudoNodeStyles) => {
+            for (let pseudoNodeStyle of pseudoNodeStyles) {
+                createHeader(WI.UIString("Pseudo Element"), pseudoNodeStyle.node);
+
+                for (let style of pseudoNodeStyle.uniqueOrderedStyles)
+                    createSection(style);
+            }
+        });
+
+        this._newRuleSelector = null;
+
+        this.element.append(this._emptyFilterResultsElement);
+
+        if (this._filterText)
+            this.applyFilter(this._filterText);
+    }
 
     filterDidChange(filterBar)
     {

@@ -80,6 +80,9 @@ struct _WebKitSettingsPrivate {
     bool allowModalDialogs { false };
     bool zoomTextOnly { false };
     double screenDpi { 96 };
+#if PLATFORM(GTK)
+    bool enableBackForwardNavigationGestures { false };
+#endif
 };
 
 /**
@@ -127,7 +130,9 @@ enum {
     PROP_DEFAULT_MONOSPACE_FONT_SIZE,
     PROP_MINIMUM_FONT_SIZE,
     PROP_DEFAULT_CHARSET,
+#if PLATFORM(GTK)
     PROP_ENABLE_PRIVATE_BROWSING,
+#endif
     PROP_ENABLE_DEVELOPER_EXTRAS,
     PROP_ENABLE_RESIZABLE_TEXT_AREAS,
     PROP_ENABLE_TABS_TO_LINKS,
@@ -150,14 +155,18 @@ enum {
     PROP_ENABLE_ACCELERATED_2D_CANVAS,
     PROP_ENABLE_WRITE_CONSOLE_MESSAGES_TO_STDOUT,
     PROP_ENABLE_MEDIA_STREAM,
+    PROP_ENABLE_MOCK_CAPTURE_DEVICES,
     PROP_ENABLE_SPATIAL_NAVIGATION,
     PROP_ENABLE_MEDIASOURCE,
     PROP_ENABLE_ENCRYPTED_MEDIA,
+    PROP_ENABLE_MEDIA_CAPABILITIES,
     PROP_ALLOW_FILE_ACCESS_FROM_FILE_URLS,
     PROP_ALLOW_UNIVERSAL_ACCESS_FROM_FILE_URLS,
 #if PLATFORM(GTK)
     PROP_HARDWARE_ACCELERATION_POLICY,
+    PROP_ENABLE_BACK_FORWARD_NAVIGATION_GESTURES,
 #endif
+    PROP_ENABLE_JAVASCRIPT_MARKUP,
 };
 
 static void webKitSettingsDispose(GObject* object)
@@ -173,6 +182,13 @@ static void webKitSettingsConstructed(GObject* object)
     WebKitSettings* settings = WEBKIT_SETTINGS(object);
     WebPreferences* prefs = settings->priv->preferences.get();
     prefs->setShouldRespectImageOrientation(true);
+
+    if (g_getenv("WEBKIT_WEBRTC_DISABLE_UNIFIED_PLAN"))
+        prefs->setWebRTCUnifiedPlanEnabled(FALSE);
+
+    bool mediaStreamEnabled = prefs->mediaStreamEnabled();
+    prefs->setMediaDevicesEnabled(mediaStreamEnabled);
+    prefs->setPeerConnectionEnabled(mediaStreamEnabled);
 
     settings->priv->screenDpi = WebCore::screenDPI();
     WebCore::setScreenDPIObserverHandler([settings]() {
@@ -266,11 +282,13 @@ static void webKitSettingsSetProperty(GObject* object, guint propId, const GValu
     case PROP_DEFAULT_CHARSET:
         webkit_settings_set_default_charset(settings, g_value_get_string(value));
         break;
+#if PLATFORM(GTK)
     case PROP_ENABLE_PRIVATE_BROWSING:
         G_GNUC_BEGIN_IGNORE_DEPRECATIONS;
         webkit_settings_set_enable_private_browsing(settings, g_value_get_boolean(value));
         G_GNUC_END_IGNORE_DEPRECATIONS;
         break;
+#endif
     case PROP_ENABLE_DEVELOPER_EXTRAS:
         webkit_settings_set_enable_developer_extras(settings, g_value_get_boolean(value));
         break;
@@ -343,6 +361,9 @@ static void webKitSettingsSetProperty(GObject* object, guint propId, const GValu
     case PROP_ENABLE_MEDIA_STREAM:
         webkit_settings_set_enable_media_stream(settings, g_value_get_boolean(value));
         break;
+    case PROP_ENABLE_MOCK_CAPTURE_DEVICES:
+        webkit_settings_set_enable_mock_capture_devices(settings, g_value_get_boolean(value));
+        break;
     case PROP_ENABLE_SPATIAL_NAVIGATION:
         webkit_settings_set_enable_spatial_navigation(settings, g_value_get_boolean(value));
         break;
@@ -351,6 +372,9 @@ static void webKitSettingsSetProperty(GObject* object, guint propId, const GValu
         break;
     case PROP_ENABLE_ENCRYPTED_MEDIA:
         webkit_settings_set_enable_encrypted_media(settings, g_value_get_boolean(value));
+        break;
+    case PROP_ENABLE_MEDIA_CAPABILITIES:
+        webkit_settings_set_enable_media_capabilities(settings, g_value_get_boolean(value));
         break;
     case PROP_ALLOW_FILE_ACCESS_FROM_FILE_URLS:
         webkit_settings_set_allow_file_access_from_file_urls(settings, g_value_get_boolean(value));
@@ -362,7 +386,13 @@ static void webKitSettingsSetProperty(GObject* object, guint propId, const GValu
     case PROP_HARDWARE_ACCELERATION_POLICY:
         webkit_settings_set_hardware_acceleration_policy(settings, static_cast<WebKitHardwareAccelerationPolicy>(g_value_get_enum(value)));
         break;
+    case PROP_ENABLE_BACK_FORWARD_NAVIGATION_GESTURES:
+        webkit_settings_set_enable_back_forward_navigation_gestures(settings, g_value_get_boolean(value));
+        break;
 #endif
+    case PROP_ENABLE_JAVASCRIPT_MARKUP:
+        webkit_settings_set_enable_javascript_markup(settings, g_value_get_boolean(value));
+        break;
     default:
         G_OBJECT_WARN_INVALID_PROPERTY_ID(object, propId, paramSpec);
         break;
@@ -443,11 +473,13 @@ static void webKitSettingsGetProperty(GObject* object, guint propId, GValue* val
     case PROP_DEFAULT_CHARSET:
         g_value_set_string(value, webkit_settings_get_default_charset(settings));
         break;
+#if PLATFORM(GTK)
     case PROP_ENABLE_PRIVATE_BROWSING:
         G_GNUC_BEGIN_IGNORE_DEPRECATIONS;
         g_value_set_boolean(value, webkit_settings_get_enable_private_browsing(settings));
         G_GNUC_END_IGNORE_DEPRECATIONS;
         break;
+#endif
     case PROP_ENABLE_DEVELOPER_EXTRAS:
         g_value_set_boolean(value, webkit_settings_get_enable_developer_extras(settings));
         break;
@@ -514,6 +546,9 @@ static void webKitSettingsGetProperty(GObject* object, guint propId, GValue* val
     case PROP_ENABLE_MEDIA_STREAM:
         g_value_set_boolean(value, webkit_settings_get_enable_media_stream(settings));
         break;
+    case PROP_ENABLE_MOCK_CAPTURE_DEVICES:
+        g_value_set_boolean(value, webkit_settings_get_enable_mock_capture_devices(settings));
+        break;
     case PROP_ENABLE_SPATIAL_NAVIGATION:
         g_value_set_boolean(value, webkit_settings_get_enable_spatial_navigation(settings));
         break;
@@ -522,6 +557,9 @@ static void webKitSettingsGetProperty(GObject* object, guint propId, GValue* val
         break;
     case PROP_ENABLE_ENCRYPTED_MEDIA:
         g_value_set_boolean(value, webkit_settings_get_enable_encrypted_media(settings));
+        break;
+    case PROP_ENABLE_MEDIA_CAPABILITIES:
+        g_value_set_boolean(value, webkit_settings_get_enable_media_capabilities(settings));
         break;
     case PROP_ALLOW_FILE_ACCESS_FROM_FILE_URLS:
         g_value_set_boolean(value, webkit_settings_get_allow_file_access_from_file_urls(settings));
@@ -533,7 +571,13 @@ static void webKitSettingsGetProperty(GObject* object, guint propId, GValue* val
     case PROP_HARDWARE_ACCELERATION_POLICY:
         g_value_set_enum(value, webkit_settings_get_hardware_acceleration_policy(settings));
         break;
+    case PROP_ENABLE_BACK_FORWARD_NAVIGATION_GESTURES:
+        g_value_set_boolean(value, webkit_settings_get_enable_back_forward_navigation_gestures(settings));
+        break;
 #endif
+    case PROP_ENABLE_JAVASCRIPT_MARKUP:
+        g_value_set_boolean(value, webkit_settings_get_enable_javascript_markup(settings));
+        break;
     default:
         G_OBJECT_WARN_INVALID_PROPERTY_ID(object, propId, paramSpec);
         break;
@@ -879,6 +923,7 @@ static void webkit_settings_class_init(WebKitSettingsClass* klass)
                                                         "iso-8859-1",
                                                         readWriteConstructParamFlags));
 
+#if PLATFORM(GTK)
     /**
      * WebKitSettings:enable-private-browsing:
      *
@@ -894,6 +939,7 @@ static void webkit_settings_class_init(WebKitSettingsClass* klass)
                                                          _("Whether to enable private browsing"),
                                                          FALSE,
                                                          readWriteConstructParamFlags));
+#endif
 
     /**
      * WebKitSettings:enable-developer-extras:
@@ -1201,7 +1247,7 @@ static void webkit_settings_class_init(WebKitSettingsClass* klass)
      * WebKitSettings:enable-accelerated-2d-canvas:
      *
      * Enable or disable accelerated 2D canvas. Accelerated 2D canvas is only available
-     * if WebKitGTK+ was compiled with a version of Cairo including the unstable CairoGL API.
+     * if WebKit was compiled with a version of Cairo including the unstable CairoGL API.
      * When accelerated 2D canvas is enabled, WebKit may render some 2D canvas content
      * using hardware accelerated drawing operations.
      *
@@ -1250,6 +1296,23 @@ static void webkit_settings_class_init(WebKitSettingsClass* klass)
             FALSE,
             readWriteConstructParamFlags));
 
+    /**
+     * WebKitSettings:enable-mock-capture-devices:
+     *
+     * Enable or disable the Mock Capture Devices. Those are fake
+     * Microphone and Camera devices to be used as MediaStream
+     * sources.
+     *
+     * Since: 2.24
+     */
+    g_object_class_install_property(gObjectClass,
+        PROP_ENABLE_MOCK_CAPTURE_DEVICES,
+        g_param_spec_boolean("enable-mock-capture-devices",
+            _("Enable mock capture devices"),
+            _("Whether we expose mock capture devices or not"),
+            FALSE,
+            readWriteConstructParamFlags));
+
    /**
      * WebKitSettings:enable-spatial-navigation:
      *
@@ -1273,10 +1336,9 @@ static void webkit_settings_class_init(WebKitSettingsClass* klass)
     /**
      * WebKitSettings:enable-mediasource:
      *
-     * Enable or disable support for MediaSource on pages. MediaSource is an
-     * experimental proposal which extends HTMLMediaElement to allow
-     * JavaScript to generate media streams for playback.  The standard is
-     * currently a work-in-progress by the W3C HTML Media Task Force.
+     * Enable or disable support for MediaSource on pages. MediaSource
+     * extends HTMLMediaElement to allow JavaScript to generate media
+     * streams for playback.
      *
      * See also http://www.w3.org/TR/media-source/
      *
@@ -1287,7 +1349,7 @@ static void webkit_settings_class_init(WebKitSettingsClass* klass)
         g_param_spec_boolean("enable-mediasource",
             _("Enable MediaSource"),
             _("Whether MediaSource should be enabled."),
-            FALSE,
+            TRUE,
             readWriteConstructParamFlags));
 
 
@@ -1308,6 +1370,28 @@ static void webkit_settings_class_init(WebKitSettingsClass* klass)
         g_param_spec_boolean("enable-encrypted-media",
             _("Enable EncryptedMedia"),
             _("Whether EncryptedMedia should be enabled."),
+            FALSE,
+            readWriteConstructParamFlags));
+
+    /**
+     * WebKitSettings:enable-media-capabilities:
+     *
+     * Enable or disable support for MediaCapabilities on pages. This
+     * specification intends to provide APIs to allow websites to make an optimal
+     * decision when picking media content for the user. The APIs will expose
+     * information about the decoding and encoding capabilities for a given format
+     * but also output capabilities to find the best match based on the device’s
+     * display.
+     *
+     * See also https://wicg.github.io/media-capabilities/
+     *
+     * Since: 2.22
+     */
+    g_object_class_install_property(gObjectClass,
+        PROP_ENABLE_MEDIA_CAPABILITIES,
+        g_param_spec_boolean("enable-media-capabilities",
+            _("Enable MediaCapabilities"),
+            _("Whether MediaCapabilities should be enabled."),
             FALSE,
             readWriteConstructParamFlags));
 
@@ -1376,7 +1460,39 @@ static void webkit_settings_class_init(WebKitSettingsClass* klass)
             WEBKIT_TYPE_HARDWARE_ACCELERATION_POLICY,
             WEBKIT_HARDWARE_ACCELERATION_POLICY_ON_DEMAND,
             readWriteConstructParamFlags));
+
+    /**
+     * WebKitSettings:enable-back-forward-navigation-gestures:
+     *
+     * Enable or disable horizontal swipe gesture for back-forward navigation.
+     *
+     * Since: 2.24
+     */
+    g_object_class_install_property(gObjectClass,
+        PROP_ENABLE_BACK_FORWARD_NAVIGATION_GESTURES,
+        g_param_spec_boolean("enable-back-forward-navigation-gestures",
+            _("Enable back-forward navigation gestures"),
+            _("Whether horizontal swipe gesture will trigger back-forward navigation"),
+            FALSE,
+            readWriteConstructParamFlags));
 #endif // PLATFOTM(GTK)
+
+    /**
+     * WebKitSettings:enable-javascript-markup:
+     *
+     * Determines whether or not JavaScript markup is allowed in document. When this setting is disabled,
+     * all JavaScript-related elements and attributes are removed from the document during parsing. Note that
+     * executing JavaScript is still allowed if #WebKitSettings:enable-javascript is %TRUE.
+     *
+     * Since: 2.24
+     */
+    g_object_class_install_property(gObjectClass,
+        PROP_ENABLE_JAVASCRIPT_MARKUP,
+        g_param_spec_boolean("enable-javascript-markup",
+            _("Enable JavaScript Markup"),
+            _("Enable JavaScript in document markup."),
+            TRUE,
+            readWriteConstructParamFlags));
 }
 
 WebPreferences* webkitSettingsGetPreferences(WebKitSettings* settings)
@@ -1676,8 +1792,7 @@ gboolean webkit_settings_get_enable_frame_flattening(WebKitSettings* settings)
 {
     g_return_val_if_fail(WEBKIT_IS_SETTINGS(settings), FALSE);
 
-    // FIXME: Expose more frame flattening values.
-    return settings->priv->preferences->frameFlattening() != static_cast<uint32_t>(WebCore::FrameFlattening::Disabled);
+    return settings->priv->preferences->frameFlatteningEnabled();
 }
 
 /**
@@ -1692,12 +1807,10 @@ void webkit_settings_set_enable_frame_flattening(WebKitSettings* settings, gbool
     g_return_if_fail(WEBKIT_IS_SETTINGS(settings));
 
     WebKitSettingsPrivate* priv = settings->priv;
-    bool currentValue = priv->preferences->frameFlattening() != static_cast<uint32_t>(WebCore::FrameFlattening::Disabled);
-    if (currentValue == enabled)
+    if (priv->preferences->frameFlatteningEnabled() == enabled)
         return;
 
-    // FIXME: Expose more frame flattening values.
-    priv->preferences->setFrameFlattening(enabled ? static_cast<uint32_t>(WebCore::FrameFlattening::FullyEnabled) : static_cast<uint32_t>(WebCore::FrameFlattening::Disabled));
+    priv->preferences->setFrameFlatteningEnabled(enabled);
     g_object_notify(G_OBJECT(settings), "enable-frame-flattening");
 }
 
@@ -2242,6 +2355,7 @@ void webkit_settings_set_default_charset(WebKitSettings* settings, const gchar* 
     g_object_notify(G_OBJECT(settings), "default-charset");
 }
 
+#if PLATFORM(GTK)
 /**
  * webkit_settings_get_enable_private_browsing:
  * @settings: a #WebKitSettings
@@ -2280,6 +2394,7 @@ void webkit_settings_set_enable_private_browsing(WebKitSettings* settings, gbool
     priv->preferences->setPrivateBrowsingEnabled(enabled);
     g_object_notify(G_OBJECT(settings), "enable-private-browsing");
 }
+#endif
 
 /**
  * webkit_settings_get_enable_developer_extras:
@@ -3089,6 +3204,45 @@ void webkit_settings_set_enable_media_stream(WebKitSettings* settings, gboolean 
 }
 
 /**
+ * webkit_settings_get_enable_mock_capture_devices:
+ * @settings: a #WebKitSettings
+ *
+ * Get the #WebKitSettings:enable-mock-capture-devices property.
+ *
+ * Returns: %TRUE If mock capture devices is enabled or %FALSE otherwise.
+ *
+ * Since: 2.24
+ */
+gboolean webkit_settings_get_enable_mock_capture_devices(WebKitSettings* settings)
+{
+    g_return_val_if_fail(WEBKIT_IS_SETTINGS(settings), FALSE);
+
+    return settings->priv->preferences->mockCaptureDevicesEnabled();
+}
+
+/**
+ * webkit_settings_set_enable_mock_capture_devices:
+ * @settings: a #WebKitSettings
+ * @enabled: Value to be set
+ *
+ * Set the #WebKitSettings:enable-mock-capture-devices property.
+ *
+ * Since: 2.4
+ */
+void webkit_settings_set_enable_mock_capture_devices(WebKitSettings* settings, gboolean enabled)
+{
+    g_return_if_fail(WEBKIT_IS_SETTINGS(settings));
+
+    WebKitSettingsPrivate* priv = settings->priv;
+    bool currentValue = priv->preferences->mockCaptureDevicesEnabled();
+    if (currentValue == enabled)
+        return;
+
+    priv->preferences->setMockCaptureDevicesEnabled(enabled);
+    g_object_notify(G_OBJECT(settings), "enable-mock-capture-devices");
+}
+
+/**
  * webkit_settings_set_enable_spatial_navigation:
  * @settings: a #WebKitSettings
  * @enabled: Value to be set
@@ -3207,6 +3361,47 @@ void webkit_settings_set_enable_encrypted_media(WebKitSettings* settings, gboole
     priv->preferences->setEncryptedMediaAPIEnabled(enabled);
     g_object_notify(G_OBJECT(settings), "enable-encrypted-media");
 }
+
+/**
+ * webkit_settings_get_enable_media_capabilities:
+ * @settings: a #WebKitSettings
+ *
+ * Get the #WebKitSettings:enable-media-capabilities property.
+ *
+ * Returns: %TRUE if MediaCapabilities support is enabled or %FALSE otherwise.
+ *
+ * Since: 2.22
+ */
+gboolean webkit_settings_get_enable_media_capabilities(WebKitSettings* settings)
+{
+    g_return_val_if_fail(WEBKIT_IS_SETTINGS(settings), FALSE);
+
+    return settings->priv->preferences->mediaCapabilitiesEnabled();
+}
+
+
+/**
+ * webkit_settings_set_enable_media_capabilities:
+ * @settings: a #WebKitSettings
+ * @enabled: Value to be set
+ *
+ * Set the #WebKitSettings:enable-media-capabilities property.
+ *
+ * Since: 2.22
+ */
+void webkit_settings_set_enable_media_capabilities(WebKitSettings* settings, gboolean enabled)
+{
+    g_return_if_fail(WEBKIT_IS_SETTINGS(settings));
+
+    WebKitSettingsPrivate* priv = settings->priv;
+    bool currentValue = priv->preferences->mediaCapabilitiesEnabled();
+    if (currentValue == enabled)
+        return;
+
+    priv->preferences->setMediaCapabilitiesEnabled(enabled);
+    g_object_notify(G_OBJECT(settings), "enable-media-capabilities");
+}
+
 /**
  * webkit_settings_get_allow_file_access_from_file_urls:
  * @settings: a #WebKitSettings
@@ -3367,6 +3562,44 @@ void webkit_settings_set_hardware_acceleration_policy(WebKitSettings* settings, 
 }
 
 /**
+ * webkit_settings_get_enable_back_forward_navigation_gestures:
+ * @settings: a #WebKitSettings
+ *
+ * Get the #WebKitSettings:enable-back-forward-navigation-gestures property.
+ *
+ * Returns: %TRUE if horizontal swipe gesture will trigger back-forward navigaiton or %FALSE otherwise.
+ *
+ * Since: 2.24
+ */
+gboolean webkit_settings_get_enable_back_forward_navigation_gestures(WebKitSettings* settings)
+{
+    g_return_val_if_fail(WEBKIT_IS_SETTINGS(settings), FALSE);
+
+    return settings->priv->enableBackForwardNavigationGestures;
+}
+
+/**
+ * webkit_settings_set_enable_back_forward_navigation_gestures:
+ * @settings: a #WebKitSettings
+ * @enabled: value to be set
+ *
+ * Set the #WebKitSettings:enable-back-forward-navigation-gestures property.
+ *
+ * Since: 2.24
+ */
+void webkit_settings_set_enable_back_forward_navigation_gestures(WebKitSettings* settings, gboolean enabled)
+{
+    g_return_if_fail(WEBKIT_IS_SETTINGS(settings));
+
+    WebKitSettingsPrivate* priv = settings->priv;
+    if (priv->enableBackForwardNavigationGestures == enabled)
+        return;
+
+    priv->enableBackForwardNavigationGestures = enabled;
+    g_object_notify(G_OBJECT(settings), "enable-back-forward-navigation-gestures");
+}
+
+/**
  * webkit_settings_font_size_to_points:
  * @pixels: the font size in pixels to convert to points
  *
@@ -3402,3 +3635,42 @@ guint32 webkit_settings_font_size_to_pixels(guint32 points)
     return std::round(points * WebCore::screenDPI() / 72);
 }
 #endif // PLATFORM(GTK)
+
+/**
+ * webkit_settings_get_enable_javascript_markup:
+ * @settings: a #WebKitSettings
+ *
+ * Get the #WebKitSettings:enable-javascript-markup property.
+ *
+ * Returns: %TRUE if JavaScript markup is enabled or %FALSE otherwise.
+ *
+ * Since: 2.24
+ */
+gboolean webkit_settings_get_enable_javascript_markup(WebKitSettings* settings)
+{
+    g_return_val_if_fail(WEBKIT_IS_SETTINGS(settings), FALSE);
+
+    return settings->priv->preferences->javaScriptMarkupEnabled();
+}
+
+/**
+ * webkit_settings_set_enable_javascript_markup:
+ * @settings: a #WebKitSettings
+ * @enabled: Value to be set
+ *
+ * Set the #WebKitSettings:enable-javascript-markup property.
+ *
+ * Since: 2.24
+ */
+void webkit_settings_set_enable_javascript_markup(WebKitSettings* settings, gboolean enabled)
+{
+    g_return_if_fail(WEBKIT_IS_SETTINGS(settings));
+
+    WebKitSettingsPrivate* priv = settings->priv;
+    bool currentValue = priv->preferences->javaScriptMarkupEnabled();
+    if (currentValue == enabled)
+        return;
+
+    priv->preferences->setJavaScriptMarkupEnabled(enabled);
+    g_object_notify(G_OBJECT(settings), "enable-javascript-markup");
+}

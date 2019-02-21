@@ -3,11 +3,13 @@ idlharness test
 This test validates the WebIDL included in the Encoding Living Standard.
 
 
+PASS Test driver 
 PASS TextDecoder interface: existence and properties of interface object 
 PASS TextDecoder interface object length 
 PASS TextDecoder interface object name 
 PASS TextDecoder interface: existence and properties of interface prototype object 
 PASS TextDecoder interface: existence and properties of interface prototype object's "constructor" property 
+PASS TextDecoder interface: existence and properties of interface prototype object's @@unscopables property 
 PASS TextDecoder interface: attribute encoding 
 PASS TextDecoder interface: attribute fatal 
 PASS TextDecoder interface: attribute ignoreBOM 
@@ -24,6 +26,7 @@ PASS TextEncoder interface object length
 PASS TextEncoder interface object name 
 PASS TextEncoder interface: existence and properties of interface prototype object 
 PASS TextEncoder interface: existence and properties of interface prototype object's "constructor" property 
+PASS TextEncoder interface: existence and properties of interface prototype object's @@unscopables property 
 PASS TextEncoder interface: attribute encoding 
 PASS TextEncoder interface: operation encode(USVString) 
 PASS TextEncoder must be primary interface of new TextEncoder() 

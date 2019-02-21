@@ -55,18 +55,26 @@ private:
 
 #if PLATFORM(MAC)
     void collectGeometryForMagnificationGesture();
-    void setRenderTreeSizeNotificationThreshold(uint64_t size) { m_renderTreeSizeNotificationThreshold = size; }
-
-    void renderTreeSizeNotificationTimerFired();
+#endif
+#if !PLATFORM(IOS_FAMILY)
+    void setRenderTreeSizeNotificationThreshold(uint64_t);
+    void sendDidHitRenderTreeSizeThresholdIfNeeded();
 #endif
 
-    void dispatchDidCollectGeometryForSmartMagnificationGesture(WebCore::FloatPoint origin, WebCore::FloatRect targetRect, WebCore::FloatRect visibleContentRect, bool isReplacedElement, double viewportMinimumScale, double viewportMaximumScale);
+    void dispatchDidCollectGeometryForSmartMagnificationGesture(WebCore::FloatPoint origin, WebCore::FloatRect targetRect, WebCore::FloatRect visibleContentRect, bool fitEntireRect, double viewportMinimumScale, double viewportMaximumScale);
     void computeZoomInformationForNode(WebCore::Node&, WebCore::FloatPoint& origin, WebCore::FloatRect& renderRect, bool& isReplaced, double& viewportMinimumScale, double& viewportMaximumScale);
+    void computeMinimumAndMaximumViewportScales(double& viewportMinimumScale, double& viewportMaximumScale) const;
+
+#if PLATFORM(IOS_FAMILY)
+    Optional<std::pair<double, double>> computeTextLegibilityScales(double& viewportMinimumScale, double& viewportMaximumScale);
+#endif
 
     WebPage& m_webPage;
 
-#if PLATFORM(MAC)
+#if !PLATFORM(IOS_FAMILY)
     uint64_t m_renderTreeSizeNotificationThreshold;
+#else
+    Optional<std::pair<double, double>> m_cachedTextLegibilityScales;
 #endif
 };
 

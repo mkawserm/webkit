@@ -35,10 +35,10 @@
 #include "Document.h"
 #include "FontCascade.h"
 #include "FontGenericFamilies.h"
+#include "Frame.h"
 #include "FrameTree.h"
 #include "FrameView.h"
 #include "HistoryItem.h"
-#include "MainFrame.h"
 #include "Page.h"
 #include "PageCache.h"
 #include "RenderWidget.h"
@@ -47,6 +47,10 @@
 #include "StorageMap.h"
 #include <limits>
 #include <wtf/StdLibExtras.h>
+
+#if ENABLE(MEDIA_STREAM)
+#include "MockRealtimeMediaSourceCenter.h"
+#endif
 
 namespace WebCore {
 
@@ -80,50 +84,23 @@ SettingsBase::~SettingsBase() = default;
 
 float SettingsBase::defaultMinimumZoomFontSize()
 {
-#if ENABLE(EXTRA_ZOOM_MODE)
+#if PLATFORM(WATCHOS)
     return 30;
 #else
     return 15;
 #endif
 }
 
-#if !PLATFORM(IOS)
+#if !PLATFORM(IOS_FAMILY)
 bool SettingsBase::defaultTextAutosizingEnabled()
 {
     return false;
 }
 #endif
 
-float SettingsBase::defaultOneLineTextMultiplierCoefficient()
-{
-#if ENABLE(EXTRA_ZOOM_MODE)
-    return 2.23125f;
-#else
-    return 1.7f;
-#endif
-}
-
-float SettingsBase::defaultMultiLineTextMultiplierCoefficient()
-{
-#if ENABLE(EXTRA_ZOOM_MODE)
-    return 2.48125f;
-#else
-    return 1.95f;
-#endif
-}
-
-float SettingsBase::defaultMaxTextAutosizingScaleIncrease()
-{
-#if ENABLE(EXTRA_ZOOM_MODE)
-    return 5.0f;
-#else
-    return 1.7f;
-#endif
-}
-
 bool SettingsBase::defaultDownloadableBinaryFontsEnabled()
 {
-#if ENABLE(EXTRA_ZOOM_MODE)
+#if PLATFORM(WATCHOS)
     return false;
 #else
     return true;
@@ -141,6 +118,13 @@ const String& SettingsBase::defaultMediaContentTypesRequiringHardwareSupport()
 void SettingsBase::initializeDefaultFontFamilies()
 {
     // Other platforms can set up fonts from a client, but on Mac, we want it in WebCore to share code between WebKit1 and WebKit2.
+}
+#endif
+
+#if ENABLE(MEDIA_SOURCE) && !PLATFORM(COCOA)
+bool SettingsBase::platformDefaultMediaSourceEnabled()
+{
+    return true;
 }
 #endif
 
@@ -319,19 +303,49 @@ void SettingsBase::imageLoadingSettingsTimerFired()
     }
 }
 
-void SettingsBase::scriptEnabledChanged()
-{
-#if PLATFORM(IOS)
-    // FIXME: Why do we only do this on iOS?
-    if (m_page)
-        m_page->setNeedsRecalcStyleInAllFrames();
-#endif
-}
-
 void SettingsBase::pluginsEnabledChanged()
 {
     Page::refreshPlugins(false);
 }
+
+void SettingsBase::iceCandidateFilteringEnabledChanged()
+{
+    if (!m_page)
+        return;
+
+    if (m_page->settings().iceCandidateFilteringEnabled())
+        m_page->enableICECandidateFiltering();
+    else
+        m_page->disableICECandidateFiltering();
+}
+
+#if ENABLE(TEXT_AUTOSIZING)
+
+void SettingsBase::shouldEnableTextAutosizingBoostChanged()
+{
+    if (!m_page)
+        return;
+
+    bool boostAutosizing = m_page->settings().shouldEnableTextAutosizingBoost();
+    m_oneLineTextMultiplierCoefficient = boostAutosizing ? boostedOneLineTextMultiplierCoefficient : defaultOneLineTextMultiplierCoefficient;
+    m_multiLineTextMultiplierCoefficient = boostAutosizing ? boostedMultiLineTextMultiplierCoefficient : defaultMultiLineTextMultiplierCoefficient;
+    m_maxTextAutosizingScaleIncrease = boostAutosizing ? boostedMaxTextAutosizingScaleIncrease : defaultMaxTextAutosizingScaleIncrease;
+
+    setNeedsRecalcStyleInAllFrames();
+}
+
+#endif
+
+#if ENABLE(MEDIA_STREAM)
+void SettingsBase::mockCaptureDevicesEnabledChanged()
+{
+    bool enabled = false;
+    if (m_page)
+        enabled = m_page->settings().mockCaptureDevicesEnabled();
+
+    MockRealtimeMediaSourceCenter::setMockRealtimeMediaSourceCenterEnabled(enabled);
+}
+#endif
 
 void SettingsBase::userStyleSheetLocationChanged()
 {

@@ -10,8 +10,8 @@
 
 #include "rtc_base/testclient.h"
 
+#include "absl/memory/memory.h"
 #include "rtc_base/gunit.h"
-#include "rtc_base/ptr_util.h"
 #include "rtc_base/thread.h"
 #include "rtc_base/timeutils.h"
 
@@ -49,7 +49,8 @@ int TestClient::Send(const char* buf, size_t size) {
   return socket_->Send(buf, size, options);
 }
 
-int TestClient::SendTo(const char* buf, size_t size,
+int TestClient::SendTo(const char* buf,
+                       size_t size,
                        const SocketAddress& dest) {
   rtc::PacketOptions options;
   return socket_->SendTo(buf, size, dest, options);
@@ -89,13 +90,14 @@ std::unique_ptr<TestClient::Packet> TestClient::NextPacket(int timeout_ms) {
   return packet;
 }
 
-bool TestClient::CheckNextPacket(const char* buf, size_t size,
+bool TestClient::CheckNextPacket(const char* buf,
+                                 size_t size,
                                  SocketAddress* addr) {
   bool res = false;
   std::unique_ptr<Packet> packet = NextPacket(kTimeoutMs);
   if (packet) {
     res = (packet->size == size && memcmp(packet->buf, buf, size) == 0 &&
-           CheckTimestamp(packet->packet_time.timestamp));
+           CheckTimestamp(packet->packet_time_us));
     if (addr)
       *addr = packet->addr;
   }
@@ -138,11 +140,14 @@ int TestClient::SetOption(Socket::Option opt, int value) {
   return socket_->SetOption(opt, value);
 }
 
-void TestClient::OnPacket(AsyncPacketSocket* socket, const char* buf,
-                          size_t size, const SocketAddress& remote_addr,
-                          const PacketTime& packet_time) {
+void TestClient::OnPacket(AsyncPacketSocket* socket,
+                          const char* buf,
+                          size_t size,
+                          const SocketAddress& remote_addr,
+                          const int64_t& packet_time_us) {
   CritScope cs(&crit_);
-  packets_.push_back(MakeUnique<Packet>(remote_addr, buf, size, packet_time));
+  packets_.push_back(
+      absl::make_unique<Packet>(remote_addr, buf, size, packet_time_us));
 }
 
 void TestClient::OnReadyToSend(AsyncPacketSocket* socket) {
@@ -152,14 +157,14 @@ void TestClient::OnReadyToSend(AsyncPacketSocket* socket) {
 TestClient::Packet::Packet(const SocketAddress& a,
                            const char* b,
                            size_t s,
-                           const PacketTime& packet_time)
-    : addr(a), buf(0), size(s), packet_time(packet_time) {
+                           int64_t packet_time_us)
+    : addr(a), buf(0), size(s), packet_time_us(packet_time_us) {
   buf = new char[size];
   memcpy(buf, b, size);
 }
 
 TestClient::Packet::Packet(const Packet& p)
-    : addr(p.addr), buf(0), size(p.size), packet_time(p.packet_time) {
+    : addr(p.addr), buf(0), size(p.size), packet_time_us(p.packet_time_us) {
   buf = new char[size];
   memcpy(buf, p.buf, size);
 }

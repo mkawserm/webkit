@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005, 2008, 2009 Apple Inc. All rights reserved.
+ * Copyright (C) 2005-2018 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -38,7 +38,7 @@
 #import <WebCore/PageGroup.h>
 #import <pal/spi/cocoa/NSCalendarDateSPI.h>
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
 #import <WebCore/WebCoreThreadMessage.h>
 #endif
 
@@ -321,7 +321,7 @@ static inline WebHistoryDateKey dateKey(NSTimeInterval date)
 
     NSString *URLString = [entry URLString];
 
-#if !PLATFORM(IOS)
+#if !PLATFORM(IOS_FAMILY)
     WebHistoryItem *oldEntry = [_entriesByURL objectForKey:URLString];
     if (oldEntry) {
         if (discardDuplicate)
@@ -446,8 +446,7 @@ static inline WebHistoryDateKey dateKey(NSTimeInterval date)
 
 // MARK: DATE-BASED RETRIEVAL
 
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+ALLOW_DEPRECATED_DECLARATIONS_BEGIN
 
 - (NSArray *)orderedLastVisitedDays
 {
@@ -479,7 +478,7 @@ static inline WebHistoryDateKey dateKey(NSTimeInterval date)
     return _entriesByDate->get(dateKey).get();
 }
 
-#pragma clang diagnostic pop
+ALLOW_DEPRECATED_DECLARATIONS_END
 
 // MARK: URL MATCHING
 
@@ -531,8 +530,7 @@ static inline WebHistoryDateKey dateKey(NSTimeInterval date)
     return [[NSUserDefaults standardUserDefaults] integerForKey:@"WebKitHistoryItemLimit"];
 }
 
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+ALLOW_DEPRECATED_DECLARATIONS_BEGIN
 
 // Return a date that marks the age limit for history entries saved to or
 // loaded from disk. Any entry older than this item should be rejected.
@@ -542,7 +540,7 @@ static inline WebHistoryDateKey dateKey(NSTimeInterval date)
                                                       hours:0 minutes:0 seconds:0];
 }
 
-#pragma clang diagnostic pop
+ALLOW_DEPRECATED_DECLARATIONS_END
 
 - (BOOL)loadHistoryGutsFromURL:(NSURL *)URL savedItemsCount:(int *)numberOfItemsLoaded collectDiscardedItemsInto:(NSMutableArray *)discardedItems error:(NSError **)error
 {
@@ -561,10 +559,9 @@ static inline WebHistoryDateKey dateKey(NSTimeInterval date)
             return NO;
         }
     } else {
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+        ALLOW_DEPRECATED_DECLARATIONS_BEGIN
         NSData *data = [NSURLConnection sendSynchronousRequest:[NSURLRequest requestWithURL:URL] returningResponse:nil error:error];
-#pragma clang diagnostic pop
+        ALLOW_DEPRECATED_DECLARATIONS_END
         if (data.length)
             dictionary = [NSPropertyListSerialization propertyListWithData:data options:NSPropertyListImmutable format:nullptr error:nullptr];
     }
@@ -591,41 +588,34 @@ static inline WebHistoryDateKey dateKey(NSTimeInterval date)
 
     int itemCountLimit = [self historyItemLimit];
     NSTimeInterval ageLimitDate = [[self ageLimitDate] timeIntervalSinceReferenceDate];
-    NSEnumerator *enumerator = [array objectEnumerator];
     BOOL ageLimitPassed = NO;
     BOOL itemLimitPassed = NO;
     ASSERT(*numberOfItemsLoaded == 0);
 
-    NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
-    NSDictionary *itemAsDictionary;
-    while ((itemAsDictionary = [enumerator nextObject]) != nil) {
-        WebHistoryItem *item = [[WebHistoryItem alloc] initFromDictionaryRepresentation:itemAsDictionary];
+    for (NSDictionary *itemAsDictionary in array) {
+        @autoreleasepool {
+            WebHistoryItem *item = [[WebHistoryItem alloc] initFromDictionaryRepresentation:itemAsDictionary];
 
-        // item without URL is useless; data on disk must have been bad; ignore
-        if ([item URLString]) {
-            // Test against date limit. Since the items are ordered newest to oldest, we can stop comparing
-            // once we've found the first item that's too old.
-            if (!ageLimitPassed && [item lastVisitedTimeInterval] <= ageLimitDate)
-                ageLimitPassed = YES;
+            // item without URL is useless; data on disk must have been bad; ignore
+            if ([item URLString]) {
+                // Test against date limit. Since the items are ordered newest to oldest, we can stop comparing
+                // once we've found the first item that's too old.
+                if (!ageLimitPassed && [item lastVisitedTimeInterval] <= ageLimitDate)
+                    ageLimitPassed = YES;
 
-            if (ageLimitPassed || itemLimitPassed)
-                [discardedItems addObject:item];
-            else {
-                if ([self addItem:item discardDuplicate:YES])
-                    ++(*numberOfItemsLoaded);
-                if (*numberOfItemsLoaded == itemCountLimit)
-                    itemLimitPassed = YES;
-
-                // Draining the autorelease pool every 50 iterations was found by experimentation to be optimal
-                if (*numberOfItemsLoaded % 50 == 0) {
-                    [pool drain];
-                    pool = [[NSAutoreleasePool alloc] init];
+                if (ageLimitPassed || itemLimitPassed)
+                    [discardedItems addObject:item];
+                else {
+                    if ([self addItem:item discardDuplicate:YES])
+                        ++(*numberOfItemsLoaded);
+                    if (*numberOfItemsLoaded == itemCountLimit)
+                        itemLimitPassed = YES;
                 }
             }
+
+            [item release];
         }
-        [item release];
     }
-    [pool drain];
 
     return YES;
 }
@@ -651,10 +641,10 @@ static inline WebHistoryDateKey dateKey(NSTimeInterval date)
 - (NSData *)data
 {
     if (_entriesByDate->isEmpty()) {
-        static NSData *emptyHistoryData = (NSData *)CFDataCreate(0, 0, 0);
+        static NSData *emptyHistoryData = [[NSData alloc] init];
         return emptyHistoryData;
     }
-    
+
     // Ignores the date and item count limits; these are respected when loading instead of when saving, so
     // that clients can learn of discarded items by listening to WebHistoryItemsDiscardedWhileLoadingNotification.
     WebHistoryWriter writer(_entriesByDate.get());
@@ -738,7 +728,7 @@ static inline WebHistoryDateKey dateKey(NSTimeInterval date)
 - (void)_sendNotification:(NSString *)name entries:(NSArray *)entries
 {
     NSDictionary *userInfo = [NSDictionary dictionaryWithObjectsAndKeys:entries, WebHistoryItemsKey, nil];
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
     WebThreadPostNotification(name, self, userInfo);
 #else    
     [[NSNotificationCenter defaultCenter]
@@ -775,15 +765,14 @@ static inline WebHistoryDateKey dateKey(NSTimeInterval date)
     return [_historyPrivate orderedLastVisitedDays];
 }
 
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+ALLOW_DEPRECATED_DECLARATIONS_BEGIN
 
 - (NSArray *)orderedItemsLastVisitedOnDay:(NSCalendarDate *)date
 {
     return [_historyPrivate orderedItemsLastVisitedOnDay:date];
 }
 
-#pragma clang diagnostic pop
+ALLOW_DEPRECATED_DECLARATIONS_END
 
 // MARK: URL MATCHING
 
@@ -807,7 +796,7 @@ static inline WebHistoryDateKey dateKey(NSTimeInterval date)
         return NO;
     }
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
     WebThreadPostNotification(WebHistoryLoadedNotification, self, nil);
 #else        
     [[NSNotificationCenter defaultCenter]
@@ -826,7 +815,7 @@ static inline WebHistoryDateKey dateKey(NSTimeInterval date)
 {
     if (![_historyPrivate saveToURL:URL error:error])
         return NO;
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
     WebThreadPostNotification(WebHistorySavedNotification, self, nil);
 #else        
     [[NSNotificationCenter defaultCenter]

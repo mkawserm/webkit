@@ -10,13 +10,14 @@
 
 #include "rtc_base/bufferqueue.h"
 
+#include <stdint.h>
+#include <string.h>
 #include <algorithm>
 
 namespace rtc {
 
 BufferQueue::BufferQueue(size_t capacity, size_t default_size)
-    : capacity_(capacity), default_size_(default_size) {
-}
+    : capacity_(capacity), default_size_(default_size) {}
 
 BufferQueue::~BufferQueue() {
   CritScope cs(&crit_);
@@ -64,7 +65,8 @@ bool BufferQueue::ReadFront(void* buffer, size_t bytes, size_t* bytes_read) {
   return true;
 }
 
-bool BufferQueue::WriteBack(const void* buffer, size_t bytes,
+bool BufferQueue::WriteBack(const void* buffer,
+                            size_t bytes,
                             size_t* bytes_written) {
   CritScope cs(&crit_);
   if (queue_.size() == capacity_) {

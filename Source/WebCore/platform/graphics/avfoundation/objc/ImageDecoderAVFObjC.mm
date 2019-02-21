@@ -47,12 +47,11 @@
 #import <AVFoundation/AVAssetTrack.h>
 #import <AVFoundation/AVTime.h>
 #import <VideoToolbox/VTUtilities.h>
-#import <map>
 #import <pal/avfoundation/MediaTimeAVFoundation.h>
 #import <wtf/MainThread.h>
 #import <wtf/MediaTime.h>
 #import <wtf/NeverDestroyed.h>
-#import <wtf/OSObjectPtr.h>
+#import <wtf/Optional.h>
 #import <wtf/SoftLinking.h>
 #import <wtf/Vector.h>
 
@@ -65,10 +64,10 @@
 SOFT_LINK_FRAMEWORK_OPTIONAL(AVFoundation)
 SOFT_LINK_CLASS_OPTIONAL(AVFoundation, AVURLAsset)
 SOFT_LINK_CLASS_OPTIONAL(AVFoundation, AVAssetReader)
-SOFT_LINK_CLASS_OPTIONAL(AVFoundation, AVAssetReaderTrackOutput)
-SOFT_LINK_POINTER_OPTIONAL(AVFoundation, AVMediaCharacteristicVisual, NSString *)
-SOFT_LINK_POINTER_OPTIONAL(AVFoundation, AVURLAssetReferenceRestrictionsKey, NSString *)
-SOFT_LINK_POINTER_OPTIONAL(AVFoundation, AVURLAssetUsesNoPersistentCacheKey, NSString *)
+SOFT_LINK_CLASS_OPTIONAL(AVFoundation, AVAssetReaderSampleReferenceOutput)
+SOFT_LINK_CONSTANT_MAY_FAIL(AVFoundation, AVMediaCharacteristicVisual, NSString *)
+SOFT_LINK_CONSTANT_MAY_FAIL(AVFoundation, AVURLAssetReferenceRestrictionsKey, NSString *)
+SOFT_LINK_CONSTANT_MAY_FAIL(AVFoundation, AVURLAssetUsesNoPersistentCacheKey, NSString *)
 #define AVMediaCharacteristicVisual getAVMediaCharacteristicVisual()
 #define AVURLAssetReferenceRestrictionsKey getAVURLAssetReferenceRestrictionsKey()
 #define AVURLAssetUsesNoPersistentCacheKey getAVURLAssetUsesNoPersistentCacheKey()
@@ -83,6 +82,7 @@ SOFT_LINK_POINTER_OPTIONAL(AVFoundation, AVURLAssetUsesNoPersistentCacheKey, NSS
     Vector<RetainPtr<AVAssetResourceLoadingRequest>> _requests;
     Lock _dataLock;
 }
+@property (readonly) NSData* data;
 - (id)initWithParent:(WebCore::ImageDecoderAVFObjC*)parent;
 - (void)setExpectedContentSize:(long long)expectedContentSize;
 - (void)updateData:(NSData *)data complete:(BOOL)complete;
@@ -100,6 +100,11 @@ SOFT_LINK_POINTER_OPTIONAL(AVFoundation, AVURLAssetUsesNoPersistentCacheKey, NSS
     _parent = parent;
 
     return self;
+}
+
+- (NSData*)data
+{
+    return _data.get();
 }
 
 - (void)setExpectedContentSize:(long long)expectedContentSize
@@ -204,7 +209,7 @@ SOFT_LINK_POINTER_OPTIONAL(AVFoundation, AVURLAssetUsesNoPersistentCacheKey, NSS
     if ([self canFulfillRequest:loadingRequest]) {
         [self fulfillRequest:loadingRequest];
         if (loadingRequest.finished)
-            return NO;
+            return YES;
     }
 
     [self enqueueRequest:loadingRequest];
@@ -226,24 +231,22 @@ namespace WebCore {
 
 static NSURL *customSchemeURL()
 {
-    static NeverDestroyed<RetainPtr<NSURL>> url;
-    if (!url.get())
-        url.get() = adoptNS([[NSURL alloc] initWithString:@"custom-imagedecoderavfobjc://resource"]);
-
-    return url.get().get();
+    static NSURL *url = [[NSURL alloc] initWithString:@"custom-imagedecoderavfobjc://resource"];
+    return url;
 }
 
 static NSDictionary *imageDecoderAssetOptions()
 {
-    static NeverDestroyed<RetainPtr<NSDictionary>> options;
-    if (!options.get()) {
-        options.get() = @{
+    static NSDictionary *options = [] {
+        // FIXME: Are these keys really optional?
+        if (!canLoadAVURLAssetReferenceRestrictionsKey() || !canLoadAVURLAssetUsesNoPersistentCacheKey())
+            return [@{ } retain];
+        return [@{
             AVURLAssetReferenceRestrictionsKey: @(AVAssetReferenceRestrictionForbidAll),
             AVURLAssetUsesNoPersistentCacheKey: @YES,
-        };
-    }
-
-    return options.get().get();
+        } retain];
+    }();
+    return options;
 }
 
 static ImageDecoderAVFObjC::RotationProperties transformToRotationProperties(AffineTransform inTransform)
@@ -289,6 +292,36 @@ public:
         m_hasAlpha = alphaInfo != kCGImageAlphaNone && alphaInfo != kCGImageAlphaNoneSkipLast && alphaInfo != kCGImageAlphaNoneSkipFirst;
     }
 
+    struct ByteRange {
+        size_t byteOffset { 0 };
+        size_t byteLength { 0 };
+    };
+
+    Optional<ByteRange> byteRange() const
+    {
+        if (PAL::CMSampleBufferGetDataBuffer(m_sample.get())
+            || PAL::CMSampleBufferGetImageBuffer(m_sample.get())
+            || !PAL::CMSampleBufferDataIsReady(m_sample.get()))
+            return WTF::nullopt;
+
+        CFNumberRef byteOffsetCF = (CFNumberRef)PAL::CMGetAttachment(m_sample.get(), PAL::kCMSampleBufferAttachmentKey_SampleReferenceByteOffset, nullptr);
+        if (!byteOffsetCF || CFGetTypeID(byteOffsetCF) != CFNumberGetTypeID())
+            return WTF::nullopt;
+
+        int64_t byteOffset { 0 };
+        if (!CFNumberGetValue(byteOffsetCF, kCFNumberSInt64Type, &byteOffset))
+            return WTF::nullopt;
+
+        CMItemCount sizeArrayEntries = 0;
+        PAL::CMSampleBufferGetSampleSizeArray(m_sample.get(), 0, nullptr, &sizeArrayEntries);
+        if (sizeArrayEntries != 1)
+            return WTF::nullopt;
+
+        size_t singleSizeEntry;
+        PAL::CMSampleBufferGetSampleSizeArray(m_sample.get(), 1, &singleSizeEntry, nullptr);
+        return {{static_cast<size_t>(byteOffset), singleSizeEntry}};
+    }
+
     SampleFlags flags() const override
     {
         return (SampleFlags)(MediaSampleAVFObjC::flags() | (m_hasAlpha ? HasAlpha : 0));
@@ -304,7 +337,7 @@ private:
     bool m_hasAlpha { false };
 };
 
-static ImageDecoderAVFObjCSample* toSample(PresentationOrderSampleMap::value_type pair)
+static ImageDecoderAVFObjCSample* toSample(const PresentationOrderSampleMap::value_type& pair)
 {
     return (ImageDecoderAVFObjCSample*)pair.second.get();
 }
@@ -320,7 +353,7 @@ ImageDecoderAVFObjCSample* toSample(Iterator iter)
 RefPtr<ImageDecoderAVFObjC> ImageDecoderAVFObjC::create(SharedBuffer& data, const String& mimeType, AlphaOption alphaOption, GammaAndColorProfileOption gammaAndColorProfileOption)
 {
     // AVFoundation may not be available at runtime.
-    if (!getAVURLAssetClass())
+    if (!AVFoundationMIMETypeCache::singleton().isAvailable())
         return nullptr;
 
     if (!canLoad_VideoToolbox_VTCreateCGImageFromCVPixelBuffer())
@@ -351,28 +384,27 @@ ImageDecoderAVFObjC::~ImageDecoderAVFObjC() = default;
 
 bool ImageDecoderAVFObjC::supportsMediaType(MediaType type)
 {
-    if (type == MediaType::Video)
-        return getAVURLAssetClass() && canLoad_VideoToolbox_VTCreateCGImageFromCVPixelBuffer();
-    return false;
+    return type == MediaType::Video && AVFoundationMIMETypeCache::singleton().isAvailable();
 }
 
 bool ImageDecoderAVFObjC::supportsContentType(const ContentType& type)
 {
-    if (getAVURLAssetClass() && canLoad_VideoToolbox_VTCreateCGImageFromCVPixelBuffer())
-        return AVFoundationMIMETypeCache::singleton().types().contains(type.containerType());
-    return false;
+    return AVFoundationMIMETypeCache::singleton().supportsContentType(type);
 }
 
 bool ImageDecoderAVFObjC::canDecodeType(const String& mimeType)
 {
-    if (!supportsMediaType(MediaType::Video))
-        return nullptr;
-
-    return [getAVURLAssetClass() isPlayableExtendedMIMEType:mimeType];
+    return AVFoundationMIMETypeCache::singleton().canDecodeType(mimeType);
 }
 
 AVAssetTrack *ImageDecoderAVFObjC::firstEnabledTrack()
 {
+    // FIXME: Is AVMediaCharacteristicVisual truly optional?
+    if (!canLoadAVMediaCharacteristicVisual()) {
+        LOG(Images, "ImageDecoderAVFObjC::firstEnabledTrack(%p) - AVMediaCharacteristicVisual is not supported", this);
+        return nil;
+    }
+
     NSArray<AVAssetTrack *> *videoTracks = [m_asset tracksWithMediaCharacteristic:AVMediaCharacteristicVisual];
     NSUInteger firstEnabledIndex = [videoTracks indexOfObjectPassingTest:^(AVAssetTrack *track, NSUInteger, BOOL*) {
         return track.enabled;
@@ -392,19 +424,22 @@ void ImageDecoderAVFObjC::readSamples()
         return;
 
     auto assetReader = adoptNS([allocAVAssetReaderInstance() initWithAsset:m_asset.get() error:nil]);
-    auto assetReaderOutput = adoptNS([allocAVAssetReaderTrackOutputInstance() initWithTrack:m_track.get() outputSettings:nil]);
+    auto referenceOutput = adoptNS([allocAVAssetReaderSampleReferenceOutputInstance() initWithTrack:m_track.get()]);
 
-    assetReaderOutput.get().alwaysCopiesSampleData = NO;
-    [assetReader addOutput:assetReaderOutput.get()];
+    referenceOutput.get().alwaysCopiesSampleData = NO;
+    [assetReader addOutput:referenceOutput.get()];
     [assetReader startReading];
 
-    while (auto sampleBuffer = adoptCF([assetReaderOutput copyNextSampleBuffer])) {
+    while (auto sampleBuffer = adoptCF([referenceOutput copyNextSampleBuffer])) {
         // NOTE: Some samples emitted by the AVAssetReader simply denote the boundary of edits
         // and do not carry media data.
         if (!(PAL::CMSampleBufferGetNumSamples(sampleBuffer.get())))
             continue;
         m_sampleData.addSample(ImageDecoderAVFObjCSample::create(WTFMove(sampleBuffer)).get());
     }
+
+    if (m_encodedDataStatusChangedCallback)
+        m_encodedDataStatusChangedCallback(encodedDataStatus());
 }
 
 void ImageDecoderAVFObjC::readTrackMetadata()
@@ -448,14 +483,14 @@ bool ImageDecoderAVFObjC::storeSampleBuffer(CMSampleBufferRef sampleBuffer)
         }
 
         if (!m_rotationPool) {
-            auto pixelAttributes = (CFDictionaryRef)@{
-                (NSString *)kCVPixelBufferWidthKey: @(m_size.value().width()),
-                (NSString *)kCVPixelBufferHeightKey: @(m_size.value().height()),
-                (NSString *)kCVPixelBufferPixelFormatTypeKey: @(kCVPixelFormatType_32BGRA),
-                (NSString *)kCVPixelBufferCGImageCompatibilityKey: @YES,
+            auto pixelAttributes = @{
+                (__bridge NSString *)kCVPixelBufferWidthKey: @(m_size.value().width()),
+                (__bridge NSString *)kCVPixelBufferHeightKey: @(m_size.value().height()),
+                (__bridge NSString *)kCVPixelBufferPixelFormatTypeKey: @(kCVPixelFormatType_32BGRA),
+                (__bridge NSString *)kCVPixelBufferCGImageCompatibilityKey: @YES,
             };
             CVPixelBufferPoolRef rawPool = nullptr;
-            CVPixelBufferPoolCreate(kCFAllocatorDefault, nullptr, pixelAttributes, &rawPool);
+            CVPixelBufferPoolCreate(kCFAllocatorDefault, nullptr, (__bridge CFDictionaryRef)pixelAttributes, &rawPool);
             m_rotationPool = adoptCF(rawPool);
         }
 
@@ -505,11 +540,20 @@ void ImageDecoderAVFObjC::setTrack(AVAssetTrack *track)
     }];
 }
 
+void ImageDecoderAVFObjC::setEncodedDataStatusChangeCallback(WTF::Function<void(EncodedDataStatus)>&& callback)
+{
+    m_encodedDataStatusChangedCallback = WTFMove(callback);
+}
+
 EncodedDataStatus ImageDecoderAVFObjC::encodedDataStatus() const
 {
-    if (m_sampleData.empty())
-        return EncodedDataStatus::Unknown;
-    return EncodedDataStatus::Complete;
+    if (!m_sampleData.empty())
+        return EncodedDataStatus::Complete;
+    if (m_size)
+        return EncodedDataStatus::SizeAvailable;
+    if (m_track)
+        return EncodedDataStatus::TypeAvailable;
+    return EncodedDataStatus::Unknown;
 }
 
 IntSize ImageDecoderAVFObjC::size() const
@@ -553,7 +597,7 @@ bool ImageDecoderAVFObjC::frameIsCompleteAtIndex(size_t index) const
     if (!sampleData)
         return false;
 
-    return PAL::CMSampleBufferDataIsReady(sampleData->sampleBuffer());
+    return sampleIsComplete(*sampleData);
 }
 
 ImageOrientation ImageDecoderAVFObjC::frameOrientationAtIndex(size_t) const
@@ -620,11 +664,44 @@ NativeImagePtr ImageDecoderAVFObjC::createFrameImageAtIndex(size_t index, Subsam
         if (decodeTime < m_cursor->second->decodeTime())
             return nullptr;
 
-        auto cursorSample = toSample(m_cursor)->sampleBuffer();
+        auto cursorSample = toSample(m_cursor);
         if (!cursorSample)
+            return nullptr;
+
+        if (!sampleIsComplete(*cursorSample))
+            return nullptr;
+
+        if (auto byteRange = cursorSample->byteRange()) {
+            auto& byteRangeValue = byteRange.value();
+            auto* data = m_loader.get().data;
+            CMBlockBufferCustomBlockSource source {
+                0,
+                nullptr,
+                [](void* refcon, void*, size_t) {
+                    [(id)refcon release];
+                },
+                [data retain]
+            };
+            CMBlockBufferRef rawBlockBuffer = nullptr;
+            if (noErr != PAL::CMBlockBufferCreateWithMemoryBlock(kCFAllocatorDefault, const_cast<void*>(data.bytes), data.length, nullptr, &source, byteRangeValue.byteOffset, byteRangeValue.byteLength, 0, &rawBlockBuffer))
+                return nullptr;
+
+            if (!rawBlockBuffer)
+                return nullptr;
+
+            if (noErr != PAL::CMSampleBufferSetDataBuffer(cursorSample->sampleBuffer(), rawBlockBuffer))
+                return nullptr;
+            CFRelease(rawBlockBuffer);
+
+            PAL::CMRemoveAttachment(cursorSample->sampleBuffer(), PAL::kCMSampleBufferAttachmentKey_SampleReferenceByteOffset);
+            PAL::CMRemoveAttachment(cursorSample->sampleBuffer(), PAL::kCMSampleBufferAttachmentKey_SampleReferenceURL);
+        }
+
+        auto cursorSampleBuffer = cursorSample->sampleBuffer();
+        if (!cursorSampleBuffer)
             break;
 
-        if (!storeSampleBuffer(cursorSample))
+        if (!storeSampleBuffer(cursorSampleBuffer))
             break;
 
         advanceCursor();
@@ -671,7 +748,7 @@ void ImageDecoderAVFObjC::clearFrameBufferCache(size_t index)
 
 const ImageDecoderAVFObjCSample* ImageDecoderAVFObjC::sampleAtIndex(size_t index) const
 {
-    if (index >= m_sampleData.size())
+    if (index >= m_sampleData.presentationOrder().size())
         return nullptr;
 
     // FIXME: std::map is not random-accessible; this can get expensive if callers repeatedly call
@@ -680,8 +757,18 @@ const ImageDecoderAVFObjCSample* ImageDecoderAVFObjC::sampleAtIndex(size_t index
     auto iter = m_sampleData.presentationOrder().begin();
     for (size_t i = 0; i != index; ++i)
         ++iter;
-    
+
     return toSample(iter);
+}
+
+bool ImageDecoderAVFObjC::sampleIsComplete(const ImageDecoderAVFObjCSample& sample) const
+{
+    if (auto byteRange = sample.byteRange()) {
+        auto& byteRangeValue = byteRange.value();
+        return byteRangeValue.byteOffset + byteRangeValue.byteLength <= m_loader.get().data.length;
+    }
+
+    return PAL::CMSampleBufferDataIsReady(sample.sampleBuffer());
 }
 
 }

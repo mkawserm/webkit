@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2006 Apple Inc.  All rights reserved.
+ * Copyright (C) 2006-2018 Apple Inc.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -54,6 +54,10 @@ public:
         : ResourceErrorBase(domain, errorCode, failingURL, localizedDescription, type)
         , m_dataIsUpToDate(true)
     {
+#if PLATFORM(COCOA)
+        ASSERT(domain != getNSURLErrorDomain());
+        ASSERT(domain != getCFErrorDomainCFNetwork());
+#endif
     }
 
     WEBCORE_EXPORT ResourceError(CFErrorRef error);
@@ -68,6 +72,8 @@ public:
     ResourceError(CFStreamError error);
     CFStreamError cfStreamError() const;
     operator CFStreamError() const;
+    static const void* getSSLPeerCertificateDataBytePtr(CFDictionaryRef);
+
 #endif
 
 #if PLATFORM(COCOA)
@@ -81,6 +87,11 @@ public:
 private:
     friend class ResourceErrorBase;
 
+#if PLATFORM(COCOA)
+    WEBCORE_EXPORT const String& getNSURLErrorDomain() const;
+    WEBCORE_EXPORT const String& getCFErrorDomainCFNetwork() const;
+    WEBCORE_EXPORT void mapPlatformError();
+#endif
     void platformLazyInit();
 
     void doPlatformIsolatedCopy(const ResourceError&);

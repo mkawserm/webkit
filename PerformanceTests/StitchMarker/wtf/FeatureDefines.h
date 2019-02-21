@@ -231,10 +231,6 @@ the public iOS SDK. We will also need to update the FeatureDefines.xcconfig file
 #define ENABLE_INPUT_TYPE_COLOR 1
 #endif
 
-#if !defined(ENABLE_INPUT_TYPE_COLOR_POPOVER)
-#define ENABLE_INPUT_TYPE_COLOR_POPOVER 1
-#endif
-
 #if !defined(ENABLE_PRIMARY_SNAPSHOTTED_PLUGIN_HEURISTIC)
 #define ENABLE_PRIMARY_SNAPSHOTTED_PLUGIN_HEURISTIC 1
 #endif
@@ -480,10 +476,6 @@ the public iOS SDK. We will also need to update the FeatureDefines.xcconfig file
 #define ENABLE_INPUT_TYPE_COLOR 0
 #endif
 
-#if !defined(ENABLE_INPUT_TYPE_COLOR_POPOVER)
-#define ENABLE_INPUT_TYPE_COLOR_POPOVER 0
-#endif
-
 #if !defined(ENABLE_INPUT_TYPE_DATE)
 #define ENABLE_INPUT_TYPE_DATE 0
 #endif
@@ -520,10 +512,6 @@ the public iOS SDK. We will also need to update the FeatureDefines.xcconfig file
 
 #if !defined(ENABLE_INTL)
 #define ENABLE_INTL 0
-#endif
-
-#if !defined(ENABLE_JAVASCRIPT_I18N_API)
-#define ENABLE_JAVASCRIPT_I18N_API 0
 #endif
 
 #if !defined(ENABLE_LEGACY_CSS_VENDOR_PREFIXES)

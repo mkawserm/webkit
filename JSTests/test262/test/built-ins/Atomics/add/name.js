@@ -7,10 +7,12 @@ esid: sec-atomics.add
 description: >
   Atomics.add.name is "add".
 includes: [propertyHelper.js]
+features: [Atomics]
 ---*/
 
-assert.sameValue(Atomics.add.name, "add");
-
-verifyNotEnumerable(Atomics.add, "name");
-verifyNotWritable(Atomics.add, "name");
-verifyConfigurable(Atomics.add, "name");
+verifyProperty(Atomics.add, 'name', {
+  value: 'add',
+  enumerable: false,
+  writable: false,
+  configurable: true,
+});

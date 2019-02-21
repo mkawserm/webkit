@@ -41,6 +41,7 @@ info: |
   ...
   11. Return true.
 includes: [propertyHelper.js]
+features: [Reflect, Reflect.set]
 ---*/
 
 var o1 = {};
@@ -75,4 +76,3 @@ assert.sameValue(
 verifyWritable(receiver, 'p');
 verifyEnumerable(receiver, 'p');
 verifyConfigurable(receiver, 'p');
-

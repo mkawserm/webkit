@@ -1,3 +1,1469 @@
+2019-01-17  Dewei Zhu  <dewei_zhu@apple.com>
+
+        Analyzing a chart that does not exist should not halt whole run-analysis script.
+        https://bugs.webkit.org/show_bug.cgi?id=193563
+
+        Reviewed by Ryosuke Niwa.
+
+        Halting whole run-analysis script while there is any invalid chart specified in Manifest makes the script fragile.
+        Run-analysis is also responsible for adding retry and sending notification which should not be block by this error.
+        Skipping analyzing the corresponding configuration seems reasonable.
+
+        * public/v3/models/measurement-set.js:
+        (MeasurementSet.prototype._ensureClusterPromise): Only add callback when callback is specified.
+        This will help to fix 'UnhandledPromiseRejectionWarning' while running the test.
+        * tools/js/measurement-set-analyzer.js:
+        (MeasurementSetAnalyzer.prototype.async._analyzeMeasurementSet): Catch the exception while failing to fetch a measurement set and skip the analysis for this config.
+        * unit-tests/measurement-set-analyzer-tests.js: Added unit tests for this.
+
+2019-01-17  Dewei Zhu  <dewei_zhu@apple.com>
+
+        Updating commit in OSBuildFetcher should respect revision range in config.
+        https://bugs.webkit.org/show_bug.cgi?id=193558
+
+        Reviewed by Ryosuke Niwa.
+
+        OSBuildFetcher._fetchAvailableBuilds should filter out commits those are not in
+        revision range specified by cofnig.
+
+        * server-tests/tools-os-build-fetcher-tests.js: Added a unit test for this change.
+        * tools/js/os-build-fetcher.js:
+        (prototype.async._fetchAvailableBuilds): Filter out commits from update list if commit
+        revision is out of range.
+
+2018-12-31  Dewei Zhu  <dewei_zhu@apple.com>
+
+        Test group results notification should not say a build request to build had failed even when it had successfully completed.
+        https://bugs.webkit.org/show_bug.cgi?id=193064
+
+        Reviewed by Ryosuke Niwa.
+
+        Should show 'Build completed' or 'Build failed' for build type build requests.
+
+        * browser-tests/test-group-result-page-tests.js: Added a unit test to guard this bug.
+        * tools/js/test-group-result-page.js: Show 'Build completed' or 'Build failed' for build type build requests.
+
+2018-12-21  Dewei Zhu  <dewei_zhu@apple.com>
+
+        Add UI in analysis task page to show commit testability information.
+        https://bugs.webkit.org/show_bug.cgi?id=192972
+
+        Reviewed by Ryosuke Niwa.
+
+        Add UI in custom analysis task configuration and customizable test group form to show testability information.
+        Fix a bug in 'CustomAnalysisTaskConfigurator._updateCommitSetMap' that 'currentComparison' is incorrectly set.
+        SQL to update existing database:
+            ALTER TABLE commits ADD COLUMN IF NOT EXISTS commit_testability varchar(128) DEFAULT NULL;
+
+        * browser-tests/custom-analysis-task-configurator-tests.js: Added a unit test for the bug in
+        'CustomAnalysisTaskConfigurator._updateCommitSetMap'.
+        Added a unit test to make sure 'CustomAnalysisTaskConfigurator' still works when commit fetching never returns.
+        * browser-tests/index.html: Imported ''custom-analysis-task-configurator-tests.js'.
+        * init-database.sql: Increase 'commit_testability' field length from 64 characters to 128.
+        * public/v3/components/custom-analysis-task-configurator.js: Added UI to show testability information.
+        (CustomAnalysisTaskConfigurator):
+        (CustomAnalysisTaskConfigurator.prototype._didUpdateSelectedPlatforms): Should reset related field for corresponding
+        repositories that user does not specify revision.
+        (CustomAnalysisTaskConfigurator.prototype._updateMapFromSpecifiedRevisionsForConfiguration): A helper function
+        to update '_specifiedCommits' and '_invalidRevisionsByConfiguration' per '_specifiedRevisions'.
+        (CustomAnalysisTaskConfigurator.prototype.render):
+        (CustomAnalysisTaskConfigurator.prototype._updateCommitSetMap): Fixed a bug that 'currentComparison' is incorrectly set.
+        (CustomAnalysisTaskConfigurator.prototype._computeCommitSet):
+        (CustomAnalysisTaskConfigurator.prototype.async._fetchCommitsForConfiguration):
+        (CustomAnalysisTaskConfigurator.prototype.async._resolveRevision):
+        (CustomAnalysisTaskConfigurator.prototype._buildRevisionTable):
+        (CustomAnalysisTaskConfigurator.prototype._buildTestabilityList):
+        (CustomAnalysisTaskConfigurator.prototype._selectRepositoryGroup):
+        (CustomAnalysisTaskConfigurator.prototype._buildRevisionInput):
+        (CustomAnalysisTaskConfigurator.cssTemplate):
+        * public/v3/components/customizable-test-group-form.js: Added UI to show testability information.
+        (CustomizableTestGroupForm.prototype._renderCustomRevisionTable):
+        (CustomizableTestGroupForm.prototype._constructTestabilityRows.):
+        (CustomizableTestGroupForm.prototype._constructTestabilityRows):
+        (CustomizableTestGroupForm.prototype._constructRevisionRadioButtons):
+        Changing either revision editor or radio button should trigger a re-render as testability
+        information for updated revision may change.
+        (CustomizableTestGroupForm.cssTemplate):
+        * public/v3/models/commit-set.js:
+        (IntermediateCommitSet.prototype.commitsWithTestability): Renamed from 'commitsWithTestabilityWarnings'.
+        (IntermediateCommitSet.prototype.commitsWithTestabilityWarnings): Deleted.
+
+2018-12-14  Dewei Zhu  <dewei_zhu@apple.com>
+
+        Extend commits table to contain testability information.
+        https://bugs.webkit.org/show_bug.cgi?id=191557
+
+        Reviewed by Ryosuke Niwa.
+
+        Added the ability to store testability message in commits table.
+        Refactored '/api/report-commits' to support updating commit only.
+        Updated os version syncing script to be able to update testability information.
+
+        * init-database.sql: Added 'commit_testability' field to 'commits' table.
+        * public/api/report-commits.php: Refactor this api to allow only update existing commits.
+        * public/include/commit-log-fetcher.php: Expose testability warning information in this API.
+        * public/include/commit-updater.php: Added 'CommitUpdater' to manage commit insert and update.
+        * public/v3/models/commit-log.js: CommitLog object should expose testability warning information.
+        (CommitLog.prototype.updateSingleton):
+        (CommitLog.prototype.testability):
+        * public/v3/models/commit-set.js: Added 'commitsWithTestability' and 'commits' to CommitSet and
+        IntermediateCommitSet instances.
+        (CommitSet.prototype.commitsWithTestability):
+        (CommitSet.prototype.commits):
+        (IntermediateCommitSet.prototype.commitsWithTestability):
+        (IntermediateCommitSet.prototype.commits):
+        * server-tests/api-report-commits-tests.js: Added unit tests for '/api/report-commits' when `insert=false`.
+        * server-tests/tools-os-build-fetcher-tests.js: Added and updated unit tests.
+        * tools/js/os-build-fetcher.js: Added the ability to update commit testability warnings.
+        (async.fetchReportAndUpdateCommits):
+        (prototype.async.fetchReportAndUpdateBuilds):
+        (prototype.async._fetchAvailableBuilds):
+        (prototype.async._commitsForAvailableBuilds):
+        (prototype._commitsWithinRange):
+        (prototype.async._reportCommits):
+        (fetchAndReportAllInOrder): Deleted.
+        (prototype.fetchAndReportNewBuilds): Deleted.
+        (prototype._fetchAvailableBuilds): Deleted.
+        (prototype._commitsForAvailableBuilds): Deleted.
+        (prototype._submitCommits): Deleted.
+        * tools/sync-os-versions.js:
+        * unit-tests/commit-log-tests.js: Added a unit test for 'testability'.
+        * unit-tests/commit-set-tests.js: Added unit tests for 'commitsWithTestability'.
+
+2018-11-16  Ryosuke Niwa  <rniwa@webkit.org>
+
+        Manifest file can contain a test metric which references a non-existent test
+        https://bugs.webkit.org/show_bug.cgi?id=191796
+
+        Reviewed by Dewei Zhu.
+
+        The bug was caused by a race condition between the manifest file fetching the list of tests and test metrics
+        and new tests and test metrics being added. Because we would fetch tests before test metrics, it was possible
+        for new test metrics which references a test not included in the fetched tests to be present in the test metrics.
+
+        Fixed the bug by changing the order of the queries so that test metrics are fetched before tests. This guarantees
+        that any test referenced by a test metric always exists and thefore included in the manifest file.
+
+        Unfortunately no new tests beucase this involes a race condition.
+
+        * public/include/manifest-generator.php:
+
+2018-11-13  Dewei Zhu  <dewei_zhu@apple.com>
+
+        Add cache for CommitLog objects to avoid refetching same commit.
+        https://bugs.webkit.org/show_bug.cgi?id=191621
+
+        Reviewed by Ryosuke Niwa.
+
+        Added a cache for fully fetched commit log objects to avoid refetching.
+
+        * public/v3/models/commit-log.js:
+        (CommitLog): Added assertion for id.
+        Removed unused 'remoteId' as it has been removed since r198479.
+        (CommitLog.async.fetchBetweenRevisions): Turned it into async function.
+        (CommitLog.async.fetchForSingleRevision): Added the logic to check cache before fetching.
+        (CommitLog._constructFromRawData): Added logic to add entries to cache.
+        * public/v3/models/repository.js: Added the ability to track fetched commit for certain repository.
+        (Repository.commitForRevision): Fixed measurement set not passing commit id while constructing a
+        commit log object.
+        (Repository.setCommitForRevision): Sets commit for a given revision.
+        * public/v3/models/commit-set.js: Fixed unit tests.
+        * unit-tests/commit-log-tests.js: Added unit tests for this change.
+        Fixed existing tests.
+        * unit-tests/commit-set-range-bisector-tests.js: Fixed unit tests.
+        * unit-tests/commit-set-tests.js: Fixed unit tests.
+
+2018-11-08  Dewei Zhu  <dewei_zhu@apple.com>
+
+        commit time returned by '/api/measurement-set' should match the one returned by '/api/commits'.
+        https://bugs.webkit.org/show_bug.cgi?id=191457
+
+        Reviewed by Dean Jackson and Ryosuke Niwa.
+
+        Commit time returned by '/api/measurement-set' sometimes is calculated by 'epoch from ..'.
+        This function may return a floating number with 5 or 6 decimal digits due to double precision limitations.
+        However, some commits may be reported with 6 decimal decimal.
+        So the commit time for those commits will sometime be rounded to 5 decimal digits.
+        In order to avoid front end assertion failure in CommitLog, Database::to_js_time need to round to 5 digits.
+
+        * public/include/db.php: Change the behavior to match that of postgres.
+        Added logic to avoid losing precision in php.
+        * server-tests/api-measurement-set-tests.js: Added unit tests for this bug.
+        (queryPlatformAndMetric): Fix a bug that arguments are not used at all.
+
+2018-11-07  Dewei Zhu  <dewei_zhu@apple.com>
+
+        "/api/report" does not check commit time correctly.
+        https://bugs.webkit.org/show_bug.cgi?id=191351
+
+        Reviewed by Ryosuke Niwa.
+
+        Test result report API does not convert formated time string to timestamp correctly
+        which result in not checking commit time correctly.
+
+        * public/include/report-processor.php: Use 'strtotime' instead of 'floatval'.
+        Accepts the time delta within 1 seconds.
+        * server-tests/api-report-tests.js: Added unit tests.
+        (reportWitMismatchingCommitTime):
+        (reportWithOneSecondCommitTimeDifference):
+
+2018-11-06  Dewei Zhu  <dewei_zhu@apple.com>
+
+        Custom test group form should use commit set map before customization as the behavior of radio buttons.
+        https://bugs.webkit.org/show_bug.cgi?id=191347
+
+        Reviewed by Ryosuke Niwa.
+
+        The radio button behavior should always set the same revision while editing the revision input.
+        That means we should not use the intermediate commit set map but use the commit set map before
+        "Customize" link is clicked.
+
+        * browser-tests/customizable-test-group-form-tests.js: Added a unit test for this bug.
+        * public/v3/components/customizable-test-group-form.js: Pass uncustomized commit set so that the radio button
+        behavoir preserves.
+        (CustomizableTestGroupForm):
+        (CustomizableTestGroupForm.prototype.setCommitSetMap):
+        (CustomizableTestGroupForm.prototype.didConstructShadowTree):
+        (CustomizableTestGroupForm.prototype.render):
+        (CustomizableTestGroupForm.prototype._renderCustomRevisionTable):
+        (CustomizableTestGroupForm.prototype._constructTableBodyList):
+        (CustomizableTestGroupForm.prototype._constructTableRowForCommitsWithoutOwner):
+        (CustomizableTestGroupForm.prototype._constructTableRowForCommitsWithOwner):
+        (CustomizableTestGroupForm.prototype._constructRevisionRadioButtons):
+
+2018-11-06  Dewei Zhu  <dewei_zhu@apple.com>
+
+        Customizable test group form should not reset manually edited commit value sometimes.
+        https://bugs.webkit.org/show_bug.cgi?id=190863
+
+        Reviewed by Ryosuke Niwa.
+
+        After changing the radio button and manually editing the commit value, commit value should not be reset
+        while changing the name of the test group.
+        Add the logic to prompt warning when manually typed commit does not exist.
+
+        * browser-tests/customizable-test-group-form-tests.js: Added a unit test for this bug.
+        * browser-tests/index.html:
+        * public/v3/components/customizable-test-group-form.js: Should always update commit set as long as
+        the repository of that row does not have a owner repository.
+        (CustomizableTestGroupForm.prototype._constructTableRowForCommitsWithoutOwner):
+        (CustomizableTestGroupForm.prototype._constructTableRowForCommitsWithOwner):
+        (CustomizableTestGroupForm.prototype._constructRevisionRadioButtons):
+
+2018-10-16  Dewei Zhu  <dewei_zhu@apple.com>
+
+        Unreviewed, rolling out r236996.
+
+        Temporarily rollout to fix a manifest generation bug.
+        "lastModified" field for certain platform & metric configurations may be missing.
+
+        Reverted changeset:
+
+        "ManifestGenerator shouldn't need more than 1GB of memory or
+        run for 30 seconds"
+        https://bugs.webkit.org/show_bug.cgi?id=190393
+        https://trac.webkit.org/changeset/236996
+
+2018-10-12  Ryosuke Niwa  <rniwa@webkit.org>
+
+        Perf dashboard: add a test for aggregating subtests without a matching metric in /api/report
+        https://bugs.webkit.org/show_bug.cgi?id=190544
+
+        Rubber-stamped by Keith Miller and unofficially reviewed by Dewei Zhu.
+
+        Added tests for reporting results to /api/report where a test with aggregated metrics has a subtest
+        without a matching metric type. The aggregation should simply skip such a subtest instead of returning
+        an error or aggregating with a mismatching metric type.
+
+        * server-tests/api-report-tests.js:
+        (.makeReport): Extracted out of a test case.
+
+2018-10-11  Ryosuke Niwa  <rniwa@webkit.org>
+
+        Build fix after r236956. Use array_get to avoid warnings.
+
+        * public/include/report-processor.php:
+
+2018-10-09  Dewei Zhu  <dewei_zhu@apple.com>
+
+        Performance dashboard should show added iterations due failed build requests.
+        https://bugs.webkit.org/show_bug.cgi?id=190419
+
+        Reviewed by Ryosuke Niwa.
+
+        Added UI to show added build requests due to previous failed build requests.
+        Updated the retry/bisect button to default to initial repetition count when test group is created.
+
+        * public/v3/pages/analysis-task-page.js: Added a div to show added build requests.
+        Retry and bisect button should default to initial repetion count.
+        (AnalysisTaskTestGroupPane.prototype._renderCurrentTestGroup):
+        (AnalysisTaskTestGroupPane.cssTemplate):
+
+2018-10-09  Ryosuke Niwa  <rniwa@webkit.org>
+
+        ManifestGenerator shouldn't need more than 1GB of memory or run for 30 seconds
+        https://bugs.webkit.org/show_bug.cgi?id=190393
+
+        Reviewed by Antti Koivisto and unofficially reviewed by Dewei Zhu.
+
+        This patch reduces the runtime of /api/manifest from 13s to 7s and reduces the memory requirement from
+        1GB to 400MB for the internal dashboard in my local testing.
+
+        The biggest perf win comes from avoid running a complex query over test_configurations to compute
+        the latest modified date across different test configuration types ("current" vs. "baseline").
+        Instead, we now fetch the entire table row by row and compute the latest modified date in memory.
+
+        Also call intval in many more places to avoid generating double quotes, which is a pretty significant
+        proportion of the JSON file size at this point.
+
+        Finally, use references in more places to avoid deep copying of arrays.
+
+        * public/include/manifest-generator.php:
+        (ManifestGenerator::generate): Skip the generation of "dashboard" since it's only used by v1 UI.
+        (ManifestGenerator::tests): Don't copy each row.
+        (ManifestGenerator::metrics): Ditto.
+        (ManifestGenerator::platforms): Implement the aforementioned optimization. Instead of grouping
+        test configurations for a given metric and platform together, fetch them all and do in-memory
+        processing in PHP. Avoid more copying as well.
+        (ManifestGenerator::repositories): Avoid more copying.
+        (ManifestGenerator::bug_trackers): Ditto.
+        (ManifestGenerator::fetch_triggerables): Ditto.
+
+2018-10-08  Ryosuke Niwa  <rniwa@webkit.org>
+
+        /api/report takes 15+ minutes submitting some test results
+        https://bugs.webkit.org/show_bug.cgi?id=190382
+
+        Rubber-stamped by Alexey Proskuryakov and unofficially reviewed by Dewei Zhu.
+
+        The issue was that recursively_ensure_tests would issue thousands of dependent queries.
+
+        Since most reporting of results would be happening after all the tests and test metrics had been created,
+        simply fetch the list of all tests and test metrics upfront in memory.
+
+        This would slow-down the reporting of other test results but in practice doesn't matter (an extra few seconds
+        of overhead) but for slow reporting, it can significantly reduce the runtime from ~10 minutes to ~10 seconds.
+
+        * public/include/report-processor.php:
+        (ReportProcessor::process): Call fetch_tests before recursively_ensure_tests.
+        (ReportProcessor::fetch_tests): Added. This builds up a mapping of tests based on a parent test ID as well as
+        a mapping of metrics per test based on its name and then its aggregator's name.
+        (ReportProcessor::recursively_ensure_tests): Added. Use the in-memory maps built in fetch_tests when possible.
+        (ReportProcessor::aggregator_list_if_exists): Take a reference instead of passing it by value.
+        (TestRunsGenerator::add_aggregated_metric): Now takes metric ID. The code to add the test metric had been moved
+        to recursively_ensure_tests.
+
+2018-10-01  Dewei Zhu  <dewei_zhu@apple.com>
+
+        Add retry for test groups with failed build requests.
+        https://bugs.webkit.org/show_bug.cgi?id=190188
+
+        Reviewed by Ryosuke Niwa.
+
+        Added retry logic in run-analysis script.
+        Current retry logic will only be triggered when there is at least one successful build request for each commit set
+        in a test group.
+
+        * init-database.sql: Added 'testgroup_initial_repetition_count' and 'testgroup_may_need_more_requests'.
+        SQL to update existing database:
+        '''
+        BEGIN;
+            ALTER TABLE analysis_test_groups
+                ADD COLUMN testgroup_initial_repetition_count integer DEFAULT NULL,
+                ADD COLUMN testgroup_may_need_more_requests boolean DEFAULT FALSE;
+            UPDATE analysis_test_groups SET testgroup_initial_repetition_count = (
+                SELECT DISTINCT(COUNT(*)) FROM build_requests WHERE request_group = testgroup_id AND request_order >= 0 GROUP BY request_commit_set
+            );
+            ALTER TABLE analysis_test_groups ALTER COLUMN testgroup_initial_repetition_count DROP DEFAULT, ALTER COLUMN testgroup_may_need_more_requests SET NOT NULL;
+        END;
+        '''
+        'testgroup_initial_repetition_count' represents the number of successful build request for each commit set when
+        test group is created.
+        'testgroup_may_need_more_requests' will be set when any build request in test group is set to 'failed'.
+        * public/api/build-requests.php: Added the logic to set 'testgroup_may_need_more_requests'.
+        * public/api/test-groups.php: Updated 'ready-for-notification' to 'ready-for-further-processing' so that it returns finished test
+        groups those either have 'needs_notification' or  'may_need_more_requests' set.
+        * public/include/commit-sets-helpers.php: Set 'initial_repetition_count' to repetition count.
+        * public/privileged-api/update-test-group.php: Added APIs to add build request for a test group and
+        update 'may_need_more_requests' flag.
+        * public/v3/models/test-group.js:
+        (TestGroup): Added '_mayNeedMoreRequests' and '_initialRepetitionCount' field.
+        Refactored code that interacts with '/api/update-test-group'.
+        (TestGroup.prototype.updateSingleton):
+        (TestGroup.prototype.mayNeedMoreRequests):
+        (TestGroup.prototype.initialRepetitionCount):
+        (TestGroup.prototype.async._updateBuildRequest):
+        (TestGroup.prototype.updateName):
+        (TestGroup.prototype.updateHiddenFlag):
+        (TestGroup.prototype.async.didSendNotification):
+        (TestGroup.prototype.async.addMoreBuildRequests):
+        (TestGroup.prototype.async.clearMayNeedMoreBuildRequests): Added API to clear 'may_need_more_requests' flag.
+        (TestGroup.fetchAllReadyForFurtherProcessing): Refactored 'TestGroup.fetchAllWithNotificationReady' to return test groups either
+        have 'needs_notification' or  'may_need_more_requests' set.
+        (TestGroup.fetchAllThatMayNeedMoreRequests): Fetches test groups those may need more build requests.
+        * server-tests/api-test-groups.js: Added unit tests.
+        * server-tests/privileged-api-add-build-requests-tests.js: Added unit tests for 'add-build-requests' API.
+        * server-tests/privileged-api-update-test-group-tests.js: Added unit tests.
+        * server-tests/resources/mock-data.js:
+        (MockData.addMockData):
+        * server-tests/resources/test-server.js:
+        (TestServer.prototype._determinePgsqlDirectory): Fixed a bug that 'childProcess.execFileSync' may return a buffer.
+        * tools/run-analysis.js: Added logic to add extra build request before sennding notification.
+        * tools/js/retry-failed-build-requests.js:
+        (async.createAdditionalBuildRequestsForTestGroupsWithFailedRequests): Module that add extra build requests.
+        * unit-tests/retry-failed-build-requests-tests.js: Added.
+        * unit-tests/test-groups-tests.js: Added unit tests.
+
+2018-09-21  Dewei Zhu  <dewei_zhu@apple.com>
+
+        Apache can return a corrupt manifest file while ManifestGenerator::store is running
+        https://bugs.webkit.org/show_bug.cgi?id=189822
+
+        Reviewed by Ryosuke Niwa.
+
+        Updating a file on performance dashboard should be transactional between php and apache.
+        Otherwise, partial content may be served.
+
+        * public/api/measurement-set.php: Adapted invocation of 'generate_json_date_with_elapsed_time_if_needed'.
+        * public/api/runs.php: Adapted invocation of 'generate_json_date_with_elapsed_time_if_needed'.
+        * public/include/db.php: Make creating file transactionaly by taking advantage of
+        'move/rename' operation is atomic in OS.
+        Added logic to avoid overwriting file if all content except specified filed are identical.
+        * public/include/json-header.php: Added a helper function that added 'status' but does not
+        convert content to json.
+        * public/include/manifest-generator.php: Adapted invocation of 'generate_json_date_with_elapsed_time_if_needed'.
+        * public/shared/statistics.js: Removed unnecessary logging.
+        (Statistics.new.sampleMeanAndVarianceFromMultipleSamples):
+        * server-tests/api-manifest-tests.js: Updated one unit test.
+
+2018-08-22  Dewei Zhu  <dewei_zhu@apple.com>
+
+        Show t-test results based on individual measurements to analysis task page.
+        https://bugs.webkit.org/show_bug.cgi?id=188425
+
+        Reviewed by Ryosuke Niwa.
+
+        Added comparison for individual iterations in analysis task page.
+        Added comparison for individual iterations for notification on A/B tests completion.
+        Refactored t-distribution inverse lookup to any degree of freedom with 5 significant figures.
+
+        * public/shared/statistics.js: Refactored t-distribution inverse lookup function and adapted this
+        change to all invocations.
+        (Statistics.new.this.supportedConfidenceIntervalProbabilities):
+        (Statistics.new.this.supportedOneSideTTestProbabilities):
+        (Statistics.new.this.confidenceIntervalDelta):
+        (Statistics.new.sampleMeanAndVarianceForMultipleSamples):
+        (Statistics.new.this.probabilityRangeForWelchsT):
+        (Statistics.new.this.probabilityRangeForWelchsTFromTwoSampleSets):
+        (Statistics.new.this._determinetwoSidedProbabilityBoundaryForWelchsT):
+        (Statistics.new.this.computeWelchsT):
+        (Statistics.new.this._computeWelchsTFromStatistics):
+        (Statistics.new.this.minimumTForOneSidedProbability): Function that does t-distribution inverse lookup.
+        * public/v3/components/analysis-results-viewer.js: Adapted TestGroup.compareTestResults change.
+        (AnalysisResultsViewer.TestGroupStackingBlock.prototype._measurementsForCommitSet):
+        (AnalysisResultsViewer.TestGroupStackingBlock.prototype._computeTestGroupStatus):
+        (AnalysisResultsViewer.TestGroupStackingBlock.prototype._valuesForCommitSet): Deleted.
+        * public/v3/components/test-group-results-viewer.js: Show both comparisions for both individual and mean.
+        (TestGroupResultsViewer.prototype._renderResultsTable):
+        (TestGroupResultsViewer.prototype._buildRowForMetric.):
+        (TestGroupResultsViewer.prototype._buildValueMap):
+        * public/v3/models/test-group.js:
+        (TestGroup.compareTestResults): Added comparison for individual iterations.
+        * tools/js/test-group-result-page.js:
+        (TestGroupResultPage.prototype._constructTableForMetric):
+        (TestGroupResultPage.prototype.get styleTemplate):
+        (TestGroupResultPage):
+        (TestGroupResultPage.prototype._URLForAnalysisTask): Renamed to '_resultsForTestGroup'
+        * unit-tests/statistics-tests.js: Updated and added unit tests.
+
+2018-07-13  Dewei Zhu  <dewei_zhu@apple.com>
+
+        CustomConfigurationTestGroupForm should dispatch different arguments based on whether analysis task is created.
+        https://bugs.webkit.org/show_bug.cgi?id=187675
+
+        Reviewed by Ryosuke Niwa.
+
+        This change will fix the bug that no notification will be sent for any test groups except the
+        first one in any custom perf-try A/B task.
+
+        * public/v3/components/custom-configuration-test-group-form.js:
+        (CustomConfigurationTestGroupForm.prototype.startTesting): Conditionally includes taskName based on
+        whether or not analysis task is created.
+
+2018-07-03  Dewei Zhu  <dewei_zhu@apple.com>
+
+        MeasurementSet should merge last four segments into two if values are identical.
+        https://bugs.webkit.org/show_bug.cgi?id=187311
+
+        Reviewed by Ryosuke Niwa.
+
+        If last four segments has the same value, MeasurmentSet should merge them.
+
+        * public/v3/models/measurement-set.js: Added the logic to conditionally merge last segments.
+        (MeasurementSet.prototype.fetchSegmentation):
+        * unit-tests/measurement-set-tests.js: Added a unit test for this change.
+
+2018-06-29  Dewei Zhu  <dewei_zhu@apple.com>
+
+        Manifest.reset should clear static map for BugTracker and Bug objects.
+        https://bugs.webkit.org/show_bug.cgi?id=187186
+
+        Reviewed by Ryosuke Niwa.
+
+        If static maps of BugTracker and Bug objects are not cleared up, updating singleton
+        of Bug object will fail assertion.
+
+        * public/v3/models/manifest.js: Clear static map for BugTracker and Bug.
+        (Manifest.reset):
+        * server-tests/api-manifest-tests.js: Added a unit test for this change.
+
+2018-06-29  Dewei Zhu  <dewei_zhu@apple.com>
+
+        Fix a bug in range bisector that start commit may be counted twice.
+        https://bugs.webkit.org/show_bug.cgi?id=187205
+
+        Reviewed by Darin Adler.
+
+        Range bisector counted start commit twice if start commit is the same as end commit.
+
+        * public/v3/commit-set-range-bisector.js:
+        (CommitSetRangeBisector.async.commitSetClosestToMiddleOfAllCommits):
+        * unit-tests/commit-set-range-bisector-tests.js: Added a unit test for this change.
+
+2018-06-28  Dewei Zhu  <dewei_zhu@apple.com>
+
+        Fix a bug ComponentBase that wrong content template may be used.
+        https://bugs.webkit.org/show_bug.cgi?id=187159
+
+        Reviewed by Ryosuke Niwa.
+
+        ComponentBase uses '_parsed' to mark whether content and style templates of a class
+        is parsed. However, derived class parsing will be skipped as 'Derive._parsed' is available
+        via prototype chain whenever the base class is parsed.
+
+        * browser-tests/component-base-tests.js: Added unit tests.
+        * public/v3/components/base.js: Added 'hasOwnProperty' to make sure current class is parsed.
+        (ComponentBase.prototype._ensureShadowTree):
+
+2018-06-25  Dewei Zhu  <dewei_zhu@apple.com>
+
+        MeasurementSetAnalyzer should check triggerable availability before creating confirming A/B tests.
+        https://bugs.webkit.org/show_bug.cgi?id=187028
+
+        Reviewed by Ryosuke Niwa.
+
+        If the triggerable is not available, MeasurmentSetAnalyzer should only create analysis task without
+        confirming A/B tests.
+
+        * tools/js/measurement-set-analyzer.js: Added logic to check triggerable availability.
+        (MeasurementSetAnalyzer.prototype.async._analyzeMeasurementSet):
+        (MeasurementSetAnalyzer):
+        * unit-tests/measurement-set-analyzer-tests.js: Updated unit tests and added a new unit test for this change.
+
+2018-06-11  Dewei Zhu  <dewei_zhu@apple.com>
+
+        Extend test group rule to support 'userInitiated' field.
+        https://bugs.webkit.org/show_bug.cgi?id=186544
+
+        Reviewed by Ryosuke Niwa.
+
+        Added support for rule specifying whether or not test group is user initiated.
+
+        * tools/js/analysis-results-notifier.js: Rule now support 'userInitiated' field.
+        (AnalysisResultsNotifier.prototype.async.sendNotificationsForTestGroups):
+        (AnalysisResultsNotifier.prototype._applyRules):
+        (AnalysisResultsNotifier._matchesRule):
+        * unit-tests/analysis-results-notifier-tests.js: Added unit tests for this change.
+
+2018-05-29  Dewei Zhu  <dewei_zhu@apple.com>
+
+        CommitSet range bisector should use commits occur in commit sets which specify the range as valid commits for commits without ordering.
+        https://bugs.webkit.org/show_bug.cgi?id=186062
+
+        Reviewed by Ryosuke Niwa.
+
+        For commits without ordering, we should use the commits occurs in the commit sets which specify the range as valid commits.
+        Commit sets in range should only contain those valid commits for corresponding repositories.
+
+        * public/v3/commit-set-range-bisector.js: Updated logic to add check on commits without ordering.
+        (CommitSetRangeBisector.async.commitSetClosestToMiddleOfAllCommits):
+        * unit-tests/commit-set-range-bisector-tests.js: Added a unit test for this case.
+
+2018-06-07  Dewei Zhu  <dewei_zhu@apple.com>
+
+        Related task may not have a metric or platform.
+        https://bugs.webkit.org/show_bug.cgi?id=186426
+
+        Reviewed by Ryosuke Niwa.
+
+        Related task in the related task list can be a custom analysis task which
+        may not have platform or metric.
+
+        * public/v3/pages/analysis-task-page.js: Added null checks for platform and metric.
+        (AnalysisTaskPage.prototype._renderRelatedTasks):
+
+2018-06-07  Dewei Zhu  <dewei_zhu@apple.com>
+
+        Fix browser test failed assertions and a bug in 'common-component-base'
+        https://bugs.webkit.org/show_bug.cgi?id=186423
+
+        Reviewed by Ryosuke Niwa.
+
+        Fixed serveral assertion failures in browser tests.
+        Fixed a bug in common-component-base that null/undefined as attribute value is not allowed.
+
+        * browser-tests/chart-revision-range-tests.js: Should not import 'lazily-evaluated-function.js' twice.
+        * browser-tests/chart-status-evaluator-tests.js: Should not import 'lazily-evaluated-function.js' twice.
+        * browser-tests/component-base-tests.js: Added a unit test for element attributes being null or undefined.
+        * browser-tests/index.html: Make mocked data from makeSampleCluster also contains commit_order.
+        * public/shared/common-component-base.js: Make it allow to take null as attribute value.
+        (CommonComponentBase.createElement):
+
+2018-05-24  Dewei Zhu  <dewei_zhu@apple.com>
+
+        Added sending notification feature when test group finishes.
+        https://bugs.webkit.org/show_bug.cgi?id=184340
+
+        Reviewed by Ryosuke Niwa.
+
+        Added 'testgroup_needs_notification' filed to 'analysis_test_group' table to indicate whether a test group
+        has a pending notification.
+        Added 'testgroup_notification_sent_at' to record the last notification sent time.
+        SQL queries to update existing database are:
+            'ALTER TABLE analysis_test_groups ADD COLUMN testgroup_needs_notification boolean NOT NULL DEFAULT FALSE;'
+            'ALTER TABLE analysis_test_groups ADD COLUMN testgroup_notification_sent_at timestamp DEFAULT NULL;'
+        Updated 'run-analysis' script to be able to send notification when test group finishes.
+        Added 'Notify on completion' checkbox while creating/retrying/bisecting a test group.
+
+        * browser-tests/test-group-form-tests.js: Updated existing tests and added a new test.
+        * browser-tests/test-group-result-page-tests.js: Added unit tests for TestGroupResultPage.
+        * init-database.sql: Added 'testgroup_needs_notification' filed to 'analysis_test_group' table.
+        * public/api/test-groups.php: Added '/api/test-groups/ready-for-notification' API to 'test-group' to show all
+        test groups that need to send notification. Only the ones with 'completed', 'failed' or 'cancelled' status and its
+        'testgroup_needs_notification' is true will be returned by this API.
+        * public/include/build-requests-fetcher.php: Added 'fetch_requests_for_groups' to return test groups with given ids.
+        * public/include/commit-sets-helpers.php: Updated the logic to support setting 'testgroup_needs_notification'
+        while create an analysis_test_groups.
+        * public/privileged-api/create-analysis-task.php: Updated the logic to support setting 'testgroup_needs_notification'.
+        * public/privileged-api/create-test-group.php: Updated the logic to support setting 'testgroup_needs_notification'.
+        * public/privileged-api/update-test-group.php: Updated the logic to support updating 'testgroup_needs_notification'.
+        Extended this API to allow authentication both from CSRF token and slave.
+        * public/v3/components/custom-configuration-test-group-form.js:
+        (CustomConfigurationTestGroupForm.prototype.startTesting): Pass 'notifyOnCompletion' information which represents
+        'testgroup_needs_notification' from API perspective.
+        * public/v3/components/customizable-test-group-form.js:
+        (CustomizableTestGroupForm.prototype.startTesting): Pass 'notifyOnCompletion' information which represents
+        'testgroup_needs_notification' from API perspective.
+        (CustomizableTestGroupForm.cssTemplate): Added space between 'Notify on completion' checkbox and test group iteration selection list.
+        * public/v3/components/test-group-form.js:
+        (TestGroupForm): Added '_notifyOnCompletion' instance variable.
+        (TestGroupForm.prototype.didConstructShadowTree): Added 'onchange' event for notify on completion checkbox.
+        (TestGroupForm.prototype.startTesting): Pass 'notifyOnCompletion' information which represents
+        'testgroup_needs_notification' from API perspective.
+        (TestGroupForm.cssTemplate): Added space between 'Notify on completion' checkbox and test group iteration selection list.
+        * public/v3/models/analysis-results.js: Export 'AnalysisResults'.
+        (AnalysisResults.fetch): Update API path to use absolute url.
+        (AnalysisResults):
+        * public/v3/models/analysis-task.js:
+        (AnalysisTask.async.create): Extend this function to take notifyOnCompletion as argument which will be used as
+        'needsNotification' to send to server.
+        (AnalysisTask):
+        * public/v3/models/test-group.js:
+        (TestGroup): Added '_needsNotification' field.
+        (TestGroup.prototype.updateSingleton): Added logic to update '_needsNotification' field.
+        (TestGroup.prototype.needsNotification): Returns '_needsNotification' field.
+        (TestGroup.prototype.author): Returns author information.
+        (TestGroup.prototype.async.didSendNotification): API that updates 'testgroup_needs_notification' to true.
+        (TestGroup.prototype.async.fetchTask): API to fetch the task when it has not been fetched.
+        (TestGroup.createWithTask): Updated this function to accept 'notifyOnCompletion' which will be used as
+        'needsNotification' to send to server.
+        (TestGroup.createWithCustomConfiguration): Updated this function to accept 'notifyOnCompletion' which will be used as
+        'needsNotification' to send to server.
+        (TestGroup.createAndRefetchTestGroups): Updated this function to accept 'notifyOnCompletion' which will be used as
+        'needsNotification' to send to server.
+        (TestGroup.fetchAllWithNotificationReady): New function that invokes '/api/test-groups/ready-for-notification'.
+        * public/v3/pages/analysis-task-page.js: Update logic to 'notifyOnCompletion' around
+        (AnalysisTaskChartPane.prototype.didConstructShadowTree):
+        (AnalysisTaskResultsPane.prototype.didConstructShadowTree):
+        (AnalysisTaskTestGroupPane.prototype.didConstructShadowTree):
+        (AnalysisTaskPage.prototype.didConstructShadowTree):
+        (AnalysisTaskPage.prototype._retryCurrentTestGroup):
+        (AnalysisTaskPage.prototype.async._bisectCurrentTestGroup):
+        (AnalysisTaskPage.prototype._createTestGroupAfterVerifyingCommitSetList.set const):
+        (AnalysisTaskPage.prototype._createTestGroupAfterVerifyingCommitSetList):
+        (AnalysisTaskPage.prototype._createCustomTestGroup):
+        * public/v3/pages/chart-pane.js: Added 'Notify on completion' checkbox.
+        (ChartPane.prototype.didConstructShadowTree):
+        (ChartPane.prototype.async._analyzeRange):
+        * public/v3/pages/create-analysis-task-page.js: Adapted API change.
+        (CreateAnalysisTaskPage.prototype._createAnalysisTaskWithGroup):
+        * server-tests/api-test-groups.js: Added tests for '/api/test-groups/ready-for-notification'.
+        * server-tests/privileged-api-create-analysis-task-tests.js: Updated tests to adapt this change.
+        Added new tests.
+        * server-tests/privileged-api-create-test-group-tests.js: Added new tests.
+        * server-tests/privileged-api-update-test-group-tests.js: Added unit test for 'update-test-group' API.
+        * server-tests/resources/mock-data.js: addMockData should set 'testgroup_needs_notification' to be true.
+        * server-tests/tools-sync-buildbot-integration-tests.js: Updated tests to adapt this change.
+        (async.createTestGroupWihPatch):
+        (createTestGroupWihOwnedCommit):
+        * tools/js/analysis-results-notifier.js: Added notifier to send notification for completed test groups.
+        (AnalysisResultsNotifier):
+        (AnalysisResultsNotifier.prototype.async.sendNotificationsForTestGroups):
+        (AnalysisResultsNotifier.prototype._sendNotification): Invoke remote API to send notification.
+        (AnalysisResultsNotifier.prototype._constructMessageByRules):
+        (AnalysisResultsNotifier._matchesRule):
+        (AnalysisResultsNotifier._applyUpdate):
+        (AnalysisResultsNotifier.async._messageForTestGroup): Build html as message body for a test group.
+        (AnalysisResultsNotifier._URLForAnalysisTask): Returns URL for an analysis task.
+        (AnalysisResultsNotifier._instantiateNotificationTemplate):
+        * tools/js/test-group-result-page.js: Added 'TestGroupResultPage' and 'BarGraph' to show test group result.
+        (TestGroupResultPage):
+        (TestGroupResultPage.prototype.async.setTestGroup):
+        (TestGroupResultPage._urlForAnalysisTask):
+        (TestGroupResultPage.prototype._URLForAnalysisTask):
+        (TestGroupResultPage.prototype.constructTables):
+        (TestGroupResultPage.prototype._constructTableForMetric):
+        (TestGroupResultPage.):
+        (TestGroupResultPage.prototype.get pageContent):
+        (TestGroupResultPage.prototype.get styleTemplate):
+        (BarGraph):
+        (BarGraph.prototype.setWidth):
+        (BarGraph.prototype._constructBarGraph):
+        (BarGraph.prototype.get pageContent):
+        (BarGraph.prototype.get styleTemplate):
+        * tools/js/measurement-set-analyzer.js: Adapted 'AnalysisTask.create' change.
+        (MeasurementSetAnalyzer.prototype.async._analyzeMeasurementSet):
+        (MeasurementSetAnalyzer):
+        * tools/js/v3-models.js:
+        * tools/run-analysis.js: Added the logic that sends notification for completed test groups.
+        (main):
+        (async.analysisLoop):
+        * unit-tests/analysis-task-tests.js:
+        * unit-tests/analysis-results-notifier-tests.js: Added a unit test for 'AnalysisResultsNotifier' and 'NotificationService'.
+        * unit-tests/measurement-set-analyzer-tests.js: Updated unit tests per this change.
+        * unit-tests/test-groups-tests.js: Added unit tests for 'TestGroup.needsNotification'.
+        * unit-tests/resources/mock-remote-api.js: Only set 'privilegedAPI' when it exits.
+
+2018-06-07  Ryosuke Niwa  <rniwa@webkit.org>
+
+        Add the basic support for writing components in node.js
+        https://bugs.webkit.org/show_bug.cgi?id=186299
+
+        Reviewed by Antti Koivisto.
+
+        Add the basic support for writing components in node.js for generating rich email notifications.
+
+        To do this, this patch introduces MarkupComponentBase and MarkupPage which implement similar API
+        to ComponentBase and Page classes of v3 UI code. This enables us to share code between frontend
+        and the backend in the future. Because there is no support for declarative custom elements or
+        shadow root in HTML, MarkupComponentBase uses a similar but distinct concept of "content" tree
+        to represent the "DOM" tree for a component. When generating the HTML, MarkupComponentBase and
+        MarkupPage collectively transforms stylesheets and flattens the tree into a single HTML. In order
+        to keep this flatteneing logic simple, MarkupComponentBase only supports a very small subset of
+        CSS selectors to select elements by their local names and class names.
+
+        Specifically, each class name and element name based selectors are replaced by a globally unique
+        class name based selector, and each element which matches the selector is applied of the same
+        globally unique class name. The transformation is applied when constructing the "content" tree
+        as well as calls to renderReplace.
+
+        Because much of v3 frontend code relies on DOM API, this patch also implements the simplest form
+        of a fake DOM API as MarkupNode, MarkupParentNode, MarkupElement, and MarkupText. In order to avoid
+        reimplementing HTML & CSS parsers, this patch introduces the concept of content and style templates
+        to ComponentBase which are JSON alternatives to HTML & CSS template strings which can be used in
+        both frontend & backend.
+
+        * browser-tests/close-button-tests.js: Include CommonComponentBase.
+        * browser-tests/commit-log-viewer-tests.js: Ditto.
+        * browser-tests/component-base-tests.js: Ditto. Added a test cases for content & style templates.
+        (async.importComponentBase): Added.
+        * browser-tests/editable-text-tests.js: Include CommonComponentBase.
+        * browser-tests/index.html:
+        * browser-tests/markup-page-tests.js: Added.
+        * browser-tests/page-router-tests.js: Include CommonComponentBase.
+        * browser-tests/page-tests.js: Ditto.
+        * browser-tests/test-group-form-tests.js: Ditto.
+        * public/shared/common-component-base.js: Added.
+        (CommonComponentBase): Extracted out of ComponentBase.
+        (CommonComponentBase.prototype.renderReplace): Added.
+        (CommonComponentBase.renderReplace): Moved from ComponentBase.
+        (CommonComponentBase.prototype._recursivelyUpgradeUnknownElements): Moved and renamed from
+        ComponentBase's _recursivelyReplaceUnknownElementsByComponents.
+        (CommonComponentBase.prototype._upgradeUnknownElement): Extracted out of the same function.
+        (CommonComponentBase._constructStylesheetFromTemplate): Added.
+        (CommonComponentBase._constructNodeTreeFromTemplate): Added.
+        (CommonComponentBase.prototype.createElement): Added.
+        (CommonComponentBase.createElement): Moved from ComponentBase.
+        (CommonComponentBase._addContentToElement): Moved from ComponentBase.
+        (CommonComponentBase.prototype.createLink): Added.
+        (CommonComponentBase.createLink): Moved from ComponentBase.
+        (CommonComponentBase._context): Added. Set to document in a browser and MarkupDocument in node.js.
+        (CommonComponentBase._isNode): Added. Set to a function which does instanceof Node/MarkupNode check.
+        (CommonComponentBase._baseClass): Added. Set to ComponentBase or MarkupComponentBase.
+        * public/v3/components/base.js:
+        (ComponentBase):
+        (ComponentBase.prototype._ensureShadowTree): Added the support for the content and style templates.
+        Also avoid parsing the html template each time a component is instantiated by caching the result.
+        * public/v3/index.html:
+        * tools/js/markup-component.js: Added.
+        (MarkupDocument): Added. A fake Document.
+        (MarkupDocument.prototype.createContentRoot): A substitude for attachShadow.
+        (MarkupDocument.prototype.createElement):
+        (MarkupDocument.prototype.createTextNode):
+        (MarkupDocument.prototype._idForClone):
+        (MarkupDocument.prototype.reset):
+        (MarkupDocument.prototype.markup):
+        (MarkupDocument.prototype.escapeAttributeValue):
+        (MarkupDocument.prototype.escapeNodeData):
+        (MarkupNode): Added. A fake Node. Each node gets an unique ID.
+        (MarkupNode.prototype._markup):
+        (MarkupNode.prototype.clone): Implemented by the leave class.
+        (MarkupNode.prototype._cloneNodeData):
+        (MarkupNode.prototype.remove):
+        (MarkupParentNode): Added. An equivalent of ContainerNode in WebCore.
+        (MarkupParentNode.prototype.get childNodes):
+        (MarkupParentNode.prototype._cloneNodeData):
+        (MarkupParentNode.prototype.appendChild):
+        (MarkupParentNode.prototype.removeChild):
+        (MarkupParentNode.prototype.removeAllChildren):
+        (MarkupParentNode.prototype.replaceChild):
+        (MarkupContentRoot): Added. Used like a shadow tree.
+        (MarkupContentRoot.prototype._markup): Added.
+        (MarkupElement): Added. A fake Element. It also implements a subset of IDL attributes implemented by
+        subclasses such as HTMLInputElement for simplicity.
+        (MarkupElement.prototype.get id): Added.
+        (MarkupElement.prototype.get localName): Added.
+        (MarkupElement.prototype.clone): Added.
+        (MarkupElement.prototype.appendChild): Added.
+        (MarkupElement.prototype.addEventListener): Added.
+        (MarkupElement.prototype.setAttribute): Added.
+        (MarkupElement.prototype.getAttribute): Added.
+        (MarkupElement.prototype.get attributes): Added.
+        (MarkupElement.prototype.get textContent): Added.
+        (MarkupElement.prototype.set textContent): Added.
+        (MarkupElement.prototype._serializeStyle): Added.
+        (MarkupElement.prototype._markup): Added. Flattens the tree with content tree like copy & paste so
+        this can't be used to implement innerHTML.
+        (MarkupElement.prototype.get value): Added.
+        (MarkupElement.prototype.set value): Added.
+        (MarkupElement.prototype.get style): Added. Returns a fake writeonly CSSStyleDeclaration.
+        (MarkupElement.prototype.set style): Added.
+        (MarkupElement.get selfClosingNames): Added. A small list of self-closing tags for the HTML generation.
+        (MarkupText): Added.
+        (MarkupText.prototype.clone): Added.
+        (MarkupText.prototype._markup): Added.
+        (MarkupText.prototype.get data): Added.
+        (MarkupText.prototype.set data): Added.
+        (MarkupComponentBase): Added.
+        (MarkupComponentBase.prototype.element): Added. Like ComponentBase's element.
+        (MarkupComponentBase.prototype.content): Added. Like ComponentBase's content.
+        (MarkupComponentBase.prototype._findElementRecursivelyById): Added. A fake getElementById.
+        (MarkupComponentBase.prototype.render): Added. Like ComponentBase's render.
+        (MarkupComponentBase.prototype.runRenderLoop): Added. In ComponentBase, we use requestAnimationFrame.
+        In MarkupComponentBase, we keep rendering until the queue drains empty.
+        (MarkupComponentBase.prototype.renderReplace): Added. Like ComponentBase's renderReplace but applies
+        the transformation of classes to workaround the lack of shadow tree support in scriptless HTML.
+        (MarkupComponentBase.prototype._applyStyleOverrides): Added. Recursively applies the transformation.
+        (MarkupComponentBase.prototype._ensureContentTree): Added. Like ComponentBase's _ensureShadowTree.
+        (MarkupComponentBase.reset): Added.
+        (MarkupComponentBase._parseTemplates): Added. Parses the content & style templates, and generates the
+        transformed fake DOM tree and stylesheet text whereby selectors in each component is modified to be
+        unique across all components. The function to apply the necessary changes to an element is saved in
+        the global map of components, and later used in renderReplace via _applyStyleOverrides.
+        (MarkupComponentBase.defineElement): Added. Like ComponentBase's defineElement.
+        (MarkupComponentBase.prototype.createEventHandler): Added.
+        (MarkupComponentBase.createEventHandler): Added.
+        (MarkupPage): Added. The top-level component responsible for generating a DOCTYPE, head, and body.
+        (MarkupPage.prototype.pageTitle): Added.
+        (MarkupPage.prototype.content): Added. Overrides the one in MarkupComponentBase to return what would
+        be the content of the body element as opposed to the html element for the connivance of subclasses,
+        and to match the behavior of the frontend Page class.
+        (MarkupPage.prototype.render): Added.
+        (MarkupPage.prototype._updateComponentsStylesheet): Added. Concatenates the transformed stylesheet of
+        all components used.
+        (MarkupPage.get contentTemplate): Added.
+        (MarkupPage.prototype.generateMarkup): Added. Enqueues the page to render, spin the render loop, and
+        generates the HTML. We enqueue the page twice in order to invoke _updateComponentsStylesheet after
+        all subcomponent had finished rendering.
+        * unit-tests/markup-component-base-tests.js: Added.
+        * unit-tests/markup-element-tests.js: Added.
+        (.createElement): Added.
+        * unit-tests/markup-page-tests.js: Added.
+
+2018-05-23  Dewei Zhu  <dewei_zhu@apple.com>
+
+        OSBuildFetcher should respect maxRevision while finding OS builds to report.
+        https://bugs.webkit.org/show_bug.cgi?id=185925
+
+        Reviewed by Ryosuke Niwa.
+
+        * server-tests/tools-os-build-fetcher-tests.js: Fix a typo in the unit tests.
+        Added unit tests for this change. Aslo convert an existing test using async.
+        * tools/js/os-build-fetcher.js:
+        (prototype._fetchAvailableBuilds): It should also use 'maxRevision' to filter builds to be reported.
+        It should use 'minRevisionOrder' when no commit has ever been submitted.
+        (prototype._commitsForAvailableBuilds): Takes 'maxOrder' as fifth argument.
+        'minOrder' and 'maxOrder' should be inclusive.
+
+2018-05-11  Dewei Zhu  <dewei_zhu@apple.com>
+
+        Update ChartPane per change r231087.
+        https://bugs.webkit.org/show_bug.cgi?id=185570
+
+        Reviewed by Ryosuke Niwa.
+
+        On r231087 we change the return type of AnalysisTask.create, ChartPane needs to adapt
+        this change.
+
+        * public/v3/pages/chart-pane.js: Adapted the change that AnalysisTask.create now returns
+        an AnalysisTask object.
+        (ChartPane.prototype.async._analyzeRange):
+
+2018-05-10  Dewei Zhu  <dewei_zhu@apple.com>
+
+        CommitLogViewer._preceedingCommit should not always be null
+        https://bugs.webkit.org/show_bug.cgi?id=185540
+
+        Reviewed by Ryosuke Niwa.
+
+        Fix the bug introduced in r227746 that CommitLogViewer._preceedingCommit is always null.
+
+        * browser-tests/index.html: Fix expected measurement-set url.
+        * public/v3/components/commit-log-viewer.js:
+        (CommitLogViewer.prototype._fetchCommitLogs): CommitLogViewer._preceedingCommit should be set
+         when fetching for preceeding revision succeeds.
+
+2018-05-03  Dewei Zhu  <dewei_zhu@apple.com>
+
+        Range bisector should check the commits for repositories without change in specified range.
+        https://bugs.webkit.org/show_bug.cgi?id=185269
+
+        Reviewed by Ryosuke Niwa.
+
+        For repositories without a change in the specified range, we still need to use them to filter commit
+        sets. Before this change, code does not apply filtering by those repositories against commit set. As
+        a result, commit sets with different commits for those repositories may be chosen as bisecting commit set.
+
+        * public/v3/commit-set-range-bisector.js: Updated the logic to verify range for repositories without
+        change in range.
+        (CommitSetRangeBisector.async.commitSetClosestToMiddleOfAllCommits):
+        * unit-tests/commit-set-range-bisector-tests.js: Added a unit test to guard against this change.
+
+2018-05-02  Dewei Zhu  <dewei_zhu@apple.com>
+
+        Create analysis task should sync analysis task status after creation.
+        https://bugs.webkit.org/show_bug.cgi?id=185222
+
+        Reviewed by Ryosuke Niwa.
+
+        * public/v3/models/analysis-task.js:
+        (AnalysisTask.async.create): Fetch newly-created analysis task right about its creation.
+        (AnalysisTask):
+        * tools/js/measurement-set-analyzer.js:
+        (MeasurementSetAnalyzer.prototype.async._analyzeMeasurementSet): Adjust as 'AnalysisTask.create' now
+        returns an anlysis task instance.
+        (MeasurementSetAnalyzer):
+        * unit-tests/analysis-task-tests.js: Added a unit test for this change.
+        (async):
+        * unit-tests/measurement-set-analyzer-tests.js: Update unit tests accordingly.
+        Fix a typo in one previous unit test.
+        (async):
+
+2018-05-01  Dewei Zhu  <dewei_zhu@apple.com>
+
+        Write a script that detects chart changes by using v3 API.
+        https://bugs.webkit.org/show_bug.cgi?id=184419
+
+        Reviewed by Ryosuke Niwa.
+
+        Added a script that detects chart changes and schedule confirming analysis task.
+
+        * browser-tests/async-task-tests.js: Added a unit test for 'AsyncTask'.
+        * browser-tests/index.html: Added import for 'AsyncTask' for testing.
+        * public/shared/statistics.js: Make 'findRangesForChangeDetectionsWithWelchsTTest' defaults to 0.99 one sided possibility.
+        (Statistics.new.this.findRangesForChangeDetectionsWithWelchsTTest):
+        * public/v3/async-task.js:
+        (AsyncTask.isAvailable): Helper function to determine whether AsyncTask is available or not as 'Worker' is
+        not available in nodejs.
+        (AsyncTask):
+        * public/v3/models/bug.js: Export as a module.
+        * public/v3/models/measurement-set.js:
+        (MeasurementSet.prototype._invokeSegmentationAlgorithm): Added a check to avoid using AsyncTask when running in NodeJs.
+        (MeasurementSet):
+        * server-tests/resources/common-operations.js: Added a helper function to assert certain exception is thrown.
+        (async.assertThrows):
+        * tools/js/measurement-set-analyzer.js: Added 'MeasurementSetAnalyzer' module for analyzing measurement set.
+        (MeasurementSetAnalyzer):
+        (MeasurementSetAnalyzer.prototype.async.analyzeOnce):
+        (MeasurementSetAnalyzer.measurementSetListForAnalysis):
+        (MeasurementSetAnalyzer.prototype.async._analyzeMeasurementSet):
+        * tools/js/v3-models.js: Added import for 'Bug' object.
+        * tools/run-analysis.js: Added this script to detect measurement set changes.
+        (main):
+        (async.analysisLoop):
+        * unit-tests/measurement-set-analyzer-tests.js: Added unit tests for 'MeasurementSetAnalyzer'.
+        * unit-tests/resources/mock-v3-models.js: Reset 'MeasurementSet._set' every time.
+        Update mock platform to include lastModifiedByMetric information.
+        (MockModels.inject):
+
+2018-04-30  Ryosuke Niwa  <rniwa@webkit.org>
+
+        Creating a custom analysis task after fetching all analysis tasks fail
+        https://bugs.webkit.org/show_bug.cgi?id=184641
+
+        Reviewed by Saam Barati.
+
+        The bug was caused by AnalysisTask._fetchSubset not fetching the analysis task when all analysis tasks
+        had previously been fetched (AnlaysisTask._fetchAllPromise is set) even when noCache is set to true.
+        Fixed it by ignornig _fetchAllPromise when noCache is set to true.
+
+        This patch also adds noCache argument to AnalysisTask.fetchById and reverts the inadvertent change in
+        r226836 to always set noCache to true in this function.
+
+        * public/v3/models/analysis-task.js:
+        (AnalysisTask.fetchById): Added noCache argument instead of always specifying true, and modernized the code.
+        (AnalysisTask._fetchSubset): Fixed the bug. See above description.
+        * public/v3/models/test-group.js:
+        (TestGroup.createWithTask): Set noCache to true when calling AnalysisTask.fetchById here.
+        * unit-tests/analysis-task-tests.js: Added test cases for AnalysisTask.fetchById, including a test
+        to make sure it doesn't fetch the specified analysis task when noCache is set to false and all analysis
+        tasks had previously been fetched for the aforementioned revert of the inadvertent change in r226836.
+        (sampleAnalysisTasks): Renamed from sampleAnalysisTasks as the result contains multiple analysis tasks.
+        * unit-tests/test-groups-tests.js: Added a test case for TestGroup.createWithTask
+
+2018-04-30  Ryosuke Niwa  <rniwa@webkit.org>
+
+        REGRESSION(r230960): Browser tests under TimeSeriesChart fetchMeasurementSets all fail
+        https://bugs.webkit.org/show_bug.cgi?id=185125
+
+        Reviewed by Saam Barati.
+
+        The bug was caused by mock-remote-api.js always loading PrivilegedAPI using require, which doesn't work in a browser.
+        Fixed the bug by explicitly requiring the right kind of PrivilegedAPI in each unit test instead.
+
+        * unit-tests/analysis-task-tests.js:
+        * unit-tests/buildbot-syncer-tests.js:
+        * unit-tests/commit-log-tests.js:
+        * unit-tests/commit-set-range-bisector-tests.js:
+        * unit-tests/commit-set-tests.js:
+        * unit-tests/measurement-set-tests.js:
+        * unit-tests/privileged-api-tests.js:
+        * unit-tests/resources/mock-remote-api.js:
+        (MockRemoteAPI.inject): Take PrivilegedAPI instead of the type string. Also fixed a bug that _token wasn't unset
+        after each unit test, and superfluous initializations of originalRemoteAPI and originalPrivilegedAPI.
+        * unit-tests/test-groups-tests.js:
+
+2018-04-30  Dewei Zhu  <dewei_zhu@apple.com>
+
+        MeasurementSet._constructUrl should construct absolute url.
+        https://bugs.webkit.org/show_bug.cgi?id=185137
+
+        Reviewed by Ryosuke Niwa.
+
+        MeasurementSet._constructUrl should not construct an url with relative path.
+
+        * public/v3/models/measurement-set.js: Should use '/api/measurement-set...' and '/data/measurement-set-...'
+        for uncached and cached fetching.
+        * unit-tests/measurement-set-tests.js: Updated unit tests.
+        (const.set MeasurementSet):
+
+2018-04-26  Dewei Zhu  <dewei_zhu@apple.com>
+
+        Extend create-analysis-test API to be able to create with confirming test group.
+        https://bugs.webkit.org/show_bug.cgi?id=184958
+
+        Reviewed by Ryosuke Niwa.
+
+        Extend create-analysis-test API to be able to create an analysis task with confirming test group.
+        Update create analysis task UI in chart pane to adapt this new API.
+        Refactored '/privileged-api/create-test-group' API to share some creating test group logic with '/privileged-api/create-analysis-task' API.
+        Moved the shared logic to commit-sets-helpers.php.
+
+        * public/api/analysis-tasks.php: Use 'require_once' instead of 'require'.
+        * public/include/commit-sets-helpers.php: Added.
+        (create_test_group_and_build_requests): A helper function that creates test group and build requests for a analysis
+        task. In long term, this should be a class to avoid passing long argument list around.
+        (insert_commit_sets_and_construct_configuration_list): Based on commit sets returns build and test configurations.
+        (insert_build_request_for_configuration): Insert build requests based on configuration.
+        (commit_sets_from_revision_sets): Returns commit sets from given revision set list.
+        * public/privileged-api/create-analysis-task.php: Added the ability to create analysis task with confirming test
+        groups when repetition count is specified.
+        * public/privileged-api/create-test-group.php: Moved shared function to commit-sets-helpers.php.
+        * public/v3/models/analysis-task.js:
+        (AnalysisTask.create): Instead of accepting run ids, it now accepts points and test group name and confirming iterations.
+        It will conditionally add test group information into parameter when confirming iterations is a positive number.
+        (AnalysisTask):
+        * public/v3/models/commit-set.js:
+        (CommitSet.revisionSetsFromCommitSets): Move 'TestGroup._revisionSetsFromCommitSets' since CommitSet class is more
+        appropriate place and it will be shared by both TestGroup and AnalysisTask
+        (CommitSet):
+        * public/v3/models/test-group.js:
+        (TestGroup.createWithTask): Adapt 'CommitSet.revisionSetsFromCommitSets'.
+        (TestGroup.createWithCustomConfiguration): Adapt 'CommitSet.revisionSetsFromCommitSets'.
+        (TestGroup.createAndRefetchTestGroups): Adapt 'CommitSet.revisionSetsFromCommitSets'.
+        (TestGroup._revisionSetsFromCommitSets): Deleted and moved to 'CommitSet.revisionSetsFromCommitSets'.
+        * public/v3/pages/chart-pane.js:
+        (ChartPane.prototype.didConstructShadowTree): Added the logic to disable options when checkbox for creating confirming
+        test group is unchecked.
+        (ChartPane.prototype._analyzeRange): Conditionally create confirming test group from UI.
+        (ChartPane.cssTemplate):
+        * server-tests/privileged-api-create-analysis-task-tests.js: Added unit tests. Added a unit test for 'NodePrivilegedAPI'.
+        * unit-tests/analysis-task-tests.js: Added unit tests.
+        * unit-tests/commit-set-tests.js: Added unit test for 'CommitSet.revisionSetsFromCommitSets'.
+        * unit-tests/resources/mock-remote-api.js: Reset csrf token when BrowserPrivilegedAPI is used.
+        (MockRemoteAPI.inject):
+
+2018-04-23  Dewei Zhu  <dewei_zhu@apple.com>
+
+        Tool scripts should not use PrivilegedAPI from 'public/v3/privileged-api.js'.
+        https://bugs.webkit.org/show_bug.cgi?id=184766
+
+        Reviewed by Ryosuke Niwa.
+
+        For tools, we should not use PrivilegedAPI for tools as current PrivilegedAPI
+        is used by UI and it is unnecessary to generate CSRF token for tools.
+        Will post a followup patch that creates a PrivilegedAPI used by tools.
+        Make a change on TestServer.inject and MockRemoteAPI.inject to allow specifying
+        BrowserPrivilegedAPI or NodePrivilegedAPI in the test. Currently defaults to
+        BrowserPrivilegedAPI as this is the test behavior before this change.
+
+        * server-tests/resources/common-operations.js: Allow passing type of privileged api
+        information to TestServer.inject.
+        * server-tests/resources/test-server.js: Conditionally inject PrivilegedAPI based on
+        type of privileged api.
+        (TestServer.prototype.inject):
+        (TestServer):
+        * server-tests/tools-buildbot-triggerable-tests.js: Updated 'prepareServerTest' invocation.
+        * server-tests/tools-os-build-fetcher-tests.js: Updated 'prepareServerTest' invocation.
+        * server-tests/tools-sync-buildbot-integration-tests.js: Temporarily injecting
+        BrowserPrivilegedAPI for mocking UploadedFile. The actual script does not rely on
+        BrowserPrivilegedAPI at all.
+        (async.createTestGroupWihPatch):
+        (beforeEach):
+        * tools/js/privileged-api.js: Added NodePrivilegedAPI
+        (NodePrivilegedAPI.prototype.sendRequest):
+        (NodePrivilegedAPI.configure): Configure the slave name and password.
+        (NodePrivilegedAPI):
+        * tools/js/v3-models.js: Removed the import of PrivilegedAPI.
+        * unit-tests/privileged-api-tests.js:. Added unit tests for NodePrivilegedAPI.
+        * unit-tests/resources/mock-remote-api.js: Conditionally inject PrivilegedAPI based on
+        the type of privileged api.
+        (MockRemoteAPI.inject):
+
+2018-04-23  Dewei Zhu  <dewei_zhu@apple.com>
+
+        Revision information returned by querying measurement set api with analysis task id should contain commit order.
+        https://bugs.webkit.org/show_bug.cgi?id=184902
+
+        Reviewed by Ryosuke Niwa.
+
+        This is a bug fix for r230719 which does not cover the case while querying `measurement-set.php?analysisTask=$task_id`
+
+        * public/api/measurement-set.php: AnalysisResultsFetcher.fetch_commits results should contains commit order.
+        * server-tests/api-measurement-set-tests.js: Added unit test for this change.
+
+2018-04-19  Dewei Zhu  <dewei_zhu@apple.com>
+
+        Add a bisect button to automatically schedule bisecting A/B tasks.
+        https://bugs.webkit.org/show_bug.cgi?id=183888
+
+        Reviewed by Ryosuke Niwa.
+
+        Extended AnalysisTask's ability to figure out bisecting A/B tasks based on existing data points and test groups.
+        Updated analysis page UI to show bisect button which will only appear when the middle commit set of the range in
+        test group can be found.
+
+        Finding middle commit set algorithm is described as follows:
+        1. Find all commits from multiple repositories among the ranges specified by two commit sets in test group. In
+        the meanwhile, merge all commits that have commit time into a single list. For commits only have commit order,
+        put those commits into separate lists.
+        2. Filter all the available commit sets in current analysis task by keeping the ones have exact repositories
+        as the two commit sets in specified test group, and every commit of a commit set is in side the commit range.
+        After filtering the commit sets, sort the remaining ones and only keep one commit set if multiple commit sets
+        are equal to each other.
+        3. Among commits processed by step 2, find the commit sets that have the commit which is closest to the middle of
+        all commits that have commit time created from step 1.
+        4. Among commits processed by step 3, find the commit sets that have the commit which is closest to the middle of
+        commits that only have commit order and categorized by repository. We have to iterate through repository as commit
+        order is not granted to be comparable between different repositories.
+        5. If more than one commit sets are found, choose the middle commit set.
+
+        * public/v3/commit-set-range-bisector.js: Added.
+        (CommitSetRangeBisector.async.commitSetClosestToMiddleOfAllCommits): Instead of naively returning the middle of
+        existing commit set array, this function selects a bisect bisection points that is closest to actually middle of
+        the revision range based on all revisions reported to performance dashboard.
+        (CommitSetRangeBisector._findCommitSetsWithinRange): Helper function to find commit sets those are in specified range.
+        (CommitSetRangeBisector._orderCommitSetsByTimeAndOrderThenDeduplicate): Helper function to sort and deduplicate commit sets.
+        (CommitSetRangeBisector._closestCommitSetsToBisectingCommitByTime): Helper function to find the commit sets those
+        are closest to the middle of among all the commits in the range that have commit time.
+        (CommitSetRangeBisector._findCommitSetsClosestToMiddleOfCommitsWithOrder): Helper function which goes through all
+        repositories the commit of which has commit order, and find the commit sets those are closest to the middle of
+        commits for each repository.
+        (CommitSetRangeBisector._buildCommitToCommitSetMap): Helper function to builder mapping from a commit to commit
+        sets those contain this commit.
+        (CommitSetRangeBisector._findCommitClosestToMiddleIndex): Helper function to find closest commit to the middle of index.
+        (CommitSetRangeBisector):
+        * public/v3/index.html: Imports 'public/v3/commit-set-range-bisector.js'.
+        * public/v3/models/analysis-task.js:
+        (AnalysisTask.prototype.async.commitSetsFromTestGroupsAndMeasurementSet): Aggregates all existing commit sets in
+        test groups of current analysis tasks.
+        * public/v3/models/commit-log.js:
+        (CommitLog.prototype.hasCommitTime): A helper function determine whether a commit has a commit time. For commit
+        that does not have time, server will return commit time as zero. As it is unrealistic for a commit has commit time
+        0, it would be safe to assume a valid commit time is greater than 0.
+        (CommitLog.prototype.hasCommitOrder): Returns whether a commit has a commit oder.
+        (CommitLog.hasOrdering): Determine whether we can order two commits by commit time or commit order.
+        (CommitLog.orderTwoCommits): Order two commits incrementally.
+        * public/v3/models/commit-set.js:
+        (CommitSet.prototype.hasSameRepositories): A helper function to determine whether a commit set has same repositories
+        as current repository.
+        (CommitSet.containsRootOrPatchOrOwnedCommit): A helper function to determine whether current commit set has root,
+        patch or owned commit.
+        (CommitSet.commitForRepository): This function defined twice identically, remove one of them.
+        * public/v3/models/test-group.js: Make '_computeRequestedCommitSets' a static function as it does not use any
+        instance variables.
+        * public/v3/pages/analysis-task-page.js: Added bisect button.
+        (AnalysisTaskTestGroupPane):
+        (AnalysisTaskTestGroupPane.prototype.didConstructShadowTree):
+        (AnalysisTaskTestGroupPane.prototype.setTestGroups): Update 'setTestGroups' to update _bisectingCommitSetByTestGroup
+        when the test groups changes.
+        (AnalysisTaskTestGroupPane.prototype._renderCurrentTestGroup): Added code to conditionally show bisect button.
+        Bisect button will only show when there is a middle commit set for that test group.
+        (AnalysisTaskTestGroupPane.htmlTemplate):
+        (AnalysisTaskTestGroupPane.cssTemplate):
+        (AnalysisTaskPage.prototype.didConstructShadowTree):
+        (AnalysisTaskPage.prototype._retryCurrentTestGroup):
+        (AnalysisTaskPage.prototype.async._bisectCurrentTestGroup): A callback when bisect button is clicked.
+        * tools/js/v3-models.js:
+        * unit-tests/commit-log-tests.js: Added unit tests for 'CommitLog.hasCommitTime', 'CommitLog.hasCommitOrder',
+        'CommitLog.orderTwoCommits', 'CommitLog.hasOrdering'.
+        * unit-tests/commit-set-range-bisector-tests.js: Unit tests for 'CommitSetRangeBisector.commitSetClosestToMiddleOfAllCommits'.
+        * unit-tests/commit-set-tests.js: Added unit tests for 'CommitSet.hasSameRepositories' and 'CommitSet.containsRootOrPatchOrOwnedCommit'.
+
+2018-04-16  Dewei Zhu  <dewei_zhu@apple.com>
+
+        Commit order should always be returned by api.
+        https://bugs.webkit.org/show_bug.cgi?id=184674
+
+        Reviewed by Ryosuke Niwa.
+
+        Commit order sometimes missing in CommitLog object before this change.
+        This makes ordering commits logic become unnecessarily complicate.
+        This change will ensure commit order is always fetched for a CommitLog object.
+        Change measurement-set API to contain commit order information.
+        Change commits API to contain commit order information.
+
+        * public/api/measurement-set.php: Includes commit order information.
+        * public/include/commit-log-fetcher.php:
+        * public/v3/models/commit-log.js: Added a function to return order information.
+        (CommitLog.prototype.updateSingleton): This function should update commit order.
+        (CommitLog.prototype.order): Returns the order of commit.
+        * public/v3/models/commit-set.js:
+        (MeasurementCommitSet): Update MeasurementCommitSet to contain commit order information when creating CommitLog object.
+        * server-tests/api-measurement-set-tests.js: Updated unit tests.
+        * unit-tests/analysis-task-tests.js: Update unit tests to contain commit order information in mock data.
+        (measurementCluster):
+        * unit-tests/commit-log-tests.js: Added unit tests for CommitLog.order.
+        * unit-tests/commit-set-tests.js: Added commit order in MeasurementCommitSet.
+        * unit-tests/measurement-adaptor-tests.js: Updated unit tests to contain commit order information in mock data.
+        * unit-tests/measurement-set-tests.js: Updated unit tests to contain commit order information in mock data.
+
+2018-04-15  Ryosuke Niwa  <rniwa@webkit.org>
+
+        Make it possible to hide some repository groups
+        https://bugs.webkit.org/show_bug.cgi?id=184632
+
+        Reviewed by Saam Barati.
+
+        Added the ability to hide repository groups in the custom analysis task configurator from the admin page.
+        Hidden repositroy groups will continue to function for existing test groups. This is purely an UI change.
+
+        * init-database.sql: Added repositorygroup_hidden as a new column to triggerable_repository_groups.
+        * public/admin/triggerables.php: Added a form field to hide a repository group.
+        * public/include/manifest-generator.php: Include hidden state in the manifest file.
+        * public/v3/components/custom-analysis-task-configurator.js:
+        (CustomAnalysisTaskConfigurator.prototype._renderRepositoryPanes): Filter out hidden repository groups.
+        * public/v3/models/triggerable.js:
+        (prototype.isHidden): Added.
+        * server-tests/api-manifest-tests.js: Updated an existing test case to test a hidden repository group.
+
+2018-04-06  Dewei Zhu  <dewei_zhu@apple.com>
+
+        Added 'CommitSet.diff' which will be shared between multiple independent incoming changes.
+        https://bugs.webkit.org/show_bug.cgi?id=184368
+
+        Reviewed by Ryosuke Niwa.
+
+        'CommitSet.diff' will be used in multiple independent incoming changes.
+        It would be easier to make this a separate change to parallelize the changes depends on this API.
+
+        * public/v3/models/commit-set.js:
+        (CommitSet.prototype.createNameWithoutCollision): Moved from 'AnalysisTaskPage' and make it more generic.
+        (CommitSet.prototype.diff): Describe differences between 2 commit sets including commit, root and patch differences.
+        * public/v3/pages/analysis-task-page.js: Move 'AnalysisTaskPage._createRetryNameForTestGroup' to CommitSet in a more generic form.
+        (AnalysisTaskPage.prototype._retryCurrentTestGroup): Use 'CommitSet.withoutRootPatchOrOwnedCommit' instead.
+        (AnalysisTaskPage.prototype._createRetryNameForTestGroup): Moved to CommitSet in a more generic form.
+        * unit-tests/commit-set-tests.js: Added unit tests for 'CommitSet.diff'.
+
+2018-04-05  Dewei Zhu  <dewei_zhu@apple.com>
+
+        Fix a bug introduced in r230295 that A/B test result is not shown.
+        https://bugs.webkit.org/show_bug.cgi?id=184350
+
+        Reviewed by Ryosuke Niwa.
+
+        result.label should be assigned in `TestGroup._computeRequestedCommitSets`.
+
+        * public/v3/models/test-group.js:
+        (TestGroup.prototype._computeRequestedCommitSets):
+
+2018-03-29  Dewei Zhu  <dewei_zhu@apple.com>
+
+        Added UI to show potential regressions in chart with t-testing against segmentations.
+        https://bugs.webkit.org/show_bug.cgi?id=184131
+
+        Reviewed by Ryosuke Niwa.
+
+        Added UI in the chart-pane so that user can use new option in trendline which not only
+        shows the segmentation, but also t-test against potential changes indicated by segmentation.
+
+        Fix a bug in AnalysisTaskPage that chart is not updated when change type of task changes.
+
+        * browser-tests/interactive-time-series-chart-tests.js: Fix a unit tests.
+        * browser-tests/time-series-chart-tests.js: Fix a unit tests.
+        * public/shared/statistics.js: Added a function to t-test certain range based on segmentation results.
+        (Statistics.supportedOneSideTTestProbabilities):
+        (Statistics.findRangesForChangeDetectionsWithWelchsTTest): The argument `segmentations`, every 2 items in the list defines 
+        segmentation, that is why the index incremental is 2 in this funcion.
+        * public/v3/components/chart-pane-base.js: Will select the range if user clicks on a suggested annotation.
+        (ChartPaneBase.prototype.configure):
+        (ChartPaneBase.prototype._didClickAnnotation):
+        * public/v3/components/chart-styles.js:
+        (ChartStyles.annotationFillStyleForTask): Added 'annotationFillStyleForTask' to determine the fillStyle for annotation based on change type of a analysis task.
+        * public/v3/components/interactive-time-series-chart.js:
+        (InteractiveTimeSeriesChart.prototype._findAnnotation): Also need to search among suggested annotaions.
+        * public/v3/components/time-series-chart.js: Introduced 'suggested annotaion' which does not have an existing task and is suggested by t-test based on segmentation.
+        (TimeSeriesChart):
+        (TimeSeriesChart.prototype.setSuggestedAnnotations):
+        (TimeSeriesChart.prototype.allAnnotations): Returns both annotations with and without analysis task.
+        (TimeSeriesChart.prototype._layoutAnnotationBars): Should take all annotations in the calculation.
+        * public/v3/models/measurement-set.js:
+        (MeasurementSet.prototype.metricId): Returns metric id.
+        * public/v3/models/metric.js:
+        (Metric.prototype.summarizeForValues): Added helper function to summarize a given value
+        * public/v3/models/test-group.js:
+        (TestGroup.prototype.compareTestResults): Adapted to use 'Metric.summarizeForValues'.
+        * public/v3/pages/chart-pane.js: Added 'Segmentation with t-test analysis' to 'ChartTrendLineTypes'.
+        (ChartPane.prototype._renderTrendLinePopover):
+        (ChartPane.prototype.async._updateTrendLine): make it an async function.
+        * unit-tests/statistics-tests.js: Added unit tests for 'findRangesForChangeDetectionsWithWelchsTTest'.
+
+2018-04-02  Aakash Jain  <aakash_jain@apple.com>
+
+        Remove deprecated Buildbot 0.8 code from Perf syncing scripts
+        https://bugs.webkit.org/show_bug.cgi?id=183915
+
+        Reviewed by Ryosuke Niwa.
+
+        * server-tests/resources/mock-data.js:
+        (MockData.buildbotBuildersURLDeprecated): Deleted.
+        (MockData.mockBuildbotBuildersDeprecated): Deleted.
+        (MockData.pendingBuildDeprecated): Deleted.
+        (MockData.runningBuildDeprecated): Deleted.
+        (MockData.finishedBuildDeprecated): Deleted.
+        * tools/js/buildbot-syncer.js:
+        (BuildbotBuildEntryDeprecated): Deleted.
+        (BuildbotBuildEntryDeprecated.prototype.initialize): Deleted.
+        (BuildbotBuildEntryDeprecated.prototype.url): Deleted.
+        (BuildbotSyncer.prototype.scheduleBuildOnBuildbotDeprecated): Deleted.
+        (BuildbotSyncer.prototype._pullRecentBuildsDeprecated): Deleted.
+        (BuildbotSyncer.prototype.pathForPendingBuildsJSONDeprecated): Deleted.
+        (BuildbotSyncer.prototype.pathForBuildJSONDeprecated): Deleted.
+        (BuildbotSyncer.prototype.pathForForceBuildDeprecated): Deleted.
+        (BuildbotSyncer.prototype.url): Deleted.
+        (BuildbotSyncer.prototype.urlForBuildNumberDeprecated): Deleted.
+        * tools/js/buildbot-triggerable.js:
+        (BuildbotTriggerable.prototype.getBuilderNameToIDMapDeprecated): Deleted.
+        * unit-tests/buildbot-syncer-tests.js:
+        (smallPendingBuildDeprecated): Deleted.
+        (smallInProgressBuildDeprecated): Deleted.
+        (smallFinishedBuildDeprecated): Deleted.
+        (samplePendingBuildRequestDeprecated): Deleted.
+        (sampleInProgressBuildDeprecated): Deleted.
+        (sampleFinishedBuildDeprecated): Deleted.
+
+2018-03-19  Aakash Jain  <aakash_jain@apple.com>
+
+        Update Perf buildbot syncing scripts for Buildbot 0.9
+        https://bugs.webkit.org/show_bug.cgi?id=175969
+
+        Reviewed by Ryosuke Niwa.
+
+        * tools/js/buildbot-triggerable.js:
+        (BuildbotTriggerable.prototype.initSyncers): Switch from Deprecated version to new version of getBuilderNameToIDMap.
+        * tools/js/buildbot-syncer.js:
+        (BuildbotSyncer.prototype.scheduleRequestInGroupIfAvailable): Switch from Deprecated version to new version of scheduleRequest.
+        (BuildbotSyncer.prototype.pullBuildbot): Switch from Deprecated version to new version of pathForPendingBuilds, _pullRecentBuilds 
+        and BuildbotBuildEntry. Parse the pending build-requests data in Buildbot 0.9 format.
+        * unit-tests/buildbot-syncer-tests.js: Updated as per Buildbot 0.9 code.
+        * server-tests/tools-sync-buildbot-integration-tests.js: Ditto.
+        * server-tests/tools-buildbot-triggerable-tests.js: Ditto.
+        * server-tests/resources/mock-data.js: Ditto.
+        (MockData.pendingBuildsUrl): Method to construct pendingBuildsUrl in Buildbot 0.9 format.
+        (MockData.recentBuildsUrl): Ditto for recent builds url.
+        (MockData.statusUrl): Ditto for status url.
+        (MockData.builderIDForName): Method to get builder ID from builder name.
+
+2018-03-15  Aakash Jain  <aakash_jain@apple.com>
+
+        BuildbotBuildEntry creates an incorrect url for pending builds
+        https://bugs.webkit.org/show_bug.cgi?id=183670
+
+        Reviewed by Ryosuke Niwa.
+
+        * tools/js/buildbot-syncer.js:
+        (BuildbotBuildEntry.prototype.initialize): Fetch buildrequestid from Buildbot.
+        (BuildbotBuildEntry.prototype.url): Construct url for pending build using buildrequestid from Buildbot.
+        * unit-tests/buildbot-syncer-tests.js: Updated unit-test.
+
+2018-03-14  Aakash Jain  <aakash_jain@apple.com>
+
+        Add support for boolean properties in BuildbotSyncer while submitting build request to Buildbot 0.9 server
+        https://bugs.webkit.org/show_bug.cgi?id=183638
+
+        Reviewed by Ryosuke Niwa.
+
+        * tools/js/buildbot-syncer.js:
+        (BuildbotSyncer._parseRepositoryGroupPropertyTemplate): Allow boolean properties.
+        * server-tests/tools-sync-buildbot-integration-tests.js: Tests for boolean properties.
+        * unit-tests/buildbot-syncer-tests.js: Ditto.
+
+2018-03-04  Dewei Zhu  <dewei_zhu@apple.com>
+
+        Create analysis task should use build time as fallback when commit time is not available.
+        https://bugs.webkit.org/show_bug.cgi?id=183309
+
+        Reviewed by Ryosuke Niwa.
+
+        Added the ability to schedule analysis task for the range without commit time.
+
+        * public/privileged-api/create-analysis-task.php: Use build time as fallback.
+        * server-tests/privileged-api-create-analysis-task-tests.js: Added a unit test for this change.
+
+2018-03-04  Aakash Jain  <aakash_jain@apple.com>
+
+        BuildbotBuildEntry for buildbot 0.9 uses incorrect buildrequestid
+        https://bugs.webkit.org/show_bug.cgi?id=183194
+
+        Reviewed by Ryosuke Niwa.
+
+        * tools/js/buildbot-syncer.js:
+        (BuildbotBuildEntry.prototype.initialize): Updated _buildRequestId to use correct build-request-id, as set in syncer._buildRequestPropertyName.
+        (BuildbotSyncer.prototype.pathForPendingBuilds): Updated url to fetch properties for build-requests.
+        * unit-tests/buildbot-syncer-tests.js:
+        (sampleBuildData): Updated sampleBuildData with correct build-request-id in properties. Added
+        properties to samplePendingBuildRequestData.
+
 2018-02-28  Aakash Jain  <aakash_jain@apple.com>
 
         Rename samplePendingBuild to samplePendingBuildRequest

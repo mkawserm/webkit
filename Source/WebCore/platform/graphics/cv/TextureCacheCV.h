@@ -23,8 +23,9 @@
  * THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef TextureCacheCV_h
-#define TextureCacheCV_h
+#pragma once
+
+#if HAVE(CORE_VIDEO)
 
 #include "GraphicsTypes3D.h"
 #include <wtf/Ref.h>
@@ -42,7 +43,7 @@ namespace WebCore {
 
 class GraphicsContext3D;
 
-class TextureCacheCV {
+class TextureCacheCV : public CanMakeWeakPtr<TextureCacheCV> {
 public:
     static std::unique_ptr<TextureCacheCV> create(GraphicsContext3D&);
 
@@ -62,9 +63,8 @@ public:
 private:
     Ref<GraphicsContext3D> m_context;
     RetainPtr<TextureCacheType> m_cache;
-    WeakPtrFactory<TextureCacheCV> m_weakPtrFactory;
 };
 
 }
 
-#endif // TextureCacheCV_h
+#endif // HAVE(CORE_VIDEO)

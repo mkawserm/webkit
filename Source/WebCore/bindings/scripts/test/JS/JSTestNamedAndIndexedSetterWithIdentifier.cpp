@@ -29,12 +29,14 @@
 #include "JSDOMExceptionHandling.h"
 #include "JSDOMOperation.h"
 #include "JSDOMWrapperCache.h"
-#include "URL.h"
+#include "ScriptExecutionContext.h"
 #include <JavaScriptCore/FunctionPrototype.h>
+#include <JavaScriptCore/HeapSnapshotBuilder.h>
 #include <JavaScriptCore/JSCInlines.h>
 #include <JavaScriptCore/PropertyNameArray.h>
 #include <wtf/GetPtr.h>
 #include <wtf/PointerPreparations.h>
+#include <wtf/URL.h>
 
 
 namespace WebCore {
@@ -86,7 +88,7 @@ template<> JSValue JSTestNamedAndIndexedSetterWithIdentifierConstructor::prototy
 template<> void JSTestNamedAndIndexedSetterWithIdentifierConstructor::initializeProperties(VM& vm, JSDOMGlobalObject& globalObject)
 {
     putDirect(vm, vm.propertyNames->prototype, JSTestNamedAndIndexedSetterWithIdentifier::prototype(vm, globalObject), JSC::PropertyAttribute::DontDelete | JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum);
-    putDirect(vm, vm.propertyNames->name, jsNontrivialString(&vm, String(ASCIILiteral("TestNamedAndIndexedSetterWithIdentifier"))), JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum);
+    putDirect(vm, vm.propertyNames->name, jsNontrivialString(&vm, String("TestNamedAndIndexedSetterWithIdentifier"_s)), JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum);
     putDirect(vm, vm.propertyNames->length, jsNumber(0), JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum);
 }
 
@@ -97,8 +99,8 @@ template<> const ClassInfo JSTestNamedAndIndexedSetterWithIdentifierConstructor:
 static const HashTableValue JSTestNamedAndIndexedSetterWithIdentifierPrototypeTableValues[] =
 {
     { "constructor", static_cast<unsigned>(JSC::PropertyAttribute::DontEnum), NoIntrinsic, { (intptr_t)static_cast<PropertySlot::GetValueFunc>(jsTestNamedAndIndexedSetterWithIdentifierConstructor), (intptr_t) static_cast<PutPropertySlot::PutValueFunc>(setJSTestNamedAndIndexedSetterWithIdentifierConstructor) } },
-    { "namedSetter", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestNamedAndIndexedSetterWithIdentifierPrototypeFunctionNamedSetter), (intptr_t) (2) } },
-    { "indexedSetter", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestNamedAndIndexedSetterWithIdentifierPrototypeFunctionIndexedSetter), (intptr_t) (2) } },
+    { "namedSetter", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestNamedAndIndexedSetterWithIdentifierPrototypeFunctionNamedSetter), (intptr_t) (2) } },
+    { "indexedSetter", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestNamedAndIndexedSetterWithIdentifierPrototypeFunctionIndexedSetter), (intptr_t) (2) } },
 };
 
 const ClassInfo JSTestNamedAndIndexedSetterWithIdentifierPrototype::s_info = { "TestNamedAndIndexedSetterWithIdentifierPrototype", &Base::s_info, nullptr, nullptr, CREATE_METHOD_TABLE(JSTestNamedAndIndexedSetterWithIdentifierPrototype) };
@@ -157,11 +159,11 @@ bool JSTestNamedAndIndexedSetterWithIdentifier::getOwnPropertySlot(JSObject* obj
         return JSObject::getOwnPropertySlot(object, state, propertyName, slot);
     }
     using GetterIDLType = IDLDOMString;
-    auto getterFunctor = [] (auto& thisObject, auto propertyName) -> std::optional<typename GetterIDLType::ImplementationType> {
+    auto getterFunctor = [] (auto& thisObject, auto propertyName) -> Optional<typename GetterIDLType::ImplementationType> {
         auto result = thisObject.wrapped().namedItem(propertyNameToAtomicString(propertyName));
         if (!GetterIDLType::isNullValue(result))
             return typename GetterIDLType::ImplementationType { GetterIDLType::extractValueFromNullable(result) };
-        return std::nullopt;
+        return WTF::nullopt;
     };
     if (auto namedProperty = accessVisibleNamedProperty<OverrideBuiltins::No>(*state, *thisObject, propertyName, getterFunctor)) {
         auto value = toJS<IDLDOMString>(*state, WTFMove(namedProperty.value()));
@@ -185,11 +187,11 @@ bool JSTestNamedAndIndexedSetterWithIdentifier::getOwnPropertySlotByIndex(JSObje
     }
     auto propertyName = Identifier::from(state, index);
     using GetterIDLType = IDLDOMString;
-    auto getterFunctor = [] (auto& thisObject, auto propertyName) -> std::optional<typename GetterIDLType::ImplementationType> {
+    auto getterFunctor = [] (auto& thisObject, auto propertyName) -> Optional<typename GetterIDLType::ImplementationType> {
         auto result = thisObject.wrapped().namedItem(propertyNameToAtomicString(propertyName));
         if (!GetterIDLType::isNullValue(result))
             return typename GetterIDLType::ImplementationType { GetterIDLType::extractValueFromNullable(result) };
-        return std::nullopt;
+        return WTF::nullopt;
     };
     if (auto namedProperty = accessVisibleNamedProperty<OverrideBuiltins::No>(*state, *thisObject, propertyName, getterFunctor)) {
         auto value = toJS<IDLDOMString>(*state, WTFMove(namedProperty.value()));
@@ -300,14 +302,14 @@ bool JSTestNamedAndIndexedSetterWithIdentifier::defineOwnProperty(JSObject* obje
 
 template<> inline JSTestNamedAndIndexedSetterWithIdentifier* IDLOperation<JSTestNamedAndIndexedSetterWithIdentifier>::cast(ExecState& state)
 {
-    return jsDynamicDowncast<JSTestNamedAndIndexedSetterWithIdentifier*>(state.vm(), state.thisValue());
+    return jsDynamicCast<JSTestNamedAndIndexedSetterWithIdentifier*>(state.vm(), state.thisValue());
 }
 
 EncodedJSValue jsTestNamedAndIndexedSetterWithIdentifierConstructor(ExecState* state, EncodedJSValue thisValue, PropertyName)
 {
     VM& vm = state->vm();
     auto throwScope = DECLARE_THROW_SCOPE(vm);
-    auto* prototype = jsDynamicDowncast<JSTestNamedAndIndexedSetterWithIdentifierPrototype*>(vm, JSValue::decode(thisValue));
+    auto* prototype = jsDynamicCast<JSTestNamedAndIndexedSetterWithIdentifierPrototype*>(vm, JSValue::decode(thisValue));
     if (UNLIKELY(!prototype))
         return throwVMTypeError(state, throwScope);
     return JSValue::encode(JSTestNamedAndIndexedSetterWithIdentifier::getConstructor(state->vm(), prototype->globalObject()));
@@ -317,7 +319,7 @@ bool setJSTestNamedAndIndexedSetterWithIdentifierConstructor(ExecState* state, E
 {
     VM& vm = state->vm();
     auto throwScope = DECLARE_THROW_SCOPE(vm);
-    auto* prototype = jsDynamicDowncast<JSTestNamedAndIndexedSetterWithIdentifierPrototype*>(vm, JSValue::decode(thisValue));
+    auto* prototype = jsDynamicCast<JSTestNamedAndIndexedSetterWithIdentifierPrototype*>(vm, JSValue::decode(thisValue));
     if (UNLIKELY(!prototype)) {
         throwVMTypeError(state, throwScope);
         return false;
@@ -366,10 +368,20 @@ EncodedJSValue JSC_HOST_CALL jsTestNamedAndIndexedSetterWithIdentifierPrototypeF
     return IDLOperation<JSTestNamedAndIndexedSetterWithIdentifier>::call<jsTestNamedAndIndexedSetterWithIdentifierPrototypeFunctionIndexedSetterBody>(*state, "indexedSetter");
 }
 
-bool JSTestNamedAndIndexedSetterWithIdentifierOwner::isReachableFromOpaqueRoots(JSC::Handle<JSC::Unknown> handle, void*, SlotVisitor& visitor)
+void JSTestNamedAndIndexedSetterWithIdentifier::heapSnapshot(JSCell* cell, HeapSnapshotBuilder& builder)
+{
+    auto* thisObject = jsCast<JSTestNamedAndIndexedSetterWithIdentifier*>(cell);
+    builder.setWrappedObjectForCell(cell, &thisObject->wrapped());
+    if (thisObject->scriptExecutionContext())
+        builder.setLabelForCell(cell, "url " + thisObject->scriptExecutionContext()->url().string());
+    Base::heapSnapshot(cell, builder);
+}
+
+bool JSTestNamedAndIndexedSetterWithIdentifierOwner::isReachableFromOpaqueRoots(JSC::Handle<JSC::Unknown> handle, void*, SlotVisitor& visitor, const char** reason)
 {
     UNUSED_PARAM(handle);
     UNUSED_PARAM(visitor);
+    UNUSED_PARAM(reason);
     return false;
 }
 
@@ -420,7 +432,7 @@ JSC::JSValue toJS(JSC::ExecState* state, JSDOMGlobalObject* globalObject, TestNa
 
 TestNamedAndIndexedSetterWithIdentifier* JSTestNamedAndIndexedSetterWithIdentifier::toWrapped(JSC::VM& vm, JSC::JSValue value)
 {
-    if (auto* wrapper = jsDynamicDowncast<JSTestNamedAndIndexedSetterWithIdentifier*>(vm, value))
+    if (auto* wrapper = jsDynamicCast<JSTestNamedAndIndexedSetterWithIdentifier*>(vm, value))
         return &wrapper->wrapped();
     return nullptr;
 }

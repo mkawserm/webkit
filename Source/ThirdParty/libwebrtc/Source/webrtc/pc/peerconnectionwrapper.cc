@@ -15,14 +15,16 @@
 #include <utility>
 #include <vector>
 
+#include "absl/memory/memory.h"
 #include "api/jsepsessiondescription.h"
-#include "media/base/fakevideocapturer.h"
 #include "pc/sdputils.h"
+#include "pc/test/fakevideotracksource.h"
 #include "rtc_base/function_view.h"
 #include "rtc_base/gunit.h"
-#include "rtc_base/ptr_util.h"
 
 namespace webrtc {
+
+using RTCOfferAnswerOptions = PeerConnectionInterface::RTCOfferAnswerOptions;
 
 namespace {
 const uint32_t kDefaultTimeout = 10000U;
@@ -57,7 +59,7 @@ MockPeerConnectionObserver* PeerConnectionWrapper::observer() {
 
 std::unique_ptr<SessionDescriptionInterface>
 PeerConnectionWrapper::CreateOffer() {
-  return CreateOffer(PeerConnectionInterface::RTCOfferAnswerOptions());
+  return CreateOffer(RTCOfferAnswerOptions());
 }
 
 std::unique_ptr<SessionDescriptionInterface> PeerConnectionWrapper::CreateOffer(
@@ -72,8 +74,7 @@ std::unique_ptr<SessionDescriptionInterface> PeerConnectionWrapper::CreateOffer(
 
 std::unique_ptr<SessionDescriptionInterface>
 PeerConnectionWrapper::CreateOfferAndSetAsLocal() {
-  return CreateOfferAndSetAsLocal(
-      PeerConnectionInterface::RTCOfferAnswerOptions());
+  return CreateOfferAndSetAsLocal(RTCOfferAnswerOptions());
 }
 
 std::unique_ptr<SessionDescriptionInterface>
@@ -89,7 +90,7 @@ PeerConnectionWrapper::CreateOfferAndSetAsLocal(
 
 std::unique_ptr<SessionDescriptionInterface>
 PeerConnectionWrapper::CreateAnswer() {
-  return CreateAnswer(PeerConnectionInterface::RTCOfferAnswerOptions());
+  return CreateAnswer(RTCOfferAnswerOptions());
 }
 
 std::unique_ptr<SessionDescriptionInterface>
@@ -105,8 +106,7 @@ PeerConnectionWrapper::CreateAnswer(
 
 std::unique_ptr<SessionDescriptionInterface>
 PeerConnectionWrapper::CreateAnswerAndSetAsLocal() {
-  return CreateAnswerAndSetAsLocal(
-      PeerConnectionInterface::RTCOfferAnswerOptions());
+  return CreateAnswerAndSetAsLocal(RTCOfferAnswerOptions());
 }
 
 std::unique_ptr<SessionDescriptionInterface>
@@ -179,6 +179,53 @@ bool PeerConnectionWrapper::SetSdp(
   return observer->result();
 }
 
+bool PeerConnectionWrapper::ExchangeOfferAnswerWith(
+    PeerConnectionWrapper* answerer) {
+  return ExchangeOfferAnswerWith(answerer, RTCOfferAnswerOptions(),
+                                 RTCOfferAnswerOptions());
+}
+
+bool PeerConnectionWrapper::ExchangeOfferAnswerWith(
+    PeerConnectionWrapper* answerer,
+    const PeerConnectionInterface::RTCOfferAnswerOptions& offer_options,
+    const PeerConnectionInterface::RTCOfferAnswerOptions& answer_options) {
+  RTC_DCHECK(answerer);
+  if (answerer == this) {
+    RTC_LOG(LS_ERROR) << "Cannot exchange offer/answer with ourself!";
+    return false;
+  }
+  auto offer = CreateOffer(offer_options);
+  EXPECT_TRUE(offer);
+  if (!offer) {
+    return false;
+  }
+  bool set_local_offer =
+      SetLocalDescription(CloneSessionDescription(offer.get()));
+  EXPECT_TRUE(set_local_offer);
+  if (!set_local_offer) {
+    return false;
+  }
+  bool set_remote_offer = answerer->SetRemoteDescription(std::move(offer));
+  EXPECT_TRUE(set_remote_offer);
+  if (!set_remote_offer) {
+    return false;
+  }
+  auto answer = answerer->CreateAnswer(answer_options);
+  EXPECT_TRUE(answer);
+  if (!answer) {
+    return false;
+  }
+  bool set_local_answer =
+      answerer->SetLocalDescription(CloneSessionDescription(answer.get()));
+  EXPECT_TRUE(set_local_answer);
+  if (!set_local_answer) {
+    return false;
+  }
+  bool set_remote_answer = SetRemoteDescription(std::move(answer));
+  EXPECT_TRUE(set_remote_answer);
+  return set_remote_answer;
+}
+
 rtc::scoped_refptr<RtpTransceiverInterface>
 PeerConnectionWrapper::AddTransceiver(cricket::MediaType media_type) {
   RTCErrorOr<rtc::scoped_refptr<RtpTransceiverInterface>> result =
@@ -222,21 +269,33 @@ rtc::scoped_refptr<AudioTrackInterface> PeerConnectionWrapper::CreateAudioTrack(
 
 rtc::scoped_refptr<VideoTrackInterface> PeerConnectionWrapper::CreateVideoTrack(
     const std::string& label) {
-  auto video_source = pc_factory()->CreateVideoSource(
-      rtc::MakeUnique<cricket::FakeVideoCapturer>());
-  return pc_factory()->CreateVideoTrack(label, video_source);
+  return pc_factory()->CreateVideoTrack(label, FakeVideoTrackSource::Create());
+}
+
+rtc::scoped_refptr<RtpSenderInterface> PeerConnectionWrapper::AddTrack(
+    rtc::scoped_refptr<MediaStreamTrackInterface> track,
+    const std::vector<std::string>& stream_ids) {
+  RTCErrorOr<rtc::scoped_refptr<RtpSenderInterface>> result =
+      pc()->AddTrack(track, stream_ids);
+  EXPECT_EQ(RTCErrorType::NONE, result.error().type());
+  return result.MoveValue();
 }
 
 rtc::scoped_refptr<RtpSenderInterface> PeerConnectionWrapper::AddAudioTrack(
     const std::string& track_label,
-    std::vector<MediaStreamInterface*> streams) {
-  return pc()->AddTrack(CreateAudioTrack(track_label), std::move(streams));
+    const std::vector<std::string>& stream_ids) {
+  return AddTrack(CreateAudioTrack(track_label), stream_ids);
 }
 
 rtc::scoped_refptr<RtpSenderInterface> PeerConnectionWrapper::AddVideoTrack(
     const std::string& track_label,
-    std::vector<MediaStreamInterface*> streams) {
-  return pc()->AddTrack(CreateVideoTrack(track_label), std::move(streams));
+    const std::vector<std::string>& stream_ids) {
+  return AddTrack(CreateVideoTrack(track_label), stream_ids);
+}
+
+rtc::scoped_refptr<DataChannelInterface>
+PeerConnectionWrapper::CreateDataChannel(const std::string& label) {
+  return pc()->CreateDataChannel(label, nullptr);
 }
 
 PeerConnectionInterface::SignalingState

@@ -27,10 +27,6 @@
 
 #import <Foundation/Foundation.h>
 
-@interface NSURLRequest (PrivateThingsWeShouldntReallyUse)
-+(void)setAllowsAnyHTTPSCertificate:(BOOL)allow forHost:(NSString *)host;
-@end
-
 namespace WTR {
 
 void InjectedBundle::platformInitialize(WKTypeRef)
@@ -41,14 +37,11 @@ void InjectedBundle::platformInitialize(WKTypeRef)
     // Language was set up earlier in main(). Don't clobber it.
     NSArray *languages = [[[NSUserDefaults standardUserDefaults] volatileDomainForName:NSArgumentDomain] valueForKey:@"AppleLanguages"];
 
-    RetainPtr<NSMutableDictionary *> dict = adoptNS([[NSMutableDictionary alloc] init]);
+    RetainPtr<NSMutableDictionary> dict = adoptNS([[NSMutableDictionary alloc] init]);
     if (languages)
         [dict setObject:languages forKey:@"AppleLanguages"];
 
     [[NSUserDefaults standardUserDefaults] setVolatileDomain:dict.get() forName:NSArgumentDomain];
-
-    [NSURLRequest setAllowsAnyHTTPSCertificate:YES forHost:@"localhost"];
-    [NSURLRequest setAllowsAnyHTTPSCertificate:YES forHost:@"127.0.0.1"];
 }
 
 } // namespace WTR

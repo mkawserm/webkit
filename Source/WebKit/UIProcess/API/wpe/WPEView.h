@@ -26,11 +26,11 @@
 #pragma once
 
 #include "APIObject.h"
-#include "CompositingManagerProxy.h"
 #include "PageClientImpl.h"
 #include "WebPageProxy.h"
 #include <WebCore/ActivityState.h>
 #include <memory>
+#include <wtf/OptionSet.h>
 #include <wtf/RefPtr.h>
 
 typedef struct OpaqueJSContext* JSGlobalContextRef;
@@ -54,13 +54,11 @@ public:
     {
         return new View(backend, configuration);
     }
-    virtual ~View();
 
     // Client methods
     void setClient(std::unique_ptr<API::ViewClient>&&);
     void frameDisplayed();
     void handleDownloadRequest(WebKit::DownloadProxy&);
-    JSGlobalContextRef javascriptGlobalContext();
 
     WebKit::WebPageProxy& page() { return *m_pageProxy; }
 
@@ -68,25 +66,33 @@ public:
 
     const WebCore::IntSize& size() const { return m_size; }
 
-    WebCore::ActivityState::Flags viewState() const { return m_viewStateFlags; }
-    void setViewState(WebCore::ActivityState::Flags);
+    OptionSet<WebCore::ActivityState::Flag> viewState() const { return m_viewStateFlags; }
 
     void close();
+
+#if ENABLE(FULLSCREEN_API)
+    bool isFullScreen() { return m_fullScreenModeActive; };
+    void setFullScreen(bool fullScreenState) { m_fullScreenModeActive = fullScreenState; };
+#endif
 
 private:
     View(struct wpe_view_backend*, const API::PageConfiguration&);
 
     void setSize(const WebCore::IntSize&);
+    void setViewState(OptionSet<WebCore::ActivityState::Flag>);
 
     std::unique_ptr<API::ViewClient> m_client;
 
     std::unique_ptr<WebKit::PageClientImpl> m_pageClient;
     RefPtr<WebKit::WebPageProxy> m_pageProxy;
     WebCore::IntSize m_size;
-    WebCore::ActivityState::Flags m_viewStateFlags;
+    OptionSet<WebCore::ActivityState::Flag> m_viewStateFlags;
 
-    WebKit::CompositingManagerProxy m_compositingManagerProxy;
     struct wpe_view_backend* m_backend;
+
+#if ENABLE(FULLSCREEN_API)
+    bool m_fullScreenModeActive { false };
+#endif
 };
 
 } // namespace WKWPE

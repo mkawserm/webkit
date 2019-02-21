@@ -1,4 +1,4 @@
-# Copyright (C) 2010-2017 Apple Inc. All rights reserved.
+# Copyright (C) 2010-2018 Apple Inc. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions
@@ -29,9 +29,11 @@ from webkit import parser
 WANTS_CONNECTION_ATTRIBUTE = 'WantsConnection'
 LEGACY_RECEIVER_ATTRIBUTE = 'LegacyReceiver'
 DELAYED_ATTRIBUTE = 'Delayed'
+ASYNC_ATTRIBUTE = 'Async'
+LEGACY_SYNC_ATTRIBUTE = 'LegacySync'
 
 _license_header = """/*
- * Copyright (C) 2010 Apple Inc. All rights reserved.
+ * Copyright (C) 2010-2018 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -86,7 +88,7 @@ def function_parameter_type(type, kind):
     if type in builtin_types:
         return type
 
-    if kind == 'enum':
+    if kind.startswith('enum:'):
         return type
 
     return 'const %s&' % type
@@ -94,6 +96,10 @@ def function_parameter_type(type, kind):
 
 def reply_parameter_type(type):
     return '%s&' % type
+
+
+def move_type(type):
+    return '%s&&' % type
 
 
 def arguments_type(message):
@@ -113,22 +119,25 @@ def message_to_struct_declaration(message):
     result.append('\n')
     result.append('    static IPC::StringReference receiverName() { return messageReceiverName(); }\n')
     result.append('    static IPC::StringReference name() { return IPC::StringReference("%s"); }\n' % message.name)
-    result.append('    static const bool isSync = %s;\n' % ('false', 'true')[message.reply_parameters != None])
+    result.append('    static const bool isSync = %s;\n' % ('false', 'true')[message.reply_parameters != None and not message.has_attribute(ASYNC_ATTRIBUTE)])
     result.append('\n')
     if message.reply_parameters != None:
-        if message.has_attribute(DELAYED_ATTRIBUTE):
-            send_parameters = [(function_parameter_type(x.type, x.kind), x.name) for x in message.reply_parameters]
-            result.append('    struct DelayedReply : public ThreadSafeRefCounted<DelayedReply> {\n')
-            result.append('        DelayedReply(Ref<IPC::Connection>&&, std::unique_ptr<IPC::Encoder>);\n')
-            result.append('        ~DelayedReply();\n')
-            result.append('\n')
-            result.append('        bool send(%s);\n' % ', '.join([' '.join(x) for x in send_parameters]))
-            result.append('\n')
-            result.append('    private:\n')
-            result.append('        RefPtr<IPC::Connection> m_connection;\n')
-            result.append('        std::unique_ptr<IPC::Encoder> m_encoder;\n')
-            result.append('    };\n\n')
-
+        send_parameters = [(function_parameter_type(x.type, x.kind), x.name) for x in message.reply_parameters]
+        completion_handler_parameters = '%s' % ', '.join([' '.join(x) for x in send_parameters])
+        if message.has_attribute(ASYNC_ATTRIBUTE):
+            move_parameters = ', '.join([move_type(x.type) for x in message.reply_parameters])
+            result.append('    static void callReply(IPC::Decoder&, CompletionHandler<void(%s)>&&);\n' % move_parameters)
+            result.append('    static void cancelReply(CompletionHandler<void(%s)>&&);\n' % move_parameters)
+            result.append('    static IPC::StringReference asyncMessageReplyName() { return { "%sReply" }; }\n' % message.name)
+            result.append('    using AsyncReply')
+        elif message.has_attribute(DELAYED_ATTRIBUTE):
+            result.append('    using DelayedReply')
+        if message.has_attribute(DELAYED_ATTRIBUTE) or message.has_attribute(ASYNC_ATTRIBUTE):
+            result.append(' = CompletionHandler<void(%s)>;\n' % completion_handler_parameters)
+            result.append('    static void send(std::unique_ptr<IPC::Encoder>&&, IPC::Connection&')
+            if len(send_parameters):
+                result.append(', %s' % completion_handler_parameters)
+            result.append(');\n')
         result.append('    typedef %s Reply;\n' % reply_type(message))
 
     if len(function_parameters):
@@ -153,8 +162,8 @@ def forward_declaration(namespace, kind_and_type):
     qualified_name = '%s::%s' % (namespace, type)
     if kind == 'struct':
         return 'struct %s' % type
-    elif kind == 'enum':
-        return 'enum class %s' % type
+    elif kind.startswith('enum:'):
+        return 'enum class %s : %s' % (type, kind[5:])
     else:
         return 'class %s' % type
 
@@ -162,7 +171,7 @@ def forward_declaration(namespace, kind_and_type):
 def forward_declarations_for_namespace(namespace, kind_and_types):
     result = []
     result.append('namespace %s {\n' % namespace)
-    result += ['    %s;\n' % forward_declaration(namespace, x) for x in kind_and_types]
+    result += ['%s;\n' % forward_declaration(namespace, x) for x in kind_and_types]
     result.append('}\n')
     return ''.join(result)
 
@@ -172,25 +181,31 @@ def forward_declarations_and_headers(receiver):
 
     headers = set([
         '"ArgumentCoders.h"',
+        '<wtf/Forward.h>',
     ])
 
     non_template_wtf_types = frozenset([
+        'MachSendRight',
         'String',
     ])
 
-    for message in receiver.messages:
-        if message.reply_parameters != None and message.has_attribute(DELAYED_ATTRIBUTE):
-            headers.add('<wtf/ThreadSafeRefCounted.h>')
-            types_by_namespace['IPC'].update([('class', 'Connection')])
+    headers.add('"Connection.h"')
+    headers.add('<wtf/ThreadSafeRefCounted.h>')
 
     no_forward_declaration_types = frozenset([
+        'MachSendRight',
+        'String',
         'WebCore::DocumentIdentifier',
+        'WebCore::FetchIdentifier',
+        'WebCore::PointerID',
         'WebCore::ServiceWorkerIdentifier',
         'WebCore::ServiceWorkerJobIdentifier',
         'WebCore::ServiceWorkerOrClientData',
         'WebCore::ServiceWorkerOrClientIdentifier',
         'WebCore::ServiceWorkerRegistrationIdentifier',
         'WebCore::SWServerConnectionIdentifier',
+        'WebKit::ActivityStateChangeID',
+        'WebKit::UserContentControllerIdentifier',
     ])
 
     for parameter in receiver.iterparameters():
@@ -271,6 +286,9 @@ def async_message_statement(receiver, message):
     dispatch_function_args = ['decoder', 'this', '&%s' % handler_function(receiver, message)]
 
     dispatch_function = 'handleMessage'
+    if message.has_attribute(ASYNC_ATTRIBUTE):
+        dispatch_function += 'Async'
+        dispatch_function_args.insert(0, 'connection')
 
     if message.has_attribute(WANTS_CONNECTION_ATTRIBUTE):
         dispatch_function_args.insert(0, 'connection')
@@ -287,12 +305,18 @@ def sync_message_statement(receiver, message):
     dispatch_function = 'handleMessage'
     if message.has_attribute(DELAYED_ATTRIBUTE):
         dispatch_function += 'Delayed'
+        if message.has_attribute(WANTS_CONNECTION_ATTRIBUTE):
+            dispatch_function += 'WantsConnection'
+    if message.has_attribute(ASYNC_ATTRIBUTE):
+        dispatch_function += 'Async'
+    if message.has_attribute(LEGACY_SYNC_ATTRIBUTE):
+        dispatch_function += 'LegacySync'
 
     wants_connection = message.has_attribute(DELAYED_ATTRIBUTE) or message.has_attribute(WANTS_CONNECTION_ATTRIBUTE)
 
     result = []
     result.append('    if (decoder.messageName() == Messages::%s::%s::name()) {\n' % (receiver.name, message.name))
-    result.append('        IPC::%s<Messages::%s::%s>(%sdecoder, %sreplyEncoder, this, &%s);\n' % (dispatch_function, receiver.name, message.name, 'connection, ' if wants_connection else '', '' if message.has_attribute(DELAYED_ATTRIBUTE) else '*', handler_function(receiver, message)))
+    result.append('        IPC::%s<Messages::%s::%s>(%sdecoder, %sreplyEncoder, this, &%s);\n' % (dispatch_function, receiver.name, message.name, 'connection, ' if wants_connection else '', '' if message.has_attribute(DELAYED_ATTRIBUTE) or message.has_attribute(ASYNC_ATTRIBUTE) else '*', handler_function(receiver, message)))
     result.append('        return;\n')
     result.append('    }\n')
     return surround_in_condition(''.join(result), message.condition)
@@ -305,7 +329,7 @@ def class_template_headers(template_string):
         'WebCore::RectEdges': {'headers': ['<WebCore/RectEdges.h>'], 'argument_coder_headers': ['"ArgumentCoders.h"']},
         'HashMap': {'headers': ['<wtf/HashMap.h>'], 'argument_coder_headers': ['"ArgumentCoders.h"']},
         'HashSet': {'headers': ['<wtf/HashSet.h>'], 'argument_coder_headers': ['"ArgumentCoders.h"']},
-        'std::optional': {'headers': ['<wtf/Optional.h>'], 'argument_coder_headers': ['"ArgumentCoders.h"']},
+        'Optional': {'headers': ['<wtf/Optional.h>'], 'argument_coder_headers': ['"ArgumentCoders.h"']},
         'OptionSet': {'headers': ['<wtf/OptionSet.h>'], 'argument_coder_headers': ['"ArgumentCoders.h"']},
         'Vector': {'headers': ['<wtf/Vector.h>'], 'argument_coder_headers': ['"ArgumentCoders.h"']},
         'std::pair': {'headers': ['<utility>'], 'argument_coder_headers': ['"ArgumentCoders.h"']},
@@ -362,22 +386,33 @@ def headers_for_type(type):
     header_infos_and_types = class_template_headers(type)
 
     special_cases = {
+        'IPC::SharedBufferDataReference': ['"SharedBufferDataReference.h"', '"DataReference.h"'],
+        'MachSendRight': ['<wtf/MachSendRight.h>'],
+        'JSC::MessageLevel': ['<JavaScriptCore/ConsoleTypes.h>'],
+        'JSC::MessageSource': ['<JavaScriptCore/ConsoleTypes.h>'],
+        'Inspector::InspectorTargetType': ['<JavaScriptCore/InspectorTarget.h>'],
+        'Inspector::FrontendChannel::ConnectionType': ['<JavaScriptCore/InspectorFrontendChannel.h>'],
         'MonotonicTime': ['<wtf/MonotonicTime.h>'],
         'Seconds': ['<wtf/Seconds.h>'],
         'WallTime': ['<wtf/WallTime.h>'],
         'String': ['<wtf/text/WTFString.h>'],
         'PAL::SessionID': ['<pal/SessionID.h>'],
-        'WebCore::AttachmentDisplayOptions': ['<WebCore/AttachmentTypes.h>'],
-        'WebCore::AttachmentInfo': ['<WebCore/AttachmentTypes.h>'],
         'WebCore::AutoplayEventFlags': ['<WebCore/AutoplayEvent.h>'],
+        'WebCore::DragHandlingMethod': ['<WebCore/DragActions.h>'],
         'WebCore::ExceptionDetails': ['<WebCore/JSDOMExceptionHandling.h>'],
         'WebCore::FileChooserSettings': ['<WebCore/FileChooser.h>'],
+        'WebCore::ShareDataWithParsedURL': ['<WebCore/ShareData.h>'],
+        'WebCore::FontChanges': ['<WebCore/FontAttributeChanges.h>'],
+        'WebCore::FrameLoadType': ['<WebCore/FrameLoaderTypes.h>'],
         'WebCore::GrammarDetail': ['<WebCore/TextCheckerClient.h>'],
         'WebCore::HasInsecureContent': ['<WebCore/FrameLoaderTypes.h>'],
         'WebCore::Highlight': ['<WebCore/InspectorOverlay.h>'],
-        'WebCore::IncludeSecureCookies': ['<WebCore/CookiesStrategy.h>'],
+        'WebCore::IncludeSecureCookies': ['<WebCore/CookieJar.h>'],
+        'WebCore::InputMode': ['<WebCore/InputMode.h>'],
         'WebCore::KeyframeValueList': ['<WebCore/GraphicsLayer.h>'],
         'WebCore::KeypressCommand': ['<WebCore/KeyboardEvent.h>'],
+        'WebCore::LockBackForwardList': ['<WebCore/FrameLoaderTypes.h>'],
+        'WebCore::NetworkTransactionInformation': ['<WebCore/NetworkLoadInformation.h>'],
         'WebCore::PasteboardCustomData': ['<WebCore/Pasteboard.h>'],
         'WebCore::PasteboardImage': ['<WebCore/Pasteboard.h>'],
         'WebCore::PasteboardURL': ['<WebCore/Pasteboard.h>'],
@@ -386,7 +421,9 @@ def headers_for_type(type):
         'WebCore::PaymentMethodUpdate': ['<WebCore/ApplePaySessionPaymentRequest.h>'],
         'WebCore::PluginInfo': ['<WebCore/PluginData.h>'],
         'WebCore::PolicyAction': ['<WebCore/FrameLoaderTypes.h>'],
+        'WebCore::PolicyCheckIdentifier': ['<WebCore/FrameLoaderTypes.h>'],
         'WebCore::RecentSearch': ['<WebCore/SearchPopupMenu.h>'],
+        'WebCore::RouteSharingPolicy': ['<WebCore/AudioSession.h>'],
         'WebCore::SWServerConnectionIdentifier': ['<WebCore/ServiceWorkerTypes.h>'],
         'WebCore::ServiceWorkerJobIdentifier': ['<WebCore/ServiceWorkerTypes.h>'],
         'WebCore::ServiceWorkerOrClientData': ['<WebCore/ServiceWorkerTypes.h>', '<WebCore/ServiceWorkerClientData.h>', '<WebCore/ServiceWorkerData.h>'],
@@ -398,12 +435,14 @@ def headers_for_type(type):
         'WebCore::ShippingMethodUpdate': ['<WebCore/ApplePaySessionPaymentRequest.h>'],
         'WebCore::ShouldNotifyWhenResolved': ['<WebCore/ServiceWorkerTypes.h>'],
         'WebCore::ShouldSample': ['<WebCore/DiagnosticLoggingClient.h>'],
-        'WebCore::SupportedPluginName': ['<WebCore/PluginData.h>'],
+        'WebCore::SupportedPluginIdentifier': ['<WebCore/PluginData.h>'],
         'WebCore::TextCheckingRequestData': ['<WebCore/TextChecking.h>'],
         'WebCore::TextCheckingResult': ['<WebCore/TextCheckerClient.h>'],
+        'WebCore::TextCheckingType': ['<WebCore/TextChecking.h>'],
         'WebCore::TextIndicatorData': ['<WebCore/TextIndicator.h>'],
         'WebCore::ViewportAttributes': ['<WebCore/ViewportArguments.h>'],
         'WebCore::SelectionRect': ['"EditorState.h"'],
+        'WebKit::ActivityStateChangeID': ['"DrawingAreaInfo.h"'],
         'WebKit::BackForwardListItemState': ['"SessionState.h"'],
         'WebKit::LayerHostingMode': ['"LayerTreeContext.h"'],
         'WebKit::PageState': ['"SessionState.h"'],
@@ -509,38 +548,41 @@ def generate_message_handler(file):
             result += ['#include %s\n' % header]
     result.append('\n')
 
-    sync_delayed_messages = []
+    delayed_or_async_messages = []
     for message in receiver.messages:
-        if message.reply_parameters != None and message.has_attribute(DELAYED_ATTRIBUTE):
-            sync_delayed_messages.append(message)
+        if message.reply_parameters != None and (message.has_attribute(DELAYED_ATTRIBUTE) or message.has_attribute(ASYNC_ATTRIBUTE)):
+            delayed_or_async_messages.append(message)
 
-    if sync_delayed_messages:
+    if delayed_or_async_messages:
         result.append('namespace Messages {\n\nnamespace %s {\n\n' % receiver.name)
 
-        for message in sync_delayed_messages:
+        for message in delayed_or_async_messages:
             send_parameters = [(function_parameter_type(x.type, x.kind), x.name) for x in message.reply_parameters]
 
             if message.condition:
                 result.append('#if %s\n\n' % message.condition)
 
-            result.append('%s::DelayedReply::DelayedReply(Ref<IPC::Connection>&& connection, std::unique_ptr<IPC::Encoder> encoder)\n' % message.name)
-            result.append('    : m_connection(WTFMove(connection))\n')
-            result.append('    , m_encoder(WTFMove(encoder))\n')
-            result.append('{\n')
-            result.append('}\n')
-            result.append('\n')
-            result.append('%s::DelayedReply::~DelayedReply()\n' % message.name)
-            result.append('{\n')
-            result.append('    ASSERT(!m_connection);\n')
-            result.append('}\n')
-            result.append('\n')
-            result.append('bool %s::DelayedReply::send(%s)\n' % (message.name, ', '.join([' '.join(x) for x in send_parameters])))
-            result.append('{\n')
-            result.append('    ASSERT(m_encoder);\n')
-            result += ['    *m_encoder << %s;\n' % x.name for x in message.reply_parameters]
-            result.append('    bool _result = m_connection->sendSyncReply(WTFMove(m_encoder));\n')
-            result.append('    m_connection = nullptr;\n')
-            result.append('    return _result;\n')
+            if message.has_attribute(ASYNC_ATTRIBUTE):
+                move_parameters = message.name, ', '.join([move_type(x.type) for x in message.reply_parameters])
+                result.append('void %s::callReply(IPC::Decoder& decoder, CompletionHandler<void(%s)>&& completionHandler)\n{\n' % move_parameters)
+                for x in message.reply_parameters:
+                    result.append('    Optional<%s> %s;\n' % (x.type, x.name))
+                    result.append('    decoder >> %s;\n' % x.name)
+                    result.append('    if (!%s) {\n        ASSERT_NOT_REACHED();\n        return;\n    }\n' % x.name)
+                result.append('    completionHandler(')
+                if len(message.reply_parameters):
+                    result.append('WTFMove(*%s)' % ('), WTFMove(*'.join(x.name for x in message.reply_parameters)))
+                result.append(');\n}\n\n')
+                result.append('void %s::cancelReply(CompletionHandler<void(%s)>&& completionHandler)\n{\n    completionHandler(' % move_parameters)
+                result.append(', '.join(['{ }' for x in message.reply_parameters]))
+                result.append(');\n}\n\n')
+
+            result.append('void %s::send(std::unique_ptr<IPC::Encoder>&& encoder, IPC::Connection& connection' % (message.name))
+            if len(send_parameters):
+                result.append(', %s' % ', '.join([' '.join(x) for x in send_parameters]))
+            result.append(')\n{\n')
+            result += ['    *encoder << %s;\n' % x.name for x in message.reply_parameters]
+            result.append('    connection.sendSyncReply(WTFMove(encoder));\n')
             result.append('}\n')
             result.append('\n')
 
@@ -554,7 +596,7 @@ def generate_message_handler(file):
     async_messages = []
     sync_messages = []
     for message in receiver.messages:
-        if message.reply_parameters is not None:
+        if message.reply_parameters is not None and not message.has_attribute(ASYNC_ATTRIBUTE):
             sync_messages.append(message)
         else:
             async_messages.append(message)
@@ -582,7 +624,7 @@ def generate_message_handler(file):
         result.append('    ASSERT_NOT_REACHED();\n')
         result.append('}\n')
 
-    result.append('\n} // namespace WebKit\n')
+    result.append('\n} // namespace WebKit\n\n')
 
     if receiver.condition:
         result.append('\n#endif // %s\n' % receiver.condition)

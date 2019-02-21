@@ -43,12 +43,15 @@
 #include "JSTestCallbackInterface.h"
 #include "JSTestEventTarget.h"
 #include "JSTestSubObj.h"
+#include "ScriptExecutionContext.h"
 #include "SerializedScriptValue.h"
 #include <JavaScriptCore/FunctionPrototype.h>
+#include <JavaScriptCore/HeapSnapshotBuilder.h>
 #include <JavaScriptCore/JSArray.h>
 #include <JavaScriptCore/JSCInlines.h>
 #include <wtf/GetPtr.h>
 #include <wtf/PointerPreparations.h>
+#include <wtf/URL.h>
 #include <wtf/Variant.h>
 
 
@@ -167,7 +170,7 @@ template<> JSValue JSTestTypedefsConstructor::prototypeForStructure(JSC::VM& vm,
 template<> void JSTestTypedefsConstructor::initializeProperties(VM& vm, JSDOMGlobalObject& globalObject)
 {
     putDirect(vm, vm.propertyNames->prototype, JSTestTypedefs::prototype(vm, globalObject), JSC::PropertyAttribute::DontDelete | JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum);
-    putDirect(vm, vm.propertyNames->name, jsNontrivialString(&vm, String(ASCIILiteral("TestTypedefs"))), JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum);
+    putDirect(vm, vm.propertyNames->name, jsNontrivialString(&vm, String("TestTypedefs"_s)), JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum);
     putDirect(vm, vm.propertyNames->length, jsNumber(3), JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum);
     reifyStaticProperties(vm, JSTestTypedefs::info(), JSTestTypedefsConstructorTableValues, *this);
 }
@@ -185,21 +188,21 @@ static const HashTableValue JSTestTypedefsPrototypeTableValues[] =
     { "attributeWithClampInTypedef", static_cast<unsigned>(JSC::PropertyAttribute::CustomAccessor | JSC::PropertyAttribute::DOMAttribute), NoIntrinsic, { (intptr_t)static_cast<PropertySlot::GetValueFunc>(jsTestTypedefsAttributeWithClampInTypedef), (intptr_t) static_cast<PutPropertySlot::PutValueFunc>(setJSTestTypedefsAttributeWithClampInTypedef) } },
     { "bufferSourceAttr", static_cast<unsigned>(JSC::PropertyAttribute::CustomAccessor | JSC::PropertyAttribute::DOMAttribute), NoIntrinsic, { (intptr_t)static_cast<PropertySlot::GetValueFunc>(jsTestTypedefsBufferSourceAttr), (intptr_t) static_cast<PutPropertySlot::PutValueFunc>(setJSTestTypedefsBufferSourceAttr) } },
     { "domTimeStampAttr", static_cast<unsigned>(JSC::PropertyAttribute::CustomAccessor | JSC::PropertyAttribute::DOMAttribute), NoIntrinsic, { (intptr_t)static_cast<PropertySlot::GetValueFunc>(jsTestTypedefsDomTimeStampAttr), (intptr_t) static_cast<PutPropertySlot::PutValueFunc>(setJSTestTypedefsDomTimeStampAttr) } },
-    { "func", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestTypedefsPrototypeFunctionFunc), (intptr_t) (0) } },
-    { "setShadow", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestTypedefsPrototypeFunctionSetShadow), (intptr_t) (3) } },
-    { "methodWithSequenceArg", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestTypedefsPrototypeFunctionMethodWithSequenceArg), (intptr_t) (1) } },
-    { "nullableSequenceArg", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestTypedefsPrototypeFunctionNullableSequenceArg), (intptr_t) (1) } },
-    { "sequenceOfNullablesArg", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestTypedefsPrototypeFunctionSequenceOfNullablesArg), (intptr_t) (1) } },
-    { "nullableSequenceOfNullablesArg", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestTypedefsPrototypeFunctionNullableSequenceOfNullablesArg), (intptr_t) (1) } },
-    { "nullableSequenceOfUnionsArg", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestTypedefsPrototypeFunctionNullableSequenceOfUnionsArg), (intptr_t) (1) } },
-    { "unionArg", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestTypedefsPrototypeFunctionUnionArg), (intptr_t) (1) } },
-    { "funcWithClamp", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestTypedefsPrototypeFunctionFuncWithClamp), (intptr_t) (1) } },
-    { "funcWithClampInTypedef", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestTypedefsPrototypeFunctionFuncWithClampInTypedef), (intptr_t) (1) } },
-    { "pointFunction", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestTypedefsPrototypeFunctionPointFunction), (intptr_t) (0) } },
-    { "stringSequenceFunction", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestTypedefsPrototypeFunctionStringSequenceFunction), (intptr_t) (1) } },
-    { "stringSequenceFunction2", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestTypedefsPrototypeFunctionStringSequenceFunction2), (intptr_t) (1) } },
-    { "callWithSequenceThatRequiresInclude", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestTypedefsPrototypeFunctionCallWithSequenceThatRequiresInclude), (intptr_t) (1) } },
-    { "methodWithException", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestTypedefsPrototypeFunctionMethodWithException), (intptr_t) (0) } },
+    { "func", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestTypedefsPrototypeFunctionFunc), (intptr_t) (0) } },
+    { "setShadow", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestTypedefsPrototypeFunctionSetShadow), (intptr_t) (3) } },
+    { "methodWithSequenceArg", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestTypedefsPrototypeFunctionMethodWithSequenceArg), (intptr_t) (1) } },
+    { "nullableSequenceArg", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestTypedefsPrototypeFunctionNullableSequenceArg), (intptr_t) (1) } },
+    { "sequenceOfNullablesArg", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestTypedefsPrototypeFunctionSequenceOfNullablesArg), (intptr_t) (1) } },
+    { "nullableSequenceOfNullablesArg", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestTypedefsPrototypeFunctionNullableSequenceOfNullablesArg), (intptr_t) (1) } },
+    { "nullableSequenceOfUnionsArg", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestTypedefsPrototypeFunctionNullableSequenceOfUnionsArg), (intptr_t) (1) } },
+    { "unionArg", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestTypedefsPrototypeFunctionUnionArg), (intptr_t) (1) } },
+    { "funcWithClamp", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestTypedefsPrototypeFunctionFuncWithClamp), (intptr_t) (1) } },
+    { "funcWithClampInTypedef", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestTypedefsPrototypeFunctionFuncWithClampInTypedef), (intptr_t) (1) } },
+    { "pointFunction", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestTypedefsPrototypeFunctionPointFunction), (intptr_t) (0) } },
+    { "stringSequenceFunction", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestTypedefsPrototypeFunctionStringSequenceFunction), (intptr_t) (1) } },
+    { "stringSequenceFunction2", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestTypedefsPrototypeFunctionStringSequenceFunction2), (intptr_t) (1) } },
+    { "callWithSequenceThatRequiresInclude", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestTypedefsPrototypeFunctionCallWithSequenceThatRequiresInclude), (intptr_t) (1) } },
+    { "methodWithException", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestTypedefsPrototypeFunctionMethodWithException), (intptr_t) (0) } },
 };
 
 const ClassInfo JSTestTypedefsPrototype::s_info = { "TestTypedefsPrototype", &Base::s_info, nullptr, nullptr, CREATE_METHOD_TABLE(JSTestTypedefsPrototype) };
@@ -247,19 +250,19 @@ void JSTestTypedefs::destroy(JSC::JSCell* cell)
 
 template<> inline JSTestTypedefs* IDLAttribute<JSTestTypedefs>::cast(ExecState& state, EncodedJSValue thisValue)
 {
-    return jsDynamicDowncast<JSTestTypedefs*>(state.vm(), JSValue::decode(thisValue));
+    return jsDynamicCast<JSTestTypedefs*>(state.vm(), JSValue::decode(thisValue));
 }
 
 template<> inline JSTestTypedefs* IDLOperation<JSTestTypedefs>::cast(ExecState& state)
 {
-    return jsDynamicDowncast<JSTestTypedefs*>(state.vm(), state.thisValue());
+    return jsDynamicCast<JSTestTypedefs*>(state.vm(), state.thisValue());
 }
 
 EncodedJSValue jsTestTypedefsConstructor(ExecState* state, EncodedJSValue thisValue, PropertyName)
 {
     VM& vm = state->vm();
     auto throwScope = DECLARE_THROW_SCOPE(vm);
-    auto* prototype = jsDynamicDowncast<JSTestTypedefsPrototype*>(vm, JSValue::decode(thisValue));
+    auto* prototype = jsDynamicCast<JSTestTypedefsPrototype*>(vm, JSValue::decode(thisValue));
     if (UNLIKELY(!prototype))
         return throwVMTypeError(state, throwScope);
     return JSValue::encode(JSTestTypedefs::getConstructor(state->vm(), prototype->globalObject()));
@@ -269,7 +272,7 @@ bool setJSTestTypedefsConstructor(ExecState* state, EncodedJSValue thisValue, En
 {
     VM& vm = state->vm();
     auto throwScope = DECLARE_THROW_SCOPE(vm);
-    auto* prototype = jsDynamicDowncast<JSTestTypedefsPrototype*>(vm, JSValue::decode(thisValue));
+    auto* prototype = jsDynamicCast<JSTestTypedefsPrototype*>(vm, JSValue::decode(thisValue));
     if (UNLIKELY(!prototype)) {
         throwVMTypeError(state, throwScope);
         return false;
@@ -507,7 +510,7 @@ static inline JSC::EncodedJSValue jsTestTypedefsPrototypeFunctionSetShadowBody(J
     RETURN_IF_EXCEPTION(throwScope, encodedJSValue());
     auto color = state->argument(3).isUndefined() ? String() : convert<IDLDOMString>(*state, state->uncheckedArgument(3));
     RETURN_IF_EXCEPTION(throwScope, encodedJSValue());
-    auto alpha = state->argument(4).isUndefined() ? std::optional<Converter<IDLUnrestrictedFloat>::ReturnType>() : std::optional<Converter<IDLUnrestrictedFloat>::ReturnType>(convert<IDLUnrestrictedFloat>(*state, state->uncheckedArgument(4)));
+    auto alpha = state->argument(4).isUndefined() ? Optional<Converter<IDLUnrestrictedFloat>::ReturnType>() : Optional<Converter<IDLUnrestrictedFloat>::ReturnType>(convert<IDLUnrestrictedFloat>(*state, state->uncheckedArgument(4)));
     RETURN_IF_EXCEPTION(throwScope, encodedJSValue());
     impl.setShadow(WTFMove(width), WTFMove(height), WTFMove(blur), WTFMove(color), WTFMove(alpha));
     return JSValue::encode(jsUndefined());
@@ -634,7 +637,7 @@ static inline JSC::EncodedJSValue jsTestTypedefsPrototypeFunctionFuncWithClampBo
         return throwVMError(state, throwScope, createNotEnoughArgumentsError(state));
     auto arg1 = convert<IDLClampAdaptor<IDLUnsignedLongLong>>(*state, state->uncheckedArgument(0));
     RETURN_IF_EXCEPTION(throwScope, encodedJSValue());
-    auto arg2 = state->argument(1).isUndefined() ? std::optional<Converter<IDLClampAdaptor<IDLUnsignedLongLong>>::ReturnType>() : std::optional<Converter<IDLClampAdaptor<IDLUnsignedLongLong>>::ReturnType>(convert<IDLClampAdaptor<IDLUnsignedLongLong>>(*state, state->uncheckedArgument(1)));
+    auto arg2 = state->argument(1).isUndefined() ? Optional<Converter<IDLClampAdaptor<IDLUnsignedLongLong>>::ReturnType>() : Optional<Converter<IDLClampAdaptor<IDLUnsignedLongLong>>::ReturnType>(convert<IDLClampAdaptor<IDLUnsignedLongLong>>(*state, state->uncheckedArgument(1)));
     RETURN_IF_EXCEPTION(throwScope, encodedJSValue());
     impl.funcWithClamp(WTFMove(arg1), WTFMove(arg2));
     return JSValue::encode(jsUndefined());
@@ -741,10 +744,20 @@ EncodedJSValue JSC_HOST_CALL jsTestTypedefsPrototypeFunctionMethodWithException(
     return IDLOperation<JSTestTypedefs>::call<jsTestTypedefsPrototypeFunctionMethodWithExceptionBody>(*state, "methodWithException");
 }
 
-bool JSTestTypedefsOwner::isReachableFromOpaqueRoots(JSC::Handle<JSC::Unknown> handle, void*, SlotVisitor& visitor)
+void JSTestTypedefs::heapSnapshot(JSCell* cell, HeapSnapshotBuilder& builder)
+{
+    auto* thisObject = jsCast<JSTestTypedefs*>(cell);
+    builder.setWrappedObjectForCell(cell, &thisObject->wrapped());
+    if (thisObject->scriptExecutionContext())
+        builder.setLabelForCell(cell, "url " + thisObject->scriptExecutionContext()->url().string());
+    Base::heapSnapshot(cell, builder);
+}
+
+bool JSTestTypedefsOwner::isReachableFromOpaqueRoots(JSC::Handle<JSC::Unknown> handle, void*, SlotVisitor& visitor, const char** reason)
 {
     UNUSED_PARAM(handle);
     UNUSED_PARAM(visitor);
+    UNUSED_PARAM(reason);
     return false;
 }
 
@@ -795,7 +808,7 @@ JSC::JSValue toJS(JSC::ExecState* state, JSDOMGlobalObject* globalObject, TestTy
 
 TestTypedefs* JSTestTypedefs::toWrapped(JSC::VM& vm, JSC::JSValue value)
 {
-    if (auto* wrapper = jsDynamicDowncast<JSTestTypedefs*>(vm, value))
+    if (auto* wrapper = jsDynamicCast<JSTestTypedefs*>(vm, value))
         return &wrapper->wrapped();
     return nullptr;
 }

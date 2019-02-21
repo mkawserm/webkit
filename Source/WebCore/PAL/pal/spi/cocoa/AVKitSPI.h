@@ -26,22 +26,94 @@
 #import <objc/runtime.h>
 #import <wtf/SoftLinking.h>
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
 #import <AVKit/AVKit.h>
 #import <QuartzCore/QuartzCore.h>
 #import <UIKit/UIKit.h>
 
 #if USE(APPLE_INTERNAL_SDK)
 
+#if !PLATFORM(WATCHOS) && __IPHONE_OS_VERSION_MIN_REQUIRED >= 120000
+#import <AVKit/AVBackgroundView.h>
+#endif
+
 #import <AVKit/AVPlayerController.h>
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wobjc-property-no-attribute"
+IGNORE_WARNINGS_BEGIN("objc-property-no-attribute")
 #import <AVKit/AVPlayerLayerView.h>
-#pragma clang diagnostic pop
+IGNORE_WARNINGS_END
 #import <AVKit/AVPlayerViewController_Private.h>
 #import <AVKit/AVPlayerViewController_WebKitOnly.h>
 
+#if PLATFORM(WATCHOS)
+
+#import <AVFoundation/AVPlayerLayer.h>
+
+NS_ASSUME_NONNULL_BEGIN
+
+@interface AVPictureInPicturePlayerLayerView : UIView
+@property (nonatomic, readonly) AVPlayerLayer *playerLayer;
+@end
+
+@interface __AVPlayerLayerView  (Details)
+@property (nonatomic, readonly) AVPlayerLayer *playerLayer;
+- (AVPictureInPicturePlayerLayerView*) pictureInPicturePlayerLayerView;
+- (void)startRoutingVideoToPictureInPicturePlayerLayerView;
+- (void)stopRoutingVideoToPictureInPicturePlayerLayerView;
+@end
+
+@class AVPlayerLayerView;
+@interface AVPlayerViewController (AVPlayerViewController_WebKitOnly_Internal)
+- (void)enterFullScreenAnimated:(BOOL)animated completionHandler:(void (^)(BOOL success, NSError * __nullable error))completionHandler;
+- (void)exitFullScreenAnimated:(BOOL)animated completionHandler:(void (^)(BOOL success, NSError * __nullable error))completionHandler;
+- (void)startPictureInPicture;
+- (void)stopPictureInPicture;
+
+@property (nonatomic) BOOL showsExitFullScreenButton;
+@property (nonatomic, readonly, getter=isPictureInPicturePossible) BOOL pictureInPicturePossible;
+@property (nonatomic, readonly, getter=isPictureInPictureActive) BOOL pictureInPictureActive;
+@property (nonatomic, readonly, getter=isPictureInPictureSuspended) BOOL pictureInPictureSuspended;
+@property (nonatomic, readonly) BOOL pictureInPictureWasStartedWhenEnteringBackground;
+- (void)setWebKitOverrideRouteSharingPolicy:(NSUInteger)routeSharingPolicy routingContextUID:(NSString *)routingContextUID;
+@end
+
+@protocol AVPlayerViewControllerDelegate_WebKitOnly <AVPlayerViewControllerDelegate>
+@optional
+typedef NS_ENUM(NSInteger, AVPlayerViewControllerExitFullScreenReason) {
+    AVPlayerViewControllerExitFullScreenReasonDoneButtonTapped,
+    AVPlayerViewControllerExitFullScreenReasonFullScreenButtonTapped,
+    AVPlayerViewControllerExitFullScreenReasonPinchGestureHandled,
+    AVPlayerViewControllerExitFullScreenReasonRemoteControlStopEventReceived,
+    AVPlayerViewControllerExitFullScreenReasonPictureInPictureStarted
+};
+- (BOOL)playerViewController:(AVPlayerViewController *)playerViewController shouldExitFullScreenWithReason:(AVPlayerViewControllerExitFullScreenReason)reason;
+@end
+
+NS_ASSUME_NONNULL_END
+
+#elif __IPHONE_OS_VERSION_MAX_ALLOWED < 120200
+NS_ASSUME_NONNULL_BEGIN
+@interface AVPlayerViewController (AVPlayerViewController_WebKitOnly_OverrideRouteSharingPolicy)
+- (void)setWebKitOverrideRouteSharingPolicy:(NSUInteger)routeSharingPolicy routingContextUID:(NSString *)routingContextUID;
+@end
+NS_ASSUME_NONNULL_END
+#endif
+
 #else
+
+NS_ASSUME_NONNULL_BEGIN
+
+@interface AVBackgroundView : UIView
+@property (nonatomic) BOOL automaticallyDrawsRoundedCorners;
+typedef NS_ENUM(NSInteger, AVBackgroundViewMaterialStyle) {
+    AVBackgroundViewMaterialStylePrimary,
+    AVBackgroundViewMaterialStyleSecondary
+};
+typedef NS_ENUM(NSInteger, AVBackgroundViewTintEffectStyle) {
+    AVBackgroundViewTintEffectStylePrimary,
+    AVBackgroundViewTintEffectStyleSecondary
+};
+- (void)addSubview:(UIView *)subview applyingMaterialStyle:(AVBackgroundViewMaterialStyle)materialStyle tintEffectStyle:(AVBackgroundViewTintEffectStyle)tintEffectStyle;
+@end
 
 @interface AVPlayerController : UIResponder
 @end
@@ -60,8 +132,6 @@ typedef NS_ENUM(NSInteger, AVPlayerControllerExternalPlaybackType) {
 
 @property (NS_NONATOMIC_IOSONLY, readonly) AVPlayerControllerStatus status;
 @end
-
-NS_ASSUME_NONNULL_BEGIN
 
 @class AVPlayerLayer;
 
@@ -100,14 +170,15 @@ typedef NS_ENUM(NSInteger, AVPlayerViewControllerExitFullScreenReason) {
 @property (nonatomic, strong, nullable) AVPlayerController *playerController;
 @property (nonatomic, readonly, getter=isPictureInPictureActive) BOOL pictureInPictureActive;
 @property (nonatomic, readonly) BOOL pictureInPictureWasStartedWhenEnteringBackground;
+- (void)setWebKitOverrideRouteSharingPolicy:(NSUInteger)routeSharingPolicy routingContextUID:(NSString *)routingContextUID;
 @end
 
 NS_ASSUME_NONNULL_END
 
 #endif // USE(APPLE_INTERNAL_SDK)
-#endif // PLATFORM(IOS)
+#endif // PLATFORM(IOS_FAMILY)
 
-#if ENABLE(WIRELESS_PLAYBACK_TARGET) && !PLATFORM(IOS)
+#if ENABLE(WIRELESS_PLAYBACK_TARGET) && !PLATFORM(IOS_FAMILY)
 
 #if USE(APPLE_INTERNAL_SDK)
 
@@ -137,7 +208,7 @@ NS_ASSUME_NONNULL_END
 
 #endif // USE(APPLE_INTERNAL_SDK)
 
-#endif // ENABLE(WIRELESS_PLAYBACK_TARGET) && !PLATFORM(IOS)
+#endif // ENABLE(WIRELESS_PLAYBACK_TARGET) && !PLATFORM(IOS_FAMILY)
 
 NS_ASSUME_NONNULL_BEGIN
 

@@ -15,19 +15,19 @@
 #include <string>
 #include <vector>
 
-#include "api/optional.h"
+#include "absl/types/optional.h"
+#include "api/video/encoded_image.h"
+#include "api/video/video_bitrate_allocation.h"
 #include "api/video/video_frame.h"
-#include "common_types.h"  // NOLINT(build/include)
-#include "common_video/include/video_frame.h"
+#include "api/video_codecs/video_codec.h"
 #include "rtc_base/checks.h"
-#include "typedefs.h"  // NOLINT(build/include)
+#include "rtc_base/system/rtc_export.h"
 
 namespace webrtc {
 
 class RTPFragmentationHeader;
 // TODO(pbos): Expose these through a public (root) header or change these APIs.
 struct CodecSpecificInfo;
-class VideoCodec;
 
 class EncodedImageCallback {
  public:
@@ -71,13 +71,10 @@ class EncodedImageCallback {
       const CodecSpecificInfo* codec_specific_info,
       const RTPFragmentationHeader* fragmentation) = 0;
 
-  // Deprecated. TODO(ilnik): Remove this in few weeks.
-  virtual void OnDroppedFrame() {}
-
-  virtual void OnDroppedFrame(DropReason) {}
+  virtual void OnDroppedFrame(DropReason reason) {}
 };
 
-class VideoEncoder {
+class RTC_EXPORT VideoEncoder {
  public:
   struct QpThresholds {
     QpThresholds(int l, int h) : low(l), high(h) {}
@@ -85,22 +82,69 @@ class VideoEncoder {
     int low;
     int high;
   };
+  // Quality scaling is enabled if thresholds are provided.
   struct ScalingSettings {
-    ScalingSettings(bool on, int low, int high);
-    ScalingSettings(bool on, int low, int high, int min_pixels);
-    ScalingSettings(bool on, int min_pixels);
-    explicit ScalingSettings(bool on);
+   private:
+    // Private magic type for kOff, implicitly convertible to
+    // ScalingSettings.
+    struct KOff {};
+
+   public:
+    // TODO(nisse): Would be nicer if kOff were a constant ScalingSettings
+    // rather than a magic value. However, absl::optional is not trivially copy
+    // constructible, and hence a constant ScalingSettings needs a static
+    // initializer, which is strongly discouraged in Chrome. We can hopefully
+    // fix this when we switch to absl::optional or std::optional.
+    static constexpr KOff kOff = {};
+
+    ScalingSettings(int low, int high);
+    ScalingSettings(int low, int high, int min_pixels);
     ScalingSettings(const ScalingSettings&);
+    ScalingSettings(KOff);  // NOLINT(runtime/explicit)
     ~ScalingSettings();
 
-    const bool enabled;
-    const rtc::Optional<QpThresholds> thresholds;
+    absl::optional<QpThresholds> thresholds;
 
     // We will never ask for a resolution lower than this.
     // TODO(kthelgason): Lower this limit when better testing
     // on MediaCodec and fallback implementations are in place.
     // See https://bugs.chromium.org/p/webrtc/issues/detail?id=7206
-    const int min_pixels_per_frame = 320 * 180;
+    int min_pixels_per_frame = 320 * 180;
+
+   private:
+    // Private constructor; to get an object without thresholds, use
+    // the magic constant ScalingSettings::kOff.
+    ScalingSettings();
+  };
+
+  // Struct containing metadata about the encoder implementing this interface.
+  struct EncoderInfo {
+    EncoderInfo();
+    ~EncoderInfo();
+
+    // Any encoder implementation wishing to use the WebRTC provided
+    // quality scaler must populate this field.
+    ScalingSettings scaling_settings;
+
+    // If true, encoder supports working with a native handle (e.g. texture
+    // handle for hw codecs) rather than requiring a raw I420 buffer.
+    bool supports_native_handle;
+
+    // The name of this particular encoder implementation, e.g. "libvpx".
+    std::string implementation_name;
+
+    // If this field is true, the encoder rate controller must perform
+    // well even in difficult situations, and produce close to the specified
+    // target bitrate seen over a reasonable time window, drop frames if
+    // necessary in order to keep the rate correct, and react quickly to
+    // changing bitrate targets. If this method returns true, we disable the
+    // frame dropper in the media optimization module and rely entirely on the
+    // encoder to produce media at a bitrate that closely matches the target.
+    // Any overshooting may result in delay buildup. If this method returns
+    // false (default behavior), the media opt frame dropper will drop input
+    // frames if it suspect encoder misbehavior. Misbehavior is common,
+    // especially in hardware codecs. Disable media opt at your own risk.
+    bool has_trusted_rate_controller;
   };
 
   static VideoCodecVP8 GetDefaultVp8Settings();
@@ -158,17 +202,6 @@ class VideoEncoder {
                          const CodecSpecificInfo* codec_specific_info,
                          const std::vector<FrameType>* frame_types) = 0;
 
-  // Inform the encoder of the new packet loss rate and the round-trip time of
-  // the network.
-  //
-  // Input:
-  //          - packet_loss : Fraction lost
-  //                          (loss rate in percent = 100 * packetLoss / 255)
-  //          - rtt         : Round-trip time in milliseconds
-  // Return value           : WEBRTC_VIDEO_CODEC_OK if OK
-  //                          <0 - Errors: WEBRTC_VIDEO_CODEC_ERROR
-  virtual int32_t SetChannelParameters(uint32_t packet_loss, int64_t rtt) = 0;
-
   // Inform the encoder about the new target bit rate.
   //
   // Input:
@@ -180,16 +213,20 @@ class VideoEncoder {
 
   // Default fallback: Just use the sum of bitrates as the single target rate.
   // TODO(sprang): Remove this default implementation when we remove SetRates().
-  virtual int32_t SetRateAllocation(const BitrateAllocation& allocation,
+  virtual int32_t SetRateAllocation(const VideoBitrateAllocation& allocation,
                                     uint32_t framerate);
 
-  // Any encoder implementation wishing to use the WebRTC provided
-  // quality scaler must implement this method.
+  // GetScalingSettings(), SupportsNativeHandle(), ImplementationName() are
+  // deprecated, use GetEncoderInfo() instead.
   virtual ScalingSettings GetScalingSettings() const;
-
-  virtual int32_t SetPeriodicKeyFrames(bool enable);
   virtual bool SupportsNativeHandle() const;
   virtual const char* ImplementationName() const;
+
+  // Returns meta-data about the encoder, such as implementation name.
+  // The output of this method may change during runtime. For instance if a
+  // hardware encoder fails, it may fall back to doing software encoding using
+  // an implementation with different characteristics.
+  virtual EncoderInfo GetEncoderInfo() const;
 };
 }  // namespace webrtc
 #endif  // API_VIDEO_CODECS_VIDEO_ENCODER_H_

@@ -39,6 +39,7 @@ class RenderWidget;
 class Widget;
 
 class HTMLPlugInElement : public HTMLFrameOwnerElement {
+    WTF_MAKE_ISO_ALLOCATED(HTMLPlugInElement);
 public:
     virtual ~HTMLPlugInElement();
 
@@ -73,7 +74,7 @@ public:
 
     bool canProcessDrag() const;
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
     bool willRespondToMouseMoveEvents() override { return false; }
 #endif
     bool willRespondToMouseClickEvents() override;

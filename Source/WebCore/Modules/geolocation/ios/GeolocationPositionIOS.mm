@@ -26,7 +26,7 @@
 #import "config.h"
 #import "GeolocationPosition.h"
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
 
 #import <CoreLocation/CLLocation.h>
 
@@ -46,10 +46,12 @@ GeolocationPosition::GeolocationPosition(CLLocation* location)
         speed = location.speed;
     if (location.course >= 0.0)
         heading = location.course;
+#if !PLATFORM(IOSMAC)
     if (location.floor)
         floorLevel = location.floor.level;
+#endif
 }
 
 }
 
-#endif // PLATFORM(IOS)
+#endif // PLATFORM(IOS_FAMILY)

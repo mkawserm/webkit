@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014 Igalia S.L.
+ * Copyright (C) 2014, 2018 Igalia S.L.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -20,6 +20,8 @@
 #ifndef WebKitUserContentPrivate_h
 #define WebKitUserContentPrivate_h
 
+#include "APIContentRuleList.h"
+#include "APIUserContentWorld.h"
 #include "APIUserScript.h"
 #include "APIUserStyleSheet.h"
 #include "WebKitUserContent.h"
@@ -28,5 +30,8 @@
 
 API::UserScript& webkitUserScriptGetUserScript(WebKitUserScript*);
 API::UserStyleSheet& webkitUserStyleSheetGetUserStyleSheet(WebKitUserStyleSheet*);
+API::UserContentWorld& webkitUserContentWorld(const char*);
+API::ContentRuleList& webkitUserContentFilterGetContentRuleList(WebKitUserContentFilter*);
+WebKitUserContentFilter* webkitUserContentFilterCreate(RefPtr<API::ContentRuleList>&&);
 
 #endif // WebKitUserContentPrivate_h

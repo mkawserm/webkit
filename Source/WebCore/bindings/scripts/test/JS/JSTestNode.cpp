@@ -35,10 +35,12 @@
 #include "RuntimeEnabledFeatures.h"
 #include "ScriptExecutionContext.h"
 #include <JavaScriptCore/BuiltinNames.h>
+#include <JavaScriptCore/HeapSnapshotBuilder.h>
 #include <JavaScriptCore/JSCInlines.h>
 #include <JavaScriptCore/ObjectConstructor.h>
 #include <wtf/GetPtr.h>
 #include <wtf/PointerPreparations.h>
+#include <wtf/URL.h>
 
 
 namespace WebCore {
@@ -112,7 +114,7 @@ template<> JSValue JSTestNodeConstructor::prototypeForStructure(JSC::VM& vm, con
 template<> void JSTestNodeConstructor::initializeProperties(VM& vm, JSDOMGlobalObject& globalObject)
 {
     putDirect(vm, vm.propertyNames->prototype, JSTestNode::prototype(vm, globalObject), JSC::PropertyAttribute::DontDelete | JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum);
-    putDirect(vm, vm.propertyNames->name, jsNontrivialString(&vm, String(ASCIILiteral("TestNode"))), JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum);
+    putDirect(vm, vm.propertyNames->name, jsNontrivialString(&vm, String("TestNode"_s)), JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum);
     putDirect(vm, vm.propertyNames->length, jsNumber(0), JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum);
 }
 
@@ -124,19 +126,19 @@ static const HashTableValue JSTestNodePrototypeTableValues[] =
 {
     { "constructor", static_cast<unsigned>(JSC::PropertyAttribute::DontEnum), NoIntrinsic, { (intptr_t)static_cast<PropertySlot::GetValueFunc>(jsTestNodeConstructor), (intptr_t) static_cast<PutPropertySlot::PutValueFunc>(setJSTestNodeConstructor) } },
     { "name", static_cast<unsigned>(JSC::PropertyAttribute::CustomAccessor | JSC::PropertyAttribute::DOMAttribute), NoIntrinsic, { (intptr_t)static_cast<PropertySlot::GetValueFunc>(jsTestNodeName), (intptr_t) static_cast<PutPropertySlot::PutValueFunc>(setJSTestNodeName) } },
-    { "testWorkerPromise", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestNodePrototypeFunctionTestWorkerPromise), (intptr_t) (0) } },
-    { "calculateSecretResult", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestNodePrototypeFunctionCalculateSecretResult), (intptr_t) (0) } },
-    { "getSecretBoolean", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestNodePrototypeFunctionGetSecretBoolean), (intptr_t) (0) } },
+    { "testWorkerPromise", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestNodePrototypeFunctionTestWorkerPromise), (intptr_t) (0) } },
+    { "calculateSecretResult", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestNodePrototypeFunctionCalculateSecretResult), (intptr_t) (0) } },
+    { "getSecretBoolean", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestNodePrototypeFunctionGetSecretBoolean), (intptr_t) (0) } },
 #if ENABLE(TEST_FEATURE)
-    { "testFeatureGetSecretBoolean", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestNodePrototypeFunctionTestFeatureGetSecretBoolean), (intptr_t) (0) } },
+    { "testFeatureGetSecretBoolean", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestNodePrototypeFunctionTestFeatureGetSecretBoolean), (intptr_t) (0) } },
 #else
     { 0, 0, NoIntrinsic, { 0, 0 } },
 #endif
-    { "entries", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestNodePrototypeFunctionEntries), (intptr_t) (0) } },
-    { "keys", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestNodePrototypeFunctionKeys), (intptr_t) (0) } },
-    { "values", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestNodePrototypeFunctionValues), (intptr_t) (0) } },
-    { "forEach", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestNodePrototypeFunctionForEach), (intptr_t) (1) } },
-    { "toJSON", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestNodePrototypeFunctionToJSON), (intptr_t) (0) } },
+    { "entries", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestNodePrototypeFunctionEntries), (intptr_t) (0) } },
+    { "keys", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestNodePrototypeFunctionKeys), (intptr_t) (0) } },
+    { "values", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestNodePrototypeFunctionValues), (intptr_t) (0) } },
+    { "forEach", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestNodePrototypeFunctionForEach), (intptr_t) (1) } },
+    { "toJSON", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestNodePrototypeFunctionToJSON), (intptr_t) (0) } },
 };
 
 const ClassInfo JSTestNodePrototype::s_info = { "TestNodePrototype", &Base::s_info, nullptr, nullptr, CREATE_METHOD_TABLE(JSTestNodePrototype) };
@@ -145,43 +147,53 @@ void JSTestNodePrototype::finishCreation(VM& vm)
 {
     Base::finishCreation(vm);
     reifyStaticProperties(vm, JSTestNode::info(), JSTestNodePrototypeTableValues, *this);
+    bool hasDisabledRuntimeProperties = false;
     if (!jsCast<JSDOMGlobalObject*>(globalObject())->scriptExecutionContext()->isSecureContext()) {
+        hasDisabledRuntimeProperties = true;
         auto propertyName = Identifier::fromString(&vm, reinterpret_cast<const LChar*>("calculateSecretResult"), strlen("calculateSecretResult"));
         VM::DeletePropertyModeScope scope(vm, VM::DeletePropertyMode::IgnoreConfigurable);
         JSObject::deleteProperty(this, globalObject()->globalExec(), propertyName);
     }
     if (!jsCast<JSDOMGlobalObject*>(globalObject())->scriptExecutionContext()->isSecureContext()) {
+        hasDisabledRuntimeProperties = true;
         auto propertyName = Identifier::fromString(&vm, reinterpret_cast<const LChar*>("getSecretBoolean"), strlen("getSecretBoolean"));
         VM::DeletePropertyModeScope scope(vm, VM::DeletePropertyMode::IgnoreConfigurable);
         JSObject::deleteProperty(this, globalObject()->globalExec(), propertyName);
     }
 #if ENABLE(TEST_FEATURE)
     if (!(jsCast<JSDOMGlobalObject*>(globalObject())->scriptExecutionContext()->isSecureContext() && RuntimeEnabledFeatures::sharedFeatures().testFeatureEnabled())) {
+        hasDisabledRuntimeProperties = true;
         auto propertyName = Identifier::fromString(&vm, reinterpret_cast<const LChar*>("testFeatureGetSecretBoolean"), strlen("testFeatureGetSecretBoolean"));
         VM::DeletePropertyModeScope scope(vm, VM::DeletePropertyMode::IgnoreConfigurable);
         JSObject::deleteProperty(this, globalObject()->globalExec(), propertyName);
     }
 #endif
     if (!RuntimeEnabledFeatures::sharedFeatures().domIteratorEnabled()) {
+        hasDisabledRuntimeProperties = true;
         auto propertyName = Identifier::fromString(&vm, reinterpret_cast<const LChar*>("entries"), strlen("entries"));
         VM::DeletePropertyModeScope scope(vm, VM::DeletePropertyMode::IgnoreConfigurable);
         JSObject::deleteProperty(this, globalObject()->globalExec(), propertyName);
     }
     if (!RuntimeEnabledFeatures::sharedFeatures().domIteratorEnabled()) {
+        hasDisabledRuntimeProperties = true;
         auto propertyName = Identifier::fromString(&vm, reinterpret_cast<const LChar*>("keys"), strlen("keys"));
         VM::DeletePropertyModeScope scope(vm, VM::DeletePropertyMode::IgnoreConfigurable);
         JSObject::deleteProperty(this, globalObject()->globalExec(), propertyName);
     }
     if (!RuntimeEnabledFeatures::sharedFeatures().domIteratorEnabled()) {
+        hasDisabledRuntimeProperties = true;
         auto propertyName = Identifier::fromString(&vm, reinterpret_cast<const LChar*>("values"), strlen("values"));
         VM::DeletePropertyModeScope scope(vm, VM::DeletePropertyMode::IgnoreConfigurable);
         JSObject::deleteProperty(this, globalObject()->globalExec(), propertyName);
     }
     if (!RuntimeEnabledFeatures::sharedFeatures().domIteratorEnabled()) {
+        hasDisabledRuntimeProperties = true;
         auto propertyName = Identifier::fromString(&vm, reinterpret_cast<const LChar*>("forEach"), strlen("forEach"));
         VM::DeletePropertyModeScope scope(vm, VM::DeletePropertyMode::IgnoreConfigurable);
         JSObject::deleteProperty(this, globalObject()->globalExec(), propertyName);
     }
+    if (hasDisabledRuntimeProperties && structure()->isDictionary())
+        flattenDictionaryObject(vm);
     putDirect(vm, vm.propertyNames->iteratorSymbol, getDirect(vm, vm.propertyNames->builtinNames().entriesPublicName()), static_cast<unsigned>(JSC::PropertyAttribute::DontEnum));
 }
 
@@ -216,19 +228,19 @@ JSValue JSTestNode::getConstructor(VM& vm, const JSGlobalObject* globalObject)
 
 template<> inline JSTestNode* IDLAttribute<JSTestNode>::cast(ExecState& state, EncodedJSValue thisValue)
 {
-    return jsDynamicDowncast<JSTestNode*>(state.vm(), JSValue::decode(thisValue));
+    return jsDynamicCast<JSTestNode*>(state.vm(), JSValue::decode(thisValue));
 }
 
 template<> inline JSTestNode* IDLOperation<JSTestNode>::cast(ExecState& state)
 {
-    return jsDynamicDowncast<JSTestNode*>(state.vm(), state.thisValue());
+    return jsDynamicCast<JSTestNode*>(state.vm(), state.thisValue());
 }
 
 EncodedJSValue jsTestNodeConstructor(ExecState* state, EncodedJSValue thisValue, PropertyName)
 {
     VM& vm = state->vm();
     auto throwScope = DECLARE_THROW_SCOPE(vm);
-    auto* prototype = jsDynamicDowncast<JSTestNodePrototype*>(vm, JSValue::decode(thisValue));
+    auto* prototype = jsDynamicCast<JSTestNodePrototype*>(vm, JSValue::decode(thisValue));
     if (UNLIKELY(!prototype))
         return throwVMTypeError(state, throwScope);
     return JSValue::encode(JSTestNode::getConstructor(state->vm(), prototype->globalObject()));
@@ -238,7 +250,7 @@ bool setJSTestNodeConstructor(ExecState* state, EncodedJSValue thisValue, Encode
 {
     VM& vm = state->vm();
     auto throwScope = DECLARE_THROW_SCOPE(vm);
-    auto* prototype = jsDynamicDowncast<JSTestNodePrototype*>(vm, JSValue::decode(thisValue));
+    auto* prototype = jsDynamicCast<JSTestNodePrototype*>(vm, JSValue::decode(thisValue));
     if (UNLIKELY(!prototype)) {
         throwVMTypeError(state, throwScope);
         return false;
@@ -410,6 +422,15 @@ static inline EncodedJSValue jsTestNodePrototypeFunctionToJSONBody(ExecState* st
 EncodedJSValue JSC_HOST_CALL jsTestNodePrototypeFunctionToJSON(ExecState* state)
 {
     return IDLOperation<JSTestNode>::call<jsTestNodePrototypeFunctionToJSONBody>(*state, "toJSON");
+}
+
+void JSTestNode::heapSnapshot(JSCell* cell, HeapSnapshotBuilder& builder)
+{
+    auto* thisObject = jsCast<JSTestNode*>(cell);
+    builder.setWrappedObjectForCell(cell, &thisObject->wrapped());
+    if (thisObject->scriptExecutionContext())
+        builder.setLabelForCell(cell, "url " + thisObject->scriptExecutionContext()->url().string());
+    Base::heapSnapshot(cell, builder);
 }
 
 #if ENABLE(BINDING_INTEGRITY)

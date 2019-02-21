@@ -30,9 +30,8 @@
 #include "PlatformCALayerRemote.h"
 #include <WebCore/PlatformScreen.h>
 
-using namespace WebCore;
-
 namespace WebKit {
+using namespace WebCore;
 
 GraphicsLayerCARemote::~GraphicsLayerCARemote()
 {
@@ -56,6 +55,11 @@ Ref<PlatformCALayer> GraphicsLayerCARemote::createPlatformCALayer(PlatformCALaye
 Ref<PlatformCALayer> GraphicsLayerCARemote::createPlatformCALayer(PlatformLayer* platformLayer, PlatformCALayerClient* owner)
 {
     return PlatformCALayerRemote::create(platformLayer, owner, m_context);
+}
+
+Ref<PlatformCALayer> GraphicsLayerCARemote::createPlatformCALayerForEmbeddedView(PlatformCALayer::LayerType layerType, GraphicsLayer::EmbeddedViewID embeddedViewID, PlatformCALayerClient* owner)
+{
+    return PlatformCALayerRemote::createForEmbeddedView(layerType, embeddedViewID, owner, m_context);
 }
 
 Ref<PlatformCAAnimation> GraphicsLayerCARemote::createPlatformCAAnimation(PlatformCAAnimation::AnimationType type, const String& keyPath)

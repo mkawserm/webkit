@@ -12,6 +12,7 @@
 #include <memory>
 #include <set>
 #include <string>
+#include <utility>
 
 #include "p2p/base/packetsocketfactory.h"
 #include "p2p/base/stun.h"
@@ -76,7 +77,7 @@ class StunProber::Requester : public sigslot::has_slots<> {
                               const char* buf,
                               size_t size,
                               const rtc::SocketAddress& addr,
-                              const rtc::PacketTime& time);
+                              const int64_t& packet_time_us);
 
   const std::vector<Request*>& requests() { return requests_; }
 
@@ -203,7 +204,7 @@ void StunProber::Requester::OnStunResponseReceived(
     const char* buf,
     size_t size,
     const rtc::SocketAddress& addr,
-    const rtc::PacketTime& time) {
+    const int64_t& /* packet_time_us */) {
   RTC_DCHECK(thread_checker_.CalledOnValidThread());
   RTC_DCHECK(socket_);
   Request* request = GetRequestByAddress(addr.ipaddr());
@@ -257,8 +258,7 @@ StunProber::StunProber(rtc::PacketSocketFactory* socket_factory,
     : interval_ms_(0),
       socket_factory_(socket_factory),
       thread_(thread),
-      networks_(networks) {
-}
+      networks_(networks) {}
 
 StunProber::~StunProber() {
   for (auto* req : requesters_) {

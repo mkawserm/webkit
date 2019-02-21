@@ -27,9 +27,12 @@
 
 #if WK_API_ENABLED
 
+@class WKNavigation;
 @class _WKUserInitiatedAction;
 
 #if TARGET_OS_IPHONE
+#include <UIKit/UIKit.h>
+
 typedef NS_ENUM(NSInteger, WKSyntheticClickType) {
     WKSyntheticClickTypeNoTap,
     WKSyntheticClickTypeOneFingerTap,
@@ -52,9 +55,12 @@ typedef NS_ENUM(NSInteger, WKSyntheticClickType) {
 #if TARGET_OS_IPHONE
 @property (nonatomic, readonly) WKSyntheticClickType _syntheticClickType WK_API_AVAILABLE(ios(10.0));
 @property (nonatomic, readonly) CGPoint _clickLocationInRootViewCoordinates WK_API_AVAILABLE(ios(11.0));
+
+@property (nonatomic, readonly) UIKeyModifierFlags modifierFlags WK_API_AVAILABLE(ios(WK_IOS_TBA));
 #endif
 
 @property (nonatomic, readonly) BOOL _isRedirect WK_API_AVAILABLE(macosx(10.13), ios(11.0));
+@property (nonatomic, readonly) WKNavigation *_mainFrameNavigation WK_API_AVAILABLE(macosx(WK_MAC_TBA), ios(WK_IOS_TBA));
 
 @end
 

@@ -30,11 +30,14 @@
 #import "PlatformUtilities.h"
 #import "TestProtocol.h"
 #import <WebKit/WKNavigationActionPrivate.h>
+#import <WebKit/WKProcessPoolPrivate.h>
+#import <WebKit/_WKProcessPoolConfiguration.h>
 #import <wtf/RetainPtr.h>
 #import <wtf/mac/AppKitCompatibilityDeclarations.h>
 
 #if WK_API_ENABLED
 
+static bool shouldCancelNavigation;
 static bool createdWebView;
 static bool decidedPolicy;
 static bool finishedNavigation;
@@ -51,6 +54,16 @@ static NSString *secondURL = @"data:text/html,Second";
 
 - (void)webView:(WKWebView *)webView decidePolicyForNavigationAction:(WKNavigationAction *)navigationAction decisionHandler:(void (^)(WKNavigationActionPolicy))decisionHandler
 {
+    if (shouldCancelNavigation) {
+        int64_t deferredWaitTime = 100 * NSEC_PER_MSEC;
+        dispatch_time_t when = dispatch_time(DISPATCH_TIME_NOW, deferredWaitTime);
+        dispatch_after(when, dispatch_get_main_queue(), ^{
+            decisionHandler(WKNavigationActionPolicyCancel);
+            decidedPolicy = true;
+        });
+        return;
+    }
+
     decisionHandler(webView == newWebView.get() ? WKNavigationActionPolicyCancel : WKNavigationActionPolicyAllow);
 
     action = navigationAction;
@@ -285,6 +298,44 @@ TEST(WebKit, DecidePolicyForNavigationActionForTargetedHyperlink)
     action = nullptr;
 }
 
+TEST(WebKit, DecidePolicyForNavigationActionForLoadHTMLStringAllow)
+{
+    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+
+    auto window = adoptNS([[NSWindow alloc] initWithContentRect:[webView frame] styleMask:NSWindowStyleMaskBorderless backing:NSBackingStoreBuffered defer:YES]);
+    [[window contentView] addSubview:webView.get()];
+
+    auto controller = adoptNS([[DecidePolicyForNavigationActionController alloc] init]);
+    [webView setNavigationDelegate:controller.get()];
+    [webView setUIDelegate:controller.get()];
+
+    finishedNavigation = false;
+    decidedPolicy = false;
+    [webView loadHTMLString:@"TEST" baseURL:[NSURL URLWithString:@"about:blank"]];
+    TestWebKitAPI::Util::run(&finishedNavigation);
+    EXPECT_TRUE(decidedPolicy);
+}
+
+TEST(WebKit, DecidePolicyForNavigationActionForLoadHTMLStringDeny)
+{
+    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+
+    auto window = adoptNS([[NSWindow alloc] initWithContentRect:[webView frame] styleMask:NSWindowStyleMaskBorderless backing:NSBackingStoreBuffered defer:YES]);
+    [[window contentView] addSubview:webView.get()];
+
+    auto controller = adoptNS([[DecidePolicyForNavigationActionController alloc] init]);
+    [webView setNavigationDelegate:controller.get()];
+    [webView setUIDelegate:controller.get()];
+
+    shouldCancelNavigation = true;
+    finishedNavigation = false;
+    decidedPolicy = false;
+    [webView loadHTMLString:@"TEST" baseURL:[NSURL URLWithString:@"about:blank"]];
+    TestWebKitAPI::Util::sleep(0.5);
+    EXPECT_FALSE(finishedNavigation);
+    shouldCancelNavigation = false;
+}
+
 TEST(WebKit, DecidePolicyForNavigationActionForTargetedWindowOpen)
 {
     auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
@@ -382,9 +433,17 @@ TEST(WebKit, DecidePolicyForNavigationActionForTargetedFormSubmission)
     action = nullptr;
 }
 
-TEST(WebKit, DecidePolicyForNavigationActionForHyperlinkThatRedirects)
+enum class ShouldEnableProcessSwap { No, Yes };
+static void runDecidePolicyForNavigationActionForHyperlinkThatRedirects(ShouldEnableProcessSwap shouldEnableProcessSwap)
 {
-    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)]);
+    auto processPoolConfiguration = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
+    processPoolConfiguration.get().processSwapsOnNavigation = shouldEnableProcessSwap == ShouldEnableProcessSwap::Yes ? YES : NO;
+    auto processPool = adoptNS([[WKProcessPool alloc] _initWithConfiguration:processPoolConfiguration.get()]);
+
+    auto webViewConfiguration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    [webViewConfiguration setProcessPool:processPool.get()];
+
+    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
 
     auto window = adoptNS([[NSWindow alloc] initWithContentRect:[webView frame] styleMask:NSWindowStyleMaskBorderless backing:NSBackingStoreBuffered defer:YES]);
     [[window contentView] addSubview:webView.get()];
@@ -430,6 +489,16 @@ TEST(WebKit, DecidePolicyForNavigationActionForHyperlinkThatRedirects)
     [TestProtocol unregister];
     newWebView = nullptr;
     action = nullptr;
+}
+
+TEST(WebKit, DecidePolicyForNavigationActionForHyperlinkThatRedirectsWithoutPSON)
+{
+    runDecidePolicyForNavigationActionForHyperlinkThatRedirects(ShouldEnableProcessSwap::No);
+}
+
+TEST(WebKit, DecidePolicyForNavigationActionForHyperlinkThatRedirectsWithPSON)
+{
+    runDecidePolicyForNavigationActionForHyperlinkThatRedirects(ShouldEnableProcessSwap::Yes);
 }
 
 TEST(WebKit, DecidePolicyForNavigationActionForPOSTFormSubmissionThatRedirectsToGET)

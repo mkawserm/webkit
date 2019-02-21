@@ -28,15 +28,16 @@
 
 #include "RemoteWebInspectorProxyMessages.h"
 #include "RemoteWebInspectorUIMessages.h"
+#include "WebCoreArgumentCoders.h"
 #include "WebPage.h"
 #include "WebProcess.h"
+#include <WebCore/CertificateInfo.h>
 #include <WebCore/Chrome.h>
 #include <WebCore/DOMWrapperWorld.h>
 #include <WebCore/InspectorController.h>
 
-using namespace WebCore;
-
 namespace WebKit {
+using namespace WebCore;
 
 Ref<RemoteWebInspectorUI> RemoteWebInspectorUI::create(WebPage& page)
 {
@@ -57,17 +58,17 @@ void RemoteWebInspectorUI::initialize(const String& debuggableType, const String
     m_page.corePage()->inspectorController().setInspectorFrontendClient(this);
 
     m_frontendAPIDispatcher.reset();
-    m_frontendAPIDispatcher.dispatchCommand(ASCIILiteral("setDockingUnavailable"), true);
+    m_frontendAPIDispatcher.dispatchCommand("setDockingUnavailable"_s, true);
 }
 
 void RemoteWebInspectorUI::didSave(const String& url)
 {
-    m_frontendAPIDispatcher.dispatchCommand(ASCIILiteral("savedURL"), url);
+    m_frontendAPIDispatcher.dispatchCommand("savedURL"_s, url);
 }
 
 void RemoteWebInspectorUI::didAppend(const String& url)
 {
-    m_frontendAPIDispatcher.dispatchCommand(ASCIILiteral("appendedToURL"), url);
+    m_frontendAPIDispatcher.dispatchCommand("appendedToURL"_s, url);
 }
 
 void RemoteWebInspectorUI::sendMessageToFrontend(const String& message)
@@ -93,7 +94,7 @@ void RemoteWebInspectorUI::frontendLoaded()
 {
     m_frontendAPIDispatcher.frontendLoaded();
 
-    m_frontendAPIDispatcher.dispatchCommand(ASCIILiteral("setIsVisible"), true);
+    m_frontendAPIDispatcher.dispatchCommand("setIsVisible"_s, true);
 
     bringToFront();
 }
@@ -127,6 +128,11 @@ void RemoteWebInspectorUI::closeWindow()
     WebProcess::singleton().parentProcessConnection()->send(Messages::RemoteWebInspectorProxy::FrontendDidClose(), m_page.pageID());
 }
 
+void RemoteWebInspectorUI::reopen()
+{
+    WebProcess::singleton().parentProcessConnection()->send(Messages::RemoteWebInspectorProxy::Reopen(), m_page.pageID());
+}
+
 void RemoteWebInspectorUI::openInNewTab(const String& url)
 {
     WebProcess::singleton().parentProcessConnection()->send(Messages::RemoteWebInspectorProxy::OpenInNewTab(url), m_page.pageID());
@@ -145,6 +151,11 @@ void RemoteWebInspectorUI::append(const String& filename, const String& content)
 void RemoteWebInspectorUI::inspectedURLChanged(const String& urlString)
 {
     // Do nothing. The remote side can know if the main resource changed.
+}
+
+void RemoteWebInspectorUI::showCertificate(const CertificateInfo& certificateInfo)
+{
+    WebProcess::singleton().parentProcessConnection()->send(Messages::RemoteWebInspectorProxy::ShowCertificate(certificateInfo), m_page.pageID());
 }
 
 } // namespace WebKit

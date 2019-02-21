@@ -11,7 +11,6 @@
 #define MODULES_RTP_RTCP_SOURCE_RTCP_PACKET_PLI_H_
 
 #include "modules/rtp_rtcp/source/rtcp_packet/psfb.h"
-#include "rtc_base/basictypes.h"
 
 namespace webrtc {
 namespace rtcp {
@@ -31,7 +30,7 @@ class Pli : public Psfb {
   bool Create(uint8_t* packet,
               size_t* index,
               size_t max_length,
-              RtcpPacket::PacketReadyCallback* callback) const override;
+              PacketReadyCallback callback) const override;
 };
 
 }  // namespace rtcp

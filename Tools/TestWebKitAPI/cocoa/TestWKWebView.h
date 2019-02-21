@@ -30,14 +30,32 @@
 
 @class _WKProcessPoolConfiguration;
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
 @class _WKActivatedElementInfo;
+@protocol UITextInputMultiDocument;
+@protocol UITextInputPrivate;
 #endif
 
 @interface WKWebView (AdditionalDeclarations)
 #if PLATFORM(MAC)
 - (void)paste:(id)sender;
+- (void)changeAttributes:(id)sender;
+- (void)changeColor:(id)sender;
+- (void)superscript:(id)sender;
+- (void)subscript:(id)sender;
+- (void)unscript:(id)sender;
 #endif
+@end
+
+@interface WKWebView (TestWebKitAPI)
+@property (nonatomic, readonly) NSArray<NSString *> *tagsInBody;
+- (BOOL)_synchronouslyExecuteEditCommand:(NSString *)command argument:(NSString *)argument;
+- (void)expectElementTagsInOrder:(NSArray<NSString *> *)tagNames;
+- (void)expectElementCount:(NSInteger)count querySelector:(NSString *)querySelector;
+- (void)expectElementTag:(NSString *)tagName toComeBefore:(NSString *)otherTagName;
+- (NSString *)stringByEvaluatingJavaScript:(NSString *)script;
+- (id)objectByEvaluatingJavaScriptWithUserGesture:(NSString *)script;
+- (id)objectByEvaluatingJavaScript:(NSString *)script;
 @end
 
 @interface TestMessageHandler : NSObject <WKScriptMessageHandler>
@@ -46,35 +64,44 @@
 
 @interface TestWKWebView : WKWebView
 - (instancetype)initWithFrame:(CGRect)frame configuration:(WKWebViewConfiguration *)configuration processPoolConfiguration:(_WKProcessPoolConfiguration *)processPoolConfiguration;
+- (instancetype)initWithFrame:(CGRect)frame configuration:(WKWebViewConfiguration *)configuration addToWindow:(BOOL)addToWindow;
 - (void)clearMessageHandlers:(NSArray *)messageNames;
 - (void)performAfterReceivingMessage:(NSString *)message action:(dispatch_block_t)action;
 - (void)loadTestPageNamed:(NSString *)pageName;
 - (void)synchronouslyLoadHTMLString:(NSString *)html;
+- (void)synchronouslyLoadHTMLString:(NSString *)html baseURL:(NSURL *)url;
 - (void)synchronouslyLoadTestPageNamed:(NSString *)pageName;
-- (id)objectByEvaluatingJavaScript:(NSString *)script;
-- (NSString *)stringByEvaluatingJavaScript:(NSString *)script;
 - (void)waitForMessage:(NSString *)message;
 - (void)performAfterLoading:(dispatch_block_t)actions;
 - (void)waitForNextPresentationUpdate;
+- (NSString *)stylePropertyAtSelectionStart:(NSString *)propertyName;
+- (NSString *)stylePropertyAtSelectionEnd:(NSString *)propertyName;
+- (void)collapseToStart;
+- (void)collapseToEnd;
 @end
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
 @interface TestWKWebView (IOSOnly)
-@property (nonatomic, readonly) UIView <UITextInput> *textInputContentView;
+@property (nonatomic, readonly) UIView <UITextInputPrivate, UITextInputMultiDocument> *textInputContentView;
 @property (nonatomic, readonly) RetainPtr<NSArray> selectionRectsAfterPresentationUpdate;
+@property (nonatomic, readonly) CGRect caretViewRectInContentCoordinates;
+@property (nonatomic, readonly) NSArray<NSValue *> *selectionViewRectsInContentCoordinates;
 - (_WKActivatedElementInfo *)activatedElementAtPosition:(CGPoint)position;
+- (void)evaluateJavaScriptAndWaitForInputSessionToChange:(NSString *)script;
 @end
 #endif
 
 #if PLATFORM(MAC)
 @interface TestWKWebView (MacOnly)
 // Simulates clicking with a pressure-sensitive device, if possible.
-- (void)mouseDownAtPoint:(NSPoint)point simulatePressure:(BOOL)simulatePressure;
-- (void)mouseUpAtPoint:(NSPoint)point;
-- (void)mouseMoveToPoint:(NSPoint)point withFlags:(NSEventModifierFlags)flags;
-- (void)sendClicksAtPoint:(NSPoint)point numberOfClicks:(NSUInteger)numberOfClicks;
-- (void)typeCharacter:(char)character;
+- (void)mouseDownAtPoint:(NSPoint)pointInWindow simulatePressure:(BOOL)simulatePressure;
+- (void)mouseDragToPoint:(NSPoint)pointInWindow;
+- (void)mouseEnterAtPoint:(NSPoint)pointInWindow;
+- (void)mouseUpAtPoint:(NSPoint)pointInWindow;
+- (void)mouseMoveToPoint:(NSPoint)pointInWindow withFlags:(NSEventModifierFlags)flags;
+- (void)sendClicksAtPoint:(NSPoint)pointInWindow numberOfClicks:(NSUInteger)numberOfClicks;
 - (NSWindow *)hostWindow;
+- (void)typeCharacter:(char)character;
 @end
 #endif
 

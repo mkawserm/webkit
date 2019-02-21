@@ -5,21 +5,22 @@
 esid: sec-atomics.wait
 description: >
   Test range checking of Atomics.wait on arrays that allow atomic operations
-includes: [testAtomics.js, testTypedArray.js]
-features: [SharedArrayBuffer, ArrayBuffer, DataView, Atomics, TypedArray, arrow-function, let, for-of]
+info: |
+  Atomics.wait( typedArray, index, value, timeout )
+
+  1. Let buffer be ? ValidateSharedIntegerTypedArray(typedArray, true).
+  ...
+
+includes: [testAtomics.js]
+features: [ArrayBuffer, Atomics, DataView, SharedArrayBuffer, Symbol, TypedArray]
 ---*/
 
-var sab = new SharedArrayBuffer(8);
-var views = [Int32Array];
+const i32a = new Int32Array(
+  new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT * 8)
+);
 
-if (typeof BigInt !== "undefined") {
-  views.push(BigInt64Array);
-}
-
-testWithTypedArrayConstructors(function(View) {
-  let view = new View(sab);
-  testWithAtomicsOutOfBoundsIndices(function(IdxGen) {
-    let Idx = IdxGen(view);
-    assert.throws(RangeError, () => Atomics.wait(view, Idx, 10, 0)); // Even with zero timeout
-  });
-}, views);
+testWithAtomicsOutOfBoundsIndices(function(IdxGen) {
+  assert.throws(RangeError, function() {
+    Atomics.wait(i32a, IdxGen(i32a), 0, 0);
+  }, '`Atomics.wait(i32a, IdxGen(i32a), 0, 0)` throws RangeError');
+});

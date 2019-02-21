@@ -5,12 +5,10 @@ class CommitLog extends DataModelObject {
     {
         console.assert(parseInt(id) == id);
         super(id);
+        console.assert(id == rawData.id)
         this._repository = rawData.repository;
         console.assert(this._repository instanceof Repository);
         this._rawData = rawData;
-        this._remoteId = rawData.id;
-        if (this._remoteId)
-            this.ensureNamedStaticMap('remoteId')[this._remoteId] = this;
         this._ownedCommits = null;
         this._ownerCommit = null;
         this._ownedCommitByOwnedRepository = new Map;
@@ -29,10 +27,16 @@ class CommitLog extends DataModelObject {
             this._rawData.message = rawData.message;
         if (rawData.ownsCommits)
             this._rawData.ownsCommits = rawData.ownsCommits;
+        if (rawData.order)
+            this._rawData.order = rawData.order;
+        if (rawData.testability)
+            this._rawData.testability = rawData.testability;
     }
 
     repository() { return this._repository; }
     time() { return new Date(this._rawData['time']); }
+    hasCommitTime() { return this._rawData['time'] > 0 && this._rawData['time'] != null; }
+    testability() { return this._rawData['testability']; }
     author() { return this._rawData['authorName']; }
     revision() { return this._rawData['revision']; }
     message() { return this._rawData['message']; }
@@ -40,7 +44,8 @@ class CommitLog extends DataModelObject {
     ownsCommits() { return this._rawData['ownsCommits']; }
     ownedCommits() { return this._ownedCommits; }
     ownerCommit() { return this._ownerCommit; }
-
+    order() { return this._rawData['order']; }
+    hasCommitOrder() { return this._rawData['order'] != null; }
     setOwnerCommits(ownerCommit) { this._ownerCommit = ownerCommit; }
 
     label()
@@ -88,6 +93,20 @@ class CommitLog extends DataModelObject {
             rawData.repository = repository;
             return CommitLog.ensureSingleton(rawData.id, rawData);
         });
+    }
+
+    static hasOrdering(firstCommit, secondCommit)
+    {
+        return (firstCommit.hasCommitTime() && secondCommit.hasCommitTime()) ||
+            (firstCommit.hasCommitOrder() && secondCommit.hasCommitOrder());
+    }
+
+    static orderTwoCommits(firstCommit, secondCommit)
+    {
+        console.assert(CommitLog.hasOrdering(firstCommit, secondCommit));
+        const firstCommitSmaller = firstCommit.hasCommitTime() && secondCommit.hasCommitTime() ?
+            firstCommit.time() < secondCommit.time() : firstCommit.order() < secondCommit.order();
+        return firstCommitSmaller ? [firstCommit, secondCommit] : [secondCommit, firstCommit];
     }
 
     ownedCommitForOwnedRepository(ownedRepository) { return this._ownedCommitByOwnedRepository.get(ownedRepository); }
@@ -145,26 +164,33 @@ class CommitLog extends DataModelObject {
         return difference;
     }
 
-    static fetchBetweenRevisions(repository, precedingRevision, lastRevision)
+    static async fetchBetweenRevisions(repository, precedingRevision, lastRevision)
     {
         // FIXME: The cache should be smarter about fetching a range within an already fetched range, etc...
-        // FIXME: We should evict some entires from the cache in cachedFetch.
-        return this.cachedFetch(`/api/commits/${repository.id()}/`, {precedingRevision, lastRevision})
-            .then((data) => this._constructFromRawData(data));
+        // FIXME: We should evict some entries from the cache in cachedFetch.
+        const data = await this.cachedFetch(`/api/commits/${repository.id()}/`, {precedingRevision, lastRevision});
+        return this._constructFromRawData(data);
     }
 
-    static fetchForSingleRevision(repository, revision)
+    static async fetchForSingleRevision(repository, revision)
     {
-        return this.cachedFetch(`/api/commits/${repository.id()}/${revision}`).then((data) => {
-            return this._constructFromRawData(data);
-        });
+        const commit = repository.commitForRevision(revision);
+        if (commit)
+            return [commit];
+
+        const data = await this.cachedFetch(`/api/commits/${repository.id()}/${revision}`);
+        return this._constructFromRawData(data);
     }
 
     static _constructFromRawData(data)
     {
         return data['commits'].map((rawData) => {
-            rawData.repository = Repository.findById(rawData.repository);
-            return CommitLog.ensureSingleton(rawData.id, rawData);
+            const repositoryId = rawData.repository;
+            const repository = Repository.findById(repositoryId);
+            rawData.repository = repository;
+            const commit = CommitLog.ensureSingleton(rawData.id, rawData);
+            repository.setCommitForRevision(commit.revision(), commit);
+            return commit;
         });
     }
 }

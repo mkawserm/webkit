@@ -30,12 +30,6 @@
 #import "InjectedBundle.h"
 #import <JavaScriptCore/JSStringRefCF.h>
 
-#if !PLATFORM(IOS)
-#import <wtf/SoftLinking.h>
-
-SOFT_LINK_STAGED_FRAMEWORK(WebInspectorUI, PrivateFrameworks, A)
-#endif
-
 namespace WTR {
 
 void TestRunner::platformInitialize()
@@ -48,7 +42,7 @@ void TestRunner::invalidateWaitToDumpWatchdogTimer()
         return;
 
     CFRunLoopTimerInvalidate(m_waitToDumpWatchdogTimer.get());
-    m_waitToDumpWatchdogTimer = 0;
+    m_waitToDumpWatchdogTimer = nullptr;
 }
 
 static void waitUntilDoneWatchdogTimerFired(CFRunLoopTimerRef timer, void* info)
@@ -61,7 +55,7 @@ void TestRunner::initializeWaitToDumpWatchdogTimerIfNeeded()
     if (m_waitToDumpWatchdogTimer)
         return;
 
-    CFTimeInterval interval = m_timeout / 1000.0;
+    CFTimeInterval interval = m_timeout.seconds();
     m_waitToDumpWatchdogTimer = adoptCF(CFRunLoopTimerCreate(kCFAllocatorDefault, CFAbsoluteTimeGetCurrent() + interval, 0, 0, 0, WTR::waitUntilDoneWatchdogTimerFired, NULL));
     CFRunLoopAddTimer(CFRunLoopGetCurrent(), m_waitToDumpWatchdogTimer.get(), kCFRunLoopCommonModes);
 }
@@ -73,12 +67,9 @@ JSRetainPtr<JSStringRef> TestRunner::pathToLocalResource(JSStringRef url)
 
 JSRetainPtr<JSStringRef> TestRunner::inspectorTestStubURL()
 {
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
     return nullptr;
 #else
-    // Call the soft link framework function to dlopen it, then CFBundleGetBundleWithIdentifier will work.
-    WebInspectorUILibrary();
-
     CFBundleRef inspectorBundle = CFBundleGetBundleWithIdentifier(CFSTR("com.apple.WebInspectorUI"));
     if (!inspectorBundle)
         return nullptr;

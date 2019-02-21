@@ -71,7 +71,8 @@ class CommitSet extends DataModelObject {
     ownerCommitForRepository(repository) { return this._repositoryToCommitOwnerMap.get(repository); }
     topLevelRepositories() { return Repository.sortByNamePreferringOnesWithURL(this._repositories.filter((repository) => !this.ownerRevisionForRepository(repository))); }
     ownedRepositoriesForOwnerRepository(repository) { return this._ownerRepositoryToOwnedRepositoriesMap.get(repository); }
-    commitForRepository(repository) { return this._repositoryToCommitMap.get(repository); }
+    commitsWithTestability() { return this.commits().filter((commit) => !!commit.testability()); }
+    commits() { return  Array.from(this._repositoryToCommitMap.values()); }
 
     revisionForRepository(repository)
     {
@@ -120,6 +121,12 @@ class CommitSet extends DataModelObject {
         return CommitSet.areCustomRootsEqual(this._customRoots, other._customRoots);
     }
 
+    hasSameRepositories(commitSet)
+    {
+        return commitSet.repositories().length === this._repositoryToCommitMap.size
+            && commitSet.repositories().every((repository) => this._repositoryToCommitMap.has(repository));
+    }
+
     static areCustomRootsEqual(customRoots1, customRoots2)
     {
         if (customRoots1.length != customRoots2.length)
@@ -145,6 +152,118 @@ class CommitSet extends DataModelObject {
         }
         return false;
     }
+
+    containsRootOrPatchOrOwnedCommit()
+    {
+        if (this.allRootFiles().length)
+            return true;
+
+        for (const repository of this.repositories()) {
+            if (this.ownerCommitForRepository(repository))
+                return true;
+            if (this.ownedRepositoriesForOwnerRepository(repository))
+                return true;
+            if (this.patchForRepository(repository))
+                return true;
+        }
+        return false;
+    }
+
+    static createNameWithoutCollision(name, existingNameSet)
+    {
+        console.assert(existingNameSet instanceof Set);
+        if (!existingNameSet.has(name))
+            return name;
+        const nameWithNumberMatch = name.match(/(.+?)\s*\(\s*(\d+)\s*\)\s*$/);
+        let number = 1;
+        if (nameWithNumberMatch) {
+            name = nameWithNumberMatch[1];
+            number = parseInt(nameWithNumberMatch[2]);
+        }
+
+        let newName;
+        do {
+            number++;
+            newName = `${name} (${number})`;
+        } while (existingNameSet.has(newName));
+
+        return newName;
+    }
+
+    static diff(firstCommitSet, secondCommitSet)
+    {
+        console.assert(!firstCommitSet.equals(secondCommitSet));
+        const allRepositories = new Set([...firstCommitSet.repositories(), ...secondCommitSet.repositories()]);
+        const sortedRepositories = Repository.sortByNamePreferringOnesWithURL([...allRepositories]);
+        const nameParts = [];
+        const missingCommit = {label: () => 'none'};
+        const missingPatch = {filename: () => 'none'};
+        const makeNameGenerator = () => {
+            const existingNameSet = new Set;
+            return (name) => {
+                const newName = CommitSet.createNameWithoutCollision(name, existingNameSet);
+                existingNameSet.add(newName);
+                return newName;
+            }
+        };
+
+        for (const repository of sortedRepositories) {
+            const firstCommit = firstCommitSet.commitForRepository(repository) || missingCommit;
+            const secondCommit = secondCommitSet.commitForRepository(repository) || missingCommit;
+            const firstPatch = firstCommitSet.patchForRepository(repository) || missingPatch;
+            const secondPatch = secondCommitSet.patchForRepository(repository) || missingPatch;
+            const nameGenerator = makeNameGenerator();
+
+            if (firstCommit == secondCommit && firstPatch == secondPatch)
+                continue;
+
+            if (firstCommit != secondCommit && firstPatch == secondPatch)
+                nameParts.push(`${repository.name()}: ${secondCommit.diff(firstCommit).label}`);
+
+            // FIXME: It would be nice if we can abbreviate the name when it's too long.
+            const nameForFirstPatch = nameGenerator(firstPatch.filename());
+            const nameForSecondPath = nameGenerator(secondPatch.filename());
+
+            if (firstCommit == secondCommit && firstPatch != secondPatch)
+                nameParts.push(`${repository.name()}: ${nameForFirstPatch} - ${nameForSecondPath}`);
+
+            if (firstCommit != secondCommit && firstPatch != secondPatch)
+                nameParts.push(`${repository.name()}: ${firstCommit.label()} with ${nameForFirstPatch} - ${secondCommit.label()} with ${nameForSecondPath}`);
+        }
+
+        if (firstCommitSet.allRootFiles().length || secondCommitSet.allRootFiles().length) {
+            const firstRootFileSet = new Set(firstCommitSet.allRootFiles());
+            const secondRootFileSet = new Set(secondCommitSet.allRootFiles());
+            const uniqueInFirstCommitSet = firstCommitSet.allRootFiles().filter((rootFile) => !secondRootFileSet.has(rootFile));
+            const uniqueInSecondCommitSet = secondCommitSet.allRootFiles().filter((rootFile) => !firstRootFileSet.has(rootFile));
+            const nameGenerator = makeNameGenerator();
+            const firstDescription = uniqueInFirstCommitSet.map((rootFile) => nameGenerator(rootFile.filename())).join(', ');
+            const secondDescription = uniqueInSecondCommitSet.map((rootFile) => nameGenerator(rootFile.filename())).join(', ');
+            nameParts.push(`Roots: ${firstDescription || 'none'} - ${secondDescription || 'none'}`);
+        }
+
+        return nameParts.join(' ');
+    }
+
+    static revisionSetsFromCommitSets(commitSets)
+    {
+        return commitSets.map((commitSet) => {
+            console.assert(commitSet instanceof CustomCommitSet || commitSet instanceof CommitSet);
+            const revisionSet = {};
+            for (let repository of commitSet.repositories()) {
+                const patchFile = commitSet.patchForRepository(repository);
+                revisionSet[repository.id()] = {
+                    revision: commitSet.revisionForRepository(repository),
+                    ownerRevision: commitSet.ownerRevisionForRepository(repository),
+                    patch: patchFile ? patchFile.id() : null,
+                };
+            }
+            const customRoots = commitSet.customRoots();
+            if (customRoots && customRoots.length)
+                revisionSet['customRoots'] = customRoots.map((uploadedFile) => uploadedFile.id());
+            return revisionSet;
+        });
+    }
 }
 
 class MeasurementCommitSet extends CommitSet {
@@ -152,18 +271,19 @@ class MeasurementCommitSet extends CommitSet {
     constructor(id, revisionList)
     {
         super(id, null);
-        for (var values of revisionList) {
-            // [<commit-id>, <repository-id>, <revision>, <time>]
-            var commitId = values[0];
-            var repositoryId = values[1];
-            var revision = values[2];
-            var time = values[3];
-            var repository = Repository.findById(repositoryId);
+        for (const values of revisionList) {
+            // [<commit-id>, <repository-id>, <revision>, <order>, <time>]
+            const commitId = values[0];
+            const repositoryId = values[1];
+            const revision = values[2];
+            const order = values[3];
+            const time = values[4];
+            const repository = Repository.findById(repositoryId);
             if (!repository)
                 continue;
 
             // FIXME: Add a flag to remember the fact this commit log is incomplete.
-            const commit = CommitLog.ensureSingleton(commitId, {repository: repository, revision: revision, time: time});
+            const commit = CommitLog.ensureSingleton(commitId, {id: commitId, repository, revision, order, time});
             this._repositoryToCommitMap.set(repository, commit);
             this._repositories.push(repository);
         }
@@ -268,6 +388,9 @@ class IntermediateCommitSet {
             fetchingPromises.push(this._fetchCommitLogAndOwnedCommits(repository, commit.revision()));
         return Promise.all(fetchingPromises);
     }
+
+    commitsWithTestability() { return this.commits().filter((commit) => !!commit.testability()); }
+    commits() { return  Array.from(this._commitByRepository.values()); }
 
     _fetchCommitLogAndOwnedCommits(repository, revision)
     {

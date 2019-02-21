@@ -1,7 +1,7 @@
 /*
- * Copyright (C) 2015 Andy VanWagoner <thetalecrafter@gmail.com>.
+ * Copyright (C) 2015 Andy VanWagoner <andy@vanwagoner.family>.
  * Copyright (C) 2016 Yusuke Suzuki <utatane.tea@gmail.com>
- * Copyright (C) 2016 Apple Inc. All rights reserved.
+ * Copyright (C) 2016-2018 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -29,7 +29,7 @@ function match(regexp)
 {
     "use strict";
 
-    if (this == null)
+    if (@isUndefinedOrNull(this))
         @throwTypeError("String.prototype.match requires that |this| not be null or undefined");
 
     if (regexp != null) {
@@ -101,7 +101,7 @@ function repeat(count)
 {
     "use strict";
 
-    if (this == null)
+    if (@isUndefinedOrNull(this))
         @throwTypeError("String.prototype.repeat requires that |this| not be null or undefined");
 
     var string = @toString(this);
@@ -120,7 +120,7 @@ function padStart(maxLength/*, fillString*/)
 {
     "use strict";
 
-    if (this == null)
+    if (@isUndefinedOrNull(this))
         @throwTypeError("String.prototype.padStart requires that |this| not be null or undefined");
 
     var string = @toString(this);
@@ -157,7 +157,7 @@ function padEnd(maxLength/*, fillString*/)
 {
     "use strict";
 
-    if (this == null)
+    if (@isUndefinedOrNull(this))
         @throwTypeError("String.prototype.padEnd requires that |this| not be null or undefined");
 
     var string = @toString(this);
@@ -191,7 +191,13 @@ function padEnd(maxLength/*, fillString*/)
 }
 
 @globalPrivate
-function hasObservableSideEffectsForStringReplace(regexp, replacer) {
+function hasObservableSideEffectsForStringReplace(regexp, replacer)
+{
+    "use strict";
+
+    if (!@isRegExpObject(regexp))
+        return true;
+
     if (replacer !== @regExpPrototypeSymbolReplace)
         return true;
     
@@ -207,7 +213,7 @@ function hasObservableSideEffectsForStringReplace(regexp, replacer) {
     if (regexpUnicode !== @regExpProtoUnicodeGetter)
         return true;
 
-    return !@isRegExpObject(regexp);
+    return typeof regexp.lastIndex !== "number";
 }
 
 @intrinsic=StringPrototypeReplaceIntrinsic
@@ -215,7 +221,7 @@ function replace(search, replace)
 {
     "use strict";
 
-    if (this == null)
+    if (@isUndefinedOrNull(this))
         @throwTypeError("String.prototype.replace requires that |this| not be null or undefined");
 
     if (search != null) {
@@ -235,6 +241,8 @@ function replace(search, replace)
 @globalPrivate
 function getDefaultCollator()
 {
+    "use strict";
+
     return @getDefaultCollator.collator || (@getDefaultCollator.collator = new @Collator());
 }
     
@@ -246,7 +254,7 @@ function localeCompare(that/*, locales, options */)
     // http://ecma-international.org/publications/standards/Ecma-402.htm
 
     // 1. Let O be RequireObjectCoercible(this value).
-    if (this == null)
+    if (@isUndefinedOrNull(this))
         @throwTypeError("String.prototype.localeCompare requires that |this| not be null or undefined");
 
     // 2. Let S be ToString(O).
@@ -275,7 +283,7 @@ function search(regexp)
 {
     "use strict";
 
-    if (this == null)
+    if (@isUndefinedOrNull(this))
         @throwTypeError("String.prototype.search requires that |this| not be null or undefined");
 
     if (regexp != null) {
@@ -293,7 +301,7 @@ function split(separator, limit)
 {
     "use strict";
     
-    if (this == null)
+    if (@isUndefinedOrNull(this))
         @throwTypeError("String.prototype.split requires that |this| not be null or undefined");
     
     if (separator != null) {
@@ -320,7 +328,7 @@ function concat(arg /* ... */)
 {
     "use strict";
 
-    if (this == null)
+    if (@isUndefinedOrNull(this))
         @throwTypeError("String.prototype.concat requires that |this| not be null or undefined");
 
     if (@argumentCount() === 1)
@@ -332,7 +340,7 @@ function concat(arg /* ... */)
 function createHTML(func, string, tag, attribute, value)
 {
     "use strict";
-    if (string == null)
+    if (@isUndefinedOrNull(string))
         @throwTypeError(`${func} requires that |this| not be null or undefined`);
     let S = @toString(string);
     let p1 = "<" + tag;

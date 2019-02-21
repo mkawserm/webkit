@@ -34,7 +34,6 @@
 namespace WebCore {
 
 class SecurityOrigin;
-class URL;
 
 class SecurityPolicy {
 public:
@@ -50,6 +49,8 @@ public:
     // navigation to a given URL. If the referrer returned is empty, the
     // referrer header should be omitted.
     WEBCORE_EXPORT static String generateReferrerHeader(ReferrerPolicy, const URL&, const String& referrer);
+
+    static bool shouldInheritSecurityOriginFromOwner(const URL&);
 
     enum LocalLoadPolicy {
         AllowLocalLoadsForAll, // No restriction on local loads.

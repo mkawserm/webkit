@@ -32,9 +32,10 @@
 #include "WebProcessProxyMessages.h"
 #include <WebCore/Document.h>
 #include <WebCore/DocumentLoader.h>
+#include <WebCore/Frame.h>
 #include <WebCore/FrameLoader.h>
-#include <WebCore/MainFrame.h>
 #include <WebCore/Page.h>
+#include <WebCore/SchemeRegistry.h>
 #include <WebCore/SubframeLoader.h>
 #include <wtf/text/StringHash.h>
 
@@ -42,9 +43,8 @@
 #include <WebCore/StringUtilities.h>
 #endif
 
-using namespace WebCore;
-
 namespace WebKit {
+using namespace WebCore;
 
 WebPluginInfoProvider& WebPluginInfoProvider::singleton()
 {
@@ -79,11 +79,14 @@ void WebPluginInfoProvider::setPluginLoadClientPolicy(WebCore::PluginLoadClientP
     versionsToPolicies.set(versionStringToSet, clientPolicy);
     policiesByIdentifier.set(bundleIdentifierToSet, versionsToPolicies);
     m_hostsToPluginIdentifierData.set(hostToSet, policiesByIdentifier);
+
+    clearPagesPluginData();
 }
 
 void WebPluginInfoProvider::clearPluginClientPolicies()
 {
     m_hostsToPluginIdentifierData.clear();
+    clearPagesPluginData();
 }
 #endif
 
@@ -96,45 +99,34 @@ void WebPluginInfoProvider::refreshPlugins()
 #endif
 }
 
-void WebPluginInfoProvider::getPluginInfo(Page& page, Vector<PluginInfo>& plugins, std::optional<Vector<SupportedPluginName>>& supportedPluginNames)
+Vector<PluginInfo> WebPluginInfoProvider::pluginInfo(Page& page, Optional<Vector<SupportedPluginIdentifier>>& supportedPluginIdentifiers)
 {
 #if ENABLE(NETSCAPE_PLUGIN_API)
     populatePluginCache(page);
 
-    if (m_cachedSupportedPluginNames)
-        supportedPluginNames = *m_cachedSupportedPluginNames;
+    if (m_cachedSupportedPluginIdentifiers)
+        supportedPluginIdentifiers = *m_cachedSupportedPluginIdentifiers;
 
-    if (page.mainFrame().loader().subframeLoader().allowPlugins()) {
-        plugins = m_cachedPlugins;
-        return;
-    }
-
-    plugins = m_cachedApplicationPlugins;
+    return page.mainFrame().loader().subframeLoader().allowPlugins() ? m_cachedPlugins : m_cachedApplicationPlugins;
 #else
     UNUSED_PARAM(page);
-    UNUSED_PARAM(plugins);
+    UNUSED_PARAM(supportedPluginIdentifiers);
+    return { };
 #endif // ENABLE(NETSCAPE_PLUGIN_API)
 }
 
-void WebPluginInfoProvider::getWebVisiblePluginInfo(WebCore::Page& page, Vector<WebCore::PluginInfo>& plugins)
+Vector<WebCore::PluginInfo> WebPluginInfoProvider::webVisiblePluginInfo(Page& page, const URL& url)
 {
-    ASSERT_ARG(plugins, plugins.isEmpty());
+    Optional<Vector<WebCore::SupportedPluginIdentifier>> supportedPluginIdentifiers;
+    auto plugins = pluginInfo(page, supportedPluginIdentifiers);
 
-    std::optional<Vector<WebCore::SupportedPluginName>> supportedPluginNames;
-    getPluginInfo(page, plugins, supportedPluginNames);
-
-    auto* document = page.mainFrame().document();
-
-    if (document && supportedPluginNames) {
-        plugins.removeAllMatching([&] (auto& plugin) {
-            return !isSupportedPlugin(*supportedPluginNames, document->url(), plugin.name);
-        });
-    }
+    plugins.removeAllMatching([&] (auto& plugin) {
+        return supportedPluginIdentifiers && !isSupportedPlugin(*supportedPluginIdentifiers, url, plugin.bundleIdentifier);
+    });
 
 #if PLATFORM(MAC)
-    auto* origin = document ? &document->securityOrigin(): nullptr;
-    if (origin && origin->isLocal())
-        return;
+    if (SchemeRegistry::shouldTreatURLSchemeAsLocal(url.protocol().toString()))
+        return plugins;
 
     for (int32_t i = plugins.size() - 1; i >= 0; --i) {
         auto& info = plugins.at(i);
@@ -147,6 +139,7 @@ void WebPluginInfoProvider::getWebVisiblePluginInfo(WebCore::Page& page, Vector<
             plugins.remove(i);
     }
 #endif
+    return plugins;
 }
 
 #if ENABLE(NETSCAPE_PLUGIN_API)
@@ -156,8 +149,7 @@ void WebPluginInfoProvider::populatePluginCache(const WebCore::Page& page)
         HangDetectionDisabler hangDetectionDisabler;
 
         if (!WebProcess::singleton().parentProcessConnection()->sendSync(Messages::WebProcessProxy::GetPlugins(m_shouldRefreshPlugins),
-            Messages::WebProcessProxy::GetPlugins::Reply(m_cachedPlugins, m_cachedApplicationPlugins, m_cachedSupportedPluginNames), 0,
-            Seconds::infinity(), IPC::SendSyncOption::DoNotProcessIncomingMessagesWhenWaitingForSyncReply))
+            Messages::WebProcessProxy::GetPlugins::Reply(m_cachedPlugins, m_cachedApplicationPlugins, m_cachedSupportedPluginIdentifiers), 0))
             return;
 
         m_shouldRefreshPlugins = false;
@@ -165,7 +157,7 @@ void WebPluginInfoProvider::populatePluginCache(const WebCore::Page& page)
     }
 
 #if PLATFORM(MAC)
-    String pageHost = page.mainFrame().loader().documentLoader()->responseURL().host();
+    String pageHost = page.mainFrame().loader().documentLoader()->responseURL().host().toString();
     if (pageHost.isNull())
         return;
     for (auto& info : m_cachedPlugins) {
@@ -179,7 +171,7 @@ void WebPluginInfoProvider::populatePluginCache(const WebCore::Page& page)
 #endif
 
 #if PLATFORM(MAC)
-std::optional<WebCore::PluginLoadClientPolicy> WebPluginInfoProvider::pluginLoadClientPolicyForHost(const String& host, const WebCore::PluginInfo& info) const
+Optional<WebCore::PluginLoadClientPolicy> WebPluginInfoProvider::pluginLoadClientPolicyForHost(const String& host, const WebCore::PluginInfo& info) const
 {
     String hostToLookUp = host;
     String identifier = info.bundleIdentifier;
@@ -196,7 +188,7 @@ std::optional<WebCore::PluginLoadClientPolicy> WebPluginInfoProvider::pluginLoad
         }
     }
     if (policiesByIdentifierIterator == m_hostsToPluginIdentifierData.end())
-        return std::nullopt;
+        return WTF::nullopt;
 
     auto& policiesByIdentifier = policiesByIdentifierIterator->value;
 
@@ -210,7 +202,7 @@ std::optional<WebCore::PluginLoadClientPolicy> WebPluginInfoProvider::pluginLoad
     }
 
     if (identifierPolicyIterator == policiesByIdentifier.end())
-        return std::nullopt;
+        return WTF::nullopt;
 
     auto& versionsToPolicies = identifierPolicyIterator->value;
 
@@ -224,7 +216,7 @@ std::optional<WebCore::PluginLoadClientPolicy> WebPluginInfoProvider::pluginLoad
     }
 
     if (policyIterator == versionsToPolicies.end())
-        return std::nullopt;
+        return WTF::nullopt;
 
     return policyIterator->value;
 }

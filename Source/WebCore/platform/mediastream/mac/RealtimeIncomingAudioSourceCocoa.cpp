@@ -33,6 +33,7 @@
 #include "AudioStreamDescription.h"
 #include "CAAudioStreamDescription.h"
 #include "LibWebRTCAudioFormat.h"
+#include "Logging.h"
 #include "WebAudioBufferList.h"
 #include "WebAudioSourceProviderAVFObjC.h"
 #include <pal/avfoundation/MediaTimeAVFoundation.h>
@@ -68,15 +69,6 @@ static inline AudioStreamBasicDescription streamDescription(size_t sampleRate, s
 
 void RealtimeIncomingAudioSourceCocoa::OnData(const void* audioData, int bitsPerSample, int sampleRate, size_t numberOfChannels, size_t numberOfFrames)
 {
-    // We may receive OnData calls with empty sound data (mono, samples equal to zero and sampleRate equal to 16000) when starting the call.
-    // FIXME: For the moment we skip them, we should find a better solution at libwebrtc level to not be called until getting some real data.
-    if (sampleRate == 16000 && numberOfChannels == 1)
-        return;
-
-    ASSERT(bitsPerSample == 16);
-    ASSERT(numberOfChannels == 1 || numberOfChannels == 2);
-    ASSERT(sampleRate == 48000);
-
     CMTime startTime = CMTimeMake(m_numberOfFrames, sampleRate);
     auto mediaTime = PAL::toMediaTime(startTime);
     m_numberOfFrames += numberOfFrames;
@@ -93,6 +85,11 @@ void RealtimeIncomingAudioSourceCocoa::OnData(const void* audioData, int bitsPer
         memset(audioBufferList.buffer(0)->mData, 0, audioBufferList.buffer(0)->mDataByteSize);
     else
         memcpy(audioBufferList.buffer(0)->mData, audioData, audioBufferList.buffer(0)->mDataByteSize);
+
+#if !RELEASE_LOG_DISABLED
+    if (!(++m_chunksReceived % 200))
+        ALWAYS_LOG(LOGIDENTIFIER, "chunk ", m_chunksReceived);
+#endif
 
     audioSamplesAvailable(mediaTime, audioBufferList, CAAudioStreamDescription(newDescription), numberOfFrames);
 }

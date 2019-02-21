@@ -30,7 +30,6 @@
 #include "JSCPoison.h"
 #include "JSDestructibleObject.h"
 #include "JSObject.h"
-#include "UnconditionalFinalizer.h"
 #include "WasmMemoryMode.h"
 #include <wtf/Bag.h>
 #include <wtf/Expected.h>
@@ -44,7 +43,7 @@ namespace Wasm {
 class Module;
 struct ModuleInformation;
 class Plan;
-using SignatureIndex = uint32_t;
+using SignatureIndex = uint64_t;
 }
 
 class SymbolTable;
@@ -52,7 +51,7 @@ class JSWebAssemblyCodeBlock;
 class JSWebAssemblyMemory;
 class WebAssemblyToJSCallee;
 
-class JSWebAssemblyModule : public JSDestructibleObject {
+class JSWebAssemblyModule final : public JSDestructibleObject {
 public:
     typedef JSDestructibleObject Base;
 
@@ -68,8 +67,6 @@ public:
 
     JSWebAssemblyCodeBlock* codeBlock(Wasm::MemoryMode mode);
     void setCodeBlock(VM&, Wasm::MemoryMode, JSWebAssemblyCodeBlock*);
-
-    const Vector<uint8_t>& source() const;
 
     JS_EXPORT_PRIVATE Wasm::Module& module();
 

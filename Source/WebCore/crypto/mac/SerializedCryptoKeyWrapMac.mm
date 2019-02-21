@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014, 2016 Apple Inc. All rights reserved.
+ * Copyright (C) 2014-2018 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -26,7 +26,7 @@
 #include "config.h"
 #include "SerializedCryptoKeyWrap.h"
 
-#if ENABLE(SUBTLE_CRYPTO)
+#if ENABLE(WEB_CRYPTO)
 
 #include "CommonCryptoUtilities.h"
 #include "LocalizedStrings.h"
@@ -35,9 +35,10 @@
 #include <wtf/text/Base64.h>
 #include <wtf/text/CString.h>
 #include <wtf/CryptographicUtilities.h>
+#include <wtf/ProcessPrivilege.h>
 #include <wtf/RetainPtr.h>
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
 #define USE_KEYCHAIN_ACCESS_CONTROL_LISTS 0
 #else
 #define USE_KEYCHAIN_ACCESS_CONTROL_LISTS 1
@@ -68,7 +69,7 @@ inline Vector<uint8_t> vectorFromNSData(NSData* data)
 
 static NSString* masterKeyAccountNameForCurrentApplication()
 {
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
     NSString *bundleIdentifier = [[NSBundle mainBundle] bundleIdentifier];
 #else
     NSString *bundleIdentifier = [[NSRunningApplication currentApplication] bundleIdentifier];
@@ -80,11 +81,13 @@ static NSString* masterKeyAccountNameForCurrentApplication()
 
 static bool createAndStoreMasterKey(Vector<uint8_t>& masterKeyData)
 {
+    RELEASE_ASSERT(hasProcessPrivilege(ProcessPrivilege::CanAccessCredentials));
+
     masterKeyData.resize(masterKeySizeInBytes);
-    int rc = CCRandomCopyBytes(kCCRandomDefault, masterKeyData.data(), masterKeyData.size());
+    auto rc = CCRandomGenerateBytes(masterKeyData.data(), masterKeyData.size());
     RELEASE_ASSERT(rc == kCCSuccess);
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
     NSBundle *mainBundle = [NSBundle mainBundle];
     NSString *applicationName = [mainBundle objectForInfoDictionaryKey:@"CFBundleDisplayName"];
     if (!applicationName)
@@ -100,7 +103,7 @@ static bool createAndStoreMasterKey(Vector<uint8_t>& masterKeyData)
 
 #if USE(KEYCHAIN_ACCESS_CONTROL_LISTS)
     SecAccessRef accessRef;
-    status = SecAccessCreate((CFStringRef)localizedItemName, nullptr, &accessRef);
+    status = SecAccessCreate((__bridge CFStringRef)localizedItemName, nullptr, &accessRef);
     if (status) {
         WTFLogAlways("Cannot create a security access object for storing WebCrypto master key, error %d", (int)status);
         return false;
@@ -118,7 +121,7 @@ static bool createAndStoreMasterKey(Vector<uint8_t>& masterKeyData)
     }
     RetainPtr<SecTrustedApplicationRef> trustedApp = adoptCF(trustedAppRef);
 
-    status = SecACLSetContents(acl, (CFArrayRef)@[ (id)trustedApp.get() ], (CFStringRef)localizedItemName, kSecKeychainPromptRequirePassphase);
+    status = SecACLSetContents(acl, (__bridge CFArrayRef)@[ (__bridge id)trustedApp.get() ], (__bridge CFStringRef)localizedItemName, kSecKeychainPromptRequirePassphase);
     if (status) {
         WTFLogAlways("Cannot set ACL for WebCrypto master key, error %d", (int)status);
         return false;
@@ -133,7 +136,7 @@ static bool createAndStoreMasterKey(Vector<uint8_t>& masterKeyData)
         (id)kSecClass : (id)kSecClassGenericPassword,
         (id)kSecAttrSynchronizable : @NO,
 #if USE(KEYCHAIN_ACCESS_CONTROL_LISTS)
-        (id)kSecAttrAccess : (id)access.get(),
+        (id)kSecAttrAccess : (__bridge id)access.get(),
 #endif
         (id)kSecAttrComment : webCryptoMasterKeyKeychainComment(),
         (id)kSecAttrLabel : localizedItemName,
@@ -151,6 +154,8 @@ static bool createAndStoreMasterKey(Vector<uint8_t>& masterKeyData)
 
 static bool findMasterKey(Vector<uint8_t>& masterKeyData)
 {
+    RELEASE_ASSERT(hasProcessPrivilege(ProcessPrivilege::CanAccessCredentials));
+
     NSDictionary *query = @{
         (id)kSecClass : (id)kSecClassGenericPassword,
         (id)kSecAttrAccount : masterKeyAccountNameForCurrentApplication(),
@@ -166,7 +171,7 @@ static bool findMasterKey(Vector<uint8_t>& masterKeyData)
     }
     RetainPtr<CFDataRef> keyData = adoptCF(keyDataRef);
 
-    Vector<uint8_t> base64EncodedMasterKeyData = vectorFromNSData((NSData *)keyData.get());
+    Vector<uint8_t> base64EncodedMasterKeyData = vectorFromNSData((__bridge NSData *)keyData.get());
     return base64Decode((const char*)base64EncodedMasterKeyData.data(), base64EncodedMasterKeyData.size(), masterKeyData);
 }
 
@@ -180,6 +185,8 @@ bool getDefaultWebCryptoMasterKey(Vector<uint8_t>& masterKey)
 
 bool deleteDefaultWebCryptoMasterKey()
 {
+    RELEASE_ASSERT(hasProcessPrivilege(ProcessPrivilege::CanAccessCredentials));
+
     NSDictionary *query = @{
         (id)kSecClass : (id)kSecClassGenericPassword,
         (id)kSecAttrAccount : masterKeyAccountNameForCurrentApplication(),
@@ -197,7 +204,7 @@ bool deleteDefaultWebCryptoMasterKey()
 bool wrapSerializedCryptoKey(const Vector<uint8_t>& masterKey, const Vector<uint8_t>& key, Vector<uint8_t>& result)
 {
     Vector<uint8_t> kek(16);
-    int rc = CCRandomCopyBytes(kCCRandomDefault, kek.data(), kek.size());
+    auto rc = CCRandomGenerateBytes(kek.data(), kek.size());
     RELEASE_ASSERT(rc == kCCSuccess);
 
     Vector<uint8_t> wrappedKEK(CCSymmetricWrappedSize(kCCWRAPAES, kek.size()));
@@ -213,15 +220,14 @@ bool wrapSerializedCryptoKey(const Vector<uint8_t>& masterKey, const Vector<uint
     size_t tagLength = 16;
     uint8_t tag[tagLength];
 
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+    ALLOW_DEPRECATED_DECLARATIONS_BEGIN
     status = CCCryptorGCM(kCCEncrypt, kCCAlgorithmAES128, kek.data(), kek.size(),
         nullptr, 0, // iv
         nullptr, 0, // auth data
         key.data(), key.size(),
         encryptedKey.data(),
         tag, &tagLength);
-#pragma clang diagnostic pop
+    ALLOW_DEPRECATED_DECLARATIONS_END
 
     if (status != kCCSuccess)
         return false;
@@ -282,15 +288,14 @@ bool unwrapSerializedCryptoKey(const Vector<uint8_t>& masterKey, const Vector<ui
     uint8_t actualTag[tagLength];
 
     key.resize(encryptedKey.size());
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+    ALLOW_DEPRECATED_DECLARATIONS_BEGIN
     status = CCCryptorGCM(kCCDecrypt, kCCAlgorithmAES128, kek.data(), kek.size(),
         nullptr, 0, // iv
         nullptr, 0, // auth data
         encryptedKey.data(), encryptedKey.size(),
         key.data(),
         actualTag, &tagLength);
-#pragma clang diagnostic pop
+    ALLOW_DEPRECATED_DECLARATIONS_END
 
     if (status != kCCSuccess)
         return false;
@@ -304,4 +309,4 @@ bool unwrapSerializedCryptoKey(const Vector<uint8_t>& masterKey, const Vector<ui
 
 }
 
-#endif // ENABLE(SUBTLE_CRYPTO)
+#endif // ENABLE(WEB_CRYPTO)

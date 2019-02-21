@@ -26,26 +26,41 @@
 #pragma once
 
 #include "CSSPropertyNames.h"
-#include "WebAnimation.h"
+#include "DeclarativeAnimation.h"
 #include <wtf/Ref.h>
 
 namespace WebCore {
 
 class Animation;
 class Element;
+class RenderStyle;
 
-class CSSTransition final : public WebAnimation {
+class CSSTransition final : public DeclarativeAnimation {
 public:
-    static Ref<CSSTransition> create(Element&, const Animation&);
+    static Ref<CSSTransition> create(Element&, CSSPropertyID, MonotonicTime generationTime, const Animation&, const RenderStyle* oldStyle, const RenderStyle& newStyle, Seconds delay, Seconds duration, const RenderStyle& reversingAdjustedStartStyle, double);
     ~CSSTransition() = default;
 
     bool isCSSTransition() const override { return true; }
-    String transitionProperty() const { return getPropertyNameString(m_transitionProperty); }
+    String transitionProperty() const { return getPropertyNameString(m_property); }
+    CSSPropertyID property() const { return m_property; }
+    MonotonicTime generationTime() const { return m_generationTime; }
+    const RenderStyle& targetStyle() const { return *m_targetStyle; }
+    const RenderStyle& currentStyle() const { return *m_currentStyle; }
+    const RenderStyle& reversingAdjustedStartStyle() const { return *m_reversingAdjustedStartStyle; }
+    double reversingShorteningFactor() const { return m_reversingShorteningFactor; }
+
+    void resolve(RenderStyle&) final;
 
 private:
-    CSSTransition(Document&);
+    CSSTransition(Element&, CSSPropertyID, MonotonicTime generationTime, const Animation&, const RenderStyle& targetStyle, const RenderStyle& reversingAdjustedStartStyle, double);
+    void setTimingProperties(Seconds delay, Seconds duration);
 
-    CSSPropertyID m_transitionProperty;
+    CSSPropertyID m_property;
+    MonotonicTime m_generationTime;
+    std::unique_ptr<RenderStyle> m_targetStyle;
+    std::unique_ptr<RenderStyle> m_currentStyle;
+    std::unique_ptr<RenderStyle> m_reversingAdjustedStartStyle;
+    double m_reversingShorteningFactor;
 
 };
 

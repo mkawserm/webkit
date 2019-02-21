@@ -26,9 +26,9 @@
 
 #import "SharedBuffer.h"
 #import <pal/spi/cocoa/CoreTextSPI.h>
-#import <wtf/text/WTFString.h>
+#import <wtf/text/StringConcatenateNumbers.h>
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
 #import <CoreText/CoreText.h>
 #import <pal/spi/cg/CoreGraphicsSPI.h>
 #endif
@@ -48,14 +48,20 @@ FontPlatformData::FontPlatformData(CTFontRef font, float size, bool syntheticBol
     auto variations = adoptCF(static_cast<CFDictionaryRef>(CTFontCopyAttribute(font, kCTFontVariationAttribute)));
     m_hasVariations = variations && CFDictionaryGetCount(variations.get());
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
     m_isEmoji = CTFontIsAppleColorEmoji(m_font.get());
 #endif
 }
 
 unsigned FontPlatformData::hash() const
 {
-    uintptr_t flags = static_cast<uintptr_t>(m_widthVariant << 6 | m_isHashTableDeletedValue << 5 | m_textRenderingMode << 3 | m_orientation << 2 | m_syntheticBold << 1 | m_syntheticOblique);
+    uintptr_t flags = static_cast<uintptr_t>(static_cast<unsigned>(m_widthVariant) << 6
+        | m_isHashTableDeletedValue << 5
+        | static_cast<unsigned>(m_textRenderingMode) << 3
+        | static_cast<unsigned>(m_orientation) << 2
+        | m_syntheticBold << 1
+        | m_syntheticOblique);
+
     uintptr_t fontHash = reinterpret_cast<uintptr_t>(CFHash(m_font.get()));
     uintptr_t hashCodes[] = { fontHash, flags };
     return StringHasher::hashMemory<sizeof(hashCodes)>(hashCodes);
@@ -80,16 +86,16 @@ CTFontRef FontPlatformData::registeredFont() const
 inline int mapFontWidthVariantToCTFeatureSelector(FontWidthVariant variant)
 {
     switch(variant) {
-    case RegularWidth:
+    case FontWidthVariant::RegularWidth:
         return TextSpacingProportional;
 
-    case HalfWidth:
+    case FontWidthVariant::HalfWidth:
         return TextSpacingHalfWidth;
 
-    case ThirdWidth:
+    case FontWidthVariant::ThirdWidth:
         return TextSpacingThirdWidth;
 
-    case QuarterWidth:
+    case FontWidthVariant::QuarterWidth:
         return TextSpacingQuarterWidth;
     }
 
@@ -118,7 +124,7 @@ static CFDictionaryRef cascadeToLastResortAttributesDictionary()
 static RetainPtr<CTFontDescriptorRef> cascadeToLastResortAndVariationsFontDescriptor(CTFontRef originalFont)
 {
 // FIXME: Remove this when <rdar://problem/28449441> is fixed.
-#define WORKAROUND_CORETEXT_VARIATIONS_WITH_FALLBACK_LIST_BUG (ENABLE(VARIATION_FONTS) && ((PLATFORM(MAC) && __MAC_OS_X_VERSION_MIN_REQUIRED < 101300) || (PLATFORM(IOS) && __IPHONE_OS_VERSION_MIN_REQUIRED < 110000)))
+#define WORKAROUND_CORETEXT_VARIATIONS_WITH_FALLBACK_LIST_BUG (ENABLE(VARIATION_FONTS) && ((PLATFORM(MAC) && __MAC_OS_X_VERSION_MIN_REQUIRED < 101300) || (PLATFORM(IOS_FAMILY) && __IPHONE_OS_VERSION_MIN_REQUIRED < 110000)))
 
     CFDictionaryRef attributes = cascadeToLastResortAttributesDictionary();
 #if WORKAROUND_CORETEXT_VARIATIONS_WITH_FALLBACK_LIST_BUG
@@ -151,7 +157,7 @@ CTFontRef FontPlatformData::ctFont() const
     ASSERT(m_font);
     m_ctFont = adoptCF(CTFontCreateCopyWithAttributes(m_font.get(), m_size, 0, cascadeToLastResortAndVariationsFontDescriptor(m_font.get()).get()));
 
-    if (m_widthVariant != RegularWidth) {
+    if (m_widthVariant != FontWidthVariant::RegularWidth) {
         int featureTypeValue = kTextSpacingType;
         int featureSelectorValue = mapFontWidthVariantToCTFeatureSelector(m_widthVariant);
         RetainPtr<CTFontDescriptorRef> sourceDescriptor = adoptCF(CTFontCopyFontDescriptor(m_ctFont.get()));
@@ -190,13 +196,17 @@ RefPtr<SharedBuffer> FontPlatformData::openTypeTable(uint32_t table) const
     return nullptr;
 }
 
-#ifndef NDEBUG
+#if !LOG_DISABLED
+
 String FontPlatformData::description() const
 {
-    auto fontDescription = adoptCF(CFCopyDescription(font()));
-    return String(fontDescription.get()) + " " + String::number(m_size)
-            + (m_syntheticBold ? " synthetic bold" : "") + (m_syntheticOblique ? " synthetic oblique" : "") + (m_orientation ? " vertical orientation" : "");
+    String fontDescription { adoptCF(CFCopyDescription(font())).get() };
+    return makeString(fontDescription, ' ', m_size,
+        (m_syntheticBold ? " synthetic bold" : ""),
+        (m_syntheticOblique ? " synthetic oblique" : ""),
+        (m_orientation == FontOrientation::Vertical ? " vertical orientation" : ""));
 }
+
 #endif
 
 } // namespace WebCore

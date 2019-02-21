@@ -13,9 +13,7 @@
 #include "rtc_base/arraysize.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/filerotatingstream.h"
-#include "rtc_base/fileutils.h"
 #include "rtc_base/gunit.h"
-#include "rtc_base/pathutils.h"
 #include "test/testsupport/fileutils.h"
 
 namespace rtc {
@@ -31,7 +29,7 @@ void CleanupLogDirectory(const FileRotatingStream& stream) {
 
 }  // namespace
 
-#if defined (WEBRTC_ANDROID)
+#if defined(WEBRTC_ANDROID)
 // Fails on Android: https://bugs.chromium.org/p/webrtc/issues/detail?id=4364.
 #define MAYBE_FileRotatingStreamTest DISABLED_FileRotatingStreamTest
 #else
@@ -46,12 +44,15 @@ class MAYBE_FileRotatingStreamTest : public ::testing::Test {
   void Init(const std::string& dir_name,
             const std::string& file_prefix,
             size_t max_file_size,
-            size_t num_log_files) {
+            size_t num_log_files,
+            bool ensure_trailing_delimiter = true) {
     dir_path_ = webrtc::test::OutputPath();
 
     // Append per-test output path in order to run within gtest parallel.
     dir_path_.append(dir_name);
-    dir_path_.push_back(Pathname::DefaultFolderDelimiter());
+    if (ensure_trailing_delimiter) {
+      dir_path_.append(webrtc::test::kPathDelimiter);
+    }
     ASSERT_TRUE(webrtc::test::CreateDir(dir_path_));
     stream_.reset(new FileRotatingStream(dir_path_, file_prefix, max_file_size,
                                          num_log_files));
@@ -159,12 +160,12 @@ TEST_F(MAYBE_FileRotatingStreamTest, WriteAndRead) {
   }
   // Check that exactly three files exist.
   for (size_t i = 0; i < arraysize(messages); ++i) {
-    EXPECT_TRUE(Filesystem::IsFile(stream_->GetFilePath(i)));
+    EXPECT_TRUE(webrtc::test::FileExists(stream_->GetFilePath(i)));
   }
   std::string message("d");
   WriteAndFlush(message.c_str(), message.size());
   for (size_t i = 0; i < arraysize(messages); ++i) {
-    EXPECT_TRUE(Filesystem::IsFile(stream_->GetFilePath(i)));
+    EXPECT_TRUE(webrtc::test::FileExists(stream_->GetFilePath(i)));
   }
   // TODO(tkchin): Maybe check all the files in the dir.
 
@@ -172,6 +173,53 @@ TEST_F(MAYBE_FileRotatingStreamTest, WriteAndRead) {
   std::string expected_contents("bbccd");
   VerifyStreamRead(expected_contents.c_str(), expected_contents.size(),
                    dir_path_, kFilePrefix);
+}
+
+// Tests that a write operation (with dir name without delimiter) followed by a
+// read returns the expected data and writes to the expected files.
+TEST_F(MAYBE_FileRotatingStreamTest, WriteWithoutDelimiterAndRead) {
+  Init("FileRotatingStreamTestWriteWithoutDelimiterAndRead", kFilePrefix,
+       kMaxFileSize, 3,
+       /* ensure_trailing_delimiter*/ false);
+
+  ASSERT_TRUE(stream_->Open());
+  // The test is set up to create three log files of length 2. Write and check
+  // contents.
+  std::string messages[3] = {"aa", "bb", "cc"};
+  for (size_t i = 0; i < arraysize(messages); ++i) {
+    const std::string& message = messages[i];
+    WriteAndFlush(message.c_str(), message.size());
+  }
+  std::string message("d");
+  WriteAndFlush(message.c_str(), message.size());
+
+  // Reopen for read.
+  std::string expected_contents("bbccd");
+  VerifyStreamRead(expected_contents.c_str(), expected_contents.size(),
+                   dir_path_ + webrtc::test::kPathDelimiter, kFilePrefix);
+}
+
+// Tests that a write operation followed by a read (without trailing delimiter)
+// returns the expected data and writes to the expected files.
+TEST_F(MAYBE_FileRotatingStreamTest, WriteAndReadWithoutDelimiter) {
+  Init("FileRotatingStreamTestWriteAndReadWithoutDelimiter", kFilePrefix,
+       kMaxFileSize, 3);
+
+  ASSERT_TRUE(stream_->Open());
+  // The test is set up to create three log files of length 2. Write and check
+  // contents.
+  std::string messages[3] = {"aa", "bb", "cc"};
+  for (size_t i = 0; i < arraysize(messages); ++i) {
+    const std::string& message = messages[i];
+    WriteAndFlush(message.c_str(), message.size());
+  }
+  std::string message("d");
+  WriteAndFlush(message.c_str(), message.size());
+
+  // Reopen for read.
+  std::string expected_contents("bbccd");
+  VerifyStreamRead(expected_contents.c_str(), expected_contents.size(),
+                   dir_path_.substr(0, dir_path_.size() - 1), kFilePrefix);
 }
 
 // Tests that writing data greater than the total capacity of the files
@@ -195,20 +243,20 @@ TEST_F(MAYBE_FileRotatingStreamTest, WriteOverflowAndRead) {
 // Tests that the returned file paths have the right folder and prefix.
 TEST_F(MAYBE_FileRotatingStreamTest, GetFilePath) {
   Init("FileRotatingStreamTestGetFilePath", kFilePrefix, kMaxFileSize, 20);
+  // dir_path_ includes a trailing delimiter.
+  const std::string prefix = dir_path_ + kFilePrefix;
   for (auto i = 0; i < 20; ++i) {
-    Pathname path(stream_->GetFilePath(i));
-    EXPECT_EQ(0, path.folder().compare(dir_path_));
-    EXPECT_EQ(0, path.filename().compare(0, strlen(kFilePrefix), kFilePrefix));
+    EXPECT_EQ(0, stream_->GetFilePath(i).compare(0, prefix.size(), prefix));
   }
 }
 
-#if defined (WEBRTC_ANDROID)
+#if defined(WEBRTC_ANDROID)
 // Fails on Android: https://bugs.chromium.org/p/webrtc/issues/detail?id=4364.
 #define MAYBE_CallSessionFileRotatingStreamTest \
-    DISABLED_CallSessionFileRotatingStreamTest
+  DISABLED_CallSessionFileRotatingStreamTest
 #else
 #define MAYBE_CallSessionFileRotatingStreamTest \
-    CallSessionFileRotatingStreamTest
+  CallSessionFileRotatingStreamTest
 #endif
 
 class MAYBE_CallSessionFileRotatingStreamTest : public ::testing::Test {
@@ -218,7 +266,7 @@ class MAYBE_CallSessionFileRotatingStreamTest : public ::testing::Test {
 
     // Append per-test output path in order to run within gtest parallel.
     dir_path_.append(dir_name);
-    dir_path_.push_back(Pathname::DefaultFolderDelimiter());
+    dir_path_.append(webrtc::test::kPathDelimiter);
     ASSERT_TRUE(webrtc::test::CreateDir(dir_path_));
     stream_.reset(
         new CallSessionFileRotatingStream(dir_path_, max_total_log_size));

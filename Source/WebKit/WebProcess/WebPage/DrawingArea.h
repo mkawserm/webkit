@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Apple Inc. All rights reserved.
+ * Copyright (C) 2010-2018 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -33,11 +33,15 @@
 #include <WebCore/FloatRect.h>
 #include <WebCore/IntRect.h>
 #include <WebCore/LayerFlushThrottleState.h>
-#include <WebCore/LayoutMilestones.h>
+#include <WebCore/LayoutMilestone.h>
 #include <WebCore/PlatformScreen.h>
 #include <wtf/Forward.h>
 #include <wtf/Noncopyable.h>
 #include <wtf/TypeCasts.h>
+
+namespace WTF {
+class MachSendRight;
+}
 
 namespace IPC {
 class Connection;
@@ -50,7 +54,6 @@ class Frame;
 class FrameView;
 class GraphicsLayer;
 class GraphicsLayerFactory;
-class MachSendRight;
 struct ViewportAttributes;
 }
 
@@ -63,6 +66,7 @@ struct WebPageCreationParameters;
 struct WebPreferencesStore;
 
 class DrawingArea : public IPC::MessageReceiver {
+    WTF_MAKE_FAST_ALLOCATED;
     WTF_MAKE_NONCOPYABLE(DrawingArea);
 
 public:
@@ -81,6 +85,7 @@ public:
     virtual bool forceRepaintAsync(CallbackID) { return false; }
     virtual void setLayerTreeStateIsFrozen(bool) { }
     virtual bool layerTreeStateIsFrozen() const { return false; }
+    virtual bool layerFlushThrottlingIsActive() const { return false; }
     virtual LayerTreeHost* layerTreeHost() const { return 0; }
 
     virtual void setPaintingEnabled(bool) { }
@@ -88,14 +93,14 @@ public:
     virtual void mainFrameContentSizeChanged(const WebCore::IntSize&) { }
 
 #if PLATFORM(COCOA)
-    virtual void setViewExposedRect(std::optional<WebCore::FloatRect>) = 0;
-    virtual std::optional<WebCore::FloatRect> viewExposedRect() const = 0;
+    virtual void setViewExposedRect(Optional<WebCore::FloatRect>) = 0;
+    virtual Optional<WebCore::FloatRect> viewExposedRect() const = 0;
 
     virtual void acceleratedAnimationDidStart(uint64_t /*layerID*/, const String& /*key*/, MonotonicTime /*startTime*/) { }
     virtual void acceleratedAnimationDidEnd(uint64_t /*layerID*/, const String& /*key*/) { }
-    virtual void addFence(const WebCore::MachSendRight&) { }
+    virtual void addFence(const WTF::MachSendRight&) { }
 #endif
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
     virtual WebCore::FloatRect exposedContentRect() const = 0;
     virtual void setExposedContentRect(const WebCore::FloatRect&) = 0;
 #endif
@@ -108,6 +113,7 @@ public:
     virtual WebCore::GraphicsLayerFactory* graphicsLayerFactory() { return nullptr; }
     virtual void setRootCompositingLayer(WebCore::GraphicsLayer*) = 0;
     virtual void scheduleCompositingLayerFlush() = 0;
+    virtual void scheduleInitialDeferredPaint() = 0;
     virtual void scheduleCompositingLayerFlushImmediately() = 0;
 
 #if USE(REQUEST_ANIMATION_FRAME_DISPLAY_MONITOR)
@@ -116,29 +122,28 @@ public:
 
     virtual void dispatchAfterEnsuringUpdatedScrollPosition(WTF::Function<void ()>&&);
 
-    virtual void activityStateDidChange(WebCore::ActivityState::Flags, bool /* wantsDidUpdateActivityState */, const Vector<CallbackID>&) { }
+    virtual void activityStateDidChange(OptionSet<WebCore::ActivityState::Flag>, ActivityStateChangeID, const Vector<CallbackID>&) { }
     virtual void setLayerHostingMode(LayerHostingMode) { }
 
     virtual bool markLayersVolatileImmediatelyIfPossible() { return true; }
 
     virtual bool adjustLayerFlushThrottling(WebCore::LayerFlushThrottleState::Flags) { return false; }
 
-    virtual void attachViewOverlayGraphicsLayer(WebCore::Frame*, WebCore::GraphicsLayer*) { }
+    virtual void attachViewOverlayGraphicsLayer(WebCore::GraphicsLayer*) { }
 
     virtual void setShouldScaleViewToFitDocument(bool) { }
 
-    virtual bool dispatchDidReachLayoutMilestone(WebCore::LayoutMilestones) { return false; }
+    virtual bool dispatchDidReachLayoutMilestone(OptionSet<WebCore::LayoutMilestone>) { return false; }
 
 #if PLATFORM(COCOA)
     // Used by TiledCoreAnimationDrawingArea.
-    virtual void updateGeometry(const WebCore::IntSize& viewSize, bool flushSynchronously, const WebCore::MachSendRight& fencePort) { }
+    virtual void updateGeometry(const WebCore::IntSize& viewSize, bool flushSynchronously, const WTF::MachSendRight& fencePort) { }
 #endif
 
     virtual void layerHostDidFlushLayers() { };
 
 #if USE(COORDINATED_GRAPHICS)
     virtual void didChangeViewportAttributes(WebCore::ViewportAttributes&&) = 0;
-    virtual void resetUpdateAtlasForTesting() = 0;
 #endif
 
 #if USE(COORDINATED_GRAPHICS) || USE(TEXTURE_MAPPER)

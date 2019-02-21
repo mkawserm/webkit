@@ -29,12 +29,12 @@
 #include "APIArray.h"
 #include "APIData.h"
 #include "InjectedBundleScriptWorld.h"
+#include "NetworkConnectionToWebProcessMessages.h"
+#include "NetworkProcessConnection.h"
 #include "NetworkSessionCreationParameters.h"
 #include "NotificationPermissionRequestManager.h"
-#include "SessionTracker.h"
 #include "UserData.h"
 #include "WebConnectionToUIProcess.h"
-#include "WebCookieManager.h"
 #include "WebCoreArgumentCoders.h"
 #include "WebFrame.h"
 #include "WebFrameNetworkingContext.h"
@@ -54,6 +54,8 @@
 #include <WebCore/ApplicationCache.h>
 #include <WebCore/ApplicationCacheStorage.h>
 #include <WebCore/CommonVM.h>
+#include <WebCore/Document.h>
+#include <WebCore/Frame.h>
 #include <WebCore/FrameLoader.h>
 #include <WebCore/FrameView.h>
 #include <WebCore/GCController.h>
@@ -64,7 +66,6 @@
 #include <WebCore/JSDOMExceptionHandling.h>
 #include <WebCore/JSDOMWindow.h>
 #include <WebCore/JSNotification.h>
-#include <WebCore/MainFrame.h>
 #include <WebCore/Page.h>
 #include <WebCore/PageGroup.h>
 #include <WebCore/PrintContext.h>
@@ -78,15 +79,15 @@
 #include <WebCore/UserScript.h>
 #include <WebCore/UserStyleSheet.h>
 #include <pal/SessionID.h>
+#include <wtf/ProcessPrivilege.h>
 
 #if ENABLE(NOTIFICATIONS)
 #include "WebNotificationManager.h"
 #endif
 
+namespace WebKit {
 using namespace WebCore;
 using namespace JSC;
-
-namespace WebKit {
 
 RefPtr<InjectedBundle> InjectedBundle::create(WebProcessCreationParameters& parameters, API::Object* initializationUserData)
 {
@@ -136,7 +137,8 @@ void InjectedBundle::postSynchronousMessage(const String& messageName, API::Obje
     UserData returnUserData;
 
     auto& webProcess = WebProcess::singleton();
-    if (!webProcess.parentProcessConnection()->sendSync(Messages::WebProcessPool::HandleSynchronousMessage(messageName, UserData(webProcess.transformObjectsToHandles(messageBody))), Messages::WebProcessPool::HandleSynchronousMessage::Reply(returnUserData), 0))
+    if (!webProcess.parentProcessConnection()->sendSync(Messages::WebProcessPool::HandleSynchronousMessage(messageName, UserData(webProcess.transformObjectsToHandles(messageBody))),
+        Messages::WebProcessPool::HandleSynchronousMessage::Reply(returnUserData), 0))
         returnData = nullptr;
     else
         returnData = webProcess.transformHandlesToObjects(returnUserData.object());
@@ -184,16 +186,11 @@ void InjectedBundle::overrideBoolPreferenceForTestRunner(WebPageGroupProxy* page
     }
 #endif
 
-#if ENABLE(CSS_ANIMATIONS_LEVEL_2)
-    if (preference == "WebKitCSSAnimationTriggersEnabled")
-        RuntimeEnabledFeatures::sharedFeatures().setAnimationTriggersEnabled(enabled);
-#endif
-
     if (preference == "WebKitWebAnimationsEnabled")
         RuntimeEnabledFeatures::sharedFeatures().setWebAnimationsEnabled(enabled);
 
-    if (preference == "WebKitCSSAnimationsAndCSSTransitionsBackedByWebAnimationsEnabled")
-        RuntimeEnabledFeatures::sharedFeatures().setCSSAnimationsAndCSSTransitionsBackedByWebAnimationsEnabled(enabled);
+    if (preference == "WebKitWebAnimationsCSSIntegrationEnabled")
+        RuntimeEnabledFeatures::sharedFeatures().setWebAnimationsCSSIntegrationEnabled(enabled);
 
     if (preference == "WebKitCacheAPIEnabled")
         RuntimeEnabledFeatures::sharedFeatures().setCacheAPIEnabled(enabled);
@@ -204,9 +201,6 @@ void InjectedBundle::overrideBoolPreferenceForTestRunner(WebPageGroupProxy* page
     if (preference == "WebKitWritableStreamAPIEnabled")
         RuntimeEnabledFeatures::sharedFeatures().setWritableStreamAPIEnabled(enabled);
 #endif
-
-    if (preference == "WebKitCSSGridLayoutEnabled")
-        RuntimeEnabledFeatures::sharedFeatures().setCSSGridLayoutEnabled(enabled);
 
     if (preference == "WebKitInteractiveFormValidationEnabled")
         RuntimeEnabledFeatures::sharedFeatures().setInteractiveFormValidationEnabled(enabled);
@@ -219,6 +213,11 @@ void InjectedBundle::overrideBoolPreferenceForTestRunner(WebPageGroupProxy* page
 #if ENABLE(WEBGPU)
     if (preference == "WebKitWebGPUEnabled")
         RuntimeEnabledFeatures::sharedFeatures().setWebGPUEnabled(enabled);
+#endif
+
+#if ENABLE(WEBMETAL)
+    if (preference == "WebKitWebMetalEnabled")
+        RuntimeEnabledFeatures::sharedFeatures().setWebMetalEnabled(enabled);
 #endif
 
     if (preference == "WebKitModernMediaControlsEnabled")
@@ -239,14 +238,37 @@ void InjectedBundle::overrideBoolPreferenceForTestRunner(WebPageGroupProxy* page
 #endif
 
 #if ENABLE(WEB_RTC)
-    if (preference == "WebKitWebRTCLegacyAPIEnabled")
-        RuntimeEnabledFeatures::sharedFeatures().setWebRTCLegacyAPIEnabled(enabled);
+    if (preference == "WebKitWebRTCMDNSICECandidatesEnabled")
+        RuntimeEnabledFeatures::sharedFeatures().setWebRTCMDNSICECandidatesEnabled(enabled);
+    if (preference == "WebKitWebRTCUnifiedPlanEnabled")
+        RuntimeEnabledFeatures::sharedFeatures().setWebRTCUnifiedPlanEnabled(enabled);
 #endif
 
     if (preference == "WebKitIsSecureContextAttributeEnabled") {
         WebPreferencesStore::overrideBoolValueForKey(WebPreferencesKey::isSecureContextAttributeEnabledKey(), enabled);
         RuntimeEnabledFeatures::sharedFeatures().setIsSecureContextAttributeEnabled(enabled);
     }
+
+    if (preference == "WebKitWebAPIStatisticsEnabled")
+        RuntimeEnabledFeatures::sharedFeatures().setWebAPIStatisticsEnabled(enabled);
+
+    if (preference == "CSSCustomPropertiesAndValuesEnabled")
+        RuntimeEnabledFeatures::sharedFeatures().setCSSCustomPropertiesAndValuesEnabled(enabled);
+
+#if ENABLE(LAYOUT_FORMATTING_CONTEXT)
+    if (preference == "LayoutFormattingContextEnabled")
+        RuntimeEnabledFeatures::sharedFeatures().setLayoutFormattingContextEnabled(enabled);
+#endif
+
+#if ENABLE(CSS_PAINTING_API)
+    if (preference == "CSSPaintingAPIEnabled")
+        RuntimeEnabledFeatures::sharedFeatures().setCSSPaintingAPIEnabled(enabled);
+#endif
+
+#if ENABLE(CSS_TYPED_OM)
+    if (preference == "CSSTypedOMEnabled")
+        RuntimeEnabledFeatures::sharedFeatures().setCSSTypedOMEnabled(enabled);
+#endif
 
     // Map the names used in LayoutTests with the names used in WebCore::Settings and WebPreferencesStore.
 #define FOR_EACH_OVERRIDE_BOOL_PREFERENCE(macro) \
@@ -331,11 +353,9 @@ void InjectedBundle::setJavaScriptCanAccessClipboard(WebPageGroupProxy* pageGrou
 
 void InjectedBundle::setPrivateBrowsingEnabled(WebPageGroupProxy* pageGroup, bool enabled)
 {
-    if (enabled) {
+    ASSERT(!hasProcessPrivilege(ProcessPrivilege::CanAccessRawCookies));
+    if (enabled)
         WebProcess::singleton().ensureLegacyPrivateBrowsingSessionInNetworkProcess();
-        WebFrameNetworkingContext::ensureWebsiteDataStoreSession(WebsiteDataStoreParameters::legacyPrivateSessionParameters());
-    } else
-        SessionTracker::destroySession(PAL::SessionID::legacyPrivateSessionID());
 
     const HashSet<Page*>& pages = PageGroup::pageGroup(pageGroup->identifier())->pages();
     for (HashSet<Page*>::iterator iter = pages.begin(); iter != pages.end(); ++iter)
@@ -375,16 +395,20 @@ void InjectedBundle::setSpatialNavigationEnabled(WebPageGroupProxy* pageGroup, b
 void InjectedBundle::addOriginAccessWhitelistEntry(const String& sourceOrigin, const String& destinationProtocol, const String& destinationHost, bool allowDestinationSubdomains)
 {
     SecurityPolicy::addOriginAccessWhitelistEntry(SecurityOrigin::createFromString(sourceOrigin).get(), destinationProtocol, destinationHost, allowDestinationSubdomains);
+    WebProcess::singleton().ensureNetworkProcessConnection().connection().send(Messages::NetworkConnectionToWebProcess::AddOriginAccessWhitelistEntry { sourceOrigin, destinationProtocol, destinationHost, allowDestinationSubdomains }, 0);
+
 }
 
 void InjectedBundle::removeOriginAccessWhitelistEntry(const String& sourceOrigin, const String& destinationProtocol, const String& destinationHost, bool allowDestinationSubdomains)
 {
     SecurityPolicy::removeOriginAccessWhitelistEntry(SecurityOrigin::createFromString(sourceOrigin).get(), destinationProtocol, destinationHost, allowDestinationSubdomains);
+    WebProcess::singleton().ensureNetworkProcessConnection().connection().send(Messages::NetworkConnectionToWebProcess::RemoveOriginAccessWhitelistEntry { sourceOrigin, destinationProtocol, destinationHost, allowDestinationSubdomains }, 0);
 }
 
 void InjectedBundle::resetOriginAccessWhitelists()
 {
     SecurityPolicy::resetOriginAccessWhitelists();
+    WebProcess::singleton().ensureNetworkProcessConnection().connection().send(Messages::NetworkConnectionToWebProcess::ResetOriginAccessWhitelists { }, 0);
 }
 
 void InjectedBundle::setAsynchronousSpellCheckingEnabled(WebPageGroupProxy* pageGroup, bool enabled)
@@ -450,7 +474,6 @@ bool InjectedBundle::isProcessingUserGesture()
 
 void InjectedBundle::addUserScript(WebPageGroupProxy* pageGroup, InjectedBundleScriptWorld* scriptWorld, String&& source, String&& url, API::Array* whitelist, API::Array* blacklist, WebCore::UserScriptInjectionTime injectionTime, WebCore::UserContentInjectedFrames injectedFrames)
 {
-    // url is not from URL::string(), i.e. it has not already been parsed by URL, so we have to use the relative URL constructor for URL instead of the ParsedURLStringTag version.
     UserScript userScript { WTFMove(source), URL(URL(), url), whitelist ? whitelist->toStringVector() : Vector<String>(), blacklist ? blacklist->toStringVector() : Vector<String>(), injectionTime, injectedFrames };
 
     pageGroup->userContentController().addUserScript(*scriptWorld, WTFMove(userScript));
@@ -458,7 +481,6 @@ void InjectedBundle::addUserScript(WebPageGroupProxy* pageGroup, InjectedBundleS
 
 void InjectedBundle::addUserStyleSheet(WebPageGroupProxy* pageGroup, InjectedBundleScriptWorld* scriptWorld, const String& source, const String& url, API::Array* whitelist, API::Array* blacklist, WebCore::UserContentInjectedFrames injectedFrames)
 {
-    // url is not from URL::string(), i.e. it has not already been parsed by URL, so we have to use the relative URL constructor for URL instead of the ParsedURLStringTag version.
     UserStyleSheet userStyleSheet{ source, URL(URL(), url), whitelist ? whitelist->toStringVector() : Vector<String>(), blacklist ? blacklist->toStringVector() : Vector<String>(), injectedFrames, UserStyleUserLevel };
 
     pageGroup->userContentController().addUserStyleSheet(*scriptWorld, WTFMove(userStyleSheet));
@@ -466,13 +488,11 @@ void InjectedBundle::addUserStyleSheet(WebPageGroupProxy* pageGroup, InjectedBun
 
 void InjectedBundle::removeUserScript(WebPageGroupProxy* pageGroup, InjectedBundleScriptWorld* scriptWorld, const String& url)
 {
-    // url is not from URL::string(), i.e. it has not already been parsed by URL, so we have to use the relative URL constructor for URL instead of the ParsedURLStringTag version.
     pageGroup->userContentController().removeUserScriptWithURL(*scriptWorld, URL(URL(), url));
 }
 
 void InjectedBundle::removeUserStyleSheet(WebPageGroupProxy* pageGroup, InjectedBundleScriptWorld* scriptWorld, const String& url)
 {
-    // url is not from URL::string(), i.e. it has not already been parsed by URL, so we have to use the relative URL constructor for URL instead of the ParsedURLStringTag version.
     pageGroup->userContentController().removeUserStyleSheetWithURL(*scriptWorld, URL(URL(), url));
 }
 
@@ -598,18 +618,29 @@ Ref<API::Data> InjectedBundle::createWebDataFromUint8Array(JSContextRef context,
     return API::Data::create(static_cast<unsigned char*>(arrayData->baseAddress()), arrayData->byteLength());
 }
 
+InjectedBundle::DocumentIDToURLMap InjectedBundle::liveDocumentURLs(WebPageGroupProxy* pageGroup, bool excludeDocumentsInPageGroupPages)
+{
+    DocumentIDToURLMap result;
+
+    for (const auto* document : Document::allDocuments())
+        result.add(document->identifier().toUInt64(), document->url().string());
+
+    if (excludeDocumentsInPageGroupPages) {
+        for (const auto* page : PageGroup::pageGroup(pageGroup->identifier())->pages()) {
+            for (const auto* frame = &page->mainFrame(); frame; frame = frame->tree().traverseNext()) {
+                if (!frame->document())
+                    continue;
+                result.remove(frame->document()->identifier().toUInt64());
+            }
+        }
+    }
+
+    return result;
+}
+
 void InjectedBundle::setTabKeyCyclesThroughElements(WebPage* page, bool enabled)
 {
     page->corePage()->setTabKeyCyclesThroughElements(enabled);
-}
-
-void InjectedBundle::setCSSAnimationTriggersEnabled(bool enabled)
-{
-#if ENABLE(CSS_ANIMATIONS_LEVEL_2)
-    RuntimeEnabledFeatures::sharedFeatures().setAnimationTriggersEnabled(enabled);
-#else
-    UNUSED_PARAM(enabled);
-#endif
 }
 
 void InjectedBundle::setWebAnimationsEnabled(bool enabled)
@@ -617,9 +648,9 @@ void InjectedBundle::setWebAnimationsEnabled(bool enabled)
     RuntimeEnabledFeatures::sharedFeatures().setWebAnimationsEnabled(enabled);
 }
 
-void InjectedBundle::setCSSAnimationsAndCSSTransitionsBackedByWebAnimationsEnabled(bool enabled)
+void InjectedBundle::setWebAnimationsCSSIntegrationEnabled(bool enabled)
 {
-    RuntimeEnabledFeatures::sharedFeatures().setCSSAnimationsAndCSSTransitionsBackedByWebAnimationsEnabled(enabled);
+    RuntimeEnabledFeatures::sharedFeatures().setWebAnimationsCSSIntegrationEnabled(enabled);
 }
 
 } // namespace WebKit

@@ -40,7 +40,7 @@ using namespace JSC;
 namespace Inspector {
 
 InspectorHeapAgent::InspectorHeapAgent(AgentContext& context)
-    : InspectorAgentBase(ASCIILiteral("Heap"))
+    : InspectorAgentBase("Heap"_s)
     , m_injectedScriptManager(context.injectedScriptManager)
     , m_frontendDispatcher(std::make_unique<HeapFrontendDispatcher>(context.frontendRouter))
     , m_backendDispatcher(HeapBackendDispatcher::create(context.backendDispatcher, this))
@@ -143,30 +143,30 @@ void InspectorHeapAgent::stopTracking(ErrorString& errorString)
     m_frontendDispatcher->trackingComplete(timestamp, snapshotData);
 }
 
-std::optional<HeapSnapshotNode> InspectorHeapAgent::nodeForHeapObjectIdentifier(ErrorString& errorString, unsigned heapObjectIdentifier)
+Optional<HeapSnapshotNode> InspectorHeapAgent::nodeForHeapObjectIdentifier(ErrorString& errorString, unsigned heapObjectIdentifier)
 {
     HeapProfiler* heapProfiler = m_environment.vm().heapProfiler();
     if (!heapProfiler) {
-        errorString = ASCIILiteral("No heap snapshot");
-        return std::nullopt;
+        errorString = "No heap snapshot"_s;
+        return WTF::nullopt;
     }
 
     HeapSnapshot* snapshot = heapProfiler->mostRecentSnapshot();
     if (!snapshot) {
-        errorString = ASCIILiteral("No heap snapshot");
-        return std::nullopt;
+        errorString = "No heap snapshot"_s;
+        return WTF::nullopt;
     }
 
-    const std::optional<HeapSnapshotNode> optionalNode = snapshot->nodeForObjectIdentifier(heapObjectIdentifier);
+    const Optional<HeapSnapshotNode> optionalNode = snapshot->nodeForObjectIdentifier(heapObjectIdentifier);
     if (!optionalNode) {
-        errorString = ASCIILiteral("No object for identifier, it may have been collected");
-        return std::nullopt;
+        errorString = "No object for identifier, it may have been collected"_s;
+        return WTF::nullopt;
     }
 
     return optionalNode;
 }
 
-void InspectorHeapAgent::getPreview(ErrorString& errorString, int heapObjectId, std::optional<String>& resultString, RefPtr<Protocol::Debugger::FunctionDetails>& functionDetails, RefPtr<Protocol::Runtime::ObjectPreview>& objectPreview)
+void InspectorHeapAgent::getPreview(ErrorString& errorString, int heapObjectId, Optional<String>& resultString, RefPtr<Protocol::Debugger::FunctionDetails>& functionDetails, RefPtr<Protocol::Runtime::ObjectPreview>& objectPreview)
 {
     // Prevent the cell from getting collected as we look it up.
     VM& vm = m_environment.vm();
@@ -174,7 +174,7 @@ void InspectorHeapAgent::getPreview(ErrorString& errorString, int heapObjectId, 
     DeferGC deferGC(vm.heap);
 
     unsigned heapObjectIdentifier = static_cast<unsigned>(heapObjectId);
-    const std::optional<HeapSnapshotNode> optionalNode = nodeForHeapObjectIdentifier(errorString, heapObjectIdentifier);
+    const Optional<HeapSnapshotNode> optionalNode = nodeForHeapObjectIdentifier(errorString, heapObjectIdentifier);
     if (!optionalNode)
         return;
 
@@ -189,24 +189,24 @@ void InspectorHeapAgent::getPreview(ErrorString& errorString, int heapObjectId, 
 
     Structure* structure = cell->structure(vm);
     if (!structure) {
-        errorString = ASCIILiteral("Unable to get object details - Structure");
+        errorString = "Unable to get object details - Structure"_s;
         return;
     }
 
     JSGlobalObject* globalObject = structure->globalObject();
     if (!globalObject) {
-        errorString = ASCIILiteral("Unable to get object details - GlobalObject");
+        errorString = "Unable to get object details - GlobalObject"_s;
         return;
     }
 
     InjectedScript injectedScript = m_injectedScriptManager.injectedScriptFor(globalObject->globalExec());
     if (injectedScript.hasNoValue()) {
-        errorString = ASCIILiteral("Unable to get object details - InjectedScript");
+        errorString = "Unable to get object details - InjectedScript"_s;
         return;
     }
 
     // Function preview.
-    if (cell->inherits(vm, JSFunction::info())) {
+    if (cell->inherits<JSFunction>(vm)) {
         injectedScript.functionDetails(errorString, cell, functionDetails);
         return;
     }
@@ -223,26 +223,26 @@ void InspectorHeapAgent::getRemoteObject(ErrorString& errorString, int heapObjec
     DeferGC deferGC(vm.heap);
 
     unsigned heapObjectIdentifier = static_cast<unsigned>(heapObjectId);
-    const std::optional<HeapSnapshotNode> optionalNode = nodeForHeapObjectIdentifier(errorString, heapObjectIdentifier);
+    const Optional<HeapSnapshotNode> optionalNode = nodeForHeapObjectIdentifier(errorString, heapObjectIdentifier);
     if (!optionalNode)
         return;
 
     JSCell* cell = optionalNode->cell;
     Structure* structure = cell->structure(vm);
     if (!structure) {
-        errorString = ASCIILiteral("Unable to get object details");
+        errorString = "Unable to get object details"_s;
         return;
     }
 
     JSGlobalObject* globalObject = structure->globalObject();
     if (!globalObject) {
-        errorString = ASCIILiteral("Unable to get object details");
+        errorString = "Unable to get object details"_s;
         return;
     }
 
     InjectedScript injectedScript = m_injectedScriptManager.injectedScriptFor(globalObject->globalExec());
     if (injectedScript.hasNoValue()) {
-        errorString = ASCIILiteral("Unable to get object details - InjectedScript");
+        errorString = "Unable to get object details - InjectedScript"_s;
         return;
     }
 

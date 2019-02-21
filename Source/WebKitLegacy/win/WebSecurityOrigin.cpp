@@ -33,7 +33,7 @@
 #include <WebCore/BString.h>
 #include <WebCore/DatabaseTracker.h>
 #include <WebCore/SecurityOriginData.h>
-#include <WebCore/URL.h>
+#include <wtf/URL.h>
 
 using namespace WebCore;
 
@@ -120,7 +120,7 @@ HRESULT WebSecurityOrigin::port(_Out_ unsigned short* result)
     if (!result)
         return E_POINTER;
 
-    *result = m_securityOrigin->port().value_or(0);
+    *result = m_securityOrigin->port().valueOr(0);
 
     return S_OK;
 }
@@ -130,7 +130,7 @@ HRESULT WebSecurityOrigin::usage(_Out_ unsigned long long* result)
     if (!result)
         return E_POINTER;
 
-    *result = DatabaseTracker::singleton().usage(SecurityOriginData::fromSecurityOrigin(*m_securityOrigin));
+    *result = DatabaseTracker::singleton().usage(m_securityOrigin->data());
 
     return S_OK;
 }
@@ -140,13 +140,13 @@ HRESULT WebSecurityOrigin::quota(_Out_ unsigned long long* result)
     if (!result)
         return E_POINTER;
 
-    *result = DatabaseTracker::singleton().quota(SecurityOriginData::fromSecurityOrigin(*m_securityOrigin));
+    *result = DatabaseTracker::singleton().quota(m_securityOrigin->data());
     return S_OK;
 }
         
 HRESULT WebSecurityOrigin::setQuota(unsigned long long quota) 
 {
-    DatabaseTracker::singleton().setQuota(SecurityOriginData::fromSecurityOrigin(*m_securityOrigin), quota);
+    DatabaseTracker::singleton().setQuota(m_securityOrigin->data(), quota);
 
     return S_OK;
 }

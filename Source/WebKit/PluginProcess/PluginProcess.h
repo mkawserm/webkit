@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Apple Inc. All rights reserved.
+ * Copyright (C) 2010-2018 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -27,13 +27,13 @@
 
 #if ENABLE(NETSCAPE_PLUGIN_API)
 
-#include "ChildProcess.h"
+#include "AuxiliaryProcess.h"
 #include <WebCore/CountedUserActivity.h>
 #include <wtf/Forward.h>
 #include <wtf/text/WTFString.h>
 
 #if PLATFORM(COCOA)
-#include <WebCore/MachSendRight.h>
+#include <wtf/MachSendRight.h>
 #endif
 
 namespace WebKit {
@@ -42,13 +42,14 @@ class NetscapePluginModule;
 class WebProcessConnection;
 struct PluginProcessCreationParameters;
         
-class PluginProcess : public ChildProcess
+class PluginProcess : public AuxiliaryProcess
 {
     WTF_MAKE_NONCOPYABLE(PluginProcess);
     friend NeverDestroyed<PluginProcess>;
 
 public:
     static PluginProcess& singleton();
+    static constexpr ProcessType processType = ProcessType::Plugin;
 
     void removeWebProcessConnection(WebProcessConnection*);
 
@@ -60,7 +61,7 @@ public:
     void setModalWindowIsShowing(bool);
     void setFullscreenWindowIsShowing(bool);
 
-    const WebCore::MachSendRight& compositingRenderServerPort() const { return m_compositingRenderServerPort; }
+    const WTF::MachSendRight& compositingRenderServerPort() const { return m_compositingRenderServerPort; }
 
     bool launchProcess(const String& launchPath, const Vector<String>& arguments);
     bool launchApplicationAtURL(const String& urlString, const Vector<String>& arguments);
@@ -74,12 +75,17 @@ private:
     PluginProcess();
     ~PluginProcess();
 
-    // ChildProcess
-    void initializeProcess(const ChildProcessInitializationParameters&) override;
-    void initializeProcessName(const ChildProcessInitializationParameters&) override;
-    void initializeSandbox(const ChildProcessInitializationParameters&, SandboxInitializationParameters&) override;
+#if PLATFORM(MAC)
+    bool shouldOverrideQuarantine() final;
+#endif
+
+    // AuxiliaryProcess
+    void initializeProcess(const AuxiliaryProcessInitializationParameters&) override;
+    void initializeProcessName(const AuxiliaryProcessInitializationParameters&) override;
+    void initializeConnection(IPC::Connection*) override;
+    void initializeSandbox(const AuxiliaryProcessInitializationParameters&, SandboxInitializationParameters&) override;
     bool shouldTerminate() override;
-    void platformInitializeProcess(const ChildProcessInitializationParameters&);
+    void platformInitializeProcess(const AuxiliaryProcessInitializationParameters&);
 
 #if USE(APPKIT)
     void stopRunLoop() override;
@@ -87,7 +93,6 @@ private:
 
     // IPC::Connection::Client
     void didReceiveMessage(IPC::Connection&, IPC::Decoder&) override;
-    void didClose(IPC::Connection&) override;
 
     // Message handlers.
     void didReceivePluginProcessMessage(IPC::Connection&, IPC::Decoder&);
@@ -121,7 +126,7 @@ private:
 
 #if PLATFORM(COCOA)
     // The Mach port used for accelerated compositing.
-    WebCore::MachSendRight m_compositingRenderServerPort;
+    WTF::MachSendRight m_compositingRenderServerPort;
 
     String m_nsurlCacheDirectory;
 #endif

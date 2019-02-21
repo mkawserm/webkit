@@ -26,6 +26,7 @@
 #pragma once
 
 #include "ArgumentCoders.h"
+#include <wtf/CompletionHandler.h>
 #include <wtf/StdLibExtras.h>
 
 namespace IPC {
@@ -62,16 +63,30 @@ void callMemberFunction(ArgsTuple&& args, ReplyArgsTuple& replyArgs, C* object, 
 
 // Dispatch functions with delayed reply arguments.
 
-template <typename C, typename MF, typename R, typename ArgsTuple, size_t... ArgsIndex>
-void callMemberFunctionImpl(C* object, MF function, Ref<R>&& delayedReply, ArgsTuple&& args, std::index_sequence<ArgsIndex...>)
+template <typename C, typename MF, typename CH, typename ArgsTuple, size_t... ArgsIndex>
+void callMemberFunctionImpl(C* object, MF function, CompletionHandler<CH>&& completionHandler, ArgsTuple&& args, std::index_sequence<ArgsIndex...>)
 {
-    (object->*function)(std::get<ArgsIndex>(std::forward<ArgsTuple>(args))..., WTFMove(delayedReply));
+    (object->*function)(std::get<ArgsIndex>(std::forward<ArgsTuple>(args))..., WTFMove(completionHandler));
 }
 
-template<typename C, typename MF, typename R, typename ArgsTuple, typename ArgsIndicies = std::make_index_sequence<std::tuple_size<ArgsTuple>::value>>
-void callMemberFunction(ArgsTuple&& args, Ref<R>&& delayedReply, C* object, MF function)
+template<typename C, typename MF, typename CH, typename ArgsTuple, typename ArgsIndicies = std::make_index_sequence<std::tuple_size<ArgsTuple>::value>>
+void callMemberFunction(ArgsTuple&& args, CompletionHandler<CH>&& completionHandler, C* object, MF function)
 {
-    callMemberFunctionImpl(object, function, WTFMove(delayedReply), std::forward<ArgsTuple>(args), ArgsIndicies());
+    callMemberFunctionImpl(object, function, WTFMove(completionHandler), std::forward<ArgsTuple>(args), ArgsIndicies());
+}
+
+// Dispatch functions with connection parameter with delayed reply arguments.
+
+template <typename C, typename MF, typename CH, typename ArgsTuple, size_t... ArgsIndex>
+void callMemberFunctionImpl(Connection& connection, C* object, MF function, CompletionHandler<CH>&& completionHandler, ArgsTuple&& args, std::index_sequence<ArgsIndex...>)
+{
+    (object->*function)(connection, std::get<ArgsIndex>(std::forward<ArgsTuple>(args))..., WTFMove(completionHandler));
+}
+
+template<typename C, typename MF, typename CH, typename ArgsTuple, typename ArgsIndicies = std::make_index_sequence<std::tuple_size<ArgsTuple>::value>>
+void callMemberFunction(Connection& connection, ArgsTuple&& args, CompletionHandler<CH>&& completionHandler, C* object, MF function)
+{
+    callMemberFunctionImpl(connection, object, function, WTFMove(completionHandler), std::forward<ArgsTuple>(args), ArgsIndicies());
 }
 
 // Dispatch functions with connection parameter with no reply arguments.
@@ -109,6 +124,12 @@ struct CodingType {
     typedef std::remove_const_t<std::remove_reference_t<T>> Type;
 };
 
+class DataReference;
+class SharedBufferDataReference;
+template<> struct CodingType<const SharedBufferDataReference&> {
+    typedef DataReference Type;
+};
+
 template<typename... Ts>
 struct CodingType<std::tuple<Ts...>> {
     typedef std::tuple<typename CodingType<Ts>::Type...> Type;
@@ -127,7 +148,7 @@ void handleMessage(Decoder& decoder, C* object, MF function)
 }
 
 template<typename T, typename C, typename MF>
-void handleMessage(Decoder& decoder, Encoder& replyEncoder, C* object, MF function)
+void handleMessageLegacySync(Decoder& decoder, Encoder& replyEncoder, C* object, MF function)
 {
     typename CodingType<typename T::Arguments>::Type arguments;
     if (!decoder.decode(arguments)) {
@@ -141,7 +162,7 @@ void handleMessage(Decoder& decoder, Encoder& replyEncoder, C* object, MF functi
 }
 
 template<typename T, typename C, typename MF>
-void handleMessage(Connection& connection, Decoder& decoder, Encoder& replyEncoder, C* object, MF function)
+void handleMessageLegacySync(Connection& connection, Decoder& decoder, Encoder& replyEncoder, C* object, MF function)
 {
     typename CodingType<typename T::Arguments>::Type arguments;
     if (!decoder.decode(arguments)) {
@@ -174,8 +195,49 @@ void handleMessageDelayed(Connection& connection, Decoder& decoder, std::unique_
         return;
     }
 
-    Ref<typename T::DelayedReply> delayedReply = adoptRef(*new typename T::DelayedReply(connection, WTFMove(replyEncoder)));
-    callMemberFunction(WTFMove(arguments), WTFMove(delayedReply), object, function);
+    typename T::DelayedReply completionHandler = [replyEncoder = WTFMove(replyEncoder), connection = makeRef(connection)] (auto&&... args) mutable {
+        T::send(WTFMove(replyEncoder), WTFMove(connection), args...);
+    };
+    callMemberFunction(WTFMove(arguments), WTFMove(completionHandler), object, function);
+}
+
+template<typename T, typename C, typename MF>
+void handleMessageDelayedWantsConnection(Connection& connection, Decoder& decoder, std::unique_ptr<Encoder>& replyEncoder, C* object, MF function)
+{
+    typename CodingType<typename T::Arguments>::Type arguments;
+    if (!decoder.decode(arguments)) {
+        ASSERT(decoder.isInvalid());
+        return;
+    }
+    
+    typename T::DelayedReply completionHandler = [replyEncoder = WTFMove(replyEncoder), connection = makeRef(connection)] (auto&&... args) mutable {
+        T::send(WTFMove(replyEncoder), WTFMove(connection), args...);
+    };
+    callMemberFunction(connection, WTFMove(arguments), WTFMove(completionHandler), object, function);
+}
+
+template<typename T, typename C, typename MF>
+void handleMessageAsync(Connection& connection, Decoder& decoder, C* object, MF function)
+{
+    Optional<uint64_t> listenerID;
+    decoder >> listenerID;
+    if (!listenerID) {
+        ASSERT(decoder.isInvalid());
+        return;
+    }
+    
+    typename CodingType<typename T::Arguments>::Type arguments;
+    if (!decoder.decode(arguments)) {
+        ASSERT(decoder.isInvalid());
+        return;
+    }
+
+    typename T::AsyncReply completionHandler = [listenerID = *listenerID, connection = makeRef(connection)] (auto&&... args) mutable {
+        auto encoder = std::make_unique<Encoder>("AsyncReply", T::asyncMessageReplyName(), 0);
+        *encoder << listenerID;
+        T::send(WTFMove(encoder), WTFMove(connection), args...);
+    };
+    callMemberFunction(WTFMove(arguments), WTFMove(completionHandler), object, function);
 }
 
 } // namespace IPC

@@ -40,12 +40,10 @@ WKTypeID WKResourceCacheManagerGetTypeID()
 
 static OptionSet<WebsiteDataType> toWebsiteDataTypes(WKResourceCachesToClear cachesToClear)
 {
-    OptionSet<WebsiteDataType> websiteDataTypes;
-
-    websiteDataTypes |= WebsiteDataType::MemoryCache;
+    OptionSet<WebsiteDataType> websiteDataTypes { WebsiteDataType::MemoryCache };
 
     if (cachesToClear == WKResourceCachesToClearAll)
-        websiteDataTypes |= WebsiteDataType::DiskCache;
+        websiteDataTypes.add(WebsiteDataType::DiskCache);
 
     return websiteDataTypes;
 }
@@ -72,14 +70,14 @@ void WKResourceCacheManagerClearCacheForOrigin(WKResourceCacheManagerRef cacheMa
 
     {
         WebsiteDataRecord dataRecord;
-        dataRecord.add(WebsiteDataType::MemoryCache, WebCore::SecurityOriginData::fromSecurityOrigin(toImpl(origin)->securityOrigin()));
+        dataRecord.add(WebsiteDataType::MemoryCache, toImpl(origin)->securityOrigin().data());
 
         dataRecords.append(dataRecord);
     }
 
     if (cachesToClear == WKResourceCachesToClearAll) {
         WebsiteDataRecord dataRecord;
-        dataRecord.add(WebsiteDataType::DiskCache, WebCore::SecurityOriginData::fromSecurityOrigin(toImpl(origin)->securityOrigin()));
+        dataRecord.add(WebsiteDataType::DiskCache, toImpl(origin)->securityOrigin().data());
 
         dataRecords.append(dataRecord);
     }

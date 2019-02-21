@@ -16,10 +16,11 @@ info: |
     tailPosition )
 
     4. If IsCallable(func) is false, throw a TypeError exception.
+features: [Proxy]
 ---*/
 
 var p = new Proxy({}, {});
 
 assert.throws(TypeError, function() {
-    p.call();
+  p.call();
 });

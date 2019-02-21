@@ -36,9 +36,7 @@
 #include "WebProcess.h"
 #include "WebProcessProxyMessages.h"
 #include <JavaScriptCore/JSObject.h>
-#include <WebCore/FileSystem.h>
-
-using namespace WebCore;
+#include <wtf/FileSystem.h>
 
 namespace WebKit {
 
@@ -134,9 +132,10 @@ void PluginProcessConnection::didReceiveInvalidMessage(IPC::Connection&, IPC::St
 {
 }
 
-void PluginProcessConnection::setException(const String& exceptionString)
+void PluginProcessConnection::setException(const String& exceptionString, CompletionHandler<void()>&& completionHandler)
 {
     NPRuntimeObjectMap::setGlobalException(exceptionString);
+    completionHandler();
 }
     
 } // namespace WebKit

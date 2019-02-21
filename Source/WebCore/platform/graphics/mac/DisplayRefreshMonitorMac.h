@@ -34,7 +34,7 @@ typedef struct __CVDisplayLink *CVDisplayLinkRef;
 
 namespace WebCore {
 
-class DisplayRefreshMonitorMac : public DisplayRefreshMonitor {
+class DisplayRefreshMonitorMac : public DisplayRefreshMonitor, public CanMakeWeakPtr<DisplayRefreshMonitorMac> {
 public:
     static Ref<DisplayRefreshMonitorMac> create(PlatformDisplayID displayID)
     {
@@ -43,13 +43,12 @@ public:
     
     virtual ~DisplayRefreshMonitorMac();
 
-    void displayLinkFired();
+    void displayLinkFired() override;
     bool requestRefreshCallback() override;
 
 private:
     explicit DisplayRefreshMonitorMac(PlatformDisplayID);
 
-    WeakPtrFactory<DisplayRefreshMonitorMac> m_weakFactory;
     CVDisplayLinkRef m_displayLink { nullptr };
 };
 

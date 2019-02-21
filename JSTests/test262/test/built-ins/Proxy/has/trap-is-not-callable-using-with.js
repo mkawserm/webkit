@@ -16,15 +16,16 @@ info: |
         5. If IsCallable(func) is false, throw a TypeError exception.
         ...
 flags: [noStrict]
+features: [Proxy]
 ---*/
 
 var target = {};
 var p = new Proxy(target, {
-    has: {}
+  has: {}
 });
 
 assert.throws(TypeError, function() {
-    with (p) {
-        (attr);
-    }
+  with(p) {
+    (attr);
+  }
 });

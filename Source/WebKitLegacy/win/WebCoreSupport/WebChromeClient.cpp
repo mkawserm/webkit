@@ -471,6 +471,16 @@ void WebChromeClient::scroll(const IntSize& delta, const IntRect& scrollViewRect
     m_webView->scrollBackingStore(core(m_webView->topLevelFrame())->view(), delta.width(), delta.height(), scrollViewRect, clipRect);
 }
 
+IntPoint WebChromeClient::accessibilityScreenToRootView(const WebCore::IntPoint& point) const
+{
+    return screenToRootView(point);
+}
+
+IntRect WebChromeClient::rootViewToAccessibilityScreen(const WebCore::IntRect& rect) const
+{
+    return rootViewToScreen(rect);
+}
+
 IntRect WebChromeClient::rootViewToScreen(const IntRect& rect) const
 {
     HWND viewWindow;
@@ -727,7 +737,7 @@ void WebChromeClient::attachRootGraphicsLayer(Frame&, GraphicsLayer* graphicsLay
     m_webView->setRootChildLayer(graphicsLayer);
 }
 
-void WebChromeClient::attachViewOverlayGraphicsLayer(Frame&, GraphicsLayer*)
+void WebChromeClient::attachViewOverlayGraphicsLayer(GraphicsLayer*)
 {
     // FIXME: If we want view-relative page overlays in Legacy WebKit on Windows, this would be the place to hook them up.
 }

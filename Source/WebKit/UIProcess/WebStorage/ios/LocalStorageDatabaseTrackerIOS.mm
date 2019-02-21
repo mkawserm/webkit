@@ -26,7 +26,7 @@
 #include "config.h"
 #include "LocalStorageDatabaseTracker.h"
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
 
 #include "VersionChecks.h"
 
@@ -40,7 +40,7 @@ void LocalStorageDatabaseTracker::platformMaybeExcludeFromBackup() const
     m_hasExcludedFromBackup = true;
 
     if (linkedOnOrAfter(SDKVersion::FirstToExcludeLocalStorageFromBackup))
-        [[NSURL fileURLWithPath:(NSString *)m_localStorageDirectory] setResourceValue:@YES forKey:NSURLIsExcludedFromBackupKey error:nil];
+        [[NSURL fileURLWithPath:(NSString *)m_localStorageDirectory isDirectory:YES] setResourceValue:@YES forKey:NSURLIsExcludedFromBackupKey error:nil];
 }
 
 } // namespace WebKit

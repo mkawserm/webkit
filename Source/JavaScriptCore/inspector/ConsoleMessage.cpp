@@ -158,7 +158,7 @@ static Protocol::Console::ChannelSource messageSourceValue(MessageSource source)
 {
     switch (source) {
     case MessageSource::XML: return Protocol::Console::ChannelSource::XML;
-    case MessageSource::JS: return Protocol::Console::ChannelSource::Javascript;
+    case MessageSource::JS: return Protocol::Console::ChannelSource::JavaScript;
     case MessageSource::Network: return Protocol::Console::ChannelSource::Network;
     case MessageSource::ConsoleAPI: return Protocol::Console::ChannelSource::ConsoleAPI;
     case MessageSource::Storage: return Protocol::Console::ChannelSource::Storage;
@@ -170,6 +170,7 @@ static Protocol::Console::ChannelSource messageSourceValue(MessageSource source)
     case MessageSource::Other: return Protocol::Console::ChannelSource::Other;
     case MessageSource::Media: return Protocol::Console::ChannelSource::Media;
     case MessageSource::WebRTC: return Protocol::Console::ChannelSource::WebRTC;
+    case MessageSource::MediaSource: return Protocol::Console::ChannelSource::MediaSource;
     }
     return Protocol::Console::ChannelSource::Other;
 }
@@ -239,10 +240,10 @@ void ConsoleMessage::addToFrontend(ConsoleFrontendDispatcher& consoleFrontendDis
                     }
                     argumentsObject->addItem(WTFMove(inspectorValue));
                     if (m_arguments->argumentCount() > 1)
-                        argumentsObject->addItem(injectedScript.wrapObject(columns, ASCIILiteral("console"), true));
+                        argumentsObject->addItem(injectedScript.wrapObject(columns, "console"_s, true));
                 } else {
                     for (unsigned i = 0; i < m_arguments->argumentCount(); ++i) {
-                        auto inspectorValue = injectedScript.wrapObject(m_arguments->argumentAt(i), ASCIILiteral("console"), generatePreview);
+                        auto inspectorValue = injectedScript.wrapObject(m_arguments->argumentAt(i), "console"_s, generatePreview);
                         if (!inspectorValue) {
                             ASSERT_NOT_REACHED();
                             return;
@@ -256,7 +257,7 @@ void ConsoleMessage::addToFrontend(ConsoleFrontendDispatcher& consoleFrontendDis
                 for (auto& message : m_jsonLogValues) {
                     if (message.value.isEmpty())
                         continue;
-                    auto inspectorValue = injectedScript.wrapJSONString(message.value, ASCIILiteral("console"), generatePreview);
+                    auto inspectorValue = injectedScript.wrapJSONString(message.value, "console"_s, generatePreview);
                     if (!inspectorValue)
                         continue;
 
@@ -300,6 +301,9 @@ bool ConsoleMessage::isEqual(ConsoleMessage* msg) const
     } else if (msg->m_callStack)
         return false;
 
+    if (m_jsonLogValues.size() || msg->m_jsonLogValues.size())
+        return false;
+
     return msg->m_source == m_source
         && msg->m_type == m_type
         && msg->m_level == m_level
@@ -313,7 +317,7 @@ bool ConsoleMessage::isEqual(ConsoleMessage* msg) const
 void ConsoleMessage::clear()
 {
     if (!m_message)
-        m_message = ASCIILiteral("<message collected>");
+        m_message = "<message collected>"_s;
 
     if (m_arguments)
         m_arguments = nullptr;

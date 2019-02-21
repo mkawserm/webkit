@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011, 2013 Apple Inc. All rights reserved.
+ * Copyright (C) 2011-2018 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -29,7 +29,7 @@
 #if ENABLE(SEC_ITEM_SHIM)
 
 #include "BlockingResponseMap.h"
-#include "ChildProcess.h"
+#include "NetworkProcess.h"
 #include "SecItemRequestData.h"
 #include "SecItemResponseData.h"
 #include "SecItemShimLibrary.h"
@@ -38,6 +38,8 @@
 #include <atomic>
 #include <dlfcn.h>
 #include <mutex>
+#include <wtf/ProcessPrivilege.h>
+#include <wtf/threads/BinarySemaphore.h>
 
 #if USE(APPLE_INTERNAL_SDK)
 #include <CFNetwork/CFURLConnectionPriv.h>
@@ -56,7 +58,11 @@ extern "C" void _CFURLConnectionSetFrameworkStubs(const struct _CFNFrameworksStu
 
 namespace WebKit {
 
-static ChildProcess* sharedProcess;
+static WeakPtr<NetworkProcess>& globalNetworkProcess()
+{
+    static NeverDestroyed<WeakPtr<NetworkProcess>> networkProcess;
+    return networkProcess.get();
+}
 
 static WorkQueue& workQueue()
 {
@@ -70,20 +76,23 @@ static WorkQueue& workQueue()
     return *workQueue;
 }
 
-static std::optional<SecItemResponseData> sendSecItemRequest(SecItemRequestData::Type requestType, CFDictionaryRef query, CFDictionaryRef attributesToMatch = 0)
+static Optional<SecItemResponseData> sendSecItemRequest(SecItemRequestData::Type requestType, CFDictionaryRef query, CFDictionaryRef attributesToMatch = 0)
 {
-    std::optional<SecItemResponseData> response;
+    if (!globalNetworkProcess())
+        return WTF::nullopt;
 
-    auto semaphore = adoptOSObject(dispatch_semaphore_create(0));
+    Optional<SecItemResponseData> response;
 
-    sharedProcess->parentProcessConnection()->sendWithReply(Messages::SecItemShimProxy::SecItemRequest(SecItemRequestData(requestType, query, attributesToMatch)), 0, workQueue(), [&response, &semaphore](auto reply) {
+    BinarySemaphore semaphore;
+
+    globalNetworkProcess()->parentProcessConnection()->sendWithReply(Messages::SecItemShimProxy::SecItemRequest(SecItemRequestData(requestType, query, attributesToMatch)), 0, workQueue(), [&response, &semaphore](auto reply) {
         if (reply)
             response = WTFMove(std::get<0>(*reply));
 
-        dispatch_semaphore_signal(semaphore.get());
+        semaphore.signal();
     });
 
-    dispatch_semaphore_wait(semaphore.get(), DISPATCH_TIME_FOREVER);
+    semaphore.wait();
 
     return response;
 }
@@ -98,14 +107,19 @@ static OSStatus webSecItemCopyMatching(CFDictionaryRef query, CFTypeRef* result)
     return response->resultCode();
 }
 
-static OSStatus webSecItemAdd(CFDictionaryRef query, CFTypeRef* result)
+static OSStatus webSecItemAdd(CFDictionaryRef query, CFTypeRef* unusedResult)
 {
+    // Return value of SecItemAdd should be ignored for WebKit use cases. WebKit can't serialize SecKeychainItemRef, so we do not use it.
+    // If someone passes a result value to be populated, the API contract is being violated so we should assert.
+    if (unusedResult) {
+        ASSERT_NOT_REACHED();
+        return errSecParam;
+    }
+
     auto response = sendSecItemRequest(SecItemRequestData::Add, query);
     if (!response)
         return errSecInteractionNotAllowed;
 
-    if (result)
-        *result = response->resultObject().leakRef();
     return response->resultCode();
 }
 
@@ -127,11 +141,11 @@ static OSStatus webSecItemDelete(CFDictionaryRef query)
     return response->resultCode();
 }
 
-void initializeSecItemShim(ChildProcess& process)
+void initializeSecItemShim(NetworkProcess& process)
 {
-    sharedProcess = &process;
+    globalNetworkProcess() = makeWeakPtr(process);
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
     struct _CFNFrameworksStubs stubs = {
         .version = 0,
         .SecItem_stub_CopyMatching = webSecItemCopyMatching,

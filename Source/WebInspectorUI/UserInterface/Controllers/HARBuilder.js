@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 Apple Inc. All rights reserved.
+ * Copyright (C) 2017-2018 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -67,9 +67,9 @@ WI.HARBuilder = class HARBuilder
     static pages()
     {
         return [{
-            startedDateTime: HARBuilder.date(WI.frameResourceManager.mainFrame.mainResource.requestSentDate),
+            startedDateTime: HARBuilder.date(WI.networkManager.mainFrame.mainResource.requestSentDate),
             id: "page_0",
-            title: WI.frameResourceManager.mainFrame.url || "",
+            title: WI.networkManager.mainFrame.url || "",
             pageTimings: HARBuilder.pageTimings(),
         }];
     }
@@ -78,11 +78,11 @@ WI.HARBuilder = class HARBuilder
     {
         let result = {};
 
-        let domContentReadyEventTimestamp = WI.frameResourceManager.mainFrame.domContentReadyEventTimestamp;
+        let domContentReadyEventTimestamp = WI.networkManager.mainFrame.domContentReadyEventTimestamp;
         if (!isNaN(domContentReadyEventTimestamp))
             result.onContentLoad = domContentReadyEventTimestamp * 1000;
 
-        let loadEventTimestamp = WI.frameResourceManager.mainFrame.loadEventTimestamp;
+        let loadEventTimestamp = WI.networkManager.mainFrame.loadEventTimestamp;
         if (!isNaN(loadEventTimestamp))
             result.onLoad = loadEventTimestamp * 1000;
 
@@ -177,6 +177,8 @@ WI.HARBuilder = class HARBuilder
                 json.expires = HARBuilder.date(cookie.expirationDate(requestSentDate));
                 json.httpOnly = cookie.httpOnly;
                 json.secure = cookie.secure;
+                if (cookie.sameSite !== WI.Cookie.SameSiteType.None)
+                    json.sameSite = cookie.sameSite;
             }
 
             result.push(json);
@@ -306,4 +308,4 @@ WI.HARBuilder = class HARBuilder
         console.assert(false);
         return undefined;
     }
-}
+};

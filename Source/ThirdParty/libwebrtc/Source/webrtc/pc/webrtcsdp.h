@@ -22,6 +22,8 @@
 
 #include <string>
 
+#include "rtc_base/system/rtc_export.h"
+
 namespace cricket {
 class Candidate;
 }  // namespace cricket
@@ -38,8 +40,7 @@ struct SdpParseError;
 // jdesc - The JsepSessionDescription object to be serialized.
 // unified_plan_sdp - If set to true, include "a=msid" lines where appropriate.
 // return - SDP string serialized from the arguments.
-std::string SdpSerialize(const JsepSessionDescription& jdesc,
-                         bool unified_plan_sdp);
+std::string SdpSerialize(const JsepSessionDescription& jdesc);
 
 // Serializes the passed in IceCandidateInterface to a SDP string.
 // candidate - The candidate to be serialized.
@@ -47,7 +48,8 @@ std::string SdpSerializeCandidate(const IceCandidateInterface& candidate);
 
 // Serializes a cricket Candidate.
 // candidate - The candidate to be serialized.
-std::string SdpSerializeCandidate(const cricket::Candidate& candidate);
+RTC_EXPORT std::string SdpSerializeCandidate(
+    const cricket::Candidate& candidate);
 
 // Deserializes the passed in SDP string to a JsepSessionDescription.
 // message - SDP string to be Deserialized.
@@ -77,10 +79,10 @@ bool SdpDeserializeCandidate(const std::string& message,
 // candidate - The cricket Candidate from the SDP string.
 // error - The detail error information when parsing fails.
 // return - true on success, false on failure.
-bool SdpDeserializeCandidate(const std::string& transport_name,
-                             const std::string& message,
-                             cricket::Candidate* candidate,
-                             SdpParseError* error);
+RTC_EXPORT bool SdpDeserializeCandidate(const std::string& transport_name,
+                                        const std::string& message,
+                                        cricket::Candidate* candidate,
+                                        SdpParseError* error);
 
 }  // namespace webrtc
 

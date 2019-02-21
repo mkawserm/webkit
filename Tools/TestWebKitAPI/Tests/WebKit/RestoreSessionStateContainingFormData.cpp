@@ -37,20 +37,20 @@ namespace TestWebKitAPI {
 
 static bool didFinishLoad;
 
-static void didFinishLoadForFrame(WKPageRef, WKFrameRef, WKTypeRef, const void*)
+static void didFinishNavigation(WKPageRef, WKNavigationRef, WKTypeRef, const void*)
 {
     didFinishLoad = true;
 }
 
 static void setPageLoaderClient(WKPageRef page)
 {
-    WKPageLoaderClientV0 loaderClient;
+    WKPageNavigationClientV0 loaderClient;
     memset(&loaderClient, 0, sizeof(loaderClient));
 
     loaderClient.base.version = 0;
-    loaderClient.didFinishLoadForFrame = didFinishLoadForFrame;
+    loaderClient.didFinishNavigation = didFinishNavigation;
 
-    WKPageSetPageLoaderClient(page, &loaderClient.base);
+    WKPageSetPageNavigationClient(page, &loaderClient.base);
 }
 
 static WKRetainPtr<WKDataRef> createSessionStateDataContainingFormData(WKContextRef context)
@@ -72,7 +72,7 @@ static WKRetainPtr<WKDataRef> createSessionStateDataContainingFormData(WKContext
 
 TEST(WebKit, RestoreSessionStateContainingFormData)
 {
-    WKRetainPtr<WKContextRef> context(AdoptWK, WKContextCreate());
+    WKRetainPtr<WKContextRef> context(AdoptWK, WKContextCreateWithConfiguration(nullptr));
 
     // FIXME: Once <rdar://problem/8708435> is fixed, we can move the creation of this
     // PlatformWebView after the call to createSessionStaetContainingFormData. Until then, it must

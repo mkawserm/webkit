@@ -37,18 +37,19 @@ function main() {
     }
 
     $cluster_count = 0;
+    $elapsed_time = NULL;
     while (!$fetcher->at_end()) {
         $content = $fetcher->fetch_next_cluster();
         $cluster_count++;
         if ($fetcher->at_end()) {
             $cache_filename = "measurement-set-$platform_id-$metric_id.json";
             $content['clusterCount'] = $cluster_count;
-            $content['elapsedTime'] = (microtime(true) - $program_start_time) * 1000;
+            $elapsed_time = (microtime(true) - $program_start_time) * 1000;
         } else
             $cache_filename = "measurement-set-$platform_id-$metric_id-{$content['endTime']}.json";
 
-        $json = success_json($content);
-        generate_data_file($cache_filename, $json);
+        set_successful($content);
+        $json = generate_json_data_with_elapsed_time_if_needed($cache_filename, $content, $elapsed_time);
     }
 
     echo $json;
@@ -170,7 +171,7 @@ class MeasurementSetFetcher {
     function execute_query($config_id) {
         return $this->db->query('
             SELECT test_runs.*, build_id, build_number, build_builder, build_time,
-            array_agg((commit_id, commit_repository, commit_revision, extract(epoch from commit_time at time zone \'utc\') * 1000)) AS revisions,
+            array_agg((commit_id, commit_repository, commit_revision, commit_order, extract(epoch from commit_time at time zone \'utc\') * 1000)) AS revisions,
             extract(epoch from max(commit_time at time zone \'utc\')) * 1000 AS revision_time
                 FROM builds
                     LEFT OUTER JOIN build_commits ON commit_build = build_id
@@ -208,7 +209,8 @@ class MeasurementSetFetcher {
     }
 
     private static function parse_revisions_array(&$postgres_array) {
-        // e.g. {"(<commit-id>,<repository-id>,<revision>,\"2012-10-16 14:53:00\")","(<commit-id>,<repository-id>,<revision>,)"}
+        // e.g. {"(<commit-id>,<repository-id>,<revision>,<order>,\"2012-10-16 14:53:00\")","(<commit-id>,<repository-id>,<revision>,<order>,)",
+        // "(<commit-id>,<repository-id>,<revision>,,)", "(<commit-id>,<repository-id>,<revision>,,\"2012-10-16 14:53:00\")"}
         $outer_array = json_decode('[' . trim($postgres_array, '{}') . ']');
         $revisions = array();
         foreach ($outer_array as $item) {
@@ -218,8 +220,10 @@ class MeasurementSetFetcher {
             $commit_id = intval(trim($name_and_revision[0], '"'));
             $repository_id = intval(trim($name_and_revision[1], '"'));
             $revision = trim($name_and_revision[2], '"');
-            $time = intval(trim($name_and_revision[3], '"'));
-            array_push($revisions, array($commit_id, $repository_id, $revision, $time));
+            $trimmed_order = trim($name_and_revision[3], '"');
+            $order = strlen($trimmed_order) ? intval($trimmed_order) : NULL;
+            $time = intval(trim($name_and_revision[4], '"'));
+            array_push($revisions, array($commit_id, $repository_id, $revision, $order, $time));
         }
         return $revisions;
     }
@@ -259,14 +263,14 @@ class AnalysisResultsFetcher {
 
     function fetch_commits()
     {
-        $query = $this->db->query('SELECT commit_id, commit_build, commit_repository, commit_revision, commit_time
+        $query = $this->db->query('SELECT commit_id, commit_build, commit_repository, commit_revision, commit_order, commit_time
             FROM commits, build_commits, build_requests, analysis_test_groups
             WHERE commit_id = build_commit AND commit_build = request_build
                 AND request_group = testgroup_id AND testgroup_task = $1', array($this->task_id));
         while ($row = $this->db->fetch_next_row($query)) {
             $commit_time = Database::to_js_time($row['commit_time']);
             array_push(array_ensure_item_has_array($this->build_to_commits, $row['commit_build']),
-                array($row['commit_id'], $row['commit_repository'], $row['commit_revision'], $commit_time));
+                array($row['commit_id'], $row['commit_repository'], $row['commit_revision'], $row['commit_order'], $commit_time));
         }
     }
 

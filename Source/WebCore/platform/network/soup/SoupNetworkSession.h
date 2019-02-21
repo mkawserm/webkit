@@ -26,6 +26,7 @@
 #ifndef SoupNetworkSession_h
 #define SoupNetworkSession_h
 
+#include <gio/gio.h>
 #include <glib-object.h>
 #include <pal/SessionID.h>
 #include <wtf/Function.h>
@@ -65,7 +66,7 @@ public:
     void setAcceptLanguages(const CString&);
 
     static void setShouldIgnoreTLSErrors(bool);
-    static void checkTLSErrors(SoupRequest*, SoupMessage*, WTF::Function<void (const ResourceError&)>&&);
+    static Optional<ResourceError> checkTLSErrors(const URL&, GTlsCertificate*, GTlsCertificateFlags);
     static void allowSpecificHTTPSCertificateForHost(const CertificateInfo&, const String& host);
 
     static void setCustomProtocolRequestType(GType);

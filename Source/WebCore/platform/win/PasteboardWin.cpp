@@ -30,6 +30,7 @@
 #include "BitmapInfo.h"
 #include "CachedImage.h"
 #include "ClipboardUtilitiesWin.h"
+#include "Color.h"
 #include "Document.h"
 #include "DocumentFragment.h"
 #include "Editor.h"
@@ -40,7 +41,6 @@
 #include "HWndDC.h"
 #include "HitTestResult.h"
 #include "Image.h"
-#include "URL.h"
 #include "NotImplemented.h"
 #include "Range.h"
 #include "RenderImage.h"
@@ -48,6 +48,7 @@
 #include "TextEncoding.h"
 #include "WebCoreInstanceHandle.h"
 #include "markup.h"
+#include <wtf/URL.h>
 #include <wtf/WindowsExtras.h>
 #include <wtf/text/CString.h>
 #include <wtf/text/StringView.h>
@@ -315,12 +316,12 @@ struct PasteboardFileCounter final : PasteboardFileReader {
     unsigned count { 0 };
 };
 
-bool Pasteboard::containsFiles()
+Pasteboard::FileContentState Pasteboard::fileContentState()
 {
     // FIXME: This implementation can be slightly more efficient by avoiding calls to DragQueryFileW.
     PasteboardFileCounter reader;
     read(reader);
-    return reader.count;
+    return reader.count ? FileContentState::MayContainFilePaths : FileContentState::NoFileOrImageData;
 }
 
 void Pasteboard::read(PasteboardFileReader& reader)
@@ -369,10 +370,10 @@ static bool writeURL(WCDataObject *data, const URL& url, String title, bool with
     if (title.isEmpty()) {
         title = url.lastPathComponent();
         if (title.isEmpty())
-            title = url.host();
+            title = url.host().toString();
     }
 
-    STGMEDIUM medium = {0};
+    STGMEDIUM medium { };
     medium.tymed = TYMED_HGLOBAL;
 
     medium.hGlobal = createGlobalData(url, title);
@@ -416,7 +417,7 @@ void Pasteboard::writeString(const String& type, const String& data)
     }
 
     if (winType == ClipboardDataTypeText) {
-        STGMEDIUM medium = {0};
+        STGMEDIUM medium { };
         medium.tymed = TYMED_HGLOBAL;
         medium.hGlobal = createGlobalData(data);
         if (!medium.hGlobal)
@@ -439,11 +440,11 @@ void Pasteboard::writeRangeToDataObject(Range& selectedRange, Frame& frame)
     if (!m_writableDataObject)
         return;
 
-    STGMEDIUM medium = {0};
+    STGMEDIUM medium { };
     medium.tymed = TYMED_HGLOBAL;
 
     Vector<char> data;
-    markupToCFHTML(createMarkup(selectedRange, 0, AnnotateForInterchange),
+    markupToCFHTML(serializePreservingVisualAppearance(selectedRange, nullptr, AnnotateForInterchange::Yes),
         selectedRange.startContainer().document().url().string(), data);
     medium.hGlobal = createGlobalData(data);
     if (medium.hGlobal && FAILED(m_writableDataObject->SetData(htmlFormat(), &medium, TRUE)))
@@ -468,7 +469,8 @@ void Pasteboard::writeSelection(Range& selectedRange, bool canSmartCopyOrDelete,
     // Put CF_HTML format on the pasteboard 
     if (::OpenClipboard(m_owner)) {
         Vector<char> data;
-        markupToCFHTML(createMarkup(selectedRange, 0, AnnotateForInterchange),
+        // FIXME: Use ResolveURLs::YesExcludingLocalFileURLsForPrivacy.
+        markupToCFHTML(serializePreservingVisualAppearance(frame.selection().selection()),
             selectedRange.startContainer().document().url().string(), data);
         HGLOBAL cbData = createGlobalData(data);
         if (!::SetClipboardData(HTMLClipboardFormat, cbData))
@@ -503,7 +505,7 @@ void Pasteboard::writePlainTextToDataObject(const String& text, SmartReplaceOpti
     if (!m_writableDataObject)
         return;
 
-    STGMEDIUM medium = {0};
+    STGMEDIUM medium { };
     medium.tymed = TYMED_HGLOBAL;
 
     String str = text;
@@ -604,7 +606,7 @@ static HRESULT writeFileToDataObject(IDataObject* dataObject, HGLOBAL fileDescri
 {
     HRESULT hr = S_OK;
     FORMATETC* fe;
-    STGMEDIUM medium = {0};
+    STGMEDIUM medium { };
     medium.tymed = TYMED_HGLOBAL;
 
     if (!fileDescriptor || !fileContent)
@@ -707,7 +709,7 @@ void Pasteboard::write(const PasteboardURL& pasteboardURL)
     if (title.isEmpty()) {
         title = pasteboardURL.url.lastPathComponent();
         if (title.isEmpty())
-            title = pasteboardURL.url.host();
+            title = pasteboardURL.url.host().toString();
     }
 
     // write to clipboard in format com.apple.safari.bookmarkdata to be able to paste into the bookmarks view with appropriate title
@@ -886,7 +888,6 @@ static HGLOBAL createGlobalImageFileDescriptor(const String& url, const String& 
     ASSERT_ARG(image, image);
     ASSERT(image->image()->data());
 
-    HRESULT hr = S_OK;
     String fsPath;
     HGLOBAL memObj = GlobalAlloc(GPTR, sizeof(FILEGROUPDESCRIPTOR));
     if (!memObj)
@@ -1013,7 +1014,7 @@ static HGLOBAL createGlobalHDropContent(const URL& url, String& fileName, Shared
 
     dropFiles->pFiles = sizeof(DROPFILES);
     dropFiles->fWide = TRUE;
-    wcscpy((LPWSTR)(dropFiles + 1), filePath);    
+    wcscpy(reinterpret_cast<LPWSTR>(dropFiles + 1), filePath);
     GlobalUnlock(memObj);
 
     return memObj;
@@ -1061,7 +1062,7 @@ void Pasteboard::writeMarkup(const String& markup)
     Vector<char> data;
     markupToCFHTML(markup, "", data);
 
-    STGMEDIUM medium = {0};
+    STGMEDIUM medium { };
     medium.tymed = TYMED_HGLOBAL;
 
     medium.hGlobal = createGlobalData(data);
@@ -1082,6 +1083,10 @@ void Pasteboard::write(const PasteboardImage&)
 }
 
 void Pasteboard::writeCustomData(const PasteboardCustomData&)
+{
+}
+
+void Pasteboard::write(const Color&)
 {
 }
 

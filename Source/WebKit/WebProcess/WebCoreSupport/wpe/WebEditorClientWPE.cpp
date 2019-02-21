@@ -36,9 +36,8 @@
 #include <WebCore/WindowsKeyboardCodes.h>
 #include <wtf/NeverDestroyed.h>
 
-using namespace WebCore;
-
 namespace WebKit {
+using namespace WebCore;
 
 // The idea for the array/map below comes from Blink's EditingBehavior.cpp.
 
@@ -182,7 +181,7 @@ static void handleKeyPress(Frame& frame, KeyboardEvent& event, const PlatformKey
         return;
 
     // Don't insert anything if a modifier is pressed and it has not been handled yet
-    if (platformEvent.ctrlKey() || platformEvent.altKey())
+    if (platformEvent.controlKey() || platformEvent.altKey())
         return;
 
     if (frame.editor().insertText(platformEvent.text(), &event))

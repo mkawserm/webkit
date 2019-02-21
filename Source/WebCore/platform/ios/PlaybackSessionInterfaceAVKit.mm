@@ -27,7 +27,7 @@
 #import "config.h"
 #import "PlaybackSessionInterfaceAVKit.h"
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
 #if HAVE(AVKIT)
 
 #import "Logging.h"
@@ -43,7 +43,7 @@
 
 #import <pal/cf/CoreMediaSoftLink.h>
 
-SOFT_LINK_FRAMEWORK_OPTIONAL(AVKit)
+SOFTLINK_AVKIT_FRAMEWORK()
 SOFT_LINK_CLASS_OPTIONAL(AVKit, AVValueTiming)
 
 namespace WebCore {
@@ -77,11 +77,6 @@ PlaybackSessionInterfaceAVKit::~PlaybackSessionInterfaceAVKit()
     invalidate();
 }
 
-void PlaybackSessionInterfaceAVKit::resetMediaState()
-{
-    [m_playerController resetMediaState];
-}
-
 void PlaybackSessionInterfaceAVKit::durationChanged(double duration)
 {
     WebAVPlayerController* playerController = m_playerController.get();
@@ -100,6 +95,9 @@ void PlaybackSessionInterfaceAVKit::durationChanged(double duration)
 
 void PlaybackSessionInterfaceAVKit::currentTimeChanged(double currentTime, double anchorTime)
 {
+    if ([m_playerController isScrubbing])
+        return;
+
     NSTimeInterval anchorTimeStamp = ![m_playerController rate] ? NAN : anchorTime;
     AVValueTiming *timing = [getAVValueTimingClass() valueTimingWithAnchorValue:currentTime
         anchorTimeStamp:anchorTimeStamp rate:0];
@@ -128,6 +126,7 @@ void PlaybackSessionInterfaceAVKit::seekableRangesChanged(const TimeRanges& time
 {
     RetainPtr<NSMutableArray> seekableRanges = adoptNS([[NSMutableArray alloc] init]);
 
+#if !PLATFORM(WATCHOS)
     for (unsigned i = 0; i < timeRanges.length(); i++) {
         double start = timeRanges.start(i).releaseReturnValue();
         double end = timeRanges.end(i).releaseReturnValue();
@@ -135,6 +134,9 @@ void PlaybackSessionInterfaceAVKit::seekableRangesChanged(const TimeRanges& time
         CMTimeRange range = CMTimeRangeMake(CMTimeMakeWithSeconds(start, 1000), CMTimeMakeWithSeconds(end-start, 1000));
         [seekableRanges addObject:[NSValue valueWithCMTimeRange:range]];
     }
+#else
+    UNUSED_PARAM(timeRanges);
+#endif
 
     [m_playerController setSeekableTimeRanges:seekableRanges.get()];
     [m_playerController setSeekableTimeRangesLastModifiedTime: lastModifiedTime];
@@ -197,6 +199,11 @@ void PlaybackSessionInterfaceAVKit::mutedChanged(bool muted)
     [m_playerController setMuted:muted];
 }
 
+void PlaybackSessionInterfaceAVKit::volumeChanged(double volume)
+{
+    [m_playerController volumeChanged:volume];
+}
+
 void PlaybackSessionInterfaceAVKit::invalidate()
 {
     if (!m_playbackSessionModel)
@@ -210,4 +217,4 @@ void PlaybackSessionInterfaceAVKit::invalidate()
 }
 
 #endif // HAVE(AVKIT)
-#endif // PLATFORM(IOS)
+#endif // PLATFORM(IOS_FAMILY)

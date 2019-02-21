@@ -44,7 +44,7 @@ static const unsigned pageLength = 100;
 static const unsigned pageGap = 100;
 static const unsigned expectedPageCount = 20;
 
-static void didLayout(WKPageRef page, WKLayoutMilestones milestones, WKTypeRef, const void* clientInfo)
+static void didLayout(WKPageRef page, WKPageRenderingProgressEvents milestones, WKTypeRef, const void* clientInfo)
 {
     if (milestones & kWKDidFirstLayoutAfterSuppressedIncrementalRendering) {
         PlatformWebView* webView = (PlatformWebView*)clientInfo;
@@ -61,17 +61,17 @@ static void didLayout(WKPageRef page, WKLayoutMilestones milestones, WKTypeRef, 
 
 TEST(WebKit, ResizeReversePaginatedWebView)
 {
-    WKRetainPtr<WKContextRef> context(AdoptWK, WKContextCreate());
+    WKRetainPtr<WKContextRef> context(AdoptWK, WKContextCreateWithConfiguration(nullptr));
     PlatformWebView webView(context.get());
 
-    WKPageLoaderClientV3 loaderClient;
+    WKPageNavigationClientV3 loaderClient;
     memset(&loaderClient, 0, sizeof(loaderClient));
 
     loaderClient.base.version = 3;
     loaderClient.base.clientInfo = &webView;
-    loaderClient.didLayout = didLayout;
+    loaderClient.renderingProgressDidChange = didLayout;
 
-    WKPageSetPageLoaderClient(webView.page(), &loaderClient.base);
+    WKPageSetPageNavigationClient(webView.page(), &loaderClient.base);
 
     WKPageListenForLayoutMilestones(webView.page(), kWKDidFirstLayoutAfterSuppressedIncrementalRendering);
 

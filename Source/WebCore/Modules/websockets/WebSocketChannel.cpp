@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2011, 2012 Google Inc.  All rights reserved.
+ * Copyright (C) 2018 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -37,8 +38,10 @@
 #include "FileError.h"
 #include "FileReaderLoader.h"
 #include "Frame.h"
+#include "FrameLoader.h"
 #include "InspectorInstrumentation.h"
 #include "Logging.h"
+#include "NetworkingContext.h"
 #include "Page.h"
 #include "ProgressTracker.h"
 #include "ResourceRequest.h"
@@ -54,7 +57,6 @@
 #include <wtf/HashMap.h>
 #include <wtf/text/CString.h>
 #include <wtf/text/StringHash.h>
-#include <wtf/text/WTFString.h>
 
 namespace WebCore {
 
@@ -122,7 +124,7 @@ void WebSocketChannel::connect(const URL& requestedURL, const String& protocol)
         Page* page = frame->page();
         PAL::SessionID sessionID = page ? page->sessionID() : PAL::SessionID::defaultSessionID();
         String partition = m_document->domainForCachePartition();
-        m_handle = m_socketProvider->createSocketStreamHandle(m_handshake->url(), *this, sessionID, partition);
+        m_handle = m_socketProvider->createSocketStreamHandle(m_handshake->url(), *this, sessionID, partition, frame->loader().networkingContext());
     }
 }
 
@@ -270,12 +272,16 @@ void WebSocketChannel::didOpenSocketStream(SocketStreamHandle& handle)
     ASSERT(&handle == m_handle);
     if (!m_document)
         return;
-    if (m_identifier)
+    if (m_identifier && UNLIKELY(InspectorInstrumentation::hasFrontends()))
         InspectorInstrumentation::willSendWebSocketHandshakeRequest(m_document, m_identifier, m_handshake->clientHandshakeRequest());
-    CString handshakeMessage = m_handshake->clientHandshakeMessage();
-    handle.sendData(handshakeMessage.data(), handshakeMessage.length(), [this, protectedThis = makeRef(*this)] (bool success) {
+    auto handshakeMessage = m_handshake->clientHandshakeMessage();
+    auto cookieRequestHeaderFieldProxy = m_handshake->clientHandshakeCookieRequestHeaderFieldProxy();
+    handle.sendHandshake(WTFMove(handshakeMessage), WTFMove(cookieRequestHeaderFieldProxy), [this, protectedThis = makeRef(*this)] (bool success, bool didAccessSecureCookies) {
         if (!success)
             fail("Failed to send WebSocket handshake.");
+
+        if (didAccessSecureCookies && m_document)
+            m_document->setSecureCookiesAccessed();
     });
 }
 
@@ -352,9 +358,9 @@ void WebSocketChannel::didFailSocketStream(SocketStreamHandle& handle, const Soc
     if (m_document) {
         String message;
         if (error.isNull())
-            message = "WebSocket network error";
+            message = "WebSocket network error"_s;
         else if (error.localizedDescription().isNull())
-            message = "WebSocket network error: error code " + String::number(error.errorCode());
+            message = makeString("WebSocket network error: error code ", error.errorCode());
         else
             message = "WebSocket network error: " + error.localizedDescription();
         InspectorInstrumentation::didReceiveWebSocketFrameError(m_document, m_identifier, message);
@@ -397,7 +403,7 @@ void WebSocketChannel::didFail(int errorCode)
     ASSERT(m_blobLoaderStatus == BlobLoaderStarted);
     m_blobLoader = nullptr;
     m_blobLoaderStatus = BlobLoaderFailed;
-    fail("Failed to load Blob: error code = " + String::number(errorCode)); // FIXME: Generate human-friendly reason message.
+    fail(makeString("Failed to load Blob: error code = ", errorCode)); // FIXME: Generate human-friendly reason message.
     deref();
 }
 
@@ -443,13 +449,11 @@ bool WebSocketChannel::processBuffer()
         if (m_handshake->mode() == WebSocketHandshake::Connected) {
             if (m_identifier)
                 InspectorInstrumentation::didReceiveWebSocketHandshakeResponse(m_document, m_identifier, m_handshake->serverHandshakeResponse());
-            if (!m_handshake->serverSetCookie().isEmpty()) {
-                if (m_document && cookiesEnabled(*m_document)) {
-                    // Exception (for sandboxed documents) ignored.
-                    m_document->setCookie(m_handshake->serverSetCookie());
-                }
+            String serverSetCookie = m_handshake->serverSetCookie();
+            if (!serverSetCookie.isEmpty()) {
+                if (m_document && m_document->page() && m_document->page()->cookieJar().cookiesEnabled(*m_document))
+                    m_document->page()->cookieJar().setCookies(*m_document, m_handshake->httpURLForAuthenticationAndCookies(), serverSetCookie);
             }
-            // FIXME: handle set-cookie2.
             LOG(Network, "WebSocketChannel %p Connected", this);
             skipBuffer(headerLength);
             m_client->didConnect();
@@ -544,12 +548,12 @@ bool WebSocketChannel::processFrame()
 
     // Validate the frame data.
     if (WebSocketFrame::isReservedOpCode(frame.opCode)) {
-        fail("Unrecognized frame opcode: " + String::number(frame.opCode));
+        fail(makeString("Unrecognized frame opcode: ", static_cast<unsigned>(frame.opCode)));
         return false;
     }
 
     if (frame.reserved2 || frame.reserved3) {
-        fail("One or more reserved bits are on: reserved2 = " + String::number(frame.reserved2) + ", reserved3 = " + String::number(frame.reserved3));
+        fail(makeString("One or more reserved bits are on: reserved2 = ", static_cast<unsigned>(frame.reserved2), ", reserved3 = ", static_cast<unsigned>(frame.reserved3)));
         return false;
     }
 
@@ -560,14 +564,14 @@ bool WebSocketChannel::processFrame()
 
     // All control frames must not be fragmented.
     if (WebSocketFrame::isControlOpCode(frame.opCode) && !frame.final) {
-        fail("Received fragmented control frame: opcode = " + String::number(frame.opCode));
+        fail(makeString("Received fragmented control frame: opcode = ", static_cast<unsigned>(frame.opCode)));
         return false;
     }
 
     // All control frames must have a payload of 125 bytes or less, which means the frame must not contain
     // the "extended payload length" field.
     if (WebSocketFrame::isControlOpCode(frame.opCode) && WebSocketFrame::needsExtendedLengthField(frame.payloadLength)) {
-        fail("Received control frame having too long payload: " + String::number(frame.payloadLength) + " bytes");
+        fail(makeString("Received control frame having too long payload: ", frame.payloadLength, " bytes"));
         return false;
     }
 

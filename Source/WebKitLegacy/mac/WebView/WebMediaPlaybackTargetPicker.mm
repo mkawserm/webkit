@@ -25,7 +25,7 @@
 
 #import "WebMediaPlaybackTargetPicker.h"
 
-#if ENABLE(WIRELESS_PLAYBACK_TARGET) && !PLATFORM(IOS)
+#if ENABLE(WIRELESS_PLAYBACK_TARGET) && !PLATFORM(IOS_FAMILY)
 
 #import <WebCore/MediaPlaybackTarget.h>
 #import <WebCore/Page.h>
@@ -53,7 +53,7 @@ void WebMediaPlaybackTargetPicker::removePlaybackTargetPickerClient(uint64_t con
 
 void WebMediaPlaybackTargetPicker::showPlaybackTargetPicker(uint64_t contextId, const WebCore::FloatRect& rect, bool hasVideo)
 {
-    WebCore::WebMediaSessionManager::shared().showPlaybackTargetPicker(*this, contextId, WebCore::IntRect(rect), hasVideo);
+    WebCore::WebMediaSessionManager::shared().showPlaybackTargetPicker(*this, contextId, WebCore::IntRect(rect), hasVideo, m_page ? m_page->useDarkAppearance() : false);
 }
 
 void WebMediaPlaybackTargetPicker::playbackTargetPickerClientStateDidChange(uint64_t contextId, WebCore::MediaProducer::MediaStateFlags state)

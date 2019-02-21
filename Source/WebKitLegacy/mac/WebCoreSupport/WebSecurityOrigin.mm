@@ -34,7 +34,7 @@
 #import <WebCore/DatabaseTracker.h>
 #import <WebCore/SecurityOrigin.h>
 #import <WebCore/SecurityOriginData.h>
-#import <WebCore/URL.h>
+#import <wtf/URL.h>
 
 using namespace WebCore;
 
@@ -71,10 +71,10 @@ using namespace WebCore;
 
 - (NSString *)databaseIdentifier
 {
-    return SecurityOriginData::fromSecurityOrigin(*reinterpret_cast<SecurityOrigin*>(_private)).databaseIdentifier();
+    return reinterpret_cast<SecurityOrigin*>(_private)->data().databaseIdentifier();
 }
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
 - (NSString *)toString
 {
     return reinterpret_cast<SecurityOrigin*>(_private)->toString();
@@ -88,7 +88,7 @@ using namespace WebCore;
 
 - (unsigned short)port
 {
-    return reinterpret_cast<SecurityOrigin*>(_private)->port().value_or(0);
+    return reinterpret_cast<SecurityOrigin*>(_private)->port().valueOr(0);
 }
 
 // FIXME: Overriding isEqual: without overriding hash will cause trouble if this ever goes into an NSSet or is the key in an NSDictionary,
@@ -169,17 +169,17 @@ using namespace WebCore;
 
 - (unsigned long long)usage
 {
-    return DatabaseTracker::singleton().usage(SecurityOriginData::fromSecurityOrigin(*reinterpret_cast<SecurityOrigin*>(_private)));
+    return DatabaseTracker::singleton().usage(reinterpret_cast<SecurityOrigin*>(_private)->data());
 }
 
 - (unsigned long long)quota
 {
-    return DatabaseTracker::singleton().quota(SecurityOriginData::fromSecurityOrigin(*reinterpret_cast<SecurityOrigin*>(_private)));
+    return DatabaseTracker::singleton().quota(reinterpret_cast<SecurityOrigin*>(_private)->data());
 }
 
 - (void)setQuota:(unsigned long long)quota
 {
-    DatabaseTracker::singleton().setQuota(SecurityOriginData::fromSecurityOrigin(*reinterpret_cast<SecurityOrigin*>(_private)), quota);
+    DatabaseTracker::singleton().setQuota(reinterpret_cast<SecurityOrigin*>(_private)->data(), quota);
 }
 
 @end

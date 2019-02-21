@@ -7,7 +7,21 @@ add_action( 'init', function () {
     register_nav_menu('site-nav', __( 'Site Navigation' ));
     register_nav_menu('footer-nav', __( 'Footer Navigation' ));
     register_nav_menu('sitemap', __( 'Site Map Page' ));
+    register_nav_menu('feature-subnav', __( 'Feature Page Buttons' ));
 } );
+
+// Disable WP-emoji polyfill
+add_action('init', function() {
+    remove_action('wp_head', 'print_emoji_detection_script', 7);
+    remove_action('admin_print_scripts', 'print_emoji_detection_script');
+    remove_action('admin_print_styles', 'print_emoji_styles');
+    remove_action('wp_print_styles', 'print_emoji_styles');
+    remove_filter('the_content_feed', 'wp_staticize_emoji');
+    remove_filter('comment_text_rss', 'wp_staticize_emoji');
+    remove_filter('wp_mail', 'wp_staticize_emoji_for_email');
+    // Remove DNS prefetch
+    add_filter('emoji_svg_url', '__return_false');
+});
 
 add_action( 'wp_dashboard_setup', function () {
     $SurveyWidget = new WebKit_Nightly_Survey();
@@ -102,7 +116,7 @@ add_filter('query_vars', function( $query_vars ) {
 add_filter('the_title', function( $title ) {
     if ( is_admin() ) return $title;
     if ( is_feed() ) return $title;
-    
+
     $title = str_replace(": ", ": <br>", $title);
 
     $nowrap_strings = array();
@@ -114,7 +128,7 @@ add_filter('the_title', function( $title ) {
         $nobreak = str_replace(" ", " ", trim($token));
         $title = str_replace(trim($token), $nobreak, $title);
     }
-    
+
     return $title;
 });
 
@@ -168,6 +182,13 @@ add_action('the_post', function($post) {
 
     $post->post_content = '<div class="foreword">' . $foreword . '</div>' . $content;
     $pages = array($post->post_content);
+});
+
+add_filter('the_author', function($display_name) {
+    $post = get_post();
+    if (!(is_single() || is_page())) return;
+    $byline = get_post_meta(get_the_ID(), 'byline', true);
+    return empty($byline) ? $display_name : $byline;
 });
 
 function before_the_title() {
@@ -227,7 +248,33 @@ function is_super_cache_enabled() {
     return (isset($super_cache_enabled) && true === $super_cache_enabled);
 }
 
-function tag_post_image_luminance( $post_id ) {
+function include_post_icons() {
+    echo WebKit_Post_Icons::parse_icons();
+}
+
+function include_invert_lightness_filter() {
+    include('images/invert-lightness.svg');
+}
+
+function get_post_icon() {
+
+    $categories = get_the_category();
+    if (isset($categories[0]))
+        $slug = $categories[0]->slug;
+
+    if ('web-inspector' == $slug) {
+        $tags = get_the_tags();
+        if (isset($tags[0]))
+            $slug = $tags[0]->slug;
+    }
+
+    if (!WebKit_Post_Icons::has_icon($slug))
+        return 'default';
+
+    return $slug;
+}
+
+function tag_post_image_luminance($post_id) {
     $threshold = 128;
     $tags = array();
 
@@ -421,6 +468,31 @@ class Responsive_Toggle_Walker_Nav_Menu extends Walker_Nav_Menu {
 
 }
 
+class WebKit_Post_Icons {
+
+    private static $registry = array();
+
+    public static function parse_icons() {
+        if (!empty(self::$registry))
+            return '';
+
+        $svg_string = file_get_contents(get_stylesheet_directory() . '/images/icons.svg');
+        $svg = new SimpleXMLElement( $svg_string );
+        $svg->registerXPathNamespace('svg', 'http://www.w3.org/2000/svg');
+
+        $matches = $svg->xpath('//svg:symbol/@id');
+        foreach ($matches as $symbol)
+            self::$registry[(string)$symbol['id']] = true;
+
+        return $svg_string;
+    }
+
+    public static function has_icon($id) {
+        return isset(self::$registry[$id]);
+    }
+
+}
+
 class Front_Page_Posts {
 
     private static $object;     // Singleton instance
@@ -553,7 +625,7 @@ class WebKit_Nightly_Survey {
         } else {
             update_option(self::DATA_SETTING_NAME, $score);
         }
-        
+
         $httponly = false;
         $secure = false;
         setcookie(self::cookie_name(), 1, time() + YEAR_IN_SECONDS, '/', WP_HOST, $secure, $httponly );

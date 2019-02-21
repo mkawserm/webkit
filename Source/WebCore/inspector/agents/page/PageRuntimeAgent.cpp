@@ -37,12 +37,12 @@
 #include "InspectorPageAgent.h"
 #include "InstrumentingAgents.h"
 #include "JSDOMWindowBase.h"
-#include "MainFrame.h"
 #include "Page.h"
 #include "PageConsoleClient.h"
 #include "ScriptController.h"
 #include "ScriptState.h"
 #include "SecurityOrigin.h"
+#include "UserGestureIndicator.h"
 #include <JavaScriptCore/InjectedScript.h>
 #include <JavaScriptCore/InjectedScriptManager.h>
 
@@ -114,13 +114,13 @@ InjectedScript PageRuntimeAgent::injectedScriptForEval(ErrorString& errorString,
         JSC::ExecState* scriptState = mainWorldExecState(&m_inspectedPage.mainFrame());
         InjectedScript result = injectedScriptManager().injectedScriptFor(scriptState);
         if (result.hasNoValue())
-            errorString = ASCIILiteral("Internal error: main world execution context not found.");
+            errorString = "Internal error: main world execution context not found."_s;
         return result;
     }
 
     InjectedScript injectedScript = injectedScriptManager().injectedScriptForId(*executionContextId);
     if (injectedScript.hasNoValue())
-        errorString = ASCIILiteral("Execution context with given id not found.");
+        errorString = "Execution context with given id not found."_s;
     return injectedScript;
 }
 
@@ -169,6 +169,13 @@ void PageRuntimeAgent::notifyContextCreated(const String& frameId, JSC::ExecStat
         .setName(name)
         .setFrameId(frameId)
         .release());
+}
+
+void PageRuntimeAgent::evaluate(ErrorString& errorString, const String& expression, const String* objectGroup, const bool* includeCommandLineAPI, const bool* doNotPauseOnExceptionsAndMuteConsole, const int* executionContextId, const bool* returnByValue, const bool* generatePreview, const bool* saveResult, const bool* emulateUserGesture, RefPtr<Inspector::Protocol::Runtime::RemoteObject>& result, Optional<bool>& wasThrown, Optional<int>& savedResultIndex)
+{
+    Optional<ProcessingUserGestureState> userGestureState = (emulateUserGesture && *emulateUserGesture) ? Optional<ProcessingUserGestureState>(ProcessingUserGesture) : WTF::nullopt;
+    UserGestureIndicator gestureIndicator(userGestureState);
+    InspectorRuntimeAgent::evaluate(errorString, expression, objectGroup, includeCommandLineAPI, doNotPauseOnExceptionsAndMuteConsole, executionContextId, returnByValue, generatePreview, saveResult, emulateUserGesture, result, wasThrown, savedResultIndex);
 }
 
 } // namespace WebCore

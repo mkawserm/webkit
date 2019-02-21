@@ -29,7 +29,6 @@
 #import <array>
 #import <sys/param.h>
 #import <wtf/OSObjectPtr.h>
-#import <wtf/spi/cocoa/SecuritySPI.h>
 #import <wtf/spi/darwin/SandboxSPI.h>
 #import <wtf/spi/darwin/XPCSPI.h>
 #import <wtf/text/WTFString.h>
@@ -48,23 +47,9 @@ bool connectedProcessIsSandboxed(xpc_connection_t connectionToParent)
     return sandbox_check_by_audit_token(token, nullptr, SANDBOX_FILTER_NONE);
 }
 
-static bool processHasContainer(pid_t pid)
-{
-    std::array<char, MAXPATHLEN> path;
-
-    if (sandbox_container_path_for_pid(pid, path.data(), path.size()))
-        return false;
-
-    if (!path[0])
-        return false;
-
-    return true;
-}
-
 bool processHasContainer()
 {
-    static bool hasContainer = processHasContainer(getpid());
-
+    static bool hasContainer = !pathForProcessContainer().isEmpty();
     return hasContainer;
 }
 
@@ -75,31 +60,6 @@ String pathForProcessContainer()
     sandbox_container_path_for_pid(getpid(), path.data(), path.size());
 
     return String::fromUTF8(path.data());
-}
-
-bool processHasEntitlement(NSString *entitlement)
-{
-    auto task = adoptCF(SecTaskCreateFromSelf(CFAllocatorGetDefault()));
-    if (!task)
-        return false;
-
-    auto value = adoptCF(SecTaskCopyValueForEntitlement(task.get(), (__bridge CFStringRef)entitlement, nullptr));
-    if (!value)
-        return false;
-
-    if (CFGetTypeID(value.get()) != CFBooleanGetTypeID())
-        return false;
-
-    return CFBooleanGetValue(static_cast<CFBooleanRef>(value.get()));
-}
-
-bool connectedProcessHasEntitlement(xpc_connection_t connection, const char *entitlement)
-{
-    auto value = adoptOSObject(xpc_connection_copy_entitlement_value(connection, entitlement));
-    if (!value)
-        return false;
-
-    return xpc_get_type(value.get()) == XPC_TYPE_BOOL && xpc_bool_get_value(value.get());
 }
 
 }

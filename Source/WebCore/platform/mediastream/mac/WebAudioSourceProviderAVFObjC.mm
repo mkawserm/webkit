@@ -149,8 +149,8 @@ void WebAudioSourceProviderAVFObjC::unprepare()
 {
     std::lock_guard<Lock> lock(m_mutex);
 
-    m_inputDescription = std::nullopt;
-    m_outputDescription = std::nullopt;
+    m_inputDescription = WTF::nullopt;
+    m_outputDescription = WTF::nullopt;
     m_dataSource = nullptr;
     m_listBufferSize = 0;
     if (m_captureSource) {
@@ -159,8 +159,12 @@ void WebAudioSourceProviderAVFObjC::unprepare()
     }
 }
 
-void WebAudioSourceProviderAVFObjC::audioSamplesAvailable(MediaStreamTrackPrivate&, const MediaTime&, const PlatformAudioData& data, const AudioStreamDescription& description, size_t frameCount)
+// May get called on a background thread.
+void WebAudioSourceProviderAVFObjC::audioSamplesAvailable(MediaStreamTrackPrivate& track, const MediaTime&, const PlatformAudioData& data, const AudioStreamDescription& description, size_t frameCount)
 {
+    if (!track.enabled())
+        return;
+
     ASSERT(description.platformDescription().type == PlatformDescription::CAAudioStreamBasicType);
     auto& basicDescription = *WTF::get<const AudioStreamBasicDescription*>(description.platformDescription().description);
     if (!m_inputDescription || m_inputDescription->streamDescription() != basicDescription)

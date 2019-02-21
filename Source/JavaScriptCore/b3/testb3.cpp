@@ -32,6 +32,7 @@
 #include "B3ArgumentRegValue.h"
 #include "B3AtomicValue.h"
 #include "B3BasicBlockInlines.h"
+#include "B3BreakCriticalEdges.h"
 #include "B3CCallValue.h"
 #include "B3Compilation.h"
 #include "B3Compile.h"
@@ -40,6 +41,7 @@
 #include "B3ConstPtrValue.h"
 #include "B3Effects.h"
 #include "B3FenceValue.h"
+#include "B3FixSSA.h"
 #include "B3Generate.h"
 #include "B3LowerToAir.h"
 #include "B3MathExtras.h"
@@ -67,12 +69,13 @@
 #include "LinkBuffer.h"
 #include "PureNaN.h"
 #include <cmath>
-#include <list>
 #include <string>
 #include <wtf/FastTLS.h>
+#include <wtf/IndexSet.h>
 #include <wtf/ListDump.h>
 #include <wtf/Lock.h>
 #include <wtf/NumberOfCores.h>
+#include <wtf/StdList.h>
 #include <wtf/Threading.h>
 
 // We don't have a NO_RETURN_DUE_TO_EXIT, nor should we. That's ridiculous.
@@ -97,7 +100,7 @@ bool shouldBeVerbose()
     return shouldDumpIR(B3Mode);
 }
 
-StaticLock crashLock;
+Lock crashLock;
 
 // Nothing fancy for now; we just use the existing WTF assertion machinery.
 #define CHECK(x) do {                                                   \
@@ -125,9 +128,10 @@ std::unique_ptr<Compilation> compileProc(Procedure& procedure, unsigned optLevel
 }
 
 template<typename T, typename... Arguments>
-T invoke(MacroAssemblerCodePtr ptr, Arguments... arguments)
+T invoke(MacroAssemblerCodePtr<B3CompilationPtrTag> ptr, Arguments... arguments)
 {
-    T (*function)(Arguments...) = bitwise_cast<T(*)(Arguments...)>(ptr.executableAddress());
+    void* executableAddress = untagCFunctionPtr<B3CompilationPtrTag>(ptr.executableAddress());
+    T (*function)(Arguments...) = bitwise_cast<T(*)(Arguments...)>(executableAddress);
     return function(arguments...);
 }
 
@@ -160,7 +164,7 @@ void lowerToAirForTesting(Procedure& proc)
 }
 
 template<typename Func>
-void checkDisassembly(Compilation& compilation, const Func& func, CString failText)
+void checkDisassembly(Compilation& compilation, const Func& func, const CString& failText)
 {
     CString disassembly = compilation.disassembly();
     if (func(disassembly.data()))
@@ -247,6 +251,10 @@ static Vector<Int64Operand> int64Operands()
     operands.append({ "int64-min", std::numeric_limits<int64_t>::min() });
     operands.append({ "int32-max", std::numeric_limits<int32_t>::max() });
     operands.append({ "int32-min", std::numeric_limits<int32_t>::min() });
+    operands.append({ "uint64-max", static_cast<int64_t>(std::numeric_limits<uint64_t>::max()) });
+    operands.append({ "uint64-min", static_cast<int64_t>(std::numeric_limits<uint64_t>::min()) });
+    operands.append({ "uint32-max", static_cast<int64_t>(std::numeric_limits<uint32_t>::max()) });
+    operands.append({ "uint32-min", static_cast<int64_t>(std::numeric_limits<uint32_t>::min()) });
 
     return operands;
 }
@@ -260,7 +268,9 @@ static Vector<Int32Operand> int32Operands()
         { "42", 42 },
         { "-42", -42 },
         { "int32-max", std::numeric_limits<int32_t>::max() },
-        { "int32-min", std::numeric_limits<int32_t>::min() }
+        { "int32-min", std::numeric_limits<int32_t>::min() },
+        { "uint32-max", static_cast<int32_t>(std::numeric_limits<uint32_t>::max()) },
+        { "uint32-min", static_cast<int32_t>(std::numeric_limits<uint32_t>::min()) }
     });
     return operands;
 }
@@ -597,6 +607,36 @@ void testAddImmMem32(int32_t a, int32_t b)
     int32_t inputOutput = b;
     CHECK(!compileAndRun<int>(proc, &inputOutput));
     CHECK(inputOutput == a + b);
+}
+
+void testAddNeg1(int a, int b)
+{
+    Procedure proc;
+    BasicBlock* root = proc.addBlock();
+    root->appendNewControlValue(
+        proc, Return, Origin(),
+        root->appendNew<Value>(
+            proc, Add, Origin(),
+            root->appendNew<Value>(proc, Neg, Origin(),
+                root->appendNew<ArgumentRegValue>(proc, Origin(), GPRInfo::argumentGPR0)),
+            root->appendNew<ArgumentRegValue>(proc, Origin(), GPRInfo::argumentGPR1)));
+    
+    CHECK(compileAndRun<int>(proc, a, b) == (- a) + b);
+}
+
+void testAddNeg2(int a, int b)
+{
+    Procedure proc;
+    BasicBlock* root = proc.addBlock();
+    root->appendNewControlValue(
+        proc, Return, Origin(),
+        root->appendNew<Value>(
+            proc, Add, Origin(),
+            root->appendNew<ArgumentRegValue>(proc, Origin(), GPRInfo::argumentGPR0),
+            root->appendNew<Value>(proc, Neg, Origin(),
+                root->appendNew<ArgumentRegValue>(proc, Origin(), GPRInfo::argumentGPR1))));
+
+    CHECK(compileAndRun<int>(proc, a, b) == a + (- b));
 }
 
 void testAddArgZeroImmZDef()
@@ -1885,6 +1925,36 @@ void testSubArgImm(int64_t a, int64_t b)
             root->appendNew<Const64Value>(proc, Origin(), b)));
 
     CHECK(compileAndRun<int64_t>(proc, a) == a - b);
+}
+
+void testSubNeg(int a, int b)
+{
+    Procedure proc;
+    BasicBlock* root = proc.addBlock();
+    root->appendNewControlValue(
+        proc, Return, Origin(),
+        root->appendNew<Value>(
+            proc, Sub, Origin(),
+            root->appendNew<ArgumentRegValue>(proc, Origin(), GPRInfo::argumentGPR0),
+            root->appendNew<Value>(proc, Neg, Origin(),
+                root->appendNew<ArgumentRegValue>(proc, Origin(), GPRInfo::argumentGPR1))));
+    
+    CHECK(compileAndRun<int>(proc, a, b) == a - (- b));
+}
+
+void testNegSub(int a, int b)
+{
+    Procedure proc;
+    BasicBlock* root = proc.addBlock();
+    root->appendNewControlValue(
+        proc, Return, Origin(),
+        root->appendNew<Value>(
+            proc, Neg, Origin(),
+            root->appendNew<Value>(proc, Sub, Origin(),
+                root->appendNew<ArgumentRegValue>(proc, Origin(), GPRInfo::argumentGPR0),
+                root->appendNew<ArgumentRegValue>(proc, Origin(), GPRInfo::argumentGPR1))));
+
+    CHECK(compileAndRun<int>(proc, a, b) == -(a - b));
 }
 
 void testNegValueSubOne(int a)
@@ -3451,7 +3521,7 @@ void testBitNotMem32(int32_t a)
     CHECK(isIdentical(input, static_cast<int32_t>((static_cast<uint32_t>(a) ^ 0xffffffff))));
 }
 
-void testBitNotOnBooleanAndBranch32(int64_t a, int64_t b)
+void testNotOnBooleanAndBranch32(int64_t a, int64_t b)
 {
     Procedure proc;
     BasicBlock* root = proc.addBlock();
@@ -3464,7 +3534,7 @@ void testBitNotOnBooleanAndBranch32(int64_t a, int64_t b)
         root->appendNew<ArgumentRegValue>(proc, Origin(), GPRInfo::argumentGPR1));
     Value* argsAreEqual = root->appendNew<Value>(proc, Equal, Origin(), arg1, arg2);
     Value* argsAreNotEqual = root->appendNew<Value>(proc, BitXor, Origin(),
-        root->appendNew<Const32Value>(proc, Origin(), -1),
+        root->appendNew<Const32Value>(proc, Origin(), 1),
         argsAreEqual);
 
     root->appendNewControlValue(
@@ -3481,6 +3551,35 @@ void testBitNotOnBooleanAndBranch32(int64_t a, int64_t b)
         elseCase->appendNew<Const32Value>(proc, Origin(), -42));
 
     int32_t expectedValue = (a != b) ? 42 : -42;
+    CHECK(compileAndRun<int32_t>(proc, a, b) == expectedValue);
+}
+
+void testBitNotOnBooleanAndBranch32(int64_t a, int64_t b)
+{
+    Procedure proc;
+    BasicBlock* root = proc.addBlock();
+    BasicBlock* thenCase = proc.addBlock();
+    BasicBlock* elseCase = proc.addBlock();
+
+    Value* arg1 = root->appendNew<Value>(proc, Trunc, Origin(),
+        root->appendNew<ArgumentRegValue>(proc, Origin(), GPRInfo::argumentGPR0));
+    Value* arg2 = root->appendNew<Value>(proc, Trunc, Origin(),
+        root->appendNew<ArgumentRegValue>(proc, Origin(), GPRInfo::argumentGPR1));
+    Value* argsAreEqual = root->appendNew<Value>(proc, Equal, Origin(), arg1, arg2);
+    Value* bitNotArgsAreEqual = root->appendNew<Value>(proc, BitXor, Origin(),
+        root->appendNew<Const32Value>(proc, Origin(), -1),
+        argsAreEqual);
+
+    root->appendNewControlValue(proc, Branch, Origin(),
+        bitNotArgsAreEqual, FrequentedBlock(thenCase), FrequentedBlock(elseCase));
+
+    thenCase->appendNewControlValue(proc, Return, Origin(),
+        thenCase->appendNew<Const32Value>(proc, Origin(), 42));
+
+    elseCase->appendNewControlValue(proc, Return, Origin(),
+        elseCase->appendNew<Const32Value>(proc, Origin(), -42));
+
+    int32_t expectedValue = ~(a == b) ? 42 : -42; // always 42
     CHECK(compileAndRun<int32_t>(proc, a, b) == expectedValue);
 }
 
@@ -3907,7 +4006,19 @@ void testAbsAbsArg(double a)
     Value* secondAbs = root->appendNew<Value>(proc, Abs, Origin(), firstAbs);
     root->appendNewControlValue(proc, Return, Origin(), secondAbs);
 
-    CHECK(isIdentical(compileAndRun<double>(proc, a), fabs(a)));
+    CHECK(isIdentical(compileAndRun<double>(proc, a), fabs(fabs(a))));
+}
+
+void testAbsNegArg(double a)
+{
+    Procedure proc;
+    BasicBlock* root = proc.addBlock();
+    Value* neg = root->appendNew<Value>(proc, Neg, Origin(),
+        root->appendNew<ArgumentRegValue>(proc, Origin(), FPRInfo::argumentFPR0));
+    Value* abs = root->appendNew<Value>(proc, Abs, Origin(), neg);
+    root->appendNewControlValue(proc, Return, Origin(), abs);
+    
+    CHECK(isIdentical(compileAndRun<double>(proc, a), fabs(- a)));
 }
 
 void testAbsBitwiseCastArg(double a)
@@ -3987,7 +4098,21 @@ void testAbsAbsArg(float a)
     Value* secondAbs = root->appendNew<Value>(proc, Abs, Origin(), firstAbs);
     root->appendNewControlValue(proc, Return, Origin(), secondAbs);
 
-    CHECK(isIdentical(compileAndRun<float>(proc, bitwise_cast<int32_t>(a)), static_cast<float>(fabs(a))));
+    CHECK(isIdentical(compileAndRun<float>(proc, bitwise_cast<int32_t>(a)), static_cast<float>(fabs(fabs(a)))));
+}
+
+void testAbsNegArg(float a)
+{
+    Procedure proc;
+    BasicBlock* root = proc.addBlock();
+    Value* argument32 = root->appendNew<Value>(proc, Trunc, Origin(),
+        root->appendNew<ArgumentRegValue>(proc, Origin(), GPRInfo::argumentGPR0));
+    Value* argument = root->appendNew<Value>(proc, BitwiseCast, Origin(), argument32);
+    Value* neg = root->appendNew<Value>(proc, Neg, Origin(), argument);
+    Value* abs = root->appendNew<Value>(proc, Abs, Origin(), neg);
+    root->appendNewControlValue(proc, Return, Origin(), abs);
+    
+    CHECK(isIdentical(compileAndRun<float>(proc, bitwise_cast<int32_t>(a)), static_cast<float>(fabs(- a))));
 }
 
 void testAbsBitwiseCastArg(float a)
@@ -5463,10 +5588,11 @@ void testStoreConstantPtr(intptr_t value)
     Procedure proc;
     BasicBlock* root = proc.addBlock();
     intptr_t slot;
-    if (is64Bit())
-        slot = (static_cast<intptr_t>(0xbaadbeef) << 32) + static_cast<intptr_t>(0xbaadbeef);
-    else
-        slot = 0xbaadbeef;
+#if CPU(ADDRESS64)
+    slot = (static_cast<intptr_t>(0xbaadbeef) << 32) + static_cast<intptr_t>(0xbaadbeef);
+#else
+    slot = 0xbaadbeef;
+#endif
     root->appendNew<MemoryValue>(
         proc, Store, Origin(),
         root->appendNew<ConstPtrValue>(proc, Origin(), value),
@@ -10226,7 +10352,7 @@ void testCallSimple(int a, int b)
         proc, Return, Origin(),
         root->appendNew<CCallValue>(
             proc, Int32, Origin(),
-            root->appendNew<ConstPtrValue>(proc, Origin(), bitwise_cast<void*>(simpleFunction)),
+            root->appendNew<ConstPtrValue>(proc, Origin(), tagCFunctionPtr<void*>(simpleFunction, B3CCallPtrTag)),
             root->appendNew<ArgumentRegValue>(proc, Origin(), GPRInfo::argumentGPR0),
             root->appendNew<ArgumentRegValue>(proc, Origin(), GPRInfo::argumentGPR1)));
 
@@ -10253,7 +10379,7 @@ void testCallRare(int a, int b)
         proc, Return, Origin(),
         rare->appendNew<CCallValue>(
             proc, Int32, Origin(),
-            rare->appendNew<ConstPtrValue>(proc, Origin(), bitwise_cast<void*>(simpleFunction)),
+            rare->appendNew<ConstPtrValue>(proc, Origin(), tagCFunctionPtr<void*>(simpleFunction, B3CCallPtrTag)),
             rare->appendNew<ArgumentRegValue>(proc, Origin(), GPRInfo::argumentGPR1),
             rare->appendNew<ArgumentRegValue>(proc, Origin(), GPRInfo::argumentGPR2)));
 
@@ -10282,7 +10408,7 @@ void testCallRareLive(int a, int b, int c)
             proc, Add, Origin(),
             rare->appendNew<CCallValue>(
                 proc, Int32, Origin(),
-                rare->appendNew<ConstPtrValue>(proc, Origin(), bitwise_cast<void*>(simpleFunction)),
+                rare->appendNew<ConstPtrValue>(proc, Origin(), tagCFunctionPtr<void*>(simpleFunction, B3CCallPtrTag)),
                 rare->appendNew<ArgumentRegValue>(proc, Origin(), GPRInfo::argumentGPR1),
                 rare->appendNew<ArgumentRegValue>(proc, Origin(), GPRInfo::argumentGPR2)),
             rare->appendNew<Value>(
@@ -10300,7 +10426,7 @@ void testCallSimplePure(int a, int b)
         proc, Return, Origin(),
         root->appendNew<CCallValue>(
             proc, Int32, Origin(), Effects::none(),
-            root->appendNew<ConstPtrValue>(proc, Origin(), bitwise_cast<void*>(simpleFunction)),
+            root->appendNew<ConstPtrValue>(proc, Origin(), tagCFunctionPtr<void*>(simpleFunction, B3CCallPtrTag)),
             root->appendNew<ArgumentRegValue>(proc, Origin(), GPRInfo::argumentGPR0),
             root->appendNew<ArgumentRegValue>(proc, Origin(), GPRInfo::argumentGPR1)));
 
@@ -10323,7 +10449,7 @@ void testCallFunctionWithHellaArguments()
 
     CCallValue* call = root->appendNew<CCallValue>(
         proc, Int32, Origin(),
-        root->appendNew<ConstPtrValue>(proc, Origin(), bitwise_cast<void*>(functionWithHellaArguments)));
+        root->appendNew<ConstPtrValue>(proc, Origin(), tagCFunctionPtr<void*>(functionWithHellaArguments, B3CCallPtrTag)));
     call->children().appendVector(args);
     
     root->appendNewControlValue(proc, Return, Origin(), call);
@@ -10349,7 +10475,7 @@ void testCallFunctionWithHellaArguments2()
 
     CCallValue* call = root->appendNew<CCallValue>(
         proc, Int64, Origin(),
-        root->appendNew<ConstPtrValue>(proc, Origin(), bitwise_cast<void*>(functionWithHellaArguments2)));
+        root->appendNew<ConstPtrValue>(proc, Origin(), tagCFunctionPtr<void*>(functionWithHellaArguments2, B3CCallPtrTag)));
     call->children().appendVector(args);
     
     root->appendNewControlValue(proc, Return, Origin(), call);
@@ -10371,7 +10497,7 @@ void testCallFunctionWithHellaArguments3()
 
     CCallValue* call = root->appendNew<CCallValue>(
         proc, Int32, Origin(),
-        root->appendNew<ConstPtrValue>(proc, Origin(), bitwise_cast<void*>(functionWithHellaArguments3)));
+        root->appendNew<ConstPtrValue>(proc, Origin(), tagCFunctionPtr<void*>(functionWithHellaArguments3, B3CCallPtrTag)));
     call->children().appendVector(args);
     
     root->appendNewControlValue(proc, Return, Origin(), call);
@@ -10422,7 +10548,7 @@ void testCallSimpleDouble(double a, double b)
         proc, Return, Origin(),
         root->appendNew<CCallValue>(
             proc, Double, Origin(),
-            root->appendNew<ConstPtrValue>(proc, Origin(), bitwise_cast<void*>(simpleFunctionDouble)),
+            root->appendNew<ConstPtrValue>(proc, Origin(), tagCFunctionPtr<void*>(simpleFunctionDouble, B3CCallPtrTag)),
             root->appendNew<ArgumentRegValue>(proc, Origin(), FPRInfo::argumentFPR0),
             root->appendNew<ArgumentRegValue>(proc, Origin(), FPRInfo::argumentFPR1)));
 
@@ -10448,7 +10574,7 @@ void testCallSimpleFloat(float a, float b)
         proc, Return, Origin(),
         root->appendNew<CCallValue>(
             proc, Float, Origin(),
-            root->appendNew<ConstPtrValue>(proc, Origin(), bitwise_cast<void*>(simpleFunctionFloat)),
+            root->appendNew<ConstPtrValue>(proc, Origin(), tagCFunctionPtr<void*>(simpleFunctionFloat, B3CCallPtrTag)),
             floatValue1,
             floatValue2));
 
@@ -10471,7 +10597,7 @@ void testCallFunctionWithHellaDoubleArguments()
 
     CCallValue* call = root->appendNew<CCallValue>(
         proc, Double, Origin(),
-        root->appendNew<ConstPtrValue>(proc, Origin(), bitwise_cast<void*>(functionWithHellaDoubleArguments)));
+        root->appendNew<ConstPtrValue>(proc, Origin(), tagCFunctionPtr<void*>(functionWithHellaDoubleArguments, B3CCallPtrTag)));
     call->children().appendVector(args);
     
     root->appendNewControlValue(proc, Return, Origin(), call);
@@ -10495,7 +10621,7 @@ void testCallFunctionWithHellaFloatArguments()
 
     CCallValue* call = root->appendNew<CCallValue>(
         proc, Float, Origin(),
-        root->appendNew<ConstPtrValue>(proc, Origin(), bitwise_cast<void*>(functionWithHellaFloatArguments)));
+        root->appendNew<ConstPtrValue>(proc, Origin(), tagCFunctionPtr<void*>(functionWithHellaFloatArguments, B3CCallPtrTag)));
     call->children().appendVector(args);
     
     root->appendNewControlValue(proc, Return, Origin(), call);
@@ -10518,7 +10644,7 @@ void testLinearScanWithCalleeOnStack()
         proc, Return, Origin(),
         root->appendNew<CCallValue>(
             proc, Int32, Origin(),
-            root->appendNew<ConstPtrValue>(proc, Origin(), bitwise_cast<void*>(simpleFunction)),
+            root->appendNew<ConstPtrValue>(proc, Origin(), tagCFunctionPtr<void*>(simpleFunction, B3CCallPtrTag)),
             root->appendNew<ArgumentRegValue>(proc, Origin(), GPRInfo::argumentGPR0),
             root->appendNew<ArgumentRegValue>(proc, Origin(), GPRInfo::argumentGPR1)));
 
@@ -10818,6 +10944,49 @@ void testChillModImms32(int32_t numerator, int32_t denominator)
     root->appendNewControlValue(proc, Return, Origin(), result);
 
     CHECK(compileAndRun<int32_t>(proc, numerator, denominator) == chillMod(numerator, denominator));
+}
+
+void testLoopWithMultipleHeaderEdges()
+{
+    Procedure proc;
+    BasicBlock* root = proc.addBlock();
+    BasicBlock* innerHeader = proc.addBlock();
+    BasicBlock* innerEnd = proc.addBlock();
+    BasicBlock* outerHeader = proc.addBlock();
+    BasicBlock* outerEnd = proc.addBlock();
+    BasicBlock* end = proc.addBlock();
+
+    auto* ne42 = outerHeader->appendNew<Value>(
+        proc, NotEqual, Origin(),
+        root->appendNew<ArgumentRegValue>(proc, Origin(), GPRInfo::argumentGPR0),
+        root->appendNew<ConstPtrValue>(proc, Origin(), 42));
+    outerHeader->appendNewControlValue(
+        proc, Branch, Origin(),
+        ne42,
+        FrequentedBlock(innerHeader), FrequentedBlock(outerEnd));
+    outerEnd->appendNewControlValue(
+        proc, Branch, Origin(),
+        root->appendNew<Value>(
+            proc, Trunc, Origin(),
+            root->appendNew<ArgumentRegValue>(proc, Origin(), GPRInfo::argumentGPR0)),
+        FrequentedBlock(outerHeader), FrequentedBlock(end));
+
+    SwitchValue* switchValue = innerHeader->appendNew<SwitchValue>(
+        proc, Origin(), root->appendNew<ArgumentRegValue>(proc, Origin(), GPRInfo::argumentGPR1));
+    switchValue->setFallThrough(FrequentedBlock(innerEnd));
+    for (unsigned i = 0; i < 20; ++i) {
+        switchValue->appendCase(SwitchCase(i, FrequentedBlock(innerHeader)));
+    }
+
+    root->appendNewControlValue(proc, Jump, Origin(), FrequentedBlock(outerHeader));
+
+    innerEnd->appendNewControlValue(proc, Jump, Origin(), FrequentedBlock(outerEnd));
+    end->appendNewControlValue(
+        proc, Return, Origin(),
+        end->appendNew<Const32Value>(proc, Origin(), 5678));
+
+    auto code = compileProc(proc); // This shouldn't crash in computing NaturalLoops.
+    CHECK(invoke<int32_t>(*code, 0, 12345) == 5678);
 }
 
 void testSwitch(unsigned degree, unsigned gap = 1)
@@ -13026,8 +13195,8 @@ void testInterpreter()
             AllowMacroScratchRegisterUsage allowScratch(jit);
             Vector<Box<CCallHelpers::Label>> labels = params.successorLabels();
 
-            MacroAssemblerCodePtr* jumpTable = bitwise_cast<MacroAssemblerCodePtr*>(
-                params.proc().addDataSection(sizeof(MacroAssemblerCodePtr) * labels.size()));
+            MacroAssemblerCodePtr<B3CompilationPtrTag>* jumpTable = bitwise_cast<MacroAssemblerCodePtr<B3CompilationPtrTag>*>(
+                params.proc().addDataSection(sizeof(MacroAssemblerCodePtr<B3CompilationPtrTag>) * labels.size()));
 
             GPRReg scratch = params.gpScratch(0);
             GPRReg poisonScratch = params.gpScratch(1);
@@ -13036,12 +13205,12 @@ void testInterpreter()
             jit.move(CCallHelpers::TrustedImm64(JITCodePoison::key()), poisonScratch);
             jit.load64(CCallHelpers::BaseIndex(scratch, params[0].gpr(), CCallHelpers::timesPtr()), scratch);
             jit.xor64(poisonScratch, scratch);
-            jit.jump(scratch);
+            jit.jump(scratch, B3CompilationPtrTag);
 
             jit.addLinkTask(
                 [&, jumpTable, labels] (LinkBuffer& linkBuffer) {
                     for (unsigned i = labels.size(); i--;)
-                        jumpTable[i] = linkBuffer.locationOf(*labels[i]);
+                        jumpTable[i] = linkBuffer.locationOf<B3CompilationPtrTag>(*labels[i]);
                 });
         });
     
@@ -13124,7 +13293,7 @@ void testInterpreter()
     print->appendNew<CCallValue>(
         proc, Void, Origin(),
         print->appendNew<ConstPtrValue>(
-            proc, Origin(), bitwise_cast<void*>(interpreterPrint)),
+            proc, Origin(), tagCFunctionPtr<void*>(interpreterPrint, B3CCallPtrTag)),
         context,
         print->appendNew<MemoryValue>(proc, Load, pointerType(), Origin(), dataPointerValue));
     print->appendNew<VariableValue>(
@@ -13141,9 +13310,9 @@ void testInterpreter()
     
     auto interpreter = compileProc(proc);
     
-    Vector<intptr_t> data;
-    Vector<intptr_t> code;
-    Vector<intptr_t> stream;
+    Vector<uintptr_t> data;
+    Vector<uintptr_t> code;
+    Vector<uintptr_t> stream;
     
     data.append(1);
     data.append(0);
@@ -13290,12 +13459,12 @@ void testEntrySwitchSimple()
     CCallHelpers jit;
     generate(proc, jit);
     LinkBuffer linkBuffer(jit, nullptr);
-    CodeLocationLabel labelOne = linkBuffer.locationOf(proc.entrypointLabel(0));
-    CodeLocationLabel labelTwo = linkBuffer.locationOf(proc.entrypointLabel(1));
-    CodeLocationLabel labelThree = linkBuffer.locationOf(proc.entrypointLabel(2));
-    
-    MacroAssemblerCodeRef codeRef = FINALIZE_CODE(linkBuffer, "testb3 compilation");
-    
+    CodeLocationLabel<B3CompilationPtrTag> labelOne = linkBuffer.locationOf<B3CompilationPtrTag>(proc.entrypointLabel(0));
+    CodeLocationLabel<B3CompilationPtrTag> labelTwo = linkBuffer.locationOf<B3CompilationPtrTag>(proc.entrypointLabel(1));
+    CodeLocationLabel<B3CompilationPtrTag> labelThree = linkBuffer.locationOf<B3CompilationPtrTag>(proc.entrypointLabel(2));
+
+    MacroAssemblerCodeRef<B3CompilationPtrTag> codeRef = FINALIZE_CODE(linkBuffer, B3CompilationPtrTag, "testb3 compilation");
+
     CHECK(invoke<int>(labelOne, 1, 2) == 3);
     CHECK(invoke<int>(labelTwo, 1, 2) == -1);
     CHECK(invoke<int>(labelThree, 1, 2) == 2);
@@ -13323,12 +13492,12 @@ void testEntrySwitchNoEntrySwitch()
     CCallHelpers jit;
     generate(proc, jit);
     LinkBuffer linkBuffer(jit, nullptr);
-    CodeLocationLabel labelOne = linkBuffer.locationOf(proc.entrypointLabel(0));
-    CodeLocationLabel labelTwo = linkBuffer.locationOf(proc.entrypointLabel(1));
-    CodeLocationLabel labelThree = linkBuffer.locationOf(proc.entrypointLabel(2));
-    
-    MacroAssemblerCodeRef codeRef = FINALIZE_CODE(linkBuffer, "testb3 compilation");
-    
+    CodeLocationLabel<B3CompilationPtrTag> labelOne = linkBuffer.locationOf<B3CompilationPtrTag>(proc.entrypointLabel(0));
+    CodeLocationLabel<B3CompilationPtrTag> labelTwo = linkBuffer.locationOf<B3CompilationPtrTag>(proc.entrypointLabel(1));
+    CodeLocationLabel<B3CompilationPtrTag> labelThree = linkBuffer.locationOf<B3CompilationPtrTag>(proc.entrypointLabel(2));
+
+    MacroAssemblerCodeRef<B3CompilationPtrTag> codeRef = FINALIZE_CODE(linkBuffer, B3CompilationPtrTag, "testb3 compilation");
+
     CHECK_EQ(invoke<int>(labelOne, 1, 2), 3);
     CHECK_EQ(invoke<int>(labelTwo, 1, 2), 3);
     CHECK_EQ(invoke<int>(labelThree, 1, 2), 3);
@@ -13410,12 +13579,12 @@ void testEntrySwitchWithCommonPaths()
     CCallHelpers jit;
     generate(proc, jit);
     LinkBuffer linkBuffer(jit, nullptr);
-    CodeLocationLabel labelOne = linkBuffer.locationOf(proc.entrypointLabel(0));
-    CodeLocationLabel labelTwo = linkBuffer.locationOf(proc.entrypointLabel(1));
-    CodeLocationLabel labelThree = linkBuffer.locationOf(proc.entrypointLabel(2));
-    
-    MacroAssemblerCodeRef codeRef = FINALIZE_CODE(linkBuffer, "testb3 compilation");
-    
+    CodeLocationLabel<B3CompilationPtrTag> labelOne = linkBuffer.locationOf<B3CompilationPtrTag>(proc.entrypointLabel(0));
+    CodeLocationLabel<B3CompilationPtrTag> labelTwo = linkBuffer.locationOf<B3CompilationPtrTag>(proc.entrypointLabel(1));
+    CodeLocationLabel<B3CompilationPtrTag> labelThree = linkBuffer.locationOf<B3CompilationPtrTag>(proc.entrypointLabel(2));
+
+    MacroAssemblerCodeRef<B3CompilationPtrTag> codeRef = FINALIZE_CODE(linkBuffer, B3CompilationPtrTag, "testb3 compilation");
+
     CHECK_EQ(invoke<int>(labelOne, 1, 2, 10), 3);
     CHECK_EQ(invoke<int>(labelTwo, 1, 2, 10), -1);
     CHECK_EQ(invoke<int>(labelThree, 1, 2, 10), 2);
@@ -13527,12 +13696,12 @@ void testEntrySwitchWithCommonPathsAndNonTrivialEntrypoint()
     CCallHelpers jit;
     generate(proc, jit);
     LinkBuffer linkBuffer(jit, nullptr);
-    CodeLocationLabel labelOne = linkBuffer.locationOf(proc.entrypointLabel(0));
-    CodeLocationLabel labelTwo = linkBuffer.locationOf(proc.entrypointLabel(1));
-    CodeLocationLabel labelThree = linkBuffer.locationOf(proc.entrypointLabel(2));
-    
-    MacroAssemblerCodeRef codeRef = FINALIZE_CODE(linkBuffer, "testb3 compilation");
-    
+    CodeLocationLabel<B3CompilationPtrTag> labelOne = linkBuffer.locationOf<B3CompilationPtrTag>(proc.entrypointLabel(0));
+    CodeLocationLabel<B3CompilationPtrTag> labelTwo = linkBuffer.locationOf<B3CompilationPtrTag>(proc.entrypointLabel(1));
+    CodeLocationLabel<B3CompilationPtrTag> labelThree = linkBuffer.locationOf<B3CompilationPtrTag>(proc.entrypointLabel(2));
+
+    MacroAssemblerCodeRef<B3CompilationPtrTag> codeRef = FINALIZE_CODE(linkBuffer, B3CompilationPtrTag, "testb3 compilation");
+
     CHECK_EQ(invoke<int>(labelOne, 1, 2, 10, false), 3);
     CHECK_EQ(invoke<int>(labelTwo, 1, 2, 10, false), -1);
     CHECK_EQ(invoke<int>(labelThree, 1, 2, 10, false), 2);
@@ -13605,10 +13774,10 @@ void testEntrySwitchLoop()
     CCallHelpers jit;
     generate(proc, jit);
     LinkBuffer linkBuffer(jit, nullptr);
-    CodeLocationLabel labelOne = linkBuffer.locationOf(proc.entrypointLabel(0));
-    CodeLocationLabel labelTwo = linkBuffer.locationOf(proc.entrypointLabel(1));
-    
-    MacroAssemblerCodeRef codeRef = FINALIZE_CODE(linkBuffer, "testb3 compilation");
+    CodeLocationLabel<B3CompilationPtrTag> labelOne = linkBuffer.locationOf<B3CompilationPtrTag>(proc.entrypointLabel(0));
+    CodeLocationLabel<B3CompilationPtrTag> labelTwo = linkBuffer.locationOf<B3CompilationPtrTag>(proc.entrypointLabel(1));
+
+    MacroAssemblerCodeRef<B3CompilationPtrTag> codeRef = FINALIZE_CODE(linkBuffer, B3CompilationPtrTag, "testb3 compilation");
 
     CHECK(invoke<int>(labelOne, 0) == 1);
     CHECK(invoke<int>(labelOne, 42) == 43);
@@ -14444,7 +14613,7 @@ void testAddShl32()
     root->appendNew<Value>(proc, Return, Origin(), result);
     
     auto code = compileProc(proc);
-    CHECK_EQ(invoke<intptr_t>(*code, 1, 2), 1 + (static_cast<intptr_t>(2) << static_cast<intptr_t>(32)));
+    CHECK_EQ(invoke<int64_t>(*code, 1, 2), 1 + (static_cast<int64_t>(2) << static_cast<int64_t>(32)));
 }
 
 void testAddShl64()
@@ -14554,6 +14723,7 @@ void testLoadBaseIndexShift2()
 
 void testLoadBaseIndexShift32()
 {
+#if CPU(ADDRESS64)
     Procedure proc;
     BasicBlock* root = proc.addBlock();
     root->appendNew<Value>(
@@ -14572,6 +14742,7 @@ void testLoadBaseIndexShift32()
     char* ptr = bitwise_cast<char*>(&value);
     for (unsigned i = 0; i < 10; ++i)
         CHECK_EQ(invoke<int32_t>(*code, ptr - (static_cast<intptr_t>(1) << static_cast<intptr_t>(32)) * i, i), 12341234);
+#endif
 }
 
 void testOptimizeMaterialization()
@@ -14710,7 +14881,7 @@ void testLICMPure()
         [&] (BasicBlock* loop, Value*) -> Value* {
             return loop->appendNew<CCallValue>(
                 proc, Int32, Origin(), Effects::none(),
-                loop->appendNew<ConstPtrValue>(proc, Origin(), bitwise_cast<void*>(oneFunction)),
+                loop->appendNew<ConstPtrValue>(proc, Origin(), tagCFunctionPtr<void*>(oneFunction, B3CCallPtrTag)),
                 loop->appendNew<ArgumentRegValue>(proc, Origin(), GPRInfo::argumentGPR0));
         });
     
@@ -14729,11 +14900,11 @@ void testLICMPureSideExits()
             effects.exitsSideways = true;
             loop->appendNew<CCallValue>(
                 proc, Void, Origin(), effects,
-                loop->appendNew<ConstPtrValue>(proc, Origin(), bitwise_cast<void*>(noOpFunction)));
+                loop->appendNew<ConstPtrValue>(proc, Origin(), tagCFunctionPtr<void*>(noOpFunction, B3CCallPtrTag)));
 
             return loop->appendNew<CCallValue>(
                 proc, Int32, Origin(), Effects::none(),
-                loop->appendNew<ConstPtrValue>(proc, Origin(), bitwise_cast<void*>(oneFunction)),
+                loop->appendNew<ConstPtrValue>(proc, Origin(), tagCFunctionPtr<void*>(oneFunction, B3CCallPtrTag)),
                 loop->appendNew<ArgumentRegValue>(proc, Origin(), GPRInfo::argumentGPR0));
         });
     
@@ -14752,11 +14923,11 @@ void testLICMPureWritesPinned()
             effects.writesPinned = true;
             loop->appendNew<CCallValue>(
                 proc, Void, Origin(), effects,
-                loop->appendNew<ConstPtrValue>(proc, Origin(), bitwise_cast<void*>(noOpFunction)));
+                loop->appendNew<ConstPtrValue>(proc, Origin(), tagCFunctionPtr<void*>(noOpFunction, B3CCallPtrTag)));
 
             return loop->appendNew<CCallValue>(
                 proc, Int32, Origin(), Effects::none(),
-                loop->appendNew<ConstPtrValue>(proc, Origin(), bitwise_cast<void*>(oneFunction)),
+                loop->appendNew<ConstPtrValue>(proc, Origin(), tagCFunctionPtr<void*>(oneFunction, B3CCallPtrTag)),
                 loop->appendNew<ArgumentRegValue>(proc, Origin(), GPRInfo::argumentGPR0));
         });
     
@@ -14775,11 +14946,11 @@ void testLICMPureWrites()
             effects.writes = HeapRange(63479);
             loop->appendNew<CCallValue>(
                 proc, Void, Origin(), effects,
-                loop->appendNew<ConstPtrValue>(proc, Origin(), bitwise_cast<void*>(noOpFunction)));
+                loop->appendNew<ConstPtrValue>(proc, Origin(), tagCFunctionPtr<void*>(noOpFunction, B3CCallPtrTag)));
 
             return loop->appendNew<CCallValue>(
                 proc, Int32, Origin(), Effects::none(),
-                loop->appendNew<ConstPtrValue>(proc, Origin(), bitwise_cast<void*>(oneFunction)),
+                loop->appendNew<ConstPtrValue>(proc, Origin(), tagCFunctionPtr<void*>(oneFunction, B3CCallPtrTag)),
                 loop->appendNew<ArgumentRegValue>(proc, Origin(), GPRInfo::argumentGPR0));
         });
     
@@ -14798,7 +14969,7 @@ void testLICMReadsLocalState()
             effects.readsLocalState = true;
             return loop->appendNew<CCallValue>(
                 proc, Int32, Origin(), effects,
-                loop->appendNew<ConstPtrValue>(proc, Origin(), bitwise_cast<void*>(oneFunction)),
+                loop->appendNew<ConstPtrValue>(proc, Origin(), tagCFunctionPtr<void*>(oneFunction, B3CCallPtrTag)),
                 loop->appendNew<ArgumentRegValue>(proc, Origin(), GPRInfo::argumentGPR0));
         });
     
@@ -14817,7 +14988,7 @@ void testLICMReadsPinned()
             effects.readsPinned = true;
             return loop->appendNew<CCallValue>(
                 proc, Int32, Origin(), effects,
-                loop->appendNew<ConstPtrValue>(proc, Origin(), bitwise_cast<void*>(oneFunction)),
+                loop->appendNew<ConstPtrValue>(proc, Origin(), tagCFunctionPtr<void*>(oneFunction, B3CCallPtrTag)),
                 loop->appendNew<ArgumentRegValue>(proc, Origin(), GPRInfo::argumentGPR0));
         });
     
@@ -14836,7 +15007,7 @@ void testLICMReads()
             effects.reads = HeapRange::top();
             return loop->appendNew<CCallValue>(
                 proc, Int32, Origin(), effects,
-                loop->appendNew<ConstPtrValue>(proc, Origin(), bitwise_cast<void*>(oneFunction)),
+                loop->appendNew<ConstPtrValue>(proc, Origin(), tagCFunctionPtr<void*>(oneFunction, B3CCallPtrTag)),
                 loop->appendNew<ArgumentRegValue>(proc, Origin(), GPRInfo::argumentGPR0));
         });
     
@@ -14854,7 +15025,7 @@ void testLICMPureNotBackwardsDominant()
         [&] (BasicBlock* loop, Value*) -> Value* {
             return loop->appendNew<CCallValue>(
                 proc, Int32, Origin(), Effects::none(),
-                loop->appendNew<ConstPtrValue>(proc, Origin(), bitwise_cast<void*>(oneFunction)),
+                loop->appendNew<ConstPtrValue>(proc, Origin(), tagCFunctionPtr<void*>(oneFunction, B3CCallPtrTag)),
                 loop->appendNew<ArgumentRegValue>(proc, Origin(), GPRInfo::argumentGPR0));
         });
     
@@ -14871,7 +15042,7 @@ void testLICMPureFoiledByChild()
         [&] (BasicBlock* loop, Value* index) -> Value* {
             return loop->appendNew<CCallValue>(
                 proc, Int32, Origin(), Effects::none(),
-                loop->appendNew<ConstPtrValue>(proc, Origin(), bitwise_cast<void*>(oneFunction)),
+                loop->appendNew<ConstPtrValue>(proc, Origin(), tagCFunctionPtr<void*>(oneFunction, B3CCallPtrTag)),
                 loop->appendNew<ArgumentRegValue>(proc, Origin(), GPRInfo::argumentGPR0),
                 index);
         });
@@ -14890,7 +15061,7 @@ void testLICMPureNotBackwardsDominantFoiledByChild()
         [&] (BasicBlock* loop, Value* index) -> Value* {
             return loop->appendNew<CCallValue>(
                 proc, Int32, Origin(), Effects::none(),
-                loop->appendNew<ConstPtrValue>(proc, Origin(), bitwise_cast<void*>(oneFunction)),
+                loop->appendNew<ConstPtrValue>(proc, Origin(), tagCFunctionPtr<void*>(oneFunction, B3CCallPtrTag)),
                 loop->appendNew<ArgumentRegValue>(proc, Origin(), GPRInfo::argumentGPR0),
                 index);
         });
@@ -14910,7 +15081,7 @@ void testLICMExitsSideways()
             effects.exitsSideways = true;
             return loop->appendNew<CCallValue>(
                 proc, Int32, Origin(), effects,
-                loop->appendNew<ConstPtrValue>(proc, Origin(), bitwise_cast<void*>(oneFunction)),
+                loop->appendNew<ConstPtrValue>(proc, Origin(), tagCFunctionPtr<void*>(oneFunction, B3CCallPtrTag)),
                 loop->appendNew<ArgumentRegValue>(proc, Origin(), GPRInfo::argumentGPR0));
         });
     
@@ -14929,7 +15100,7 @@ void testLICMWritesLocalState()
             effects.writesLocalState = true;
             return loop->appendNew<CCallValue>(
                 proc, Int32, Origin(), effects,
-                loop->appendNew<ConstPtrValue>(proc, Origin(), bitwise_cast<void*>(oneFunction)),
+                loop->appendNew<ConstPtrValue>(proc, Origin(), tagCFunctionPtr<void*>(oneFunction, B3CCallPtrTag)),
                 loop->appendNew<ArgumentRegValue>(proc, Origin(), GPRInfo::argumentGPR0));
         });
     
@@ -14948,7 +15119,7 @@ void testLICMWrites()
             effects.writes = HeapRange(666);
             return loop->appendNew<CCallValue>(
                 proc, Int32, Origin(), effects,
-                loop->appendNew<ConstPtrValue>(proc, Origin(), bitwise_cast<void*>(oneFunction)),
+                loop->appendNew<ConstPtrValue>(proc, Origin(), tagCFunctionPtr<void*>(oneFunction, B3CCallPtrTag)),
                 loop->appendNew<ArgumentRegValue>(proc, Origin(), GPRInfo::argumentGPR0));
         });
     
@@ -14967,7 +15138,7 @@ void testLICMFence()
             effects.fence = true;
             return loop->appendNew<CCallValue>(
                 proc, Int32, Origin(), effects,
-                loop->appendNew<ConstPtrValue>(proc, Origin(), bitwise_cast<void*>(oneFunction)),
+                loop->appendNew<ConstPtrValue>(proc, Origin(), tagCFunctionPtr<void*>(oneFunction, B3CCallPtrTag)),
                 loop->appendNew<ArgumentRegValue>(proc, Origin(), GPRInfo::argumentGPR0));
         });
     
@@ -14986,7 +15157,7 @@ void testLICMWritesPinned()
             effects.writesPinned = true;
             return loop->appendNew<CCallValue>(
                 proc, Int32, Origin(), effects,
-                loop->appendNew<ConstPtrValue>(proc, Origin(), bitwise_cast<void*>(oneFunction)),
+                loop->appendNew<ConstPtrValue>(proc, Origin(), tagCFunctionPtr<void*>(oneFunction, B3CCallPtrTag)),
                 loop->appendNew<ArgumentRegValue>(proc, Origin(), GPRInfo::argumentGPR0));
         });
     
@@ -15005,7 +15176,7 @@ void testLICMControlDependent()
             effects.controlDependent = true;
             return loop->appendNew<CCallValue>(
                 proc, Int32, Origin(), effects,
-                loop->appendNew<ConstPtrValue>(proc, Origin(), bitwise_cast<void*>(oneFunction)),
+                loop->appendNew<ConstPtrValue>(proc, Origin(), tagCFunctionPtr<void*>(oneFunction, B3CCallPtrTag)),
                 loop->appendNew<ArgumentRegValue>(proc, Origin(), GPRInfo::argumentGPR0));
         });
     
@@ -15025,7 +15196,7 @@ void testLICMControlDependentNotBackwardsDominant()
             effects.controlDependent = true;
             return loop->appendNew<CCallValue>(
                 proc, Int32, Origin(), effects,
-                loop->appendNew<ConstPtrValue>(proc, Origin(), bitwise_cast<void*>(oneFunction)),
+                loop->appendNew<ConstPtrValue>(proc, Origin(), tagCFunctionPtr<void*>(oneFunction, B3CCallPtrTag)),
                 loop->appendNew<ArgumentRegValue>(proc, Origin(), GPRInfo::argumentGPR0));
         });
     
@@ -15044,13 +15215,13 @@ void testLICMControlDependentSideExits()
             effects.exitsSideways = true;
             loop->appendNew<CCallValue>(
                 proc, Void, Origin(), effects,
-                loop->appendNew<ConstPtrValue>(proc, Origin(), bitwise_cast<void*>(noOpFunction)));
+                loop->appendNew<ConstPtrValue>(proc, Origin(), tagCFunctionPtr<void*>(noOpFunction, B3CCallPtrTag)));
             
             effects = Effects::none();
             effects.controlDependent = true;
             return loop->appendNew<CCallValue>(
                 proc, Int32, Origin(), effects,
-                loop->appendNew<ConstPtrValue>(proc, Origin(), bitwise_cast<void*>(oneFunction)),
+                loop->appendNew<ConstPtrValue>(proc, Origin(), tagCFunctionPtr<void*>(oneFunction, B3CCallPtrTag)),
                 loop->appendNew<ArgumentRegValue>(proc, Origin(), GPRInfo::argumentGPR0));
         });
     
@@ -15069,13 +15240,13 @@ void testLICMReadsPinnedWritesPinned()
             effects.writesPinned = true;
             loop->appendNew<CCallValue>(
                 proc, Void, Origin(), effects,
-                loop->appendNew<ConstPtrValue>(proc, Origin(), bitwise_cast<void*>(noOpFunction)));
+                loop->appendNew<ConstPtrValue>(proc, Origin(), tagCFunctionPtr<void*>(noOpFunction, B3CCallPtrTag)));
             
             effects = Effects::none();
             effects.readsPinned = true;
             return loop->appendNew<CCallValue>(
                 proc, Int32, Origin(), effects,
-                loop->appendNew<ConstPtrValue>(proc, Origin(), bitwise_cast<void*>(oneFunction)),
+                loop->appendNew<ConstPtrValue>(proc, Origin(), tagCFunctionPtr<void*>(oneFunction, B3CCallPtrTag)),
                 loop->appendNew<ArgumentRegValue>(proc, Origin(), GPRInfo::argumentGPR0));
         });
     
@@ -15094,13 +15265,13 @@ void testLICMReadsWritesDifferentHeaps()
             effects.writes = HeapRange(6436);
             loop->appendNew<CCallValue>(
                 proc, Void, Origin(), effects,
-                loop->appendNew<ConstPtrValue>(proc, Origin(), bitwise_cast<void*>(noOpFunction)));
+                loop->appendNew<ConstPtrValue>(proc, Origin(), tagCFunctionPtr<void*>(noOpFunction, B3CCallPtrTag)));
             
             effects = Effects::none();
             effects.reads = HeapRange(4886);
             return loop->appendNew<CCallValue>(
                 proc, Int32, Origin(), effects,
-                loop->appendNew<ConstPtrValue>(proc, Origin(), bitwise_cast<void*>(oneFunction)),
+                loop->appendNew<ConstPtrValue>(proc, Origin(), tagCFunctionPtr<void*>(oneFunction, B3CCallPtrTag)),
                 loop->appendNew<ArgumentRegValue>(proc, Origin(), GPRInfo::argumentGPR0));
         });
     
@@ -15119,13 +15290,13 @@ void testLICMReadsWritesOverlappingHeaps()
             effects.writes = HeapRange(6436, 74458);
             loop->appendNew<CCallValue>(
                 proc, Void, Origin(), effects,
-                loop->appendNew<ConstPtrValue>(proc, Origin(), bitwise_cast<void*>(noOpFunction)));
+                loop->appendNew<ConstPtrValue>(proc, Origin(), tagCFunctionPtr<void*>(noOpFunction, B3CCallPtrTag)));
             
             effects = Effects::none();
             effects.reads = HeapRange(48864, 78239);
             return loop->appendNew<CCallValue>(
                 proc, Int32, Origin(), effects,
-                loop->appendNew<ConstPtrValue>(proc, Origin(), bitwise_cast<void*>(oneFunction)),
+                loop->appendNew<ConstPtrValue>(proc, Origin(), tagCFunctionPtr<void*>(oneFunction, B3CCallPtrTag)),
                 loop->appendNew<ArgumentRegValue>(proc, Origin(), GPRInfo::argumentGPR0));
         });
     
@@ -15142,7 +15313,7 @@ void testLICMDefaultCall()
         [&] (BasicBlock* loop, Value*) -> Value* {
             return loop->appendNew<CCallValue>(
                 proc, Int32, Origin(),
-                loop->appendNew<ConstPtrValue>(proc, Origin(), bitwise_cast<void*>(oneFunction)),
+                loop->appendNew<ConstPtrValue>(proc, Origin(), tagCFunctionPtr<void*>(oneFunction, B3CCallPtrTag)),
                 loop->appendNew<ArgumentRegValue>(proc, Origin(), GPRInfo::argumentGPR0));
         });
     
@@ -15865,18 +16036,11 @@ void testDepend64()
     CHECK_EQ(invoke<int64_t>(*code, values), 42 + 0xbeef);
 }
 
-enum class UseIndexingMaskGPR { No, Yes };
-void testWasmBoundsCheck(unsigned offset, UseIndexingMaskGPR useIndexingMask)
+void testWasmBoundsCheck(unsigned offset)
 {
     Procedure proc;
     GPRReg pinned = GPRInfo::argumentGPR1;
-    GPRReg indexingMask = InvalidGPRReg;
     proc.pinRegister(pinned);
-
-    if (useIndexingMask == UseIndexingMaskGPR::Yes) {
-        indexingMask = GPRInfo::argumentGPR2;
-        proc.pinRegister(indexingMask);
-    }
 
     proc.setWasmBoundsCheckGenerator([=] (CCallHelpers& jit, GPRReg pinnedGPR) {
         CHECK_EQ(pinnedGPR, pinned);
@@ -15892,20 +16056,19 @@ void testWasmBoundsCheck(unsigned offset, UseIndexingMaskGPR useIndexingMask)
     Value* left = root->appendNew<ArgumentRegValue>(proc, Origin(), GPRInfo::argumentGPR0);
     if (pointerType() != Int32)
         left = root->appendNew<Value>(proc, Trunc, Origin(), left);
-    root->appendNew<WasmBoundsCheckValue>(proc, Origin(), pinned, indexingMask, left, offset);
+    root->appendNew<WasmBoundsCheckValue>(proc, Origin(), pinned, left, offset);
     Value* result = root->appendNew<Const32Value>(proc, Origin(), 0x42);
     root->appendNewControlValue(proc, Return, Origin(), result);
 
     auto code = compileProc(proc);
     uint32_t bound = 2 + offset;
-    uint32_t mask = WTF::computeIndexingMask(bound);
     auto computeResult = [&] (uint32_t input) {
         return input + offset < bound ? 0x42 : 42;
     };
 
-    CHECK_EQ(invoke<int32_t>(*code, 1, bound, mask), computeResult(1));
-    CHECK_EQ(invoke<int32_t>(*code, 3, bound, mask), computeResult(3));
-    CHECK_EQ(invoke<int32_t>(*code, 2, bound, mask), computeResult(2));
+    CHECK_EQ(invoke<int32_t>(*code, 1, bound), computeResult(1));
+    CHECK_EQ(invoke<int32_t>(*code, 3, bound), computeResult(3));
+    CHECK_EQ(invoke<int32_t>(*code, 2, bound), computeResult(2));
 }
 
 void testWasmAddress()
@@ -16015,7 +16178,7 @@ NEVER_INLINE bool doubleLte(double a, double b) { return a <= b; }
 void testDoubleLiteralComparison(double a, double b)
 {
     using Test = std::tuple<B3::Opcode, bool (*)(double, double)>;
-    std::list<Test> tests = {
+    StdList<Test> tests = {
         Test { NotEqual, doubleNeq },
         Test { Equal, doubleEq },
         Test { EqualOrUnordered, doubleEq },
@@ -16069,7 +16232,7 @@ void testFloatEqualOrUnorderedFolding()
 
 void testFloatEqualOrUnorderedFoldingNaN()
 {
-    std::list<float> nans = {
+    StdList<float> nans = {
         bitwise_cast<float>(0xfffffffd),
         bitwise_cast<float>(0xfffffffe),
         bitwise_cast<float>(0xfffffff0),
@@ -16187,7 +16350,7 @@ void testShuffleDoesntTrashCalleeSaves()
 
     unlikely->appendNew<CCallValue>(
         proc, Void, Origin(),
-        unlikely->appendNew<ConstPtrValue>(proc, Origin(), bitwise_cast<void*>(functionNineArgs)),
+        unlikely->appendNew<ConstPtrValue>(proc, Origin(), tagCFunctionPtr<void*>(functionNineArgs, B3CCallPtrTag)),
         constNumber, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
 
     PatchpointValue* voidPatch = unlikely->appendNew<PatchpointValue>(proc, Void, Origin());
@@ -16209,6 +16372,27 @@ void testShuffleDoesntTrashCalleeSaves()
     *inputPtr = 48;
     CHECK(compileAndRun<int32_t>(proc, inputPtr) == 48);
     fastFree(inputPtr);
+}
+
+void testDemotePatchpointTerminal()
+{
+    Procedure proc;
+    
+    BasicBlock* root = proc.addBlock();
+    BasicBlock* done = proc.addBlock();
+    
+    PatchpointValue* patchpoint = root->appendNew<PatchpointValue>(proc, Int32, Origin());
+    patchpoint->effects.terminal = true;
+    root->setSuccessors(done);
+    
+    done->appendNew<Value>(proc, Return, Origin(), patchpoint);
+    
+    proc.resetReachability();
+    breakCriticalEdges(proc);
+    IndexSet<Value*> valuesToDemote;
+    valuesToDemote.add(patchpoint);
+    demoteValues(proc, valuesToDemote);
+    validate(proc);
 }
 
 // Make sure the compiler does not try to optimize anything out.
@@ -16313,6 +16497,8 @@ void run(const char* filter)
     RUN_BINARY(testAddArgMem32, int32Operands(), int32Operands());
     RUN_BINARY(testAddMemArg32, int32Operands(), int32Operands());
     RUN_BINARY(testAddImmMem32, int32Operands(), int32Operands());
+    RUN_BINARY(testAddNeg1, int32Operands(), int32Operands());
+    RUN_BINARY(testAddNeg2, int32Operands(), int32Operands());
     RUN(testAddArgZeroImmZDef());
     RUN(testAddLoadTwice());
 
@@ -16480,6 +16666,8 @@ void run(const char* filter)
     RUN_BINARY(testSubMemArg, int64Operands(), int64Operands());
     RUN_BINARY(testSubImmMem, int32Operands(), int32Operands());
     RUN_BINARY(testSubMemImm, int32Operands(), int32Operands());
+    RUN_BINARY(testSubNeg, int32Operands(), int32Operands());
+    RUN_BINARY(testNegSub, int32Operands(), int32Operands());
     RUN_UNARY(testNegValueSubOne, int32Operands());
 
     RUN(testSubArgs32(1, 1));
@@ -16699,6 +16887,7 @@ void run(const char* filter)
     RUN_UNARY(testBitNotArg32, int32Operands());
     RUN_UNARY(testBitNotImm32, int32Operands());
     RUN_UNARY(testBitNotMem32, int32Operands());
+    RUN_BINARY(testNotOnBooleanAndBranch32, int32Operands(), int32Operands());
     RUN_BINARY(testBitNotOnBooleanAndBranch32, int32Operands(), int32Operands());
 
     RUN(testShlArgs(1, 0));
@@ -16836,12 +17025,14 @@ void run(const char* filter)
     RUN_UNARY(testAbsImm, floatingPointOperands<double>());
     RUN_UNARY(testAbsMem, floatingPointOperands<double>());
     RUN_UNARY(testAbsAbsArg, floatingPointOperands<double>());
+    RUN_UNARY(testAbsNegArg, floatingPointOperands<double>());
     RUN_UNARY(testAbsBitwiseCastArg, floatingPointOperands<double>());
     RUN_UNARY(testBitwiseCastAbsBitwiseCastArg, floatingPointOperands<double>());
     RUN_UNARY(testAbsArg, floatingPointOperands<float>());
     RUN_UNARY(testAbsImm, floatingPointOperands<float>());
     RUN_UNARY(testAbsMem, floatingPointOperands<float>());
     RUN_UNARY(testAbsAbsArg, floatingPointOperands<float>());
+    RUN_UNARY(testAbsNegArg, floatingPointOperands<float>());
     RUN_UNARY(testAbsBitwiseCastArg, floatingPointOperands<float>());
     RUN_UNARY(testBitwiseCastAbsBitwiseCastArg, floatingPointOperands<float>());
     RUN_UNARY(testAbsArgWithUselessDoubleConversion, floatingPointOperands<float>());
@@ -17758,14 +17949,10 @@ void run(const char* filter)
     RUN(testDepend32());
     RUN(testDepend64());
 
-    RUN(testWasmBoundsCheck(0, UseIndexingMaskGPR::No));
-    RUN(testWasmBoundsCheck(100, UseIndexingMaskGPR::No));
-    RUN(testWasmBoundsCheck(10000, UseIndexingMaskGPR::No));
-    RUN(testWasmBoundsCheck(std::numeric_limits<unsigned>::max() - 5, UseIndexingMaskGPR::No));
-    RUN(testWasmBoundsCheck(0, UseIndexingMaskGPR::Yes));
-    RUN(testWasmBoundsCheck(100, UseIndexingMaskGPR::Yes));
-    RUN(testWasmBoundsCheck(10000, UseIndexingMaskGPR::Yes));
-    RUN(testWasmBoundsCheck(std::numeric_limits<unsigned>::max() - 5, UseIndexingMaskGPR::Yes));
+    RUN(testWasmBoundsCheck(0));
+    RUN(testWasmBoundsCheck(100));
+    RUN(testWasmBoundsCheck(10000));
+    RUN(testWasmBoundsCheck(std::numeric_limits<unsigned>::max() - 5));
 
     RUN(testWasmAddress());
     
@@ -17782,6 +17969,9 @@ void run(const char* filter)
     RUN(testFloatEqualOrUnorderedDontFold());
     
     RUN(testShuffleDoesntTrashCalleeSaves());
+    RUN(testDemotePatchpointTerminal());
+
+    RUN(testLoopWithMultipleHeaderEdges());
 
     if (isX86()) {
         RUN(testBranchBitAndImmFusion(Identity, Int64, 1, Air::BranchTest32, Air::Arg::Tmp));

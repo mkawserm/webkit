@@ -56,7 +56,9 @@ enum {
     kWKDidHitRelevantRepaintedObjectsAreaThreshold = 1 << 2,
     kWKReserved = 1 << 3, // Note that the fourth member of this enum is actually private and defined in WKPageLoadTypesPrivate.h
     kWKDidFirstLayoutAfterSuppressedIncrementalRendering = 1 << 4,
-    kWKDidFirstPaintAfterSuppressedIncrementalRendering = 1 << 5
+    kWKDidFirstPaintAfterSuppressedIncrementalRendering = 1 << 5,
+    kWKDidRenderSignificantAmountOfText = 1 << 7,
+    kWKDidFirstMeaningfulPaint = 1 << 8
 };
 typedef uint32_t WKLayoutMilestones;
 

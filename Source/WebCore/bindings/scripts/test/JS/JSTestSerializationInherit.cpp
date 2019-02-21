@@ -28,10 +28,13 @@
 #include "JSDOMExceptionHandling.h"
 #include "JSDOMOperation.h"
 #include "JSDOMWrapperCache.h"
+#include "ScriptExecutionContext.h"
+#include <JavaScriptCore/HeapSnapshotBuilder.h>
 #include <JavaScriptCore/JSCInlines.h>
 #include <JavaScriptCore/ObjectConstructor.h>
 #include <wtf/GetPtr.h>
 #include <wtf/PointerPreparations.h>
+#include <wtf/URL.h>
 
 
 namespace WebCore {
@@ -83,7 +86,7 @@ template<> JSValue JSTestSerializationInheritConstructor::prototypeForStructure(
 template<> void JSTestSerializationInheritConstructor::initializeProperties(VM& vm, JSDOMGlobalObject& globalObject)
 {
     putDirect(vm, vm.propertyNames->prototype, JSTestSerializationInherit::prototype(vm, globalObject), JSC::PropertyAttribute::DontDelete | JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum);
-    putDirect(vm, vm.propertyNames->name, jsNontrivialString(&vm, String(ASCIILiteral("TestSerializationInherit"))), JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum);
+    putDirect(vm, vm.propertyNames->name, jsNontrivialString(&vm, String("TestSerializationInherit"_s)), JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum);
     putDirect(vm, vm.propertyNames->length, jsNumber(0), JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum);
 }
 
@@ -95,7 +98,7 @@ static const HashTableValue JSTestSerializationInheritPrototypeTableValues[] =
 {
     { "constructor", static_cast<unsigned>(JSC::PropertyAttribute::DontEnum), NoIntrinsic, { (intptr_t)static_cast<PropertySlot::GetValueFunc>(jsTestSerializationInheritConstructor), (intptr_t) static_cast<PutPropertySlot::PutValueFunc>(setJSTestSerializationInheritConstructor) } },
     { "inheritLongAttribute", static_cast<unsigned>(JSC::PropertyAttribute::CustomAccessor | JSC::PropertyAttribute::DOMAttribute), NoIntrinsic, { (intptr_t)static_cast<PropertySlot::GetValueFunc>(jsTestSerializationInheritInheritLongAttribute), (intptr_t) static_cast<PutPropertySlot::PutValueFunc>(setJSTestSerializationInheritInheritLongAttribute) } },
-    { "toJSON", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestSerializationInheritPrototypeFunctionToJSON), (intptr_t) (0) } },
+    { "toJSON", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestSerializationInheritPrototypeFunctionToJSON), (intptr_t) (0) } },
 };
 
 const ClassInfo JSTestSerializationInheritPrototype::s_info = { "TestSerializationInheritPrototype", &Base::s_info, nullptr, nullptr, CREATE_METHOD_TABLE(JSTestSerializationInheritPrototype) };
@@ -137,19 +140,19 @@ JSValue JSTestSerializationInherit::getConstructor(VM& vm, const JSGlobalObject*
 
 template<> inline JSTestSerializationInherit* IDLAttribute<JSTestSerializationInherit>::cast(ExecState& state, EncodedJSValue thisValue)
 {
-    return jsDynamicDowncast<JSTestSerializationInherit*>(state.vm(), JSValue::decode(thisValue));
+    return jsDynamicCast<JSTestSerializationInherit*>(state.vm(), JSValue::decode(thisValue));
 }
 
 template<> inline JSTestSerializationInherit* IDLOperation<JSTestSerializationInherit>::cast(ExecState& state)
 {
-    return jsDynamicDowncast<JSTestSerializationInherit*>(state.vm(), state.thisValue());
+    return jsDynamicCast<JSTestSerializationInherit*>(state.vm(), state.thisValue());
 }
 
 EncodedJSValue jsTestSerializationInheritConstructor(ExecState* state, EncodedJSValue thisValue, PropertyName)
 {
     VM& vm = state->vm();
     auto throwScope = DECLARE_THROW_SCOPE(vm);
-    auto* prototype = jsDynamicDowncast<JSTestSerializationInheritPrototype*>(vm, JSValue::decode(thisValue));
+    auto* prototype = jsDynamicCast<JSTestSerializationInheritPrototype*>(vm, JSValue::decode(thisValue));
     if (UNLIKELY(!prototype))
         return throwVMTypeError(state, throwScope);
     return JSValue::encode(JSTestSerializationInherit::getConstructor(state->vm(), prototype->globalObject()));
@@ -159,7 +162,7 @@ bool setJSTestSerializationInheritConstructor(ExecState* state, EncodedJSValue t
 {
     VM& vm = state->vm();
     auto throwScope = DECLARE_THROW_SCOPE(vm);
-    auto* prototype = jsDynamicDowncast<JSTestSerializationInheritPrototype*>(vm, JSValue::decode(thisValue));
+    auto* prototype = jsDynamicCast<JSTestSerializationInheritPrototype*>(vm, JSValue::decode(thisValue));
     if (UNLIKELY(!prototype)) {
         throwVMTypeError(state, throwScope);
         return false;
@@ -219,6 +222,15 @@ static inline EncodedJSValue jsTestSerializationInheritPrototypeFunctionToJSONBo
 EncodedJSValue JSC_HOST_CALL jsTestSerializationInheritPrototypeFunctionToJSON(ExecState* state)
 {
     return IDLOperation<JSTestSerializationInherit>::call<jsTestSerializationInheritPrototypeFunctionToJSONBody>(*state, "toJSON");
+}
+
+void JSTestSerializationInherit::heapSnapshot(JSCell* cell, HeapSnapshotBuilder& builder)
+{
+    auto* thisObject = jsCast<JSTestSerializationInherit*>(cell);
+    builder.setWrappedObjectForCell(cell, &thisObject->wrapped());
+    if (thisObject->scriptExecutionContext())
+        builder.setLabelForCell(cell, "url " + thisObject->scriptExecutionContext()->url().string());
+    Base::heapSnapshot(cell, builder);
 }
 
 

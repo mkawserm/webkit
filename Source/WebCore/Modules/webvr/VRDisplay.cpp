@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 Igalia S.L. All rights reserved.
+ * Copyright (C) 2017-2018 Igalia S.L. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -26,8 +26,18 @@
 #include "config.h"
 #include "VRDisplay.h"
 
+#include "CanvasRenderingContext.h"
+#include "Chrome.h"
+#include "DOMException.h"
+#include "DOMWindow.h"
+#include "EventNames.h"
+#include "Page.h"
+#include "ScriptedAnimationController.h"
+#include "UserGestureIndicator.h"
 #include "VRDisplayCapabilities.h"
+#include "VRDisplayEvent.h"
 #include "VREyeParameters.h"
+#include "VRFrameData.h"
 #include "VRLayerInit.h"
 #include "VRPlatformDisplay.h"
 #include "VRPose.h"
@@ -37,9 +47,7 @@ namespace WebCore {
 
 Ref<VRDisplay> VRDisplay::create(ScriptExecutionContext& context, WeakPtr<VRPlatformDisplay>&& platformDisplay)
 {
-    auto display = adoptRef(*new VRDisplay(context, WTFMove(platformDisplay)));
-    display->suspendIfNeeded();
-    return display;
+    return adoptRef(*new VRDisplay(context, WTFMove(platformDisplay)));
 }
 
 VRDisplay::VRDisplay(ScriptExecutionContext& context, WeakPtr<VRPlatformDisplay>&& platformDisplay)
@@ -52,9 +60,15 @@ VRDisplay::VRDisplay(ScriptExecutionContext& context, WeakPtr<VRPlatformDisplay>
     m_rightEyeParameters = VREyeParameters::create(displayInfo.eyeTranslation(VRPlatformDisplayInfo::EyeRight), displayInfo.eyeFieldOfView(VRPlatformDisplayInfo::EyeRight), displayInfo.renderSize());
     m_displayId = displayInfo.displayIdentifier();
     m_displayName = displayInfo.displayName();
+
+    m_display->setClient(this);
+    suspendIfNeeded();
 }
 
-VRDisplay::~VRDisplay() = default;
+VRDisplay::~VRDisplay()
+{
+    m_display->setClient(nullptr);
+}
 
 bool VRDisplay::isConnected() const
 {
@@ -62,11 +76,6 @@ bool VRDisplay::isConnected() const
         return false;
 
     return m_display->getDisplayInfo().isConnected();
-}
-
-bool VRDisplay::isPresenting() const
-{
-    return false;
 }
 
 const VRDisplayCapabilities& VRDisplay::capabilities() const
@@ -85,45 +94,135 @@ const VREyeParameters& VRDisplay::getEyeParameters(VREye eye) const
     return eye == VREye::Left ? *m_leftEyeParameters : *m_rightEyeParameters;
 }
 
-bool VRDisplay::getFrameData(VRFrameData&) const
+bool VRDisplay::getFrameData(VRFrameData& frameData) const
 {
-    return false;
+    if (!m_capabilities->hasPosition() || !m_capabilities->hasOrientation())
+        return false;
+
+    // FIXME: ensure that this is only called inside WebVR's rAF.
+    frameData.update(m_display->getTrackingInfo(), getEyeParameters(VREye::Left), getEyeParameters(VREye::Right), m_depthNear, m_depthFar);
+    return true;
 }
 
 Ref<VRPose> VRDisplay::getPose() const
 {
-    return VRPose::create();
+    return VRPose::create(m_display->getTrackingInfo());
 }
 
 void VRDisplay::resetPose()
 {
 }
 
-long VRDisplay::requestAnimationFrame(Ref<RequestAnimationFrameCallback>&&)
+uint32_t VRDisplay::requestAnimationFrame(Ref<RequestAnimationFrameCallback>&& callback)
 {
-    return 0;
+    if (!m_scriptedAnimationController) {
+        auto* document = downcast<Document>(scriptExecutionContext());
+        m_scriptedAnimationController = ScriptedAnimationController::create(*document);
+    }
+
+    return m_scriptedAnimationController->registerCallback(WTFMove(callback));
 }
 
-void VRDisplay::cancelAnimationFrame(unsigned)
+void VRDisplay::cancelAnimationFrame(uint32_t id)
 {
+    if (!m_scriptedAnimationController)
+        return;
+
+    m_scriptedAnimationController->cancelCallback(id);
 }
 
-void VRDisplay::requestPresent(const Vector<VRLayerInit>&, Ref<DeferredPromise>&&)
+void VRDisplay::requestPresent(const Vector<VRLayerInit>& layers, Ref<DeferredPromise>&& promise)
 {
+    auto rejectRequestAndStopPresenting = [this, &promise] (ExceptionCode exceptionCode, ASCIILiteral message) {
+        promise->reject(Exception { exceptionCode, message });
+        if (m_presentingLayer)
+            stopPresenting();
+    };
+
+    if (!m_capabilities->canPresent()) {
+        rejectRequestAndStopPresenting(NotSupportedError, "VRDisplay cannot present"_s);
+        return;
+    }
+
+    if (!layers.size() || layers.size() > m_capabilities->maxLayers()) {
+        rejectRequestAndStopPresenting(InvalidStateError, layers.size() ? "Too many layers"_s : "Not enough layers"_s);
+        return;
+    }
+
+    if (!m_presentingLayer && !UserGestureIndicator::processingUserGesture()) {
+        rejectRequestAndStopPresenting(InvalidAccessError, "Must request presentation from a user gesture handler."_s);
+        return;
+    }
+
+    RELEASE_ASSERT(layers.size() == 1);
+    auto layer = layers[0];
+
+    if (!layer.source) {
+        rejectRequestAndStopPresenting(InvalidStateError, "Layer does not contain any source"_s);
+        return;
+    }
+
+    auto* canvasContext = layer.source->getContext("webgl");
+    if (!canvasContext || !canvasContext->isWebGL()) {
+        rejectRequestAndStopPresenting(NotSupportedError, "WebVR requires VRLayerInit with WebGL context."_s);
+        return;
+    }
+
+    if ((layer.leftBounds.size() && layer.leftBounds.size() != 4)
+        || (layer.rightBounds.size() && layer.rightBounds.size() != 4)) {
+        rejectRequestAndStopPresenting(InvalidStateError, "Layer bounds must be either 0 or 4"_s);
+        return;
+    }
+
+    m_presentingLayer = layer;
+    promise->resolve();
 }
 
-void VRDisplay::exitPresent(Ref<DeferredPromise>&&)
+void VRDisplay::stopPresenting()
 {
+    m_presentingLayer = WTF::nullopt;
 }
 
-const Vector<VRLayerInit>& VRDisplay::getLayers() const
+void VRDisplay::exitPresent(Ref<DeferredPromise>&& promise)
 {
-    static auto mockLayers = makeNeverDestroyed(Vector<VRLayerInit> { });
-    return mockLayers;
+    if (!m_presentingLayer) {
+        promise->reject(Exception { InvalidStateError, "VRDisplay is not presenting"_s });
+        return;
+    }
+
+    stopPresenting();
+}
+
+Vector<VRLayerInit> VRDisplay::getLayers() const
+{
+    Vector<VRLayerInit> layers;
+    if (m_presentingLayer)
+        layers.append(m_presentingLayer.value());
+    return layers;
 }
 
 void VRDisplay::submitFrame()
 {
+}
+
+void VRDisplay::platformDisplayConnected()
+{
+    document()->domWindow()->dispatchEvent(VRDisplayEvent::create(eventNames().vrdisplayconnectEvent, makeRefPtr(this), WTF::nullopt));
+}
+
+void VRDisplay::platformDisplayDisconnected()
+{
+    document()->domWindow()->dispatchEvent(VRDisplayEvent::create(eventNames().vrdisplaydisconnectEvent, makeRefPtr(this), WTF::nullopt));
+}
+
+void VRDisplay::platformDisplayMounted()
+{
+    document()->domWindow()->dispatchEvent(VRDisplayEvent::create(eventNames().vrdisplayactivateEvent, makeRefPtr(this), VRDisplayEventReason::Mounted));
+}
+
+void VRDisplay::platformDisplayUnmounted()
+{
+    document()->domWindow()->dispatchEvent(VRDisplayEvent::create(eventNames().vrdisplaydeactivateEvent, makeRefPtr(this), VRDisplayEventReason::Unmounted));
 }
 
 bool VRDisplay::hasPendingActivity() const

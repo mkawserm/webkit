@@ -50,6 +50,7 @@
 #include "ShadowRoot.h"
 #include "SubframeLoader.h"
 #include "Widget.h"
+#include <wtf/IsoMallocInlines.h>
 
 #if ENABLE(NETSCAPE_PLUGIN_API)
 #include "npruntime_impl.h"
@@ -61,6 +62,8 @@
 #endif
 
 namespace WebCore {
+
+WTF_MAKE_ISO_ALLOCATED_IMPL(HTMLPlugInElement);
 
 using namespace HTMLNames;
 
@@ -409,7 +412,7 @@ bool HTMLPlugInElement::setReplacement(RenderEmbeddedObject::PluginUnavailabilit
         return false;
 
     if (reason == RenderEmbeddedObject::UnsupportedPlugin)
-        document().addConsoleMessage(MessageSource::JS, MessageLevel::Warning, ASCIILiteral("Tried to use an unsupported plug-in."));
+        document().addConsoleMessage(MessageSource::JS, MessageLevel::Warning, "Tried to use an unsupported plug-in."_s);
 
     Ref<HTMLPlugInElement> protectedThis(*this);
     downcast<RenderEmbeddedObject>(*renderer()).setPluginUnavailabilityReasonWithDescription(reason, unavailabilityDescription);
@@ -422,13 +425,18 @@ bool HTMLPlugInElement::setReplacement(RenderEmbeddedObject::PluginUnavailabilit
 
 bool HTMLPlugInElement::isReplacementObscured()
 {
-    // We should always start hit testing a clean tree.
-    if (document().view())
-        document().view()->updateLayoutAndStyleIfNeededRecursive();
-    // Check if style recalc/layout destroyed the associated renderer.
-    auto* renderView = document().topDocument().renderView();
-    if (!document().view() || !renderView)
+    auto topDocument = makeRef(document().topDocument());
+    auto topFrameView = makeRefPtr(topDocument->view());
+    if (!topFrameView)
         return false;
+
+    topFrameView->updateLayoutAndStyleIfNeededRecursive();
+
+    // Updating the layout may have detached this document from the top document.
+    auto* renderView = topDocument->renderView();
+    if (!renderView || !document().view() || &document().topDocument() != topDocument.ptr())
+        return false;
+
     if (!renderer() || !is<RenderEmbeddedObject>(*renderer()))
         return false;
     auto& pluginRenderer = downcast<RenderEmbeddedObject>(*renderer());
@@ -454,6 +462,8 @@ bool HTMLPlugInElement::isReplacementObscured()
     HitTestRequest request(HitTestRequest::ReadOnly | HitTestRequest::Active | HitTestRequest::IgnoreClipping | HitTestRequest::DisallowUserAgentShadowContent | HitTestRequest::AllowChildFrameContent);
     HitTestResult result;
     HitTestLocation location = LayoutPoint(x + width / 2, y + height / 2);
+    ASSERT(!renderView->needsLayout());
+    ASSERT(!renderView->document().needsStyleRecalc());
     bool hit = renderView->hitTest(request, location, result);
     if (!hit || result.innerNode() != &pluginRenderer.frameOwnerElement())
         return true;

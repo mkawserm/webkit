@@ -161,7 +161,7 @@ void PopupMenuWin::show(const IntRect& r, FrameView* view, int index)
         shouldAnimate = FALSE;
 
     if (shouldAnimate) {
-        RECT viewRect = {0};
+        RECT viewRect { };
         ::GetWindowRect(hostWindow, &viewRect);
         if (!::IsRectEmpty(&viewRect))
             ::AnimateWindow(m_popup, defaultAnimationDuration, AW_BLEND);
@@ -322,7 +322,7 @@ void PopupMenuWin::calculatePositionAndSize(const IntRect& r, FrameView* v)
     m_font = client()->menuStyle().font();
     auto d = m_font.fontDescription();
     d.setComputedSize(d.computedSize() * m_scaleFactor);
-    m_font = FontCascade(d, m_font.letterSpacing(), m_font.wordSpacing());
+    m_font = FontCascade(WTFMove(d), m_font.letterSpacing(), m_font.wordSpacing());
     m_font.update(m_popupClient->fontSelector());
 
     // First, determine the popup's height
@@ -345,7 +345,7 @@ void PopupMenuWin::calculatePositionAndSize(const IntRect& r, FrameView* v)
         if (client()->itemIsLabel(i)) {
             auto d = itemFont.fontDescription();
             d.setWeight(d.bolderWeight());
-            itemFont = FontCascade(d, itemFont.letterSpacing(), itemFont.wordSpacing());
+            itemFont = FontCascade(WTFMove(d), itemFont.letterSpacing(), itemFont.wordSpacing());
             itemFont.update(m_popupClient->fontSelector());
         }
 
@@ -609,9 +609,7 @@ void PopupMenuWin::paint(const IntRect& damageRect, HDC hdc)
 
     GraphicsContext context(m_DC.get());
 
-    int itemCount = client()->listSize();
-
-    // listRect is the damageRect translated into the coordinates of the entire menu list (which is itemCount * m_itemHeight pixels tall)
+    // listRect is the damageRect translated into the coordinates of the entire menu list (which is listSize * m_itemHeight pixels tall)
     IntRect listRect = damageRect;
     listRect.move(IntSize(0, m_scrollOffset * m_itemHeight));
 
@@ -621,8 +619,8 @@ void PopupMenuWin::paint(const IntRect& damageRect, HDC hdc)
         Color optionBackgroundColor, optionTextColor;
         PopupMenuStyle itemStyle = client()->itemStyle(index);
         if (index == focusedIndex()) {
-            optionBackgroundColor = RenderTheme::singleton().activeListBoxSelectionBackgroundColor();
-            optionTextColor = RenderTheme::singleton().activeListBoxSelectionForegroundColor();
+            optionBackgroundColor = RenderTheme::singleton().activeListBoxSelectionBackgroundColor({ });
+            optionTextColor = RenderTheme::singleton().activeListBoxSelectionForegroundColor({ });
         } else {
             optionBackgroundColor = itemStyle.backgroundColor();
             optionTextColor = itemStyle.foregroundColor();
@@ -650,14 +648,14 @@ void PopupMenuWin::paint(const IntRect& damageRect, HDC hdc)
         if (client()->itemIsLabel(index)) {
             auto d = itemFont.fontDescription();
             d.setWeight(d.bolderWeight());
-            itemFont = FontCascade(d, itemFont.letterSpacing(), itemFont.wordSpacing());
+            itemFont = FontCascade(WTFMove(d), itemFont.letterSpacing(), itemFont.wordSpacing());
             itemFont.update(m_popupClient->fontSelector());
         }
         
         // Draw the item text
         if (itemStyle.isVisible()) {
             int textX = 0;
-            if (client()->menuStyle().textDirection() == LTR) {
+            if (client()->menuStyle().textDirection() == TextDirection::LTR) {
                 textX = std::max<int>(0, client()->clientPaddingLeft() - client()->clientInsetLeft());
                 if (RenderTheme::singleton().popupOptionSupportsTextIndent())
                     textX += minimumIntValueForLength(itemStyle.textIndent(), itemRect.width());
@@ -822,8 +820,6 @@ LRESULT CALLBACK PopupMenuWin::PopupMenuWndProc(HWND hWnd, UINT message, WPARAM 
 
     return ::DefWindowProc(hWnd, message, wParam, lParam);
 }
-
-const int smoothScrollAnimationDuration = 5000;
 
 LRESULT PopupMenuWin::wndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {

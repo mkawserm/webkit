@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2014 Apple Inc. All rights reserved.
+ * Copyright (C) 2011-2018 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -23,8 +23,7 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. 
  */
 
-#ifndef MediaPlayerPrivateAVFoundationObjC_h
-#define MediaPlayerPrivateAVFoundationObjC_h
+#pragma once
 
 #if ENABLE(VIDEO) && USE(AVFOUNDATION)
 
@@ -32,29 +31,23 @@
 #include "MediaPlayerPrivateAVFoundation.h"
 #include <wtf/Function.h>
 #include <wtf/HashMap.h>
+#include <wtf/threads/BinarySemaphore.h>
 
 OBJC_CLASS AVAssetImageGenerator;
 OBJC_CLASS AVAssetResourceLoadingRequest;
 OBJC_CLASS AVMediaSelectionGroup;
 OBJC_CLASS AVOutputContext;
-OBJC_CLASS AVPlayer;
 OBJC_CLASS AVPlayerItem;
 OBJC_CLASS AVPlayerItemLegibleOutput;
-OBJC_CLASS AVPlayerItemTrack;
 OBJC_CLASS AVPlayerItemVideoOutput;
 OBJC_CLASS AVPlayerLayer;
 OBJC_CLASS AVURLAsset;
 OBJC_CLASS NSArray;
-OBJC_CLASS NSURLAuthenticationChallenge;
+OBJC_CLASS WebCoreAVFLoaderDelegate;
 OBJC_CLASS WebCoreAVFMovieObserver;
 OBJC_CLASS WebCoreAVFPullDelegate;
 
 typedef struct objc_object* id;
-
-#if HAVE(AVFOUNDATION_LOADER_DELEGATE)
-OBJC_CLASS WebCoreAVFLoaderDelegate;
-OBJC_CLASS AVAssetResourceLoadingRequest;
-#endif
 
 typedef struct CGImage *CGImageRef;
 typedef struct __CVBuffer *CVPixelBufferRef;
@@ -66,17 +59,13 @@ class AudioTrackPrivateAVFObjC;
 class CDMInstanceFairPlayStreamingAVFObjC;
 class CDMSessionAVFoundationObjC;
 class InbandMetadataTextTrackPrivateAVF;
-class InbandTextTrackPrivateAVFObjC;
 class MediaSelectionGroupAVFObjC;
 class PixelBufferConformerCV;
+class SharedBuffer;
+class VideoFullscreenLayerManagerObjC;
+class VideoTextureCopierCV;
 class VideoTrackPrivateAVFObjC;
 class WebCoreAVFResourceLoader;
-class TextureCacheCV;
-class VideoTextureCopierCV;
-
-#if PLATFORM(IOS) || (PLATFORM(MAC) && ENABLE(VIDEO_PRESENTATION_MODE))
-class VideoFullscreenLayerManager;
-#endif
 
 class MediaPlayerPrivateAVFoundationObjC : public MediaPlayerPrivateAVFoundation {
 public:
@@ -89,8 +78,9 @@ public:
     static void clearMediaCache(const String&, WallTime modifiedSince);
     static void clearMediaCacheForOrigins(const String&, const HashSet<RefPtr<SecurityOrigin>>&);
 
-    void setAsset(RetainPtr<id>);
+    void setAsset(RetainPtr<id>&&);
     void tracksChanged() override;
+    void didEnd() override;
 
 #if HAVE(AVFOUNDATION_MEDIA_SELECTION_GROUP)
     RetainPtr<AVPlayerItem> playerItem() const { return m_avPlayerItem; }
@@ -98,7 +88,7 @@ public:
     void flushCues();
 #endif
     AVPlayer *avPlayer() const { return m_avPlayer.get(); }
-    
+
 #if HAVE(AVFOUNDATION_LOADER_DELEGATE)
     bool shouldWaitForLoadingOfResource(AVAssetResourceLoadingRequest*);
     void didCancelLoadingRequest(AVAssetResourceLoadingRequest*);
@@ -117,14 +107,15 @@ public:
     void playbackBufferEmptyDidChange(bool);
     void playbackBufferFullWillChange();
     void playbackBufferFullDidChange(bool);
-    void loadedTimeRangesDidChange(RetainPtr<NSArray>);
-    void seekableTimeRangesDidChange(RetainPtr<NSArray>);
-    void tracksDidChange(RetainPtr<NSArray>);
+    void loadedTimeRangesDidChange(RetainPtr<NSArray>&&);
+    void seekableTimeRangesDidChange(RetainPtr<NSArray>&&);
+    void tracksDidChange(const RetainPtr<NSArray>&);
     void hasEnabledAudioDidChange(bool);
     void presentationSizeDidChange(FloatSize);
     void durationDidChange(const MediaTime&);
     void rateDidChange(double);
-    void metadataDidArrive(RetainPtr<NSArray>, const MediaTime&);
+    void timeControlStatusDidChange(int);
+    void metadataDidArrive(const RetainPtr<NSArray>&, const MediaTime&);
     void firstFrameAvailableDidChange(bool);
     void trackEnabledDidChange(bool);
     void canPlayFastReverseDidChange(bool);
@@ -159,9 +150,9 @@ public:
     void cdmInstanceAttached(CDMInstance&) final;
     void cdmInstanceDetached(CDMInstance&) final;
     void attemptToDecryptWithInstance(CDMInstance&) final;
+    void setWaitingForKey(bool);
+    bool waitingForKey() const final { return m_waitingForKey; }
 #endif
-
-    WeakPtr<MediaPlayerPrivateAVFoundationObjC> createWeakPtr() { return m_weakPtrFactory.createWeakPtr(*this); }
 
 private:
     // engine support
@@ -173,29 +164,27 @@ private:
 
     void cancelLoad() override;
 
-    PlatformMedia platformMedia() const override;
-
     void platformSetVisible(bool) override;
     void platformPlay() override;
     void platformPause() override;
+    bool platformPaused() const override;
     MediaTime currentMediaTime() const override;
     void setVolume(float) override;
-#if PLATFORM(IOS)
     bool supportsMuting() const override { return true; }
-#endif
     void setMuted(bool) override;
     void setClosedCaptionsVisible(bool) override;
     void paint(GraphicsContext&, const FloatRect&) override;
     void paintCurrentFrameInContext(GraphicsContext&, const FloatRect&) override;
     PlatformLayer* platformLayer() const override;
-#if PLATFORM(IOS) || (PLATFORM(MAC) && ENABLE(VIDEO_PRESENTATION_MODE))
-    void setVideoFullscreenLayer(PlatformLayer*, WTF::Function<void()>&& completionHandler) override;
+    void setVideoFullscreenLayer(PlatformLayer*, Function<void()>&& completionHandler) override;
+    void updateVideoFullscreenInlineImage() final;
     void setVideoFullscreenFrame(FloatRect) override;
     void setVideoFullscreenGravity(MediaPlayer::VideoGravity) override;
     void setVideoFullscreenMode(MediaPlayer::VideoFullscreenMode) override;
-#endif
+    void videoFullscreenStandbyChanged() override;
+    void setPlayerRate(double);
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
     NSArray *timedMetadata() const override;
     String accessLog() const override;
     String errorLog() const override;
@@ -245,6 +234,8 @@ private:
     void updateVideoLayerGravity() override;
 
     bool didPassCORSAccessCheck() const override;
+    Optional<bool> wouldTaintOrigin(const SecurityOrigin&) const final;
+
 
     MediaTime getStartDate() const override;
 
@@ -266,10 +257,12 @@ private:
     void paintWithImageGenerator(GraphicsContext&, const FloatRect&);
 
 #if HAVE(AVFOUNDATION_VIDEO_OUTPUT)
+    enum class UpdateType { UpdateSynchronously, UpdateAsynchronously };
+    void updateLastImage(UpdateType type = UpdateType::UpdateAsynchronously);
+
     void createVideoOutput();
     void destroyVideoOutput();
     bool updateLastPixelBuffer();
-    void updateLastImage();
     bool videoOutputHasAvailableFrame();
     void paintWithVideoOutput(GraphicsContext&, const FloatRect&);
     NativeImagePtr nativeImageForCurrentTime() override;
@@ -321,7 +314,7 @@ private:
     void updateDisableExternalPlayback();
 #endif
 
-#if ENABLE(WIRELESS_PLAYBACK_TARGET) && !PLATFORM(IOS)
+#if ENABLE(WIRELESS_PLAYBACK_TARGET) && !PLATFORM(IOS_FAMILY)
     void setWirelessPlaybackTarget(Ref<MediaPlaybackTarget>&&) override;
     void setShouldPlayToPlaybackTarget(bool) override;
 #endif
@@ -333,21 +326,24 @@ private:
 
     void setShouldDisableSleep(bool) override;
 
+    Optional<VideoPlaybackQualityMetrics> videoPlaybackQualityMetrics() final;
+
 #if !RELEASE_LOG_DISABLED
     const char* logClassName() const final { return "MediaPlayerPrivateAVFoundationObjC"; }
 #endif
 
-    WeakPtrFactory<MediaPlayerPrivateAVFoundationObjC> m_weakPtrFactory;
+    AVPlayer *objCAVFoundationAVPlayer() const final { return m_avPlayer.get(); }
 
+    bool performTaskAtMediaTime(WTF::Function<void()>&&, MediaTime) final;
+    void setShouldObserveTimeControlStatus(bool);
+
+    WeakPtrFactory<MediaPlayerPrivateAVFoundationObjC> m_weakPtrFactory;
     RetainPtr<AVURLAsset> m_avAsset;
     RetainPtr<AVPlayer> m_avPlayer;
     RetainPtr<AVPlayerItem> m_avPlayerItem;
     RetainPtr<AVPlayerLayer> m_videoLayer;
-#if PLATFORM(IOS) || (PLATFORM(MAC) && ENABLE(VIDEO_PRESENTATION_MODE))
-    std::unique_ptr<VideoFullscreenLayerManager> m_videoFullscreenLayerManager;
+    std::unique_ptr<VideoFullscreenLayerManagerObjC> m_videoFullscreenLayerManager;
     MediaPlayer::VideoGravity m_videoFullscreenGravity;
-    RetainPtr<PlatformLayer> m_textTrackRepresentationLayer;
-#endif
     RetainPtr<WebCoreAVFMovieObserver> m_objcObserver;
     RetainPtr<id> m_timeObserver;
     mutable String m_languageOfPrimaryAudioTrack;
@@ -364,15 +360,17 @@ private:
     RetainPtr<WebCoreAVFPullDelegate> m_videoOutputDelegate;
     RetainPtr<CVPixelBufferRef> m_lastPixelBuffer;
     RetainPtr<CGImageRef> m_lastImage;
-    dispatch_semaphore_t m_videoOutputSemaphore;
+    BinarySemaphore m_videoOutputSemaphore;
     std::unique_ptr<VideoTextureCopierCV> m_videoTextureCopier;
 #endif
 
+#if HAVE(CORE_VIDEO)
     std::unique_ptr<PixelBufferConformerCV> m_pixelBufferConformer;
+#endif
 
 #if HAVE(AVFOUNDATION_LOADER_DELEGATE)
     friend class WebCoreAVFResourceLoader;
-    HashMap<RetainPtr<AVAssetResourceLoadingRequest>, RefPtr<WebCoreAVFResourceLoader>> m_resourceLoaderMap;
+    HashMap<RetainPtr<CFTypeRef>, RefPtr<WebCoreAVFResourceLoader>> m_resourceLoaderMap;
     RetainPtr<WebCoreAVFLoaderDelegate> m_loaderDelegate;
     HashMap<String, RetainPtr<AVAssetResourceLoadingRequest>> m_keyURIToRequestMap;
     HashMap<String, RetainPtr<AVAssetResourceLoadingRequest>> m_sessionIDToRequestMap;
@@ -405,8 +403,11 @@ private:
 #if ENABLE(LEGACY_ENCRYPTED_MEDIA)
     WeakPtr<CDMSessionAVFoundationObjC> m_session;
 #endif
-#if ENABLE(ENCRYPTED_MEDIA) && HAVE(AVCONTENTKEYSESSION)
+#if ENABLE(ENCRYPTED_MEDIA)
+    bool m_waitingForKey { false };
+#if HAVE(AVCONTENTKEYSESSION)
     RefPtr<CDMInstanceFairPlayStreamingAVFObjC> m_cdmInstance;
+#endif
 #endif
 
     mutable RetainPtr<NSArray> m_cachedSeekableRanges;
@@ -415,7 +416,11 @@ private:
     RetainPtr<NSArray> m_currentMetaData;
     FloatSize m_cachedPresentationSize;
     MediaTime m_cachedDuration;
+    RefPtr<SharedBuffer> m_keyID;
     double m_cachedRate;
+    bool m_requestedPlaying { false };
+    double m_requestedRate { 1.0 };
+    int m_cachedTimeControlStatus { 0 };
     mutable long long m_cachedTotalBytes;
     unsigned m_pendingStatusChanges;
     int m_cachedItemStatus;
@@ -429,7 +434,8 @@ private:
     bool m_cachedCanPlayFastForward;
     bool m_cachedCanPlayFastReverse;
     bool m_muted { false };
-    mutable std::optional<bool> m_tracksArePlayable;
+    bool m_shouldObserveTimeControlStatus { false };
+    mutable Optional<bool> m_tracksArePlayable;
 #if ENABLE(WIRELESS_PLAYBACK_TARGET)
     mutable bool m_allowsWirelessVideoPlayback;
     bool m_shouldPlayToPlaybackTarget { false };
@@ -438,5 +444,4 @@ private:
 
 }
 
-#endif
 #endif

@@ -25,7 +25,7 @@
 
 #pragma once
 
-#if PLATFORM(IOS) || (PLATFORM(MAC) && ENABLE(VIDEO_PRESENTATION_MODE))
+#if PLATFORM(IOS_FAMILY) || (PLATFORM(MAC) && ENABLE(VIDEO_PRESENTATION_MODE))
 
 #include "MessageReceiver.h"
 #include <WebCore/GraphicsLayer.h>
@@ -39,13 +39,13 @@
 #include <wtf/RefCounted.h>
 #include <wtf/RefPtr.h>
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
 #include <WebCore/PlaybackSessionInterfaceAVKit.h>
 #else
 #include <WebCore/PlaybackSessionInterfaceMac.h>
 #endif
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
 typedef WebCore::PlaybackSessionInterfaceAVKit PlatformPlaybackSessionInterface;
 #else
 typedef WebCore::PlaybackSessionInterfaceMac PlatformPlaybackSessionInterface;
@@ -84,6 +84,9 @@ public:
     void externalPlaybackChanged(bool, PlaybackSessionModel::ExternalPlaybackTargetType, const String&);
     void wirelessVideoPlaybackDisabledChanged(bool);
     void mutedChanged(bool);
+    void volumeChanged(double);
+    void pictureInPictureSupportedChanged(bool);
+    void pictureInPictureActiveChanged(bool);
 
 private:
     friend class VideoFullscreenModelContext;
@@ -110,6 +113,8 @@ private:
     void togglePictureInPicture() final;
     void toggleMuted() final;
     void setMuted(bool) final;
+    void setVolume(double) final;
+    void setPlayingOnSecondScreen(bool) final;
 
     double playbackStartedTime() const final { return m_playbackStartedTime; }
     double duration() const final { return m_duration; }
@@ -131,6 +136,9 @@ private:
     String externalPlaybackLocalizedDeviceName() const final { return m_externalPlaybackLocalizedDeviceName; }
     bool wirelessVideoPlaybackDisabled() const final { return m_wirelessVideoPlaybackDisabled; }
     bool isMuted() const final { return m_muted; }
+    double volume() const final { return m_volume; }
+    bool isPictureInPictureSupported() const final { return m_pictureInPictureSupported; }
+    bool isPictureInPictureActive() const final { return m_pictureInPictureActive; }
 
     PlaybackSessionManagerProxy* m_manager;
     uint64_t m_contextId;
@@ -156,11 +164,14 @@ private:
     String m_externalPlaybackLocalizedDeviceName;
     bool m_wirelessVideoPlaybackDisabled { false };
     bool m_muted { false };
+    double m_volume { 0 };
+    bool m_pictureInPictureSupported { false };
+    bool m_pictureInPictureActive { false };
 };
 
 class PlaybackSessionManagerProxy : public RefCounted<PlaybackSessionManagerProxy>, private IPC::MessageReceiver {
 public:
-    static RefPtr<PlaybackSessionManagerProxy> create(WebPageProxy&);
+    static Ref<PlaybackSessionManagerProxy> create(WebPageProxy&);
     virtual ~PlaybackSessionManagerProxy();
 
     void invalidate();
@@ -183,10 +194,11 @@ private:
     void addClientForContext(uint64_t contextId);
     void removeClientForContext(uint64_t contextId);
 
+    uint64_t controlsManagerContextId() const { return m_controlsManagerContextId; }
+
     // Messages from PlaybackSessionManager
     void setUpPlaybackControlsManagerWithID(uint64_t contextId);
     void clearPlaybackControlsManager();
-    void resetMediaState(uint64_t contextId);
     void currentTimeChanged(uint64_t contextId, double currentTime, double hostTime);
     void bufferedTimeChanged(uint64_t contextId, double bufferedTime);
     void seekableRangesVectorChanged(uint64_t contextId, Vector<std::pair<double, double>> ranges, double lastModifiedTime, double liveUpdateInterval);
@@ -202,6 +214,9 @@ private:
     void rateChanged(uint64_t contextId, bool isPlaying, double rate);
     void handleControlledElementIDResponse(uint64_t, String) const;
     void mutedChanged(uint64_t contextId, bool muted);
+    void volumeChanged(uint64_t contextId, double volume);
+    void pictureInPictureSupportedChanged(uint64_t contextId, bool pictureInPictureSupported);
+    void pictureInPictureActiveChanged(uint64_t contextId, bool pictureInPictureActive);
 
     // Messages to PlaybackSessionManager
     void play(uint64_t contextId);
@@ -219,6 +234,8 @@ private:
     void togglePictureInPicture(uint64_t contextId);
     void toggleMuted(uint64_t contextId);
     void setMuted(uint64_t contextId, bool);
+    void setVolume(uint64_t contextId, double);
+    void setPlayingOnSecondScreen(uint64_t contextId, bool);
 
     WebPageProxy* m_page;
     HashMap<uint64_t, ModelInterfaceTuple> m_contextMap;
@@ -228,4 +245,4 @@ private:
 
 } // namespace WebKit
 
-#endif // PLATFORM(IOS) || (PLATFORM(MAC) && ENABLE(VIDEO_PRESENTATION_MODE))
+#endif // PLATFORM(IOS_FAMILY) || (PLATFORM(MAC) && ENABLE(VIDEO_PRESENTATION_MODE))

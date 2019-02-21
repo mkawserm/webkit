@@ -14,15 +14,15 @@
 #include <utility>
 #include <vector>
 
-#include "common_types.h"  // NOLINT(build/include)
+#include "absl/memory/memory.h"
+#include "absl/strings/match.h"
 #include "modules/audio_coding/codecs/opus/audio_decoder_opus.h"
-#include "rtc_base/ptr_util.h"
 
 namespace webrtc {
 
-rtc::Optional<AudioDecoderOpus::Config> AudioDecoderOpus::SdpToConfig(
+absl::optional<AudioDecoderOpus::Config> AudioDecoderOpus::SdpToConfig(
     const SdpAudioFormat& format) {
-  const auto num_channels = [&]() -> rtc::Optional<int> {
+  const auto num_channels = [&]() -> absl::optional<int> {
     auto stereo = format.parameters.find("stereo");
     if (stereo != format.parameters.end()) {
       if (stereo->second == "0") {
@@ -30,17 +30,17 @@ rtc::Optional<AudioDecoderOpus::Config> AudioDecoderOpus::SdpToConfig(
       } else if (stereo->second == "1") {
         return 2;
       } else {
-        return rtc::nullopt;  // Bad stereo parameter.
+        return absl::nullopt;  // Bad stereo parameter.
       }
     }
     return 1;  // Default to mono.
   }();
-  if (STR_CASE_CMP(format.name.c_str(), "opus") == 0 &&
+  if (absl::EqualsIgnoreCase(format.name, "opus") &&
       format.clockrate_hz == 48000 && format.num_channels == 2 &&
       num_channels) {
     return Config{*num_channels};
   } else {
-    return rtc::nullopt;
+    return absl::nullopt;
   }
 }
 
@@ -55,8 +55,9 @@ void AudioDecoderOpus::AppendSupportedDecoders(
 }
 
 std::unique_ptr<AudioDecoder> AudioDecoderOpus::MakeAudioDecoder(
-    Config config) {
-  return rtc::MakeUnique<AudioDecoderOpusImpl>(config.num_channels);
+    Config config,
+    absl::optional<AudioCodecPairId> /*codec_pair_id*/) {
+  return absl::make_unique<AudioDecoderOpusImpl>(config.num_channels);
 }
 
 }  // namespace webrtc

@@ -1,3 +1,4 @@
+include(WebKitCommon)
 set_property(DIRECTORY . PROPERTY FOLDER "WebDriver")
 
 set(WebDriver_INCLUDE_DIRECTORIES
@@ -22,6 +23,7 @@ set(WebDriver_LIBRARIES
 set(WebDriver_SCRIPTS
     ${WEBKIT_DIR}/UIProcess/Automation/atoms/ElementAttribute.js
     ${WEBKIT_DIR}/UIProcess/Automation/atoms/ElementDisplayed.js
+    ${WEBKIT_DIR}/UIProcess/Automation/atoms/EnterFullscreen.js
     ${WEBKIT_DIR}/UIProcess/Automation/atoms/FindNodes.js
     ${WEBKIT_DIR}/UIProcess/Automation/atoms/FormElementClear.js
     ${WEBKIT_DIR}/UIProcess/Automation/atoms/FormSubmit.js

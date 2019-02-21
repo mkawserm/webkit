@@ -40,7 +40,8 @@ public:
     }
 
     static bool supportsMediaType(MediaType type) { return type == MediaType::Image; }
-    
+    static bool canDecodeType(const String&);
+
     size_t bytesDecodedToDetermineProperties() const final;
 
     EncodedDataStatus encodedDataStatus() const final;
@@ -49,7 +50,7 @@ public:
     RepetitionCount repetitionCount() const final;
     String uti() const final;
     String filenameExtension() const final;
-    std::optional<IntPoint> hotSpot() const final;
+    Optional<IntPoint> hotSpot() const final;
 
     IntSize frameSizeAtIndex(size_t, SubsamplingLevel = SubsamplingLevel::Default) const final;
     bool frameIsCompleteAtIndex(size_t) const final;

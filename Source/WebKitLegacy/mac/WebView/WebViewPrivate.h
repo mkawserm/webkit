@@ -75,7 +75,6 @@
 #endif
 @protocol WebDeviceOrientationProvider;
 @protocol WebFormDelegate;
-@protocol WebUserMediaClient;
 
 #if !TARGET_OS_IPHONE
 extern NSString *_WebCanGoBackKey;
@@ -323,6 +322,8 @@ typedef enum {
 + (void)_setIconLoadingEnabled:(BOOL)enabled;
 + (BOOL)_isIconLoadingEnabled;
 
+@property (nonatomic, assign, setter=_setUseDarkAppearance:) BOOL _useDarkAppearance;
+
 - (WebInspector *)inspector;
 
 #if ENABLE_REMOTE_INSPECTOR
@@ -483,7 +484,7 @@ Could be worth adding to the API.
 - (void)_exitedDataInteraction:(id <UIDropSession>)session client:(CGPoint)clientPosition global:(CGPoint)globalPosition operation:(uint64_t)operation;
 - (void)_performDataInteraction:(id <UIDropSession>)session client:(CGPoint)clientPosition global:(CGPoint)globalPosition operation:(uint64_t)operation;
 - (BOOL)_tryToPerformDataInteraction:(id <UIDropSession>)session client:(CGPoint)clientPosition global:(CGPoint)globalPosition operation:(uint64_t)operation;
-- (void)_endedDataInteraction:(CGPoint)clientPosition global:(CGPoint)clientPosition;
+- (void)_endedDataInteraction:(CGPoint)clientPosition global:(CGPoint)globalPosition;
 
 @property (nonatomic, readonly, getter=_dataInteractionCaretRect) CGRect dataInteractionCaretRect;
 #endif
@@ -722,8 +723,6 @@ Could be worth adding to the API.
 - (BOOL)usesPageCache;
 - (void)setUsesPageCache:(BOOL)usesPageCache;
 
-- (WebHistoryItem *)_globalHistoryItem;
-
 /*!
     @method textIteratorForRect:
     @param rect The rectangle of the document that we're interested in text from.
@@ -855,6 +854,11 @@ Could be worth adding to the API.
 - (WebPageVisibilityState)_visibilityState;
 - (void)_setVisibilityState:(WebPageVisibilityState)visibilityState isInitialState:(BOOL)isInitialState;
 
+#if !TARGET_OS_IPHONE
+- (BOOL)windowOcclusionDetectionEnabled;
+- (void)setWindowOcclusionDetectionEnabled:(BOOL)flag;
+#endif
+
 // Whether the column-break-{before,after} properties are respected instead of the
 // page-break-{before,after} properties.
 - (void)_setPaginationBehavesLikeColumns:(BOOL)behavesLikeColumns;
@@ -926,6 +930,8 @@ typedef struct WebEdgeInsets {
 } WebEdgeInsets;
 
 @property (nonatomic, assign, setter=_setUnobscuredSafeAreaInsets:) WebEdgeInsets _unobscuredSafeAreaInsets;
+
+@property (nonatomic, assign, setter=_setUseSystemAppearance:) BOOL _useSystemAppearance;
 
 @end
 
@@ -1007,11 +1013,6 @@ typedef struct WebEdgeInsets {
 
 #endif
 
-@interface WebView (WebViewUserMedia)
-- (void)_setUserMediaClient:(id<WebUserMediaClient>)userMediaClient;
-- (id<WebUserMediaClient>)_userMediaClient;
-@end
-
 @protocol WebGeolocationProvider <NSObject>
 - (void)registerWebView:(WebView *)webView;
 - (void)unregisterWebView:(WebView *)webView;
@@ -1088,6 +1089,10 @@ typedef struct WebEdgeInsets {
 - (void)webView:(WebView *)sender didFirstVisuallyNonEmptyLayoutInFrame:(WebFrame *)frame;
 
 - (void)webView:(WebView *)sender didLayout:(WebLayoutMilestones)milestones;
+
+#if TARGET_OS_IPHONE
+- (void)webThreadWebView:(WebView *)sender didLayout:(WebLayoutMilestones)milestones;
+#endif
 
 // For implementing the WebInspector's test harness
 - (void)webView:(WebView *)webView didClearInspectorWindowObject:(WebScriptObject *)windowObject forFrame:(WebFrame *)frame;

@@ -23,12 +23,11 @@
  * THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef PluginProcessProxy_h
-#define PluginProcessProxy_h
+#pragma once
 
 #if ENABLE(NETSCAPE_PLUGIN_API)
 
-#include "ChildProcessProxy.h"
+#include "AuxiliaryProcessProxy.h"
 #include "Connection.h"
 #include "PluginModuleInfo.h"
 #include "PluginProcess.h"
@@ -66,7 +65,7 @@ int pluginProcessLatencyQOS();
 int pluginProcessThroughputQOS();
 #endif
 
-class PluginProcessProxy : public ChildProcessProxy {
+class PluginProcessProxy final : public AuxiliaryProcessProxy, public ThreadSafeRefCounted<PluginProcessProxy> {
 public:
     static Ref<PluginProcessProxy> create(PluginProcessManager*, const PluginProcessAttributes&, uint64_t pluginProcessToken);
     ~PluginProcessProxy();
@@ -76,18 +75,17 @@ public:
 
     // Asks the plug-in process to create a new connection to a web process. The connection identifier will be
     // encoded in the given argument encoder and sent back to the connection of the given web process.
-    void getPluginProcessConnection(Ref<Messages::WebProcessProxy::GetPluginProcessConnection::DelayedReply>&&);
+    void getPluginProcessConnection(Messages::WebProcessProxy::GetPluginProcessConnection::DelayedReply&&);
 
-    void fetchWebsiteData(WTF::Function<void (Vector<String>)>&& completionHandler);
-    void deleteWebsiteData(WallTime modifiedSince, WTF::Function<void ()>&& completionHandler);
-    void deleteWebsiteDataForHostNames(const Vector<String>& hostNames, WTF::Function<void ()>&& completionHandler);
+    void fetchWebsiteData(CompletionHandler<void (Vector<String>)>&&);
+    void deleteWebsiteData(WallTime modifiedSince, CompletionHandler<void ()>&&);
+    void deleteWebsiteDataForHostNames(const Vector<String>& hostNames, CompletionHandler<void ()>&&);
+
+#if OS(LINUX)
+    void sendMemoryPressureEvent(bool isCritical);
+#endif
 
     bool isValid() const { return m_connection; }
-
-#if PLATFORM(COCOA)
-    void setProcessSuppressionEnabled(bool);
-
-#endif
 
 #if PLUGIN_ARCHITECTURE(UNIX)
     static bool scanPlugin(const String& pluginPath, RawPluginMetaData& result);
@@ -97,7 +95,7 @@ private:
     PluginProcessProxy(PluginProcessManager*, const PluginProcessAttributes&, uint64_t pluginProcessToken);
 
     void getLaunchOptions(ProcessLauncher::LaunchOptions&) override;
-    void platformGetLaunchOptions(ProcessLauncher::LaunchOptions&, const PluginProcessAttributes&);
+    void platformGetLaunchOptionsWithAttributes(ProcessLauncher::LaunchOptions&, const PluginProcessAttributes&);
     void processWillShutDown(IPC::Connection&) override;
 
     void pluginProcessCrashedOrFailedToLaunch();
@@ -149,24 +147,24 @@ private:
     // The connection to the plug-in host process.
     RefPtr<IPC::Connection> m_connection;
 
-    Deque<RefPtr<Messages::WebProcessProxy::GetPluginProcessConnection::DelayedReply>> m_pendingConnectionReplies;
+    Deque<Messages::WebProcessProxy::GetPluginProcessConnection::DelayedReply> m_pendingConnectionReplies;
 
     Vector<uint64_t> m_pendingFetchWebsiteDataRequests;
-    HashMap<uint64_t, WTF::Function<void (Vector<String>)>> m_pendingFetchWebsiteDataCallbacks;
+    HashMap<uint64_t, CompletionHandler<void (Vector<String>)>> m_pendingFetchWebsiteDataCallbacks;
 
     struct DeleteWebsiteDataRequest {
         WallTime modifiedSince;
         uint64_t callbackID;
     };
     Vector<DeleteWebsiteDataRequest> m_pendingDeleteWebsiteDataRequests;
-    HashMap<uint64_t, WTF::Function<void ()>> m_pendingDeleteWebsiteDataCallbacks;
+    HashMap<uint64_t, CompletionHandler<void ()>> m_pendingDeleteWebsiteDataCallbacks;
 
     struct DeleteWebsiteDataForHostNamesRequest {
         Vector<String> hostNames;
         uint64_t callbackID;
     };
     Vector<DeleteWebsiteDataForHostNamesRequest> m_pendingDeleteWebsiteDataForHostNamesRequests;
-    HashMap<uint64_t, WTF::Function<void ()>> m_pendingDeleteWebsiteDataForHostNamesCallbacks;
+    HashMap<uint64_t, CompletionHandler<void ()>> m_pendingDeleteWebsiteDataForHostNamesCallbacks;
 
     // If createPluginConnection is called while the process is still launching we'll keep count of it and send a bunch of requests
     // when the process finishes launching.
@@ -174,7 +172,7 @@ private:
 
 #if PLATFORM(COCOA)
     RetainPtr<NSObject> m_activationObserver;
-    RetainPtr<WKPlaceholderModalWindow *> m_placeholderWindow;
+    RetainPtr<WKPlaceholderModalWindow> m_placeholderWindow;
     bool m_modalWindowIsShowing;
     bool m_fullscreenWindowIsShowing;
     unsigned m_preFullscreenAppPresentationOptions;
@@ -184,5 +182,3 @@ private:
 } // namespace WebKit
 
 #endif // ENABLE(NETSCAPE_PLUGIN_API)
-
-#endif // PluginProcessProxy_h

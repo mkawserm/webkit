@@ -27,8 +27,6 @@
 
 #include "Connection.h"
 #include "LocalStorageDatabaseTracker.h"
-#include <WebCore/SecurityOriginData.h>
-#include <WebCore/SecurityOriginHash.h>
 #include <wtf/Forward.h>
 #include <wtf/Function.h>
 #include <wtf/HashSet.h>
@@ -63,7 +61,7 @@ public:
     void deleteSessionStorageEntriesForOrigins(const Vector<WebCore::SecurityOriginData>&, Function<void()>&& completionHandler);
 
     void getLocalStorageOrigins(Function<void(HashSet<WebCore::SecurityOriginData>&&)>&& completionHandler);
-    void deleteLocalStorageEntriesForOrigin(WebCore::SecurityOriginData&&);
+    void deleteLocalStorageEntriesForOrigin(const WebCore::SecurityOriginData&);
 
     void deleteLocalStorageOriginsModifiedSince(WallTime, Function<void()>&& completionHandler);
     void deleteLocalStorageEntriesForOrigins(const Vector<WebCore::SecurityOriginData>&, Function<void()>&& completionHandler);
@@ -83,7 +81,7 @@ private:
     void createSessionStorageMap(IPC::Connection&, uint64_t storageMapID, uint64_t storageNamespaceID, WebCore::SecurityOriginData&&);
     void destroyStorageMap(IPC::Connection&, uint64_t storageMapID);
 
-    void getValues(IPC::Connection&, uint64_t storageMapID, uint64_t storageMapSeed, HashMap<String, String>& values);
+    void getValues(IPC::Connection&, uint64_t storageMapID, uint64_t storageMapSeed, CompletionHandler<void(const HashMap<String, String>&)>&&);
     void setItem(IPC::Connection&, uint64_t storageAreaID, uint64_t sourceStorageAreaID, uint64_t storageMapSeed, const String& key, const String& value, const String& urlString);
     void removeItem(IPC::Connection&, uint64_t storageMapID, uint64_t sourceStorageAreaID, uint64_t storageMapSeed, const String& key, const String& urlString);
     void clear(IPC::Connection&, uint64_t storageMapID, uint64_t sourceStorageAreaID, uint64_t storageMapSeed, const String& urlString);
@@ -107,7 +105,7 @@ private:
     class SessionStorageNamespace;
     HashMap<uint64_t, RefPtr<SessionStorageNamespace>> m_sessionStorageNamespaces;
 
-    HashMap<std::pair<RefPtr<IPC::Connection>, uint64_t>, RefPtr<StorageArea>> m_storageAreasByConnection;
+    HashMap<std::pair<IPC::Connection::UniqueID, uint64_t>, RefPtr<StorageArea>> m_storageAreasByConnection;
 };
 
 } // namespace WebKit

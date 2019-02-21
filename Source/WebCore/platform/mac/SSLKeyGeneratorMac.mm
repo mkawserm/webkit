@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2003, 2005, 2008, 2011 Apple Inc. All rights reserved.
+ * Copyright (C) 2003-2018 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -29,12 +29,13 @@
 #if PLATFORM(MAC)
 
 #import "LocalizedStrings.h"
-#import "URL.h"
 #import <Security/SecAsn1Coder.h>
 #import <Security/SecAsn1Templates.h>
 #import <Security/SecEncodeTransform.h>
+#import <wtf/ProcessPrivilege.h>
 #import <wtf/RetainPtr.h>
 #import <wtf/Scope.h>
+#import <wtf/URL.h>
 #import <wtf/cf/TypeCastsCF.h>
 #import <wtf/spi/cocoa/SecuritySPI.h>
 #import <wtf/text/Base64.h>
@@ -43,8 +44,7 @@ WTF_DECLARE_CF_TYPE_TRAIT(SecACL);
 
 namespace WebCore {
 
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+ALLOW_DEPRECATED_DECLARATIONS_BEGIN
 
 struct PublicKeyAndChallenge {
     CSSM_X509_SUBJECT_PUBLIC_KEY_INFO subjectPublicKeyInfo;
@@ -222,7 +222,7 @@ static String signedPublicKeyAndChallengeString(unsigned keySize, const CString&
     return base64Encode(encodedSignedPublicKeyAndChallenge.Data, encodedSignedPublicKeyAndChallenge.Length);
 }
 
-#pragma clang diagnostic pop
+ALLOW_DEPRECATED_DECLARATIONS_END
 
 void getSupportedKeySizes(Vector<String>& supportedKeySizes)
 {
@@ -245,7 +245,7 @@ String signedPublicKeyAndChallengeString(unsigned keySizeIndex, const String& ch
 
     auto challenge = challengeString.isAllASCII() ? challengeString.ascii() : "";
 
-    return signedPublicKeyAndChallengeString(keySize, challenge, keygenKeychainItemName(url.host()));
+    return signedPublicKeyAndChallengeString(keySize, challenge, keygenKeychainItemName(url.host().toString()));
 }
 
 }

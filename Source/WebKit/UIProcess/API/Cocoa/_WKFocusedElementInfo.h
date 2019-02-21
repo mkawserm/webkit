@@ -52,13 +52,15 @@ typedef NS_ENUM(NSInteger, WKInputType) {
     WKInputTypeMonth,
     WKInputTypeWeek,
     WKInputTypeTime,
-    WKInputTypeSelect
+    WKInputTypeSelect,
+    WKInputTypeColor,
+    WKInputTypeDrawing,
 };
 
 /**
- * The _WKFocusedElementInfo provides basic information about an element
- * that has been focused (either programmatically or through user interaction)
- * but has not yet been assisted.
+ * The _WKFocusedElementInfo provides basic information about an element that
+ * has been focused (either programmatically or through user interaction) but
+ * is not causing any input UI (e.g. keyboard, date picker, etc.) to be shown.
  */
 @protocol _WKFocusedElementInfo <NSObject>
 
@@ -68,6 +70,12 @@ typedef NS_ENUM(NSInteger, WKInputType) {
 /* The value of the input at the time it was focused. */
 @property (nonatomic, readonly, copy) NSString *value;
 
+/* The placeholder text of the input. */
+@property (nonatomic, readonly, copy) NSString *placeholder;
+
+/* The text of a label element associated with the input. */
+@property (nonatomic, readonly, copy) NSString *label;
+
 /**
  * Whether the element was focused due to user interaction. NO indicates that
  * the element was focused programmatically, e.g. by calling focus() in JavaScript
@@ -75,7 +83,7 @@ typedef NS_ENUM(NSInteger, WKInputType) {
  */
 @property (nonatomic, readonly, getter=isUserInitiated) BOOL userInitiated;
 
-@property (nonatomic, readonly) NSObject <NSSecureCoding> *userObject WK_API_AVAILABLE(macosx(WK_MAC_TBA), ios(WK_IOS_TBA));
+@property (nonatomic, readonly) NSObject <NSSecureCoding> *userObject WK_API_AVAILABLE(macosx(10.13.4), ios(11.3));
 
 @end
 

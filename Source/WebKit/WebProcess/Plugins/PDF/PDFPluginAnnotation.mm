@@ -33,7 +33,7 @@
 #import "PDFPlugin.h"
 #import "PDFPluginChoiceAnnotation.h"
 #import "PDFPluginTextAnnotation.h"
-#import <PDFKit/PDFKit.h>
+#import <Quartz/Quartz.h>
 #import <WebCore/CSSPrimitiveValue.h>
 #import <WebCore/CSSPropertyNames.h>
 #import <WebCore/ColorMac.h>
@@ -46,10 +46,8 @@
 #import <WebCore/HTMLTextAreaElement.h>
 #import <WebCore/Page.h>
 
-using namespace WebCore;
-
 namespace WebKit {
-
+using namespace WebCore;
 using namespace HTMLNames;
 
 RefPtr<PDFPluginAnnotation> PDFPluginAnnotation::create(PDFAnnotation *annotation, PDFLayerController *pdfLayerController, PDFPlugin* plugin)

@@ -16,11 +16,10 @@
 namespace webrtc {
 
 class AudioProcessing;
-class AudioDeviceModule;
 
 enum EcModes {
-  kEcConference,     // Conferencing default (aggressive AEC).
-  kEcAecm,           // AEC mobile.
+  kEcConference,  // Conferencing default (aggressive AEC).
+  kEcAecm,        // AEC mobile.
 };
 
 struct AgcConfig {
@@ -33,14 +32,9 @@ namespace apm_helpers {
 
 void Init(AudioProcessing* apm);
 AgcConfig GetAgcConfig(AudioProcessing* apm);
-void SetAgcConfig(AudioProcessing* apm,
-                  const AgcConfig& config);
-void SetAgcStatus(AudioProcessing* apm,
-                  AudioDeviceModule* adm,
-                  bool enable);
-void SetEcStatus(AudioProcessing* apm,
-                 bool enable,
-                 EcModes mode);
+void SetAgcConfig(AudioProcessing* apm, const AgcConfig& config);
+void SetAgcStatus(AudioProcessing* apm, bool enable);
+void SetEcStatus(AudioProcessing* apm, bool enable, EcModes mode);
 void SetEcMetricsStatus(AudioProcessing* apm, bool enable);
 void SetAecmMode(AudioProcessing* apm, bool enable_cng);
 void SetNsStatus(AudioProcessing* apm, bool enable);

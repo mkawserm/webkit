@@ -189,5 +189,18 @@ void PlatformWebView::setNavigationGesturesEnabled(bool)
 {
 }
 
+bool PlatformWebView::drawsBackground() const
+{
+    return false;
+}
+
+void PlatformWebView::setDrawsBackground(bool)
+{
+}
+
+void PlatformWebView::setEditable(bool)
+{
+}
+
 } // namespace WTR
 

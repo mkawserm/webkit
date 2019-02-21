@@ -36,14 +36,13 @@
 #include "WebProcessMessages.h"
 #include "WebProcessPool.h"
 #include "WebProtectionSpace.h"
-#include <WebCore/FileSystem.h>
 #include <WebCore/MIMETypeRegistry.h>
+#include <wtf/FileSystem.h>
 #include <wtf/text/CString.h>
 #include <wtf/text/WTFString.h>
 
-using namespace WebCore;
-
 namespace WebKit {
+using namespace WebCore;
 
 static uint64_t generateDownloadID()
 {
@@ -99,8 +98,23 @@ WebPageProxy* DownloadProxy::originatingPage() const
 
 void DownloadProxy::setOriginatingPage(WebPageProxy* page)
 {
-    m_originatingPage = page ? page->createWeakPtr() : nullptr;
+    m_originatingPage = makeWeakPtr(page);
 }
+
+#if PLATFORM(COCOA)
+void DownloadProxy::publishProgress(const URL& URL)
+{
+    if (!m_processPool)
+        return;
+
+    if (auto* networkProcess = m_processPool->networkProcess()) {
+        SandboxExtension::Handle handle;
+        bool createdSandboxExtension = SandboxExtension::createHandle(URL.fileSystemPath(), SandboxExtension::Type::ReadWrite, handle);
+        ASSERT_UNUSED(createdSandboxExtension, createdSandboxExtension);
+        networkProcess->send(Messages::NetworkProcess::PublishDownloadProgress(m_downloadID, URL, handle), 0);
+    }
+}
+#endif // PLATFORM(COCOA)
 
 void DownloadProxy::didStart(const ResourceRequest& request, const String& suggestedFilename)
 {
@@ -116,12 +130,12 @@ void DownloadProxy::didStart(const ResourceRequest& request, const String& sugge
     m_processPool->downloadClient().didStart(*m_processPool, *this);
 }
 
-void DownloadProxy::didReceiveAuthenticationChallenge(const AuthenticationChallenge& authenticationChallenge, uint64_t challengeID)
+void DownloadProxy::didReceiveAuthenticationChallenge(AuthenticationChallenge&& authenticationChallenge, uint64_t challengeID)
 {
     if (!m_processPool)
         return;
 
-    auto authenticationChallengeProxy = AuthenticationChallengeProxy::create(authenticationChallenge, challengeID, m_processPool->networkingProcessConnection());
+    auto authenticationChallengeProxy = AuthenticationChallengeProxy::create(WTFMove(authenticationChallenge), challengeID, makeRef(*m_processPool->networkingProcessConnection()), nullptr);
 
     m_processPool->downloadClient().didReceiveAuthenticationChallenge(*m_processPool, *this, authenticationChallengeProxy.get());
 }
@@ -170,6 +184,9 @@ void DownloadProxy::decideDestinationWithSuggestedFilenameAsync(DownloadID downl
         SandboxExtension::Handle sandboxExtensionHandle;
         if (!destination.isNull())
             SandboxExtension::createHandle(destination, SandboxExtension::Type::ReadWrite, sandboxExtensionHandle);
+
+        if (!m_processPool)
+            return;
 
         if (auto* networkProcess = m_processPool->networkProcess())
             networkProcess->send(Messages::NetworkProcess::ContinueDecidePendingDownloadDestination(downloadID, destination, sandboxExtensionHandle, allowOverwrite == AllowOverwrite::Yes), 0);

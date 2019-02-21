@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 Igalia S.L. All rights reserved.
+ * Copyright (C) 2017-2018 Igalia S.L. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -29,20 +29,23 @@
 #include "EventTarget.h"
 #include "JSDOMPromiseDeferred.h"
 #include "VREye.h"
+#include "VRLayerInit.h"
+#include "VRPlatformDisplayClient.h"
 #include <wtf/RefCounted.h>
 
 namespace WebCore {
 
+enum ExceptionCode;
 class RequestAnimationFrameCallback;
+class ScriptedAnimationController;
 class VRDisplayCapabilities;
 class VREyeParameters;
 class VRFrameData;
 class VRPlatformDisplay;
 class VRPose;
 class VRStageParameters;
-struct VRLayerInit;
 
-class VRDisplay : public RefCounted<VRDisplay>, public EventTargetWithInlineData, public ActiveDOMObject {
+class VRDisplay : public RefCounted<VRDisplay>, public VRPlatformDisplayClient, public EventTargetWithInlineData, public ActiveDOMObject {
 public:
     static Ref<VRDisplay> create(ScriptExecutionContext&, WeakPtr<VRPlatformDisplay>&&);
 
@@ -52,7 +55,7 @@ public:
     using RefCounted<VRDisplay>::deref;
 
     bool isConnected() const;
-    bool isPresenting() const;
+    bool isPresenting() const { return !!m_presentingLayer; };
 
     const VRDisplayCapabilities& capabilities() const;
     RefPtr<VRStageParameters> stageParameters() const;
@@ -72,15 +75,21 @@ public:
     double depthFar() const { return m_depthFar; }
     void setDepthFar(double depthFar) { m_depthFar = depthFar; }
 
-    long requestAnimationFrame(Ref<RequestAnimationFrameCallback>&&);
-    void cancelAnimationFrame(unsigned);
+    uint32_t requestAnimationFrame(Ref<RequestAnimationFrameCallback>&&);
+    void cancelAnimationFrame(uint32_t);
 
     void requestPresent(const Vector<VRLayerInit>&, Ref<DeferredPromise>&&);
     void exitPresent(Ref<DeferredPromise>&&);
 
-    const Vector<VRLayerInit>& getLayers() const;
+    Vector<VRLayerInit> getLayers() const;
 
     void submitFrame();
+
+    // VRPlatformDisplayClient
+    void platformDisplayConnected() override;
+    void platformDisplayDisconnected() override;
+    void platformDisplayMounted() override;
+    void platformDisplayUnmounted() override;
 
 private:
     VRDisplay(ScriptExecutionContext&, WeakPtr<VRPlatformDisplay>&&);
@@ -97,6 +106,10 @@ private:
     bool canSuspendForDocumentSuspension() const override;
     void stop() override;
 
+    void stopPresenting();
+
+    Document* document() { return downcast<Document>(scriptExecutionContext()); }
+
     WeakPtr<VRPlatformDisplay> m_display;
 
     RefPtr<VRDisplayCapabilities> m_capabilities;
@@ -111,6 +124,10 @@ private:
 
     double m_depthNear { 0.01 }; // Default value from the specs.
     double m_depthFar { 10000 }; // Default value from the specs.
+
+    RefPtr<ScriptedAnimationController> m_scriptedAnimationController;
+
+    Optional<VRLayerInit> m_presentingLayer;
 };
 
 } // namespace WebCore

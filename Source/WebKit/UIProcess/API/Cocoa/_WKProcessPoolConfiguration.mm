@@ -64,22 +64,22 @@
 
 - (NSUInteger)maximumProcessCount
 {
-    return _processPoolConfiguration->maximumProcessCount();
+    // Deprecated.
+    return NSUIntegerMax;
 }
 
 - (void)setMaximumProcessCount:(NSUInteger)maximumProcessCount
 {
-    _processPoolConfiguration->setMaximumProcessCount(maximumProcessCount);
+    // Deprecated.
 }
 
 - (NSInteger)diskCacheSizeOverride
 {
-    return _processPoolConfiguration->diskCacheSizeOverride();
+    return 0;
 }
 
 - (void)setDiskCacheSizeOverride:(NSInteger)size
 {
-    _processPoolConfiguration->setDiskCacheSizeOverride(size);
 }
 
 - (BOOL)diskCacheSpeculativeValidationEnabled
@@ -100,6 +100,16 @@
 - (void)setIgnoreSynchronousMessagingTimeoutsForTesting:(BOOL)ignoreSynchronousMessagingTimeoutsForTesting
 {
     _processPoolConfiguration->setIgnoreSynchronousMessagingTimeoutsForTesting(ignoreSynchronousMessagingTimeoutsForTesting);
+}
+
+- (BOOL)attrStyleEnabled
+{
+    return _processPoolConfiguration->attrStyleEnabled();
+}
+
+- (void)setAttrStyleEnabled:(BOOL)enabled
+{
+    return _processPoolConfiguration->setAttrStyleEnabled(enabled);
 }
 
 - (NSArray<NSURL *> *)additionalReadAccessAllowedURLs
@@ -128,6 +138,18 @@
 
     _processPoolConfiguration->setAdditionalReadAccessAllowedPaths(WTFMove(paths));
 }
+
+#if ENABLE(PROXIMITY_NETWORKING)
+- (NSUInteger)wirelessContextIdentifier
+{
+    return _processPoolConfiguration->wirelessContextIdentifier();
+}
+
+- (void)setWirelessContextIdentifier:(NSUInteger)identifier
+{
+    _processPoolConfiguration->setWirelessContextIdentifier(identifier);
+}
+#endif
 
 - (NSArray *)cachePartitionedURLSchemes
 {
@@ -180,30 +202,19 @@
 
 - (NSString *)sourceApplicationBundleIdentifier
 {
-    return _processPoolConfiguration->sourceApplicationBundleIdentifier();
+    return nil;
 }
 
 - (void)setSourceApplicationBundleIdentifier:(NSString *)sourceApplicationBundleIdentifier
 {
-    _processPoolConfiguration->setSourceApplicationBundleIdentifier(sourceApplicationBundleIdentifier);
 }
 
 - (NSString *)sourceApplicationSecondaryIdentifier
 {
-    return _processPoolConfiguration->sourceApplicationSecondaryIdentifier();
+    return nil;
 }
 
 - (void)setSourceApplicationSecondaryIdentifier:(NSString *)sourceApplicationSecondaryIdentifier
-{
-    _processPoolConfiguration->setSourceApplicationSecondaryIdentifier(sourceApplicationSecondaryIdentifier);
-}
-
-- (BOOL)allowsCellularAccess
-{
-    return YES;
-}
-
-- (void)setAllowsCellularAccess:(BOOL)allowsCellularAccess
 {
 }
 
@@ -237,7 +248,101 @@
     return _processPoolConfiguration->processSwapsOnNavigation();
 }
 
-#if PLATFORM(IOS)
+- (void)setPrewarmsProcessesAutomatically:(BOOL)prewarms
+{
+    _processPoolConfiguration->setIsAutomaticProcessWarmingEnabled(prewarms);
+}
+
+- (BOOL)prewarmsProcessesAutomatically
+{
+    return _processPoolConfiguration->isAutomaticProcessWarmingEnabled();
+}
+
+- (void)setUsesWebProcessCache:(BOOL)value
+{
+    _processPoolConfiguration->setUsesWebProcessCache(value);
+}
+
+- (BOOL)usesWebProcessCache
+{
+    return _processPoolConfiguration->usesWebProcessCache();
+}
+
+- (void)setAlwaysKeepAndReuseSwappedProcesses:(BOOL)swaps
+{
+    _processPoolConfiguration->setAlwaysKeepAndReuseSwappedProcesses(swaps);
+}
+
+- (BOOL)alwaysKeepAndReuseSwappedProcesses
+{
+    return _processPoolConfiguration->alwaysKeepAndReuseSwappedProcesses();
+}
+
+- (void)setProcessSwapsOnWindowOpenWithOpener:(BOOL)swaps
+{
+    _processPoolConfiguration->setProcessSwapsOnWindowOpenWithOpener(swaps);
+}
+
+- (BOOL)processSwapsOnWindowOpenWithOpener
+{
+    return _processPoolConfiguration->processSwapsOnWindowOpenWithOpener();
+}
+
+- (BOOL)pageCacheEnabled
+{
+    return _processPoolConfiguration->cacheModel() != WebKit::CacheModel::DocumentViewer;
+}
+
+- (void)setPageCacheEnabled:(BOOL)enabled
+{
+    if (!enabled)
+        _processPoolConfiguration->setCacheModel(WebKit::CacheModel::DocumentViewer);
+    else if (![self pageCacheEnabled])
+        _processPoolConfiguration->setCacheModel(WebKit::CacheModel::PrimaryWebBrowser);
+}
+
+- (BOOL)usesSingleWebProcess
+{
+    return _processPoolConfiguration->usesSingleWebProcess();
+}
+
+- (void)setUsesSingleWebProcess:(BOOL)enabled
+{
+    _processPoolConfiguration->setUsesSingleWebProcess(enabled);
+}
+
+- (BOOL)suppressesConnectionTerminationOnSystemChange
+{
+    return _processPoolConfiguration->suppressesConnectionTerminationOnSystemChange();
+}
+
+- (BOOL)isJITEnabled
+{
+    return _processPoolConfiguration->isJITEnabled();
+}
+
+- (void)setJITEnabled:(BOOL)enabled
+{
+    _processPoolConfiguration->setJITEnabled(enabled);
+}
+
+- (BOOL)usesNetworkingDaemon
+{
+    return _processPoolConfiguration->usesNetworkingDaemon();
+}
+
+- (void)setUsesNetworkingDaemon:(BOOL)enabled
+{
+    _processPoolConfiguration->setUsesNetworkingDaemon(enabled);
+}
+
+
+- (void)setSuppressesConnectionTerminationOnSystemChange:(BOOL)suppressesConnectionTerminationOnSystemChange
+{
+    _processPoolConfiguration->setSuppressesConnectionTerminationOnSystemChange(suppressesConnectionTerminationOnSystemChange);
+}
+
+#if PLATFORM(IOS_FAMILY)
 - (NSString *)CTDataConnectionServiceType
 {
     return _processPoolConfiguration->ctDataConnectionServiceType();
@@ -271,7 +376,7 @@
 
 - (NSString *)description
 {
-    NSString *description = [NSString stringWithFormat:@"<%@: %p; maximumProcessCount = %lu", NSStringFromClass(self.class), self, static_cast<unsigned long>([self maximumProcessCount])];
+    NSString *description = [NSString stringWithFormat:@"<%@: %p", NSStringFromClass(self.class), self];
 
     if (!_processPoolConfiguration->injectedBundlePath().isEmpty())
         return [description stringByAppendingFormat:@"; injectedBundleURL: \"%@\">", [self injectedBundleURL]];
@@ -281,7 +386,17 @@
 
 - (id)copyWithZone:(NSZone *)zone
 {
-    return wrapper(_processPoolConfiguration->copy().leakRef());
+    return [wrapper(_processPoolConfiguration->copy()) retain];
+}
+
+- (NSString *)customWebContentServiceBundleIdentifier
+{
+    return _processPoolConfiguration->customWebContentServiceBundleIdentifier();
+}
+
+- (void)setCustomWebContentServiceBundleIdentifier:(NSString *)customWebContentServiceBundleIdentifier
+{
+    _processPoolConfiguration->setCustomWebContentServiceBundleIdentifier(customWebContentServiceBundleIdentifier);
 }
 
 #pragma mark WKObject protocol implementation

@@ -11,12 +11,15 @@
 #ifndef RTC_BASE_COPYONWRITEBUFFER_H_
 #define RTC_BASE_COPYONWRITEBUFFER_H_
 
+#include <stdint.h>
 #include <algorithm>
+#include <cstring>
+#include <string>
+#include <type_traits>
 #include <utility>
 
 #include "rtc_base/buffer.h"
 #include "rtc_base/checks.h"
-#include "rtc_base/refcount.h"
 #include "rtc_base/refcountedobject.h"
 #include "rtc_base/scoped_ref_ptr.h"
 
@@ -30,6 +33,9 @@ class CopyOnWriteBuffer {
   CopyOnWriteBuffer(const CopyOnWriteBuffer& buf);
   // Move contents from an existing buffer.
   CopyOnWriteBuffer(CopyOnWriteBuffer&& buf);
+
+  // Construct a buffer from a string, convenient for unittests.
+  CopyOnWriteBuffer(const std::string& s);
 
   // Construct a buffer with the specified number of uninitialized bytes.
   explicit CopyOnWriteBuffer(size_t size);
@@ -185,8 +191,8 @@ class CopyOnWriteBuffer {
       return;
     }
 
-    CloneDataIfReferenced(std::max(buffer_->capacity(),
-        buffer_->size() + size));
+    CloneDataIfReferenced(
+        std::max(buffer_->capacity(), buffer_->size() + size));
     buffer_->AppendData(data, size);
     RTC_DCHECK(IsConsistent());
   }
@@ -229,9 +235,7 @@ class CopyOnWriteBuffer {
   void CloneDataIfReferenced(size_t new_capacity);
 
   // Pre- and postcondition of all methods.
-  bool IsConsistent() const {
-    return (!buffer_ || buffer_->capacity() > 0);
-  }
+  bool IsConsistent() const { return (!buffer_ || buffer_->capacity() > 0); }
 
   // buffer_ is either null, or points to an rtc::Buffer with capacity > 0.
   scoped_refptr<RefCountedObject<Buffer>> buffer_;

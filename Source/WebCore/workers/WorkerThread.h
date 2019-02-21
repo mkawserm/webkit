@@ -39,7 +39,6 @@ class SessionID;
 namespace WebCore {
 
 class ContentSecurityPolicyResponseHeaders;
-class URL;
 class NotificationClient;
 class SecurityOrigin;
 class SocketProvider;
@@ -62,6 +61,9 @@ struct WorkerThreadStartupData;
 class WorkerThread : public ThreadSafeRefCounted<WorkerThread> {
 public:
     virtual ~WorkerThread();
+
+    static HashSet<WorkerThread*>& workerThreads(const LockHolder&);
+    static Lock& workerThreadsMutex();
 
     WEBCORE_EXPORT void start(WTF::Function<void(const String&)>&& evaluateCallback);
     void stop(WTF::Function<void()>&& terminatedCallback);
@@ -86,11 +88,13 @@ public:
     
     JSC::RuntimeFlags runtimeFlags() const { return m_runtimeFlags; }
 
+    String identifier() const { return m_identifier; }
+
 protected:
-    WorkerThread(const URL&, const String& identifier, const String& userAgent, bool isOnline, const String& sourceCode, WorkerLoaderProxy&, WorkerDebuggerProxy&, WorkerReportingProxy&, WorkerThreadStartMode, const ContentSecurityPolicyResponseHeaders&, bool shouldBypassMainWorldContentSecurityPolicy, const SecurityOrigin& topOrigin, MonotonicTime timeOrigin, IDBClient::IDBConnectionProxy*, SocketProvider*, JSC::RuntimeFlags, PAL::SessionID);
+    WorkerThread(const URL&, const String& name, const String& identifier, const String& userAgent, bool isOnline, const String& sourceCode, WorkerLoaderProxy&, WorkerDebuggerProxy&, WorkerReportingProxy&, WorkerThreadStartMode, const ContentSecurityPolicyResponseHeaders&, bool shouldBypassMainWorldContentSecurityPolicy, const SecurityOrigin& topOrigin, MonotonicTime timeOrigin, IDBClient::IDBConnectionProxy*, SocketProvider*, JSC::RuntimeFlags, PAL::SessionID);
 
     // Factory method for creating a new worker context for the thread.
-    virtual Ref<WorkerGlobalScope> createWorkerGlobalScope(const URL&, const String& identifier, const String& userAgent, bool isOnline, const ContentSecurityPolicyResponseHeaders&, bool shouldBypassMainWorldContentSecurityPolicy, Ref<SecurityOrigin>&& topOrigin, MonotonicTime timeOrigin, PAL::SessionID) = 0;
+    virtual Ref<WorkerGlobalScope> createWorkerGlobalScope(const URL&, Ref<SecurityOrigin>&&, const String& name, const String& identifier, const String& userAgent, bool isOnline, const ContentSecurityPolicyResponseHeaders&, bool shouldBypassMainWorldContentSecurityPolicy, Ref<SecurityOrigin>&& topOrigin, MonotonicTime timeOrigin, PAL::SessionID) = 0;
 
     // Executes the event loop for the worker thread. Derived classes can override to perform actions before/after entering the event loop.
     virtual void runEventLoop();
@@ -102,8 +106,10 @@ protected:
 
 private:
     void workerThread();
+    virtual bool isServiceWorkerThread() const { return false; }
 
     RefPtr<Thread> m_thread;
+    String m_identifier;
     WorkerRunLoop m_runLoop;
     WorkerLoaderProxy& m_workerLoaderProxy;
     WorkerDebuggerProxy& m_workerDebuggerProxy;

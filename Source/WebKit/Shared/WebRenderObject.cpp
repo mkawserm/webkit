@@ -32,15 +32,13 @@
 #include <WebCore/Frame.h>
 #include <WebCore/FrameLoader.h>
 #include <WebCore/FrameLoaderClient.h>
-#include <WebCore/MainFrame.h>
 #include <WebCore/RenderInline.h>
 #include <WebCore/RenderText.h>
 #include <WebCore/RenderView.h>
 #include <WebCore/RenderWidget.h>
 
-using namespace WebCore;
-
 namespace WebKit {
+using namespace WebCore;
 
 RefPtr<WebRenderObject> WebRenderObject::create(WebPage* page)
 {

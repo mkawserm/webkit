@@ -32,44 +32,53 @@ function makeOffscreenCanvas() {
     });
 }
 
+var imageBitmapVideoPromise = new Promise(function(resolve, reject) {
+    var video = document.createElement("video");
+    video.oncanplaythrough = function() {
+        resolve(video);
+    };
+    video.onerror = reject;
+    video.src = getVideoURI("/images/pattern");
+
+    // Prevent WebKit from garbage collecting event handlers.
+    window._video = video;
+});
+
 function makeVideo() {
-    return new Promise(function(resolve, reject) {
-        var video = document.createElement("video");
-        video.oncanplaythrough = function() {
-            resolve(video);
-        };
-        video.onerror = reject;
-        video.src = getVideoURI("/images/pattern");
-    });
+    return imageBitmapVideoPromise;
 }
 
-function makeDataUrlVideo() {
-    const toDataUrl = (type, buffer) => {
-        const encoded = btoa(String.fromCodePoint(...new Uint8Array(buffer)));
-        return `data:${type};base64,${encoded}`
-    };
+var imageBitmapDataUrlVideoPromise = fetch(getVideoURI("/images/pattern"))
+    .then(response => Promise.all([response.headers.get("Content-Type"), response.arrayBuffer()]))
+    .then(([type, data]) => {
+        return new Promise(function(resolve, reject) {
+            var video = document.createElement("video");
+            video.oncanplaythrough = function() {
+                resolve(video);
+            };
+            video.onerror = reject;
 
-    return fetch(getVideoURI("/images/pattern"))
-        .then(response => Promise.all([response.headers.get("Content-Type"), response.arrayBuffer()]))
-        .then(([type, data]) => {
-            return new Promise(function(resolve, reject) {
-                var video = document.createElement("video");
-                video.oncanplaythrough = function() {
-                    resolve(video);
-                };
-                video.onerror = reject;
-                video.src = toDataUrl(type, data);
-            });
+            var encoded = btoa(String.fromCodePoint(...new Uint8Array(data)));
+            var dataUrl = `data:${type};base64,${encoded}`;
+            video.src = dataUrl;
+
+            // Prevent WebKit from garbage collecting event handlers.
+            window._dataVideo = video;
         });
+    });
+
+function makeDataUrlVideo() {
+    return imageBitmapDataUrlVideoPromise;
 }
 
 function makeMakeHTMLImage(src) {
     return function() {
-        return new Promise(resolve => {
+        return new Promise((resolve, reject) => {
             var img = new Image();
             img.onload = function() {
                 resolve(img);
             };
+            img.onerror = reject;
             img.src = src;
         });
     }

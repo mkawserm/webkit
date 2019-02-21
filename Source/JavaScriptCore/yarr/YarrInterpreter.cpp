@@ -32,11 +32,10 @@
 #include "Yarr.h"
 #include "YarrCanonicalize.h"
 #include <wtf/BumpPointerAllocator.h>
+#include <wtf/CheckedArithmetic.h>
 #include <wtf/DataLog.h>
 #include <wtf/text/CString.h>
 #include <wtf/text/WTFString.h>
-
-using namespace WTF;
 
 namespace JSC { namespace Yarr {
 
@@ -67,17 +66,23 @@ public:
 
     struct DisjunctionContext
     {
-        DisjunctionContext()
-            : term(0)
-        {
-        }
+        DisjunctionContext() = default;
 
         void* operator new(size_t, void* where)
         {
             return where;
         }
 
-        int term;
+        static size_t allocationSize(unsigned numberOfFrames)
+        {
+            static_assert(alignof(DisjunctionContext) <= sizeof(void*), "");
+            size_t rawSize = (sizeof(DisjunctionContext) - sizeof(uintptr_t) + Checked<size_t>(numberOfFrames) * sizeof(uintptr_t)).unsafeGet();
+            size_t roundedSize = roundUpToMultipleOf<sizeof(void*)>(rawSize);
+            RELEASE_ASSERT(roundedSize >= rawSize);
+            return roundedSize;
+        }
+
+        int term { 0 };
         unsigned matchBegin;
         unsigned matchEnd;
         uintptr_t frame[1];
@@ -85,7 +90,7 @@ public:
 
     DisjunctionContext* allocDisjunctionContext(ByteDisjunction* disjunction)
     {
-        size_t size = sizeof(DisjunctionContext) - sizeof(uintptr_t) + disjunction->m_frameSize * sizeof(uintptr_t);
+        size_t size = DisjunctionContext::allocationSize(disjunction->m_frameSize);
         allocatorPool = allocatorPool->ensureCapacity(size);
         RELEASE_ASSERT(allocatorPool);
         return new (allocatorPool->alloc(size)) DisjunctionContext();
@@ -99,7 +104,6 @@ public:
     struct ParenthesesDisjunctionContext
     {
         ParenthesesDisjunctionContext(unsigned* output, ByteTerm& term)
-            : next(0)
         {
             unsigned firstSubpatternId = term.atom.subpatternId;
             unsigned numNestedSubpatterns = term.atom.parenthesesDisjunction->m_numSubpatterns;
@@ -125,16 +129,25 @@ public:
 
         DisjunctionContext* getDisjunctionContext(ByteTerm& term)
         {
-            return reinterpret_cast<DisjunctionContext*>(&(subpatternBackup[term.atom.parenthesesDisjunction->m_numSubpatterns << 1]));
+            return bitwise_cast<DisjunctionContext*>(bitwise_cast<uintptr_t>(this) + allocationSize(term.atom.parenthesesDisjunction->m_numSubpatterns));
         }
 
-        ParenthesesDisjunctionContext* next;
+        static size_t allocationSize(unsigned numberOfSubpatterns)
+        {
+            static_assert(alignof(ParenthesesDisjunctionContext) <= sizeof(void*), "");
+            size_t rawSize = (sizeof(ParenthesesDisjunctionContext) - sizeof(unsigned) + (Checked<size_t>(numberOfSubpatterns) * 2U) * sizeof(unsigned)).unsafeGet();
+            size_t roundedSize = roundUpToMultipleOf<sizeof(void*)>(rawSize);
+            RELEASE_ASSERT(roundedSize >= rawSize);
+            return roundedSize;
+        }
+
+        ParenthesesDisjunctionContext* next { nullptr };
         unsigned subpatternBackup[1];
     };
 
     ParenthesesDisjunctionContext* allocParenthesesDisjunctionContext(ByteDisjunction* disjunction, unsigned* output, ByteTerm& term)
     {
-        size_t size = sizeof(ParenthesesDisjunctionContext) - sizeof(unsigned) + (term.atom.parenthesesDisjunction->m_numSubpatterns << 1) * sizeof(unsigned) + sizeof(DisjunctionContext) - sizeof(uintptr_t) + static_cast<size_t>(disjunction->m_frameSize) * sizeof(uintptr_t);
+        size_t size = (Checked<size_t>(ParenthesesDisjunctionContext::allocationSize(term.atom.parenthesesDisjunction->m_numSubpatterns)) + DisjunctionContext::allocationSize(disjunction->m_frameSize)).unsafeGet();
         allocatorPool = allocatorPool->ensureCapacity(size);
         RELEASE_ASSERT(allocatorPool);
         return new (allocatorPool->alloc(size)) ParenthesesDisjunctionContext(output, term);
@@ -1630,7 +1643,6 @@ public:
         , unicode(pattern->unicode())
         , output(output)
         , input(input, start, length, pattern->unicode())
-        , allocatorPool(0)
         , startOffset(start)
         , remainingMatchCount(matchLimit)
     {
@@ -1641,7 +1653,7 @@ private:
     bool unicode;
     unsigned* output;
     InputStream input;
-    BumpPointerPool* allocatorPool;
+    WTF::BumpPointerPool* allocatorPool { nullptr };
     unsigned startOffset;
     unsigned remainingMatchCount;
 };
@@ -2065,7 +2077,7 @@ public:
                     } else if (term.parentheses.isTerminal) {
                         ASSERT(currentCountAlreadyChecked >= term.inputPosition);
                         unsigned delegateEndInputOffset = currentCountAlreadyChecked - term.inputPosition;
-                        atomParenthesesTerminalBegin(term.parentheses.subpatternId, term.capture(), disjunctionAlreadyCheckedCount + delegateEndInputOffset, term.frameLocation, term.frameLocation + YarrStackSpaceForBackTrackInfoParenthesesOnce);
+                        atomParenthesesTerminalBegin(term.parentheses.subpatternId, term.capture(), disjunctionAlreadyCheckedCount + delegateEndInputOffset, term.frameLocation, term.frameLocation + YarrStackSpaceForBackTrackInfoParenthesesTerminal);
                         emitDisjunction(term.parentheses.disjunction, currentCountAlreadyChecked, disjunctionAlreadyCheckedCount);
                         atomParenthesesTerminalEnd(delegateEndInputOffset, term.frameLocation, term.quantityMinCount, term.quantityMaxCount, term.quantityType);
                     } else {
@@ -2162,6 +2174,10 @@ public:
             out.printf(" inputPosition %u", term.inputPosition);
         };
 
+        auto dumpFrameLocation = [&](ByteTerm& term) {
+            out.printf(" frameLocation %u", term.frameLocation);
+        };
+        
         auto dumpCharacter = [&](ByteTerm& term) {
             out.print(" ");
             dumpUChar32(out, term.atom.patternCharacter);
@@ -2183,26 +2199,32 @@ public:
                 out.print("BodyAlternativeBegin");
                 if (term.alternative.onceThrough)
                     out.print(" onceThrough");
+                dumpFrameLocation(term);
                 break;
             case ByteTerm::TypeBodyAlternativeDisjunction:
                 outputTermIndexAndNest(idx, nesting - 1);
                 out.print("BodyAlternativeDisjunction");
+                dumpFrameLocation(term);
                 break;
             case ByteTerm::TypeBodyAlternativeEnd:
                 outputTermIndexAndNest(idx, --nesting);
                 out.print("BodyAlternativeEnd");
+                dumpFrameLocation(term);
                 break;
             case ByteTerm::TypeAlternativeBegin:
                 outputTermIndexAndNest(idx, nesting++);
                 out.print("AlternativeBegin");
+                dumpFrameLocation(term);
                 break;
             case ByteTerm::TypeAlternativeDisjunction:
                 outputTermIndexAndNest(idx, nesting - 1);
                 out.print("AlternativeDisjunction");
+                dumpFrameLocation(term);
                 break;
             case ByteTerm::TypeAlternativeEnd:
                 outputTermIndexAndNest(idx, --nesting);
                 out.print("AlternativeEnd");
+                dumpFrameLocation(term);
                 break;
             case ByteTerm::TypeSubpatternBegin:
                 outputTermIndexAndNest(idx, nesting++);
@@ -2229,6 +2251,7 @@ public:
                 out.print("PatternCharacterOnce");
                 dumpInverted(term);
                 dumpInputPosition(term);
+                dumpFrameLocation(term);
                 dumpCharacter(term);
                 dumpQuantity(term);
                 break;
@@ -2237,6 +2260,7 @@ public:
                 out.print("PatternCharacterFixed");
                 dumpInverted(term);
                 dumpInputPosition(term);
+                dumpFrameLocation(term);
                 dumpCharacter(term);
                 out.print(" {", term.atom.quantityMinCount, "}");
                 break;
@@ -2245,6 +2269,7 @@ public:
                 out.print("PatternCharacterGreedy");
                 dumpInverted(term);
                 dumpInputPosition(term);
+                dumpFrameLocation(term);
                 dumpCharacter(term);
                 dumpQuantity(term);
                 break;
@@ -2253,6 +2278,7 @@ public:
                 out.print("PatternCharacterNonGreedy");
                 dumpInverted(term);
                 dumpInputPosition(term);
+                dumpFrameLocation(term);
                 dumpCharacter(term);
                 dumpQuantity(term);
                 break;
@@ -2277,6 +2303,7 @@ public:
                 out.print("CharacterClass");
                 dumpInverted(term);
                 dumpInputPosition(term);
+                dumpFrameLocation(term);
                 dumpCharClass(term);
                 dumpQuantity(term);
                 break;
@@ -2291,6 +2318,7 @@ public:
                 dumpCaptured(term);
                 dumpInverted(term);
                 dumpInputPosition(term);
+                dumpFrameLocation(term);
                 dumpQuantity(term);
                 out.print("\n");
                 outputNewline = false;
@@ -2302,30 +2330,36 @@ public:
                 dumpCaptured(term);
                 dumpInverted(term);
                 dumpInputPosition(term);
+                dumpFrameLocation(term);
                 break;
             case ByteTerm::TypeParenthesesSubpatternOnceEnd:
                 outputTermIndexAndNest(idx, --nesting);
                 out.print("ParenthesesSubpatternOnceEnd");
+                dumpFrameLocation(term);
                 break;
             case ByteTerm::TypeParenthesesSubpatternTerminalBegin:
                 outputTermIndexAndNest(idx, nesting++);
                 out.print("ParenthesesSubpatternTerminalBegin");
                 dumpInverted(term);
                 dumpInputPosition(term);
+                dumpFrameLocation(term);
                 break;
             case ByteTerm::TypeParenthesesSubpatternTerminalEnd:
                 outputTermIndexAndNest(idx, --nesting);
                 out.print("ParenthesesSubpatternTerminalEnd");
+                dumpFrameLocation(term);
                 break;
             case ByteTerm::TypeParentheticalAssertionBegin:
                 outputTermIndexAndNest(idx, nesting++);
                 out.print("ParentheticalAssertionBegin");
                 dumpInverted(term);
                 dumpInputPosition(term);
+                dumpFrameLocation(term);
                 break;
             case ByteTerm::TypeParentheticalAssertionEnd:
                 outputTermIndexAndNest(idx, --nesting);
                 out.print("ParentheticalAssertionEnd");
+                dumpFrameLocation(term);
                 break;
             case ByteTerm::TypeCheckInput:
                 outputTermIndexAndNest(idx, nesting);

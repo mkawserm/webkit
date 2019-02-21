@@ -55,17 +55,17 @@
 #include "JSDOMOperation.h"
 #include "JSDOMOperationReturningPromise.h"
 #include "JSDOMStringList.h"
-#include "JSDOMWindow.h"
 #include "JSDOMWindowBase.h"
-#include "JSDOMWindowProxy.h"
 #include "JSDOMWrapperCache.h"
 #include "JSDocument.h"
 #include "JSElement.h"
 #include "JSEventListener.h"
 #include "JSFetchRequest.h"
+#include "JSMediaDevices.h"
 #include "JSNode.h"
 #include "JSSVGDocument.h"
 #include "JSSVGPoint.h"
+#include "JSServiceWorker.h"
 #include "JSTestCallbackFunction.h"
 #include "JSTestCallbackInterface.h"
 #include "JSTestInterface.h"
@@ -74,15 +74,16 @@
 #include "JSTestStandaloneDictionary.h"
 #include "JSTestStandaloneEnumeration.h"
 #include "JSTestSubObj.h"
+#include "JSWindowProxy.h"
 #include "JSXPathNSResolver.h"
 #include "RuntimeEnabledFeatures.h"
 #include "ScriptExecutionContext.h"
 #include "SerializedScriptValue.h"
-#include "URL.h"
 #include "WebCoreJSClientData.h"
 #include <JavaScriptCore/ArrayPrototype.h>
 #include <JavaScriptCore/BuiltinNames.h>
 #include <JavaScriptCore/FunctionPrototype.h>
+#include <JavaScriptCore/HeapSnapshotBuilder.h>
 #include <JavaScriptCore/IteratorOperations.h>
 #include <JavaScriptCore/JSArray.h>
 #include <JavaScriptCore/JSCInlines.h>
@@ -91,6 +92,7 @@
 #include <JavaScriptCore/PropertyNameArray.h>
 #include <wtf/GetPtr.h>
 #include <wtf/PointerPreparations.h>
+#include <wtf/URL.h>
 #include <wtf/Variant.h>
 #include <wtf/Vector.h>
 
@@ -135,7 +137,7 @@ template<> JSString* convertEnumerationToJS(ExecState& state, TestObj::EnumType 
     return jsStringWithCache(&state, convertEnumerationToString(enumerationValue));
 }
 
-template<> std::optional<TestObj::EnumType> parseEnumeration<TestObj::EnumType>(ExecState& state, JSValue value)
+template<> Optional<TestObj::EnumType> parseEnumeration<TestObj::EnumType>(ExecState& state, JSValue value)
 {
     auto stringValue = value.toWTFString(&state);
     if (stringValue.isEmpty())
@@ -146,7 +148,7 @@ template<> std::optional<TestObj::EnumType> parseEnumeration<TestObj::EnumType>(
         return TestObj::EnumType::EnumValue2;
     if (stringValue == "EnumValue3")
         return TestObj::EnumType::EnumValue3;
-    return std::nullopt;
+    return WTF::nullopt;
 }
 
 template<> const char* expectedEnumerationValues<TestObj::EnumType>()
@@ -175,7 +177,7 @@ template<> JSString* convertEnumerationToJS(ExecState& state, TestObj::Optional 
     return jsStringWithCache(&state, convertEnumerationToString(enumerationValue));
 }
 
-template<> std::optional<TestObj::Optional> parseEnumeration<TestObj::Optional>(ExecState& state, JSValue value)
+template<> Optional<TestObj::Optional> parseEnumeration<TestObj::Optional>(ExecState& state, JSValue value)
 {
     auto stringValue = value.toWTFString(&state);
     if (stringValue.isEmpty())
@@ -186,7 +188,7 @@ template<> std::optional<TestObj::Optional> parseEnumeration<TestObj::Optional>(
         return TestObj::Optional::OptionalValue2;
     if (stringValue == "OptionalValue3")
         return TestObj::Optional::OptionalValue3;
-    return std::nullopt;
+    return WTF::nullopt;
 }
 
 template<> const char* expectedEnumerationValues<TestObj::Optional>()
@@ -211,14 +213,14 @@ template<> JSString* convertEnumerationToJS(ExecState& state, AlternateEnumName 
     return jsStringWithCache(&state, convertEnumerationToString(enumerationValue));
 }
 
-template<> std::optional<AlternateEnumName> parseEnumeration<AlternateEnumName>(ExecState& state, JSValue value)
+template<> Optional<AlternateEnumName> parseEnumeration<AlternateEnumName>(ExecState& state, JSValue value)
 {
     auto stringValue = value.toWTFString(&state);
     if (stringValue == "enumValue1")
         return AlternateEnumName::EnumValue1;
     if (stringValue == "EnumValue2")
         return AlternateEnumName::EnumValue2;
-    return std::nullopt;
+    return WTF::nullopt;
 }
 
 template<> const char* expectedEnumerationValues<AlternateEnumName>()
@@ -243,12 +245,12 @@ template<> JSString* convertEnumerationToJS(ExecState& state, TestObj::EnumA enu
     return jsStringWithCache(&state, convertEnumerationToString(enumerationValue));
 }
 
-template<> std::optional<TestObj::EnumA> parseEnumeration<TestObj::EnumA>(ExecState& state, JSValue value)
+template<> Optional<TestObj::EnumA> parseEnumeration<TestObj::EnumA>(ExecState& state, JSValue value)
 {
     auto stringValue = value.toWTFString(&state);
     if (stringValue == "A")
         return TestObj::EnumA::A;
-    return std::nullopt;
+    return WTF::nullopt;
 }
 
 template<> const char* expectedEnumerationValues<TestObj::EnumA>()
@@ -275,12 +277,12 @@ template<> JSString* convertEnumerationToJS(ExecState& state, TestObj::EnumB enu
     return jsStringWithCache(&state, convertEnumerationToString(enumerationValue));
 }
 
-template<> std::optional<TestObj::EnumB> parseEnumeration<TestObj::EnumB>(ExecState& state, JSValue value)
+template<> Optional<TestObj::EnumB> parseEnumeration<TestObj::EnumB>(ExecState& state, JSValue value)
 {
     auto stringValue = value.toWTFString(&state);
     if (stringValue == "B")
         return TestObj::EnumB::B;
-    return std::nullopt;
+    return WTF::nullopt;
 }
 
 template<> const char* expectedEnumerationValues<TestObj::EnumB>()
@@ -307,12 +309,12 @@ template<> JSString* convertEnumerationToJS(ExecState& state, TestObj::EnumC enu
     return jsStringWithCache(&state, convertEnumerationToString(enumerationValue));
 }
 
-template<> std::optional<TestObj::EnumC> parseEnumeration<TestObj::EnumC>(ExecState& state, JSValue value)
+template<> Optional<TestObj::EnumC> parseEnumeration<TestObj::EnumC>(ExecState& state, JSValue value)
 {
     auto stringValue = value.toWTFString(&state);
     if (stringValue == "C")
         return TestObj::EnumC::C;
-    return std::nullopt;
+    return WTF::nullopt;
 }
 
 template<> const char* expectedEnumerationValues<TestObj::EnumC>()
@@ -339,14 +341,14 @@ template<> JSString* convertEnumerationToJS(ExecState& state, TestObj::Kind enum
     return jsStringWithCache(&state, convertEnumerationToString(enumerationValue));
 }
 
-template<> std::optional<TestObj::Kind> parseEnumeration<TestObj::Kind>(ExecState& state, JSValue value)
+template<> Optional<TestObj::Kind> parseEnumeration<TestObj::Kind>(ExecState& state, JSValue value)
 {
     auto stringValue = value.toWTFString(&state);
     if (stringValue == "quick")
         return TestObj::Kind::Quick;
     if (stringValue == "dead")
         return TestObj::Kind::Dead;
-    return std::nullopt;
+    return WTF::nullopt;
 }
 
 template<> const char* expectedEnumerationValues<TestObj::Kind>()
@@ -371,14 +373,14 @@ template<> JSString* convertEnumerationToJS(ExecState& state, TestObj::Size enum
     return jsStringWithCache(&state, convertEnumerationToString(enumerationValue));
 }
 
-template<> std::optional<TestObj::Size> parseEnumeration<TestObj::Size>(ExecState& state, JSValue value)
+template<> Optional<TestObj::Size> parseEnumeration<TestObj::Size>(ExecState& state, JSValue value)
 {
     auto stringValue = value.toWTFString(&state);
     if (stringValue == "small")
         return TestObj::Size::Small;
     if (stringValue == "much-much-larger")
         return TestObj::Size::MuchMuchLarger;
-    return std::nullopt;
+    return WTF::nullopt;
 }
 
 template<> const char* expectedEnumerationValues<TestObj::Size>()
@@ -403,14 +405,14 @@ template<> JSString* convertEnumerationToJS(ExecState& state, TestObj::Confidenc
     return jsStringWithCache(&state, convertEnumerationToString(enumerationValue));
 }
 
-template<> std::optional<TestObj::Confidence> parseEnumeration<TestObj::Confidence>(ExecState& state, JSValue value)
+template<> Optional<TestObj::Confidence> parseEnumeration<TestObj::Confidence>(ExecState& state, JSValue value)
 {
     auto stringValue = value.toWTFString(&state);
     if (stringValue == "high")
         return TestObj::Confidence::High;
     if (stringValue == "kinda-low")
         return TestObj::Confidence::KindaLow;
-    return std::nullopt;
+    return WTF::nullopt;
 }
 
 template<> const char* expectedEnumerationValues<TestObj::Confidence>()
@@ -648,7 +650,7 @@ template<> TestObj::Dictionary convertDictionary<TestObj::Dictionary>(ExecState&
         result.nullableEnum = convert<IDLNullable<IDLEnumeration<TestObj::EnumType>>>(state, nullableEnumValue);
         RETURN_IF_EXCEPTION(throwScope, { });
     } else
-        result.nullableEnum = std::nullopt;
+        result.nullableEnum = WTF::nullopt;
     JSValue nullableIntegerWithDefaultValue;
     if (isNullOrUndefined)
         nullableIntegerWithDefaultValue = jsUndefined();
@@ -660,7 +662,7 @@ template<> TestObj::Dictionary convertDictionary<TestObj::Dictionary>(ExecState&
         result.nullableIntegerWithDefault = convert<IDLNullable<IDLLong>>(state, nullableIntegerWithDefaultValue);
         RETURN_IF_EXCEPTION(throwScope, { });
     } else
-        result.nullableIntegerWithDefault = std::nullopt;
+        result.nullableIntegerWithDefault = WTF::nullopt;
     JSValue nullableNodeValue;
     if (isNullOrUndefined)
         nullableNodeValue = jsUndefined();
@@ -696,7 +698,7 @@ template<> TestObj::Dictionary convertDictionary<TestObj::Dictionary>(ExecState&
         result.nullableUnionMember = convert<IDLNullable<IDLUnion<IDLLong, IDLInterface<Node>>>>(state, nullableUnionMemberValue);
         RETURN_IF_EXCEPTION(throwScope, { });
     } else
-        result.nullableUnionMember = std::nullopt;
+        result.nullableUnionMember = WTF::nullopt;
     JSValue requiredBufferSourceValueValue;
     if (isNullOrUndefined)
         requiredBufferSourceValueValue = jsUndefined();
@@ -835,7 +837,7 @@ template<> TestObj::Dictionary convertDictionary<TestObj::Dictionary>(ExecState&
         result.stringWithDefault = convert<IDLDOMString>(state, stringWithDefaultValue);
         RETURN_IF_EXCEPTION(throwScope, { });
     } else
-        result.stringWithDefault = ASCIILiteral("defaultString");
+        result.stringWithDefault = "defaultString"_s;
     JSValue stringWithoutDefaultValue;
     if (isNullOrUndefined)
         stringWithoutDefaultValue = jsUndefined();
@@ -1419,6 +1421,9 @@ template<> TestObj::ConditionalDictionaryC convertDictionary<TestObj::Conditiona
 #if ENABLE(TEST_FEATURE)
 JSC::EncodedJSValue JSC_HOST_CALL jsTestObjPrototypeFunctionEnabledAtRuntimeOperation(JSC::ExecState*);
 #endif
+#if ENABLE(TEST_FEATURE)
+JSC::EncodedJSValue JSC_HOST_CALL jsTestObjConstructorFunctionEnabledAtRuntimeOperationStatic(JSC::ExecState*);
+#endif
 JSC::EncodedJSValue JSC_HOST_CALL jsTestObjPrototypeFunctionEnabledInSpecificWorldWhenRuntimeFeatureEnabled(JSC::ExecState*);
 JSC::EncodedJSValue JSC_HOST_CALL jsTestObjPrototypeFunctionWorldSpecificMethod(JSC::ExecState*);
 JSC::EncodedJSValue JSC_HOST_CALL jsTestObjPrototypeFunctionCalculateSecretResult(JSC::ExecState*);
@@ -1464,14 +1469,14 @@ JSC::EncodedJSValue JSC_HOST_CALL jsTestObjPrototypeFunctionPrivateMethod(JSC::E
 JSC::EncodedJSValue JSC_HOST_CALL jsTestObjPrototypeFunctionPublicAndPrivateMethod(JSC::ExecState*);
 JSC::EncodedJSValue JSC_HOST_CALL jsTestObjPrototypeFunctionAddEventListener(JSC::ExecState*);
 JSC::EncodedJSValue JSC_HOST_CALL jsTestObjPrototypeFunctionRemoveEventListener(JSC::ExecState*);
-JSC::EncodedJSValue JSC_HOST_CALL jsTestObjPrototypeFunctionWithScriptStateVoid(JSC::ExecState*);
-JSC::EncodedJSValue JSC_HOST_CALL jsTestObjPrototypeFunctionWithScriptStateObj(JSC::ExecState*);
-JSC::EncodedJSValue JSC_HOST_CALL jsTestObjPrototypeFunctionWithScriptStateVoidException(JSC::ExecState*);
-JSC::EncodedJSValue JSC_HOST_CALL jsTestObjPrototypeFunctionWithScriptStateObjException(JSC::ExecState*);
+JSC::EncodedJSValue JSC_HOST_CALL jsTestObjPrototypeFunctionWithExecStateVoid(JSC::ExecState*);
+JSC::EncodedJSValue JSC_HOST_CALL jsTestObjPrototypeFunctionWithExecStateObj(JSC::ExecState*);
+JSC::EncodedJSValue JSC_HOST_CALL jsTestObjPrototypeFunctionWithExecStateVoidException(JSC::ExecState*);
+JSC::EncodedJSValue JSC_HOST_CALL jsTestObjPrototypeFunctionWithExecStateObjException(JSC::ExecState*);
 JSC::EncodedJSValue JSC_HOST_CALL jsTestObjPrototypeFunctionWithScriptExecutionContext(JSC::ExecState*);
-JSC::EncodedJSValue JSC_HOST_CALL jsTestObjPrototypeFunctionWithScriptExecutionContextAndScriptState(JSC::ExecState*);
-JSC::EncodedJSValue JSC_HOST_CALL jsTestObjPrototypeFunctionWithScriptExecutionContextAndScriptStateObjException(JSC::ExecState*);
-JSC::EncodedJSValue JSC_HOST_CALL jsTestObjPrototypeFunctionWithScriptExecutionContextAndScriptStateWithSpaces(JSC::ExecState*);
+JSC::EncodedJSValue JSC_HOST_CALL jsTestObjPrototypeFunctionWithScriptExecutionContextAndExecState(JSC::ExecState*);
+JSC::EncodedJSValue JSC_HOST_CALL jsTestObjPrototypeFunctionWithScriptExecutionContextAndExecStateObjException(JSC::ExecState*);
+JSC::EncodedJSValue JSC_HOST_CALL jsTestObjPrototypeFunctionWithScriptExecutionContextAndExecStateWithSpaces(JSC::ExecState*);
 JSC::EncodedJSValue JSC_HOST_CALL jsTestObjPrototypeFunctionWithDocumentArgument(JSC::ExecState*);
 JSC::EncodedJSValue JSC_HOST_CALL jsTestObjPrototypeFunctionWithCallerDocumentArgument(JSC::ExecState*);
 JSC::EncodedJSValue JSC_HOST_CALL jsTestObjPrototypeFunctionWithCallerWindowArgument(JSC::ExecState*);
@@ -1598,6 +1603,7 @@ JSC::EncodedJSValue jsTestObjConstructorStaticReadOnlyLongAttr(JSC::ExecState*, 
 JSC::EncodedJSValue jsTestObjConstructorStaticStringAttr(JSC::ExecState*, JSC::EncodedJSValue, JSC::PropertyName);
 bool setJSTestObjConstructorStaticStringAttr(JSC::ExecState*, JSC::EncodedJSValue, JSC::EncodedJSValue);
 JSC::EncodedJSValue jsTestObjConstructorTestSubObj(JSC::ExecState*, JSC::EncodedJSValue, JSC::PropertyName);
+JSC::EncodedJSValue jsTestObjConstructorTestStaticReadonlyObj(JSC::ExecState*, JSC::EncodedJSValue, JSC::PropertyName);
 JSC::EncodedJSValue jsTestObjEnumAttr(JSC::ExecState*, JSC::EncodedJSValue, JSC::PropertyName);
 bool setJSTestObjEnumAttr(JSC::ExecState*, JSC::EncodedJSValue, JSC::EncodedJSValue);
 JSC::EncodedJSValue jsTestObjByteAttr(JSC::ExecState*, JSC::EncodedJSValue, JSC::PropertyName);
@@ -1655,6 +1661,8 @@ JSC::EncodedJSValue jsTestObjAnnotatedTypeInSequenceAttr(JSC::ExecState*, JSC::E
 bool setJSTestObjAnnotatedTypeInSequenceAttr(JSC::ExecState*, JSC::EncodedJSValue, JSC::EncodedJSValue);
 JSC::EncodedJSValue jsTestObjImplementationEnumAttr(JSC::ExecState*, JSC::EncodedJSValue, JSC::PropertyName);
 bool setJSTestObjImplementationEnumAttr(JSC::ExecState*, JSC::EncodedJSValue, JSC::EncodedJSValue);
+JSC::EncodedJSValue jsTestObjMediaDevices(JSC::ExecState*, JSC::EncodedJSValue, JSC::PropertyName);
+JSC::EncodedJSValue jsTestObjServiceWorkers(JSC::ExecState*, JSC::EncodedJSValue, JSC::PropertyName);
 JSC::EncodedJSValue jsTestObjXMLObjAttr(JSC::ExecState*, JSC::EncodedJSValue, JSC::PropertyName);
 bool setJSTestObjXMLObjAttr(JSC::ExecState*, JSC::EncodedJSValue, JSC::EncodedJSValue);
 JSC::EncodedJSValue jsTestObjCreate(JSC::ExecState*, JSC::EncodedJSValue, JSC::PropertyName);
@@ -1685,6 +1693,10 @@ bool setJSTestObjReflectedCustomURLAttr(JSC::ExecState*, JSC::EncodedJSValue, JS
 JSC::EncodedJSValue jsTestObjEnabledAtRuntimeAttribute(JSC::ExecState*, JSC::EncodedJSValue, JSC::PropertyName);
 bool setJSTestObjEnabledAtRuntimeAttribute(JSC::ExecState*, JSC::EncodedJSValue, JSC::EncodedJSValue);
 #endif
+#if ENABLE(TEST_FEATURE)
+JSC::EncodedJSValue jsTestObjConstructorEnabledAtRuntimeAttributeStatic(JSC::ExecState*, JSC::EncodedJSValue, JSC::PropertyName);
+bool setJSTestObjConstructorEnabledAtRuntimeAttributeStatic(JSC::ExecState*, JSC::EncodedJSValue, JSC::EncodedJSValue);
+#endif
 JSC::EncodedJSValue jsTestObjTypedArrayAttr(JSC::ExecState*, JSC::EncodedJSValue, JSC::PropertyName);
 bool setJSTestObjTypedArrayAttr(JSC::ExecState*, JSC::EncodedJSValue, JSC::EncodedJSValue);
 JSC::EncodedJSValue jsTestObjCustomAttr(JSC::ExecState*, JSC::EncodedJSValue, JSC::PropertyName);
@@ -1693,16 +1705,16 @@ JSC::EncodedJSValue jsTestObjOnfoo(JSC::ExecState*, JSC::EncodedJSValue, JSC::Pr
 bool setJSTestObjOnfoo(JSC::ExecState*, JSC::EncodedJSValue, JSC::EncodedJSValue);
 JSC::EncodedJSValue jsTestObjOnwebkitfoo(JSC::ExecState*, JSC::EncodedJSValue, JSC::PropertyName);
 bool setJSTestObjOnwebkitfoo(JSC::ExecState*, JSC::EncodedJSValue, JSC::EncodedJSValue);
-JSC::EncodedJSValue jsTestObjWithScriptStateAttribute(JSC::ExecState*, JSC::EncodedJSValue, JSC::PropertyName);
-bool setJSTestObjWithScriptStateAttribute(JSC::ExecState*, JSC::EncodedJSValue, JSC::EncodedJSValue);
+JSC::EncodedJSValue jsTestObjWithExecStateAttribute(JSC::ExecState*, JSC::EncodedJSValue, JSC::PropertyName);
+bool setJSTestObjWithExecStateAttribute(JSC::ExecState*, JSC::EncodedJSValue, JSC::EncodedJSValue);
 JSC::EncodedJSValue jsTestObjWithCallWithAndSetterCallWithAttribute(JSC::ExecState*, JSC::EncodedJSValue, JSC::PropertyName);
 bool setJSTestObjWithCallWithAndSetterCallWithAttribute(JSC::ExecState*, JSC::EncodedJSValue, JSC::EncodedJSValue);
 JSC::EncodedJSValue jsTestObjWithScriptExecutionContextAttribute(JSC::ExecState*, JSC::EncodedJSValue, JSC::PropertyName);
 bool setJSTestObjWithScriptExecutionContextAttribute(JSC::ExecState*, JSC::EncodedJSValue, JSC::EncodedJSValue);
-JSC::EncodedJSValue jsTestObjWithScriptExecutionContextAndScriptStateAttribute(JSC::ExecState*, JSC::EncodedJSValue, JSC::PropertyName);
-bool setJSTestObjWithScriptExecutionContextAndScriptStateAttribute(JSC::ExecState*, JSC::EncodedJSValue, JSC::EncodedJSValue);
-JSC::EncodedJSValue jsTestObjWithScriptExecutionContextAndScriptStateWithSpacesAttribute(JSC::ExecState*, JSC::EncodedJSValue, JSC::PropertyName);
-bool setJSTestObjWithScriptExecutionContextAndScriptStateWithSpacesAttribute(JSC::ExecState*, JSC::EncodedJSValue, JSC::EncodedJSValue);
+JSC::EncodedJSValue jsTestObjWithScriptExecutionContextAndExecStateAttribute(JSC::ExecState*, JSC::EncodedJSValue, JSC::PropertyName);
+bool setJSTestObjWithScriptExecutionContextAndExecStateAttribute(JSC::ExecState*, JSC::EncodedJSValue, JSC::EncodedJSValue);
+JSC::EncodedJSValue jsTestObjWithScriptExecutionContextAndExecStateWithSpacesAttribute(JSC::ExecState*, JSC::EncodedJSValue, JSC::PropertyName);
+bool setJSTestObjWithScriptExecutionContextAndExecStateWithSpacesAttribute(JSC::ExecState*, JSC::EncodedJSValue, JSC::EncodedJSValue);
 #if ENABLE(Condition1)
 JSC::EncodedJSValue jsTestObjConditionalAttr1(JSC::ExecState*, JSC::EncodedJSValue, JSC::PropertyName);
 bool setJSTestObjConditionalAttr1(JSC::ExecState*, JSC::EncodedJSValue, JSC::EncodedJSValue);
@@ -1729,6 +1741,9 @@ bool setJSTestObjConditionalAttr6Constructor(JSC::ExecState*, JSC::EncodedJSValu
 #endif
 JSC::EncodedJSValue jsTestObjCachedAttribute1(JSC::ExecState*, JSC::EncodedJSValue, JSC::PropertyName);
 JSC::EncodedJSValue jsTestObjCachedAttribute2(JSC::ExecState*, JSC::EncodedJSValue, JSC::PropertyName);
+#if ENABLE(CONDITION)
+JSC::EncodedJSValue jsTestObjCachedAttribute3(JSC::ExecState*, JSC::EncodedJSValue, JSC::PropertyName);
+#endif
 JSC::EncodedJSValue jsTestObjAnyAttribute(JSC::ExecState*, JSC::EncodedJSValue, JSC::PropertyName);
 bool setJSTestObjAnyAttribute(JSC::ExecState*, JSC::EncodedJSValue, JSC::EncodedJSValue);
 JSC::EncodedJSValue jsTestObjObjectAttribute(JSC::ExecState*, JSC::EncodedJSValue, JSC::PropertyName);
@@ -1851,7 +1866,7 @@ static const HashTableValue JSTestObjTableValues[] =
 #else
     { 0, 0, NoIntrinsic, { 0, 0 } },
 #endif
-    { "unforgeableMethod", static_cast<unsigned>(JSC::PropertyAttribute::DontDelete | JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjInstanceFunctionUnforgeableMethod), (intptr_t) (0) } },
+    { "unforgeableMethod", static_cast<unsigned>(JSC::PropertyAttribute::DontDelete | JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjInstanceFunctionUnforgeableMethod), (intptr_t) (0) } },
 };
 
 static const HashTable JSTestObjTable = { 5, 15, true, JSTestObj::info(), JSTestObjTableValues, JSTestObjTableIndex };
@@ -1879,20 +1894,31 @@ static const HashTableValue JSTestObjConstructorTableValues[] =
     { "staticReadOnlyLongAttr", static_cast<unsigned>(JSC::PropertyAttribute::ReadOnly), NoIntrinsic, { (intptr_t)static_cast<PropertySlot::GetValueFunc>(jsTestObjConstructorStaticReadOnlyLongAttr), (intptr_t) static_cast<PutPropertySlot::PutValueFunc>(0) } },
     { "staticStringAttr", static_cast<unsigned>(0), NoIntrinsic, { (intptr_t)static_cast<PropertySlot::GetValueFunc>(jsTestObjConstructorStaticStringAttr), (intptr_t) static_cast<PutPropertySlot::PutValueFunc>(setJSTestObjConstructorStaticStringAttr) } },
     { "TestSubObj", static_cast<unsigned>(JSC::PropertyAttribute::ReadOnly), NoIntrinsic, { (intptr_t)static_cast<PropertySlot::GetValueFunc>(jsTestObjConstructorTestSubObj), (intptr_t) static_cast<PutPropertySlot::PutValueFunc>(0) } },
-    { "nullableStringStaticMethod", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjConstructorFunctionNullableStringStaticMethod), (intptr_t) (0) } },
-    { "staticMethodWithCallbackAndOptionalArg", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjConstructorFunctionStaticMethodWithCallbackAndOptionalArg), (intptr_t) (0) } },
-    { "staticMethodWithCallbackArg", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjConstructorFunctionStaticMethodWithCallbackArg), (intptr_t) (1) } },
-    { "classMethod", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjConstructorFunctionClassMethod), (intptr_t) (0) } },
-    { "classMethodWithOptional", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjConstructorFunctionClassMethodWithOptional), (intptr_t) (0) } },
-    { "classMethod2", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjConstructorFunctionClassMethod2), (intptr_t) (1) } },
-#if ENABLE(Condition1)
-    { "overloadedMethod1", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjConstructorFunctionOverloadedMethod1), (intptr_t) (1) } },
+    { "testStaticReadonlyObj", static_cast<unsigned>(JSC::PropertyAttribute::ReadOnly), NoIntrinsic, { (intptr_t)static_cast<PropertySlot::GetValueFunc>(jsTestObjConstructorTestStaticReadonlyObj), (intptr_t) static_cast<PutPropertySlot::PutValueFunc>(0) } },
+#if ENABLE(TEST_FEATURE)
+    { "enabledAtRuntimeAttributeStatic", static_cast<unsigned>(0), NoIntrinsic, { (intptr_t)static_cast<PropertySlot::GetValueFunc>(jsTestObjConstructorEnabledAtRuntimeAttributeStatic), (intptr_t) static_cast<PutPropertySlot::PutValueFunc>(setJSTestObjConstructorEnabledAtRuntimeAttributeStatic) } },
 #else
     { 0, 0, NoIntrinsic, { 0, 0 } },
 #endif
-    { "testStaticPromiseFunction", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjConstructorFunctionTestStaticPromiseFunction), (intptr_t) (0) } },
-    { "testStaticPromiseFunctionWithException", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjConstructorFunctionTestStaticPromiseFunctionWithException), (intptr_t) (0) } },
-    { "testStaticCustomPromiseFunction", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjConstructorFunctionTestStaticCustomPromiseFunction), (intptr_t) (0) } },
+#if ENABLE(TEST_FEATURE)
+    { "enabledAtRuntimeOperationStatic", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjConstructorFunctionEnabledAtRuntimeOperationStatic), (intptr_t) (1) } },
+#else
+    { 0, 0, NoIntrinsic, { 0, 0 } },
+#endif
+    { "nullableStringStaticMethod", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjConstructorFunctionNullableStringStaticMethod), (intptr_t) (0) } },
+    { "staticMethodWithCallbackAndOptionalArg", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjConstructorFunctionStaticMethodWithCallbackAndOptionalArg), (intptr_t) (0) } },
+    { "staticMethodWithCallbackArg", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjConstructorFunctionStaticMethodWithCallbackArg), (intptr_t) (1) } },
+    { "classMethod", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjConstructorFunctionClassMethod), (intptr_t) (0) } },
+    { "classMethodWithOptional", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjConstructorFunctionClassMethodWithOptional), (intptr_t) (0) } },
+    { "classMethod2", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjConstructorFunctionClassMethod2), (intptr_t) (1) } },
+#if ENABLE(Condition1)
+    { "overloadedMethod1", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjConstructorFunctionOverloadedMethod1), (intptr_t) (1) } },
+#else
+    { 0, 0, NoIntrinsic, { 0, 0 } },
+#endif
+    { "testStaticPromiseFunction", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjConstructorFunctionTestStaticPromiseFunction), (intptr_t) (0) } },
+    { "testStaticPromiseFunctionWithException", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjConstructorFunctionTestStaticPromiseFunctionWithException), (intptr_t) (0) } },
+    { "testStaticCustomPromiseFunction", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjConstructorFunctionTestStaticCustomPromiseFunction), (intptr_t) (0) } },
 };
 
 #if ENABLE(Condition1)
@@ -1942,9 +1968,23 @@ template<> JSValue JSTestObjConstructor::prototypeForStructure(JSC::VM& vm, cons
 template<> void JSTestObjConstructor::initializeProperties(VM& vm, JSDOMGlobalObject& globalObject)
 {
     putDirect(vm, vm.propertyNames->prototype, JSTestObj::prototype(vm, globalObject), JSC::PropertyAttribute::DontDelete | JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum);
-    putDirect(vm, vm.propertyNames->name, jsNontrivialString(&vm, String(ASCIILiteral("TestObject"))), JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum);
+    putDirect(vm, vm.propertyNames->name, jsNontrivialString(&vm, String("TestObject"_s)), JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum);
     putDirect(vm, vm.propertyNames->length, jsNumber(2), JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum);
     reifyStaticProperties(vm, JSTestObj::info(), JSTestObjConstructorTableValues, *this);
+#if ENABLE(TEST_FEATURE)
+    if (!RuntimeEnabledFeatures::sharedFeatures().testFeatureEnabled()) {
+        auto propertyName = Identifier::fromString(&vm, reinterpret_cast<const LChar*>("enabledAtRuntimeAttributeStatic"), strlen("enabledAtRuntimeAttributeStatic"));
+        VM::DeletePropertyModeScope scope(vm, VM::DeletePropertyMode::IgnoreConfigurable);
+        JSObject::deleteProperty(this, globalObject.globalExec(), propertyName);
+    }
+#endif
+#if ENABLE(TEST_FEATURE)
+    if (!RuntimeEnabledFeatures::sharedFeatures().testFeatureEnabled()) {
+        auto propertyName = Identifier::fromString(&vm, reinterpret_cast<const LChar*>("enabledAtRuntimeOperationStatic"), strlen("enabledAtRuntimeOperationStatic"));
+        VM::DeletePropertyModeScope scope(vm, VM::DeletePropertyMode::IgnoreConfigurable);
+        JSObject::deleteProperty(this, globalObject.globalExec(), propertyName);
+    }
+#endif
 }
 
 template<> const ClassInfo JSTestObjConstructor::s_info = { "TestObject", &Base::s_info, nullptr, nullptr, CREATE_METHOD_TABLE(JSTestObjConstructor) };
@@ -1985,6 +2025,8 @@ static const HashTableValue JSTestObjPrototypeTableValues[] =
     { "annotatedTypeInUnionAttr", static_cast<unsigned>(JSC::PropertyAttribute::CustomAccessor | JSC::PropertyAttribute::DOMAttribute), NoIntrinsic, { (intptr_t)static_cast<PropertySlot::GetValueFunc>(jsTestObjAnnotatedTypeInUnionAttr), (intptr_t) static_cast<PutPropertySlot::PutValueFunc>(setJSTestObjAnnotatedTypeInUnionAttr) } },
     { "annotatedTypeInSequenceAttr", static_cast<unsigned>(JSC::PropertyAttribute::CustomAccessor | JSC::PropertyAttribute::DOMAttribute), NoIntrinsic, { (intptr_t)static_cast<PropertySlot::GetValueFunc>(jsTestObjAnnotatedTypeInSequenceAttr), (intptr_t) static_cast<PutPropertySlot::PutValueFunc>(setJSTestObjAnnotatedTypeInSequenceAttr) } },
     { "implementationEnumAttr", static_cast<unsigned>(JSC::PropertyAttribute::CustomAccessor | JSC::PropertyAttribute::DOMAttribute), NoIntrinsic, { (intptr_t)static_cast<PropertySlot::GetValueFunc>(jsTestObjImplementationEnumAttr), (intptr_t) static_cast<PutPropertySlot::PutValueFunc>(setJSTestObjImplementationEnumAttr) } },
+    { "mediaDevices", static_cast<unsigned>(JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::CustomAccessor | JSC::PropertyAttribute::DOMAttribute), NoIntrinsic, { (intptr_t)static_cast<PropertySlot::GetValueFunc>(jsTestObjMediaDevices), (intptr_t) static_cast<PutPropertySlot::PutValueFunc>(0) } },
+    { "serviceWorkers", static_cast<unsigned>(JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::CustomAccessor | JSC::PropertyAttribute::DOMAttribute), NoIntrinsic, { (intptr_t)static_cast<PropertySlot::GetValueFunc>(jsTestObjServiceWorkers), (intptr_t) static_cast<PutPropertySlot::PutValueFunc>(0) } },
     { "XMLObjAttr", static_cast<unsigned>(JSC::PropertyAttribute::CustomAccessor | JSC::PropertyAttribute::DOMAttribute), NoIntrinsic, { (intptr_t)static_cast<PropertySlot::GetValueFunc>(jsTestObjXMLObjAttr), (intptr_t) static_cast<PutPropertySlot::PutValueFunc>(setJSTestObjXMLObjAttr) } },
     { "create", static_cast<unsigned>(JSC::PropertyAttribute::CustomAccessor | JSC::PropertyAttribute::DOMAttribute), NoIntrinsic, { (intptr_t)static_cast<PropertySlot::GetValueFunc>(jsTestObjCreate), (intptr_t) static_cast<PutPropertySlot::PutValueFunc>(setJSTestObjCreate) } },
     { "reflectedStringAttr", static_cast<unsigned>(JSC::PropertyAttribute::CustomAccessor | JSC::PropertyAttribute::DOMAttribute), NoIntrinsic, { (intptr_t)static_cast<PropertySlot::GetValueFunc>(jsTestObjReflectedStringAttr), (intptr_t) static_cast<PutPropertySlot::PutValueFunc>(setJSTestObjReflectedStringAttr) } },
@@ -2017,11 +2059,11 @@ static const HashTableValue JSTestObjPrototypeTableValues[] =
 #endif
     { "onfoo", static_cast<unsigned>(JSC::PropertyAttribute::CustomAccessor | JSC::PropertyAttribute::DOMAttribute), NoIntrinsic, { (intptr_t)static_cast<PropertySlot::GetValueFunc>(jsTestObjOnfoo), (intptr_t) static_cast<PutPropertySlot::PutValueFunc>(setJSTestObjOnfoo) } },
     { "onwebkitfoo", static_cast<unsigned>(JSC::PropertyAttribute::CustomAccessor | JSC::PropertyAttribute::DOMAttribute), NoIntrinsic, { (intptr_t)static_cast<PropertySlot::GetValueFunc>(jsTestObjOnwebkitfoo), (intptr_t) static_cast<PutPropertySlot::PutValueFunc>(setJSTestObjOnwebkitfoo) } },
-    { "withScriptStateAttribute", static_cast<unsigned>(JSC::PropertyAttribute::CustomAccessor | JSC::PropertyAttribute::DOMAttribute), NoIntrinsic, { (intptr_t)static_cast<PropertySlot::GetValueFunc>(jsTestObjWithScriptStateAttribute), (intptr_t) static_cast<PutPropertySlot::PutValueFunc>(setJSTestObjWithScriptStateAttribute) } },
+    { "withExecStateAttribute", static_cast<unsigned>(JSC::PropertyAttribute::CustomAccessor | JSC::PropertyAttribute::DOMAttribute), NoIntrinsic, { (intptr_t)static_cast<PropertySlot::GetValueFunc>(jsTestObjWithExecStateAttribute), (intptr_t) static_cast<PutPropertySlot::PutValueFunc>(setJSTestObjWithExecStateAttribute) } },
     { "withCallWithAndSetterCallWithAttribute", static_cast<unsigned>(JSC::PropertyAttribute::CustomAccessor | JSC::PropertyAttribute::DOMAttribute), NoIntrinsic, { (intptr_t)static_cast<PropertySlot::GetValueFunc>(jsTestObjWithCallWithAndSetterCallWithAttribute), (intptr_t) static_cast<PutPropertySlot::PutValueFunc>(setJSTestObjWithCallWithAndSetterCallWithAttribute) } },
     { "withScriptExecutionContextAttribute", static_cast<unsigned>(JSC::PropertyAttribute::CustomAccessor | JSC::PropertyAttribute::DOMAttribute), NoIntrinsic, { (intptr_t)static_cast<PropertySlot::GetValueFunc>(jsTestObjWithScriptExecutionContextAttribute), (intptr_t) static_cast<PutPropertySlot::PutValueFunc>(setJSTestObjWithScriptExecutionContextAttribute) } },
-    { "withScriptExecutionContextAndScriptStateAttribute", static_cast<unsigned>(JSC::PropertyAttribute::CustomAccessor | JSC::PropertyAttribute::DOMAttribute), NoIntrinsic, { (intptr_t)static_cast<PropertySlot::GetValueFunc>(jsTestObjWithScriptExecutionContextAndScriptStateAttribute), (intptr_t) static_cast<PutPropertySlot::PutValueFunc>(setJSTestObjWithScriptExecutionContextAndScriptStateAttribute) } },
-    { "withScriptExecutionContextAndScriptStateWithSpacesAttribute", static_cast<unsigned>(JSC::PropertyAttribute::CustomAccessor | JSC::PropertyAttribute::DOMAttribute), NoIntrinsic, { (intptr_t)static_cast<PropertySlot::GetValueFunc>(jsTestObjWithScriptExecutionContextAndScriptStateWithSpacesAttribute), (intptr_t) static_cast<PutPropertySlot::PutValueFunc>(setJSTestObjWithScriptExecutionContextAndScriptStateWithSpacesAttribute) } },
+    { "withScriptExecutionContextAndExecStateAttribute", static_cast<unsigned>(JSC::PropertyAttribute::CustomAccessor | JSC::PropertyAttribute::DOMAttribute), NoIntrinsic, { (intptr_t)static_cast<PropertySlot::GetValueFunc>(jsTestObjWithScriptExecutionContextAndExecStateAttribute), (intptr_t) static_cast<PutPropertySlot::PutValueFunc>(setJSTestObjWithScriptExecutionContextAndExecStateAttribute) } },
+    { "withScriptExecutionContextAndExecStateWithSpacesAttribute", static_cast<unsigned>(JSC::PropertyAttribute::CustomAccessor | JSC::PropertyAttribute::DOMAttribute), NoIntrinsic, { (intptr_t)static_cast<PropertySlot::GetValueFunc>(jsTestObjWithScriptExecutionContextAndExecStateWithSpacesAttribute), (intptr_t) static_cast<PutPropertySlot::PutValueFunc>(setJSTestObjWithScriptExecutionContextAndExecStateWithSpacesAttribute) } },
 #if ENABLE(Condition1)
     { "conditionalAttr1", static_cast<unsigned>(JSC::PropertyAttribute::CustomAccessor | JSC::PropertyAttribute::DOMAttribute), NoIntrinsic, { (intptr_t)static_cast<PropertySlot::GetValueFunc>(jsTestObjConditionalAttr1), (intptr_t) static_cast<PutPropertySlot::PutValueFunc>(setJSTestObjConditionalAttr1) } },
 #else
@@ -2039,6 +2081,11 @@ static const HashTableValue JSTestObjPrototypeTableValues[] =
 #endif
     { "cachedAttribute1", static_cast<unsigned>(JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::CustomAccessor | JSC::PropertyAttribute::DOMAttribute), NoIntrinsic, { (intptr_t)static_cast<PropertySlot::GetValueFunc>(jsTestObjCachedAttribute1), (intptr_t) static_cast<PutPropertySlot::PutValueFunc>(0) } },
     { "cachedAttribute2", static_cast<unsigned>(JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::CustomAccessor | JSC::PropertyAttribute::DOMAttribute), NoIntrinsic, { (intptr_t)static_cast<PropertySlot::GetValueFunc>(jsTestObjCachedAttribute2), (intptr_t) static_cast<PutPropertySlot::PutValueFunc>(0) } },
+#if ENABLE(CONDITION)
+    { "cachedAttribute3", static_cast<unsigned>(JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::CustomAccessor | JSC::PropertyAttribute::DOMAttribute), NoIntrinsic, { (intptr_t)static_cast<PropertySlot::GetValueFunc>(jsTestObjCachedAttribute3), (intptr_t) static_cast<PutPropertySlot::PutValueFunc>(0) } },
+#else
+    { 0, 0, NoIntrinsic, { 0, 0 } },
+#endif
     { "anyAttribute", static_cast<unsigned>(JSC::PropertyAttribute::CustomAccessor | JSC::PropertyAttribute::DOMAttribute), NoIntrinsic, { (intptr_t)static_cast<PropertySlot::GetValueFunc>(jsTestObjAnyAttribute), (intptr_t) static_cast<PutPropertySlot::PutValueFunc>(setJSTestObjAnyAttribute) } },
     { "objectAttribute", static_cast<unsigned>(JSC::PropertyAttribute::CustomAccessor | JSC::PropertyAttribute::DOMAttribute), NoIntrinsic, { (intptr_t)static_cast<PropertySlot::GetValueFunc>(jsTestObjObjectAttribute), (intptr_t) static_cast<PutPropertySlot::PutValueFunc>(setJSTestObjObjectAttribute) } },
     { "contentDocument", static_cast<unsigned>(JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::CustomAccessor | JSC::PropertyAttribute::DOMAttribute), NoIntrinsic, { (intptr_t)static_cast<PropertySlot::GetValueFunc>(jsTestObjContentDocument), (intptr_t) static_cast<PutPropertySlot::PutValueFunc>(0) } },
@@ -2081,51 +2128,51 @@ static const HashTableValue JSTestObjPrototypeTableValues[] =
     { "conditionallyExposedToWorkerAttribute", static_cast<unsigned>(JSC::PropertyAttribute::CustomAccessor | JSC::PropertyAttribute::DOMAttribute), NoIntrinsic, { (intptr_t)static_cast<PropertySlot::GetValueFunc>(jsTestObjConditionallyExposedToWorkerAttribute), (intptr_t) static_cast<PutPropertySlot::PutValueFunc>(setJSTestObjConditionallyExposedToWorkerAttribute) } },
     { "conditionallyExposedToWindowAndWorkerAttribute", static_cast<unsigned>(JSC::PropertyAttribute::CustomAccessor | JSC::PropertyAttribute::DOMAttribute), NoIntrinsic, { (intptr_t)static_cast<PropertySlot::GetValueFunc>(jsTestObjConditionallyExposedToWindowAndWorkerAttribute), (intptr_t) static_cast<PutPropertySlot::PutValueFunc>(setJSTestObjConditionallyExposedToWindowAndWorkerAttribute) } },
 #if ENABLE(TEST_FEATURE)
-    { "enabledAtRuntimeOperation", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionEnabledAtRuntimeOperation), (intptr_t) (1) } },
+    { "enabledAtRuntimeOperation", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionEnabledAtRuntimeOperation), (intptr_t) (1) } },
 #else
     { 0, 0, NoIntrinsic, { 0, 0 } },
 #endif
-    { "enabledInSpecificWorldWhenRuntimeFeatureEnabled", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionEnabledInSpecificWorldWhenRuntimeFeatureEnabled), (intptr_t) (1) } },
-    { "worldSpecificMethod", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionWorldSpecificMethod), (intptr_t) (1) } },
-    { "calculateSecretResult", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionCalculateSecretResult), (intptr_t) (0) } },
-    { "getSecretBoolean", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionGetSecretBoolean), (intptr_t) (0) } },
+    { "enabledInSpecificWorldWhenRuntimeFeatureEnabled", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionEnabledInSpecificWorldWhenRuntimeFeatureEnabled), (intptr_t) (1) } },
+    { "worldSpecificMethod", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionWorldSpecificMethod), (intptr_t) (1) } },
+    { "calculateSecretResult", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionCalculateSecretResult), (intptr_t) (0) } },
+    { "getSecretBoolean", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionGetSecretBoolean), (intptr_t) (0) } },
 #if ENABLE(TEST_FEATURE)
-    { "testFeatureGetSecretBoolean", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionTestFeatureGetSecretBoolean), (intptr_t) (0) } },
+    { "testFeatureGetSecretBoolean", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionTestFeatureGetSecretBoolean), (intptr_t) (0) } },
 #else
     { 0, 0, NoIntrinsic, { 0, 0 } },
 #endif
-    { "voidMethod", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionVoidMethod), (intptr_t) (0) } },
-    { "voidMethodWithArgs", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionVoidMethodWithArgs), (intptr_t) (3) } },
-    { "byteMethod", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionByteMethod), (intptr_t) (0) } },
-    { "byteMethodWithArgs", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionByteMethodWithArgs), (intptr_t) (3) } },
-    { "octetMethod", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionOctetMethod), (intptr_t) (0) } },
-    { "octetMethodWithArgs", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionOctetMethodWithArgs), (intptr_t) (3) } },
-    { "longMethod", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionLongMethod), (intptr_t) (0) } },
-    { "longMethodWithArgs", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionLongMethodWithArgs), (intptr_t) (3) } },
-    { "objMethod", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionObjMethod), (intptr_t) (0) } },
-    { "objMethodWithArgs", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionObjMethodWithArgs), (intptr_t) (3) } },
-    { "methodWithArgTreatingNullAsEmptyString", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionMethodWithArgTreatingNullAsEmptyString), (intptr_t) (1) } },
-    { "methodWithXPathNSResolverParameter", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionMethodWithXPathNSResolverParameter), (intptr_t) (1) } },
-    { "nullableStringMethod", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionNullableStringMethod), (intptr_t) (0) } },
-    { "nullableStringSpecialMethod", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionNullableStringSpecialMethod), (intptr_t) (1) } },
-    { "methodWithEnumArg", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionMethodWithEnumArg), (intptr_t) (1) } },
-    { "methodWithStandaloneEnumArg", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionMethodWithStandaloneEnumArg), (intptr_t) (1) } },
-    { "methodWithOptionalEnumArg", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionMethodWithOptionalEnumArg), (intptr_t) (0) } },
-    { "methodWithOptionalEnumArgAndDefaultValue", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionMethodWithOptionalEnumArgAndDefaultValue), (intptr_t) (0) } },
-    { "methodThatRequiresAllArgsAndThrows", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionMethodThatRequiresAllArgsAndThrows), (intptr_t) (2) } },
-    { "methodWithUSVStringArg", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionMethodWithUSVStringArg), (intptr_t) (1) } },
-    { "methodWithNullableUSVStringArg", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionMethodWithNullableUSVStringArg), (intptr_t) (1) } },
-    { "methodWithUSVStringArgTreatingNullAsEmptyString", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionMethodWithUSVStringArgTreatingNullAsEmptyString), (intptr_t) (1) } },
-    { "methodWithByteStringArg", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionMethodWithByteStringArg), (intptr_t) (1) } },
-    { "methodWithNullableByteStringArg", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionMethodWithNullableByteStringArg), (intptr_t) (1) } },
-    { "methodWithByteStringArgTreatingNullAsEmptyString", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionMethodWithByteStringArgTreatingNullAsEmptyString), (intptr_t) (1) } },
-    { "serializedValue", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionSerializedValue), (intptr_t) (1) } },
-    { "methodWithRecord", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionMethodWithRecord), (intptr_t) (1) } },
-    { "methodWithException", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionMethodWithException), (intptr_t) (0) } },
-    { "methodWithExceptionReturningLong", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionMethodWithExceptionReturningLong), (intptr_t) (0) } },
-    { "methodWithExceptionReturningObject", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionMethodWithExceptionReturningObject), (intptr_t) (0) } },
-    { "customMethod", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionCustomMethod), (intptr_t) (0) } },
-    { "customMethodWithArgs", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionCustomMethodWithArgs), (intptr_t) (3) } },
+    { "voidMethod", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionVoidMethod), (intptr_t) (0) } },
+    { "voidMethodWithArgs", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionVoidMethodWithArgs), (intptr_t) (3) } },
+    { "byteMethod", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionByteMethod), (intptr_t) (0) } },
+    { "byteMethodWithArgs", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionByteMethodWithArgs), (intptr_t) (3) } },
+    { "octetMethod", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionOctetMethod), (intptr_t) (0) } },
+    { "octetMethodWithArgs", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionOctetMethodWithArgs), (intptr_t) (3) } },
+    { "longMethod", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionLongMethod), (intptr_t) (0) } },
+    { "longMethodWithArgs", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionLongMethodWithArgs), (intptr_t) (3) } },
+    { "objMethod", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionObjMethod), (intptr_t) (0) } },
+    { "objMethodWithArgs", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionObjMethodWithArgs), (intptr_t) (3) } },
+    { "methodWithArgTreatingNullAsEmptyString", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionMethodWithArgTreatingNullAsEmptyString), (intptr_t) (1) } },
+    { "methodWithXPathNSResolverParameter", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionMethodWithXPathNSResolverParameter), (intptr_t) (1) } },
+    { "nullableStringMethod", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionNullableStringMethod), (intptr_t) (0) } },
+    { "nullableStringSpecialMethod", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionNullableStringSpecialMethod), (intptr_t) (1) } },
+    { "methodWithEnumArg", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionMethodWithEnumArg), (intptr_t) (1) } },
+    { "methodWithStandaloneEnumArg", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionMethodWithStandaloneEnumArg), (intptr_t) (1) } },
+    { "methodWithOptionalEnumArg", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionMethodWithOptionalEnumArg), (intptr_t) (0) } },
+    { "methodWithOptionalEnumArgAndDefaultValue", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionMethodWithOptionalEnumArgAndDefaultValue), (intptr_t) (0) } },
+    { "methodThatRequiresAllArgsAndThrows", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionMethodThatRequiresAllArgsAndThrows), (intptr_t) (2) } },
+    { "methodWithUSVStringArg", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionMethodWithUSVStringArg), (intptr_t) (1) } },
+    { "methodWithNullableUSVStringArg", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionMethodWithNullableUSVStringArg), (intptr_t) (1) } },
+    { "methodWithUSVStringArgTreatingNullAsEmptyString", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionMethodWithUSVStringArgTreatingNullAsEmptyString), (intptr_t) (1) } },
+    { "methodWithByteStringArg", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionMethodWithByteStringArg), (intptr_t) (1) } },
+    { "methodWithNullableByteStringArg", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionMethodWithNullableByteStringArg), (intptr_t) (1) } },
+    { "methodWithByteStringArgTreatingNullAsEmptyString", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionMethodWithByteStringArgTreatingNullAsEmptyString), (intptr_t) (1) } },
+    { "serializedValue", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionSerializedValue), (intptr_t) (1) } },
+    { "methodWithRecord", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionMethodWithRecord), (intptr_t) (1) } },
+    { "methodWithException", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionMethodWithException), (intptr_t) (0) } },
+    { "methodWithExceptionReturningLong", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionMethodWithExceptionReturningLong), (intptr_t) (0) } },
+    { "methodWithExceptionReturningObject", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionMethodWithExceptionReturningObject), (intptr_t) (0) } },
+    { "customMethod", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionCustomMethod), (intptr_t) (0) } },
+    { "customMethodWithArgs", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionCustomMethodWithArgs), (intptr_t) (3) } },
 #if ENABLE(Condition3)
     { "jsBuiltinMethod", static_cast<unsigned>(JSC::PropertyAttribute::Builtin), NoIntrinsic, { (intptr_t)static_cast<BuiltinGenerator>(testObjJsBuiltinMethodCodeGenerator), (intptr_t) (0) } },
 #else
@@ -2136,128 +2183,128 @@ static const HashTableValue JSTestObjPrototypeTableValues[] =
 #else
     { 0, 0, NoIntrinsic, { 0, 0 } },
 #endif
-    { "publicAndPrivateMethod", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionPublicAndPrivateMethod), (intptr_t) (1) } },
-    { "addEventListener", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionAddEventListener), (intptr_t) (2) } },
-    { "removeEventListener", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionRemoveEventListener), (intptr_t) (2) } },
-    { "withScriptStateVoid", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionWithScriptStateVoid), (intptr_t) (0) } },
-    { "withScriptStateObj", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionWithScriptStateObj), (intptr_t) (0) } },
-    { "withScriptStateVoidException", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionWithScriptStateVoidException), (intptr_t) (0) } },
-    { "withScriptStateObjException", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionWithScriptStateObjException), (intptr_t) (0) } },
-    { "withScriptExecutionContext", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionWithScriptExecutionContext), (intptr_t) (0) } },
-    { "withScriptExecutionContextAndScriptState", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionWithScriptExecutionContextAndScriptState), (intptr_t) (0) } },
-    { "withScriptExecutionContextAndScriptStateObjException", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionWithScriptExecutionContextAndScriptStateObjException), (intptr_t) (0) } },
-    { "withScriptExecutionContextAndScriptStateWithSpaces", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionWithScriptExecutionContextAndScriptStateWithSpaces), (intptr_t) (0) } },
-    { "withDocumentArgument", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionWithDocumentArgument), (intptr_t) (0) } },
-    { "withCallerDocumentArgument", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionWithCallerDocumentArgument), (intptr_t) (0) } },
-    { "withCallerWindowArgument", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionWithCallerWindowArgument), (intptr_t) (0) } },
-    { "methodWithOptionalArg", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionMethodWithOptionalArg), (intptr_t) (0) } },
-    { "methodWithOptionalArgAndDefaultValue", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionMethodWithOptionalArgAndDefaultValue), (intptr_t) (0) } },
-    { "methodWithNonOptionalArgAndOptionalArg", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionMethodWithNonOptionalArgAndOptionalArg), (intptr_t) (1) } },
-    { "methodWithNonOptionalArgAndTwoOptionalArgs", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionMethodWithNonOptionalArgAndTwoOptionalArgs), (intptr_t) (1) } },
-    { "methodWithOptionalString", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionMethodWithOptionalString), (intptr_t) (0) } },
-    { "methodWithOptionalUSVString", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionMethodWithOptionalUSVString), (intptr_t) (0) } },
-    { "methodWithOptionalAtomicString", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionMethodWithOptionalAtomicString), (intptr_t) (0) } },
-    { "methodWithOptionalStringAndDefaultValue", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionMethodWithOptionalStringAndDefaultValue), (intptr_t) (0) } },
-    { "methodWithOptionalAtomicStringAndDefaultValue", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionMethodWithOptionalAtomicStringAndDefaultValue), (intptr_t) (0) } },
-    { "methodWithOptionalStringIsNull", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionMethodWithOptionalStringIsNull), (intptr_t) (0) } },
-    { "methodWithOptionalStringIsUndefined", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionMethodWithOptionalStringIsUndefined), (intptr_t) (0) } },
-    { "methodWithOptionalAtomicStringIsNull", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionMethodWithOptionalAtomicStringIsNull), (intptr_t) (0) } },
-    { "methodWithOptionalStringIsEmptyString", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionMethodWithOptionalStringIsEmptyString), (intptr_t) (0) } },
-    { "methodWithOptionalUSVStringIsEmptyString", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionMethodWithOptionalUSVStringIsEmptyString), (intptr_t) (0) } },
-    { "methodWithOptionalAtomicStringIsEmptyString", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionMethodWithOptionalAtomicStringIsEmptyString), (intptr_t) (0) } },
-    { "methodWithOptionalDoubleIsNaN", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionMethodWithOptionalDoubleIsNaN), (intptr_t) (0) } },
-    { "methodWithOptionalFloatIsNaN", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionMethodWithOptionalFloatIsNaN), (intptr_t) (0) } },
-    { "methodWithOptionalLongLong", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionMethodWithOptionalLongLong), (intptr_t) (0) } },
-    { "methodWithOptionalLongLongIsZero", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionMethodWithOptionalLongLongIsZero), (intptr_t) (0) } },
-    { "methodWithOptionalUnsignedLongLong", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionMethodWithOptionalUnsignedLongLong), (intptr_t) (0) } },
-    { "methodWithOptionalUnsignedLongLongIsZero", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionMethodWithOptionalUnsignedLongLongIsZero), (intptr_t) (0) } },
-    { "methodWithOptionalSequence", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionMethodWithOptionalSequence), (intptr_t) (0) } },
-    { "methodWithOptionalSequenceIsEmpty", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionMethodWithOptionalSequenceIsEmpty), (intptr_t) (0) } },
-    { "methodWithOptionalBoolean", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionMethodWithOptionalBoolean), (intptr_t) (0) } },
-    { "methodWithOptionalBooleanIsFalse", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionMethodWithOptionalBooleanIsFalse), (intptr_t) (0) } },
-    { "methodWithOptionalAny", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionMethodWithOptionalAny), (intptr_t) (0) } },
-    { "methodWithOptionalObject", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionMethodWithOptionalObject), (intptr_t) (0) } },
-    { "methodWithOptionalNullableWrapper", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionMethodWithOptionalNullableWrapper), (intptr_t) (0) } },
-    { "methodWithOptionalNullableWrapperIsNull", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionMethodWithOptionalNullableWrapperIsNull), (intptr_t) (0) } },
-    { "methodWithOptionalXPathNSResolver", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionMethodWithOptionalXPathNSResolver), (intptr_t) (0) } },
-    { "methodWithOptionalRecord", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionMethodWithOptionalRecord), (intptr_t) (0) } },
-    { "methodWithOptionalPromise", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionMethodWithOptionalPromise), (intptr_t) (0) } },
-    { "methodWithCallbackArg", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionMethodWithCallbackArg), (intptr_t) (1) } },
-    { "methodWithNonCallbackArgAndCallbackArg", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionMethodWithNonCallbackArgAndCallbackArg), (intptr_t) (2) } },
-    { "methodWithCallbackAndOptionalArg", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionMethodWithCallbackAndOptionalArg), (intptr_t) (0) } },
-    { "methodWithCallbackFunctionArg", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionMethodWithCallbackFunctionArg), (intptr_t) (1) } },
-    { "methodWithNonCallbackArgAndCallbackFunctionArg", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionMethodWithNonCallbackArgAndCallbackFunctionArg), (intptr_t) (2) } },
-    { "methodWithCallbackFunctionAndOptionalArg", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionMethodWithCallbackFunctionAndOptionalArg), (intptr_t) (0) } },
+    { "publicAndPrivateMethod", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionPublicAndPrivateMethod), (intptr_t) (1) } },
+    { "addEventListener", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionAddEventListener), (intptr_t) (2) } },
+    { "removeEventListener", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionRemoveEventListener), (intptr_t) (2) } },
+    { "withExecStateVoid", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionWithExecStateVoid), (intptr_t) (0) } },
+    { "withExecStateObj", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionWithExecStateObj), (intptr_t) (0) } },
+    { "withExecStateVoidException", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionWithExecStateVoidException), (intptr_t) (0) } },
+    { "withExecStateObjException", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionWithExecStateObjException), (intptr_t) (0) } },
+    { "withScriptExecutionContext", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionWithScriptExecutionContext), (intptr_t) (0) } },
+    { "withScriptExecutionContextAndExecState", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionWithScriptExecutionContextAndExecState), (intptr_t) (0) } },
+    { "withScriptExecutionContextAndExecStateObjException", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionWithScriptExecutionContextAndExecStateObjException), (intptr_t) (0) } },
+    { "withScriptExecutionContextAndExecStateWithSpaces", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionWithScriptExecutionContextAndExecStateWithSpaces), (intptr_t) (0) } },
+    { "withDocumentArgument", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionWithDocumentArgument), (intptr_t) (0) } },
+    { "withCallerDocumentArgument", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionWithCallerDocumentArgument), (intptr_t) (0) } },
+    { "withCallerWindowArgument", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionWithCallerWindowArgument), (intptr_t) (0) } },
+    { "methodWithOptionalArg", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionMethodWithOptionalArg), (intptr_t) (0) } },
+    { "methodWithOptionalArgAndDefaultValue", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionMethodWithOptionalArgAndDefaultValue), (intptr_t) (0) } },
+    { "methodWithNonOptionalArgAndOptionalArg", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionMethodWithNonOptionalArgAndOptionalArg), (intptr_t) (1) } },
+    { "methodWithNonOptionalArgAndTwoOptionalArgs", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionMethodWithNonOptionalArgAndTwoOptionalArgs), (intptr_t) (1) } },
+    { "methodWithOptionalString", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionMethodWithOptionalString), (intptr_t) (0) } },
+    { "methodWithOptionalUSVString", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionMethodWithOptionalUSVString), (intptr_t) (0) } },
+    { "methodWithOptionalAtomicString", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionMethodWithOptionalAtomicString), (intptr_t) (0) } },
+    { "methodWithOptionalStringAndDefaultValue", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionMethodWithOptionalStringAndDefaultValue), (intptr_t) (0) } },
+    { "methodWithOptionalAtomicStringAndDefaultValue", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionMethodWithOptionalAtomicStringAndDefaultValue), (intptr_t) (0) } },
+    { "methodWithOptionalStringIsNull", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionMethodWithOptionalStringIsNull), (intptr_t) (0) } },
+    { "methodWithOptionalStringIsUndefined", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionMethodWithOptionalStringIsUndefined), (intptr_t) (0) } },
+    { "methodWithOptionalAtomicStringIsNull", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionMethodWithOptionalAtomicStringIsNull), (intptr_t) (0) } },
+    { "methodWithOptionalStringIsEmptyString", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionMethodWithOptionalStringIsEmptyString), (intptr_t) (0) } },
+    { "methodWithOptionalUSVStringIsEmptyString", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionMethodWithOptionalUSVStringIsEmptyString), (intptr_t) (0) } },
+    { "methodWithOptionalAtomicStringIsEmptyString", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionMethodWithOptionalAtomicStringIsEmptyString), (intptr_t) (0) } },
+    { "methodWithOptionalDoubleIsNaN", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionMethodWithOptionalDoubleIsNaN), (intptr_t) (0) } },
+    { "methodWithOptionalFloatIsNaN", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionMethodWithOptionalFloatIsNaN), (intptr_t) (0) } },
+    { "methodWithOptionalLongLong", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionMethodWithOptionalLongLong), (intptr_t) (0) } },
+    { "methodWithOptionalLongLongIsZero", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionMethodWithOptionalLongLongIsZero), (intptr_t) (0) } },
+    { "methodWithOptionalUnsignedLongLong", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionMethodWithOptionalUnsignedLongLong), (intptr_t) (0) } },
+    { "methodWithOptionalUnsignedLongLongIsZero", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionMethodWithOptionalUnsignedLongLongIsZero), (intptr_t) (0) } },
+    { "methodWithOptionalSequence", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionMethodWithOptionalSequence), (intptr_t) (0) } },
+    { "methodWithOptionalSequenceIsEmpty", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionMethodWithOptionalSequenceIsEmpty), (intptr_t) (0) } },
+    { "methodWithOptionalBoolean", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionMethodWithOptionalBoolean), (intptr_t) (0) } },
+    { "methodWithOptionalBooleanIsFalse", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionMethodWithOptionalBooleanIsFalse), (intptr_t) (0) } },
+    { "methodWithOptionalAny", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionMethodWithOptionalAny), (intptr_t) (0) } },
+    { "methodWithOptionalObject", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionMethodWithOptionalObject), (intptr_t) (0) } },
+    { "methodWithOptionalNullableWrapper", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionMethodWithOptionalNullableWrapper), (intptr_t) (0) } },
+    { "methodWithOptionalNullableWrapperIsNull", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionMethodWithOptionalNullableWrapperIsNull), (intptr_t) (0) } },
+    { "methodWithOptionalXPathNSResolver", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionMethodWithOptionalXPathNSResolver), (intptr_t) (0) } },
+    { "methodWithOptionalRecord", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionMethodWithOptionalRecord), (intptr_t) (0) } },
+    { "methodWithOptionalPromise", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionMethodWithOptionalPromise), (intptr_t) (0) } },
+    { "methodWithCallbackArg", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionMethodWithCallbackArg), (intptr_t) (1) } },
+    { "methodWithNonCallbackArgAndCallbackArg", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionMethodWithNonCallbackArgAndCallbackArg), (intptr_t) (2) } },
+    { "methodWithCallbackAndOptionalArg", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionMethodWithCallbackAndOptionalArg), (intptr_t) (0) } },
+    { "methodWithCallbackFunctionArg", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionMethodWithCallbackFunctionArg), (intptr_t) (1) } },
+    { "methodWithNonCallbackArgAndCallbackFunctionArg", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionMethodWithNonCallbackArgAndCallbackFunctionArg), (intptr_t) (2) } },
+    { "methodWithCallbackFunctionAndOptionalArg", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionMethodWithCallbackFunctionAndOptionalArg), (intptr_t) (0) } },
 #if ENABLE(Condition1)
-    { "conditionalMethod1", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionConditionalMethod1), (intptr_t) (0) } },
+    { "conditionalMethod1", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionConditionalMethod1), (intptr_t) (0) } },
 #else
     { 0, 0, NoIntrinsic, { 0, 0 } },
 #endif
 #if ENABLE(Condition1) && ENABLE(Condition2)
-    { "conditionalMethod2", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionConditionalMethod2), (intptr_t) (0) } },
+    { "conditionalMethod2", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionConditionalMethod2), (intptr_t) (0) } },
 #else
     { 0, 0, NoIntrinsic, { 0, 0 } },
 #endif
 #if ENABLE(Condition1) || ENABLE(Condition2)
-    { "conditionalMethod3", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionConditionalMethod3), (intptr_t) (0) } },
+    { "conditionalMethod3", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionConditionalMethod3), (intptr_t) (0) } },
 #else
     { 0, 0, NoIntrinsic, { 0, 0 } },
 #endif
-    { "overloadedMethod", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionOverloadedMethod), (intptr_t) (0) } },
-    { "overloadedMethodWithOptionalParameter", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionOverloadedMethodWithOptionalParameter), (intptr_t) (1) } },
-    { "overloadedMethodWithDistinguishingUnion", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionOverloadedMethodWithDistinguishingUnion), (intptr_t) (1) } },
-    { "overloadedMethodWith2DistinguishingUnions", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionOverloadedMethodWith2DistinguishingUnions), (intptr_t) (1) } },
-    { "overloadedMethodWithNonDistinguishingUnion", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionOverloadedMethodWithNonDistinguishingUnion), (intptr_t) (2) } },
-    { "overloadWithNullableUnion", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionOverloadWithNullableUnion), (intptr_t) (1) } },
-    { "overloadWithOptionalUnion", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionOverloadWithOptionalUnion), (intptr_t) (0) } },
-    { "overloadWithNullableNonDistinguishingParameter", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionOverloadWithNullableNonDistinguishingParameter), (intptr_t) (2) } },
-    { "classMethodWithClamp", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionClassMethodWithClamp), (intptr_t) (2) } },
-    { "classMethodWithClampOnOptional", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionClassMethodWithClampOnOptional), (intptr_t) (0) } },
-    { "classMethodWithEnforceRange", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionClassMethodWithEnforceRange), (intptr_t) (2) } },
-    { "classMethodWithEnforceRangeOnOptional", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionClassMethodWithEnforceRangeOnOptional), (intptr_t) (0) } },
-    { "methodWithUnsignedLongSequence", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionMethodWithUnsignedLongSequence), (intptr_t) (1) } },
-    { "stringArrayFunction", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionStringArrayFunction), (intptr_t) (1) } },
-    { "domStringListFunction", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionDomStringListFunction), (intptr_t) (1) } },
-    { "operationWithOptionalUnionParameter", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionOperationWithOptionalUnionParameter), (intptr_t) (0) } },
-    { "methodWithAndWithoutNullableSequence", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionMethodWithAndWithoutNullableSequence), (intptr_t) (2) } },
-    { "getElementById", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionGetElementById), (intptr_t) (1) } },
-    { "getSVGDocument", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionGetSVGDocument), (intptr_t) (0) } },
-    { "convert1", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionConvert1), (intptr_t) (1) } },
-    { "convert2", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionConvert2), (intptr_t) (1) } },
-    { "convert3", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionConvert3), (intptr_t) (1) } },
-    { "convert4", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionConvert4), (intptr_t) (1) } },
-    { "mutablePointFunction", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionMutablePointFunction), (intptr_t) (0) } },
-    { "orange", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionOrange), (intptr_t) (0) } },
-    { "variadicStringMethod", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionVariadicStringMethod), (intptr_t) (1) } },
-    { "variadicDoubleMethod", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionVariadicDoubleMethod), (intptr_t) (1) } },
-    { "variadicNodeMethod", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionVariadicNodeMethod), (intptr_t) (1) } },
-    { "variadicUnionMethod", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionVariadicUnionMethod), (intptr_t) (1) } },
-    { "any", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionAny), (intptr_t) (2) } },
-    { "testPromiseFunction", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionTestPromiseFunction), (intptr_t) (0) } },
-    { "testPromiseFunctionWithFloatArgument", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionTestPromiseFunctionWithFloatArgument), (intptr_t) (1) } },
-    { "testPromiseFunctionWithException", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionTestPromiseFunctionWithException), (intptr_t) (0) } },
-    { "testPromiseFunctionWithOptionalIntArgument", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionTestPromiseFunctionWithOptionalIntArgument), (intptr_t) (0) } },
-    { "testPromiseOverloadedFunction", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionTestPromiseOverloadedFunction), (intptr_t) (1) } },
-    { "testCustomPromiseFunction", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionTestCustomPromiseFunction), (intptr_t) (0) } },
-    { "testCustomReturnsOwnPromiseFunction", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionTestCustomReturnsOwnPromiseFunction), (intptr_t) (0) } },
-    { "testReturnsOwnPromiseAndPromiseProxyFunction", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionTestReturnsOwnPromiseAndPromiseProxyFunction), (intptr_t) (0) } },
+    { "overloadedMethod", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionOverloadedMethod), (intptr_t) (0) } },
+    { "overloadedMethodWithOptionalParameter", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionOverloadedMethodWithOptionalParameter), (intptr_t) (1) } },
+    { "overloadedMethodWithDistinguishingUnion", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionOverloadedMethodWithDistinguishingUnion), (intptr_t) (1) } },
+    { "overloadedMethodWith2DistinguishingUnions", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionOverloadedMethodWith2DistinguishingUnions), (intptr_t) (1) } },
+    { "overloadedMethodWithNonDistinguishingUnion", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionOverloadedMethodWithNonDistinguishingUnion), (intptr_t) (2) } },
+    { "overloadWithNullableUnion", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionOverloadWithNullableUnion), (intptr_t) (1) } },
+    { "overloadWithOptionalUnion", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionOverloadWithOptionalUnion), (intptr_t) (0) } },
+    { "overloadWithNullableNonDistinguishingParameter", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionOverloadWithNullableNonDistinguishingParameter), (intptr_t) (2) } },
+    { "classMethodWithClamp", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionClassMethodWithClamp), (intptr_t) (2) } },
+    { "classMethodWithClampOnOptional", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionClassMethodWithClampOnOptional), (intptr_t) (0) } },
+    { "classMethodWithEnforceRange", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionClassMethodWithEnforceRange), (intptr_t) (2) } },
+    { "classMethodWithEnforceRangeOnOptional", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionClassMethodWithEnforceRangeOnOptional), (intptr_t) (0) } },
+    { "methodWithUnsignedLongSequence", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionMethodWithUnsignedLongSequence), (intptr_t) (1) } },
+    { "stringArrayFunction", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionStringArrayFunction), (intptr_t) (1) } },
+    { "domStringListFunction", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionDomStringListFunction), (intptr_t) (1) } },
+    { "operationWithOptionalUnionParameter", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionOperationWithOptionalUnionParameter), (intptr_t) (0) } },
+    { "methodWithAndWithoutNullableSequence", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionMethodWithAndWithoutNullableSequence), (intptr_t) (2) } },
+    { "getElementById", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionGetElementById), (intptr_t) (1) } },
+    { "getSVGDocument", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionGetSVGDocument), (intptr_t) (0) } },
+    { "convert1", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionConvert1), (intptr_t) (1) } },
+    { "convert2", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionConvert2), (intptr_t) (1) } },
+    { "convert3", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionConvert3), (intptr_t) (1) } },
+    { "convert4", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionConvert4), (intptr_t) (1) } },
+    { "mutablePointFunction", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionMutablePointFunction), (intptr_t) (0) } },
+    { "orange", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionOrange), (intptr_t) (0) } },
+    { "variadicStringMethod", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionVariadicStringMethod), (intptr_t) (1) } },
+    { "variadicDoubleMethod", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionVariadicDoubleMethod), (intptr_t) (1) } },
+    { "variadicNodeMethod", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionVariadicNodeMethod), (intptr_t) (1) } },
+    { "variadicUnionMethod", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionVariadicUnionMethod), (intptr_t) (1) } },
+    { "any", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionAny), (intptr_t) (2) } },
+    { "testPromiseFunction", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionTestPromiseFunction), (intptr_t) (0) } },
+    { "testPromiseFunctionWithFloatArgument", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionTestPromiseFunctionWithFloatArgument), (intptr_t) (1) } },
+    { "testPromiseFunctionWithException", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionTestPromiseFunctionWithException), (intptr_t) (0) } },
+    { "testPromiseFunctionWithOptionalIntArgument", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionTestPromiseFunctionWithOptionalIntArgument), (intptr_t) (0) } },
+    { "testPromiseOverloadedFunction", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionTestPromiseOverloadedFunction), (intptr_t) (1) } },
+    { "testCustomPromiseFunction", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionTestCustomPromiseFunction), (intptr_t) (0) } },
+    { "testCustomReturnsOwnPromiseFunction", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionTestCustomReturnsOwnPromiseFunction), (intptr_t) (0) } },
+    { "testReturnsOwnPromiseAndPromiseProxyFunction", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionTestReturnsOwnPromiseAndPromiseProxyFunction), (intptr_t) (0) } },
 #if ENABLE(CONDITION1) || ENABLE(CONDITION2)
-    { "conditionalOverload", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionConditionalOverload), (intptr_t) (1) } },
+    { "conditionalOverload", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionConditionalOverload), (intptr_t) (1) } },
 #else
     { 0, 0, NoIntrinsic, { 0, 0 } },
 #endif
-    { "singleConditionalOverload", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionSingleConditionalOverload), (intptr_t) (1) } },
-    { "attachShadowRoot", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionAttachShadowRoot), (intptr_t) (1) } },
-    { "operationWithExternalDictionaryParameter", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionOperationWithExternalDictionaryParameter), (intptr_t) (1) } },
-    { "bufferSourceParameter", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionBufferSourceParameter), (intptr_t) (1) } },
-    { "legacyCallerNamed", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionLegacyCallerNamed), (intptr_t) (1) } },
-    { "testReturnValueOptimization", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionTestReturnValueOptimization), (intptr_t) (2) } },
-    { "testReturnValueOptimizationWithException", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionTestReturnValueOptimizationWithException), (intptr_t) (2) } },
-    { "conditionallyExposedToWindowFunction", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionConditionallyExposedToWindowFunction), (intptr_t) (0) } },
-    { "conditionallyExposedToWorkerFunction", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionConditionallyExposedToWorkerFunction), (intptr_t) (0) } },
-    { "conditionallyExposedToWindowAndWorkerFunction", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionConditionallyExposedToWindowAndWorkerFunction), (intptr_t) (0) } },
-    { "toString", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionToString), (intptr_t) (0) } },
-    { "toJSON", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<NativeFunction>(jsTestObjPrototypeFunctionToJSON), (intptr_t) (0) } },
+    { "singleConditionalOverload", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionSingleConditionalOverload), (intptr_t) (1) } },
+    { "attachShadowRoot", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionAttachShadowRoot), (intptr_t) (1) } },
+    { "operationWithExternalDictionaryParameter", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionOperationWithExternalDictionaryParameter), (intptr_t) (1) } },
+    { "bufferSourceParameter", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionBufferSourceParameter), (intptr_t) (1) } },
+    { "legacyCallerNamed", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionLegacyCallerNamed), (intptr_t) (1) } },
+    { "testReturnValueOptimization", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionTestReturnValueOptimization), (intptr_t) (2) } },
+    { "testReturnValueOptimizationWithException", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionTestReturnValueOptimizationWithException), (intptr_t) (2) } },
+    { "conditionallyExposedToWindowFunction", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionConditionallyExposedToWindowFunction), (intptr_t) (0) } },
+    { "conditionallyExposedToWorkerFunction", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionConditionallyExposedToWorkerFunction), (intptr_t) (0) } },
+    { "conditionallyExposedToWindowAndWorkerFunction", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionConditionallyExposedToWindowAndWorkerFunction), (intptr_t) (0) } },
+    { "toString", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionToString), (intptr_t) (0) } },
+    { "toJSON", static_cast<unsigned>(JSC::PropertyAttribute::Function), NoIntrinsic, { (intptr_t)static_cast<RawNativeFunction>(jsTestObjPrototypeFunctionToJSON), (intptr_t) (0) } },
 #if ENABLE(Condition1)
     { "CONDITIONAL_CONST", JSC::PropertyAttribute::DontDelete | JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::ConstantInteger, NoIntrinsic, { (long long)(0) } },
 #else
@@ -2283,67 +2330,93 @@ void JSTestObjPrototype::finishCreation(VM& vm)
 {
     Base::finishCreation(vm);
     reifyStaticProperties(vm, JSTestObj::info(), JSTestObjPrototypeTableValues, *this);
+    bool hasDisabledRuntimeProperties = false;
 #if ENABLE(TEST_FEATURE)
     if (!RuntimeEnabledFeatures::sharedFeatures().testFeatureEnabled()) {
+        hasDisabledRuntimeProperties = true;
         auto propertyName = Identifier::fromString(&vm, reinterpret_cast<const LChar*>("enabledAtRuntimeOperation"), strlen("enabledAtRuntimeOperation"));
         VM::DeletePropertyModeScope scope(vm, VM::DeletePropertyMode::IgnoreConfigurable);
         JSObject::deleteProperty(this, globalObject()->globalExec(), propertyName);
     }
 #endif
     if (!(worldForDOMObject(*this).someWorld() && RuntimeEnabledFeatures::sharedFeatures().testFeatureEnabled())) {
+        hasDisabledRuntimeProperties = true;
         auto propertyName = Identifier::fromString(&vm, reinterpret_cast<const LChar*>("enabledInSpecificWorldWhenRuntimeFeatureEnabled"), strlen("enabledInSpecificWorldWhenRuntimeFeatureEnabled"));
         VM::DeletePropertyModeScope scope(vm, VM::DeletePropertyMode::IgnoreConfigurable);
         JSObject::deleteProperty(this, globalObject()->globalExec(), propertyName);
     }
     if (!worldForDOMObject(*this).someWorld()) {
+        hasDisabledRuntimeProperties = true;
         auto propertyName = Identifier::fromString(&vm, reinterpret_cast<const LChar*>("worldSpecificMethod"), strlen("worldSpecificMethod"));
         VM::DeletePropertyModeScope scope(vm, VM::DeletePropertyMode::IgnoreConfigurable);
         JSObject::deleteProperty(this, globalObject()->globalExec(), propertyName);
     }
     if (!jsCast<JSDOMGlobalObject*>(globalObject())->scriptExecutionContext()->isSecureContext()) {
+        hasDisabledRuntimeProperties = true;
         auto propertyName = Identifier::fromString(&vm, reinterpret_cast<const LChar*>("calculateSecretResult"), strlen("calculateSecretResult"));
         VM::DeletePropertyModeScope scope(vm, VM::DeletePropertyMode::IgnoreConfigurable);
         JSObject::deleteProperty(this, globalObject()->globalExec(), propertyName);
     }
     if (!jsCast<JSDOMGlobalObject*>(globalObject())->scriptExecutionContext()->isSecureContext()) {
+        hasDisabledRuntimeProperties = true;
         auto propertyName = Identifier::fromString(&vm, reinterpret_cast<const LChar*>("getSecretBoolean"), strlen("getSecretBoolean"));
         VM::DeletePropertyModeScope scope(vm, VM::DeletePropertyMode::IgnoreConfigurable);
         JSObject::deleteProperty(this, globalObject()->globalExec(), propertyName);
     }
 #if ENABLE(TEST_FEATURE)
     if (!(jsCast<JSDOMGlobalObject*>(globalObject())->scriptExecutionContext()->isSecureContext() && RuntimeEnabledFeatures::sharedFeatures().testFeatureEnabled())) {
+        hasDisabledRuntimeProperties = true;
         auto propertyName = Identifier::fromString(&vm, reinterpret_cast<const LChar*>("testFeatureGetSecretBoolean"), strlen("testFeatureGetSecretBoolean"));
         VM::DeletePropertyModeScope scope(vm, VM::DeletePropertyMode::IgnoreConfigurable);
         JSObject::deleteProperty(this, globalObject()->globalExec(), propertyName);
     }
 #endif
     if (!jsCast<JSDOMGlobalObject*>(globalObject())->scriptExecutionContext()->isDocument()) {
+        hasDisabledRuntimeProperties = true;
         auto propertyName = Identifier::fromString(&vm, reinterpret_cast<const LChar*>("conditionallyExposedToWindowFunction"), strlen("conditionallyExposedToWindowFunction"));
         VM::DeletePropertyModeScope scope(vm, VM::DeletePropertyMode::IgnoreConfigurable);
         JSObject::deleteProperty(this, globalObject()->globalExec(), propertyName);
     }
     if (!jsCast<JSDOMGlobalObject*>(globalObject())->scriptExecutionContext()->isWorkerGlobalScope()) {
+        hasDisabledRuntimeProperties = true;
         auto propertyName = Identifier::fromString(&vm, reinterpret_cast<const LChar*>("conditionallyExposedToWorkerFunction"), strlen("conditionallyExposedToWorkerFunction"));
+        VM::DeletePropertyModeScope scope(vm, VM::DeletePropertyMode::IgnoreConfigurable);
+        JSObject::deleteProperty(this, globalObject()->globalExec(), propertyName);
+    }
+    if (!(jsCast<JSDOMGlobalObject*>(globalObject())->scriptExecutionContext()->isSecureContext()|| jsCast<JSDOMGlobalObject*>(globalObject())->scriptExecutionContext()->allowsMediaDevices())) {
+        hasDisabledRuntimeProperties = true;
+        auto propertyName = Identifier::fromString(&vm, reinterpret_cast<const LChar*>("mediaDevices"), strlen("mediaDevices"));
+        VM::DeletePropertyModeScope scope(vm, VM::DeletePropertyMode::IgnoreConfigurable);
+        JSObject::deleteProperty(this, globalObject()->globalExec(), propertyName);
+    }
+    if (!(jsCast<JSDOMGlobalObject*>(globalObject())->scriptExecutionContext()->isSecureContext()|| jsCast<JSDOMGlobalObject*>(globalObject())->scriptExecutionContext()->hasServiceWorkerScheme())) {
+        hasDisabledRuntimeProperties = true;
+        auto propertyName = Identifier::fromString(&vm, reinterpret_cast<const LChar*>("serviceWorkers"), strlen("serviceWorkers"));
         VM::DeletePropertyModeScope scope(vm, VM::DeletePropertyMode::IgnoreConfigurable);
         JSObject::deleteProperty(this, globalObject()->globalExec(), propertyName);
     }
 #if ENABLE(TEST_FEATURE)
     if (!(RuntimeEnabledFeatures::sharedFeatures().testFeatureEnabled() && RuntimeEnabledFeatures::sharedFeatures().testFeature1Enabled())) {
+        hasDisabledRuntimeProperties = true;
         auto propertyName = Identifier::fromString(&vm, reinterpret_cast<const LChar*>("enabledAtRuntimeAttribute"), strlen("enabledAtRuntimeAttribute"));
         VM::DeletePropertyModeScope scope(vm, VM::DeletePropertyMode::IgnoreConfigurable);
         JSObject::deleteProperty(this, globalObject()->globalExec(), propertyName);
     }
 #endif
     if (!jsCast<JSDOMGlobalObject*>(globalObject())->scriptExecutionContext()->isDocument()) {
+        hasDisabledRuntimeProperties = true;
         auto propertyName = Identifier::fromString(&vm, reinterpret_cast<const LChar*>("conditionallyExposedToWindowAttribute"), strlen("conditionallyExposedToWindowAttribute"));
         VM::DeletePropertyModeScope scope(vm, VM::DeletePropertyMode::IgnoreConfigurable);
         JSObject::deleteProperty(this, globalObject()->globalExec(), propertyName);
     }
     if (!jsCast<JSDOMGlobalObject*>(globalObject())->scriptExecutionContext()->isWorkerGlobalScope()) {
+        hasDisabledRuntimeProperties = true;
         auto propertyName = Identifier::fromString(&vm, reinterpret_cast<const LChar*>("conditionallyExposedToWorkerAttribute"), strlen("conditionallyExposedToWorkerAttribute"));
         VM::DeletePropertyModeScope scope(vm, VM::DeletePropertyMode::IgnoreConfigurable);
         JSObject::deleteProperty(this, globalObject()->globalExec(), propertyName);
     }
+    if (hasDisabledRuntimeProperties && structure()->isDictionary())
+        flattenDictionaryObject(vm);
     putDirect(vm, static_cast<JSVMClientData*>(vm.clientData)->builtinNames().privateMethodPrivateName(), JSFunction::create(vm, globalObject(), 0, String(), jsTestObjPrototypeFunctionPrivateMethod), JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum);
     putDirect(vm, static_cast<JSVMClientData*>(vm.clientData)->builtinNames().publicAndPrivateMethodPrivateName(), JSFunction::create(vm, globalObject(), 0, String(), jsTestObjPrototypeFunctionPublicAndPrivateMethod), JSC::PropertyAttribute::ReadOnly | JSC::PropertyAttribute::DontEnum);
     putDirect(vm, vm.propertyNames->iteratorSymbol, globalObject()->arrayPrototype()->getDirect(vm, vm.propertyNames->builtinNames().valuesPrivateName()), static_cast<unsigned>(JSC::PropertyAttribute::DontEnum));
@@ -2491,19 +2564,19 @@ CallType JSTestObj::getCallData(JSCell*, CallData& callData)
 
 template<> inline JSTestObj* IDLAttribute<JSTestObj>::cast(ExecState& state, EncodedJSValue thisValue)
 {
-    return jsDynamicDowncast<JSTestObj*>(state.vm(), JSValue::decode(thisValue));
+    return jsDynamicCast<JSTestObj*>(state.vm(), JSValue::decode(thisValue));
 }
 
 template<> inline JSTestObj* IDLOperation<JSTestObj>::cast(ExecState& state)
 {
-    return jsDynamicDowncast<JSTestObj*>(state.vm(), state.thisValue());
+    return jsDynamicCast<JSTestObj*>(state.vm(), state.thisValue());
 }
 
 EncodedJSValue jsTestObjConstructor(ExecState* state, EncodedJSValue thisValue, PropertyName)
 {
     VM& vm = state->vm();
     auto throwScope = DECLARE_THROW_SCOPE(vm);
-    auto* prototype = jsDynamicDowncast<JSTestObjPrototype*>(vm, JSValue::decode(thisValue));
+    auto* prototype = jsDynamicCast<JSTestObjPrototype*>(vm, JSValue::decode(thisValue));
     if (UNLIKELY(!prototype))
         return throwVMTypeError(state, throwScope);
     return JSValue::encode(JSTestObj::getConstructor(state->vm(), prototype->globalObject()));
@@ -2513,7 +2586,7 @@ bool setJSTestObjConstructor(ExecState* state, EncodedJSValue thisValue, Encoded
 {
     VM& vm = state->vm();
     auto throwScope = DECLARE_THROW_SCOPE(vm);
-    auto* prototype = jsDynamicDowncast<JSTestObjPrototype*>(vm, JSValue::decode(thisValue));
+    auto* prototype = jsDynamicCast<JSTestObjPrototype*>(vm, JSValue::decode(thisValue));
     if (UNLIKELY(!prototype)) {
         throwVMTypeError(state, throwScope);
         return false;
@@ -2616,6 +2689,24 @@ static inline JSValue jsTestObjConstructorTestSubObjGetter(ExecState& state, Thr
 EncodedJSValue jsTestObjConstructorTestSubObj(ExecState* state, EncodedJSValue thisValue, PropertyName)
 {
     return IDLAttribute<JSTestObj>::getStatic<jsTestObjConstructorTestSubObjGetter>(*state, thisValue, "TestSubObj");
+}
+
+static inline JSValue jsTestObjConstructorTestStaticReadonlyObjGetter(ExecState& state, ThrowScope& throwScope)
+{
+    UNUSED_PARAM(throwScope);
+    UNUSED_PARAM(state);
+    auto* context = jsCast<JSDOMGlobalObject*>(state.lexicalGlobalObject())->scriptExecutionContext();
+    if (UNLIKELY(!context))
+        return jsUndefined();
+    ASSERT(context->isDocument());
+    auto& document = downcast<Document>(*context);
+    JSValue result = toJS<IDLInterface<TestObj>>(state, *jsCast<JSDOMGlobalObject*>(state.lexicalGlobalObject()), throwScope, TestObj::testStaticReadonlyObj(document));
+    return result;
+}
+
+EncodedJSValue jsTestObjConstructorTestStaticReadonlyObj(ExecState* state, EncodedJSValue thisValue, PropertyName)
+{
+    return IDLAttribute<JSTestObj>::getStatic<jsTestObjConstructorTestStaticReadonlyObjGetter>(*state, thisValue, "testStaticReadonlyObj");
 }
 
 static inline JSValue jsTestObjEnumAttrGetter(ExecState& state, JSTestObj& thisObject, ThrowScope& throwScope)
@@ -3506,6 +3597,34 @@ bool setJSTestObjImplementationEnumAttr(ExecState* state, EncodedJSValue thisVal
     return IDLAttribute<JSTestObj>::set<setJSTestObjImplementationEnumAttrSetter>(*state, thisValue, encodedValue, "implementationEnumAttr");
 }
 
+static inline JSValue jsTestObjMediaDevicesGetter(ExecState& state, JSTestObj& thisObject, ThrowScope& throwScope)
+{
+    UNUSED_PARAM(throwScope);
+    UNUSED_PARAM(state);
+    auto& impl = thisObject.wrapped();
+    JSValue result = toJS<IDLInterface<MediaDevices>>(state, *thisObject.globalObject(), throwScope, impl.mediaDevices());
+    return result;
+}
+
+EncodedJSValue jsTestObjMediaDevices(ExecState* state, EncodedJSValue thisValue, PropertyName)
+{
+    return IDLAttribute<JSTestObj>::get<jsTestObjMediaDevicesGetter, CastedThisErrorBehavior::Assert>(*state, thisValue, "mediaDevices");
+}
+
+static inline JSValue jsTestObjServiceWorkersGetter(ExecState& state, JSTestObj& thisObject, ThrowScope& throwScope)
+{
+    UNUSED_PARAM(throwScope);
+    UNUSED_PARAM(state);
+    auto& impl = thisObject.wrapped();
+    JSValue result = toJS<IDLInterface<ServiceWorker>>(state, *thisObject.globalObject(), throwScope, impl.serviceWorkers());
+    return result;
+}
+
+EncodedJSValue jsTestObjServiceWorkers(ExecState* state, EncodedJSValue thisValue, PropertyName)
+{
+    return IDLAttribute<JSTestObj>::get<jsTestObjServiceWorkersGetter, CastedThisErrorBehavior::Assert>(*state, thisValue, "serviceWorkers");
+}
+
 static inline JSValue jsTestObjXMLObjAttrGetter(ExecState& state, JSTestObj& thisObject, ThrowScope& throwScope)
 {
     UNUSED_PARAM(throwScope);
@@ -3946,6 +4065,41 @@ bool setJSTestObjEnabledAtRuntimeAttribute(ExecState* state, EncodedJSValue this
 
 #endif
 
+#if ENABLE(TEST_FEATURE)
+static inline JSValue jsTestObjConstructorEnabledAtRuntimeAttributeStaticGetter(ExecState& state, ThrowScope& throwScope)
+{
+    UNUSED_PARAM(throwScope);
+    UNUSED_PARAM(state);
+    JSValue result = toJS<IDLDOMString>(state, throwScope, TestObj::enabledAtRuntimeAttributeStatic());
+    return result;
+}
+
+EncodedJSValue jsTestObjConstructorEnabledAtRuntimeAttributeStatic(ExecState* state, EncodedJSValue thisValue, PropertyName)
+{
+    return IDLAttribute<JSTestObj>::getStatic<jsTestObjConstructorEnabledAtRuntimeAttributeStaticGetter>(*state, thisValue, "enabledAtRuntimeAttributeStatic");
+}
+
+#endif
+
+#if ENABLE(TEST_FEATURE)
+static inline bool setJSTestObjConstructorEnabledAtRuntimeAttributeStaticSetter(ExecState& state, JSValue value, ThrowScope& throwScope)
+{
+    UNUSED_PARAM(throwScope);
+    auto nativeValue = convert<IDLDOMString>(state, value);
+    RETURN_IF_EXCEPTION(throwScope, false);
+    AttributeSetter::call(state, throwScope, [&] {
+        return TestObj::setEnabledAtRuntimeAttributeStatic(WTFMove(nativeValue));
+    });
+    return true;
+}
+
+bool setJSTestObjConstructorEnabledAtRuntimeAttributeStatic(ExecState* state, EncodedJSValue thisValue, EncodedJSValue encodedValue)
+{
+    return IDLAttribute<JSTestObj>::setStatic<setJSTestObjConstructorEnabledAtRuntimeAttributeStaticSetter>(*state, thisValue, encodedValue, "enabledAtRuntimeAttributeStatic");
+}
+
+#endif
+
 static inline JSValue jsTestObjTypedArrayAttrGetter(ExecState& state, JSTestObj& thisObject, ThrowScope& throwScope)
 {
     UNUSED_PARAM(throwScope);
@@ -4049,35 +4203,35 @@ bool setJSTestObjOnwebkitfoo(ExecState* state, EncodedJSValue thisValue, Encoded
     return IDLAttribute<JSTestObj>::set<setJSTestObjOnwebkitfooSetter>(*state, thisValue, encodedValue, "onwebkitfoo");
 }
 
-static inline JSValue jsTestObjWithScriptStateAttributeGetter(ExecState& state, JSTestObj& thisObject, ThrowScope& throwScope)
+static inline JSValue jsTestObjWithExecStateAttributeGetter(ExecState& state, JSTestObj& thisObject, ThrowScope& throwScope)
 {
     UNUSED_PARAM(throwScope);
     UNUSED_PARAM(state);
     auto& impl = thisObject.wrapped();
-    JSValue result = toJS<IDLLong>(state, throwScope, impl.withScriptStateAttribute(state));
+    JSValue result = toJS<IDLLong>(state, throwScope, impl.withExecStateAttribute(state));
     return result;
 }
 
-EncodedJSValue jsTestObjWithScriptStateAttribute(ExecState* state, EncodedJSValue thisValue, PropertyName)
+EncodedJSValue jsTestObjWithExecStateAttribute(ExecState* state, EncodedJSValue thisValue, PropertyName)
 {
-    return IDLAttribute<JSTestObj>::get<jsTestObjWithScriptStateAttributeGetter, CastedThisErrorBehavior::Assert>(*state, thisValue, "withScriptStateAttribute");
+    return IDLAttribute<JSTestObj>::get<jsTestObjWithExecStateAttributeGetter, CastedThisErrorBehavior::Assert>(*state, thisValue, "withExecStateAttribute");
 }
 
-static inline bool setJSTestObjWithScriptStateAttributeSetter(ExecState& state, JSTestObj& thisObject, JSValue value, ThrowScope& throwScope)
+static inline bool setJSTestObjWithExecStateAttributeSetter(ExecState& state, JSTestObj& thisObject, JSValue value, ThrowScope& throwScope)
 {
     UNUSED_PARAM(throwScope);
     auto& impl = thisObject.wrapped();
     auto nativeValue = convert<IDLLong>(state, value);
     RETURN_IF_EXCEPTION(throwScope, false);
     AttributeSetter::call(state, throwScope, [&] {
-        return impl.setWithScriptStateAttribute(state, WTFMove(nativeValue));
+        return impl.setWithExecStateAttribute(state, WTFMove(nativeValue));
     });
     return true;
 }
 
-bool setJSTestObjWithScriptStateAttribute(ExecState* state, EncodedJSValue thisValue, EncodedJSValue encodedValue)
+bool setJSTestObjWithExecStateAttribute(ExecState* state, EncodedJSValue thisValue, EncodedJSValue encodedValue)
 {
-    return IDLAttribute<JSTestObj>::set<setJSTestObjWithScriptStateAttributeSetter>(*state, thisValue, encodedValue, "withScriptStateAttribute");
+    return IDLAttribute<JSTestObj>::set<setJSTestObjWithExecStateAttributeSetter>(*state, thisValue, encodedValue, "withExecStateAttribute");
 }
 
 static inline JSValue jsTestObjWithCallWithAndSetterCallWithAttributeGetter(ExecState& state, JSTestObj& thisObject, ThrowScope& throwScope)
@@ -4148,7 +4302,7 @@ bool setJSTestObjWithScriptExecutionContextAttribute(ExecState* state, EncodedJS
     return IDLAttribute<JSTestObj>::set<setJSTestObjWithScriptExecutionContextAttributeSetter>(*state, thisValue, encodedValue, "withScriptExecutionContextAttribute");
 }
 
-static inline JSValue jsTestObjWithScriptExecutionContextAndScriptStateAttributeGetter(ExecState& state, JSTestObj& thisObject, ThrowScope& throwScope)
+static inline JSValue jsTestObjWithScriptExecutionContextAndExecStateAttributeGetter(ExecState& state, JSTestObj& thisObject, ThrowScope& throwScope)
 {
     UNUSED_PARAM(throwScope);
     UNUSED_PARAM(state);
@@ -4156,36 +4310,36 @@ static inline JSValue jsTestObjWithScriptExecutionContextAndScriptStateAttribute
     if (UNLIKELY(!context))
         return jsUndefined();
     auto& impl = thisObject.wrapped();
-    JSValue result = toJS<IDLInterface<TestObj>>(state, *thisObject.globalObject(), throwScope, impl.withScriptExecutionContextAndScriptStateAttribute(state, *context));
+    JSValue result = toJS<IDLInterface<TestObj>>(state, *thisObject.globalObject(), throwScope, impl.withScriptExecutionContextAndExecStateAttribute(state, *context));
     return result;
 }
 
-EncodedJSValue jsTestObjWithScriptExecutionContextAndScriptStateAttribute(ExecState* state, EncodedJSValue thisValue, PropertyName)
+EncodedJSValue jsTestObjWithScriptExecutionContextAndExecStateAttribute(ExecState* state, EncodedJSValue thisValue, PropertyName)
 {
-    return IDLAttribute<JSTestObj>::get<jsTestObjWithScriptExecutionContextAndScriptStateAttributeGetter, CastedThisErrorBehavior::Assert>(*state, thisValue, "withScriptExecutionContextAndScriptStateAttribute");
+    return IDLAttribute<JSTestObj>::get<jsTestObjWithScriptExecutionContextAndExecStateAttributeGetter, CastedThisErrorBehavior::Assert>(*state, thisValue, "withScriptExecutionContextAndExecStateAttribute");
 }
 
-static inline bool setJSTestObjWithScriptExecutionContextAndScriptStateAttributeSetter(ExecState& state, JSTestObj& thisObject, JSValue value, ThrowScope& throwScope)
+static inline bool setJSTestObjWithScriptExecutionContextAndExecStateAttributeSetter(ExecState& state, JSTestObj& thisObject, JSValue value, ThrowScope& throwScope)
 {
     UNUSED_PARAM(throwScope);
     auto& impl = thisObject.wrapped();
-    auto nativeValue = convert<IDLInterface<TestObj>>(state, value, [](JSC::ExecState& state, JSC::ThrowScope& scope) { throwAttributeTypeError(state, scope, "TestObject", "withScriptExecutionContextAndScriptStateAttribute", "TestObj"); });
+    auto nativeValue = convert<IDLInterface<TestObj>>(state, value, [](JSC::ExecState& state, JSC::ThrowScope& scope) { throwAttributeTypeError(state, scope, "TestObject", "withScriptExecutionContextAndExecStateAttribute", "TestObj"); });
     RETURN_IF_EXCEPTION(throwScope, false);
     auto* context = jsCast<JSDOMGlobalObject*>(state.lexicalGlobalObject())->scriptExecutionContext();
     if (UNLIKELY(!context))
         return false;
     AttributeSetter::call(state, throwScope, [&] {
-        return impl.setWithScriptExecutionContextAndScriptStateAttribute(state, *context, *nativeValue);
+        return impl.setWithScriptExecutionContextAndExecStateAttribute(state, *context, *nativeValue);
     });
     return true;
 }
 
-bool setJSTestObjWithScriptExecutionContextAndScriptStateAttribute(ExecState* state, EncodedJSValue thisValue, EncodedJSValue encodedValue)
+bool setJSTestObjWithScriptExecutionContextAndExecStateAttribute(ExecState* state, EncodedJSValue thisValue, EncodedJSValue encodedValue)
 {
-    return IDLAttribute<JSTestObj>::set<setJSTestObjWithScriptExecutionContextAndScriptStateAttributeSetter>(*state, thisValue, encodedValue, "withScriptExecutionContextAndScriptStateAttribute");
+    return IDLAttribute<JSTestObj>::set<setJSTestObjWithScriptExecutionContextAndExecStateAttributeSetter>(*state, thisValue, encodedValue, "withScriptExecutionContextAndExecStateAttribute");
 }
 
-static inline JSValue jsTestObjWithScriptExecutionContextAndScriptStateWithSpacesAttributeGetter(ExecState& state, JSTestObj& thisObject, ThrowScope& throwScope)
+static inline JSValue jsTestObjWithScriptExecutionContextAndExecStateWithSpacesAttributeGetter(ExecState& state, JSTestObj& thisObject, ThrowScope& throwScope)
 {
     UNUSED_PARAM(throwScope);
     UNUSED_PARAM(state);
@@ -4193,33 +4347,33 @@ static inline JSValue jsTestObjWithScriptExecutionContextAndScriptStateWithSpace
     if (UNLIKELY(!context))
         return jsUndefined();
     auto& impl = thisObject.wrapped();
-    JSValue result = toJS<IDLInterface<TestObj>>(state, *thisObject.globalObject(), throwScope, impl.withScriptExecutionContextAndScriptStateWithSpacesAttribute(state, *context));
+    JSValue result = toJS<IDLInterface<TestObj>>(state, *thisObject.globalObject(), throwScope, impl.withScriptExecutionContextAndExecStateWithSpacesAttribute(state, *context));
     return result;
 }
 
-EncodedJSValue jsTestObjWithScriptExecutionContextAndScriptStateWithSpacesAttribute(ExecState* state, EncodedJSValue thisValue, PropertyName)
+EncodedJSValue jsTestObjWithScriptExecutionContextAndExecStateWithSpacesAttribute(ExecState* state, EncodedJSValue thisValue, PropertyName)
 {
-    return IDLAttribute<JSTestObj>::get<jsTestObjWithScriptExecutionContextAndScriptStateWithSpacesAttributeGetter, CastedThisErrorBehavior::Assert>(*state, thisValue, "withScriptExecutionContextAndScriptStateWithSpacesAttribute");
+    return IDLAttribute<JSTestObj>::get<jsTestObjWithScriptExecutionContextAndExecStateWithSpacesAttributeGetter, CastedThisErrorBehavior::Assert>(*state, thisValue, "withScriptExecutionContextAndExecStateWithSpacesAttribute");
 }
 
-static inline bool setJSTestObjWithScriptExecutionContextAndScriptStateWithSpacesAttributeSetter(ExecState& state, JSTestObj& thisObject, JSValue value, ThrowScope& throwScope)
+static inline bool setJSTestObjWithScriptExecutionContextAndExecStateWithSpacesAttributeSetter(ExecState& state, JSTestObj& thisObject, JSValue value, ThrowScope& throwScope)
 {
     UNUSED_PARAM(throwScope);
     auto& impl = thisObject.wrapped();
-    auto nativeValue = convert<IDLInterface<TestObj>>(state, value, [](JSC::ExecState& state, JSC::ThrowScope& scope) { throwAttributeTypeError(state, scope, "TestObject", "withScriptExecutionContextAndScriptStateWithSpacesAttribute", "TestObj"); });
+    auto nativeValue = convert<IDLInterface<TestObj>>(state, value, [](JSC::ExecState& state, JSC::ThrowScope& scope) { throwAttributeTypeError(state, scope, "TestObject", "withScriptExecutionContextAndExecStateWithSpacesAttribute", "TestObj"); });
     RETURN_IF_EXCEPTION(throwScope, false);
     auto* context = jsCast<JSDOMGlobalObject*>(state.lexicalGlobalObject())->scriptExecutionContext();
     if (UNLIKELY(!context))
         return false;
     AttributeSetter::call(state, throwScope, [&] {
-        return impl.setWithScriptExecutionContextAndScriptStateWithSpacesAttribute(state, *context, *nativeValue);
+        return impl.setWithScriptExecutionContextAndExecStateWithSpacesAttribute(state, *context, *nativeValue);
     });
     return true;
 }
 
-bool setJSTestObjWithScriptExecutionContextAndScriptStateWithSpacesAttribute(ExecState* state, EncodedJSValue thisValue, EncodedJSValue encodedValue)
+bool setJSTestObjWithScriptExecutionContextAndExecStateWithSpacesAttribute(ExecState* state, EncodedJSValue thisValue, EncodedJSValue encodedValue)
 {
-    return IDLAttribute<JSTestObj>::set<setJSTestObjWithScriptExecutionContextAndScriptStateWithSpacesAttributeSetter>(*state, thisValue, encodedValue, "withScriptExecutionContextAndScriptStateWithSpacesAttribute");
+    return IDLAttribute<JSTestObj>::set<setJSTestObjWithScriptExecutionContextAndExecStateWithSpacesAttributeSetter>(*state, thisValue, encodedValue, "withScriptExecutionContextAndExecStateWithSpacesAttribute");
 }
 
 #if ENABLE(Condition1)
@@ -4456,6 +4610,26 @@ EncodedJSValue jsTestObjCachedAttribute2(ExecState* state, EncodedJSValue thisVa
 {
     return IDLAttribute<JSTestObj>::get<jsTestObjCachedAttribute2Getter, CastedThisErrorBehavior::Assert>(*state, thisValue, "cachedAttribute2");
 }
+
+#if ENABLE(CONDITION)
+static inline JSValue jsTestObjCachedAttribute3Getter(ExecState& state, JSTestObj& thisObject, ThrowScope& throwScope)
+{
+    UNUSED_PARAM(throwScope);
+    UNUSED_PARAM(state);
+    if (JSValue cachedValue = thisObject.m_cachedAttribute3.get())
+        return cachedValue;
+    auto& impl = thisObject.wrapped();
+    JSValue result = toJS<IDLAny>(state, throwScope, impl.cachedAttribute3());
+    thisObject.m_cachedAttribute3.set(state.vm(), &thisObject, result);
+    return result;
+}
+
+EncodedJSValue jsTestObjCachedAttribute3(ExecState* state, EncodedJSValue thisValue, PropertyName)
+{
+    return IDLAttribute<JSTestObj>::get<jsTestObjCachedAttribute3Getter, CastedThisErrorBehavior::Assert>(*state, thisValue, "cachedAttribute3");
+}
+
+#endif
 
 static inline JSValue jsTestObjAnyAttributeGetter(ExecState& state, JSTestObj& thisObject, ThrowScope& throwScope)
 {
@@ -5263,6 +5437,26 @@ EncodedJSValue JSC_HOST_CALL jsTestObjPrototypeFunctionEnabledAtRuntimeOperation
 
 #endif
 
+#if ENABLE(TEST_FEATURE)
+static inline JSC::EncodedJSValue jsTestObjConstructorFunctionEnabledAtRuntimeOperationStaticBody(JSC::ExecState* state, JSC::ThrowScope& throwScope)
+{
+    UNUSED_PARAM(state);
+    UNUSED_PARAM(throwScope);
+    if (UNLIKELY(state->argumentCount() < 1))
+        return throwVMError(state, throwScope, createNotEnoughArgumentsError(state));
+    auto testParam = convert<IDLLong>(*state, state->uncheckedArgument(0));
+    RETURN_IF_EXCEPTION(throwScope, encodedJSValue());
+    TestObj::enabledAtRuntimeOperationStatic(WTFMove(testParam));
+    return JSValue::encode(jsUndefined());
+}
+
+EncodedJSValue JSC_HOST_CALL jsTestObjConstructorFunctionEnabledAtRuntimeOperationStatic(ExecState* state)
+{
+    return IDLOperation<JSTestObj>::callStatic<jsTestObjConstructorFunctionEnabledAtRuntimeOperationStaticBody>(*state, "enabledAtRuntimeOperationStatic");
+}
+
+#endif
+
 static inline JSC::EncodedJSValue jsTestObjPrototypeFunctionEnabledInSpecificWorldWhenRuntimeFeatureEnabledBody(JSC::ExecState* state, typename IDLOperation<JSTestObj>::ClassParameter castedThis, JSC::ThrowScope& throwScope)
 {
     UNUSED_PARAM(state);
@@ -5646,7 +5840,7 @@ static inline JSC::EncodedJSValue jsTestObjPrototypeFunctionMethodWithOptionalEn
     UNUSED_PARAM(state);
     UNUSED_PARAM(throwScope);
     auto& impl = castedThis->wrapped();
-    auto enumArg = state->argument(0).isUndefined() ? std::optional<Converter<IDLEnumeration<TestObj::EnumType>>::ReturnType>() : std::optional<Converter<IDLEnumeration<TestObj::EnumType>>::ReturnType>(convert<IDLEnumeration<TestObj::EnumType>>(*state, state->uncheckedArgument(0), [](JSC::ExecState& state, JSC::ThrowScope& scope) { throwArgumentMustBeEnumError(state, scope, 0, "enumArg", "TestObject", "methodWithOptionalEnumArg", expectedEnumerationValues<TestObj::EnumType>()); }));
+    auto enumArg = state->argument(0).isUndefined() ? Optional<Converter<IDLEnumeration<TestObj::EnumType>>::ReturnType>() : Optional<Converter<IDLEnumeration<TestObj::EnumType>>::ReturnType>(convert<IDLEnumeration<TestObj::EnumType>>(*state, state->uncheckedArgument(0), [](JSC::ExecState& state, JSC::ThrowScope& scope) { throwArgumentMustBeEnumError(state, scope, 0, "enumArg", "TestObject", "methodWithOptionalEnumArg", expectedEnumerationValues<TestObj::EnumType>()); }));
     RETURN_IF_EXCEPTION(throwScope, encodedJSValue());
     impl.methodWithOptionalEnumArg(WTFMove(enumArg));
     return JSValue::encode(jsUndefined());
@@ -5978,58 +6172,58 @@ EncodedJSValue JSC_HOST_CALL jsTestObjPrototypeFunctionRemoveEventListener(ExecS
     return IDLOperation<JSTestObj>::call<jsTestObjPrototypeFunctionRemoveEventListenerBody>(*state, "removeEventListener");
 }
 
-static inline JSC::EncodedJSValue jsTestObjPrototypeFunctionWithScriptStateVoidBody(JSC::ExecState* state, typename IDLOperation<JSTestObj>::ClassParameter castedThis, JSC::ThrowScope& throwScope)
+static inline JSC::EncodedJSValue jsTestObjPrototypeFunctionWithExecStateVoidBody(JSC::ExecState* state, typename IDLOperation<JSTestObj>::ClassParameter castedThis, JSC::ThrowScope& throwScope)
 {
     UNUSED_PARAM(state);
     UNUSED_PARAM(throwScope);
     auto& impl = castedThis->wrapped();
-    impl.withScriptStateVoid(*state);
+    impl.withExecStateVoid(*state);
     return JSValue::encode(jsUndefined());
 }
 
-EncodedJSValue JSC_HOST_CALL jsTestObjPrototypeFunctionWithScriptStateVoid(ExecState* state)
+EncodedJSValue JSC_HOST_CALL jsTestObjPrototypeFunctionWithExecStateVoid(ExecState* state)
 {
-    return IDLOperation<JSTestObj>::call<jsTestObjPrototypeFunctionWithScriptStateVoidBody>(*state, "withScriptStateVoid");
+    return IDLOperation<JSTestObj>::call<jsTestObjPrototypeFunctionWithExecStateVoidBody>(*state, "withExecStateVoid");
 }
 
-static inline JSC::EncodedJSValue jsTestObjPrototypeFunctionWithScriptStateObjBody(JSC::ExecState* state, typename IDLOperation<JSTestObj>::ClassParameter castedThis, JSC::ThrowScope& throwScope)
+static inline JSC::EncodedJSValue jsTestObjPrototypeFunctionWithExecStateObjBody(JSC::ExecState* state, typename IDLOperation<JSTestObj>::ClassParameter castedThis, JSC::ThrowScope& throwScope)
 {
     UNUSED_PARAM(state);
     UNUSED_PARAM(throwScope);
     auto& impl = castedThis->wrapped();
-    return JSValue::encode(toJS<IDLInterface<TestObj>>(*state, *castedThis->globalObject(), impl.withScriptStateObj(*state)));
+    return JSValue::encode(toJS<IDLInterface<TestObj>>(*state, *castedThis->globalObject(), impl.withExecStateObj(*state)));
 }
 
-EncodedJSValue JSC_HOST_CALL jsTestObjPrototypeFunctionWithScriptStateObj(ExecState* state)
+EncodedJSValue JSC_HOST_CALL jsTestObjPrototypeFunctionWithExecStateObj(ExecState* state)
 {
-    return IDLOperation<JSTestObj>::call<jsTestObjPrototypeFunctionWithScriptStateObjBody>(*state, "withScriptStateObj");
+    return IDLOperation<JSTestObj>::call<jsTestObjPrototypeFunctionWithExecStateObjBody>(*state, "withExecStateObj");
 }
 
-static inline JSC::EncodedJSValue jsTestObjPrototypeFunctionWithScriptStateVoidExceptionBody(JSC::ExecState* state, typename IDLOperation<JSTestObj>::ClassParameter castedThis, JSC::ThrowScope& throwScope)
+static inline JSC::EncodedJSValue jsTestObjPrototypeFunctionWithExecStateVoidExceptionBody(JSC::ExecState* state, typename IDLOperation<JSTestObj>::ClassParameter castedThis, JSC::ThrowScope& throwScope)
 {
     UNUSED_PARAM(state);
     UNUSED_PARAM(throwScope);
     auto& impl = castedThis->wrapped();
-    propagateException(*state, throwScope, impl.withScriptStateVoidException(*state));
+    propagateException(*state, throwScope, impl.withExecStateVoidException(*state));
     return JSValue::encode(jsUndefined());
 }
 
-EncodedJSValue JSC_HOST_CALL jsTestObjPrototypeFunctionWithScriptStateVoidException(ExecState* state)
+EncodedJSValue JSC_HOST_CALL jsTestObjPrototypeFunctionWithExecStateVoidException(ExecState* state)
 {
-    return IDLOperation<JSTestObj>::call<jsTestObjPrototypeFunctionWithScriptStateVoidExceptionBody>(*state, "withScriptStateVoidException");
+    return IDLOperation<JSTestObj>::call<jsTestObjPrototypeFunctionWithExecStateVoidExceptionBody>(*state, "withExecStateVoidException");
 }
 
-static inline JSC::EncodedJSValue jsTestObjPrototypeFunctionWithScriptStateObjExceptionBody(JSC::ExecState* state, typename IDLOperation<JSTestObj>::ClassParameter castedThis, JSC::ThrowScope& throwScope)
+static inline JSC::EncodedJSValue jsTestObjPrototypeFunctionWithExecStateObjExceptionBody(JSC::ExecState* state, typename IDLOperation<JSTestObj>::ClassParameter castedThis, JSC::ThrowScope& throwScope)
 {
     UNUSED_PARAM(state);
     UNUSED_PARAM(throwScope);
     auto& impl = castedThis->wrapped();
-    return JSValue::encode(toJS<IDLInterface<TestObj>>(*state, *castedThis->globalObject(), throwScope, impl.withScriptStateObjException(*state)));
+    return JSValue::encode(toJS<IDLInterface<TestObj>>(*state, *castedThis->globalObject(), throwScope, impl.withExecStateObjException(*state)));
 }
 
-EncodedJSValue JSC_HOST_CALL jsTestObjPrototypeFunctionWithScriptStateObjException(ExecState* state)
+EncodedJSValue JSC_HOST_CALL jsTestObjPrototypeFunctionWithExecStateObjException(ExecState* state)
 {
-    return IDLOperation<JSTestObj>::call<jsTestObjPrototypeFunctionWithScriptStateObjExceptionBody>(*state, "withScriptStateObjException");
+    return IDLOperation<JSTestObj>::call<jsTestObjPrototypeFunctionWithExecStateObjExceptionBody>(*state, "withExecStateObjException");
 }
 
 static inline JSC::EncodedJSValue jsTestObjPrototypeFunctionWithScriptExecutionContextBody(JSC::ExecState* state, typename IDLOperation<JSTestObj>::ClassParameter castedThis, JSC::ThrowScope& throwScope)
@@ -6049,7 +6243,7 @@ EncodedJSValue JSC_HOST_CALL jsTestObjPrototypeFunctionWithScriptExecutionContex
     return IDLOperation<JSTestObj>::call<jsTestObjPrototypeFunctionWithScriptExecutionContextBody>(*state, "withScriptExecutionContext");
 }
 
-static inline JSC::EncodedJSValue jsTestObjPrototypeFunctionWithScriptExecutionContextAndScriptStateBody(JSC::ExecState* state, typename IDLOperation<JSTestObj>::ClassParameter castedThis, JSC::ThrowScope& throwScope)
+static inline JSC::EncodedJSValue jsTestObjPrototypeFunctionWithScriptExecutionContextAndExecStateBody(JSC::ExecState* state, typename IDLOperation<JSTestObj>::ClassParameter castedThis, JSC::ThrowScope& throwScope)
 {
     UNUSED_PARAM(state);
     UNUSED_PARAM(throwScope);
@@ -6057,16 +6251,16 @@ static inline JSC::EncodedJSValue jsTestObjPrototypeFunctionWithScriptExecutionC
     auto* context = jsCast<JSDOMGlobalObject*>(state->lexicalGlobalObject())->scriptExecutionContext();
     if (UNLIKELY(!context))
         return JSValue::encode(jsUndefined());
-    impl.withScriptExecutionContextAndScriptState(*state, *context);
+    impl.withScriptExecutionContextAndExecState(*state, *context);
     return JSValue::encode(jsUndefined());
 }
 
-EncodedJSValue JSC_HOST_CALL jsTestObjPrototypeFunctionWithScriptExecutionContextAndScriptState(ExecState* state)
+EncodedJSValue JSC_HOST_CALL jsTestObjPrototypeFunctionWithScriptExecutionContextAndExecState(ExecState* state)
 {
-    return IDLOperation<JSTestObj>::call<jsTestObjPrototypeFunctionWithScriptExecutionContextAndScriptStateBody>(*state, "withScriptExecutionContextAndScriptState");
+    return IDLOperation<JSTestObj>::call<jsTestObjPrototypeFunctionWithScriptExecutionContextAndExecStateBody>(*state, "withScriptExecutionContextAndExecState");
 }
 
-static inline JSC::EncodedJSValue jsTestObjPrototypeFunctionWithScriptExecutionContextAndScriptStateObjExceptionBody(JSC::ExecState* state, typename IDLOperation<JSTestObj>::ClassParameter castedThis, JSC::ThrowScope& throwScope)
+static inline JSC::EncodedJSValue jsTestObjPrototypeFunctionWithScriptExecutionContextAndExecStateObjExceptionBody(JSC::ExecState* state, typename IDLOperation<JSTestObj>::ClassParameter castedThis, JSC::ThrowScope& throwScope)
 {
     UNUSED_PARAM(state);
     UNUSED_PARAM(throwScope);
@@ -6074,15 +6268,15 @@ static inline JSC::EncodedJSValue jsTestObjPrototypeFunctionWithScriptExecutionC
     auto* context = jsCast<JSDOMGlobalObject*>(state->lexicalGlobalObject())->scriptExecutionContext();
     if (UNLIKELY(!context))
         return JSValue::encode(jsUndefined());
-    return JSValue::encode(toJS<IDLInterface<TestObj>>(*state, *castedThis->globalObject(), throwScope, impl.withScriptExecutionContextAndScriptStateObjException(*state, *context)));
+    return JSValue::encode(toJS<IDLInterface<TestObj>>(*state, *castedThis->globalObject(), throwScope, impl.withScriptExecutionContextAndExecStateObjException(*state, *context)));
 }
 
-EncodedJSValue JSC_HOST_CALL jsTestObjPrototypeFunctionWithScriptExecutionContextAndScriptStateObjException(ExecState* state)
+EncodedJSValue JSC_HOST_CALL jsTestObjPrototypeFunctionWithScriptExecutionContextAndExecStateObjException(ExecState* state)
 {
-    return IDLOperation<JSTestObj>::call<jsTestObjPrototypeFunctionWithScriptExecutionContextAndScriptStateObjExceptionBody>(*state, "withScriptExecutionContextAndScriptStateObjException");
+    return IDLOperation<JSTestObj>::call<jsTestObjPrototypeFunctionWithScriptExecutionContextAndExecStateObjExceptionBody>(*state, "withScriptExecutionContextAndExecStateObjException");
 }
 
-static inline JSC::EncodedJSValue jsTestObjPrototypeFunctionWithScriptExecutionContextAndScriptStateWithSpacesBody(JSC::ExecState* state, typename IDLOperation<JSTestObj>::ClassParameter castedThis, JSC::ThrowScope& throwScope)
+static inline JSC::EncodedJSValue jsTestObjPrototypeFunctionWithScriptExecutionContextAndExecStateWithSpacesBody(JSC::ExecState* state, typename IDLOperation<JSTestObj>::ClassParameter castedThis, JSC::ThrowScope& throwScope)
 {
     UNUSED_PARAM(state);
     UNUSED_PARAM(throwScope);
@@ -6090,12 +6284,12 @@ static inline JSC::EncodedJSValue jsTestObjPrototypeFunctionWithScriptExecutionC
     auto* context = jsCast<JSDOMGlobalObject*>(state->lexicalGlobalObject())->scriptExecutionContext();
     if (UNLIKELY(!context))
         return JSValue::encode(jsUndefined());
-    return JSValue::encode(toJS<IDLInterface<TestObj>>(*state, *castedThis->globalObject(), impl.withScriptExecutionContextAndScriptStateWithSpaces(*state, *context)));
+    return JSValue::encode(toJS<IDLInterface<TestObj>>(*state, *castedThis->globalObject(), impl.withScriptExecutionContextAndExecStateWithSpaces(*state, *context)));
 }
 
-EncodedJSValue JSC_HOST_CALL jsTestObjPrototypeFunctionWithScriptExecutionContextAndScriptStateWithSpaces(ExecState* state)
+EncodedJSValue JSC_HOST_CALL jsTestObjPrototypeFunctionWithScriptExecutionContextAndExecStateWithSpaces(ExecState* state)
 {
-    return IDLOperation<JSTestObj>::call<jsTestObjPrototypeFunctionWithScriptExecutionContextAndScriptStateWithSpacesBody>(*state, "withScriptExecutionContextAndScriptStateWithSpaces");
+    return IDLOperation<JSTestObj>::call<jsTestObjPrototypeFunctionWithScriptExecutionContextAndExecStateWithSpacesBody>(*state, "withScriptExecutionContextAndExecStateWithSpaces");
 }
 
 static inline JSC::EncodedJSValue jsTestObjPrototypeFunctionWithDocumentArgumentBody(JSC::ExecState* state, typename IDLOperation<JSTestObj>::ClassParameter castedThis, JSC::ThrowScope& throwScope)
@@ -6153,7 +6347,7 @@ static inline JSC::EncodedJSValue jsTestObjPrototypeFunctionMethodWithOptionalAr
     UNUSED_PARAM(state);
     UNUSED_PARAM(throwScope);
     auto& impl = castedThis->wrapped();
-    auto opt = state->argument(0).isUndefined() ? std::optional<Converter<IDLLong>::ReturnType>() : std::optional<Converter<IDLLong>::ReturnType>(convert<IDLLong>(*state, state->uncheckedArgument(0)));
+    auto opt = state->argument(0).isUndefined() ? Optional<Converter<IDLLong>::ReturnType>() : Optional<Converter<IDLLong>::ReturnType>(convert<IDLLong>(*state, state->uncheckedArgument(0)));
     RETURN_IF_EXCEPTION(throwScope, encodedJSValue());
     impl.methodWithOptionalArg(WTFMove(opt));
     return JSValue::encode(jsUndefined());
@@ -6189,7 +6383,7 @@ static inline JSC::EncodedJSValue jsTestObjPrototypeFunctionMethodWithNonOptiona
         return throwVMError(state, throwScope, createNotEnoughArgumentsError(state));
     auto nonOpt = convert<IDLLong>(*state, state->uncheckedArgument(0));
     RETURN_IF_EXCEPTION(throwScope, encodedJSValue());
-    auto opt = state->argument(1).isUndefined() ? std::optional<Converter<IDLLong>::ReturnType>() : std::optional<Converter<IDLLong>::ReturnType>(convert<IDLLong>(*state, state->uncheckedArgument(1)));
+    auto opt = state->argument(1).isUndefined() ? Optional<Converter<IDLLong>::ReturnType>() : Optional<Converter<IDLLong>::ReturnType>(convert<IDLLong>(*state, state->uncheckedArgument(1)));
     RETURN_IF_EXCEPTION(throwScope, encodedJSValue());
     impl.methodWithNonOptionalArgAndOptionalArg(WTFMove(nonOpt), WTFMove(opt));
     return JSValue::encode(jsUndefined());
@@ -6209,9 +6403,9 @@ static inline JSC::EncodedJSValue jsTestObjPrototypeFunctionMethodWithNonOptiona
         return throwVMError(state, throwScope, createNotEnoughArgumentsError(state));
     auto nonOpt = convert<IDLLong>(*state, state->uncheckedArgument(0));
     RETURN_IF_EXCEPTION(throwScope, encodedJSValue());
-    auto opt1 = state->argument(1).isUndefined() ? std::optional<Converter<IDLLong>::ReturnType>() : std::optional<Converter<IDLLong>::ReturnType>(convert<IDLLong>(*state, state->uncheckedArgument(1)));
+    auto opt1 = state->argument(1).isUndefined() ? Optional<Converter<IDLLong>::ReturnType>() : Optional<Converter<IDLLong>::ReturnType>(convert<IDLLong>(*state, state->uncheckedArgument(1)));
     RETURN_IF_EXCEPTION(throwScope, encodedJSValue());
-    auto opt2 = state->argument(2).isUndefined() ? std::optional<Converter<IDLLong>::ReturnType>() : std::optional<Converter<IDLLong>::ReturnType>(convert<IDLLong>(*state, state->uncheckedArgument(2)));
+    auto opt2 = state->argument(2).isUndefined() ? Optional<Converter<IDLLong>::ReturnType>() : Optional<Converter<IDLLong>::ReturnType>(convert<IDLLong>(*state, state->uncheckedArgument(2)));
     RETURN_IF_EXCEPTION(throwScope, encodedJSValue());
     impl.methodWithNonOptionalArgAndTwoOptionalArgs(WTFMove(nonOpt), WTFMove(opt1), WTFMove(opt2));
     return JSValue::encode(jsUndefined());
@@ -6275,7 +6469,7 @@ static inline JSC::EncodedJSValue jsTestObjPrototypeFunctionMethodWithOptionalSt
     UNUSED_PARAM(state);
     UNUSED_PARAM(throwScope);
     auto& impl = castedThis->wrapped();
-    auto str = state->argument(0).isUndefined() ? ASCIILiteral("foo") : convert<IDLDOMString>(*state, state->uncheckedArgument(0));
+    auto str = state->argument(0).isUndefined() ? "foo"_s : convert<IDLDOMString>(*state, state->uncheckedArgument(0));
     RETURN_IF_EXCEPTION(throwScope, encodedJSValue());
     impl.methodWithOptionalStringAndDefaultValue(WTFMove(str));
     return JSValue::encode(jsUndefined());
@@ -6435,7 +6629,7 @@ static inline JSC::EncodedJSValue jsTestObjPrototypeFunctionMethodWithOptionalLo
     UNUSED_PARAM(state);
     UNUSED_PARAM(throwScope);
     auto& impl = castedThis->wrapped();
-    auto number = state->argument(0).isUndefined() ? std::optional<Converter<IDLLongLong>::ReturnType>() : std::optional<Converter<IDLLongLong>::ReturnType>(convert<IDLLongLong>(*state, state->uncheckedArgument(0)));
+    auto number = state->argument(0).isUndefined() ? Optional<Converter<IDLLongLong>::ReturnType>() : Optional<Converter<IDLLongLong>::ReturnType>(convert<IDLLongLong>(*state, state->uncheckedArgument(0)));
     RETURN_IF_EXCEPTION(throwScope, encodedJSValue());
     impl.methodWithOptionalLongLong(WTFMove(number));
     return JSValue::encode(jsUndefined());
@@ -6467,7 +6661,7 @@ static inline JSC::EncodedJSValue jsTestObjPrototypeFunctionMethodWithOptionalUn
     UNUSED_PARAM(state);
     UNUSED_PARAM(throwScope);
     auto& impl = castedThis->wrapped();
-    auto number = state->argument(0).isUndefined() ? std::optional<Converter<IDLUnsignedLongLong>::ReturnType>() : std::optional<Converter<IDLUnsignedLongLong>::ReturnType>(convert<IDLUnsignedLongLong>(*state, state->uncheckedArgument(0)));
+    auto number = state->argument(0).isUndefined() ? Optional<Converter<IDLUnsignedLongLong>::ReturnType>() : Optional<Converter<IDLUnsignedLongLong>::ReturnType>(convert<IDLUnsignedLongLong>(*state, state->uncheckedArgument(0)));
     RETURN_IF_EXCEPTION(throwScope, encodedJSValue());
     impl.methodWithOptionalUnsignedLongLong(WTFMove(number));
     return JSValue::encode(jsUndefined());
@@ -6531,7 +6725,7 @@ static inline JSC::EncodedJSValue jsTestObjPrototypeFunctionMethodWithOptionalBo
     UNUSED_PARAM(state);
     UNUSED_PARAM(throwScope);
     auto& impl = castedThis->wrapped();
-    auto b = state->argument(0).isUndefined() ? std::optional<Converter<IDLBoolean>::ReturnType>() : std::optional<Converter<IDLBoolean>::ReturnType>(convert<IDLBoolean>(*state, state->uncheckedArgument(0)));
+    auto b = state->argument(0).isUndefined() ? Optional<Converter<IDLBoolean>::ReturnType>() : Optional<Converter<IDLBoolean>::ReturnType>(convert<IDLBoolean>(*state, state->uncheckedArgument(0)));
     RETURN_IF_EXCEPTION(throwScope, encodedJSValue());
     impl.methodWithOptionalBoolean(WTFMove(b));
     return JSValue::encode(jsUndefined());
@@ -6579,7 +6773,7 @@ static inline JSC::EncodedJSValue jsTestObjPrototypeFunctionMethodWithOptionalOb
     UNUSED_PARAM(state);
     UNUSED_PARAM(throwScope);
     auto& impl = castedThis->wrapped();
-    auto a = state->argument(0).isUndefined() ? std::optional<Converter<IDLObject>::ReturnType>() : std::optional<Converter<IDLObject>::ReturnType>(convert<IDLObject>(*state, state->uncheckedArgument(0)));
+    auto a = state->argument(0).isUndefined() ? Optional<Converter<IDLObject>::ReturnType>() : Optional<Converter<IDLObject>::ReturnType>(convert<IDLObject>(*state, state->uncheckedArgument(0)));
     RETURN_IF_EXCEPTION(throwScope, encodedJSValue());
     impl.methodWithOptionalObject(WTFMove(a));
     return JSValue::encode(jsUndefined());
@@ -6643,7 +6837,7 @@ static inline JSC::EncodedJSValue jsTestObjPrototypeFunctionMethodWithOptionalRe
     UNUSED_PARAM(state);
     UNUSED_PARAM(throwScope);
     auto& impl = castedThis->wrapped();
-    auto record = state->argument(0).isUndefined() ? std::nullopt : convert<IDLNullable<IDLRecord<IDLDOMString, IDLLong>>>(*state, state->uncheckedArgument(0));
+    auto record = state->argument(0).isUndefined() ? WTF::nullopt : convert<IDLNullable<IDLRecord<IDLDOMString, IDLLong>>>(*state, state->uncheckedArgument(0));
     RETURN_IF_EXCEPTION(throwScope, encodedJSValue());
     impl.methodWithOptionalRecord(WTFMove(record));
     return JSValue::encode(jsUndefined());
@@ -6880,7 +7074,7 @@ static inline JSC::EncodedJSValue jsTestObjPrototypeFunctionOverloadedMethod2Bod
     auto& impl = castedThis->wrapped();
     auto objArg = convert<IDLNullable<IDLInterface<TestObj>>>(*state, state->uncheckedArgument(0), [](JSC::ExecState& state, JSC::ThrowScope& scope) { throwArgumentTypeError(state, scope, 0, "objArg", "TestObject", "overloadedMethod", "TestObj"); });
     RETURN_IF_EXCEPTION(throwScope, encodedJSValue());
-    auto longArg = state->argument(1).isUndefined() ? std::optional<Converter<IDLLong>::ReturnType>() : std::optional<Converter<IDLLong>::ReturnType>(convert<IDLLong>(*state, state->uncheckedArgument(1)));
+    auto longArg = state->argument(1).isUndefined() ? Optional<Converter<IDLLong>::ReturnType>() : Optional<Converter<IDLLong>::ReturnType>(convert<IDLLong>(*state, state->uncheckedArgument(1)));
     RETURN_IF_EXCEPTION(throwScope, encodedJSValue());
     impl.overloadedMethod(WTFMove(objArg), WTFMove(longArg));
     return JSValue::encode(jsUndefined());
@@ -6957,7 +7151,7 @@ static inline JSC::EncodedJSValue jsTestObjPrototypeFunctionOverloadedMethod9Bod
     UNUSED_PARAM(state);
     UNUSED_PARAM(throwScope);
     auto& impl = castedThis->wrapped();
-    auto window = convert<IDLInterface<DOMWindow>>(*state, state->uncheckedArgument(0), [](JSC::ExecState& state, JSC::ThrowScope& scope) { throwArgumentTypeError(state, scope, 0, "window", "TestObject", "overloadedMethod", "DOMWindow"); });
+    auto window = convert<IDLInterface<WindowProxy>>(*state, state->uncheckedArgument(0), [](JSC::ExecState& state, JSC::ThrowScope& scope) { throwArgumentTypeError(state, scope, 0, "window", "TestObject", "overloadedMethod", "WindowProxy"); });
     RETURN_IF_EXCEPTION(throwScope, encodedJSValue());
     impl.overloadedMethod(*window);
     return JSValue::encode(jsUndefined());
@@ -7021,17 +7215,17 @@ static inline JSC::EncodedJSValue jsTestObjPrototypeFunctionOverloadedMethodOver
         JSValue distinguishingArg = state->uncheckedArgument(0);
         if (distinguishingArg.isUndefinedOrNull())
             return jsTestObjPrototypeFunctionOverloadedMethod2Body(state, castedThis, throwScope);
-        if (distinguishingArg.isObject() && asObject(distinguishingArg)->inherits(vm, JSTestObj::info()))
+        if (distinguishingArg.isObject() && asObject(distinguishingArg)->inherits<JSTestObj>(vm))
             return jsTestObjPrototypeFunctionOverloadedMethod2Body(state, castedThis, throwScope);
-        if (distinguishingArg.isObject() && asObject(distinguishingArg)->inherits(vm, JSTestCallbackInterface::info()))
+        if (distinguishingArg.isObject() && asObject(distinguishingArg)->inherits<JSTestCallbackInterface>(vm))
             return jsTestObjPrototypeFunctionOverloadedMethod5Body(state, castedThis, throwScope);
-        if (distinguishingArg.isObject() && asObject(distinguishingArg)->inherits(vm, JSDOMStringList::info()))
+        if (distinguishingArg.isObject() && asObject(distinguishingArg)->inherits<JSDOMStringList>(vm))
             return jsTestObjPrototypeFunctionOverloadedMethod6Body(state, castedThis, throwScope);
-        if (distinguishingArg.isObject() && asObject(distinguishingArg)->inherits(vm, JSTestObj::info()))
+        if (distinguishingArg.isObject() && asObject(distinguishingArg)->inherits<JSTestObj>(vm))
             return jsTestObjPrototypeFunctionOverloadedMethod8Body(state, castedThis, throwScope);
-        if (distinguishingArg.isObject() && (asObject(distinguishingArg)->inherits(vm, JSDOMWindowProxy::info()) || asObject(distinguishingArg)->inherits(vm, JSDOMWindow::info())))
+        if (distinguishingArg.isObject() && asObject(distinguishingArg)->inherits<JSWindowProxy>(vm))
             return jsTestObjPrototypeFunctionOverloadedMethod9Body(state, castedThis, throwScope);
-        if (distinguishingArg.isObject() && asObject(distinguishingArg)->inherits(vm, JSBlob::info()))
+        if (distinguishingArg.isObject() && asObject(distinguishingArg)->inherits<JSBlob>(vm))
             return jsTestObjPrototypeFunctionOverloadedMethod13Body(state, castedThis, throwScope);
         if (hasIteratorMethod(*state, distinguishingArg))
             return jsTestObjPrototypeFunctionOverloadedMethod7Body(state, castedThis, throwScope);
@@ -7045,7 +7239,7 @@ static inline JSC::EncodedJSValue jsTestObjPrototypeFunctionOverloadedMethodOver
         JSValue distinguishingArg = state->uncheckedArgument(1);
         if (distinguishingArg.isUndefined())
             return jsTestObjPrototypeFunctionOverloadedMethod2Body(state, castedThis, throwScope);
-        if (distinguishingArg.isObject() && asObject(distinguishingArg)->inherits(vm, JSBlob::info()))
+        if (distinguishingArg.isObject() && asObject(distinguishingArg)->inherits<JSBlob>(vm))
             return jsTestObjPrototypeFunctionOverloadedMethod13Body(state, castedThis, throwScope);
         if (distinguishingArg.isNumber())
             return jsTestObjPrototypeFunctionOverloadedMethod2Body(state, castedThis, throwScope);
@@ -7079,7 +7273,7 @@ static inline JSC::EncodedJSValue jsTestObjPrototypeFunctionOverloadedMethodWith
     auto& impl = castedThis->wrapped();
     auto objArg = convert<IDLNullable<IDLInterface<TestObj>>>(*state, state->uncheckedArgument(0), [](JSC::ExecState& state, JSC::ThrowScope& scope) { throwArgumentTypeError(state, scope, 0, "objArg", "TestObject", "overloadedMethodWithOptionalParameter", "TestObj"); });
     RETURN_IF_EXCEPTION(throwScope, encodedJSValue());
-    auto longArg = state->argument(1).isUndefined() ? std::optional<Converter<IDLLong>::ReturnType>() : std::optional<Converter<IDLLong>::ReturnType>(convert<IDLLong>(*state, state->uncheckedArgument(1)));
+    auto longArg = state->argument(1).isUndefined() ? Optional<Converter<IDLLong>::ReturnType>() : Optional<Converter<IDLLong>::ReturnType>(convert<IDLLong>(*state, state->uncheckedArgument(1)));
     RETURN_IF_EXCEPTION(throwScope, encodedJSValue());
     impl.overloadedMethodWithOptionalParameter(WTFMove(objArg), WTFMove(longArg));
     return JSValue::encode(jsUndefined());
@@ -7096,7 +7290,7 @@ static inline JSC::EncodedJSValue jsTestObjPrototypeFunctionOverloadedMethodWith
         JSValue distinguishingArg = state->uncheckedArgument(0);
         if (distinguishingArg.isUndefinedOrNull())
             return jsTestObjPrototypeFunctionOverloadedMethodWithOptionalParameter2Body(state, castedThis, throwScope);
-        if (distinguishingArg.isObject() && asObject(distinguishingArg)->inherits(vm, JSTestObj::info()))
+        if (distinguishingArg.isObject() && asObject(distinguishingArg)->inherits<JSTestObj>(vm))
             return jsTestObjPrototypeFunctionOverloadedMethodWithOptionalParameter2Body(state, castedThis, throwScope);
         return jsTestObjPrototypeFunctionOverloadedMethodWithOptionalParameter1Body(state, castedThis, throwScope);
     }
@@ -7104,7 +7298,7 @@ static inline JSC::EncodedJSValue jsTestObjPrototypeFunctionOverloadedMethodWith
         JSValue distinguishingArg = state->uncheckedArgument(0);
         if (distinguishingArg.isUndefinedOrNull())
             return jsTestObjPrototypeFunctionOverloadedMethodWithOptionalParameter2Body(state, castedThis, throwScope);
-        if (distinguishingArg.isObject() && asObject(distinguishingArg)->inherits(vm, JSTestObj::info()))
+        if (distinguishingArg.isObject() && asObject(distinguishingArg)->inherits<JSTestObj>(vm))
             return jsTestObjPrototypeFunctionOverloadedMethodWithOptionalParameter2Body(state, castedThis, throwScope);
         return jsTestObjPrototypeFunctionOverloadedMethodWithOptionalParameter1Body(state, castedThis, throwScope);
     }
@@ -7147,9 +7341,9 @@ static inline JSC::EncodedJSValue jsTestObjPrototypeFunctionOverloadedMethodWith
     size_t argsCount = std::min<size_t>(1, state->argumentCount());
     if (argsCount == 1) {
         JSValue distinguishingArg = state->uncheckedArgument(0);
-        if (distinguishingArg.isObject() && asObject(distinguishingArg)->inherits(vm, JSTestObj::info()))
+        if (distinguishingArg.isObject() && asObject(distinguishingArg)->inherits<JSTestObj>(vm))
             return jsTestObjPrototypeFunctionOverloadedMethodWithDistinguishingUnion1Body(state, castedThis, throwScope);
-        if (distinguishingArg.isObject() && asObject(distinguishingArg)->inherits(vm, JSTestNode::info()))
+        if (distinguishingArg.isObject() && asObject(distinguishingArg)->inherits<JSTestNode>(vm))
             return jsTestObjPrototypeFunctionOverloadedMethodWithDistinguishingUnion1Body(state, castedThis, throwScope);
         if (distinguishingArg.isNumber())
             return jsTestObjPrototypeFunctionOverloadedMethodWithDistinguishingUnion2Body(state, castedThis, throwScope);
@@ -7194,11 +7388,11 @@ static inline JSC::EncodedJSValue jsTestObjPrototypeFunctionOverloadedMethodWith
     size_t argsCount = std::min<size_t>(1, state->argumentCount());
     if (argsCount == 1) {
         JSValue distinguishingArg = state->uncheckedArgument(0);
-        if (distinguishingArg.isObject() && asObject(distinguishingArg)->inherits(vm, JSTestObj::info()))
+        if (distinguishingArg.isObject() && asObject(distinguishingArg)->inherits<JSTestObj>(vm))
             return jsTestObjPrototypeFunctionOverloadedMethodWith2DistinguishingUnions1Body(state, castedThis, throwScope);
-        if (distinguishingArg.isObject() && asObject(distinguishingArg)->inherits(vm, JSTestNode::info()))
+        if (distinguishingArg.isObject() && asObject(distinguishingArg)->inherits<JSTestNode>(vm))
             return jsTestObjPrototypeFunctionOverloadedMethodWith2DistinguishingUnions1Body(state, castedThis, throwScope);
-        if (distinguishingArg.isObject() && asObject(distinguishingArg)->inherits(vm, JSTestInterface::info()))
+        if (distinguishingArg.isObject() && asObject(distinguishingArg)->inherits<JSTestInterface>(vm))
             return jsTestObjPrototypeFunctionOverloadedMethodWith2DistinguishingUnions2Body(state, castedThis, throwScope);
         if (distinguishingArg.isNumber())
             return jsTestObjPrototypeFunctionOverloadedMethodWith2DistinguishingUnions2Body(state, castedThis, throwScope);
@@ -7247,9 +7441,9 @@ static inline JSC::EncodedJSValue jsTestObjPrototypeFunctionOverloadedMethodWith
     size_t argsCount = std::min<size_t>(2, state->argumentCount());
     if (argsCount == 2) {
         JSValue distinguishingArg = state->uncheckedArgument(1);
-        if (distinguishingArg.isObject() && asObject(distinguishingArg)->inherits(vm, JSTestObj::info()))
+        if (distinguishingArg.isObject() && asObject(distinguishingArg)->inherits<JSTestObj>(vm))
             return jsTestObjPrototypeFunctionOverloadedMethodWithNonDistinguishingUnion1Body(state, castedThis, throwScope);
-        if (distinguishingArg.isObject() && asObject(distinguishingArg)->inherits(vm, JSTestNode::info()))
+        if (distinguishingArg.isObject() && asObject(distinguishingArg)->inherits<JSTestNode>(vm))
             return jsTestObjPrototypeFunctionOverloadedMethodWithNonDistinguishingUnion2Body(state, castedThis, throwScope);
     }
     return argsCount < 2 ? throwVMError(state, throwScope, createNotEnoughArgumentsError(state)) : throwVMTypeError(state, throwScope);
@@ -7293,9 +7487,9 @@ static inline JSC::EncodedJSValue jsTestObjPrototypeFunctionOverloadWithNullable
         JSValue distinguishingArg = state->uncheckedArgument(0);
         if (distinguishingArg.isUndefinedOrNull())
             return jsTestObjPrototypeFunctionOverloadWithNullableUnion1Body(state, castedThis, throwScope);
-        if (distinguishingArg.isObject() && asObject(distinguishingArg)->inherits(vm, JSTestObj::info()))
+        if (distinguishingArg.isObject() && asObject(distinguishingArg)->inherits<JSTestObj>(vm))
             return jsTestObjPrototypeFunctionOverloadWithNullableUnion1Body(state, castedThis, throwScope);
-        if (distinguishingArg.isObject() && asObject(distinguishingArg)->inherits(vm, JSTestNode::info()))
+        if (distinguishingArg.isObject() && asObject(distinguishingArg)->inherits<JSTestNode>(vm))
             return jsTestObjPrototypeFunctionOverloadWithNullableUnion1Body(state, castedThis, throwScope);
         if (distinguishingArg.isNumber())
             return jsTestObjPrototypeFunctionOverloadWithNullableUnion2Body(state, castedThis, throwScope);
@@ -7394,7 +7588,7 @@ static inline JSC::EncodedJSValue jsTestObjPrototypeFunctionOverloadWithNullable
     size_t argsCount = std::min<size_t>(2, state->argumentCount());
     if (argsCount == 2) {
         JSValue distinguishingArg = state->uncheckedArgument(1);
-        if (distinguishingArg.isObject() && asObject(distinguishingArg)->inherits(vm, JSTestNode::info()))
+        if (distinguishingArg.isObject() && asObject(distinguishingArg)->inherits<JSTestNode>(vm))
             return jsTestObjPrototypeFunctionOverloadWithNullableNonDistinguishingParameter1Body(state, castedThis, throwScope);
         if (distinguishingArg.isNumber())
             return jsTestObjPrototypeFunctionOverloadWithNullableNonDistinguishingParameter2Body(state, castedThis, throwScope);
@@ -7425,7 +7619,7 @@ static inline JSC::EncodedJSValue jsTestObjConstructorFunctionClassMethodWithOpt
 {
     UNUSED_PARAM(state);
     UNUSED_PARAM(throwScope);
-    auto arg = state->argument(0).isUndefined() ? std::optional<Converter<IDLLong>::ReturnType>() : std::optional<Converter<IDLLong>::ReturnType>(convert<IDLLong>(*state, state->uncheckedArgument(0)));
+    auto arg = state->argument(0).isUndefined() ? Optional<Converter<IDLLong>::ReturnType>() : Optional<Converter<IDLLong>::ReturnType>(convert<IDLLong>(*state, state->uncheckedArgument(0)));
     RETURN_IF_EXCEPTION(throwScope, encodedJSValue());
     return JSValue::encode(toJS<IDLLong>(TestObj::classMethodWithOptional(WTFMove(arg))));
 }
@@ -7631,7 +7825,7 @@ static inline JSC::EncodedJSValue jsTestObjPrototypeFunctionOperationWithOptiona
     UNUSED_PARAM(state);
     UNUSED_PARAM(throwScope);
     auto& impl = castedThis->wrapped();
-    auto optionalUnion = state->argument(0).isUndefined() ? std::optional<Converter<IDLUnion<IDLDOMString, IDLSequence<IDLUnrestrictedDouble>>>::ReturnType>() : std::optional<Converter<IDLUnion<IDLDOMString, IDLSequence<IDLUnrestrictedDouble>>>::ReturnType>(convert<IDLUnion<IDLDOMString, IDLSequence<IDLUnrestrictedDouble>>>(*state, state->uncheckedArgument(0)));
+    auto optionalUnion = state->argument(0).isUndefined() ? Optional<Converter<IDLUnion<IDLDOMString, IDLSequence<IDLUnrestrictedDouble>>>::ReturnType>() : Optional<Converter<IDLUnion<IDLDOMString, IDLSequence<IDLUnrestrictedDouble>>>::ReturnType>(convert<IDLUnion<IDLDOMString, IDLSequence<IDLUnrestrictedDouble>>>(*state, state->uncheckedArgument(0)));
     RETURN_IF_EXCEPTION(throwScope, encodedJSValue());
     impl.operationWithOptionalUnionParameter(WTFMove(optionalUnion));
     return JSValue::encode(jsUndefined());
@@ -7942,7 +8136,7 @@ static inline JSC::EncodedJSValue jsTestObjPrototypeFunctionTestPromiseFunctionW
     UNUSED_PARAM(state);
     UNUSED_PARAM(throwScope);
     auto& impl = castedThis->wrapped();
-    auto a = state->argument(0).isUndefined() ? std::optional<Converter<IDLLong>::ReturnType>() : std::optional<Converter<IDLLong>::ReturnType>(convert<IDLLong>(*state, state->uncheckedArgument(0)));
+    auto a = state->argument(0).isUndefined() ? Optional<Converter<IDLLong>::ReturnType>() : Optional<Converter<IDLLong>::ReturnType>(convert<IDLLong>(*state, state->uncheckedArgument(0)));
     RETURN_IF_EXCEPTION(throwScope, encodedJSValue());
     impl.testPromiseFunctionWithOptionalIntArgument(WTFMove(a), WTFMove(promise));
     return JSValue::encode(jsUndefined());
@@ -7984,7 +8178,7 @@ static inline JSC::EncodedJSValue jsTestObjPrototypeFunctionTestPromiseOverloade
     size_t argsCount = std::min<size_t>(1, state->argumentCount());
     if (argsCount == 1) {
         JSValue distinguishingArg = state->uncheckedArgument(0);
-        if (distinguishingArg.isObject() && asObject(distinguishingArg)->inherits(vm, JSFetchRequest::info()))
+        if (distinguishingArg.isObject() && asObject(distinguishingArg)->inherits<JSFetchRequest>(vm))
             return jsTestObjPrototypeFunctionTestPromiseOverloadedFunction2Body(state, castedThis, WTFMove(promise), throwScope);
         if (distinguishingArg.isNumber())
             return jsTestObjPrototypeFunctionTestPromiseOverloadedFunction1Body(state, castedThis, WTFMove(promise), throwScope);
@@ -8388,12 +8582,25 @@ void JSTestObj::visitChildren(JSCell* cell, SlotVisitor& visitor)
     Base::visitChildren(thisObject, visitor);
     visitor.append(thisObject->m_cachedAttribute1);
     visitor.append(thisObject->m_cachedAttribute2);
+#if ENABLE(CONDITION)
+    visitor.append(thisObject->m_cachedAttribute3);
+#endif
 }
 
-bool JSTestObjOwner::isReachableFromOpaqueRoots(JSC::Handle<JSC::Unknown> handle, void*, SlotVisitor& visitor)
+void JSTestObj::heapSnapshot(JSCell* cell, HeapSnapshotBuilder& builder)
+{
+    auto* thisObject = jsCast<JSTestObj*>(cell);
+    builder.setWrappedObjectForCell(cell, &thisObject->wrapped());
+    if (thisObject->scriptExecutionContext())
+        builder.setLabelForCell(cell, "url " + thisObject->scriptExecutionContext()->url().string());
+    Base::heapSnapshot(cell, builder);
+}
+
+bool JSTestObjOwner::isReachableFromOpaqueRoots(JSC::Handle<JSC::Unknown> handle, void*, SlotVisitor& visitor, const char** reason)
 {
     UNUSED_PARAM(handle);
     UNUSED_PARAM(visitor);
+    UNUSED_PARAM(reason);
     return false;
 }
 
@@ -8444,7 +8651,7 @@ JSC::JSValue toJS(JSC::ExecState* state, JSDOMGlobalObject* globalObject, TestOb
 
 TestObj* JSTestObj::toWrapped(JSC::VM& vm, JSC::JSValue value)
 {
-    if (auto* wrapper = jsDynamicDowncast<JSTestObj*>(vm, value))
+    if (auto* wrapper = jsDynamicCast<JSTestObj*>(vm, value))
         return &wrapper->wrapped();
     return nullptr;
 }

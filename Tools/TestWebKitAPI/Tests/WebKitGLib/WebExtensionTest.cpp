@@ -18,13 +18,14 @@
  */
 
 #include "config.h"
-
+#include "WebProcessTest.h"
 #include <JavaScriptCore/JSContextRef.h>
 #include <JavaScriptCore/JSRetainPtr.h>
 #include <gio/gio.h>
 #if USE(GSTREAMER)
 #include <gst/gst.h>
 #endif
+#include <jsc/jsc.h>
 #include <stdlib.h>
 #include <string.h>
 #include <wtf/Deque.h>
@@ -45,6 +46,11 @@ static const char introspectionXML[] =
     "  <method name='GetTitle'>"
     "   <arg type='t' name='pageID' direction='in'/>"
     "   <arg type='s' name='title' direction='out'/>"
+    "  </method>"
+    "  <method name='InputElementIsUserEdited'>"
+    "    <arg type='t' name='pageID' direction='in'/>"
+    "    <arg type='s' name='elementID' direction='in'/>"
+    "    <arg type='b' name='isUserEdited' direction='out'/>"
     "  </method>"
     "  <method name='AbortProcess'>"
     "  </method>"
@@ -85,11 +91,9 @@ static const char introspectionXML[] =
 typedef enum {
     DocumentLoadedSignal,
     URIChangedSignal,
-#if PLATFORM(GTK)
     FormControlsAssociatedSignal,
     FormSubmissionWillSendDOMEventSignal,
     FormSubmissionWillCompleteSignal,
-#endif
 } DelayedSignalType;
 
 struct DelayedSignal {
@@ -134,15 +138,17 @@ static void emitDocumentLoaded(GDBusConnection* connection)
         "DocumentLoaded",
         0,
         0);
-    g_assert(ok);
+    g_assert_true(ok);
 }
 
 static void documentLoadedCallback(WebKitWebPage* webPage, WebKitWebExtension* extension)
 {
 #if PLATFORM(GTK)
     WebKitDOMDocument* document = webkit_web_page_get_dom_document(webPage);
+    G_GNUC_BEGIN_IGNORE_DEPRECATIONS;
     GRefPtr<WebKitDOMDOMWindow> window = adoptGRef(webkit_dom_document_get_default_view(document));
     webkit_dom_dom_window_webkit_message_handlers_post_message(window.get(), "dom", "DocumentLoaded");
+    G_GNUC_END_IGNORE_DEPRECATIONS;
 #endif
 
     gpointer data = g_object_get_data(G_OBJECT(extension), "dbus-connection");
@@ -162,7 +168,7 @@ static void emitURIChanged(GDBusConnection* connection, const char* uri)
         "URIChanged",
         g_variant_new("(s)", uri),
         0);
-    g_assert(ok);
+    g_assert_true(ok);
 }
 
 static void uriChangedCallback(WebKitWebPage* webPage, GParamSpec* pspec, WebKitWebExtension* extension)
@@ -178,7 +184,7 @@ static gboolean sendRequestCallback(WebKitWebPage*, WebKitURIRequest* request, W
 {
     gboolean returnValue = FALSE;
     const char* requestURI = webkit_uri_request_get_uri(request);
-    g_assert(requestURI);
+    g_assert_nonnull(requestURI);
 
     if (const char* suffix = g_strrstr(requestURI, "/remove-this/javascript.js")) {
         GUniquePtr<char> prefix(g_strndup(requestURI, strlen(requestURI) - strlen(suffix)));
@@ -186,18 +192,18 @@ static gboolean sendRequestCallback(WebKitWebPage*, WebKitURIRequest* request, W
         webkit_uri_request_set_uri(request, newURI.get());
     } else if (const char* suffix = g_strrstr(requestURI, "/remove-this/javascript-after-redirection.js")) {
         // Redirected from /redirected.js, redirectResponse should be nullptr.
-        g_assert(WEBKIT_IS_URI_RESPONSE(redirectResponse));
-        g_assert(g_str_has_suffix(webkit_uri_response_get_uri(redirectResponse), "/redirected.js"));
+        g_assert_true(WEBKIT_IS_URI_RESPONSE(redirectResponse));
+        g_assert_true(g_str_has_suffix(webkit_uri_response_get_uri(redirectResponse), "/redirected.js"));
 
         GUniquePtr<char> prefix(g_strndup(requestURI, strlen(requestURI) - strlen(suffix)));
         GUniquePtr<char> newURI(g_strdup_printf("%s/javascript-after-redirection.js", prefix.get()));
         webkit_uri_request_set_uri(request, newURI.get());
     } else if (g_str_has_suffix(requestURI, "/redirected.js")) {
         // Original request, redirectResponse should be nullptr.
-        g_assert(!redirectResponse);
+        g_assert_null(redirectResponse);
     } else if (g_str_has_suffix(requestURI, "/add-do-not-track-header")) {
         SoupMessageHeaders* headers = webkit_uri_request_get_http_headers(request);
-        g_assert(headers);
+        g_assert_nonnull(headers);
         soup_message_headers_append(headers, "DNT", "1");
     } else if (g_str_has_suffix(requestURI, "/normal-change-request")) {
         GUniquePtr<char> prefix(g_strndup(requestURI, strlen(requestURI) - strlen("/normal-change-request")));
@@ -205,10 +211,10 @@ static gboolean sendRequestCallback(WebKitWebPage*, WebKitURIRequest* request, W
         webkit_uri_request_set_uri(request, newURI.get());
     } else if (g_str_has_suffix(requestURI, "/http-get-method")) {
         g_assert_cmpstr(webkit_uri_request_get_http_method(request), ==, "GET");
-        g_assert(webkit_uri_request_get_http_method(request) == SOUP_METHOD_GET);
+        g_assert_cmpstr(webkit_uri_request_get_http_method(request), ==, SOUP_METHOD_GET);
     } else if (g_str_has_suffix(requestURI, "/http-post-method")) {
         g_assert_cmpstr(webkit_uri_request_get_http_method(request), ==, "POST");
-        g_assert(webkit_uri_request_get_http_method(request) == SOUP_METHOD_POST);
+        g_assert_cmpstr(webkit_uri_request_get_http_method(request), ==, SOUP_METHOD_POST);
         returnValue = TRUE;
     } else if (g_str_has_suffix(requestURI, "/cancel-this.js"))
         returnValue = TRUE;
@@ -216,8 +222,6 @@ static gboolean sendRequestCallback(WebKitWebPage*, WebKitURIRequest* request, W
     return returnValue;
 }
 
-// FIXME: figure out what to do with WebKitWebHitTestResult in WPE.
-#if PLATFORM(GTK)
 static GVariant* serializeContextMenu(WebKitContextMenu* menu)
 {
     GVariantBuilder builder;
@@ -228,15 +232,23 @@ static GVariant* serializeContextMenu(WebKitContextMenu* menu)
     return g_variant_builder_end(&builder);
 }
 
-static GVariant* serializeNode(WebKitDOMNode* node)
+static GVariant* serializeNode(JSCValue* node)
 {
     GVariantBuilder builder;
     g_variant_builder_init(&builder, G_VARIANT_TYPE_ARRAY);
-    g_variant_builder_add(&builder, "{sv}", "Name", g_variant_new_take_string(webkit_dom_node_get_node_name(node)));
-    g_variant_builder_add(&builder, "{sv}", "Type", g_variant_new_uint32(webkit_dom_node_get_node_type(node)));
-    g_variant_builder_add(&builder, "{sv}", "Contents", g_variant_new_take_string(webkit_dom_node_get_text_content(node)));
-    WebKitDOMNode* parent = webkit_dom_node_get_parent_node(node);
-    g_variant_builder_add(&builder, "{sv}", "Parent", parent ? g_variant_new_take_string(webkit_dom_node_get_node_name(parent)) : g_variant_new_string("ROOT"));
+    GRefPtr<JSCValue> value = adoptGRef(jsc_value_object_get_property(node, "nodeName"));
+    g_variant_builder_add(&builder, "{sv}", "Name", g_variant_new_take_string(jsc_value_to_string(value.get())));
+    value = adoptGRef(jsc_value_object_get_property(node, "nodeType"));
+    g_variant_builder_add(&builder, "{sv}", "Type", g_variant_new_uint32(jsc_value_to_int32(value.get())));
+    value = adoptGRef(jsc_value_object_get_property(node, "textContent"));
+    g_variant_builder_add(&builder, "{sv}", "Contents", g_variant_new_take_string(jsc_value_to_string(value.get())));
+    value = adoptGRef(jsc_value_object_get_property(node, "parentNode"));
+    if (jsc_value_is_null(value.get()))
+        g_variant_builder_add(&builder, "{sv}", "Parent", g_variant_new_string("ROOT"));
+    else {
+        value = jsc_value_object_get_property(value.get(), "nodeName");
+        g_variant_builder_add(&builder, "{sv}", "Parent", g_variant_new_take_string(jsc_value_to_string(value.get())));
+    }
     return g_variant_builder_end(&builder);
 }
 
@@ -265,47 +277,32 @@ static gboolean contextMenuCallback(WebKitWebPage* page, WebKitContextMenu* menu
 
     if (!g_strcmp0(pageURI, "ContextMenuTestNode")) {
         WebKitDOMNode* node = webkit_web_hit_test_result_get_node(hitTestResult);
-        g_assert(WEBKIT_DOM_IS_NODE(node));
-        webkit_context_menu_set_user_data(menu, serializeNode(node));
+        g_assert_true(WEBKIT_DOM_IS_NODE(node));
+        auto* frame = webkit_web_page_get_main_frame(page);
+        GRefPtr<JSCValue> jsNode = adoptGRef(webkit_frame_get_js_value_for_dom_object(frame, WEBKIT_DOM_OBJECT(node)));
+        webkit_context_menu_set_user_data(menu, serializeNode(jsNode.get()));
         return TRUE;
     }
 
     return FALSE;
 }
-#endif // PLATFORM(GTK)
 
 static void consoleMessageSentCallback(WebKitWebPage* webPage, WebKitConsoleMessage* consoleMessage)
 {
-    g_assert(consoleMessage);
+    g_assert_nonnull(consoleMessage);
     GRefPtr<GVariant> variant = g_variant_new("(uusus)", webkit_console_message_get_source(consoleMessage),
         webkit_console_message_get_level(consoleMessage), webkit_console_message_get_text(consoleMessage),
         webkit_console_message_get_line(consoleMessage), webkit_console_message_get_source_id(consoleMessage));
     GUniquePtr<char> messageString(g_variant_print(variant.get(), FALSE));
-#if PLATFORM(GTK)
-    GRefPtr<WebKitDOMDOMWindow> window = adoptGRef(webkit_dom_document_get_default_view(webkit_web_page_get_dom_document(webPage)));
-    g_assert(WEBKIT_DOM_IS_DOM_WINDOW(window.get()));
-    webkit_dom_dom_window_webkit_message_handlers_post_message(window.get(), "console", messageString.get());
-#else
-    GUniquePtr<char> escapedMessageString(static_cast<char*>(g_malloc(strlen(messageString.get()) * 2 + 1)));
-    char* src = messageString.get();
-    char* dest = escapedMessageString.get();
-    while (*src) {
-        if (*src == '"') {
-            *dest++ = '\\';
-            *dest++ = '"';
-        } else
-            *dest++ = *src;
-        ++src;
+    GRefPtr<JSCContext> jsContext = adoptGRef(webkit_frame_get_js_context(webkit_web_page_get_main_frame(webPage)));
+    GRefPtr<JSCValue> console = adoptGRef(jsc_context_evaluate(jsContext.get(), "window.webkit.messageHandlers.console", -1));
+    g_assert_true(JSC_IS_VALUE(console.get()));
+    if (jsc_value_is_object(console.get())) {
+        GRefPtr<JSCValue> result = adoptGRef(jsc_value_object_invoke_method(console.get(), "postMessage", G_TYPE_STRING, messageString.get(), G_TYPE_NONE));
+        g_assert_true(JSC_IS_VALUE(result.get()));
     }
-    *dest = '\0';
-    GUniquePtr<char> script(g_strdup_printf("window.webkit.messageHandlers.console.postMessage(\"%s\");", escapedMessageString.get()));
-    JSGlobalContextRef jsContext = webkit_frame_get_javascript_global_context(webkit_web_page_get_main_frame(webPage));
-    JSRetainPtr<JSStringRef> jsScript(Adopt, JSStringCreateWithUTF8CString(script.get()));
-    JSEvaluateScript(jsContext, jsScript.get(), nullptr, nullptr, 1, nullptr);
-#endif
 }
 
-#if PLATFORM(GTK)
 static void emitFormControlsAssociated(GDBusConnection* connection, const char* formIds)
 {
     bool ok = g_dbus_connection_emit_signal(
@@ -316,18 +313,22 @@ static void emitFormControlsAssociated(GDBusConnection* connection, const char* 
         "FormControlsAssociated",
         g_variant_new("(s)", formIds),
         nullptr);
-    g_assert(ok);
+    g_assert_true(ok);
 }
 
 static void formControlsAssociatedCallback(WebKitWebPage* webPage, GPtrArray* formElements, WebKitWebExtension* extension)
 {
+    auto* frame = webkit_web_page_get_main_frame(webPage);
     GString* formIdsBuilder = g_string_new(nullptr);
     for (guint i = 0; i < formElements->len; ++i) {
-        g_assert(WEBKIT_DOM_IS_ELEMENT(g_ptr_array_index(formElements, i)));
-        auto domElement = WEBKIT_DOM_ELEMENT(g_ptr_array_index(formElements, i));
-        GUniquePtr<char> elementID(webkit_dom_element_get_id(domElement));
-        if (elementID)
-            g_string_append(formIdsBuilder, elementID.get());
+        g_assert_true(WEBKIT_DOM_IS_ELEMENT(g_ptr_array_index(formElements, i)));
+        GRefPtr<JSCValue> value = adoptGRef(webkit_frame_get_js_value_for_dom_object(frame, WEBKIT_DOM_OBJECT(g_ptr_array_index(formElements, i))));
+        g_assert_true(JSC_IS_VALUE(value.get()));
+        g_assert_true(jsc_value_is_object(value.get()));
+        g_assert_true(jsc_value_object_is_instance_of(value.get(), "Element"));
+        GRefPtr<JSCValue> idValue = adoptGRef(jsc_value_object_get_property(value.get(), "id"));
+        GUniquePtr<char> elementID(jsc_value_to_string(idValue.get()));
+        g_string_append(formIdsBuilder, elementID.get());
     }
     if (!formIdsBuilder->len) {
         g_string_free(formIdsBuilder, TRUE);
@@ -351,10 +352,10 @@ static void emitFormSubmissionEvent(GDBusConnection* connection, const char* met
         methodName,
         g_variant_new("(sssbb)", formID ? formID : "", names, values, targetFrameIsMainFrame, sourceFrameIsMainFrame),
         nullptr);
-    g_assert(ok);
+    g_assert_true(ok);
 }
 
-static void handleFormSubmissionCallback(WebKitWebPage* webPage, DelayedSignalType delayedSignalType, const char* methodName, WebKitDOMHTMLFormElement* formElement, WebKitFrame* sourceFrame, WebKitFrame* targetFrame, GPtrArray* textFieldNames, GPtrArray* textFieldValues, WebKitWebExtension* extension)
+static void handleFormSubmissionCallback(WebKitWebPage* webPage, DelayedSignalType delayedSignalType, const char* methodName, const char* formID, WebKitFrame* sourceFrame, WebKitFrame* targetFrame, GPtrArray* textFieldNames, GPtrArray* textFieldValues, WebKitWebExtension* extension)
 {
     GString* namesBuilder = g_string_new(nullptr);
     for (guint i = 0; i < textFieldNames->len; ++i) {
@@ -374,25 +375,36 @@ static void handleFormSubmissionCallback(WebKitWebPage* webPage, DelayedSignalTy
 
     gpointer data = g_object_get_data(G_OBJECT(extension), "dbus-connection");
     if (data)
-        emitFormSubmissionEvent(G_DBUS_CONNECTION(data), methodName, webkit_dom_element_get_id(WEBKIT_DOM_ELEMENT(formElement)), names.get(), values.get(), webkit_frame_is_main_frame(targetFrame), webkit_frame_is_main_frame(sourceFrame));
+        emitFormSubmissionEvent(G_DBUS_CONNECTION(data), methodName, formID, names.get(), values.get(), webkit_frame_is_main_frame(targetFrame), webkit_frame_is_main_frame(sourceFrame));
     else
-        delayedSignalsQueue.append(DelayedSignal(delayedSignalType, webkit_dom_element_get_id(WEBKIT_DOM_ELEMENT(formElement)), names.get(), values.get(), webkit_frame_is_main_frame(targetFrame), webkit_frame_is_main_frame(sourceFrame)));
+        delayedSignalsQueue.append(DelayedSignal(delayedSignalType, formID, names.get(), values.get(), webkit_frame_is_main_frame(targetFrame), webkit_frame_is_main_frame(sourceFrame)));
 }
 
-static void willSubmitFormCallback(WebKitWebPage* webPage, WebKitDOMHTMLFormElement* formElement, WebKitFormSubmissionStep step, WebKitFrame* sourceFrame, WebKitFrame* targetFrame, GPtrArray* textFieldNames, GPtrArray* textFieldValues, WebKitWebExtension* extension)
+static void willSubmitFormCallback(WebKitWebPage* webPage, WebKitDOMElement* formElement, WebKitFormSubmissionStep step, WebKitFrame* sourceFrame, WebKitFrame* targetFrame, GPtrArray* textFieldNames, GPtrArray* textFieldValues, WebKitWebExtension* extension)
 {
+#if PLATFORM(GTK)
+    G_GNUC_BEGIN_IGNORE_DEPRECATIONS;
+    g_assert_true(WEBKIT_DOM_IS_HTML_FORM_ELEMENT(formElement));
+    G_GNUC_END_IGNORE_DEPRECATIONS;
+#endif
+    GRefPtr<JSCValue> jsFormElement = adoptGRef(webkit_frame_get_js_value_for_dom_object(webkit_web_page_get_main_frame(webPage), WEBKIT_DOM_OBJECT(formElement)));
+    g_assert_true(JSC_IS_VALUE(jsFormElement.get()));
+    g_assert_true(jsc_value_is_object(jsFormElement.get()));
+    g_assert_true(jsc_value_object_is_instance_of(jsFormElement.get(), "HTMLFormElement"));
+    GRefPtr<JSCValue> idValue = adoptGRef(jsc_value_object_get_property(jsFormElement.get(), "id"));
+    GUniquePtr<char> formID(jsc_value_to_string(idValue.get()));
+
     switch (step) {
     case WEBKIT_FORM_SUBMISSION_WILL_SEND_DOM_EVENT:
-        handleFormSubmissionCallback(webPage, FormSubmissionWillSendDOMEventSignal, "FormSubmissionWillSendDOMEvent", formElement, sourceFrame, targetFrame, textFieldNames, textFieldValues, extension);
+        handleFormSubmissionCallback(webPage, FormSubmissionWillSendDOMEventSignal, "FormSubmissionWillSendDOMEvent", formID.get(), sourceFrame, targetFrame, textFieldNames, textFieldValues, extension);
         break;
     case WEBKIT_FORM_SUBMISSION_WILL_COMPLETE:
-        handleFormSubmissionCallback(webPage, FormSubmissionWillCompleteSignal, "FormSubmissionWillComplete", formElement, sourceFrame, targetFrame, textFieldNames, textFieldValues, extension);
+        handleFormSubmissionCallback(webPage, FormSubmissionWillCompleteSignal, "FormSubmissionWillComplete", formID.get(), sourceFrame, targetFrame, textFieldNames, textFieldValues, extension);
         break;
     default:
         g_assert_not_reached();
     }
 }
-#endif
 
 static void pageCreatedCallback(WebKitWebExtension* extension, WebKitWebPage* webPage, gpointer)
 {
@@ -400,32 +412,22 @@ static void pageCreatedCallback(WebKitWebExtension* extension, WebKitWebPage* we
     g_signal_connect(webPage, "notify::uri", G_CALLBACK(uriChangedCallback), extension);
     g_signal_connect(webPage, "send-request", G_CALLBACK(sendRequestCallback), nullptr);
     g_signal_connect(webPage, "console-message-sent", G_CALLBACK(consoleMessageSentCallback), nullptr);
-#if PLATFORM(GTK)
     g_signal_connect(webPage, "context-menu", G_CALLBACK(contextMenuCallback), nullptr);
     g_signal_connect(webPage, "form-controls-associated", G_CALLBACK(formControlsAssociatedCallback), extension);
     g_signal_connect(webPage, "will-submit-form", G_CALLBACK(willSubmitFormCallback), extension);
-#endif
 }
 
-static JSValueRef echoCallback(JSContextRef jsContext, JSObjectRef, JSObjectRef, size_t argumentCount, const JSValueRef arguments[], JSValueRef*)
+static char* echoCallback(const char* message)
 {
-    if (argumentCount <= 0)
-        return JSValueMakeUndefined(jsContext);
-
-    JSRetainPtr<JSStringRef> string(Adopt, JSValueToStringCopy(jsContext, arguments[0], 0));
-    return JSValueMakeString(jsContext, string.get());
+    return g_strdup(message);
 }
 
 static void windowObjectCleared(WebKitScriptWorld* world, WebKitWebPage* page, WebKitFrame* frame, gpointer)
 {
-    JSGlobalContextRef jsContext = webkit_frame_get_javascript_context_for_script_world(frame, world);
-    g_assert(jsContext);
-    JSObjectRef globalObject = JSContextGetGlobalObject(jsContext);
-    g_assert(globalObject);
-
-    JSRetainPtr<JSStringRef> functionName(Adopt, JSStringCreateWithUTF8CString("echo"));
-    JSObjectRef function = JSObjectMakeFunctionWithCallback(jsContext, functionName.get(), echoCallback);
-    JSObjectSetProperty(jsContext, globalObject, functionName.get(), function, kJSPropertyAttributeDontDelete | kJSPropertyAttributeReadOnly, 0);
+    GRefPtr<JSCContext> jsContext = adoptGRef(webkit_frame_get_js_context_for_script_world(frame, world));
+    g_assert_true(JSC_IS_CONTEXT(jsContext.get()));
+    GRefPtr<JSCValue> function = adoptGRef(jsc_value_new_function(jsContext.get(), "echo", G_CALLBACK(echoCallback), NULL, NULL, G_TYPE_STRING, 1, G_TYPE_STRING));
+    jsc_context_set_value(jsContext.get(), "echo", function.get());
 }
 
 static WebKitWebPage* getWebPage(WebKitWebExtension* extension, uint64_t pageID, GDBusMethodInvocation* invocation)
@@ -454,14 +456,26 @@ static void methodCallCallback(GDBusConnection* connection, const char* sender, 
         if (!page)
             return;
 
-#if PLATFORM(GTK)
-        WebKitDOMDocument* document = webkit_web_page_get_dom_document(page);
-        GUniquePtr<char> title(webkit_dom_document_get_title(document));
+        GRefPtr<JSCContext> jsContext = adoptGRef(webkit_frame_get_js_context(webkit_web_page_get_main_frame(page)));
+        GRefPtr<JSCValue> titleValue = adoptGRef(jsc_context_evaluate(jsContext.get(), "document.title", -1));
+        GUniquePtr<char> title(jsc_value_to_string(titleValue.get()));
         g_dbus_method_invocation_return_value(invocation, g_variant_new("(s)", title.get()));
-#elif PLATFORM(WPE)
-        // FIXME: Use JSC API to get the title from JavaScript.
-        g_dbus_method_invocation_return_value(invocation, g_variant_new("(s)", ""));
-#endif
+    } else if (!g_strcmp0(methodName, "InputElementIsUserEdited")) {
+        uint64_t pageID;
+        const char* elementID;
+        g_variant_get(parameters, "(t&s)", &pageID, &elementID);
+        WebKitWebPage* page = getWebPage(WEBKIT_WEB_EXTENSION(userData), pageID, invocation);
+        if (!page)
+            return;
+
+        WebKitDOMDocument* document = webkit_web_page_get_dom_document(page);
+        WebKitFrame* frame = webkit_web_page_get_main_frame(page);
+        GRefPtr<JSCContext> jsContext = adoptGRef(webkit_frame_get_js_context(frame));
+        GRefPtr<JSCValue> jsDocument = adoptGRef(webkit_frame_get_js_value_for_dom_object(frame, WEBKIT_DOM_OBJECT(document)));
+        GRefPtr<JSCValue> jsInputElement = adoptGRef(jsc_value_object_invoke_method(jsDocument.get(), "getElementById", G_TYPE_STRING, elementID, G_TYPE_NONE));
+        WebKitDOMNode* node = webkit_dom_node_for_js_value(jsInputElement.get());
+        gboolean isUserEdited = webkit_dom_element_html_input_element_is_user_edited(WEBKIT_DOM_ELEMENT(node));
+        g_dbus_method_invocation_return_value(invocation, g_variant_new("(b)", isUserEdited));
     } else if (!g_strcmp0(methodName, "RunJavaScriptInIsolatedWorld")) {
         uint64_t pageID;
         const char* script;
@@ -471,11 +485,11 @@ static void methodCallCallback(GDBusConnection* connection, const char* sender, 
             return;
 
         GRefPtr<WebKitScriptWorld> world = adoptGRef(webkit_script_world_new());
-        g_assert(webkit_script_world_get_default() != world.get());
+        g_assert_true(webkit_script_world_get_default() != world.get());
+        g_assert_true(g_str_has_prefix(webkit_script_world_get_name(world.get()), "UniqueWorld_"));
         WebKitFrame* frame = webkit_web_page_get_main_frame(page);
-        JSGlobalContextRef jsContext = webkit_frame_get_javascript_context_for_script_world(frame, world.get());
-        JSRetainPtr<JSStringRef> jsScript(Adopt, JSStringCreateWithUTF8CString(script));
-        JSEvaluateScript(jsContext, jsScript.get(), 0, 0, 0, 0);
+        GRefPtr<JSCContext> jsContext = adoptGRef(webkit_frame_get_js_context_for_script_world(frame, world.get()));
+        GRefPtr<JSCValue> result = adoptGRef(jsc_context_evaluate(jsContext.get(), script, -1));
         g_dbus_method_invocation_return_value(invocation, 0);
     } else if (!g_strcmp0(methodName, "AbortProcess")) {
         abort();
@@ -530,7 +544,6 @@ static void busAcquiredCallback(GDBusConnection* connection, const char* name, g
         case URIChangedSignal:
             emitURIChanged(connection, delayedSignal.str.data());
             break;
-#if PLATFORM(GTK)
         case FormControlsAssociatedSignal:
             emitFormControlsAssociated(connection, delayedSignal.str.data());
             break;
@@ -540,8 +553,6 @@ static void busAcquiredCallback(GDBusConnection* connection, const char* name, g
         case FormSubmissionWillSendDOMEventSignal:
             emitFormSubmissionEvent(connection, "FormSubmissionWillSendDOMEvent", delayedSignal.str.data(), delayedSignal.str2.data(), delayedSignal.str3.data(), delayedSignal.b, delayedSignal.b2);
             break;
-#endif
-            g_assert_not_reached();
         }
     }
 }
@@ -550,7 +561,7 @@ static void registerGResource(void)
 {
     GUniquePtr<char> resourcesPath(g_build_filename(WEBKIT_TEST_RESOURCES_DIR, "webkitglib-tests-resources.gresource", nullptr));
     GResource* resource = g_resource_load(resourcesPath.get(), nullptr);
-    g_assert(resource);
+    g_assert_nonnull(resource);
 
     g_resources_register(resource);
     g_resource_unref(resource);
@@ -558,13 +569,18 @@ static void registerGResource(void)
 
 extern "C" void webkit_web_extension_initialize_with_user_data(WebKitWebExtension* extension, GVariant* userData)
 {
+    WebKitScriptWorld* isolatedWorld = webkit_script_world_new_with_name("WebExtensionTestScriptWorld");
+    g_assert_true(WEBKIT_IS_SCRIPT_WORLD(isolatedWorld));
+    g_assert_cmpstr(webkit_script_world_get_name(isolatedWorld), ==, "WebExtensionTestScriptWorld");
+    g_object_set_data_full(G_OBJECT(extension), "wk-script-world", isolatedWorld, g_object_unref);
+
     g_signal_connect(extension, "page-created", G_CALLBACK(pageCreatedCallback), extension);
-    g_signal_connect(webkit_script_world_get_default(), "window-object-cleared", G_CALLBACK(windowObjectCleared), 0);
+    g_signal_connect(webkit_script_world_get_default(), "window-object-cleared", G_CALLBACK(windowObjectCleared), nullptr);
 
     registerGResource();
 
-    g_assert(userData);
-    g_assert(g_variant_is_of_type(userData, G_VARIANT_TYPE_UINT32));
+    g_assert_nonnull(userData);
+    g_assert_true(g_variant_is_of_type(userData, G_VARIANT_TYPE_UINT32));
     GUniquePtr<char> busName(g_strdup_printf("org.webkit.gtk.WebExtensionTest%u", g_variant_get_uint32(userData)));
     g_bus_own_name(
         G_BUS_TYPE_SESSION,

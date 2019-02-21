@@ -23,11 +23,12 @@
 #include "IconDatabase.h"
 #include "WebKitFaviconDatabasePrivate.h"
 #include "WebPreferences.h"
-#include <WebCore/FileSystem.h>
 #include <WebCore/Image.h>
 #include <WebCore/IntSize.h>
 #include <WebCore/RefPtrCairo.h>
+#include <WebCore/SharedBuffer.h>
 #include <glib/gi18n-lib.h>
+#include <wtf/FileSystem.h>
 #include <wtf/RunLoop.h>
 #include <wtf/SetForScope.h>
 #include <wtf/glib/GRefPtr.h>
@@ -192,6 +193,9 @@ static void webkitFaviconDatabaseSetIconURLForPageURL(WebKitFaviconDatabase* dat
     if (!priv->isURLImportCompleted)
         return;
 
+    if (pageURL.isEmpty())
+        return;
+
     const String& currentIconURL = priv->pageURLToIconURLMap.get(pageURL);
     if (iconURL == currentIconURL)
         return;
@@ -269,7 +273,7 @@ void webkitFaviconDatabaseOpen(WebKitFaviconDatabase* database, const String& pa
     priv->iconDatabase->setEnabled(true);
     priv->iconDatabase->setPrivateBrowsingEnabled(WebPreferences::anyPagesAreUsingPrivateBrowsing());
 
-    if (!priv->iconDatabase->open(WebCore::FileSystem::directoryName(path), WebCore::FileSystem::pathGetFileName(path))) {
+    if (!priv->iconDatabase->open(FileSystem::directoryName(path), FileSystem::pathGetFileName(path))) {
         priv->iconDatabase = nullptr;
         IconDatabase::allowDatabaseCleanup();
     }
@@ -314,6 +318,9 @@ void webkitFaviconDatabaseGetLoadDecisionForIcon(WebKitFaviconDatabase* database
 void webkitFaviconDatabaseSetIconForPageURL(WebKitFaviconDatabase* database, const LinkIcon& icon, API::Data& iconData, const String& pageURL)
 {
     if (!webkitFaviconDatabaseIsOpen(database))
+        return;
+
+    if (pageURL.isEmpty())
         return;
 
     WebKitFaviconDatabasePrivate* priv = database->priv;

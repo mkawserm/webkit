@@ -26,49 +26,73 @@
 #import "config.h"
 #import "WebIOSEventFactory.h"
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
 
 #import <WebCore/KeyEventCodesIOS.h>
 #import <WebCore/PlatformEventFactoryIOS.h>
 
-static WebKit::WebEvent::Modifiers modifiersForEvent(::WebEvent *event)
+UIKeyModifierFlags WebIOSEventFactory::toUIKeyModifierFlags(OptionSet<WebKit::WebEvent::Modifier> modifiers)
 {
-    unsigned modifiers = 0;
+    UIKeyModifierFlags modifierFlags = 0;
+    if (modifiers.contains(WebKit::WebEvent::Modifier::ShiftKey))
+        modifierFlags |= UIKeyModifierShift;
+    if (modifiers.contains(WebKit::WebEvent::Modifier::ControlKey))
+        modifierFlags |= UIKeyModifierControl;
+    if (modifiers.contains(WebKit::WebEvent::Modifier::AltKey))
+        modifierFlags |= UIKeyModifierAlternate;
+    if (modifiers.contains(WebKit::WebEvent::Modifier::MetaKey))
+        modifierFlags |= UIKeyModifierCommand;
+    if (modifiers.contains(WebKit::WebEvent::Modifier::CapsLockKey))
+        modifierFlags |= UIKeyModifierAlphaShift;
+    return modifierFlags;
+}
+
+static OptionSet<WebKit::WebEvent::Modifier> modifiersForEvent(::WebEvent *event)
+{
+    OptionSet<WebKit::WebEvent::Modifier> modifiers;
     WebEventFlags eventModifierFlags = event.modifierFlags;
-
-    if (eventModifierFlags & WebEventFlagMaskShift)
-        modifiers |= WebKit::WebEvent::ShiftKey;
-    if (eventModifierFlags & WebEventFlagMaskControl)
-        modifiers |= WebKit::WebEvent::ControlKey;
-    if (eventModifierFlags & WebEventFlagMaskAlternate)
-        modifiers |= WebKit::WebEvent::AltKey;
-    if (eventModifierFlags & WebEventFlagMaskCommand)
-        modifiers |= WebKit::WebEvent::MetaKey;
-    if (eventModifierFlags & WebEventFlagMaskAlphaShift)
-        modifiers |= WebKit::WebEvent::CapsLockKey;
-
-    return static_cast<WebKit::WebEvent::Modifiers>(modifiers);
+    if (eventModifierFlags & WebEventFlagMaskShiftKey)
+        modifiers.add(WebKit::WebEvent::Modifier::ShiftKey);
+    if (eventModifierFlags & WebEventFlagMaskControlKey)
+        modifiers.add(WebKit::WebEvent::Modifier::ControlKey);
+    if (eventModifierFlags & WebEventFlagMaskOptionKey)
+        modifiers.add(WebKit::WebEvent::Modifier::AltKey);
+    if (eventModifierFlags & WebEventFlagMaskCommandKey)
+        modifiers.add(WebKit::WebEvent::Modifier::MetaKey);
+    if (eventModifierFlags & WebEventFlagMaskLeftCapsLockKey)
+        modifiers.add(WebKit::WebEvent::Modifier::CapsLockKey);
+    return modifiers;
 }
 
 WebKit::WebKeyboardEvent WebIOSEventFactory::createWebKeyboardEvent(::WebEvent *event)
 {
     WebKit::WebEvent::Type type = (event.type == WebEventKeyUp) ? WebKit::WebEvent::KeyUp : WebKit::WebEvent::KeyDown;
-    String text = event.characters;
-    String unmodifiedText = event.charactersIgnoringModifiers;
+    String text;
+    String unmodifiedText;
+    bool autoRepeat;
+    if (event.keyboardFlags & WebEventKeyboardInputModifierFlagsChanged) {
+        text = emptyString();
+        unmodifiedText = emptyString();
+        autoRepeat = false;
+    } else {
+        text = event.characters;
+        unmodifiedText = event.charactersIgnoringModifiers;
+        autoRepeat = event.isKeyRepeating;
+    }
     String key = WebCore::keyForKeyEvent(event);
     String code = WebCore::codeForKeyEvent(event);
     String keyIdentifier = WebCore::keyIdentifierForKeyEvent(event);
-    int windowsVirtualKeyCode = event.keyCode;
+    int windowsVirtualKeyCode = WebCore::windowsKeyCodeForKeyEvent(event);
+    // FIXME: This is not correct. WebEvent.keyCode represents the Windows native virtual key code.
     int nativeVirtualKeyCode = event.keyCode;
     int macCharCode = 0;
-    bool autoRepeat = event.isKeyRepeating;
     bool isKeypad = false;
     bool isSystemKey = false;
-    WebKit::WebEvent::Modifiers modifiers = modifiersForEvent(event);
+    auto modifiers = modifiersForEvent(event);
     double timestamp = event.timestamp;
 
     if (windowsVirtualKeyCode == '\r') {
-        text = ASCIILiteral("\r");
+        text = "\r"_s;
         unmodifiedText = text;
     }
 
@@ -76,16 +100,34 @@ WebKit::WebKeyboardEvent WebIOSEventFactory::createWebKeyboardEvent(::WebEvent *
 
     // Turn 0x7F into 8, because backspace needs to always be 8.
     if (text == "\x7F")
-        text = ASCIILiteral("\x8");
+        text = "\x8"_s;
     if (unmodifiedText == "\x7F")
-        unmodifiedText = ASCIILiteral("\x8");
+        unmodifiedText = "\x8"_s;
     // Always use 9 for tab.
     if (windowsVirtualKeyCode == 9) {
-        text = ASCIILiteral("\x9");
+        text = "\x9"_s;
         unmodifiedText = text;
     }
 
     return WebKit::WebKeyboardEvent(type, text, unmodifiedText, key, code, keyIdentifier, windowsVirtualKeyCode, nativeVirtualKeyCode, macCharCode, autoRepeat, isKeypad, isSystemKey, modifiers, WallTime::fromRawSeconds(timestamp));
 }
 
-#endif // PLATFORM(IOS)
+WebKit::WebMouseEvent WebIOSEventFactory::createWebMouseEvent(::WebEvent *event)
+{
+    // This currently only supports synthetic mouse moved events with no button pressed.
+    ASSERT_ARG(event, event.type == WebEventMouseMoved);
+
+    auto type = WebKit::WebEvent::MouseMove;
+    auto button = WebKit::WebMouseEvent::NoButton;
+    unsigned short buttons = 0;
+    auto position = WebCore::IntPoint(event.locationInWindow);
+    float deltaX = 0;
+    float deltaY = 0;
+    float deltaZ = 0;
+    int clickCount = 0;
+    double timestamp = event.timestamp;
+
+    return WebKit::WebMouseEvent(type, button, buttons, position, position, deltaX, deltaY, deltaZ, clickCount, OptionSet<WebKit::WebEvent::Modifier> { }, WallTime::fromRawSeconds(timestamp));
+}
+
+#endif // PLATFORM(IOS_FAMILY)

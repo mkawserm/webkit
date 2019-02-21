@@ -31,28 +31,25 @@
 #import "NetworkProcess.h"
 #import "NetworkSession.h"
 #import "NetworkSessionCreationParameters.h"
-#import "SessionTracker.h"
 #import "WebErrors.h"
 #import "WebsiteDataStoreParameters.h"
 #import <WebCore/NetworkStorageSession.h>
 #import <WebCore/ResourceError.h>
+#import <pal/SessionID.h>
 #import <wtf/MainThread.h>
-
-using namespace WebCore;
+#import <wtf/text/StringConcatenateNumbers.h>
 
 namespace WebKit {
 
-void RemoteNetworkingContext::ensureWebsiteDataStoreSession(WebsiteDataStoreParameters&& parameters)
+void RemoteNetworkingContext::ensureWebsiteDataStoreSession(NetworkProcess& networkProcess, WebsiteDataStoreParameters&& parameters)
 {
     auto sessionID = parameters.networkSessionParameters.sessionID;
-    if (NetworkStorageSession::storageSession(sessionID))
+    if (networkProcess.storageSession(sessionID))
         return;
 
-    String base;
-    if (SessionTracker::getIdentifierBase().isNull())
+    String base = networkProcess.uiProcessBundleIdentifier();
+    if (base.isNull())
         base = [[NSBundle mainBundle] bundleIdentifier];
-    else
-        base = SessionTracker::getIdentifierBase();
 
     if (!sessionID.isEphemeral())
         SandboxExtension::consumePermanently(parameters.cookieStoragePathExtensionHandle);
@@ -61,20 +58,13 @@ void RemoteNetworkingContext::ensureWebsiteDataStoreSession(WebsiteDataStorePara
     if (!sessionID.isEphemeral() && !parameters.uiProcessCookieStorageIdentifier.isEmpty())
         uiProcessCookieStorage = cookieStorageFromIdentifyingData(parameters.uiProcessCookieStorageIdentifier);
 
-    NetworkStorageSession::ensureSession(sessionID, base + '.' + String::number(sessionID.sessionID()), WTFMove(uiProcessCookieStorage));
+    networkProcess.ensureSession(sessionID, makeString(base, '.', sessionID.sessionID()), WTFMove(uiProcessCookieStorage));
 
-    auto* session = NetworkStorageSession::storageSession(sessionID);
+    auto* session = networkProcess.storageSession(sessionID);
     for (const auto& cookie : parameters.pendingCookies)
         session->setCookie(cookie);
 
-    if (!sessionID.isEphemeral() && !parameters.cacheStorageDirectory.isNull()) {
-        SandboxExtension::consumePermanently(parameters.cacheStorageDirectoryExtensionHandle);
-        session->setCacheStorageDirectory(WTFMove(parameters.cacheStorageDirectory));
-        session->setCacheStoragePerOriginQuota(parameters.cacheStoragePerOriginQuota);
-    }
-
-    parameters.networkSessionParameters.legacyCustomProtocolManager = NetworkProcess::singleton().supplement<LegacyCustomProtocolManager>();
-    SessionTracker::setSession(sessionID, NetworkSession::create(WTFMove(parameters.networkSessionParameters)));
+    networkProcess.setSession(sessionID, NetworkSession::create(networkProcess, WTFMove(parameters.networkSessionParameters)));
 }
 
 }

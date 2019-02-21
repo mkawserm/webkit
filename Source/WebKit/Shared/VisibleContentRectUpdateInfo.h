@@ -45,9 +45,10 @@ class VisibleContentRectUpdateInfo {
 public:
     VisibleContentRectUpdateInfo() = default;
 
-    VisibleContentRectUpdateInfo(const WebCore::FloatRect& exposedContentRect, const WebCore::FloatRect& unobscuredContentRect, const WebCore::FloatRect& unobscuredRectInScrollViewCoordinates, const WebCore::FloatRect& unobscuredContentRectRespectingInputViewBounds, const WebCore::FloatRect& customFixedPositionRect, const WebCore::FloatBoxExtent& obscuredInsets, const WebCore::FloatBoxExtent& unobscuredSafeAreaInsets, double scale, bool inStableState, bool isFirstUpdateForNewViewSize, bool isChangingObscuredInsetsInteractively, bool allowShrinkToFit, bool forceHorizontalShrinkToFit, bool enclosedInScrollableAncestorView, MonotonicTime timestamp, double horizontalVelocity, double verticalVelocity, double scaleChangeRate, uint64_t lastLayerTreeTransactionId)
+    VisibleContentRectUpdateInfo(const WebCore::FloatRect& exposedContentRect, const WebCore::FloatRect& unobscuredContentRect, const WebCore::FloatBoxExtent& contentInsets, const WebCore::FloatRect& unobscuredRectInScrollViewCoordinates, const WebCore::FloatRect& unobscuredContentRectRespectingInputViewBounds, const WebCore::FloatRect& customFixedPositionRect, const WebCore::FloatBoxExtent& obscuredInsets, const WebCore::FloatBoxExtent& unobscuredSafeAreaInsets, double scale, bool inStableState, bool isFirstUpdateForNewViewSize, bool isChangingObscuredInsetsInteractively, bool allowShrinkToFit, bool enclosedInScrollableAncestorView, MonotonicTime timestamp, double horizontalVelocity, double verticalVelocity, double scaleChangeRate, uint64_t lastLayerTreeTransactionId)
         : m_exposedContentRect(exposedContentRect)
         , m_unobscuredContentRect(unobscuredContentRect)
+        , m_contentInsets(contentInsets)
         , m_unobscuredContentRectRespectingInputViewBounds(unobscuredContentRectRespectingInputViewBounds)
         , m_unobscuredRectInScrollViewCoordinates(unobscuredRectInScrollViewCoordinates)
         , m_customFixedPositionRect(customFixedPositionRect)
@@ -63,13 +64,13 @@ public:
         , m_isFirstUpdateForNewViewSize(isFirstUpdateForNewViewSize)
         , m_isChangingObscuredInsetsInteractively(isChangingObscuredInsetsInteractively)
         , m_allowShrinkToFit(allowShrinkToFit)
-        , m_forceHorizontalShrinkToFit(forceHorizontalShrinkToFit)
         , m_enclosedInScrollableAncestorView(enclosedInScrollableAncestorView)
     {
     }
 
     const WebCore::FloatRect& exposedContentRect() const { return m_exposedContentRect; }
     const WebCore::FloatRect& unobscuredContentRect() const { return m_unobscuredContentRect; }
+    const WebCore::FloatBoxExtent& contentInsets() const { return m_contentInsets; }
     const WebCore::FloatRect& unobscuredRectInScrollViewCoordinates() const { return m_unobscuredRectInScrollViewCoordinates; }
     const WebCore::FloatRect& unobscuredContentRectRespectingInputViewBounds() const { return m_unobscuredContentRectRespectingInputViewBounds; }
     const WebCore::FloatRect& customFixedPositionRect() const { return m_customFixedPositionRect; }
@@ -81,7 +82,6 @@ public:
     bool isFirstUpdateForNewViewSize() const { return m_isFirstUpdateForNewViewSize; }
     bool isChangingObscuredInsetsInteractively() const { return m_isChangingObscuredInsetsInteractively; }
     bool allowShrinkToFit() const { return m_allowShrinkToFit; }
-    bool forceHorizontalShrinkToFit() const { return m_forceHorizontalShrinkToFit; }
     bool enclosedInScrollableAncestorView() const { return m_enclosedInScrollableAncestorView; }
 
     MonotonicTime timestamp() const { return m_timestamp; }
@@ -99,6 +99,7 @@ public:
 private:
     WebCore::FloatRect m_exposedContentRect;
     WebCore::FloatRect m_unobscuredContentRect;
+    WebCore::FloatBoxExtent m_contentInsets;
     WebCore::FloatRect m_unobscuredContentRectRespectingInputViewBounds;
     WebCore::FloatRect m_unobscuredRectInScrollViewCoordinates;
     WebCore::FloatRect m_customFixedPositionRect; // When visual viewports are enabled, this is the layout viewport.
@@ -114,7 +115,6 @@ private:
     bool m_isFirstUpdateForNewViewSize { false };
     bool m_isChangingObscuredInsetsInteractively { false };
     bool m_allowShrinkToFit { false };
-    bool m_forceHorizontalShrinkToFit { false };
     bool m_enclosedInScrollableAncestorView { false };
 };
 
@@ -124,6 +124,8 @@ inline bool operator==(const VisibleContentRectUpdateInfo& a, const VisibleConte
     return a.scale() == b.scale()
         && a.exposedContentRect() == b.exposedContentRect()
         && a.unobscuredContentRect() == b.unobscuredContentRect()
+        && a.contentInsets() == b.contentInsets()
+        && a.unobscuredContentRectRespectingInputViewBounds() == b.unobscuredContentRectRespectingInputViewBounds()
         && a.customFixedPositionRect() == b.customFixedPositionRect()
         && a.obscuredInsets() == b.obscuredInsets()
         && a.unobscuredSafeAreaInsets() == b.unobscuredSafeAreaInsets()
@@ -133,7 +135,6 @@ inline bool operator==(const VisibleContentRectUpdateInfo& a, const VisibleConte
         && a.inStableState() == b.inStableState()
         && a.isFirstUpdateForNewViewSize() == b.isFirstUpdateForNewViewSize()
         && a.allowShrinkToFit() == b.allowShrinkToFit()
-        && a.forceHorizontalShrinkToFit() == b.forceHorizontalShrinkToFit()
         && a.enclosedInScrollableAncestorView() == b.enclosedInScrollableAncestorView();
 }
 

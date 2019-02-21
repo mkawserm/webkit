@@ -19,14 +19,24 @@
 #include "config.h"
 #include "SharedBuffer.h"
 
-#include "FileSystem.h"
 #include <wtf/glib/GUniquePtr.h>
 #include <wtf/text/CString.h>
 
 #include <glib.h>
 
-
 namespace WebCore {
+
+SharedBuffer::SharedBuffer(GBytes* bytes)
+{
+    ASSERT(bytes);
+    m_size = g_bytes_get_size(bytes);
+    m_segments.append({ 0, DataSegment::create(GRefPtr<GBytes>(bytes)) });
+}
+
+Ref<SharedBuffer> SharedBuffer::create(GBytes* bytes)
+{
+    return adoptRef(*new SharedBuffer(bytes));
+}
 
 RefPtr<SharedBuffer> SharedBuffer::createFromReadingFile(const String& filePath)
 {

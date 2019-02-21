@@ -7,7 +7,7 @@ description('Tests for leaks caused by reference cycles that pass through the DO
 function checkForNodeLeaks(testFunction, underlyingClass)
 {
     // Bump this number as high as we need to, to get reproducible results.
-    const repetitions = 20;
+    const repetitions = 40;
 
     gc();
     const beforeCount = internals.numberOfLiveNodes();
@@ -83,6 +83,12 @@ function createMessageEventDataCycle()
     leakDetectionNode.event = new MessageEvent("x", { data: leakDetectionNode });
 }
 
+function createPaymentMethodChangeEventMethodDetailsCycle()
+{
+    const leakDetectionNode = document.createTextNode("");
+    leakDetectionNode.event = new PaymentMethodChangeEvent("x", { methodDetails: leakDetectionNode });
+}
+
 function createPromiseRejectionEventPromiseCycle()
 {
     const leakDetectionNode = document.createTextNode("");
@@ -111,21 +117,11 @@ function createPopStateEventStateCycle()
     leakDetectionNode.event = new PopStateEvent("x", { state: leakDetectionNode });
 }
 
-function createIDBRequestResultCycle()
-{
-    // FIXME: Need to write this test and reorganize so it can be asynchronous.
-    // Get an IDBRequest with a result that is a structured clone (see IDBTransaction::didGetRecordOnServer).
-    // Add a property to the result object that references the request.
-    // Add another property to the result object that references a leak detection node.
-}
+// Reference cycle of IDBRequest and IDBCursor is tested in
+// storage/indexeddb/value-cursor-cycle.html and LayoutTests/storage/indexeddb/result-request-cycle.html.
 
-function createPaymentResponseDetailsCycle()
-{
-    // FIXME: Need to write this test and reorganize so it can be asynchronous.
-    // Get a PaymentResponse, requires simulating a successful payment.
-    // Add a property to the details object that references the PaymentResponse.
-    // Add another property to the details object that references a leak detection node.
-}
+// PaymentResponse details reference cycle is tested in
+// http/tests/paymentrequest/payment-response-reference-cycle-leak.https.html.
 
 function createRTCStatsReportCycle()
 {
@@ -162,6 +158,7 @@ function startTest()
     runLeakTest('createErrorEventDataCycle');
     runLeakTest('createExtendableMessageEventDataCycle', 'ExtendableMessageEvent');
     runLeakTest('createMessageEventDataCycle');
+    runLeakTest('createPaymentMethodChangeEventMethodDetailsCycle', 'PaymentMethodChangeEvent');
     runLeakTest('createPopStateEventStateCycle');
     runLeakTest('createPromiseRejectionEventPromiseCycle');
     runLeakTest('createPromiseRejectionEventPromiseFunctionCycle');

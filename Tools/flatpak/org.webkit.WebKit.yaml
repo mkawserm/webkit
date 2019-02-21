@@ -1,0 +1,33 @@
+app-id: %(PORTNAME)s
+runtime: org.gnome.Platform
+runtime-version: "3.28"
+# Control the exact version of the Sdk/Runtime that is being used.
+sdk-hash: ba3017972f1cc6c7c8b0ed7f80d3297ad4c6f4076bd799d0bab0e2cbaa3e3c0a
+runtime-hash: 9d3fe926d425ad837e40a0945020a00f09c1f531335987a753e07f276d76ee36
+sdk: org.gnome.Sdk
+command: %(COMMAND)s
+finish-args:
+  # Basically no sandboxing, the goal here is to make it flexible
+  # for developers, not really to isolate (openning all devices
+  # to allow acces video cameras until we have a portal at least).
+  - --share=ipc
+  - --socket=x11
+  - --socket=wayland
+  - --device=all
+  - --share=network
+  - --socket=pulseaudio
+  - --system-talk-name=org.freedesktop.GeoClue2
+  - --system-talk-name=org.a11y.Bus
+  - --filesystem=host
+  - --socket=system-bus
+  - --talk-name=org.freedesktop.Flatpak
+  - --env=GST_PRESET_PATH=/app/share/gstreamer-1.0/presets/
+build-options:
+  cflags: -O2 -g
+  cxxflags: -O2 -g
+  strip: false
+  no-debuginfo: true
+modules:
+  - org.webkit.CommonModules.yaml
+  # Port specific components.
+  - %(PORTNAME)s.yaml

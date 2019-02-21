@@ -42,23 +42,23 @@ namespace WebCore {
 class ResourceRequest : public ResourceRequestBase {
 public:
     ResourceRequest(const String& url) 
-        : ResourceRequestBase(URL(ParsedURLString, url), UseProtocolCachePolicy)
+        : ResourceRequestBase(URL({ }, url), ResourceRequestCachePolicy::UseProtocolCachePolicy)
     {
     }
 
     ResourceRequest(const URL& url) 
-        : ResourceRequestBase(url, UseProtocolCachePolicy)
+        : ResourceRequestBase(url, ResourceRequestCachePolicy::UseProtocolCachePolicy)
     {
     }
 
-    ResourceRequest(const URL& url, const String& referrer, ResourceRequestCachePolicy policy = UseProtocolCachePolicy)
+    ResourceRequest(const URL& url, const String& referrer, ResourceRequestCachePolicy policy = ResourceRequestCachePolicy::UseProtocolCachePolicy)
         : ResourceRequestBase(url, policy)
     {
         setHTTPReferrer(referrer);
     }
     
     ResourceRequest()
-        : ResourceRequestBase(URL(), UseProtocolCachePolicy)
+        : ResourceRequestBase(URL(), ResourceRequestCachePolicy::UseProtocolCachePolicy)
     {
     }
     
@@ -119,7 +119,7 @@ inline bool ResourceRequest::resourcePrioritiesEnabled()
 {
 #if PLATFORM(MAC)
     return true;
-#elif PLATFORM(IOS)
+#elif PLATFORM(IOS_FAMILY)
     return true;
 #elif PLATFORM(WIN)
     return false;

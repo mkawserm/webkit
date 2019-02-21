@@ -16,16 +16,15 @@
 #include <vector>
 
 #include "rtc_base/asyncinvoker.h"
-#include "rtc_base/basictypes.h"
 #include "rtc_base/bytebuffer.h"
 #include "rtc_base/callback.h"
 #include "rtc_base/constructormagic.h"
 #include "rtc_base/ipaddress.h"
 #include "rtc_base/network.h"
 #include "rtc_base/socketaddress.h"
+#include "rtc_base/system/rtc_export.h"
 #include "rtc_base/thread.h"
 #include "rtc_base/thread_checker.h"
-#include "typedefs.h"  // NOLINT(build/include)
 
 namespace rtc {
 class AsyncPacketSocket;
@@ -51,7 +50,7 @@ enum NatType {
   NATTYPE_NON_SYMMETRIC  // Behind a non-symmetric NAT.
 };
 
-class StunProber : public sigslot::has_slots<> {
+class RTC_EXPORT StunProber : public sigslot::has_slots<> {
  public:
   enum Status {       // Used in UMA_HISTOGRAM_ENUMERATION.
     SUCCESS,          // Successfully received bytes from the server.

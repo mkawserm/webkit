@@ -108,6 +108,10 @@ WK_EXPORT bool WKPreferencesGetJavaEnabled(WKPreferencesRef preferences);
 WK_EXPORT void WKPreferencesSetJavaScriptCanOpenWindowsAutomatically(WKPreferencesRef preferences, bool javaScriptCanOpenWindowsAutomatically);
 WK_EXPORT bool WKPreferencesGetJavaScriptCanOpenWindowsAutomatically(WKPreferencesRef preferences);
 
+// Defaults to false.
+WK_EXPORT void WKPreferencesSetStorageAccessPromptsEnabled(WKPreferencesRef preferencesRef, bool enabled);
+WK_EXPORT bool WKPreferencesGetStorageAccessPromptsEnabled(WKPreferencesRef preferencesRef);
+
 // Defaults to true.
 WK_EXPORT void WKPreferencesSetHyperlinkAuditingEnabled(WKPreferencesRef preferences, bool hyperlinkAuditingEnabled);
 WK_EXPORT bool WKPreferencesGetHyperlinkAuditingEnabled(WKPreferencesRef preferences);
@@ -264,9 +268,14 @@ WK_EXPORT bool WKPreferencesGetMediaDevicesEnabled(WKPreferencesRef preferencesR
 WK_EXPORT void WKPreferencesSetPeerConnectionEnabled(WKPreferencesRef preferencesRef, bool enabled);
 WK_EXPORT bool WKPreferencesGetPeerConnectionEnabled(WKPreferencesRef preferencesRef);
 
-// Should default to false
+// This is for backward compatibility with external SDK builds (https://webkit.org/b/189188).
+// FIXME: Remove these API functions.
 WK_EXPORT void WKPreferencesSetWebRTCLegacyAPIEnabled(WKPreferencesRef preferencesRef, bool enabled);
 WK_EXPORT bool WKPreferencesGetWebRTCLegacyAPIEnabled(WKPreferencesRef preferencesRef);
+
+// Defaults to false
+WK_EXPORT void WKPreferencesSetWebRTCMDNSICECandidatesEnabled(WKPreferencesRef preferencesRef, bool enabled);
+WK_EXPORT bool WKPreferencesGetWebRTCMDNSICECandidatesEnabled(WKPreferencesRef preferencesRef);
 
 // Defaults to false.
 WK_EXPORT void WKPreferencesSetSpatialNavigationEnabled(WKPreferencesRef preferencesRef, bool enabled);
@@ -306,6 +315,27 @@ WK_EXPORT void WKPreferencesSetAllowMediaContentTypesRequiringHardwareSupportAsF
 
 WK_EXPORT bool WKPreferencesGetMediaCapabilitiesEnabled(WKPreferencesRef preferencesRef);
 WK_EXPORT void WKPreferencesSetMediaCapabilitiesEnabled(WKPreferencesRef preferencesRef, bool enabled);
+
+// Defaults to false.
+WK_EXPORT bool WKPreferencesGetRestrictedHTTPResponseAccess(WKPreferencesRef preferencesRef);
+WK_EXPORT void WKPreferencesSetRestrictedHTTPResponseAccess(WKPreferencesRef preferencesRef, bool allow);
+
+// Defaults to false.
+WK_EXPORT bool WKPreferencesGetCrossOriginResourcePolicyEnabled(WKPreferencesRef preferencesRef);
+WK_EXPORT void WKPreferencesSetCrossOriginResourcePolicyEnabled(WKPreferencesRef preferencesRef, bool allow);
+
+// Defaults to false.
+WK_EXPORT bool WKPreferencesGetProcessSwapOnNavigationEnabled(WKPreferencesRef preferencesRef);
+WK_EXPORT void WKPreferencesSetProcessSwapOnNavigationEnabled(WKPreferencesRef preferencesRef, bool enabled);
+
+// Defaults to false.
+WK_EXPORT bool WKPreferencesGetWebSQLDisabled(WKPreferencesRef preferencesRef);
+WK_EXPORT void WKPreferencesSetWebSQLDisabled(WKPreferencesRef preferencesRef, bool enabled);
+
+WK_EXPORT void WKPreferencesSetCaptureAudioInUIProcessEnabled(WKPreferencesRef preferencesRef, bool flag);
+WK_EXPORT bool WKPreferencesGetCaptureAudioInUIProcessEnabled(WKPreferencesRef preferencesRef);
+WK_EXPORT void WKPreferencesSetCaptureVideoInUIProcessEnabled(WKPreferencesRef preferencesRef, bool flag);
+WK_EXPORT bool WKPreferencesGetCaptureVideoInUIProcessEnabled(WKPreferencesRef preferencesRef);
 
 #ifdef __cplusplus
 }

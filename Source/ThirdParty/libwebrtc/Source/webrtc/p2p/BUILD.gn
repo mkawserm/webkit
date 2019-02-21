@@ -15,26 +15,26 @@ group("p2p") {
   ]
 }
 
-config("rtc_p2p_inherited_config") {
-  defines = [ "FEATURE_ENABLE_VOICEMAIL" ]
-}
-
 rtc_static_library("rtc_p2p") {
+  visibility = [ "*" ]
   sources = [
     "base/asyncstuntcpsocket.cc",
     "base/asyncstuntcpsocket.h",
+    "base/basicasyncresolverfactory.cc",
+    "base/basicasyncresolverfactory.h",
     "base/basicpacketsocketfactory.cc",
     "base/basicpacketsocketfactory.h",
     "base/candidatepairinterface.h",
-    "base/common.h",
     "base/dtlstransport.cc",
     "base/dtlstransport.h",
     "base/dtlstransportinternal.cc",
     "base/dtlstransportinternal.h",
+    "base/icecredentialsiterator.cc",
+    "base/icecredentialsiterator.h",
     "base/icetransportinternal.cc",
     "base/icetransportinternal.h",
-    "base/jseptransport.cc",
-    "base/jseptransport.h",
+    "base/mdns_message.cc",
+    "base/mdns_message.h",
     "base/p2pconstants.cc",
     "base/p2pconstants.h",
     "base/p2ptransportchannel.cc",
@@ -54,12 +54,10 @@ rtc_static_library("rtc_p2p") {
     "base/portinterface.h",
     "base/pseudotcp.cc",
     "base/pseudotcp.h",
+    "base/regatheringcontroller.cc",
+    "base/regatheringcontroller.h",
     "base/relayport.cc",
     "base/relayport.h",
-    "base/session.cc",
-    "base/session.h",
-    "base/sessiondescription.cc",
-    "base/sessiondescription.h",
     "base/stun.cc",
     "base/stun.h",
     "base/stunport.cc",
@@ -73,29 +71,37 @@ rtc_static_library("rtc_p2p") {
     "base/transportdescription.h",
     "base/transportdescriptionfactory.cc",
     "base/transportdescriptionfactory.h",
+    "base/transportfactoryinterface.h",
     "base/transportinfo.h",
     "base/turnport.cc",
     "base/turnport.h",
     "base/udpport.h",
-    "base/udptransport.cc",
-    "base/udptransport.h",
     "client/basicportallocator.cc",
     "client/basicportallocator.h",
-    "client/socketmonitor.cc",
-    "client/socketmonitor.h",
+    "client/relayportfactoryinterface.h",
+    "client/turnportfactory.cc",
+    "client/turnportfactory.h",
   ]
-
-  defines = []
 
   deps = [
     "../api:libjingle_peerconnection_api",
-    "../api:optional",
     "../api:ortc_api",
+    "../api/transport:enums",
+    "../logging:ice_log",
+    "../rtc_base:checks",
     "../rtc_base:rtc_base",
-    "../system_wrappers:field_trial_api",
+    "../rtc_base:safe_minmax",
+    "../rtc_base:stringutils",
+    "../rtc_base:weak_ptr",
+    "../rtc_base/system:rtc_export",
+    "../rtc_base/third_party/base64",
+    "../rtc_base/third_party/sigslot",
+    "../system_wrappers:field_trial",
+    "../system_wrappers:metrics",
+    "//third_party/abseil-cpp/absl/memory",
+    "//third_party/abseil-cpp/absl/strings",
+    "//third_party/abseil-cpp/absl/types:optional",
   ]
-
-  public_configs = [ ":rtc_p2p_inherited_config" ]
 
   if (build_with_chromium) {
     if (is_nacl) {
@@ -110,10 +116,6 @@ rtc_static_library("rtc_p2p") {
       "base/turnserver.cc",
       "base/turnserver.h",
     ]
-    defines += [
-      "FEATURE_ENABLE_VOICEMAIL",
-      "FEATURE_ENABLE_PSTN",
-    ]
   }
 }
 
@@ -126,6 +128,7 @@ if (rtc_include_tests) {
       "base/fakeicetransport.h",
       "base/fakepackettransport.h",
       "base/fakeportallocator.h",
+      "base/mockasyncresolver.h",
       "base/mockicetransport.h",
       "base/testrelayserver.h",
       "base/teststunserver.cc",
@@ -137,11 +140,13 @@ if (rtc_include_tests) {
       ":rtc_p2p",
       "../api:libjingle_peerconnection_api",
       "../api:ortc_api",
+      "../rtc_base:gunit_helpers",
       "../rtc_base:rtc_base",
       "../rtc_base:rtc_base_approved",
       "../rtc_base:rtc_base_tests_utils",
+      "../rtc_base/third_party/sigslot",
       "../test:test_support",
-      "//testing/gmock",
+      "//third_party/abseil-cpp/absl/memory",
     ]
   }
 
@@ -150,13 +155,16 @@ if (rtc_include_tests) {
 
     sources = [
       "base/asyncstuntcpsocket_unittest.cc",
+      "base/basicasyncresolverfactory_unittest.cc",
       "base/dtlstransport_unittest.cc",
-      "base/jseptransport_unittest.cc",
+      "base/icecredentialsiterator_unittest.cc",
+      "base/mdns_message_unittest.cc",
       "base/p2ptransportchannel_unittest.cc",
       "base/packetlossestimator_unittest.cc",
       "base/port_unittest.cc",
       "base/portallocator_unittest.cc",
       "base/pseudotcp_unittest.cc",
+      "base/regatheringcontroller_unittest.cc",
       "base/relayport_unittest.cc",
       "base/relayserver_unittest.cc",
       "base/stun_unittest.cc",
@@ -167,30 +175,33 @@ if (rtc_include_tests) {
       "base/transportdescriptionfactory_unittest.cc",
       "base/turnport_unittest.cc",
       "base/turnserver_unittest.cc",
-      "base/udptransport_unittest.cc",
       "client/basicportallocator_unittest.cc",
     ]
     deps = [
       ":p2p_test_utils",
       ":rtc_p2p",
-      "../api:fakemetricsobserver",
       "../api:ortc_api",
+      "../rtc_base:checks",
+      "../rtc_base:gunit_helpers",
       "../rtc_base:rtc_base",
       "../rtc_base:rtc_base_approved",
       "../rtc_base:rtc_base_tests_utils",
+      "../rtc_base:stringutils",
+      "../rtc_base:testclient",
+      "../system_wrappers:metrics",
       "../test:test_support",
-      "//testing/gmock",
       "//testing/gtest",
+      "//third_party/abseil-cpp/absl/memory",
     ]
     if (!build_with_chromium && is_clang) {
       # Suppress warnings from the Chromium Clang plugin (bugs.webrtc.org/163).
       suppressed_configs += [ "//build/config/clang:find_bad_constructs" ]
     }
-    defines = [ "GTEST_RELATIVE_PATH" ]
   }
 }
 
 rtc_static_library("libstunprober") {
+  visibility = [ "*" ]
   sources = [
     "stunprober/stunprober.cc",
     "stunprober/stunprober.h",
@@ -199,7 +210,9 @@ rtc_static_library("libstunprober") {
   deps = [
     ":rtc_p2p",
     "..:webrtc_common",
+    "../rtc_base:checks",
     "../rtc_base:rtc_base",
+    "../rtc_base/system:rtc_export",
   ]
 }
 
@@ -214,11 +227,11 @@ if (rtc_include_tests) {
       ":libstunprober",
       ":p2p_test_utils",
       ":rtc_p2p",
+      "../rtc_base:checks",
+      "../rtc_base:gunit_helpers",
       "../rtc_base:rtc_base",
       "../rtc_base:rtc_base_tests_utils",
-      "//testing/gmock",
       "//testing/gtest",
     ]
-    defines = [ "GTEST_RELATIVE_PATH" ]
   }
 }

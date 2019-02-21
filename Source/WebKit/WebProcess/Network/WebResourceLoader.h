@@ -71,8 +71,8 @@ private:
     WebResourceLoader(Ref<WebCore::ResourceLoader>&&, const TrackingParameters&);
 
     // IPC::MessageSender
-    IPC::Connection* messageSenderConnection() override;
-    uint64_t messageSenderDestinationID() override;
+    IPC::Connection* messageSenderConnection() const override;
+    uint64_t messageSenderDestinationID() const override;
 
     void willSendRequest(WebCore::ResourceRequest&&, WebCore::ResourceResponse&&);
     void didSendData(uint64_t bytesSent, uint64_t totalBytesToBeSent);
@@ -82,6 +82,9 @@ private:
     void didFinishResourceLoad(const WebCore::NetworkLoadMetrics&);
     void didFailResourceLoad(const WebCore::ResourceError&);
     void didBlockAuthenticationChallenge();
+
+    void stopLoadingAfterXFrameOptionsOrContentSecurityPolicyDenied(const WebCore::ResourceResponse&);
+
 #if ENABLE(SHAREABLE_RESOURCE)
     void didReceiveResource(const ShareableResource::Handle&);
 #endif
@@ -89,6 +92,10 @@ private:
     RefPtr<WebCore::ResourceLoader> m_coreLoader;
     TrackingParameters m_trackingParameters;
     size_t m_numBytesReceived { 0 };
+
+#if !ASSERT_DISABLED
+    bool m_isProcessingNetworkResponse { false };
+#endif
 };
 
 } // namespace WebKit

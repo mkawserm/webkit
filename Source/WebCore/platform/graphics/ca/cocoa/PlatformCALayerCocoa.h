@@ -116,6 +116,7 @@ public:
     bool supportsSubpixelAntialiasedText() const override;
     void setSupportsSubpixelAntialiasedText(bool) override;
 
+    bool hasContents() const override;
     CFTypeRef contents() const override;
     void setContents(CFTypeRef) override;
 
@@ -167,6 +168,8 @@ public:
     GraphicsLayer::CustomAppearance customAppearance() const override { return m_customAppearance; }
     void updateCustomAppearance(GraphicsLayer::CustomAppearance) override;
 
+    GraphicsLayer::EmbeddedViewID embeddedViewID() const override;
+
     TiledBacking* tiledBacking() override;
 
     Ref<PlatformCALayer> clone(PlatformCALayerClient* owner) const override;
@@ -193,7 +196,7 @@ private:
 
     RetainPtr<NSObject> m_delegate;
     std::unique_ptr<PlatformCALayerList> m_customSublayers;
-    GraphicsLayer::CustomAppearance m_customAppearance;
+    GraphicsLayer::CustomAppearance m_customAppearance { GraphicsLayer::CustomAppearance::None };
     std::unique_ptr<FloatRoundedRect> m_shapeRoundedRect;
     bool m_wantsDeepColorBackingStore { false };
     bool m_supportsSubpixelAntialiasedText { false };

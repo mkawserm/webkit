@@ -12,6 +12,7 @@
 
 #include <cmath>
 
+#include "rtc_base/checks.h"
 #include "rtc_base/timeutils.h"
 
 namespace webrtc {
@@ -52,10 +53,10 @@ void SmoothingFilterImpl::AddSample(float sample) {
   last_sample_ = sample;
 }
 
-rtc::Optional<float> SmoothingFilterImpl::GetAverage() {
+absl::optional<float> SmoothingFilterImpl::GetAverage() {
   if (!init_end_time_ms_) {
     // |init_end_time_ms_| undefined since we have not received any sample.
-    return rtc::nullopt;
+    return absl::nullopt;
   }
   ExtrapolateLastSample(rtc::TimeMillis());
   return state_;

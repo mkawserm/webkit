@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2017 Apple Inc. All rights reserved.
+ * Copyright (C) 2012-2018 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -45,11 +45,10 @@
 #include <WebCore/SubresourceLoader.h>
 #include <wtf/CompletionHandler.h>
 
-using namespace WebCore;
-
 #define RELEASE_LOG_IF_ALLOWED(fmt, ...) RELEASE_LOG_IF(isAlwaysOnLoggingAllowed(), Network, "%p - WebResourceLoader::" fmt, this, ##__VA_ARGS__)
 
 namespace WebKit {
+using namespace WebCore;
 
 Ref<WebResourceLoader> WebResourceLoader::create(Ref<ResourceLoader>&& coreLoader, const TrackingParameters& trackingParameters)
 {
@@ -66,34 +65,43 @@ WebResourceLoader::~WebResourceLoader()
 {
 }
 
-IPC::Connection* WebResourceLoader::messageSenderConnection()
+IPC::Connection* WebResourceLoader::messageSenderConnection() const
 {
     return &WebProcess::singleton().ensureNetworkProcessConnection().connection();
 }
 
-uint64_t WebResourceLoader::messageSenderDestinationID()
+uint64_t WebResourceLoader::messageSenderDestinationID() const
 {
+    RELEASE_ASSERT(RunLoop::isMain());
+    RELEASE_ASSERT(m_coreLoader->identifier());
     return m_coreLoader->identifier();
 }
 
 void WebResourceLoader::detachFromCoreLoader()
 {
+    RELEASE_ASSERT(RunLoop::isMain());
     m_coreLoader = nullptr;
 }
 
 void WebResourceLoader::willSendRequest(ResourceRequest&& proposedRequest, ResourceResponse&& redirectResponse)
 {
+    Ref<WebResourceLoader> protectedThis(*this);
+
     LOG(Network, "(WebProcess) WebResourceLoader::willSendRequest to '%s'", proposedRequest.url().string().latin1().data());
     RELEASE_LOG_IF_ALLOWED("willSendRequest: (pageID = %" PRIu64 ", frameID = %" PRIu64 ", resourceID = %" PRIu64 ")", m_trackingParameters.pageID, m_trackingParameters.frameID, m_trackingParameters.resourceID);
 
-    if (m_coreLoader->documentLoader()->applicationCacheHost().maybeLoadFallbackForRedirect(m_coreLoader.get(), proposedRequest, redirectResponse))
+    if (m_coreLoader->documentLoader()->applicationCacheHost().maybeLoadFallbackForRedirect(m_coreLoader.get(), proposedRequest, redirectResponse)) {
+        RELEASE_LOG_IF_ALLOWED("willSendRequest: exiting early because maybeLoadFallbackForRedirect returned false (pageID = %" PRIu64 ", frameID = %" PRIu64 ", resourceID = %" PRIu64 ")", m_trackingParameters.pageID, m_trackingParameters.frameID, m_trackingParameters.resourceID);
         return;
+    }
 
-    m_coreLoader->willSendRequest(WTFMove(proposedRequest), redirectResponse, [protectedThis = makeRef(*this)](ResourceRequest&& request) {
-        if (!protectedThis->m_coreLoader)
+    m_coreLoader->willSendRequest(WTFMove(proposedRequest), redirectResponse, [this, protectedThis = WTFMove(protectedThis)](ResourceRequest&& request) {
+        if (!m_coreLoader || !m_coreLoader->identifier()) {
+            RELEASE_LOG_IF_ALLOWED("willSendRequest: exiting early because no coreloader or identifier (pageID = %" PRIu64 ", frameID = %" PRIu64 ", resourceID = %" PRIu64 ")", m_trackingParameters.pageID, m_trackingParameters.frameID, m_trackingParameters.resourceID);
             return;
+        }
 
-        protectedThis->send(Messages::NetworkResourceLoader::ContinueWillSendRequest(request, protectedThis->m_coreLoader->isAllowedToAskUserForCredentials()));
+        send(Messages::NetworkResourceLoader::ContinueWillSendRequest(request, m_coreLoader->isAllowedToAskUserForCredentials()));
     });
 }
 
@@ -109,15 +117,25 @@ void WebResourceLoader::didReceiveResponse(const ResourceResponse& response, boo
 
     Ref<WebResourceLoader> protectedThis(*this);
 
-    if (m_coreLoader->documentLoader()->applicationCacheHost().maybeLoadFallbackForResponse(m_coreLoader.get(), response))
+    if (m_coreLoader->documentLoader()->applicationCacheHost().maybeLoadFallbackForResponse(m_coreLoader.get(), response)) {
+        RELEASE_LOG_IF_ALLOWED("didReceiveResponse: not continuing load because the content is already cached (pageID = %" PRIu64 ", frameID = %" PRIu64 ", resourceID = %" PRIu64 ")", m_trackingParameters.pageID, m_trackingParameters.frameID, m_trackingParameters.resourceID);
         return;
+    }
 
     CompletionHandler<void()> policyDecisionCompletionHandler;
     if (needsContinueDidReceiveResponseMessage) {
+#if !ASSERT_DISABLED
+        m_isProcessingNetworkResponse = true;
+#endif
         policyDecisionCompletionHandler = [this, protectedThis = WTFMove(protectedThis)] {
+#if !ASSERT_DISABLED
+            m_isProcessingNetworkResponse = false;
+#endif
             // If m_coreLoader becomes null as a result of the didReceiveResponse callback, we can't use the send function().
-            if (m_coreLoader)
+            if (m_coreLoader && m_coreLoader->identifier())
                 send(Messages::NetworkResourceLoader::ContinueDidReceiveResponse());
+            else
+                RELEASE_LOG_IF_ALLOWED("didReceiveResponse: not continuing load because no coreLoader or no ID (pageID = %" PRIu64 ", frameID = %" PRIu64 ", resourceID = %" PRIu64 ")", m_trackingParameters.pageID, m_trackingParameters.frameID, m_trackingParameters.resourceID);
         };
     }
 
@@ -127,6 +145,7 @@ void WebResourceLoader::didReceiveResponse(const ResourceResponse& response, boo
 void WebResourceLoader::didReceiveData(const IPC::DataReference& data, int64_t encodedDataLength)
 {
     LOG(Network, "(WebProcess) WebResourceLoader::didReceiveData of size %lu for '%s'", data.size(), m_coreLoader->url().string().latin1().data());
+    ASSERT_WITH_MESSAGE(!m_isProcessingNetworkResponse, "Network process should not send data until we've validated the response");
 
     if (!m_numBytesReceived) {
         RELEASE_LOG_IF_ALLOWED("didReceiveData: Started receiving data (pageID = %" PRIu64 ", frameID = %" PRIu64 ", resourceID = %" PRIu64 ")", m_trackingParameters.pageID, m_trackingParameters.frameID, m_trackingParameters.resourceID);
@@ -136,19 +155,12 @@ void WebResourceLoader::didReceiveData(const IPC::DataReference& data, int64_t e
     m_coreLoader->didReceiveData(reinterpret_cast<const char*>(data.data()), data.size(), encodedDataLength, DataPayloadBytes);
 }
 
-void WebResourceLoader::didRetrieveDerivedData(const String& type, const IPC::DataReference& data)
-{
-    LOG(Network, "(WebProcess) WebResourceLoader::didRetrieveDerivedData of size %lu for '%s'", data.size(), m_coreLoader->url().string().latin1().data());
-
-    auto buffer = SharedBuffer::create(data.data(), data.size());
-    m_coreLoader->didRetrieveDerivedDataFromCache(type, buffer.get());
-}
-
 void WebResourceLoader::didFinishResourceLoad(const NetworkLoadMetrics& networkLoadMetrics)
 {
     LOG(Network, "(WebProcess) WebResourceLoader::didFinishResourceLoad for '%s'", m_coreLoader->url().string().latin1().data());
     RELEASE_LOG_IF_ALLOWED("didFinishResourceLoad: (pageID = %" PRIu64 ", frameID = %" PRIu64 ", resourceID = %" PRIu64 ", length = %zd)", m_trackingParameters.pageID, m_trackingParameters.frameID, m_trackingParameters.resourceID, m_numBytesReceived);
 
+    ASSERT_WITH_MESSAGE(!m_isProcessingNetworkResponse, "Load should not be able to finish before we've validated the response");
     m_coreLoader->didFinishLoading(networkLoadMetrics);
 }
 
@@ -156,6 +168,8 @@ void WebResourceLoader::didFailResourceLoad(const ResourceError& error)
 {
     LOG(Network, "(WebProcess) WebResourceLoader::didFailResourceLoad for '%s'", m_coreLoader->url().string().latin1().data());
     RELEASE_LOG_IF_ALLOWED("didFailResourceLoad: (pageID = %" PRIu64 ", frameID = %" PRIu64 ", resourceID = %" PRIu64 ")", m_trackingParameters.pageID, m_trackingParameters.frameID, m_trackingParameters.resourceID);
+
+    ASSERT_WITH_MESSAGE(!m_isProcessingNetworkResponse, "Load should not be able to finish before we've validated the response");
 
     if (m_coreLoader->documentLoader()->applicationCacheHost().maybeLoadFallbackForError(m_coreLoader.get(), error))
         return;
@@ -168,6 +182,14 @@ void WebResourceLoader::didBlockAuthenticationChallenge()
     RELEASE_LOG_IF_ALLOWED("didBlockAuthenticationChallenge: (pageID = %" PRIu64 ", frameID = %" PRIu64 ", resourceID = %" PRIu64 ")", m_trackingParameters.pageID, m_trackingParameters.frameID, m_trackingParameters.resourceID);
 
     m_coreLoader->didBlockAuthenticationChallenge();
+}
+
+void WebResourceLoader::stopLoadingAfterXFrameOptionsOrContentSecurityPolicyDenied(const ResourceResponse& response)
+{
+    LOG(Network, "(WebProcess) WebResourceLoader::stopLoadingAfterXFrameOptionsOrContentSecurityPolicyDenied for '%s'", m_coreLoader->url().string().latin1().data());
+    RELEASE_LOG_IF_ALLOWED("stopLoadingAfterXFrameOptionsOrContentSecurityPolicyDenied: (pageID = %" PRIu64 ", frameID = %" PRIu64 ", resourceID = %" PRIu64 ")", m_trackingParameters.pageID, m_trackingParameters.frameID, m_trackingParameters.resourceID);
+
+    m_coreLoader->documentLoader()->stopLoadingAfterXFrameOptionsOrContentSecurityPolicyDenied(m_coreLoader->identifier(), response);
 }
 
 #if ENABLE(SHAREABLE_RESOURCE)
@@ -209,3 +231,5 @@ bool WebResourceLoader::isAlwaysOnLoggingAllowed() const
 }
 
 } // namespace WebKit
+
+#undef RELEASE_LOG_IF_ALLOWED

@@ -58,8 +58,7 @@ set(TestWebCoreLib_SOURCES
     ${TESTWEBKITAPI_DIR}/Tests/WebCore/SharedBufferTest.cpp
     ${TESTWEBKITAPI_DIR}/Tests/WebCore/TimeRanges.cpp
     ${TESTWEBKITAPI_DIR}/Tests/WebCore/TransformationMatrix.cpp
-    ${TESTWEBKITAPI_DIR}/Tests/WebCore/URL.cpp
-    ${TESTWEBKITAPI_DIR}/Tests/WebCore/URLParser.cpp
+    ${TESTWEBKITAPI_DIR}/Tests/WebCore/URLParserTextEncoding.cpp
     ${TESTWEBKITAPI_DIR}/Tests/WebCore/win/DIBPixelData.cpp
     ${TESTWEBKITAPI_DIR}/Tests/WebCore/win/LinkedFonts.cpp
 )
@@ -74,7 +73,10 @@ if (${WTF_PLATFORM_WIN_CAIRO})
         vcruntime
     )
     list(APPEND TestWebCoreLib_SOURCES
+        ${TESTWEBKITAPI_DIR}/Tests/WebCore/curl/Cookies.cpp
         ${TESTWEBKITAPI_DIR}/Tests/WebCore/win/BitmapImage.cpp
+        ${TESTWEBKITAPI_DIR}/Tests/WebCore/CryptoDigest.cpp
+        ${TESTWEBKITAPI_DIR}/Tests/WebCore/PublicSuffix.cpp
     )
 else ()
     list(APPEND test_webcore_LIBRARIES
@@ -83,7 +85,6 @@ else ()
         CoreGraphics${DEBUG_SUFFIX}
         CoreText${DEBUG_SUFFIX}
         QuartzCore${DEBUG_SUFFIX}
-        WebKitSystemInterface${DEBUG_SUFFIX}
         WebKitQuartzCoreAdditions${DEBUG_SUFFIX}
         libdispatch${DEBUG_SUFFIX}
         libexslt${DEBUG_SUFFIX}
@@ -98,13 +99,18 @@ if (USE_CF)
     )
 endif ()
 
+list(APPEND TestWebKitAPI_DEPENDENCIES WebCoreForwardingHeaders)
+if (ENABLE_WEBKIT)
+    list(APPEND TestWebKitAPI_DEPENDENCIES WebKitForwardingHeaders)
+endif ()
+
 add_library(TestWTFLib SHARED
     ${test_main_SOURCES}
     ${TestWTF_SOURCES}
 )
 set_target_properties(TestWTFLib PROPERTIES OUTPUT_NAME "TestWTFLib")
 target_link_libraries(TestWTFLib ${test_wtf_LIBRARIES})
-add_dependencies(TestWTFLib WebCoreForwardingHeaders)
+add_dependencies(TestWTFLib ${TestWebKitAPI_DEPENDENCIES})
 
 set(test_wtf_LIBRARIES
     shlwapi
@@ -118,6 +124,11 @@ add_library(TestWebCoreLib SHARED
 
 target_link_libraries(TestWebCoreLib ${test_webcore_LIBRARIES})
 set_target_properties(TestWebCoreLib PROPERTIES OUTPUT_NAME "TestWebCoreLib")
+add_dependencies(TestWebCoreLib ${TestWebKitAPI_DEPENDENCIES})
+
+if (PAL_LIBRARY_TYPE MATCHES STATIC)
+    target_compile_definitions(TestWebCoreLib PRIVATE -DSTATICALLY_LINKED_WITH_PAL=1)
+endif ()
 
 add_executable(TestWebCore
     ${TOOLS_DIR}/win/DLLLauncher/DLLLauncherMain.cpp
@@ -150,6 +161,7 @@ if (ENABLE_WEBKIT_LEGACY)
     )
 
     target_link_libraries(TestWebKitLegacyLib ${test_webkitlegacy_LIBRARIES})
+    add_dependencies(TestWebKitLegacyLib ${TestWebKitAPI_DEPENDENCIES})
 
     add_executable(TestWebKitLegacy
         ${TOOLS_DIR}/win/DLLLauncher/DLLLauncherMain.cpp
@@ -160,6 +172,44 @@ if (ENABLE_WEBKIT_LEGACY)
     set_tests_properties(TestWebKitLegacy PROPERTIES TIMEOUT 60)
 
     add_dependencies(TestWebKitLegacy TestWebKitLegacyLib)
+endif ()
+
+if (ENABLE_WEBKIT)
+    set(bundle_harness_SOURCES
+        ${TESTWEBKITAPI_DIR}/win/UtilitiesWin.cpp
+        ${TESTWEBKITAPI_DIR}/win/InjectedBundleControllerWin.cpp
+        ${TESTWEBKITAPI_DIR}/win/PlatformUtilitiesWin.cpp
+    )
+
+    set(webkit_api_harness_SOURCES
+        ${TESTWEBKITAPI_DIR}/win/PlatformUtilitiesWin.cpp
+        ${TESTWEBKITAPI_DIR}/win/PlatformWebViewWin.cpp
+        ${TESTWEBKITAPI_DIR}/win/UtilitiesWin.cpp
+    )
+
+    if (${WTF_PLATFORM_WIN_CAIRO})
+        list(APPEND test_webkit_api_SOURCES
+            ${TESTWEBKITAPI_DIR}/Tests/WebKit/curl/Certificates.cpp
+        )
+    endif ()
+
+    add_library(TestWebKitLib SHARED
+        ${TESTWEBKITAPI_DIR}/win/main.cpp
+        ${test_webkit_api_SOURCES}
+    )
+
+    target_link_libraries(TestWebKitLib ${test_webkit_api_LIBRARIES})
+
+    add_executable(TestWebKit
+        ${TOOLS_DIR}/win/DLLLauncher/DLLLauncherMain.cpp
+    )
+    target_link_libraries(TestWebKit shlwapi)
+
+    add_test(TestWebKit ${TESTWEBKITAPI_RUNTIME_OUTPUT_DIRECTORY}/WebKit/TestWebKit)
+    set_tests_properties(TestWebKit PROPERTIES TIMEOUT 60)
+    set_target_properties(TestWebKit PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${TESTWEBKITAPI_RUNTIME_OUTPUT_DIRECTORY}/WebKit)
+
+    add_dependencies(TestWebKit TestWebKitAPIBase)
 endif ()
 
 set(test_main_SOURCES

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Apple Inc. All rights reserved.
+ * Copyright (C) 2010-2018 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -32,7 +32,6 @@
 namespace API {
 class Array;
 class Data;
-class String;
 }
 
 namespace WebKit {
@@ -48,7 +47,7 @@ public:
 
     virtual ~WebOpenPanelResultListenerProxy();
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
     void chooseFiles(const Vector<String>& filenames, const String& displayString, const API::Data* iconImageData);
 #endif
     void chooseFiles(const Vector<String>& filenames);

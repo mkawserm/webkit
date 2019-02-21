@@ -22,6 +22,7 @@
 
 #include "FloatPoint3D.h"
 #include "TransformationMatrix.h"
+#include "VRPlatformDisplayClient.h"
 
 #include <wtf/WeakPtr.h>
 #include <wtf/text/WTFString.h>
@@ -31,11 +32,11 @@ namespace WebCore {
 typedef unsigned VRDisplayCapabilityFlags;
 
 enum VRDisplayCapabilityFlag {
-    None = 0,
-    Position = 1 << 1,
-    Orientation = 1 << 2,
-    ExternalDisplay = 1 << 3,
-    Present = 1 << 4
+    VRDisplayCapabilityFlagNone = 0,
+    VRDisplayCapabilityFlagPosition = 1 << 1,
+    VRDisplayCapabilityFlagOrientation = 1 << 2,
+    VRDisplayCapabilityFlagExternalDisplay = 1 << 3,
+    VRDisplayCapabilityFlagPresent = 1 << 4
 };
 
 /* The purpose of this class is to encapsulate all the info about the display in a single class/data
@@ -82,10 +83,10 @@ public:
     void setRenderSize(const RenderSize& renderSize) { m_renderSize = renderSize; }
 
     void setPlayAreaBounds(const FloatSize& playAreaBounds) { m_playAreaBounds = playAreaBounds; }
-    const std::optional<FloatSize>& playAreaBounds() const { return m_playAreaBounds; }
+    const Optional<FloatSize>& playAreaBounds() const { return m_playAreaBounds; }
 
     void setSittingToStandingTransform(const TransformationMatrix& transform) { m_sittingToStandingTransform = transform; }
-    const std::optional<TransformationMatrix>& sittingToStandingTransform() const { return m_sittingToStandingTransform; }
+    const Optional<TransformationMatrix>& sittingToStandingTransform() const { return m_sittingToStandingTransform; }
 
 private:
     String m_displayName;
@@ -99,18 +100,84 @@ private:
     RenderSize m_renderSize;
     FieldOfView m_eyeFieldOfView[Eye::NumEyes];
 
-    std::optional<FloatSize> m_playAreaBounds;
-    std::optional<TransformationMatrix> m_sittingToStandingTransform;
+    Optional<FloatSize> m_playAreaBounds;
+    Optional<TransformationMatrix> m_sittingToStandingTransform;
 };
 
-class VRPlatformDisplay {
+struct VRPlatformTrackingInfo {
+    struct Quaternion {
+        Quaternion()
+            : x(0), y(0), z(0), w(1) { }
+
+        Quaternion(float x, float y, float z, float w)
+            : x(x), y(y), z(z), w(w) { }
+
+        Quaternion& conjugate()
+        {
+            x *= -1;
+            y *= -1;
+            z *= -1;
+            return *this;
+        }
+
+        Quaternion& operator*(float factor)
+        {
+            x *= factor;
+            y *= factor;
+            z *= factor;
+            w *= factor;
+            return *this;
+        }
+        float x, y, z, w;
+    };
+
+    struct Float3 {
+        Float3(float a, float b, float c)
+            : data { a, b, c } { }
+
+        float data[3];
+    };
+
+    void clear()
+    {
+        timestamp = 0;
+        position = WTF::nullopt;
+        orientation = WTF::nullopt;
+        angularAcceleration = WTF::nullopt;
+        angularVelocity = WTF::nullopt;
+        linearAcceleration = WTF::nullopt;
+        linearVelocity = WTF::nullopt;
+    }
+
+    Optional<Quaternion> orientation;
+    Optional<FloatPoint3D> position;
+    Optional<Float3> angularAcceleration;
+    Optional<Float3> angularVelocity;
+    Optional<Float3> linearAcceleration;
+    Optional<Float3> linearVelocity;
+    double timestamp { 0 };
+};
+
+class VRPlatformDisplay : public CanMakeWeakPtr<VRPlatformDisplay> {
 public:
     virtual VRPlatformDisplayInfo getDisplayInfo() = 0;
+    virtual VRPlatformTrackingInfo getTrackingInfo() = 0;
+    virtual void updateDisplayInfo() = 0;
     virtual ~VRPlatformDisplay() = default;
 
-    WeakPtr<VRPlatformDisplay> createWeakPtr() { return m_weakPtrFactory.createWeakPtr(*this); }
+    void setClient(VRPlatformDisplayClient*);
+
+    enum class Event {
+        Connected,
+        Disconnected,
+        Mounted,
+        Unmounted,
+    };
+
+    void notifyVRPlatformDisplayEvent(Event);
+
 private:
-    WeakPtrFactory<VRPlatformDisplay> m_weakPtrFactory;
+    VRPlatformDisplayClient* m_client { nullptr };
 };
 
 }; // namespace WebCore

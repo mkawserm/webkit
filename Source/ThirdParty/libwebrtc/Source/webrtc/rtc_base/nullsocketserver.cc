@@ -13,7 +13,7 @@
 
 namespace rtc {
 
-NullSocketServer::NullSocketServer() : event_(false, false) {}
+NullSocketServer::NullSocketServer() = default;
 NullSocketServer::~NullSocketServer() {}
 
 bool NullSocketServer::Wait(int cms, bool process_io) {
@@ -25,17 +25,7 @@ void NullSocketServer::WakeUp() {
   event_.Set();
 }
 
-rtc::Socket* NullSocketServer::CreateSocket(int /* type */) {
-  RTC_NOTREACHED();
-  return nullptr;
-}
-
 rtc::Socket* NullSocketServer::CreateSocket(int /* family */, int /* type */) {
-  RTC_NOTREACHED();
-  return nullptr;
-}
-
-rtc::AsyncSocket* NullSocketServer::CreateAsyncSocket(int /* type */) {
   RTC_NOTREACHED();
   return nullptr;
 }

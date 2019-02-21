@@ -11,10 +11,13 @@
 #ifndef MODULES_AUDIO_CODING_AUDIO_NETWORK_ADAPTOR_FRAME_LENGTH_CONTROLLER_H_
 #define MODULES_AUDIO_CODING_AUDIO_NETWORK_ADAPTOR_FRAME_LENGTH_CONTROLLER_H_
 
+#include <stddef.h>
 #include <map>
 #include <vector>
 
+#include "absl/types/optional.h"
 #include "modules/audio_coding/audio_network_adaptor/controller.h"
+#include "modules/audio_coding/audio_network_adaptor/include/audio_network_adaptor_config.h"
 #include "rtc_base/constructormagic.h"
 
 namespace webrtc {
@@ -73,11 +76,11 @@ class FrameLengthController final : public Controller {
 
   std::vector<int>::const_iterator frame_length_ms_;
 
-  rtc::Optional<int> uplink_bandwidth_bps_;
+  absl::optional<int> uplink_bandwidth_bps_;
 
-  rtc::Optional<float> uplink_packet_loss_fraction_;
+  absl::optional<float> uplink_packet_loss_fraction_;
 
-  rtc::Optional<size_t> overhead_bytes_per_packet_;
+  absl::optional<size_t> overhead_bytes_per_packet_;
 
   // True if the previous frame length decision was an increase, otherwise
   // false.

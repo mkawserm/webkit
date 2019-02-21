@@ -3,6 +3,7 @@
 <body>
 <script src="/js-test-resources/js-test.js"></script>
 <script src="/js-test-resources/ui-helper.js"></script>
+<script src="resources/util.js"></script>
 <script>
     description("Tests that user interaction is reported after history removal since that means all statistics have been reset.");
     jsTestIsAsync = true;
@@ -20,7 +21,7 @@
             },
             function() {
                 testFailed("Promise rejected.");
-                finishJSTest();
+                setEnableFeature(false, finishJSTest);
             }
         );
     }
@@ -48,16 +49,15 @@
         shouldBeTrue("testRunner.isStatisticsHasHadUserInteraction(topFrameOrigin)");
         shouldBeFalse("testRunner.isStatisticsHasHadUserInteraction(subFrameOrigin)");
 
-        finishJSTest();
+        setEnableFeature(false, finishJSTest);
     }
 
     onload = function() {
-        if (internals)
-            internals.setResourceLoadStatisticsEnabled(true);
+        setEnableFeature(true, function() {
+            shouldBe("document.location.origin", "topFrameOrigin");
 
-        shouldBe("document.location.origin", "topFrameOrigin");
-
-        firstInteraction();
+            firstInteraction();
+        });
     };
 </script>
 <div id="testElement">This is the test element</div>

@@ -22,6 +22,7 @@
 
 #include "BeforeUnloadEvent.h"
 #include "ContentSecurityPolicy.h"
+#include "EventNames.h"
 #include "Frame.h"
 #include "HTMLElement.h"
 #include "JSDOMConvertNullable.h"
@@ -30,8 +31,8 @@
 #include "JSDocument.h"
 #include "JSEvent.h"
 #include "JSEventTarget.h"
-#include "JSMainThreadExecState.h"
-#include "JSMainThreadExecStateInstrumentation.h"
+#include "JSExecState.h"
+#include "JSExecStateInstrumentation.h"
 #include "JSWorkerGlobalScope.h"
 #include "ScriptController.h"
 #include "WorkerGlobalScope.h"
@@ -134,7 +135,7 @@ void JSEventListener::handleEvent(ScriptExecutionContext& scriptExecutionContext
     JSValue handleEventFunction = jsFunction;
 
     CallData callData;
-    CallType callType = getCallData(handleEventFunction, callData);
+    CallType callType = getCallData(vm, handleEventFunction, callData);
 
     // If jsFunction is not actually a function, see if it implements the EventListener interface and use that
     if (callType == CallType::None) {
@@ -146,53 +147,66 @@ void JSEventListener::handleEvent(ScriptExecutionContext& scriptExecutionContext
             reportException(exec, exception);
             return;
         }
-        callType = getCallData(handleEventFunction, callData);
+        callType = getCallData(vm, handleEventFunction, callData);
     }
 
-    if (callType != CallType::None) {
-        Ref<JSEventListener> protectedThis(*this);
+    if (callType == CallType::None)
+        return;
 
-        MarkedArgumentBuffer args;
-        args.append(toJS(exec, globalObject, &event));
-        ASSERT(!args.hasOverflowed());
+    Ref<JSEventListener> protectedThis(*this);
 
-        Event* savedEvent = globalObject->currentEvent();
+    MarkedArgumentBuffer args;
+    args.append(toJS(exec, globalObject, &event));
+    ASSERT(!args.hasOverflowed());
+
+    Event* savedEvent = globalObject->currentEvent();
+
+    // window.event should not be set when the target is inside a shadow tree, as per the DOM specification.
+    bool isTargetInsideShadowTree = is<Node>(event.currentTarget()) && downcast<Node>(*event.currentTarget()).isInShadowTree();
+    if (!isTargetInsideShadowTree)
         globalObject->setCurrentEvent(&event);
 
-        VMEntryScope entryScope(vm, vm.entryScope ? vm.entryScope->globalObject() : globalObject);
+    VMEntryScope entryScope(vm, vm.entryScope ? vm.entryScope->globalObject() : globalObject);
 
-        InspectorInstrumentationCookie cookie = JSMainThreadExecState::instrumentFunctionCall(&scriptExecutionContext, callType, callData);
+    InspectorInstrumentationCookie cookie = JSExecState::instrumentFunctionCall(&scriptExecutionContext, callType, callData);
 
-        JSValue thisValue = handleEventFunction == jsFunction ? toJS(exec, globalObject, event.currentTarget()) : jsFunction;
-        NakedPtr<JSC::Exception> exception;
-        JSValue retval = scriptExecutionContext.isDocument()
-            ? JSMainThreadExecState::profiledCall(exec, JSC::ProfilingReason::Other, handleEventFunction, callType, callData, thisValue, args, exception)
-            : JSC::profiledCall(exec, JSC::ProfilingReason::Other, handleEventFunction, callType, callData, thisValue, args, exception);
+    JSValue thisValue = handleEventFunction == jsFunction ? toJS(exec, globalObject, event.currentTarget()) : jsFunction;
+    NakedPtr<JSC::Exception> exception;
+    JSValue retval = JSExecState::profiledCall(exec, JSC::ProfilingReason::Other, handleEventFunction, callType, callData, thisValue, args, exception);
 
-        InspectorInstrumentation::didCallFunction(cookie, &scriptExecutionContext);
+    InspectorInstrumentation::didCallFunction(cookie, &scriptExecutionContext);
 
-        globalObject->setCurrentEvent(savedEvent);
+    globalObject->setCurrentEvent(savedEvent);
 
-        if (is<WorkerGlobalScope>(scriptExecutionContext)) {
-            auto& scriptController = *downcast<WorkerGlobalScope>(scriptExecutionContext).script();
-            bool terminatorCausedException = (scope.exception() && isTerminatedExecutionException(vm, scope.exception()));
-            if (terminatorCausedException || scriptController.isTerminatingExecution())
-                scriptController.forbidExecution();
-        }
-
-        if (exception) {
-            event.target()->uncaughtExceptionInEventHandler();
-            reportException(exec, exception);
-        } else {
-            if (is<BeforeUnloadEvent>(event))
-                handleBeforeUnloadEventReturnValue(downcast<BeforeUnloadEvent>(event), convert<IDLNullable<IDLDOMString>>(*exec, retval));
-
-            if (m_isAttribute) {
-                if (retval.isFalse())
-                    event.preventDefault();
-            }
-        }
+    if (is<WorkerGlobalScope>(scriptExecutionContext)) {
+        auto& scriptController = *downcast<WorkerGlobalScope>(scriptExecutionContext).script();
+        bool terminatorCausedException = (scope.exception() && isTerminatedExecutionException(vm, scope.exception()));
+        if (terminatorCausedException || scriptController.isTerminatingExecution())
+            scriptController.forbidExecution();
     }
+
+    if (exception) {
+        event.target()->uncaughtExceptionInEventHandler();
+        reportException(exec, exception);
+        return;
+    }
+
+    if (!m_isAttribute) {
+        // This is an EventListener and there is therefore no need for any return value handling.
+        return;
+    }
+
+    // Do return value handling for event handlers (https://html.spec.whatwg.org/#the-event-handler-processing-algorithm).
+
+    if (event.type() == eventNames().beforeunloadEvent) {
+        // This is a OnBeforeUnloadEventHandler, and therefore the return value must be coerced into a String.
+        if (is<BeforeUnloadEvent>(event))
+            handleBeforeUnloadEventReturnValue(downcast<BeforeUnloadEvent>(event), convert<IDLNullable<IDLDOMString>>(*exec, retval));
+        return;
+    }
+
+    if (retval.isFalse())
+        event.preventDefault();
 }
 
 bool JSEventListener::operator==(const EventListener& listener) const

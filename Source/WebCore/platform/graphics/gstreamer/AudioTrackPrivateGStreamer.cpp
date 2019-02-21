@@ -43,13 +43,32 @@ AudioTrackPrivateGStreamer::AudioTrackPrivateGStreamer(WeakPtr<MediaPlayerPrivat
     notifyTrackOfActiveChanged();
 }
 
-#if USE(GSTREAMER_PLAYBIN3)
+#if GST_CHECK_VERSION(1, 10, 0)
 AudioTrackPrivateGStreamer::AudioTrackPrivateGStreamer(WeakPtr<MediaPlayerPrivateGStreamer> player, gint index, GRefPtr<GstStream> stream)
     : TrackPrivateBaseGStreamer(this, index, stream)
     , m_player(player)
 {
+    gint kind;
+    auto tags = adoptGRef(gst_stream_get_tags(m_stream.get()));
+
+    if (tags && gst_tag_list_get_int(tags.get(), "webkit-media-stream-kind", &kind) && kind == static_cast<int>(VideoTrackPrivate::Kind::Main)) {
+        GstStreamFlags streamFlags = gst_stream_get_stream_flags(stream.get());
+        gst_stream_set_stream_flags(stream.get(), static_cast<GstStreamFlags>(streamFlags | GST_STREAM_FLAG_SELECT));
+    }
+
     m_id = gst_stream_get_stream_id(stream.get());
+    if (gst_stream_get_stream_flags(stream.get()) & GST_STREAM_FLAG_SELECT)
+        markAsActive();
+
     notifyTrackOfActiveChanged();
+}
+
+AudioTrackPrivate::Kind AudioTrackPrivateGStreamer::kind() const
+{
+    if (m_stream.get() && gst_stream_get_stream_flags(m_stream.get()) & GST_STREAM_FLAG_SELECT)
+        return AudioTrackPrivate::Kind::Main;
+
+    return AudioTrackPrivate::kind();
 }
 #endif
 

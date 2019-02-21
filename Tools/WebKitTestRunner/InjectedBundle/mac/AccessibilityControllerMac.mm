@@ -35,8 +35,6 @@
 #import "AccessibilityNotificationHandler.h"
 #import "InjectedBundle.h"
 #import "InjectedBundlePage.h"
-#import <JavaScriptCore/JSRetainPtr.h>
-#import <JavaScriptCore/JSStringRef.h>
 #import <JavaScriptCore/JSStringRefCF.h>
 #import <WebKit/WKBundle.h>
 #import <WebKit/WKBundlePage.h>
@@ -51,7 +49,8 @@ bool AccessibilityController::addNotificationListener(JSValueRef functionCallbac
 
     if (m_globalNotificationHandler)
         return false;
-    m_globalNotificationHandler = [[AccessibilityNotificationHandler alloc] init];
+
+    m_globalNotificationHandler = adoptNS([[AccessibilityNotificationHandler alloc] init]);
     [m_globalNotificationHandler.get() setCallback:functionCallback];
     [m_globalNotificationHandler.get() startObserving];
 
@@ -96,7 +95,7 @@ static id findAccessibleObjectById(id obj, NSString *idAttribute)
 RefPtr<AccessibilityUIElement> AccessibilityController::accessibleElementById(JSStringRef idAttribute)
 {
     WKBundlePageRef page = InjectedBundle::singleton().page()->page();
-    id root = static_cast<PlatformUIElement>(WKAccessibilityRootObject(page));
+    id root = (__bridge id)WKAccessibilityRootObject(page);
 
     id result = findAccessibleObjectById(root, [NSString stringWithJSStringRef:idAttribute]);
     if (result)
@@ -107,8 +106,7 @@ RefPtr<AccessibilityUIElement> AccessibilityController::accessibleElementById(JS
 
 JSRetainPtr<JSStringRef> AccessibilityController::platformName()
 {
-    JSRetainPtr<JSStringRef> platformName(Adopt, JSStringCreateWithUTF8CString("mac"));
-    return platformName;
+    return adopt(JSStringCreateWithUTF8CString("mac"));
 }
 
 } // namespace WTR

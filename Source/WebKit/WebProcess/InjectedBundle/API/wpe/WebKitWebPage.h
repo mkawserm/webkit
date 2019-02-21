@@ -28,6 +28,7 @@
 #include <wpe/WebKitDefines.h>
 #include <wpe/WebKitFrame.h>
 #include <wpe/WebKitWebEditor.h>
+#include <wpe/webkitdom.h>
 
 G_BEGIN_DECLS
 
@@ -45,6 +46,21 @@ typedef struct _WebKitWebPagePrivate WebKitWebPagePrivate;
 /* Forward declarations */
 typedef struct _WebKitWebEditor      WebKitWebEditor;
 
+/**
+ * WebKitFormSubmissionStep:
+ * @WEBKIT_FORM_SUBMISSION_WILL_SEND_DOM_EVENT: indicates the form's
+ * DOM submit event is about to be emitted.
+ * @WEBKIT_FORM_SUBMISSION_WILL_COMPLETE: indicates the form is about
+ * to be submitted.
+ *
+ * Used to indicate a particular stage in form submission. See
+ * #WebKitWebPage::will-submit-form.
+ */
+typedef enum {
+    WEBKIT_FORM_SUBMISSION_WILL_SEND_DOM_EVENT,
+    WEBKIT_FORM_SUBMISSION_WILL_COMPLETE,
+} WebKitFormSubmissionStep;
+
 struct _WebKitWebPage {
     GObject parent;
 
@@ -57,6 +73,9 @@ struct _WebKitWebPageClass {
 
 WEBKIT_API GType
 webkit_web_page_get_type         (void);
+
+WEBKIT_API WebKitDOMDocument *
+webkit_web_page_get_dom_document (WebKitWebPage *web_page);
 
 WEBKIT_API guint64
 webkit_web_page_get_id           (WebKitWebPage *web_page);

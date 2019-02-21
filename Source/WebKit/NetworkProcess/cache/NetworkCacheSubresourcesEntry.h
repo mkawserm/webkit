@@ -23,15 +23,14 @@
  * THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef NetworkCacheSubresourcesEntry_h
-#define NetworkCacheSubresourcesEntry_h
+#pragma once
 
 #if ENABLE(NETWORK_CACHE_SPECULATIVE_REVALIDATION)
 
 #include "NetworkCacheStorage.h"
 #include <WebCore/ResourceRequest.h>
-#include <WebCore/URL.h>
 #include <wtf/HashMap.h>
+#include <wtf/URL.h>
 
 namespace WebKit {
 namespace NetworkCache {
@@ -50,10 +49,13 @@ public:
     WallTime firstSeen() const { return m_firstSeen; }
 
     bool isTransient() const { return m_isTransient; }
-    const WebCore::URL& firstPartyForCookies() const { ASSERT(!m_isTransient); return m_firstPartyForCookies; }
+    const URL& firstPartyForCookies() const { ASSERT(!m_isTransient); return m_firstPartyForCookies; }
     const WebCore::HTTPHeaderMap& requestHeaders() const { ASSERT(!m_isTransient); return m_requestHeaders; }
     WebCore::ResourceLoadPriority priority() const { ASSERT(!m_isTransient); return m_priority; }
-    
+
+    bool isSameSite() const { ASSERT(!m_isTransient); return m_isSameSite; }
+    bool isTopSite() const { return false; }
+
     void setNonTransient() { m_isTransient = false; }
 
 private:
@@ -61,7 +63,8 @@ private:
     WallTime m_lastSeen;
     WallTime m_firstSeen;
     bool m_isTransient { false };
-    WebCore::URL m_firstPartyForCookies;
+    bool m_isSameSite { false };
+    URL m_firstPartyForCookies;
     WebCore::HTTPHeaderMap m_requestHeaders;
     WebCore::ResourceLoadPriority m_priority;
 };
@@ -103,4 +106,3 @@ private:
 } // namespace NetworkCache
 
 #endif // ENABLE(NETWORK_CACHE_SPECULATIVE_REVALIDATION)
-#endif // NetworkCacheSubresourcesEntry_h

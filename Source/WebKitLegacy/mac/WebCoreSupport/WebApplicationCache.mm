@@ -32,7 +32,7 @@
 #import <WebCore/SecurityOrigin.h>
 #import <wtf/RetainPtr.h>
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
 #import <WebCore/RuntimeApplicationChecks.h>
 #import <WebCore/SQLiteDatabaseTracker.h>
 #import <WebCore/WebSQLiteDatabaseTrackerClient.h>
@@ -42,7 +42,7 @@ using namespace WebCore;
 
 @implementation WebApplicationCache
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
 static NSString *overrideBundleIdentifier;
 
 // FIXME: This will be removed when WebKitInitializeApplicationCachePathIfNecessary()
@@ -65,7 +65,7 @@ static NSString *overrideBundleIdentifier;
 
 static NSString *applicationCacheBundleIdentifier()
 {
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
     if (overrideBundleIdentifier)
         return overrideBundleIdentifier;
     if (WebCore::IOSApplication::isMobileSafari() || WebCore::IOSApplication::isWebApp())
@@ -123,14 +123,12 @@ static NSString *applicationCachePath()
 
 + (NSArray *)originsWithCache
 {
-    HashSet<RefPtr<SecurityOrigin>> coreOrigins;
-    webApplicationCacheStorage().getOriginsWithCache(coreOrigins);
+    auto coreOrigins = webApplicationCacheStorage().originsWithCache();
     
     NSMutableArray *webOrigins = [[[NSMutableArray alloc] initWithCapacity:coreOrigins.size()] autorelease];
     
-    HashSet<RefPtr<SecurityOrigin>>::const_iterator end = coreOrigins.end();
-    for (HashSet<RefPtr<SecurityOrigin>>::const_iterator it = coreOrigins.begin(); it != end; ++it) {
-        RetainPtr<WebSecurityOrigin> webOrigin = adoptNS([[WebSecurityOrigin alloc] _initWithWebCoreSecurityOrigin:(*it).get()]);
+    for (auto& coreOrigin : coreOrigins) {
+        auto webOrigin = adoptNS([[WebSecurityOrigin alloc] _initWithWebCoreSecurityOrigin:coreOrigin.ptr()]);
         [webOrigins addObject:webOrigin.get()];
     }
     

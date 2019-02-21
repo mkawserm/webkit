@@ -46,10 +46,13 @@
 #include "TextControlInnerElements.h"
 #include "TextIterator.h"
 #include "TextNodeTraversal.h"
+#include <wtf/IsoMallocInlines.h>
 #include <wtf/Ref.h>
 #include <wtf/StdLibExtras.h>
 
 namespace WebCore {
+
+WTF_MAKE_ISO_ALLOCATED_IMPL(HTMLTextAreaElement);
 
 using namespace HTMLNames;
 
@@ -548,9 +551,9 @@ RenderStyle HTMLTextAreaElement::createInnerTextStyle(const RenderStyle& style)
     auto textBlockStyle = RenderStyle::create();
     textBlockStyle.inheritFrom(style);
     adjustInnerTextStyle(style, textBlockStyle);
-    textBlockStyle.setDisplay(BLOCK);
+    textBlockStyle.setDisplay(DisplayType::Block);
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
     // We're adding three extra pixels of padding to line textareas up with text fields.  
     textBlockStyle.setPaddingLeft(Length(3, Fixed));
     textBlockStyle.setPaddingRight(Length(3, Fixed));

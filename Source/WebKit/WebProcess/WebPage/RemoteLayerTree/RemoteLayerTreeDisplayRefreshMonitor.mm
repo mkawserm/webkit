@@ -28,13 +28,12 @@
 
 #if USE(REQUEST_ANIMATION_FRAME_DISPLAY_MONITOR)
 
-using namespace WebCore;
-
 namespace WebKit {
+using namespace WebCore;
 
 RemoteLayerTreeDisplayRefreshMonitor::RemoteLayerTreeDisplayRefreshMonitor(PlatformDisplayID displayID, RemoteLayerTreeDrawingArea& drawingArea)
     : DisplayRefreshMonitor(displayID)
-    , m_drawingArea(drawingArea.createWeakPtr())
+    , m_drawingArea(makeWeakPtr(drawingArea))
 {
 }
 

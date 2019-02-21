@@ -27,13 +27,14 @@
 
 #import "PlatformUtilities.h"
 #import "Test.h"
-#import <WebKit/WebKit.h>
-
+#import "TestNavigationDelegate.h"
+#import <WebKit/WKPreferencesRef.h>
 #import <WebKit/WKProcessPoolPrivate.h>
 #import <WebKit/WKUserContentControllerPrivate.h>
 #import <WebKit/WKWebViewConfigurationPrivate.h>
 #import <WebKit/WKWebViewPrivate.h>
 #import <WebKit/WKWebsiteDataStorePrivate.h>
+#import <WebKit/WebKit.h>
 #import <WebKit/_WKProcessPoolConfiguration.h>
 #import <WebKit/_WKUserStyleSheet.h>
 #import <WebKit/_WKWebsiteDataStoreConfiguration.h>
@@ -45,7 +46,7 @@
 static bool receivedScriptMessage;
 static Deque<RetainPtr<WKScriptMessage>> scriptMessages;
 
-@interface WebsiteDataStoreCustomPathsMessageHandler : NSObject <WKScriptMessageHandler>
+@interface WebsiteDataStoreCustomPathsMessageHandler : NSObject <WKScriptMessageHandler, WKNavigationDelegate>
 @end
 
 @implementation WebsiteDataStoreCustomPathsMessageHandler
@@ -54,6 +55,11 @@ static Deque<RetainPtr<WKScriptMessage>> scriptMessages;
 {
     receivedScriptMessage = true;
     scriptMessages.append(message);
+}
+
+- (void)webViewWebContentProcessDidTerminate:(WKWebView *)webView
+{
+    // Overwrite the default policy which launches a new web process and reload page on crash.
 }
 
 @end
@@ -68,8 +74,14 @@ static WKScriptMessage *getNextMessage()
     return [[scriptMessages.takeFirst() retain] autorelease];
 }
 
-TEST(WebKit, WebsiteDataStoreCustomPaths)
+enum class ShouldEnableProcessPrewarming { No, Yes };
+
+static void runWebsiteDataStoreCustomPaths(ShouldEnableProcessPrewarming shouldEnableProcessPrewarming)
 {
+    auto processPoolConfiguration = adoptNS([[_WKProcessPoolConfiguration alloc] init]);
+    processPoolConfiguration.get().prewarmsProcessesAutomatically = shouldEnableProcessPrewarming == ShouldEnableProcessPrewarming::Yes ? YES : NO;
+    auto processPool = adoptNS([[WKProcessPool alloc] _initWithConfiguration:processPoolConfiguration.get()]);
+
     RetainPtr<WebsiteDataStoreCustomPathsMessageHandler> handler = adoptNS([[WebsiteDataStoreCustomPathsMessageHandler alloc] init]);
     RetainPtr<WKWebViewConfiguration> configuration = adoptNS([[WKWebViewConfiguration alloc] init]);
     [[configuration userContentController] addScriptMessageHandler:handler.get() name:@"testHandler"];
@@ -113,8 +125,13 @@ TEST(WebKit, WebsiteDataStoreCustomPaths)
     websiteDataStoreConfiguration.get()._resourceLoadStatisticsDirectory = resourceLoadStatisticsPath;
 
     configuration.get().websiteDataStore = [[[WKWebsiteDataStore alloc] _initWithConfiguration:websiteDataStoreConfiguration.get()] autorelease];
+    configuration.get().processPool = processPool.get();
 
     RetainPtr<WKWebView> webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:configuration.get()]);
+    [webView setNavigationDelegate:handler.get()];
+
+    auto preferences = (__bridge WKPreferencesRef)[[webView configuration] preferences];
+    WKPreferencesSetWebSQLDisabled(preferences, false);
 
     NSURLRequest *request = [NSURLRequest requestWithURL:[[NSBundle mainBundle] URLForResource:@"WebsiteDataStoreCustomPaths" withExtension:@"html" subdirectory:@"TestWebKitAPI.resources"]];
     [webView loadRequest:request];
@@ -130,7 +147,6 @@ TEST(WebKit, WebsiteDataStoreCustomPaths)
     [[[webView configuration] processPool] _syncNetworkProcessCookies];
 
     // Forcibly shut down everything of WebKit that we can.
-    [[[webView configuration] processPool] _terminateStorageProcess];
     auto pid = [webView _webProcessIdentifier];
     if (pid)
         kill(pid, SIGKILL);
@@ -142,7 +158,13 @@ TEST(WebKit, WebsiteDataStoreCustomPaths)
     EXPECT_TRUE([[NSFileManager defaultManager] fileExistsAtPath:sqlPath.path]);
     EXPECT_TRUE([[NSFileManager defaultManager] fileExistsAtPath:localStoragePath.path]);
 
-#if PLATFORM(IOS) || (__MAC_OS_X_VERSION_MIN_REQUIRED < 101300)
+#if PLATFORM(IOS_FAMILY) || (__MAC_OS_X_VERSION_MIN_REQUIRED < 101300)
+    int retryCount = 30;
+    while (retryCount--) {
+        if ([[NSFileManager defaultManager] fileExistsAtPath:cookieStorageFile.path])
+            break;
+        TestWebKitAPI::Util::sleep(0.1);
+    }
     EXPECT_TRUE([[NSFileManager defaultManager] fileExistsAtPath:cookieStorageFile.path]);
 
     // Note: The format of the cookie file on disk is proprietary and opaque, so this is fragile to future changes.
@@ -166,16 +188,46 @@ TEST(WebKit, WebsiteDataStoreCustomPaths)
     RetainPtr<NSURL> fileIDBPath = [idbPath URLByAppendingPathComponent:@"file__0"];
     EXPECT_TRUE([[NSFileManager defaultManager] fileExistsAtPath:fileIDBPath.get().path]);
 
-    // Data stores can't delete anything unless a WKProcessPool exists, so make sure the shared data store exists.
-    auto *processPool = [WKProcessPool _sharedProcessPool];
-    [processPool _terminateStorageProcess];
     RetainPtr<WKWebsiteDataStore> dataStore = [[WKWebsiteDataStore alloc] _initWithConfiguration:websiteDataStoreConfiguration.get()];
     RetainPtr<NSSet> types = adoptNS([[NSSet alloc] initWithObjects:WKWebsiteDataTypeIndexedDBDatabases, nil]);
 
+    // Subframe of different origins may also create IndexedDB files.
+    RetainPtr<NSURL> url1 = [[NSBundle mainBundle] URLForResource:@"IndexedDB" withExtension:@"sqlite3" subdirectory:@"TestWebKitAPI.resources"];
+    RetainPtr<NSURL> url2 = [[NSBundle mainBundle] URLForResource:@"IndexedDB" withExtension:@"sqlite3-shm" subdirectory:@"TestWebKitAPI.resources"];
+    RetainPtr<NSURL> url3 = [[NSBundle mainBundle] URLForResource:@"IndexedDB" withExtension:@"sqlite3-wal" subdirectory:@"TestWebKitAPI.resources"];
+
+    RetainPtr<NSURL> frameIDBPath = [[fileIDBPath URLByAppendingPathComponent:@"https_apple.com_0"] URLByAppendingPathComponent:@"WebsiteDataStoreCustomPaths"];
+    [[NSFileManager defaultManager] createDirectoryAtURL:frameIDBPath.get() withIntermediateDirectories:YES attributes:nil error:nil];
+
+    [[NSFileManager defaultManager] copyItemAtURL:url1.get() toURL:[frameIDBPath.get() URLByAppendingPathComponent:@"IndexedDB.sqlite3"] error:nil];
+    [[NSFileManager defaultManager] copyItemAtURL:url2.get() toURL:[frameIDBPath.get() URLByAppendingPathComponent:@"IndexedDB.sqlite3-shm"] error:nil];
+    [[NSFileManager defaultManager] copyItemAtURL:url3.get() toURL:[frameIDBPath.get() URLByAppendingPathComponent:@"IndexedDB.sqlite3-wal"] error:nil];
+
+    RetainPtr<NSURL> frameIDBPath2 = [[fileIDBPath URLByAppendingPathComponent:@"https_webkit.org_0"] URLByAppendingPathComponent:@"WebsiteDataStoreCustomPaths"];
+    [[NSFileManager defaultManager] createDirectoryAtURL:frameIDBPath2.get() withIntermediateDirectories:YES attributes:nil error:nil];
+
+    [[NSFileManager defaultManager] copyItemAtURL:url1.get() toURL:[frameIDBPath2.get() URLByAppendingPathComponent:@"IndexedDB.sqlite3"] error:nil];
+    [[NSFileManager defaultManager] copyItemAtURL:url2.get() toURL:[frameIDBPath2.get() URLByAppendingPathComponent:@"IndexedDB.sqlite3-shm"] error:nil];
+    [[NSFileManager defaultManager] copyItemAtURL:url3.get() toURL:[frameIDBPath2.get() URLByAppendingPathComponent:@"IndexedDB.sqlite3-wal"] error:nil];
+
+    [dataStore fetchDataRecordsOfTypes:types.get() completionHandler:^(NSArray<WKWebsiteDataRecord *> * records) {
+        EXPECT_EQ([records count], (unsigned long)3);
+        for (id record in records) {
+            if ([[record displayName] isEqual: @"apple.com"]) {
+                [dataStore removeDataOfTypes:types.get() forDataRecords:[NSArray arrayWithObject:record] completionHandler:^() {
+                    receivedScriptMessage = true;
+                    EXPECT_FALSE([[NSFileManager defaultManager] fileExistsAtPath:frameIDBPath.get().path]);
+                }];
+            }
+        }
+    }];
     receivedScriptMessage = false;
+    TestWebKitAPI::Util::run(&receivedScriptMessage);
+
     [dataStore removeDataOfTypes:types.get() modifiedSince:[NSDate distantPast] completionHandler:[]() {
         receivedScriptMessage = true;
     }];
+    receivedScriptMessage = false;
     TestWebKitAPI::Util::run(&receivedScriptMessage);
 
     EXPECT_FALSE([[NSFileManager defaultManager] fileExistsAtPath:fileIDBPath.get().path]);
@@ -219,6 +271,124 @@ TEST(WebKit, WebsiteDataStoreCustomPaths)
     EXPECT_FALSE([WKWebsiteDataStore _defaultDataStoreExists]);
 }
 
+TEST(WebKit, WebsiteDataStoreCustomPathsWithoutPrewarming)
+{
+    runWebsiteDataStoreCustomPaths(ShouldEnableProcessPrewarming::No);
+}
+
+TEST(WebKit, WebsiteDataStoreCustomPathsWithPrewarming)
+{
+    runWebsiteDataStoreCustomPaths(ShouldEnableProcessPrewarming::Yes);
+}
+
+TEST(WebKit, CustomDataStorePathsVersusCompletionHandlers)
+{
+    // Copy the baked database files to the database directory
+    NSURL *url1 = [[NSBundle mainBundle] URLForResource:@"SimpleServiceWorkerRegistrations-4" withExtension:@"sqlite3" subdirectory:@"TestWebKitAPI.resources"];
+
+    NSURL *swPath = [NSURL fileURLWithPath:[@"~/Library/Caches/TestWebKitAPI/WebKit/ServiceWorkers/" stringByExpandingTildeInPath]];
+    [[NSFileManager defaultManager] removeItemAtURL:swPath error:nil];
+    EXPECT_FALSE([[NSFileManager defaultManager] fileExistsAtPath:swPath.path]);
+
+    [[NSFileManager defaultManager] createDirectoryAtURL:swPath withIntermediateDirectories:YES attributes:nil error:nil];
+    [[NSFileManager defaultManager] copyItemAtURL:url1 toURL:[swPath URLByAppendingPathComponent:@"ServiceWorkerRegistrations-4.sqlite3"] error:nil];
+
+    auto websiteDataStoreConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] init]);
+    websiteDataStoreConfiguration.get()._serviceWorkerRegistrationDirectory = swPath;
+    auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:websiteDataStoreConfiguration.get()]);
+
+    // Fetch SW records
+    auto websiteDataTypes = adoptNS([[NSSet alloc] initWithArray:@[WKWebsiteDataTypeServiceWorkerRegistrations]]);
+    static bool readyToContinue;
+    [dataStore fetchDataRecordsOfTypes:websiteDataTypes.get() completionHandler:^(NSArray<WKWebsiteDataRecord *> *dataRecords) {
+        EXPECT_EQ(1U, dataRecords.count);
+        readyToContinue = true;
+    }];
+    TestWebKitAPI::Util::run(&readyToContinue);
+    readyToContinue = false;
+
+    // Fetch records again, this time releasing our reference to the data store while the request is in flight.
+    [dataStore fetchDataRecordsOfTypes:websiteDataTypes.get() completionHandler:^(NSArray<WKWebsiteDataRecord *> *dataRecords) {
+        EXPECT_EQ(1U, dataRecords.count);
+        readyToContinue = true;
+    }];
+    dataStore = nil;
+    TestWebKitAPI::Util::run(&readyToContinue);
+    readyToContinue = false;
+
+    // Delete all SW records, releasing our reference to the data store while the request is in flight.
+    dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:websiteDataStoreConfiguration.get()]);
+    [dataStore removeDataOfTypes:websiteDataTypes.get() modifiedSince:[NSDate distantPast] completionHandler:^() {
+        readyToContinue = true;
+    }];
+    dataStore = nil;
+    TestWebKitAPI::Util::run(&readyToContinue);
+    readyToContinue = false;
+
+    // The records should have been deleted, and the callback should have been made.
+    // Now refetch the records to verify they are gone.
+    dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:websiteDataStoreConfiguration.get()]);
+    [dataStore fetchDataRecordsOfTypes:websiteDataTypes.get() completionHandler:^(NSArray<WKWebsiteDataRecord *> *dataRecords) {
+        EXPECT_EQ(0U, dataRecords.count);
+        readyToContinue = true;
+    }];
+    TestWebKitAPI::Util::run(&readyToContinue);
+}
+
+TEST(WebKit, CustomDataStoreDestroyWhileFetchingNetworkProcessData)
+{
+    NSURL *cookieStorageFile = [NSURL fileURLWithPath:[@"~/Library/WebKit/TestWebKitAPI/CustomWebsiteData/CookieStorage/Cookie.File" stringByExpandingTildeInPath] isDirectory:NO];
+    [[NSFileManager defaultManager] removeItemAtURL:cookieStorageFile error:nil];
+
+    auto websiteDataTypes = adoptNS([[NSSet alloc] initWithArray:@[WKWebsiteDataTypeCookies]]);
+    static bool readyToContinue;
+
+    auto websiteDataStoreConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] init]);
+    websiteDataStoreConfiguration.get()._cookieStorageFile = cookieStorageFile;
+
+    @autoreleasepool {
+        auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:websiteDataStoreConfiguration.get()]);
+
+        // Fetch records
+        [dataStore fetchDataRecordsOfTypes:websiteDataTypes.get() completionHandler:^(NSArray<WKWebsiteDataRecord *> *dataRecords) {
+            EXPECT_EQ((int)dataRecords.count, 0);
+            readyToContinue = true;
+        }];
+        TestWebKitAPI::Util::run(&readyToContinue);
+        readyToContinue = false;
+
+        // Fetch records again, this time releasing our reference to the data store while the request is in flight.
+        [dataStore fetchDataRecordsOfTypes:websiteDataTypes.get() completionHandler:^(NSArray<WKWebsiteDataRecord *> *dataRecords) {
+            EXPECT_EQ((int)dataRecords.count, 0);
+            readyToContinue = true;
+        }];
+        dataStore = nil;
+    }
+    TestWebKitAPI::Util::run(&readyToContinue);
+    readyToContinue = false;
+
+    @autoreleasepool {
+        auto dataStore = adoptNS([[WKWebsiteDataStore alloc] _initWithConfiguration:websiteDataStoreConfiguration.get()]);
+        [dataStore fetchDataRecordsOfTypes:websiteDataTypes.get() completionHandler:^(NSArray<WKWebsiteDataRecord *> *dataRecords) {
+            EXPECT_EQ((int)dataRecords.count, 0);
+            readyToContinue = true;
+        }];
+
+        // Terminate the network process while a query is pending.
+        auto* allProcessPools = [WKProcessPool _allProcessPoolsForTesting];
+        ASSERT_EQ(1U, [allProcessPools count]);
+        auto* processPool = allProcessPools[0];
+        while (![processPool _networkProcessIdentifier])
+            TestWebKitAPI::Util::sleep(0.01);
+        kill([processPool _networkProcessIdentifier], SIGKILL);
+        allProcessPools = nil;
+        dataStore = nil;
+    }
+
+    TestWebKitAPI::Util::run(&readyToContinue);
+    readyToContinue = false;
+}
+
 TEST(WebKit, WebsiteDataStoreEphemeral)
 {
     RetainPtr<WebsiteDataStoreCustomPathsMessageHandler> handler = adoptNS([[WebsiteDataStoreCustomPathsMessageHandler alloc] init]);
@@ -248,7 +418,6 @@ TEST(WebKit, WebsiteDataStoreEphemeral)
     [[[webView configuration] processPool] _syncNetworkProcessCookies];
 
     // Forcibly shut down everything of WebKit that we can.
-    [[[webView configuration] processPool] _terminateStorageProcess];
     auto pid = [webView _webProcessIdentifier];
     if (pid)
         kill(pid, SIGKILL);
@@ -259,6 +428,28 @@ TEST(WebKit, WebsiteDataStoreEphemeral)
 
     EXPECT_TRUE([[NSFileManager defaultManager] fileExistsAtPath:defaultResourceLoadStatisticsPath.path]);
     EXPECT_FALSE([[NSFileManager defaultManager] fileExistsAtPath:defaultResourceLoadStatisticsFilePath.path]);
+}
+
+TEST(WebKit, DoLoadWithNonDefaultDataStoreAfterTerminatingNetworkProcess)
+{
+    auto websiteDataStoreConfiguration = adoptNS([[_WKWebsiteDataStoreConfiguration alloc] init]);
+
+    auto webViewConfiguration = adoptNS([[WKWebViewConfiguration alloc] init]);
+    webViewConfiguration.get().websiteDataStore = [[[WKWebsiteDataStore alloc] _initWithConfiguration:websiteDataStoreConfiguration.get()] autorelease];
+
+    auto webView = adoptNS([[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600) configuration:webViewConfiguration.get()]);
+
+    NSURLRequest *request = [NSURLRequest requestWithURL:[[NSBundle mainBundle] URLForResource:@"simple" withExtension:@"html" subdirectory:@"TestWebKitAPI.resources"]];
+    [webView loadRequest:request];
+    [webView _test_waitForDidFinishNavigation];
+
+    TestWebKitAPI::Util::spinRunLoop(1);
+
+    [webViewConfiguration.get().processPool _terminateNetworkProcess];
+
+    request = [NSURLRequest requestWithURL:[[NSBundle mainBundle] URLForResource:@"simple2" withExtension:@"html" subdirectory:@"TestWebKitAPI.resources"]];
+    [webView loadRequest:request];
+    [webView _test_waitForDidFinishNavigation];
 }
 
 #endif

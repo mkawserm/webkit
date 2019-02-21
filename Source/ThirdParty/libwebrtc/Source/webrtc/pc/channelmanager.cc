@@ -13,11 +13,11 @@
 #include <algorithm>
 #include <utility>
 
+#include "absl/memory/memory.h"
+#include "absl/strings/match.h"
 #include "media/base/rtpdataengine.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/logging.h"
-#include "rtc_base/ptr_util.h"
-#include "rtc_base/stringutils.h"
 #include "rtc_base/trace_event.h"
 
 namespace cricket {
@@ -66,7 +66,7 @@ void ChannelManager::GetSupportedAudioSendCodecs(
   if (!media_engine_) {
     return;
   }
-  *codecs = media_engine_->audio_send_codecs();
+  *codecs = media_engine_->voice().send_codecs();
 }
 
 void ChannelManager::GetSupportedAudioReceiveCodecs(
@@ -74,7 +74,7 @@ void ChannelManager::GetSupportedAudioReceiveCodecs(
   if (!media_engine_) {
     return;
   }
-  *codecs = media_engine_->audio_recv_codecs();
+  *codecs = media_engine_->voice().recv_codecs();
 }
 
 void ChannelManager::GetSupportedAudioRtpHeaderExtensions(
@@ -82,7 +82,7 @@ void ChannelManager::GetSupportedAudioRtpHeaderExtensions(
   if (!media_engine_) {
     return;
   }
-  *ext = media_engine_->GetAudioCapabilities().header_extensions;
+  *ext = media_engine_->voice().GetCapabilities().header_extensions;
 }
 
 void ChannelManager::GetSupportedVideoCodecs(
@@ -92,10 +92,10 @@ void ChannelManager::GetSupportedVideoCodecs(
   }
   codecs->clear();
 
-  std::vector<VideoCodec> video_codecs = media_engine_->video_codecs();
+  std::vector<VideoCodec> video_codecs = media_engine_->video().codecs();
   for (const auto& video_codec : video_codecs) {
     if (!enable_rtx_ &&
-        _stricmp(kRtxCodecName, video_codec.name.c_str()) == 0) {
+        absl::EqualsIgnoreCase(kRtxCodecName, video_codec.name)) {
       continue;
     }
     codecs->push_back(video_codec);
@@ -107,7 +107,7 @@ void ChannelManager::GetSupportedVideoRtpHeaderExtensions(
   if (!media_engine_) {
     return;
   }
-  *ext = media_engine_->GetVideoCapabilities().header_extensions;
+  *ext = media_engine_->video().GetCapabilities().header_extensions;
 }
 
 void ChannelManager::GetSupportedDataCodecs(
@@ -155,46 +155,21 @@ void ChannelManager::Terminate() {
 VoiceChannel* ChannelManager::CreateVoiceChannel(
     webrtc::Call* call,
     const cricket::MediaConfig& media_config,
-    DtlsTransportInternal* rtp_transport,
-    DtlsTransportInternal* rtcp_transport,
+    webrtc::RtpTransportInternal* rtp_transport,
+    webrtc::MediaTransportInterface* media_transport,
     rtc::Thread* signaling_thread,
     const std::string& content_name,
     bool srtp_required,
+    const webrtc::CryptoOptions& crypto_options,
     const AudioOptions& options) {
-  return worker_thread_->Invoke<VoiceChannel*>(RTC_FROM_HERE, [&] {
-    return CreateVoiceChannel_w(
-        call, media_config, rtp_transport, rtcp_transport, rtp_transport,
-        rtcp_transport, signaling_thread, content_name, srtp_required, options);
-  });
-}
+  if (!worker_thread_->IsCurrent()) {
+    return worker_thread_->Invoke<VoiceChannel*>(RTC_FROM_HERE, [&] {
+      return CreateVoiceChannel(call, media_config, rtp_transport,
+                                media_transport, signaling_thread, content_name,
+                                srtp_required, crypto_options, options);
+    });
+  }
 
-VoiceChannel* ChannelManager::CreateVoiceChannel(
-    webrtc::Call* call,
-    const cricket::MediaConfig& media_config,
-    rtc::PacketTransportInternal* rtp_transport,
-    rtc::PacketTransportInternal* rtcp_transport,
-    rtc::Thread* signaling_thread,
-    const std::string& content_name,
-    bool srtp_required,
-    const AudioOptions& options) {
-  return worker_thread_->Invoke<VoiceChannel*>(RTC_FROM_HERE, [&] {
-    return CreateVoiceChannel_w(call, media_config, nullptr, nullptr,
-                                rtp_transport, rtcp_transport, signaling_thread,
-                                content_name, srtp_required, options);
-  });
-}
-
-VoiceChannel* ChannelManager::CreateVoiceChannel_w(
-    webrtc::Call* call,
-    const cricket::MediaConfig& media_config,
-    DtlsTransportInternal* rtp_dtls_transport,
-    DtlsTransportInternal* rtcp_dtls_transport,
-    rtc::PacketTransportInternal* rtp_packet_transport,
-    rtc::PacketTransportInternal* rtcp_packet_transport,
-    rtc::Thread* signaling_thread,
-    const std::string& content_name,
-    bool srtp_required,
-    const AudioOptions& options) {
   RTC_DCHECK_RUN_ON(worker_thread_);
   RTC_DCHECK(initialized_);
   RTC_DCHECK(call);
@@ -202,18 +177,18 @@ VoiceChannel* ChannelManager::CreateVoiceChannel_w(
     return nullptr;
   }
 
-  VoiceMediaChannel* media_channel = media_engine_->CreateChannel(
-      call, media_config, options);
+  VoiceMediaChannel* media_channel = media_engine_->voice().CreateMediaChannel(
+      call, media_config, options, crypto_options);
   if (!media_channel) {
     return nullptr;
   }
 
-  auto voice_channel = rtc::MakeUnique<VoiceChannel>(
+  auto voice_channel = absl::make_unique<VoiceChannel>(
       worker_thread_, network_thread_, signaling_thread, media_engine_.get(),
-      rtc::WrapUnique(media_channel), content_name,
-      rtcp_packet_transport == nullptr, srtp_required);
-  voice_channel->Init_w(rtp_dtls_transport, rtcp_dtls_transport,
-                        rtp_packet_transport, rtcp_packet_transport);
+      absl::WrapUnique(media_channel), content_name, srtp_required,
+      crypto_options);
+
+  voice_channel->Init_w(rtp_transport, media_transport);
 
   VoiceChannel* voice_channel_ptr = voice_channel.get();
   voice_channels_.push_back(std::move(voice_channel));
@@ -248,63 +223,40 @@ void ChannelManager::DestroyVoiceChannel(VoiceChannel* voice_channel) {
 VideoChannel* ChannelManager::CreateVideoChannel(
     webrtc::Call* call,
     const cricket::MediaConfig& media_config,
-    DtlsTransportInternal* rtp_transport,
-    DtlsTransportInternal* rtcp_transport,
+    webrtc::RtpTransportInternal* rtp_transport,
     rtc::Thread* signaling_thread,
     const std::string& content_name,
     bool srtp_required,
+    const webrtc::CryptoOptions& crypto_options,
     const VideoOptions& options) {
-  return worker_thread_->Invoke<VideoChannel*>(RTC_FROM_HERE, [&] {
-    return CreateVideoChannel_w(
-        call, media_config, rtp_transport, rtcp_transport, rtp_transport,
-        rtcp_transport, signaling_thread, content_name, srtp_required, options);
-  });
-}
+  if (!worker_thread_->IsCurrent()) {
+    return worker_thread_->Invoke<VideoChannel*>(RTC_FROM_HERE, [&] {
+      return CreateVideoChannel(call, media_config, rtp_transport,
+                                signaling_thread, content_name, srtp_required,
+                                crypto_options, options);
+    });
+  }
 
-VideoChannel* ChannelManager::CreateVideoChannel(
-    webrtc::Call* call,
-    const cricket::MediaConfig& media_config,
-    rtc::PacketTransportInternal* rtp_transport,
-    rtc::PacketTransportInternal* rtcp_transport,
-    rtc::Thread* signaling_thread,
-    const std::string& content_name,
-    bool srtp_required,
-    const VideoOptions& options) {
-  return worker_thread_->Invoke<VideoChannel*>(RTC_FROM_HERE, [&] {
-    return CreateVideoChannel_w(call, media_config, nullptr, nullptr,
-                                rtp_transport, rtcp_transport, signaling_thread,
-                                content_name, srtp_required, options);
-  });
-}
-
-VideoChannel* ChannelManager::CreateVideoChannel_w(
-    webrtc::Call* call,
-    const cricket::MediaConfig& media_config,
-    DtlsTransportInternal* rtp_dtls_transport,
-    DtlsTransportInternal* rtcp_dtls_transport,
-    rtc::PacketTransportInternal* rtp_packet_transport,
-    rtc::PacketTransportInternal* rtcp_packet_transport,
-    rtc::Thread* signaling_thread,
-    const std::string& content_name,
-    bool srtp_required,
-    const VideoOptions& options) {
   RTC_DCHECK_RUN_ON(worker_thread_);
   RTC_DCHECK(initialized_);
   RTC_DCHECK(call);
-  RTC_DCHECK(media_engine_);
+  if (!media_engine_) {
+    return nullptr;
+  }
 
-  VideoMediaChannel* media_channel = media_engine_->CreateVideoChannel(
-      call, media_config, options);
+  VideoMediaChannel* media_channel = media_engine_->video().CreateMediaChannel(
+      call, media_config, options, crypto_options);
   if (!media_channel) {
     return nullptr;
   }
 
-  auto video_channel = rtc::MakeUnique<VideoChannel>(
+  auto video_channel = absl::make_unique<VideoChannel>(
       worker_thread_, network_thread_, signaling_thread,
-      rtc::WrapUnique(media_channel), content_name,
-      rtcp_packet_transport == nullptr, srtp_required);
-  video_channel->Init_w(rtp_dtls_transport, rtcp_dtls_transport,
-                        rtp_packet_transport, rtcp_packet_transport);
+      absl::WrapUnique(media_channel), content_name, srtp_required,
+      crypto_options);
+
+  // TODO(sukhanov): Add media_transport support for video channel.
+  video_channel->Init_w(rtp_transport, /*media_transport=*/nullptr);
 
   VideoChannel* video_channel_ptr = video_channel.get();
   video_channels_.push_back(std::move(video_channel));
@@ -338,16 +290,15 @@ void ChannelManager::DestroyVideoChannel(VideoChannel* video_channel) {
 
 RtpDataChannel* ChannelManager::CreateRtpDataChannel(
     const cricket::MediaConfig& media_config,
-    DtlsTransportInternal* rtp_transport,
-    DtlsTransportInternal* rtcp_transport,
+    webrtc::RtpTransportInternal* rtp_transport,
     rtc::Thread* signaling_thread,
     const std::string& content_name,
-    bool srtp_required) {
+    bool srtp_required,
+    const webrtc::CryptoOptions& crypto_options) {
   if (!worker_thread_->IsCurrent()) {
     return worker_thread_->Invoke<RtpDataChannel*>(RTC_FROM_HERE, [&] {
-      return CreateRtpDataChannel(media_config, rtp_transport, rtcp_transport,
-                                  signaling_thread, content_name,
-                                  srtp_required);
+      return CreateRtpDataChannel(media_config, rtp_transport, signaling_thread,
+                                  content_name, srtp_required, crypto_options);
     });
   }
 
@@ -359,12 +310,11 @@ RtpDataChannel* ChannelManager::CreateRtpDataChannel(
     return nullptr;
   }
 
-  auto data_channel = rtc::MakeUnique<RtpDataChannel>(
+  auto data_channel = absl::make_unique<RtpDataChannel>(
       worker_thread_, network_thread_, signaling_thread,
-      rtc::WrapUnique(media_channel), content_name, rtcp_transport == nullptr,
-      srtp_required);
-  data_channel->Init_w(rtp_transport, rtcp_transport, rtp_transport,
-                       rtcp_transport);
+      absl::WrapUnique(media_channel), content_name, srtp_required,
+      crypto_options);
+  data_channel->Init_w(rtp_transport);
 
   RtpDataChannel* data_channel_ptr = data_channel.get();
   data_channels_.push_back(std::move(data_channel));
@@ -399,13 +349,13 @@ void ChannelManager::DestroyRtpDataChannel(RtpDataChannel* data_channel) {
 bool ChannelManager::StartAecDump(rtc::PlatformFile file,
                                   int64_t max_size_bytes) {
   return worker_thread_->Invoke<bool>(RTC_FROM_HERE, [&] {
-    return media_engine_->StartAecDump(file, max_size_bytes);
+    return media_engine_->voice().StartAecDump(file, max_size_bytes);
   });
 }
 
 void ChannelManager::StopAecDump() {
   worker_thread_->Invoke<void>(RTC_FROM_HERE,
-                               [&] { media_engine_->StopAecDump(); });
+                               [&] { media_engine_->voice().StopAecDump(); });
 }
 
 }  // namespace cricket

@@ -75,8 +75,9 @@ public:
         LayerTypeShapeLayer,
         LayerTypeLightSystemBackdropLayer,
         LayerTypeDarkSystemBackdropLayer,
-        LayerTypeScrollingLayer,
-        LayerTypeCustom
+        LayerTypeScrollContainerLayer,
+        LayerTypeEditableImageLayer,
+        LayerTypeCustom,
     };
     enum FilterType { Linear, Nearest, Trilinear };
 
@@ -180,6 +181,7 @@ public:
     virtual bool supportsSubpixelAntialiasedText() const = 0;
     virtual void setSupportsSubpixelAntialiasedText(bool) = 0;
 
+    virtual bool hasContents() const = 0;
     virtual CFTypeRef contents() const = 0;
     virtual void setContents(CFTypeRef) = 0;
 
@@ -235,6 +237,8 @@ public:
     virtual GraphicsLayer::CustomAppearance customAppearance() const = 0;
     virtual void updateCustomAppearance(GraphicsLayer::CustomAppearance) = 0;
 
+    virtual GraphicsLayer::EmbeddedViewID embeddedViewID() const = 0;
+
     virtual TiledBacking* tiledBacking() = 0;
 
     virtual void drawTextAtPoint(CGContextRef, CGFloat x, CGFloat y, CGSize scale, CGFloat fontSize, const char* text, size_t length, CGFloat strokeWidthAsPercentageOfFontSize = 0, Color strokeColor = Color()) const;
@@ -250,7 +254,7 @@ public:
     virtual String layerTreeAsString() const = 0;
 #endif // PLATFORM(WIN)
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
     bool isWebLayer();
     void setBoundsOnMainThread(CGRect);
     void setPositionOnMainThread(CGPoint);

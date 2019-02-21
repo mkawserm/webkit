@@ -23,14 +23,13 @@
  * THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef DrawingAreaType_h
-#define DrawingAreaType_h
+#pragma once
 
 namespace WebKit {
 
 enum DrawingAreaType {
 #if PLATFORM(COCOA)
-#if !PLATFORM(IOS)
+#if !PLATFORM(IOS_FAMILY)
     DrawingAreaTypeTiledCoreAnimation,
 #endif
     DrawingAreaTypeRemoteLayerTree,
@@ -38,7 +37,10 @@ enum DrawingAreaType {
     DrawingAreaTypeImpl
 #endif
 };
+    
+enum {
+    ActivityStateChangeAsynchronous = 0
+};
+typedef uint64_t ActivityStateChangeID;
 
 } // namespace WebKit
-
-#endif // DrawingAreaType_h

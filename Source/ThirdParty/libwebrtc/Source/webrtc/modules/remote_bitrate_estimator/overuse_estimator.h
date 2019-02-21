@@ -10,6 +10,7 @@
 #ifndef MODULES_REMOTE_BITRATE_ESTIMATOR_OVERUSE_ESTIMATOR_H_
 #define MODULES_REMOTE_BITRATE_ESTIMATOR_OVERUSE_ESTIMATOR_H_
 
+#include <stdint.h>
 #include <deque>
 
 #include "common_types.h"  // NOLINT(build/include)
@@ -34,20 +35,14 @@ class OveruseEstimator {
               int64_t now_ms);
 
   // Returns the estimated noise/jitter variance in ms^2.
-  double var_noise() const {
-    return var_noise_;
-  }
+  double var_noise() const { return var_noise_; }
 
   // Returns the estimated inter-arrival time delta offset in ms.
-  double offset() const {
-    return offset_;
-  }
+  double offset() const { return offset_; }
 
   // Returns the number of deltas which the current over-use estimator state is
   // based on.
-  unsigned int num_of_deltas() const {
-    return num_of_deltas_;
-  }
+  unsigned int num_of_deltas() const { return num_of_deltas_; }
 
  private:
   double UpdateMinFramePeriod(double ts_delta);

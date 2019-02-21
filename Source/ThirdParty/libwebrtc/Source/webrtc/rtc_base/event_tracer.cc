@@ -10,16 +10,21 @@
 #include "rtc_base/event_tracer.h"
 
 #include <inttypes.h>
-
+#include <stdint.h>
+#include <stdio.h>
+#include <string.h>
 #include <string>
 #include <vector>
 
+#include "rtc_base/atomicops.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/criticalsection.h"
 #include "rtc_base/event.h"
 #include "rtc_base/logging.h"
 #include "rtc_base/platform_thread.h"
-#include "rtc_base/stringutils.h"
+#include "rtc_base/platform_thread_types.h"
+#include "rtc_base/thread_annotations.h"
+#include "rtc_base/thread_checker.h"
 #include "rtc_base/timeutils.h"
 #include "rtc_base/trace_event.h"
 
@@ -62,15 +67,8 @@ void EventTracer::AddTraceEvent(char phase,
                                 const unsigned long long* arg_values,
                                 unsigned char flags) {
   if (g_add_trace_event_ptr) {
-    g_add_trace_event_ptr(phase,
-                          category_enabled,
-                          name,
-                          id,
-                          num_args,
-                          arg_names,
-                          arg_types,
-                          arg_values,
-                          flags);
+    g_add_trace_event_ptr(phase, category_enabled, name, id, num_args,
+                          arg_names, arg_types, arg_values, flags);
   }
 }
 
@@ -92,8 +90,7 @@ class EventLogger final {
       : logging_thread_(EventTracingThreadFunc,
                         this,
                         "EventTracingThread",
-                        kLowPriority),
-        shutdown_event_(false, false) {}
+                        kLowPriority) {}
   ~EventLogger() { RTC_DCHECK(thread_checker_.CalledOnValidThread()); }
 
   void AddTraceEvent(const char* name,
@@ -127,8 +124,8 @@ class EventLogger final {
         {name, category_enabled, phase, args, timestamp, 1, thread_id});
   }
 
-// The TraceEvent format is documented here:
-// https://docs.google.com/document/d/1CvAClvFfyA5R-PhYUmn5OOQtYMH4h6I0nSsKchNAySU/preview
+  // The TraceEvent format is documented here:
+  // https://docs.google.com/document/d/1CvAClvFfyA5R-PhYUmn5OOQtYMH4h6I0nSsKchNAySU/preview
   void Log() {
     RTC_DCHECK(output_file_);
     static const int kLoggingIntervalMs = 100;
@@ -292,19 +289,19 @@ class EventLogger final {
           }
           break;
         case TRACE_VALUE_TYPE_UINT:
-          print_length = sprintfn(&output[0], kTraceArgBufferLength, "%llu",
+          print_length = snprintf(&output[0], kTraceArgBufferLength, "%llu",
                                   arg.value.as_uint);
           break;
         case TRACE_VALUE_TYPE_INT:
-          print_length = sprintfn(&output[0], kTraceArgBufferLength, "%lld",
+          print_length = snprintf(&output[0], kTraceArgBufferLength, "%lld",
                                   arg.value.as_int);
           break;
         case TRACE_VALUE_TYPE_DOUBLE:
-          print_length = sprintfn(&output[0], kTraceArgBufferLength, "%f",
+          print_length = snprintf(&output[0], kTraceArgBufferLength, "%f",
                                   arg.value.as_double);
           break;
         case TRACE_VALUE_TYPE_POINTER:
-          print_length = sprintfn(&output[0], kTraceArgBufferLength, "\"%p\"",
+          print_length = snprintf(&output[0], kTraceArgBufferLength, "\"%p\"",
                                   arg.value.as_pointer);
           break;
       }

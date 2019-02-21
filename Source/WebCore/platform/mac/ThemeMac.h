@@ -43,7 +43,7 @@ private:
 
     int baselinePositionAdjustment(ControlPart) const final;
 
-    std::optional<FontCascadeDescription> controlFont(ControlPart, const FontCascade&, float zoomFactor) const final;
+    Optional<FontCascadeDescription> controlFont(ControlPart, const FontCascade&, float zoomFactor) const final;
 
     LengthSize controlSize(ControlPart, const FontCascade&, const LengthSize&, float zoomFactor) const final;
     LengthSize minimumControlSize(ControlPart, const FontCascade&, float zoomFactor) const final;
@@ -53,7 +53,7 @@ private:
 
     bool controlRequiresPreWhiteSpace(ControlPart part) const final { return part == PushButtonPart; }
 
-    void paint(ControlPart, ControlStates&, GraphicsContext&, const FloatRect&, float zoomFactor, ScrollView*, float deviceScaleFactor, float pageScaleFactor) final;
+    void paint(ControlPart, ControlStates&, GraphicsContext&, const FloatRect&, float zoomFactor, ScrollView*, float deviceScaleFactor, float pageScaleFactor, bool useSystemAppearance, bool useDarkAppearance) final;
     void inflateControlPaintRect(ControlPart, const ControlStates&, FloatRect&, float zoomFactor) const final;
 
     bool userPrefersReducedMotion() const final;

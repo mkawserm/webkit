@@ -4,6 +4,7 @@ PASS CredentialsContainer interface object length
 PASS CredentialsContainer interface object name 
 PASS CredentialsContainer interface: existence and properties of interface prototype object 
 PASS CredentialsContainer interface: existence and properties of interface prototype object's "constructor" property 
+PASS CredentialsContainer interface: existence and properties of interface prototype object's @@unscopables property 
 PASS CredentialsContainer interface: operation get(CredentialRequestOptions) 
 PASS CredentialsContainer interface: operation store(Credential) 
 PASS CredentialsContainer interface: operation create(CredentialCreationOptions) 

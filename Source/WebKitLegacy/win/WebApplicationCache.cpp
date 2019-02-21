@@ -30,13 +30,13 @@
 #include "MarshallingHelpers.h"
 #include "WebPreferences.h"
 #include "WebSecurityOrigin.h"
-#include <wtf/RetainPtr.h>
 #include <WebCore/ApplicationCache.h>
 #include <WebCore/ApplicationCacheStorage.h>
 #include <WebCore/COMPtr.h>
-#include <WebCore/FileSystem.h>
 #include <WebCore/SecurityOrigin.h>
 #include <comutil.h>
+#include <wtf/FileSystem.h>
+#include <wtf/RetainPtr.h>
 
 using namespace WebCore;
 
@@ -187,13 +187,12 @@ HRESULT WebApplicationCache::originsWithCache(IPropertyBag** origins)
     if (!origins)
         return E_POINTER;
 
-    HashSet<RefPtr<WebCore::SecurityOrigin>> coreOrigins;
-    storage().getOriginsWithCache(coreOrigins);
+    auto coreOrigins = storage().originsWithCache();
 
     RetainPtr<CFMutableArrayRef> arrayItem = adoptCF(CFArrayCreateMutable(kCFAllocatorDefault, coreOrigins.size(), &MarshallingHelpers::kIUnknownArrayCallBacks));
 
-    for (auto it : coreOrigins)
-        CFArrayAppendValue(arrayItem.get(), reinterpret_cast<void*>(WebSecurityOrigin::createInstance(&(*it))));
+    for (auto& coreOrigin : coreOrigins)
+        CFArrayAppendValue(arrayItem.get(), reinterpret_cast<void*>(WebSecurityOrigin::createInstance(coreOrigin.ptr())));
 
     RetainPtr<CFMutableDictionaryRef> dictionary = adoptCF(
         CFDictionaryCreateMutable(0, 0, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks));

@@ -1,4 +1,3 @@
-
 /*
  * Copyright (C) 2009 Alex Milowski (alex@milowski.com). All rights reserved.
  * Copyright (C) 2010 Apple Inc. All rights reserved.
@@ -37,6 +36,7 @@
 namespace WebCore {
 
 class MathMLElement : public StyledElement {
+    WTF_MAKE_ISO_ALLOCATED(MathMLElement);
 public:
     static Ref<MathMLElement> create(const QualifiedName& tagName, Document&);
 
@@ -85,8 +85,8 @@ public:
         Stretched = 18
     };
 
-    virtual std::optional<bool> specifiedDisplayStyle() { return std::nullopt; }
-    virtual std::optional<MathVariant> specifiedMathVariant() { return std::nullopt; }
+    virtual Optional<bool> specifiedDisplayStyle() { return WTF::nullopt; }
+    virtual Optional<MathVariant> specifiedMathVariant() { return WTF::nullopt; }
 
     virtual void updateSelectedChild() { }
 

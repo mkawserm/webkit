@@ -29,14 +29,16 @@
 #include "JSWrappable.h"
 #include "TestOptions.h"
 #include "UIScriptContext.h"
+#include "WhatToDump.h"
 #include <WebKit/WKRetainPtr.h>
 #include <string>
 #include <wtf/Noncopyable.h>
+#include <wtf/Seconds.h>
 #include <wtf/text/StringBuilder.h>
 
 namespace WTR {
 
-class TestInvocation : public UIScriptContextDelegate {
+class TestInvocation final : public UIScriptContextDelegate {
     WTF_MAKE_NONCOPYABLE(TestInvocation);
 public:
     explicit TestInvocation(WKURLRef, const TestOptions&);
@@ -49,12 +51,10 @@ public:
 
     void setIsPixelTest(const std::string& expectedPixelHash);
 
-    // Milliseconds
-    void setCustomTimeout(int duration) { m_timeout = duration; }
+    void setCustomTimeout(WTF::Seconds duration) { m_timeout = duration; }
     void setDumpJSConsoleLogInStdErr(bool value) { m_dumpJSConsoleLogInStdErr = value; }
 
-    // Seconds
-    double shortTimeout() const;
+    WTF::Seconds shortTimeout() const;
 
     void invoke();
     void didReceiveMessageFromInjectedBundle(WKStringRef messageName, WKTypeRef messageBody);
@@ -71,12 +71,27 @@ public:
     void notifyDownloadDone();
 
     void didClearStatisticsThroughWebsiteDataRemoval();
-    void didSetPartitionOrBlockCookiesForHost();
+    void didResetStatisticsToConsistentState();
+    void didSetBlockCookiesForHost();
+    void didSetStatisticsDebugMode();
+    void didSetPrevalentResourceForDebugMode();
+    void didSetLastSeen();
+    void didSetPrevalentResource();
+    void didSetVeryPrevalentResource();
+    void didSetHasHadUserInteraction();
     void didReceiveAllStorageAccessEntries(Vector<String>& domains);
 
     void didRemoveAllSessionCredentials();
     
+    void dumpResourceLoadStatistics();
+
+    bool canOpenWindows() const { return m_canOpenWindows; }
+
+    void dumpAdClickAttribution();
+
 private:
+    WKRetainPtr<WKMutableDictionaryRef> createTestSettingsDictionary();
+
     void dumpResults();
     static void dump(const char* textToStdout, const char* textToStderr = 0, bool seenError = false);
     enum class SnapshotResultType { WebView, WebContents };
@@ -93,7 +108,6 @@ private:
     };
     static void runUISideScriptAfterUpdateCallback(WKErrorRef, void* context);
 
-    bool shouldLogFrameLoadDelegates() const;
     bool shouldLogHistoryClientCallbacks() const;
 
     void runUISideScript(WKStringRef, unsigned callbackID);
@@ -107,19 +121,27 @@ private:
 
     std::string m_expectedPixelHash;
 
-    int m_timeout { 0 };
+    WTF::Seconds m_timeout;
     bool m_dumpJSConsoleLogInStdErr { false };
 
     // Invocation state
+    bool m_startedTesting { false };
     bool m_gotInitialResponse { false };
     bool m_gotFinalMessage { false };
     bool m_gotRepaint { false };
     bool m_error { false };
 
+    bool m_waitUntilDone { false };
+    bool m_dumpFrameLoadCallbacks { false };
     bool m_dumpPixels { false };
     bool m_pixelResultIsPending { false };
+    bool m_shouldDumpResourceLoadStatistics { false };
+    bool m_canOpenWindows { false };
+    bool m_shouldDumpAdClickAttribution { false };
+    WhatToDump m_whatToDump { WhatToDump::RenderTree };
 
     StringBuilder m_textOutput;
+    String m_savedResourceLoadStatistics;
     WKRetainPtr<WKDataRef> m_audioResult;
     WKRetainPtr<WKImageRef> m_pixelResult;
     WKRetainPtr<WKArrayRef> m_repaintRects;

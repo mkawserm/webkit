@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008, 2012-2013, 2015-2016 Apple Inc. All rights reserved.
+ * Copyright (C) 2008-2019 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -26,29 +26,23 @@
 #pragma once
 
 #if ENABLE(JIT)
-
 #include "JSCInlines.h"
 
 namespace JSC {
 
+inline MacroAssembler::JumpList JIT::emitDoubleGetByVal(const Instruction* instruction, PatchableJump& badType)
+{
 #if USE(JSVALUE64)
-inline MacroAssembler::JumpList JIT::emitDoubleGetByVal(Instruction* instruction, PatchableJump& badType)
-{
-    JumpList slowCases = emitDoubleLoad(instruction, badType);
-    moveDoubleTo64(fpRegT0, regT0);
-    sub64(tagTypeNumberRegister, regT0);
-    return slowCases;
-}
+    JSValueRegs result = JSValueRegs(regT0);
 #else
-inline MacroAssembler::JumpList JIT::emitDoubleGetByVal(Instruction* instruction, PatchableJump& badType)
-{
+    JSValueRegs result = JSValueRegs(regT1, regT0);
+#endif
     JumpList slowCases = emitDoubleLoad(instruction, badType);
-    moveDoubleToInts(fpRegT0, regT0, regT1);
+    boxDouble(fpRegT0, result);
     return slowCases;
 }
-#endif // USE(JSVALUE64)
 
-ALWAYS_INLINE MacroAssembler::JumpList JIT::emitLoadForArrayMode(Instruction* currentInstruction, JITArrayMode arrayMode, PatchableJump& badType)
+ALWAYS_INLINE MacroAssembler::JumpList JIT::emitLoadForArrayMode(const Instruction* currentInstruction, JITArrayMode arrayMode, PatchableJump& badType)
 {
     switch (arrayMode) {
     case JITInt32:
@@ -66,12 +60,12 @@ ALWAYS_INLINE MacroAssembler::JumpList JIT::emitLoadForArrayMode(Instruction* cu
     return MacroAssembler::JumpList();
 }
 
-inline MacroAssembler::JumpList JIT::emitContiguousGetByVal(Instruction* instruction, PatchableJump& badType, IndexingType expectedShape)
+inline MacroAssembler::JumpList JIT::emitContiguousGetByVal(const Instruction* instruction, PatchableJump& badType, IndexingType expectedShape)
 {
     return emitContiguousLoad(instruction, badType, expectedShape);
 }
 
-inline MacroAssembler::JumpList JIT::emitArrayStorageGetByVal(Instruction* instruction, PatchableJump& badType)
+inline MacroAssembler::JumpList JIT::emitArrayStorageGetByVal(const Instruction* instruction, PatchableJump& badType)
 {
     return emitArrayStorageLoad(instruction, badType);
 }
@@ -90,18 +84,18 @@ ALWAYS_INLINE JSValue JIT::getConstantOperand(int src)
 ALWAYS_INLINE void JIT::emitPutIntToCallFrameHeader(RegisterID from, int entry)
 {
 #if USE(JSVALUE32_64)
-    store32(TrustedImm32(Int32Tag), intTagFor(entry, callFrameRegister));
-    store32(from, intPayloadFor(entry, callFrameRegister));
+    store32(TrustedImm32(JSValue::Int32Tag), tagFor(entry));
+    store32(from, payloadFor(entry));
 #else
-    store64(from, addressFor(entry, callFrameRegister));
+    store64(from, addressFor(entry));
 #endif
 }
 
 ALWAYS_INLINE void JIT::emitLoadCharacterString(RegisterID src, RegisterID dst, JumpList& failures)
 {
-    failures.append(branchStructure(NotEqual, Address(src, JSCell::structureIDOffset()), m_vm->stringStructure.get()));
-    failures.append(branch32(NotEqual, MacroAssembler::Address(src, ThunkHelpers::jsStringLengthOffset()), TrustedImm32(1)));
-    loadPtr(MacroAssembler::Address(src, ThunkHelpers::jsStringValueOffset()), dst);
+    failures.append(branchIfNotString(src));
+    failures.append(branch32(NotEqual, MacroAssembler::Address(src, JSString::offsetOfLength()), TrustedImm32(1)));
+    loadPtr(MacroAssembler::Address(src, JSString::offsetOfValue()), dst);
     failures.append(branchTest32(Zero, dst));
     loadPtr(MacroAssembler::Address(dst, StringImpl::flagsOffset()), regT1);
     loadPtr(MacroAssembler::Address(dst, StringImpl::dataOffset()), dst);
@@ -116,19 +110,19 @@ ALWAYS_INLINE void JIT::emitLoadCharacterString(RegisterID src, RegisterID dst, 
     cont8Bit.link(this);
 }
 
-ALWAYS_INLINE JIT::Call JIT::emitNakedCall(CodePtr function)
+ALWAYS_INLINE JIT::Call JIT::emitNakedCall(CodePtr<NoPtrTag> target)
 {
     ASSERT(m_bytecodeOffset != std::numeric_limits<unsigned>::max()); // This method should only be called during hot/cold path generation, so that m_bytecodeOffset is set.
     Call nakedCall = nearCall();
-    m_calls.append(CallRecord(nakedCall, m_bytecodeOffset, function.executableAddress()));
+    m_calls.append(CallRecord(nakedCall, m_bytecodeOffset, FunctionPtr<OperationPtrTag>(target.retagged<OperationPtrTag>())));
     return nakedCall;
 }
 
-ALWAYS_INLINE JIT::Call JIT::emitNakedTailCall(CodePtr function)
+ALWAYS_INLINE JIT::Call JIT::emitNakedTailCall(CodePtr<NoPtrTag> target)
 {
     ASSERT(m_bytecodeOffset != std::numeric_limits<unsigned>::max()); // This method should only be called during hot/cold path generation, so that m_bytecodeOffset is set.
     Call nakedCall = nearTailCall();
-    m_calls.append(CallRecord(nakedCall, m_bytecodeOffset, function.executableAddress()));
+    m_calls.append(CallRecord(nakedCall, m_bytecodeOffset, FunctionPtr<OperationPtrTag>(target.retagged<OperationPtrTag>())));
     return nakedCall;
 }
 
@@ -136,12 +130,12 @@ ALWAYS_INLINE void JIT::updateTopCallFrame()
 {
     ASSERT(static_cast<int>(m_bytecodeOffset) >= 0);
 #if USE(JSVALUE32_64)
-    Instruction* instruction = m_codeBlock->instructions().begin() + m_bytecodeOffset; 
+    const Instruction* instruction = m_codeBlock->instructions().at(m_bytecodeOffset).ptr();
     uint32_t locationBits = CallSiteIndex(instruction).bits();
 #else
     uint32_t locationBits = CallSiteIndex(m_bytecodeOffset).bits();
 #endif
-    store32(TrustedImm32(locationBits), intTagFor(CallFrameSlot::argumentCount));
+    store32(TrustedImm32(locationBits), tagFor(CallFrameSlot::argumentCount));
     
     // FIXME: It's not clear that this is needed. JITOperations tend to update the top call frame on
     // the C++ side.
@@ -149,7 +143,7 @@ ALWAYS_INLINE void JIT::updateTopCallFrame()
     storePtr(callFrameRegister, &m_vm->topCallFrame);
 }
 
-ALWAYS_INLINE MacroAssembler::Call JIT::appendCallWithExceptionCheck(const FunctionPtr& function)
+ALWAYS_INLINE MacroAssembler::Call JIT::appendCallWithExceptionCheck(const FunctionPtr<CFunctionPtrTag> function)
 {
     updateTopCallFrame();
     MacroAssembler::Call call = appendCall(function);
@@ -158,7 +152,7 @@ ALWAYS_INLINE MacroAssembler::Call JIT::appendCallWithExceptionCheck(const Funct
 }
 
 #if OS(WINDOWS) && CPU(X86_64)
-ALWAYS_INLINE MacroAssembler::Call JIT::appendCallWithExceptionCheckAndSlowPathReturnType(const FunctionPtr& function)
+ALWAYS_INLINE MacroAssembler::Call JIT::appendCallWithExceptionCheckAndSlowPathReturnType(const FunctionPtr<CFunctionPtrTag> function)
 {
     updateTopCallFrame();
     MacroAssembler::Call call = appendCallWithSlowPathReturnType(function);
@@ -167,7 +161,7 @@ ALWAYS_INLINE MacroAssembler::Call JIT::appendCallWithExceptionCheckAndSlowPathR
 }
 #endif
 
-ALWAYS_INLINE MacroAssembler::Call JIT::appendCallWithCallFrameRollbackOnException(const FunctionPtr& function)
+ALWAYS_INLINE MacroAssembler::Call JIT::appendCallWithCallFrameRollbackOnException(const FunctionPtr<CFunctionPtrTag> function)
 {
     updateTopCallFrame(); // The callee is responsible for setting topCallFrame to their caller
     MacroAssembler::Call call = appendCall(function);
@@ -175,7 +169,7 @@ ALWAYS_INLINE MacroAssembler::Call JIT::appendCallWithCallFrameRollbackOnExcepti
     return call;
 }
 
-ALWAYS_INLINE MacroAssembler::Call JIT::appendCallWithExceptionCheckSetJSValueResult(const FunctionPtr& function, int dst)
+ALWAYS_INLINE MacroAssembler::Call JIT::appendCallWithExceptionCheckSetJSValueResult(const FunctionPtr<CFunctionPtrTag> function, int dst)
 {
     MacroAssembler::Call call = appendCallWithExceptionCheck(function);
 #if USE(JSVALUE64)
@@ -186,21 +180,17 @@ ALWAYS_INLINE MacroAssembler::Call JIT::appendCallWithExceptionCheckSetJSValueRe
     return call;
 }
 
-ALWAYS_INLINE MacroAssembler::Call JIT::appendCallWithExceptionCheckSetJSValueResultWithProfile(const FunctionPtr& function, int dst)
+template<typename Metadata>
+ALWAYS_INLINE MacroAssembler::Call JIT::appendCallWithExceptionCheckSetJSValueResultWithProfile(Metadata& metadata, const FunctionPtr<CFunctionPtrTag> function, int dst)
 {
     MacroAssembler::Call call = appendCallWithExceptionCheck(function);
-    emitValueProfilingSite();
+    emitValueProfilingSite(metadata);
 #if USE(JSVALUE64)
     emitPutVirtualRegister(dst, returnValueGPR);
 #else
     emitStore(dst, returnValueGPR2, returnValueGPR);
 #endif
     return call;
-}
-
-ALWAYS_INLINE JIT::Jump JIT::checkStructure(RegisterID reg, Structure* structure)
-{
-    return branchStructure(NotEqual, Address(reg, JSCell::structureIDOffset()), structure);
 }
 
 ALWAYS_INLINE void JIT::linkSlowCaseIfNotJSCell(Vector<SlowCaseEntry>::iterator& iter, int vReg)
@@ -245,21 +235,19 @@ ALWAYS_INLINE void JIT::addJump(Jump jump, int relativeOffset)
     m_jmpTable.append(JumpTable(jump, m_bytecodeOffset + relativeOffset));
 }
 
+ALWAYS_INLINE void JIT::addJump(const JumpList& jumpList, int relativeOffset)
+{
+    ASSERT(m_bytecodeOffset != std::numeric_limits<unsigned>::max()); // This method should only be called during hot/cold path generation, so that m_bytecodeOffset is set.
+
+    for (auto& jump : jumpList.jumps())
+        addJump(jump, relativeOffset);
+}
+
 ALWAYS_INLINE void JIT::emitJumpSlowToHot(Jump jump, int relativeOffset)
 {
     ASSERT(m_bytecodeOffset != std::numeric_limits<unsigned>::max()); // This method should only be called during hot/cold path generation, so that m_bytecodeOffset is set.
 
     jump.linkTo(m_labels[m_bytecodeOffset + relativeOffset], this);
-}
-
-ALWAYS_INLINE JIT::Jump JIT::emitJumpIfCellObject(RegisterID cellReg)
-{
-    return branch8(AboveOrEqual, Address(cellReg, JSCell::typeInfoTypeOffset()), TrustedImm32(ObjectType));
-}
-
-ALWAYS_INLINE JIT::Jump JIT::emitJumpIfCellNotObject(RegisterID cellReg)
-{
-    return branch8(Below, Address(cellReg, JSCell::typeInfoTypeOffset()), TrustedImm32(ObjectType));
 }
 
 #if ENABLE(SAMPLING_FLAGS)
@@ -287,13 +275,13 @@ ALWAYS_INLINE void JIT::emitCount(AbstractSamplingCounter& counter, int32_t coun
 
 #if ENABLE(OPCODE_SAMPLING)
 #if CPU(X86_64)
-ALWAYS_INLINE void JIT::sampleInstruction(Instruction* instruction, bool inHostFunction)
+ALWAYS_INLINE void JIT::sampleInstruction(const Instruction* instruction, bool inHostFunction)
 {
     move(TrustedImmPtr(m_interpreter->sampler()->sampleSlot()), X86Registers::ecx);
     storePtr(TrustedImmPtr(m_interpreter->sampler()->encodeSample(instruction, inHostFunction)), X86Registers::ecx);
 }
 #else
-ALWAYS_INLINE void JIT::sampleInstruction(Instruction* instruction, bool inHostFunction)
+ALWAYS_INLINE void JIT::sampleInstruction(const Instruction* instruction, bool inHostFunction)
 {
     storePtr(TrustedImmPtr(m_interpreter->sampler()->encodeSample(instruction, inHostFunction)), m_interpreter->sampler()->sampleSlot());
 }
@@ -340,16 +328,20 @@ inline void JIT::emitValueProfilingSite(ValueProfile& valueProfile)
 #endif
 }
 
-inline void JIT::emitValueProfilingSite(unsigned bytecodeOffset)
+template<typename Op>
+inline std::enable_if_t<std::is_same<decltype(Op::Metadata::m_profile), ValueProfile>::value, void> JIT::emitValueProfilingSiteIfProfiledOpcode(Op bytecode)
+{
+    emitValueProfilingSite(bytecode.metadata(m_codeBlock));
+}
+
+inline void JIT::emitValueProfilingSiteIfProfiledOpcode(...) { }
+
+template<typename Metadata>
+inline void JIT::emitValueProfilingSite(Metadata& metadata)
 {
     if (!shouldEmitProfiling())
         return;
-    emitValueProfilingSite(m_codeBlock->valueProfileForBytecodeOffset(bytecodeOffset));
-}
-
-inline void JIT::emitValueProfilingSite()
-{
-    emitValueProfilingSite(m_bytecodeOffset);
+    emitValueProfilingSite(metadata.m_profile);
 }
 
 inline void JIT::emitArrayProfilingSiteWithCell(RegisterID cell, RegisterID indexingType, ArrayProfile* arrayProfile)
@@ -362,11 +354,6 @@ inline void JIT::emitArrayProfilingSiteWithCell(RegisterID cell, RegisterID inde
     load8(Address(cell, JSCell::indexingTypeAndMiscOffset()), indexingType);
 }
 
-inline void JIT::emitArrayProfilingSiteForBytecodeIndexWithCell(RegisterID cell, RegisterID indexingType, unsigned bytecodeIndex)
-{
-    emitArrayProfilingSiteWithCell(cell, indexingType, m_codeBlock->getOrAddArrayProfile(bytecodeIndex));
-}
-
 inline void JIT::emitArrayProfileStoreToHoleSpecialCase(ArrayProfile* arrayProfile)
 {
     store8(TrustedImm32(1), arrayProfile->addressOfMayStoreToHole());
@@ -377,13 +364,12 @@ inline void JIT::emitArrayProfileOutOfBoundsSpecialCase(ArrayProfile* arrayProfi
     store8(TrustedImm32(1), arrayProfile->addressOfOutOfBounds());
 }
 
-static inline bool arrayProfileSaw(ArrayModes arrayModes, IndexingType capability)
-{
-    return arrayModesInclude(arrayModes, capability);
-}
-
 inline JITArrayMode JIT::chooseArrayMode(ArrayProfile* profile)
 {
+    auto arrayProfileSaw = [] (ArrayModes arrayModes, IndexingType capability) {
+        return arrayModesIncludeIgnoringTypedArrays(arrayModes, capability);
+    };
+
     ConcurrentJSLocker locker(m_codeBlock->m_lock);
     profile->computeUpdatedPrediction(locker, m_codeBlock);
     ArrayModes arrayModes = profile->observedArrayModes(locker);
@@ -404,6 +390,11 @@ ALWAYS_INLINE int32_t JIT::getOperandConstantInt(int src)
 ALWAYS_INLINE double JIT::getOperandConstantDouble(int src)
 {
     return getConstantOperand(src).asDouble();
+}
+
+ALWAYS_INLINE void JIT::emitInitRegister(int dst)
+{
+    storeTrustedValue(jsUndefined(), addressFor(dst));
 }
 
 #if USE(JSVALUE32_64)
@@ -455,14 +446,15 @@ inline void JIT::emitLoad(int index, RegisterID tag, RegisterID payload, Registe
         return;
     }
 
+    VirtualRegister target { index };
     if (payload == base) { // avoid stomping base
-        load32(tagFor(index, base), tag);
-        load32(payloadFor(index, base), payload);
+        load32(tagFor(target, base), tag);
+        load32(payloadFor(target, base), payload);
         return;
     }
 
-    load32(payloadFor(index, base), payload);
-    load32(tagFor(index, base), tag);
+    load32(payloadFor(target, base), payload);
+    load32(tagFor(target, base), tag);
 }
 
 inline void JIT::emitLoad2(int index1, RegisterID tag1, RegisterID payload1, int index2, RegisterID tag2, RegisterID payload2)
@@ -492,36 +484,37 @@ inline void JIT::emitLoadInt32ToDouble(int index, FPRegisterID value)
 
 inline void JIT::emitStore(int index, RegisterID tag, RegisterID payload, RegisterID base)
 {
-    store32(payload, payloadFor(index, base));
-    store32(tag, tagFor(index, base));
+    VirtualRegister target { index };
+    store32(payload, payloadFor(target, base));
+    store32(tag, tagFor(target, base));
 }
 
 inline void JIT::emitStoreInt32(int index, RegisterID payload, bool indexIsInt32)
 {
-    store32(payload, payloadFor(index, callFrameRegister));
+    store32(payload, payloadFor(index));
     if (!indexIsInt32)
-        store32(TrustedImm32(JSValue::Int32Tag), tagFor(index, callFrameRegister));
+        store32(TrustedImm32(JSValue::Int32Tag), tagFor(index));
 }
 
 inline void JIT::emitStoreInt32(int index, TrustedImm32 payload, bool indexIsInt32)
 {
-    store32(payload, payloadFor(index, callFrameRegister));
+    store32(payload, payloadFor(index));
     if (!indexIsInt32)
-        store32(TrustedImm32(JSValue::Int32Tag), tagFor(index, callFrameRegister));
+        store32(TrustedImm32(JSValue::Int32Tag), tagFor(index));
 }
 
 inline void JIT::emitStoreCell(int index, RegisterID payload, bool indexIsCell)
 {
-    store32(payload, payloadFor(index, callFrameRegister));
+    store32(payload, payloadFor(index));
     if (!indexIsCell)
-        store32(TrustedImm32(JSValue::CellTag), tagFor(index, callFrameRegister));
+        store32(TrustedImm32(JSValue::CellTag), tagFor(index));
 }
 
 inline void JIT::emitStoreBool(int index, RegisterID payload, bool indexIsBool)
 {
-    store32(payload, payloadFor(index, callFrameRegister));
+    store32(payload, payloadFor(index));
     if (!indexIsBool)
-        store32(TrustedImm32(JSValue::BooleanTag), tagFor(index, callFrameRegister));
+        store32(TrustedImm32(JSValue::BooleanTag), tagFor(index));
 }
 
 inline void JIT::emitStoreDouble(int index, FPRegisterID value)
@@ -531,13 +524,9 @@ inline void JIT::emitStoreDouble(int index, FPRegisterID value)
 
 inline void JIT::emitStore(int index, const JSValue constant, RegisterID base)
 {
-    store32(Imm32(constant.payload()), payloadFor(index, base));
-    store32(Imm32(constant.tag()), tagFor(index, base));
-}
-
-ALWAYS_INLINE void JIT::emitInitRegister(int dst)
-{
-    emitStore(dst, jsUndefined());
+    VirtualRegister target { index };
+    store32(Imm32(constant.payload()), payloadFor(target, base));
+    store32(Imm32(constant.tag()), tagFor(target, base));
 }
 
 inline void JIT::emitJumpSlowCaseIfNotJSCell(int virtualRegisterIndex)
@@ -556,7 +545,7 @@ inline void JIT::emitJumpSlowCaseIfNotJSCell(int virtualRegisterIndex, RegisterI
         if (m_codeBlock->isConstantRegisterIndex(virtualRegisterIndex))
             addSlowCase(jump());
         else
-            addSlowCase(branch32(NotEqual, tag, TrustedImm32(JSValue::CellTag)));
+            addSlowCase(branchIfNotCell(tag));
     }
 }
 
@@ -589,7 +578,6 @@ ALWAYS_INLINE void JIT::emitGetVirtualRegister(int src, RegisterID dst)
 {
     ASSERT(m_bytecodeOffset != std::numeric_limits<unsigned>::max()); // This method should only be called during hot/cold path generation, so that m_bytecodeOffset is set.
 
-    // TODO: we want to reuse values that are already in registers if we can - add a register allocator!
     if (m_codeBlock->isConstantRegisterIndex(src)) {
         JSValue value = m_codeBlock->getConstant(src);
         if (!value.isNumber())
@@ -599,7 +587,7 @@ ALWAYS_INLINE void JIT::emitGetVirtualRegister(int src, RegisterID dst)
         return;
     }
 
-    load64(Address(callFrameRegister, src * sizeof(Register)), dst);
+    load64(addressFor(src), dst);
 }
 
 ALWAYS_INLINE void JIT::emitGetVirtualRegister(int src, JSValueRegs dst)
@@ -630,7 +618,7 @@ ALWAYS_INLINE bool JIT::isOperandConstantInt(int src)
 
 ALWAYS_INLINE void JIT::emitPutVirtualRegister(int dst, RegisterID from)
 {
-    store64(from, Address(callFrameRegister, dst * sizeof(Register)));
+    store64(from, addressFor(dst));
 }
 
 ALWAYS_INLINE void JIT::emitPutVirtualRegister(int dst, JSValueRegs from)
@@ -643,31 +631,21 @@ ALWAYS_INLINE void JIT::emitPutVirtualRegister(VirtualRegister dst, RegisterID f
     emitPutVirtualRegister(dst.offset(), from);
 }
 
-ALWAYS_INLINE void JIT::emitInitRegister(int dst)
-{
-    store64(TrustedImm64(JSValue::encode(jsUndefined())), Address(callFrameRegister, dst * sizeof(Register)));
-}
-
-ALWAYS_INLINE JIT::Jump JIT::emitJumpIfJSCell(RegisterID reg)
-{
-    return branchTest64(Zero, reg, tagMaskRegister);
-}
-
 ALWAYS_INLINE JIT::Jump JIT::emitJumpIfBothJSCells(RegisterID reg1, RegisterID reg2, RegisterID scratch)
 {
     move(reg1, scratch);
     or64(reg2, scratch);
-    return emitJumpIfJSCell(scratch);
+    return branchIfCell(scratch);
 }
 
 ALWAYS_INLINE void JIT::emitJumpSlowCaseIfJSCell(RegisterID reg)
 {
-    addSlowCase(emitJumpIfJSCell(reg));
+    addSlowCase(branchIfCell(reg));
 }
 
 ALWAYS_INLINE void JIT::emitJumpSlowCaseIfNotJSCell(RegisterID reg)
 {
-    addSlowCase(emitJumpIfNotJSCell(reg));
+    addSlowCase(branchIfNotCell(reg));
 }
 
 ALWAYS_INLINE void JIT::emitJumpSlowCaseIfNotJSCell(RegisterID reg, int vReg)
@@ -694,16 +672,6 @@ inline void JIT::emitLoadInt32ToDouble(int index, FPRegisterID value)
         convertInt32ToDouble(addressFor(index), value);
 }
 
-ALWAYS_INLINE JIT::Jump JIT::emitJumpIfInt(RegisterID reg)
-{
-    return branch64(AboveOrEqual, reg, tagTypeNumberRegister);
-}
-
-ALWAYS_INLINE JIT::Jump JIT::emitJumpIfNotInt(RegisterID reg)
-{
-    return branch64(Below, reg, tagTypeNumberRegister);
-}
-
 ALWAYS_INLINE JIT::PatchableJump JIT::emitPatchableJumpIfNotInt(RegisterID reg)
 {
     return patchableBranch64(Below, reg, tagTypeNumberRegister);
@@ -713,12 +681,12 @@ ALWAYS_INLINE JIT::Jump JIT::emitJumpIfNotInt(RegisterID reg1, RegisterID reg2, 
 {
     move(reg1, scratch);
     and64(reg2, scratch);
-    return emitJumpIfNotInt(scratch);
+    return branchIfNotInt32(scratch);
 }
 
 ALWAYS_INLINE void JIT::emitJumpSlowCaseIfNotInt(RegisterID reg)
 {
-    addSlowCase(emitJumpIfNotInt(reg));
+    addSlowCase(branchIfNotInt32(reg));
 }
 
 ALWAYS_INLINE void JIT::emitJumpSlowCaseIfNotInt(RegisterID reg1, RegisterID reg2, RegisterID scratch)
@@ -728,21 +696,40 @@ ALWAYS_INLINE void JIT::emitJumpSlowCaseIfNotInt(RegisterID reg1, RegisterID reg
 
 ALWAYS_INLINE void JIT::emitJumpSlowCaseIfNotNumber(RegisterID reg)
 {
-    addSlowCase(emitJumpIfNotNumber(reg));
-}
-
-ALWAYS_INLINE void JIT::emitTagBool(RegisterID reg)
-{
-    or32(TrustedImm32(static_cast<int32_t>(ValueFalse)), reg);
-}
-
-inline Instruction* JIT::copiedInstruction(Instruction* inst)
-{
-    ASSERT(inst >= m_codeBlock->instructions().begin() && inst < m_codeBlock->instructions().end());
-    return m_instructions.begin() + (inst - m_codeBlock->instructions().begin());
+    addSlowCase(branchIfNotNumber(reg));
 }
 
 #endif // USE(JSVALUE32_64)
+
+ALWAYS_INLINE int JIT::jumpTarget(const Instruction* instruction, int target)
+{
+    if (target)
+        return target;
+    return m_codeBlock->outOfLineJumpOffset(instruction);
+}
+
+ALWAYS_INLINE GetPutInfo JIT::copiedGetPutInfo(OpPutToScope bytecode)
+{
+    unsigned key = bytecode.m_metadataID + 1; // HashMap doesn't like 0 as a key
+    auto iterator = m_copiedGetPutInfos.find(key);
+    if (iterator != m_copiedGetPutInfos.end())
+        return GetPutInfo(iterator->value);
+    GetPutInfo getPutInfo = bytecode.metadata(m_codeBlock).m_getPutInfo;
+    m_copiedGetPutInfos.add(key, getPutInfo.operand());
+    return getPutInfo;
+}
+
+template<typename BinaryOp>
+ALWAYS_INLINE ArithProfile JIT::copiedArithProfile(BinaryOp bytecode)
+{
+    uint64_t key = static_cast<uint64_t>(BinaryOp::opcodeID) << 32 | static_cast<uint64_t>(bytecode.m_metadataID);
+    auto iterator = m_copiedArithProfiles.find(key);
+    if (iterator != m_copiedArithProfiles.end())
+        return iterator->value;
+    ArithProfile arithProfile = bytecode.metadata(m_codeBlock).m_arithProfile;
+    m_copiedArithProfiles.add(key, arithProfile);
+    return arithProfile;
+}
 
 } // namespace JSC
 

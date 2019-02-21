@@ -30,6 +30,12 @@ Run the following command to clone WebKit's Git SVN repository:
 git clone git://git.webkit.org/WebKit.git WebKit
 ```
 
+or
+
+```
+git clone https://git.webkit.org/git/WebKit.git WebKit
+```
+
 If you want to be able to commit changes to the repository, or just want to check out branches that aren’t contained in WebKit.git, you will need track WebKit's Subversion repository. You can run the following command to configure this and other options of the new Git clone for WebKit development.
 
 ```
@@ -65,7 +71,7 @@ For performance testing, and other purposes, use `--release` instead.
 
 ### Using Xcode
 
-You can open `WebKit.xcworkspace` to build and debug WebKit within WebKit.
+You can open `WebKit.xcworkspace` to build and debug WebKit within Xcode.
 
 If you don't use a custom build location in Xcode preferences, you have to update the workspace settings to use `WebKitBuild` directory.  In menu bar, choose File > Workspace Settings, then click the Advanced button, select "Custom", "Relative to Workspace", and enter `WebKitBuild` for both Products and Intermediates.
 

@@ -60,6 +60,10 @@ static IntPoint atkToContents(AccessibilityObject* coreObject, AtkCoordType coor
             return frameView->screenToContents(pos);
         case ATK_XY_WINDOW:
             return frameView->windowToContents(pos);
+#if ATK_CHECK_VERSION(2, 30, 0)
+        case ATK_XY_PARENT:
+            RELEASE_ASSERT_NOT_REACHED();
+#endif
         }
     }
 
@@ -73,7 +77,7 @@ static AtkObject* webkitAccessibleComponentRefAccessibleAtPoint(AtkComponent* co
 
     IntPoint pos = atkToContents(core(component), coordType, x, y);
 
-    AccessibilityObject* target = core(component)->accessibilityHitTest(pos);
+    AccessibilityObject* target = downcast<AccessibilityObject>(core(component)->accessibilityHitTest(pos));
     if (!target)
         return 0;
     g_object_ref(target->wrapper());

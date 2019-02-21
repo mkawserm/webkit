@@ -34,13 +34,13 @@
 #import "DefaultPolicyDelegate.h"
 #import "DumpRenderTreeDraggingInfo.h"
 #import "DumpRenderTreePasteboard.h"
-#import "DumpRenderTreeSpellChecker.h"
 #import "DumpRenderTreeWindow.h"
 #import "EditingDelegate.h"
 #import "EventSendingController.h"
 #import "FrameLoadDelegate.h"
 #import "HistoryDelegate.h"
 #import "JavaScriptThreading.h"
+#import "LayoutTestSpellChecker.h"
 #import "MockGeolocationProvider.h"
 #import "MockWebNotificationProvider.h"
 #import "NavigationController.h"
@@ -57,8 +57,10 @@
 #import "WorkQueue.h"
 #import "WorkQueueItem.h"
 #import <CoreFoundation/CoreFoundation.h>
+#import <JavaScriptCore/Options.h>
 #import <JavaScriptCore/TestRunnerUtils.h>
 #import <WebCore/LogInitialization.h>
+#import <WebCore/NetworkStorageSession.h>
 #import <WebKit/DOMElement.h>
 #import <WebKit/DOMExtensions.h>
 #import <WebKit/DOMRange.h>
@@ -91,21 +93,22 @@
 #import <wtf/Assertions.h>
 #import <wtf/FastMalloc.h>
 #import <wtf/LoggingAccumulator.h>
-#import <wtf/ObjcRuntimeExtras.h>
+#import <wtf/ObjCRuntimeExtras.h>
+#import <wtf/ProcessPrivilege.h>
 #import <wtf/RetainPtr.h>
 #import <wtf/Threading.h>
+#import <wtf/text/StringBuilder.h>
 #import <wtf/text/WTFString.h>
 
-#if !PLATFORM(IOS)
+#if !PLATFORM(IOS_FAMILY)
 #import <Carbon/Carbon.h>
 #import <WebKit/WebDynamicScrollBarsView.h>
 #endif
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
 #import "DumpRenderTreeBrowserView.h"
 #import "IOSLayoutTestCommunication.h"
 #import "UIKitSPI.h"
-#import "UIKitTestSPI.h"
 #import <QuartzCore/QuartzCore.h>
 #import <WebKit/WAKWindow.h>
 #import <WebKit/WebCoreThread.h>
@@ -121,7 +124,7 @@ extern "C" {
 
 using namespace std;
 
-#if !PLATFORM(IOS)
+#if !PLATFORM(IOS_FAMILY)
 @interface DumpRenderTreeApplication : NSApplication
 @end
 
@@ -161,7 +164,7 @@ using namespace std;
 - (BOOL)_flushCompositingChanges;
 @end
 
-#if !PLATFORM(IOS)
+#if !PLATFORM(IOS_FAMILY)
 @interface WebView (WebViewInternalForTesting)
 - (WebCore::Frame*)_mainCoreFrame;
 @end
@@ -181,7 +184,7 @@ volatile bool done;
 NavigationController* gNavigationController = nullptr;
 RefPtr<TestRunner> gTestRunner;
 
-std::optional<TestOptions> mainFrameTestOptions;
+Optional<TestOptions> mainFrameTestOptions;
 WebFrame *mainFrame = nil;
 // This is the topmost frame that is loading, during a given load, or nil when no load is 
 // in progress.  Usually this is the same as the main frame, but not always.  In the case
@@ -204,7 +207,7 @@ static ResourceLoadDelegate *resourceLoadDelegate;
 static HistoryDelegate *historyDelegate;
 PolicyDelegate *policyDelegate = nullptr;
 DefaultPolicyDelegate *defaultPolicyDelegate = nullptr;
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
 static ScrollViewResizerDelegate *scrollViewResizerDelegate;
 #endif
 
@@ -216,15 +219,17 @@ static int useTimeoutWatchdog = YES;
 static int forceComplexText;
 static int useAcceleratedDrawing;
 static int gcBetweenTests;
+static int allowAnyHTTPSCertificateForAllowedHosts;
 static int showWebView;
 static int printTestCount;
+static int checkForWorldLeaks;
 static BOOL printSeparators;
 static RetainPtr<CFStringRef> persistentUserStyleSheetLocation;
 static std::set<std::string> allowedHosts;
 
 static WebHistoryItem *prevTestBFItem; // current b/f item at the end of the previous test
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
 const CGRect layoutTestViewportRect = { {0, 0}, {static_cast<CGFloat>(TestRunner::viewWidth), static_cast<CGFloat>(TestRunner::viewHeight)} };
 DumpRenderTreeBrowserView *gWebBrowserView = nil;
 DumpRenderTreeWebScrollView *gWebScrollView = nil;
@@ -303,7 +308,7 @@ static bool shouldIgnoreWebCoreNodeLeaks(const string& URLString)
     return false;
 }
 
-#if !PLATFORM(IOS)
+#if !PLATFORM(IOS_FAMILY)
 static NSSet *allowedFontFamilySet()
 {
     static NSSet *fontFamilySet = [[NSSet setWithObjects:
@@ -372,6 +377,7 @@ static NSSet *allowedFontFamilySet()
         @"Hiragino Maru Gothic ProN",
         @"Hiragino Mincho Pro",
         @"Hiragino Mincho ProN",
+        @"Hiragino Sans",
         @"Hiragino Sans GB",
         @"Hoefler Text",
         @"Impact",
@@ -381,6 +387,7 @@ static NSSet *allowedFontFamilySet()
         @"Kokonor",
         @"Krungthep",
         @"KufiStandardGK",
+        @"Lao Sangam MN",
         @"LastResort",
         @"LiHei Pro",
         @"LiSong Pro",
@@ -398,11 +405,15 @@ static NSSet *allowedFontFamilySet()
         @"Papyrus",
         @"PCMyungjo",
         @"PilGi",
+        @"PingFang HK",
+        @"PingFang SC",
+        @"PingFang TC",
         @"Plantagenet Cherokee",
         @"Raanana",
         @"Sathu",
         @"Silom",
         @"Skia",
+        @"Snell Roundhand",
         @"Songti SC",
         @"Songti TC",
         @"STFangsong",
@@ -515,7 +526,7 @@ static void activateTestingFonts()
     NSMutableArray *fontURLs = [NSMutableArray array];
     NSURL *resourcesDirectory = [NSURL URLWithString:@"DumpRenderTree.resources" relativeToURL:[[NSBundle mainBundle] executableURL]];
     for (unsigned i = 0; fontFileNames[i]; ++i) {
-        NSURL *fontURL = [resourcesDirectory URLByAppendingPathComponent:[NSString stringWithUTF8String:fontFileNames[i]]];
+        NSURL *fontURL = [resourcesDirectory URLByAppendingPathComponent:[NSString stringWithUTF8String:fontFileNames[i]] isDirectory:NO];
         [fontURLs addObject:[fontURL absoluteURL]];
     }
 
@@ -579,10 +590,10 @@ static void activateFontsIOS()
     fontData(FWFTTF);
     fontData(FWFOTF);
 }
-#endif // !PLATFORM(IOS)
+#endif // !PLATFORM(IOS_FAMILY)
 
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
 static void adjustWebDocumentForFlexibleViewport(UIWebBrowserView *webBrowserView, UIWebScrollView *scrollView)
 {
     // These values match MobileSafari's, see -[TabDocument _createDocumentView].
@@ -632,7 +643,7 @@ static void adjustWebDocumentForStandardViewport(UIWebBrowserView *webBrowserVie
 }
 #endif
 
-#if !PLATFORM(IOS)
+#if !PLATFORM(IOS_FAMILY)
 @interface DRTMockScroller : NSScroller
 @end
 
@@ -695,7 +706,7 @@ static void registerMockScrollbars()
 
 WebView *createWebViewAndOffscreenWindow()
 {
-#if !PLATFORM(IOS)
+#if !PLATFORM(IOS_FAMILY)
     NSRect rect = NSMakeRect(0, 0, TestRunner::viewWidth, TestRunner::viewHeight);
     WebView *webView = [[WebView alloc] initWithFrame:rect frameName:nil groupName:@"org.webkit.DumpRenderTree"];
 #else
@@ -719,10 +730,11 @@ WebView *createWebViewAndOffscreenWindow()
     [WebView registerURLSchemeAsLocal:@"feedsearch"];
 
 #if PLATFORM(MAC)
+    [webView setWindowOcclusionDetectionEnabled:NO];
     [WebView _setFontWhitelist:fontWhitelist()];
 #endif
 
-#if !PLATFORM(IOS)
+#if !PLATFORM(IOS_FAMILY)
     [webView setContinuousSpellCheckingEnabled:YES];
     [webView setAutomaticQuoteSubstitutionEnabled:NO];
     [webView setAutomaticLinkDetectionEnabled:NO];
@@ -780,7 +792,7 @@ WebView *createWebViewAndOffscreenWindow()
     adjustWebDocumentForStandardViewport(webBrowserView, scrollView);
 #endif
 
-#if !PLATFORM(IOS)
+#if !PLATFORM(IOS_FAMILY)
     // For reasons that are not entirely clear, the following pair of calls makes WebView handle its
     // dynamic scrollbars properly. Without it, every frame will always have scrollbars.
     NSBitmapImageRep *imageRep = [webView bitmapImageRepForCachingDisplayInRect:[webView bounds]];
@@ -806,13 +818,13 @@ WebView *createWebViewAndOffscreenWindow()
 static void destroyWebViewAndOffscreenWindow(WebView *webView)
 {
     ASSERT(webView == [mainFrame webView]);
-#if !PLATFORM(IOS)
+#if !PLATFORM(IOS_FAMILY)
     NSWindow *window = [webView window];
 #endif
     [webView close];
     mainFrame = nil;
 
-#if !PLATFORM(IOS)
+#if !PLATFORM(IOS_FAMILY)
     // Work around problem where registering drag types leaves an outstanding
     // "perform selector" on the window, which retains the window. It's a bit
     // inelegant and perhaps dangerous to just blow them all away, but in practice
@@ -840,7 +852,6 @@ static NSString *libraryPathForDumpRenderTree()
 
 static void enableExperimentalFeatures(WebPreferences* preferences)
 {
-    [preferences setCSSGridLayoutEnabled:YES];
     // FIXME: SpringTimingFunction
     [preferences setGamepadsEnabled:YES];
     [preferences setLinkPreloadEnabled:YES];
@@ -849,16 +860,21 @@ static void enableExperimentalFeatures(WebPreferences* preferences)
     [preferences setFetchAPIKeepAliveEnabled:YES];
     [preferences setWebAnimationsEnabled:YES];
     [preferences setWebGL2Enabled:YES];
-    [preferences setWebGPUEnabled:YES];
+    [preferences setWebMetalEnabled:YES];
     // FIXME: AsyncFrameScrollingEnabled
-    [preferences setWebRTCLegacyAPIEnabled:YES];
-    [preferences setWebAuthenticationEnabled:NO];
     [preferences setCacheAPIEnabled:NO];
     [preferences setReadableByteStreamAPIEnabled:YES];
     [preferences setWritableStreamAPIEnabled:YES];
     preferences.encryptedMediaAPIEnabled = YES;
     [preferences setAccessibilityObjectModelEnabled:YES];
+    [preferences setAriaReflectionEnabled:YES];
     [preferences setVisualViewportAPIEnabled:YES];
+    [preferences setColorFilterEnabled:YES];
+    [preferences setServerTimingEnabled:YES];
+    [preferences setIntersectionObserverEnabled:YES];
+    preferences.sourceBufferChangeTypeEnabled = YES;
+    [preferences setCSSOMViewScrollingAPIEnabled:YES];
+    [preferences setMediaRecorderEnabled:YES];
 }
 
 // Called before each test.
@@ -884,18 +900,18 @@ static void resetWebPreferencesToConsistentValues()
     [preferences setJavaEnabled:NO];
     [preferences setJavaScriptEnabled:YES];
     [preferences setEditableLinkBehavior:WebKitEditableLinkOnlyLiveWithShiftKey];
-#if !PLATFORM(IOS)
+#if !PLATFORM(IOS_FAMILY)
     [preferences setTabsToLinks:NO];
 #endif
     [preferences setDOMPasteAllowed:YES];
-#if !PLATFORM(IOS)
+#if !PLATFORM(IOS_FAMILY)
     [preferences setShouldPrintBackgrounds:YES];
 #endif
     [preferences setCacheModel:WebCacheModelDocumentBrowser];
     [preferences setXSSAuditorEnabled:NO];
     [preferences setExperimentalNotificationsEnabled:NO];
     [preferences setPlugInsEnabled:YES];
-#if !PLATFORM(IOS)
+#if !PLATFORM(IOS_FAMILY)
     [preferences setTextAreasAreResizable:YES];
 #endif
 
@@ -915,7 +931,7 @@ static void resetWebPreferencesToConsistentValues()
     [preferences setMetaRefreshEnabled:YES];
 
     if (persistentUserStyleSheetLocation) {
-        [preferences setUserStyleSheetLocation:[NSURL URLWithString:(NSString *)(persistentUserStyleSheetLocation.get())]];
+        [preferences setUserStyleSheetLocation:[NSURL URLWithString:(__bridge NSString *)persistentUserStyleSheetLocation.get()]];
         [preferences setUserStyleSheetEnabled:YES];
     } else
         [preferences setUserStyleSheetEnabled:NO];
@@ -927,7 +943,7 @@ static void resetWebPreferencesToConsistentValues()
     [preferences setInvisibleAutoplayNotPermitted:NO];
     [preferences setSubpixelAntialiasedLayerTextEnabled:NO];
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
     // Enable the tracker before creating the first WebView will
     // cause initialization to use the correct database paths.
     [preferences setStorageTrackerEnabled:YES];
@@ -945,12 +961,13 @@ static void resetWebPreferencesToConsistentValues()
 #endif
     [preferences setUsePreHTML5ParserQuirks:NO];
     [preferences setAsynchronousSpellCheckingEnabled:NO];
-#if !PLATFORM(IOS)
+#if !PLATFORM(IOS_FAMILY)
     ASSERT([preferences mockScrollbarsEnabled]);
 #endif
 
     [preferences setWebAudioEnabled:YES];
     [preferences setMediaSourceEnabled:YES];
+    [preferences setSourceBufferChangeTypeEnabled:YES];
 
     [preferences setShadowDOMEnabled:YES];
     [preferences setCustomElementsEnabled:YES];
@@ -959,7 +976,7 @@ static void resetWebPreferencesToConsistentValues()
     [preferences setCustomPasteboardDataEnabled:YES];
 
     [preferences setWebGL2Enabled:YES];
-    [preferences setWebGPUEnabled:YES];
+    [preferences setWebMetalEnabled:YES];
 
     [preferences setDownloadAttributeEnabled:YES];
     [preferences setDirectoryUploadEnabled:YES];
@@ -978,6 +995,8 @@ static void resetWebPreferencesToConsistentValues()
     [preferences setCacheAPIEnabled:NO];
     preferences.mediaCapabilitiesEnabled = YES;
 
+    preferences.selectionAcrossShadowBoundariesEnabled = YES;
+
     [WebPreferences _clearNetworkLoaderSession];
     [WebPreferences _setCurrentNetworkLoaderSessionCookieAcceptPolicy:NSHTTPCookieAcceptPolicyOnlyFromMainDocumentDomain];
 }
@@ -988,19 +1007,23 @@ static void setWebPreferencesForTestOptions(const TestOptions& options)
 
     preferences.attachmentElementEnabled = options.enableAttachmentElement;
     preferences.acceleratedDrawingEnabled = options.useAcceleratedDrawing;
-    preferences.intersectionObserverEnabled = options.enableIntersectionObserver;
     preferences.menuItemElementEnabled = options.enableMenuItemElement;
     preferences.modernMediaControlsEnabled = options.enableModernMediaControls;
-    preferences.webAuthenticationEnabled = options.enableWebAuthentication;
     preferences.isSecureContextAttributeEnabled = options.enableIsSecureContextAttribute;
     preferences.inspectorAdditionsEnabled = options.enableInspectorAdditions;
     preferences.allowCrossOriginSubresourcesToAskForCredentials = options.allowCrossOriginSubresourcesToAskForCredentials;
+    preferences.webAnimationsCSSIntegrationEnabled = options.enableWebAnimationsCSSIntegration;
+    preferences.colorFilterEnabled = options.enableColorFilter;
+    preferences.selectionAcrossShadowBoundariesEnabled = options.enableSelectionAcrossShadowBoundaries;
+    preferences.webGPUEnabled = options.enableWebGPU;
+    preferences.CSSLogicalEnabled = options.enableCSSLogical;
+    preferences.adClickAttributionEnabled = options.adClickAttributionEnabled;
 }
 
 // Called once on DumpRenderTree startup.
 static void setDefaultsToConsistentValuesForTesting()
 {
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
     WebThreadLock();
 #endif
 
@@ -1022,7 +1045,7 @@ static void setDefaultsToConsistentValuesForTesting()
         WebKitAllowsInlineMediaPlaybackPreferenceKey: @YES,
         WebKitInlineMediaPlaybackRequiresPlaysInlineAttributeKey: @NO,
         @"UseWebKitWebInspector": @YES,
-#if !PLATFORM(IOS)
+#if !PLATFORM(IOS_FAMILY)
         @"NSPreferredSpellServerLanguage": @"en_US",
         @"NSUserDictionaryReplacementItems": @[],
         @"NSTestCorrectionDictionary": @{
@@ -1034,7 +1057,7 @@ static void setDefaultsToConsistentValuesForTesting()
         },
 #endif
         @"AppleScrollBarVariant": @"DoubleMax",
-#if !PLATFORM(IOS)
+#if !PLATFORM(IOS_FAMILY)
         @"NSScrollAnimationEnabled": @NO,
 #endif
         @"NSOverlayScrollersEnabled": @NO,
@@ -1068,7 +1091,7 @@ static void allocateGlobalControllers()
     policyDelegate = [[PolicyDelegate alloc] init];
     historyDelegate = [[HistoryDelegate alloc] init];
     defaultPolicyDelegate = [[DefaultPolicyDelegate alloc] init];
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
     scrollViewResizerDelegate = [[ScrollViewResizerDelegate alloc] init];
 #endif
 }
@@ -1088,7 +1111,7 @@ static void releaseGlobalControllers()
     releaseAndZero(&resourceLoadDelegate);
     releaseAndZero(&uiDelegate);
     releaseAndZero(&policyDelegate);
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
     releaseAndZero(&scrollViewResizerDelegate);
 #endif
 }
@@ -1105,8 +1128,10 @@ static void initializeGlobalsFromCommandLineOptions(int argc, const char *argv[]
         {"gc-between-tests", no_argument, &gcBetweenTests, YES},
         {"no-timeout", no_argument, &useTimeoutWatchdog, NO},
         {"allowed-host", required_argument, nullptr, 'a'},
+        {"allow-any-certificate-for-allowed-hosts", no_argument, &allowAnyHTTPSCertificateForAllowedHosts, YES},
         {"show-webview", no_argument, &showWebView, YES},
         {"print-test-count", no_argument, &printTestCount, YES},
+        {"world-leaks", no_argument, &checkForWorldLeaks, NO},
         {nullptr, 0, nullptr, 0}
     };
 
@@ -1126,7 +1151,7 @@ static void initializeGlobalsFromCommandLineOptions(int argc, const char *argv[]
 
 static void addTestPluginsToPluginSearchPath(const char* executablePath)
 {
-#if !PLATFORM(IOS)
+#if !PLATFORM(IOS_FAMILY)
     NSString *pwd = [[NSString stringWithUTF8String:executablePath] stringByDeletingLastPathComponent];
     [WebPluginDatabase setAdditionalWebPlugInPaths:[NSArray arrayWithObject:pwd]];
     [[WebPluginDatabase sharedDatabase] refresh];
@@ -1137,6 +1162,23 @@ static bool useLongRunningServerMode(int argc, const char *argv[])
 {
     // This assumes you've already called getopt_long
     return (argc == optind+1 && strcmp(argv[optind], "-") == 0);
+}
+
+static bool handleControlCommand(const char* command)
+{
+    if (!strcmp("#CHECK FOR WORLD LEAKS", command)) {
+        // DumpRenderTree does not support checking for world leaks.
+        WTF::String result("\n");
+        printf("Content-Type: text/plain\n");
+        printf("Content-Length: %u\n", result.length());
+        fwrite(result.utf8().data(), 1, result.length(), stdout);
+        printf("#EOF\n");
+        fprintf(stderr, "#EOF\n");
+        fflush(stdout);
+        fflush(stderr);
+        return true;
+    }
+    return false;
 }
 
 static void runTestingServerLoop()
@@ -1153,6 +1195,9 @@ static void runTestingServerLoop()
         if (strlen(filenameBuffer) == 0)
             continue;
 
+        if (handleControlCommand(filenameBuffer))
+            continue;
+
         runTest(filenameBuffer);
 
         if (printTestCount) {
@@ -1162,13 +1207,24 @@ static void runTestingServerLoop()
     }
 }
 
+#if PLATFORM(IOS_FAMILY)
+static BOOL overrideIsInHardwareKeyboardMode()
+{
+    return NO;
+}
+#endif
+
 static void prepareConsistentTestingEnvironment()
 {
-#if !PLATFORM(IOS)
+#if !PLATFORM(IOS_FAMILY)
     poseAsClass("DumpRenderTreePasteboard", "NSPasteboard");
     poseAsClass("DumpRenderTreeEvent", "NSEvent");
 #else
     poseAsClass("DumpRenderTreeEvent", "GSEvent");
+
+    // Override the implementation of +[UIKeyboard isInHardwareKeyboardMode] to ensure that test runs are deterministic
+    // regardless of whether a hardware keyboard is attached. We intentionally never restore the original implementation.
+    method_setImplementation(class_getClassMethod([UIKeyboard class], @selector(isInHardwareKeyboardMode)), reinterpret_cast<IMP>(overrideIsInHardwareKeyboardMode));
 #endif
 
     [[WebPreferences standardPreferences] setAutosaves:NO];
@@ -1183,7 +1239,7 @@ static void prepareConsistentTestingEnvironment()
 
     [WebPreferences _switchNetworkLoaderToNewTestingSession];
 
-#if !PLATFORM(IOS)
+#if !PLATFORM(IOS_FAMILY)
     adjustFonts();
     registerMockScrollbars();
 
@@ -1217,7 +1273,7 @@ void writeCrashedMessageOnFatalError(int signalCode)
 
 void dumpRenderTree(int argc, const char *argv[])
 {
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
     setUpIOSLayoutTestCommunication();
     [UIApplication sharedApplication].idleTimerDisabled = YES;
     [[UIScreen mainScreen] _setScale:2.0];
@@ -1244,6 +1300,10 @@ void dumpRenderTree(int argc, const char *argv[])
 
     [NSURLRequest setAllowsAnyHTTPSCertificate:YES forHost:@"localhost"];
     [NSURLRequest setAllowsAnyHTTPSCertificate:YES forHost:@"127.0.0.1"];
+    if (allowAnyHTTPSCertificateForAllowedHosts) {
+        for (auto& host : allowedHosts)
+            [NSURLRequest setAllowsAnyHTTPSCertificate:YES forHost:[NSString stringWithUTF8String:host.c_str()]];
+    }
 
     if (threaded)
         startJavaScriptThreads();
@@ -1264,7 +1324,7 @@ void dumpRenderTree(int argc, const char *argv[])
 
     releaseGlobalControllers();
 
-#if !PLATFORM(IOS)
+#if !PLATFORM(IOS_FAMILY)
     [DumpRenderTreePasteboard releaseLocalPasteboards];
 #endif
 
@@ -1274,12 +1334,12 @@ void dumpRenderTree(int argc, const char *argv[])
         disallowedURLs = 0;
     }
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
     tearDownIOSLayoutTestCommunication();
 #endif
 }
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
 static int _argc;
 static const char **_argv;
 
@@ -1326,9 +1386,9 @@ static const char **_argv;
         [self _webThreadInvoked];
     });
     while (!_hasFlushedWebThreadRunQueue) {
-        NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
-        [[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode beforeDate:[NSDate distantPast]];
-        [pool release];
+        @autoreleasepool {
+            [[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode beforeDate:[NSDate distantPast]];
+        }
     }
 }
 
@@ -1350,26 +1410,31 @@ int DumpRenderTreeMain(int argc, const char *argv[])
 {
     atexit(atexitFunction);
 
-#if PLATFORM(IOS)
+    WTF::setProcessPrivileges(allPrivileges());
+    WebCore::NetworkStorageSession::permitProcessToUseCookieAPI(true);
+
+#if PLATFORM(IOS_FAMILY)
     _UIApplicationLoadWebKit();
 #endif
-    NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
 
-    setDefaultsToConsistentValuesForTesting(); // Must be called before NSApplication initialization.
+    @autoreleasepool {
+        setDefaultsToConsistentValuesForTesting(); // Must be called before NSApplication initialization.
 
-#if !PLATFORM(IOS)
-    [DumpRenderTreeApplication sharedApplication]; // Force AppKit to init itself
+#if !PLATFORM(IOS_FAMILY)
+        [DumpRenderTreeApplication sharedApplication]; // Force AppKit to init itself
 
-    dumpRenderTree(argc, argv);
+        dumpRenderTree(argc, argv);
 #else
-    _argc = argc;
-    _argv = argv;
-    UIApplicationMain(argc, (char**)argv, @"DumpRenderTree", @"DumpRenderTree");
+        _argc = argc;
+        _argv = argv;
+        UIApplicationMain(argc, (char**)argv, @"DumpRenderTree", @"DumpRenderTree");
 #endif
-    [WebCoreStatistics garbageCollectJavaScriptObjects];
-    [WebCoreStatistics emptyCache]; // Otherwise SVGImages trigger false positives for Frame/Node counts
-    JSC::finalizeStatsAtEndOfTesting();
-    [pool release];
+
+        [WebCoreStatistics garbageCollectJavaScriptObjects];
+        [WebCoreStatistics emptyCache]; // Otherwise SVGImages trigger false positives for Frame/Node counts
+        JSC::finalizeStatsAtEndOfTesting();
+    }
+
     returningFromMain = true;
     return 0;
 }
@@ -1459,7 +1524,7 @@ static NSString *dumpFramesAsText(WebFrame *frame)
     // conversion methods cannot. After the conversion to a buffer, we turn that buffer into
     // a CFString via fromUTF8WithLatin1Fallback().createCFString() which can be appended to
     // the result without any conversion.
-    WKRetainPtr<WKStringRef> stringRef(AdoptWK, WKStringCreateWithCFString((CFStringRef)innerText));
+    WKRetainPtr<WKStringRef> stringRef(AdoptWK, WKStringCreateWithCFString((__bridge CFStringRef)innerText));
     size_t bufferSize = WKStringGetMaximumUTF8CStringSize(stringRef.get());
     auto buffer = std::make_unique<char[]>(bufferSize);
     size_t stringLength = WKStringGetUTF8CStringNonStrict(stringRef.get(), buffer.get(), bufferSize);
@@ -1478,7 +1543,7 @@ static NSString *dumpFramesAsText(WebFrame *frame)
 
 static NSData *dumpFrameAsPDF(WebFrame *frame)
 {
-#if !PLATFORM(IOS)
+#if !PLATFORM(IOS_FAMILY)
     if (!frame)
         return nil;
 
@@ -1546,7 +1611,7 @@ static void dumpBackForwardListForWebView(WebView *view)
     printf("===============================================\n");
 }
 
-#if !PLATFORM(IOS)
+#if !PLATFORM(IOS_FAMILY)
 static void changeWindowScaleIfNeeded(const char* testPathOrUR)
 {
     WTF::String localPathOrUrl = String(testPathOrUR);
@@ -1560,7 +1625,11 @@ static void changeWindowScaleIfNeeded(const char* testPathOrUR)
         return;
     // When the new scale factor is set on the window first, WebView doesn't see it as a new scale and stops propagating the behavior change to WebCore::Page.
     gTestRunner->setBackingScaleFactor(requiredScaleFactor);
-    [[[mainFrame webView] window] _setWindowResolution:requiredScaleFactor displayIfChanged:YES];
+    NSWindow *window = [[mainFrame webView] window];
+    if ([window respondsToSelector:@selector(_setWindowResolution:)])
+        [window _setWindowResolution:requiredScaleFactor];
+    else
+        [window _setWindowResolution:requiredScaleFactor displayIfChanged:YES];
 }
 #endif
 
@@ -1570,10 +1639,9 @@ static void sizeWebViewForCurrentTest()
 
     // W3C SVG tests expect to be 480x360
     bool isSVGW3CTest = (gTestRunner->testURL().find("svg/W3C-SVG-1.1") != string::npos);
-    if (isSVGW3CTest)
-        [[mainFrame webView] setFrameSize:NSMakeSize(TestRunner::w3cSVGViewWidth, TestRunner::w3cSVGViewHeight)];
-    else
-        [[mainFrame webView] setFrameSize:NSMakeSize(TestRunner::viewWidth, TestRunner::viewHeight)];
+    NSSize frameSize = isSVGW3CTest ? NSMakeSize(TestRunner::w3cSVGViewWidth, TestRunner::w3cSVGViewHeight) : NSMakeSize(TestRunner::viewWidth, TestRunner::viewHeight);
+    [[mainFrame webView] setFrameSize:frameSize];
+    [[mainFrame frameView] setFrame:NSMakeRect(0, 0, frameSize.width, frameSize.height)];
 }
 
 static const char *methodNameStringForFailedTest()
@@ -1593,11 +1661,8 @@ static const char *methodNameStringForFailedTest()
 
 static void dumpBackForwardListForAllWindows()
 {
-    CFArrayRef openWindows = (CFArrayRef)[DumpRenderTreeWindow openWindows];
-    unsigned count = CFArrayGetCount(openWindows);
-    for (unsigned i = 0; i < count; i++) {
-        NSWindow *window = (NSWindow *)CFArrayGetValueAtIndex(openWindows, i);
-#if !PLATFORM(IOS)
+    for (NSWindow *window in [DumpRenderTreeWindow openWindows]) {
+#if !PLATFORM(IOS_FAMILY)
         WebView *webView = [[[window contentView] subviews] objectAtIndex:0];
 #else
         ASSERT([[window contentView] isKindOfClass:[WebView class]]);
@@ -1632,7 +1697,7 @@ bool shouldSetWaitToDumpWatchdog()
 static void updateDisplay()
 {
     WebView *webView = [mainFrame webView];
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
     [gWebBrowserView layoutIfNeeded]; // Re-enables tile painting, which was disabled when committing the frame load.
     [gDrtWindow layoutTilesNow];
     [webView _flushCompositingChanges];
@@ -1646,7 +1711,7 @@ static void updateDisplay()
 
 void dump()
 {
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
     WebThreadLock();
 #endif
 
@@ -1674,11 +1739,11 @@ void dump()
             resultMimeType = @"application/pdf";
         } else if (gTestRunner->dumpDOMAsWebArchive()) {
             WebArchive *webArchive = [[mainFrame DOMDocument] webArchive];
-            resultString = CFBridgingRelease(WebCoreTestSupport::createXMLStringFromWebArchiveData((CFDataRef)[webArchive data]));
+            resultString = CFBridgingRelease(WebCoreTestSupport::createXMLStringFromWebArchiveData((__bridge CFDataRef)[webArchive data]));
             resultMimeType = @"application/x-webarchive";
         } else if (gTestRunner->dumpSourceAsWebArchive()) {
             WebArchive *webArchive = [[mainFrame dataSource] webArchive];
-            resultString = CFBridgingRelease(WebCoreTestSupport::createXMLStringFromWebArchiveData((CFDataRef)[webArchive data]));
+            resultString = CFBridgingRelease(WebCoreTestSupport::createXMLStringFromWebArchiveData((__bridge CFDataRef)[webArchive data]));
             resultMimeType = @"application/x-webarchive";
         } else
             resultString = [mainFrame renderTreeAsExternalRepresentationForPrinting:gTestRunner->isPrinting()];
@@ -1745,18 +1810,33 @@ static bool shouldEnableDeveloperExtras(const char* pathOrURL)
     return true;
 }
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
 static bool shouldMakeViewportFlexible(const char* pathOrURL)
 {
     return strstr(pathOrURL, "viewport/") && !strstr(pathOrURL, "visual-viewport/");
 }
 #endif
 
+static void setJSCOptions(const TestOptions& options)
+{
+    static WTF::StringBuilder savedOptions;
+
+    if (!savedOptions.isEmpty()) {
+        JSC::Options::setOptions(savedOptions.toString().ascii().data());
+        savedOptions.clear();
+    }
+
+    if (options.jscOptions.length()) {
+        JSC::Options::dumpAllOptionsInALine(savedOptions);
+        JSC::Options::setOptions(options.jscOptions.c_str());
+    }
+}
+
 static void resetWebViewToConsistentStateBeforeTesting(const TestOptions& options)
 {
     WebView *webView = [mainFrame webView];
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
     adjustWebDocumentForStandardViewport(gWebBrowserView, gWebScrollView);
     [webView _setAllowsMessaging:YES];
 #endif
@@ -1765,7 +1845,7 @@ static void resetWebViewToConsistentStateBeforeTesting(const TestOptions& option
     [webView makeTextStandardSize:nil];
     [webView resetPageZoom:nil];
     [webView _scaleWebView:1.0 atOrigin:NSZeroPoint];
-#if !PLATFORM(IOS)
+#if !PLATFORM(IOS_FAMILY)
     [webView _setCustomBackingScaleFactor:0];
 #endif
     [webView setTabKeyCyclesThroughElements:YES];
@@ -1774,13 +1854,13 @@ static void resetWebViewToConsistentStateBeforeTesting(const TestOptions& option
     [policyDelegate setControllerToNotifyDone:0];
     [uiDelegate resetToConsistentStateBeforeTesting:options];
     [frameLoadDelegate resetToConsistentState];
-#if !PLATFORM(IOS)
+#if !PLATFORM(IOS_FAMILY)
     [webView _setDashboardBehavior:WebDashboardBehaviorUseBackwardCompatibilityMode to:NO];
 #endif
     [webView _clearMainFrameName];
     [[webView undoManager] removeAllActions];
     [WebView _removeAllUserContentFromGroup:[webView groupName]];
-#if !PLATFORM(IOS)
+#if !PLATFORM(IOS_FAMILY)
     [[webView window] setAutodisplay:NO];
 #endif
     [webView setTracksRepaints:NO];
@@ -1805,12 +1885,12 @@ static void resetWebViewToConsistentStateBeforeTesting(const TestOptions& option
         gTestRunner->removeChromeInputField();
     }
 
-#if !PLATFORM(IOS)
+#if !PLATFORM(IOS_FAMILY)
     if (WebCore::Frame* frame = [webView _mainCoreFrame])
         WebCoreTestSupport::clearWheelEventTestTrigger(*frame);
 #endif
 
-#if !PLATFORM(IOS)
+#if !PLATFORM(IOS_FAMILY)
     [webView setContinuousSpellCheckingEnabled:YES];
     [webView setAutomaticQuoteSubstitutionEnabled:NO];
     [webView setAutomaticLinkDetectionEnabled:NO];
@@ -1826,20 +1906,24 @@ static void resetWebViewToConsistentStateBeforeTesting(const TestOptions& option
     [[MockGeolocationProvider shared] stopTimer];
     [[MockWebNotificationProvider shared] reset];
 
-#if !PLATFORM(IOS)
+#if !PLATFORM(IOS_FAMILY)
     // Clear the contents of the general pasteboard
     [[NSPasteboard generalPasteboard] declareTypes:[NSArray arrayWithObject:NSStringPboardType] owner:nil];
 #endif
 
+    setJSCOptions(options);
+
     [mainFrame _clearOpener];
 
-    setSpellCheckerLoggingEnabled(false);
+#if PLATFORM(MAC)
+    [LayoutTestSpellChecker uninstallAndReset];
+#endif
 
     resetAccumulatedLogs();
     WebCoreTestSupport::initializeLogChannelsIfNecessary();
 }
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
 // Work around <rdar://problem/9909073> WebKit's method of calling delegates on
 // the main thread is not thread safe. If the web thread is attempting to call
 // out to a delegate method on the main thread, we want to spin the main thread
@@ -1853,9 +1937,9 @@ static void WebThreadLockAfterDelegateCallbacksHaveCompleted()
     });
 
     while (dispatch_semaphore_wait(delegateSemaphore, DISPATCH_TIME_NOW)) {
-        NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
-        [[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode beforeDate:[NSDate distantPast]];
-        [pool release];
+        @autoreleasepool {
+            [[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode beforeDate:[NSDate distantPast]];
+        }
     }
 
     WebThreadLock();
@@ -1905,9 +1989,10 @@ static void runTest(const string& inputLine)
         testPath = [url absoluteString];
 
     NSString *informationString = [@"CRASHING TEST: " stringByAppendingString:testPath];
-    WebKit::setCrashReportApplicationSpecificInformation((CFStringRef)informationString);
+    WebKit::setCrashReportApplicationSpecificInformation((__bridge CFStringRef)informationString);
 
-    TestOptions options(url, command);
+    TestOptions options { [url isFileURL] ? [url fileSystemRepresentation] : pathOrURL, command.absolutePath };
+
     if (!mainFrameTestOptions || !options.webViewIsCompatibleWithOptions(mainFrameTestOptions.value())) {
         if (mainFrame)
             destroyWebViewAndOffscreenWindow([mainFrame webView]);
@@ -1920,7 +2005,7 @@ static void runTest(const string& inputLine)
 
     const char* testURL([[url absoluteString] UTF8String]);
 
-#if !PLATFORM(IOS)
+#if !PLATFORM(IOS_FAMILY)
     changeWindowScaleIfNeeded(testURL);
 #endif
 
@@ -1929,7 +2014,7 @@ static void runTest(const string& inputLine)
     gTestRunner->setCustomTimeout(command.timeout);
     gTestRunner->setDumpJSConsoleLogInStdErr(command.dumpJSConsoleLogInStdErr || options.dumpJSConsoleLogInStdErr);
     topLoadingFrame = nil;
-#if !PLATFORM(IOS)
+#if !PLATFORM(IOS_FAMILY)
     ASSERT(!draggingInfo); // the previous test should have called eventSender.mouseUp to drop!
     releaseAndZero(&draggingInfo);
 #endif
@@ -1938,6 +2023,9 @@ static void runTest(const string& inputLine)
     sizeWebViewForCurrentTest();
     gTestRunner->setIconDatabaseEnabled(false);
     gTestRunner->clearAllApplicationCaches();
+
+    gTestRunner->clearAllDatabases();
+    gTestRunner->setIDBPerOriginQuota(50 * MB);
 
     if (disallowedURLs)
         CFSetRemoveAllValues(disallowedURLs);
@@ -1957,7 +2045,7 @@ static void runTest(const string& inputLine)
         }
     }
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
     if (shouldMakeViewportFlexible(pathOrURL.c_str()))
         adjustWebDocumentForFlexibleViewport(gWebBrowserView, gWebScrollView);
 #endif
@@ -1971,7 +2059,7 @@ static void runTest(const string& inputLine)
     [prevTestBFItem release];
     prevTestBFItem = [[[[mainFrame webView] backForwardList] currentItem] retain];
 
-    auto& workQueue = WorkQueue::singleton();
+    auto& workQueue = DRT::WorkQueue::singleton();
     workQueue.clear();
     workQueue.setFrozen(false);
 
@@ -1979,74 +2067,74 @@ static void runTest(const string& inputLine)
     if (ignoreWebCoreNodeLeaks)
         [WebCoreStatistics startIgnoringWebCoreNodeLeaks];
 
-    NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
-    [mainFrame loadRequest:[NSURLRequest requestWithURL:url]];
-    [pool release];
+    @autoreleasepool {
+        [mainFrame loadRequest:[NSURLRequest requestWithURL:url]];
+    }
 
     while (!done) {
-        pool = [[NSAutoreleasePool alloc] init];
-        CFRunLoopRunInMode(kCFRunLoopDefaultMode, 10, false);
-        [pool release];
-    }
-
-#if PLATFORM(IOS)
-    [(DumpRenderTree *)UIApp _waitForWebThread];
-    WebThreadLockAfterDelegateCallbacksHaveCompleted();
-#endif
-    pool = [[NSAutoreleasePool alloc] init];
-    [EventSendingController clearSavedEvents];
-    [[mainFrame webView] setSelectedDOMRange:nil affinity:NSSelectionAffinityDownstream];
-
-    workQueue.clear();
-
-    // If the test page could have possibly opened the Web Inspector frontend,
-    // then try to close it in case it was accidentally left open.
-    if (shouldEnableDeveloperExtras(pathOrURL.c_str())) {
-        gTestRunner->closeWebInspector();
-        gTestRunner->setDeveloperExtrasEnabled(false);
-    }
-
-#if PLATFORM(MAC)
-    // Make sure the WebView is parented, since the test may have unparented it.
-    WebView *webView = [mainFrame webView];
-    if (![webView superview])
-        [[mainWindow contentView] addSubview:webView];
-#endif
-
-    if (gTestRunner->closeRemainingWindowsWhenComplete()) {
-        NSArray* array = [DumpRenderTreeWindow openWindows];
-
-        unsigned count = [array count];
-        for (unsigned i = 0; i < count; i++) {
-            NSWindow *window = [array objectAtIndex:i];
-
-            // Don't try to close the main window
-            if (window == [[mainFrame webView] window])
-                continue;
-
-#if !PLATFORM(IOS)
-            WebView *webView = [[[window contentView] subviews] objectAtIndex:0];
-#else
-            ASSERT([[window contentView] isKindOfClass:[WebView class]]);
-            WebView *webView = (WebView *)[window contentView];
-#endif
-
-            [webView close];
-            [window close];
+        @autoreleasepool {
+            CFRunLoopRunInMode(kCFRunLoopDefaultMode, 10, false);
         }
     }
 
-    resetWebViewToConsistentStateBeforeTesting(options);
+#if PLATFORM(IOS_FAMILY)
+    [(DumpRenderTree *)UIApp _waitForWebThread];
+    WebThreadLockAfterDelegateCallbacksHaveCompleted();
+#endif
 
-    // Loading an empty request synchronously replaces the document with a blank one, which is necessary
-    // to stop timers, WebSockets and other activity that could otherwise spill output into next test's results.
-    [mainFrame loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@""]]];
+    @autoreleasepool {
+        [EventSendingController clearSavedEvents];
+        [[mainFrame webView] setSelectedDOMRange:nil affinity:NSSelectionAffinityDownstream];
 
-    [pool release];
+        workQueue.clear();
+
+        // If the test page could have possibly opened the Web Inspector frontend,
+        // then try to close it in case it was accidentally left open.
+        if (shouldEnableDeveloperExtras(pathOrURL.c_str())) {
+            gTestRunner->closeWebInspector();
+            gTestRunner->setDeveloperExtrasEnabled(false);
+        }
+
+#if PLATFORM(MAC)
+        // Make sure the WebView is parented, since the test may have unparented it.
+        WebView *webView = [mainFrame webView];
+        if (![webView superview])
+            [[mainWindow contentView] addSubview:webView];
+#endif
+
+        if (gTestRunner->closeRemainingWindowsWhenComplete()) {
+            NSArray* array = [DumpRenderTreeWindow openWindows];
+
+            unsigned count = [array count];
+            for (unsigned i = 0; i < count; i++) {
+                NSWindow *window = [array objectAtIndex:i];
+
+                // Don't try to close the main window
+                if (window == [[mainFrame webView] window])
+                    continue;
+
+#if !PLATFORM(IOS_FAMILY)
+                WebView *webView = [[[window contentView] subviews] objectAtIndex:0];
+#else
+                ASSERT([[window contentView] isKindOfClass:[WebView class]]);
+                WebView *webView = (WebView *)[window contentView];
+#endif
+
+                [webView close];
+                [window close];
+            }
+        }
+
+        resetWebViewToConsistentStateBeforeTesting(options);
+
+        // Loading an empty request synchronously replaces the document with a blank one, which is necessary
+        // to stop timers, WebSockets and other activity that could otherwise spill output into next test's results.
+        [mainFrame loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:@""]]];
+    }
 
     // We should only have our main window left open when we're done
     ASSERT(CFArrayGetCount(openWindowsRef) == 1);
-    ASSERT(CFArrayGetValueAtIndex(openWindowsRef, 0) == [[mainFrame webView] window]);
+    ASSERT(CFArrayGetValueAtIndex(openWindowsRef, 0) == (__bridge CFTypeRef)[[mainFrame webView] window]);
 
     gTestRunner->cleanup();
     gTestRunner = nullptr;
@@ -2069,7 +2157,7 @@ static void runTest(const string& inputLine)
 
 void displayWebView()
 {
-#if !PLATFORM(IOS)
+#if !PLATFORM(IOS_FAMILY)
     WebView *webView = [mainFrame webView];
     [webView display];
 #else
@@ -2082,7 +2170,7 @@ void displayWebView()
 void displayAndTrackRepaintsWebView()
 {
     displayWebView();
-#if !PLATFORM(IOS)
+#if !PLATFORM(IOS_FAMILY)
     // FIXME: Tracking repaints is not specific to Mac. We should enable such support on iOS.
     WebView *webView = [mainFrame webView];
     [webView setTracksRepaints:YES];
@@ -2090,7 +2178,7 @@ void displayAndTrackRepaintsWebView()
 #endif
 }
 
-#if !PLATFORM(IOS)
+#if !PLATFORM(IOS_FAMILY)
 @implementation DumpRenderTreeEvent
 
 + (NSPoint)mouseLocation

@@ -23,9 +23,12 @@ info: |
     16. If SameValue(handlerProto, targetProto) is false, throw a TypeError
     exception.
     ...
+features: [Proxy]
 ---*/
 
-var target = Object.create({ foo: 1 });
+var target = Object.create({
+  foo: 1
+});
 
 var p = new Proxy(target, {
   getPrototypeOf: function() {
@@ -36,5 +39,5 @@ var p = new Proxy(target, {
 Object.preventExtensions(target);
 
 assert.throws(TypeError, function() {
-    Object.getPrototypeOf(p);
+  Object.getPrototypeOf(p);
 });

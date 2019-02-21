@@ -35,8 +35,7 @@
 #include "NativeWebWheelEvent.h"
 #include "WebPageGroup.h"
 #include "WebProcessPool.h"
-#include <JavaScriptCore/JSBase.h>
-#include <wpe/view-backend.h>
+#include <wpe/wpe.h>
 
 using namespace WebKit;
 
@@ -46,8 +45,9 @@ View::View(struct wpe_view_backend* backend, const API::PageConfiguration& baseC
     : m_client(std::make_unique<API::ViewClient>())
     , m_pageClient(std::make_unique<PageClientImpl>(*this))
     , m_size { 800, 600 }
-    , m_viewStateFlags(WebCore::ActivityState::WindowIsActive | WebCore::ActivityState::IsFocused | WebCore::ActivityState::IsVisible | WebCore::ActivityState::IsInWindow)
-    , m_compositingManagerProxy(*this)
+#if !defined(WPE_BACKEND_CHECK_VERSION) || !WPE_BACKEND_CHECK_VERSION(1, 1, 0)
+    , m_viewStateFlags { WebCore::ActivityState::WindowIsActive, WebCore::ActivityState::IsFocused, WebCore::ActivityState::IsVisible, WebCore::ActivityState::IsInWindow }
+#endif
     , m_backend(backend)
 {
     ASSERT(m_backend);
@@ -74,8 +74,6 @@ View::View(struct wpe_view_backend* backend, const API::PageConfiguration& baseC
         pool->startMemorySampler(0);
 #endif
 
-    m_compositingManagerProxy.initialize();
-
     static struct wpe_view_backend_client s_backendClient = {
         // set_size
         [](void* data, uint32_t width, uint32_t height)
@@ -88,7 +86,30 @@ View::View(struct wpe_view_backend* backend, const API::PageConfiguration& baseC
         {
             auto& view = *reinterpret_cast<View*>(data);
             view.frameDisplayed();
-        }
+        },
+#if defined(WPE_BACKEND_CHECK_VERSION) && WPE_BACKEND_CHECK_VERSION(1, 1, 0)
+        // activity_state_changed
+        [](void* data, uint32_t state)
+        {
+            auto& view = *reinterpret_cast<View*>(data);
+            OptionSet<WebCore::ActivityState::Flag> flags;
+            if (state & wpe_view_activity_state_visible)
+                flags.add(WebCore::ActivityState::IsVisible);
+            if (state & wpe_view_activity_state_focused) {
+                flags.add(WebCore::ActivityState::IsFocused);
+                flags.add(WebCore::ActivityState::WindowIsActive);
+            }
+            if (state & wpe_view_activity_state_in_window)
+                flags.add(WebCore::ActivityState::IsInWindow);
+            view.setViewState(flags);
+        },
+#else
+        nullptr,
+#endif
+        // padding
+        nullptr,
+        nullptr,
+        nullptr
     };
     wpe_view_backend_set_backend_client(m_backend, &s_backendClient, this);
 
@@ -100,7 +121,7 @@ View::View(struct wpe_view_backend* backend, const API::PageConfiguration& baseC
             if (event->pressed
                 && event->modifiers & wpe_input_keyboard_modifier_control
                 && event->modifiers & wpe_input_keyboard_modifier_shift
-                && event->keyCode == 'G') {
+                && event->key_code == WPE_KEY_G) {
                 auto& preferences = view.page().preferences();
                 preferences.setResourceUsageOverlayVisible(!preferences.resourceUsageOverlayVisible());
                 return;
@@ -125,17 +146,17 @@ View::View(struct wpe_view_backend* backend, const API::PageConfiguration& baseC
             auto& page = reinterpret_cast<View*>(data)->page();
             page.handleTouchEvent(WebKit::NativeWebTouchEvent(event, page.deviceScaleFactor()));
         },
+        // padding
+        nullptr,
+        nullptr,
+        nullptr,
+        nullptr
     };
     wpe_view_backend_set_input_client(m_backend, &s_inputClient, this);
 
     wpe_view_backend_initialize(m_backend);
 
     m_pageProxy->initializeWebPage();
-}
-
-View::~View()
-{
-    m_compositingManagerProxy.finalize();
 }
 
 void View::setClient(std::unique_ptr<API::ViewClient>&& client)
@@ -156,11 +177,6 @@ void View::handleDownloadRequest(DownloadProxy& download)
     m_client->handleDownloadRequest(*this, download);
 }
 
-JSGlobalContextRef View::javascriptGlobalContext()
-{
-    return m_client->javascriptGlobalContext();
-}
-
 void View::setSize(const WebCore::IntSize& size)
 {
     m_size = size;
@@ -168,12 +184,10 @@ void View::setSize(const WebCore::IntSize& size)
         m_pageProxy->drawingArea()->setSize(size);
 }
 
-void View::setViewState(WebCore::ActivityState::Flags flags)
+void View::setViewState(OptionSet<WebCore::ActivityState::Flag> flags)
 {
-    static const WebCore::ActivityState::Flags defaultFlags = WebCore::ActivityState::WindowIsActive | WebCore::ActivityState::IsFocused;
-
-    WebCore::ActivityState::Flags changedFlags = m_viewStateFlags ^ (defaultFlags | flags);
-    m_viewStateFlags = defaultFlags | flags;
+    auto changedFlags = m_viewStateFlags ^ flags;
+    m_viewStateFlags = flags;
 
     if (changedFlags)
         m_pageProxy->activityStateDidChange(changedFlags);

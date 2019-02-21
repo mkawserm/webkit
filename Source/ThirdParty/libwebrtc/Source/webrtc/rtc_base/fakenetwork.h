@@ -16,6 +16,9 @@
 #include <utility>
 #include <vector>
 
+#include "absl/memory/memory.h"
+#include "rtc_base/checks.h"
+#include "rtc_base/fake_mdns_responder.h"
 #include "rtc_base/messagehandler.h"
 #include "rtc_base/network.h"
 #include "rtc_base/socketaddress.h"
@@ -28,8 +31,7 @@ const int kFakeIPv4NetworkPrefixLength = 24;
 const int kFakeIPv6NetworkPrefixLength = 64;
 
 // Fake network manager that allows us to manually specify the IPs to use.
-class FakeNetworkManager : public NetworkManagerBase,
-                           public MessageHandler {
+class FakeNetworkManager : public NetworkManagerBase, public MessageHandler {
  public:
   FakeNetworkManager() {}
 
@@ -54,8 +56,7 @@ class FakeNetworkManager : public NetworkManagerBase,
   }
 
   void RemoveInterface(const SocketAddress& iface) {
-    for (IfaceList::iterator it = ifaces_.begin();
-         it != ifaces_.end(); ++it) {
+    for (IfaceList::iterator it = ifaces_.begin(); it != ifaces_.end(); ++it) {
       if (it->first.EqualIPs(iface)) {
         ifaces_.erase(it);
         break;
@@ -79,20 +80,33 @@ class FakeNetworkManager : public NetworkManagerBase,
   virtual void StopUpdating() { --start_count_; }
 
   // MessageHandler interface.
-  virtual void OnMessage(Message* msg) {
-    DoUpdateNetworks();
+  virtual void OnMessage(Message* msg) { DoUpdateNetworks(); }
+
+  void CreateMdnsResponder(rtc::Thread* network_thread) {
+    if (mdns_responder_ == nullptr) {
+      mdns_responder_ =
+          absl::make_unique<webrtc::FakeMdnsResponder>(network_thread);
+    }
   }
 
   using NetworkManagerBase::set_enumeration_permission;
   using NetworkManagerBase::set_default_local_addresses;
+
+  // rtc::NetworkManager override.
+  webrtc::MdnsResponderInterface* GetMdnsResponder() const override {
+    return mdns_responder_.get();
+  }
+
+  webrtc::FakeMdnsResponder* GetMdnsResponderForTesting() const {
+    return mdns_responder_.get();
+  }
 
  private:
   void DoUpdateNetworks() {
     if (start_count_ == 0)
       return;
     std::vector<Network*> networks;
-    for (IfaceList::iterator it = ifaces_.begin();
-         it != ifaces_.end(); ++it) {
+    for (IfaceList::iterator it = ifaces_.begin(); it != ifaces_.end(); ++it) {
       int prefix_length = 0;
       if (it->first.ipaddr().family() == AF_INET) {
         prefix_length = kFakeIPv4NetworkPrefixLength;
@@ -122,6 +136,8 @@ class FakeNetworkManager : public NetworkManagerBase,
 
   IPAddress default_local_ipv4_address_;
   IPAddress default_local_ipv6_address_;
+
+  std::unique_ptr<webrtc::FakeMdnsResponder> mdns_responder_;
 };
 
 }  // namespace rtc

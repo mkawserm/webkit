@@ -25,8 +25,7 @@
  * THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef RunLoop_h
-#define RunLoop_h
+#pragma once
 
 #include <wtf/Condition.h>
 #include <wtf/Deque.h>
@@ -79,6 +78,7 @@ public:
 #endif
 
     class TimerBase {
+        WTF_MAKE_FAST_ALLOCATED;
         friend class RunLoop;
     public:
         WTF_EXPORT_PRIVATE explicit TimerBase(RunLoop&);
@@ -211,5 +211,3 @@ private:
 } // namespace WTF
 
 using WTF::RunLoop;
-
-#endif // RunLoop_h

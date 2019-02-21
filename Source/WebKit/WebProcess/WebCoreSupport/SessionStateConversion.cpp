@@ -28,13 +28,12 @@
 
 #include "SessionState.h"
 #include <WebCore/BlobData.h>
-#include <WebCore/FileSystem.h>
 #include <WebCore/FormData.h>
 #include <WebCore/HistoryItem.h>
-
-using namespace WebCore;
+#include <wtf/FileSystem.h>
 
 namespace WebKit {
+using namespace WebCore;
 
 static HTTPBody toHTTPBody(const FormData& formData)
 {
@@ -43,25 +42,20 @@ static HTTPBody toHTTPBody(const FormData& formData)
     for (const auto& formDataElement : formData.elements()) {
         HTTPBody::Element element;
 
-        switch (formDataElement.m_type) {
-        case FormDataElement::Type::Data:
-            element.type = HTTPBody::Element::Type::Data;
-            element.data = formDataElement.m_data;
-            break;
-
-        case FormDataElement::Type::EncodedFile:
-            element.filePath = formDataElement.m_filename;
-            element.fileStart = formDataElement.m_fileStart;
-            if (formDataElement.m_fileLength != BlobDataItem::toEndOfFile)
-                element.fileLength = formDataElement.m_fileLength;
-            if (formDataElement.m_expectedFileModificationTime != FileSystem::invalidFileTime())
-                element.expectedFileModificationTime = formDataElement.m_expectedFileModificationTime;
-            break;
-
-        case FormDataElement::Type::EncodedBlob:
-            element.blobURLString = formDataElement.m_url.string();
-            break;
-        }
+        switchOn(formDataElement.data,
+            [&] (const Vector<char>& bytes) {
+                element.type = HTTPBody::Element::Type::Data;
+                element.data = bytes;
+            }, [&] (const FormDataElement::EncodedFileData& fileData) {
+                element.filePath = fileData.filename;
+                element.fileStart = fileData.fileStart;
+                if (fileData.fileLength != BlobDataItem::toEndOfFile)
+                    element.fileLength = fileData.fileLength;
+                element.expectedFileModificationTime = fileData.expectedFileModificationTime;
+            }, [&] (const FormDataElement::EncodedBlobData& blobData) {
+                element.blobURLString = blobData.url.string();
+            }
+        );
 
         httpBody.elements.append(WTFMove(element));
     }
@@ -96,12 +90,13 @@ static FrameState toFrameState(const HistoryItem& historyItem)
         frameState.httpBody = WTFMove(httpBody);
     }
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
     frameState.exposedContentRect = historyItem.exposedContentRect();
     frameState.unobscuredContentRect = historyItem.unobscuredContentRect();
     frameState.minimumLayoutSizeInScrollViewCoordinates = historyItem.minimumLayoutSizeInScrollViewCoordinates();
     frameState.contentSize = historyItem.contentSize();
     frameState.scaleIsInitial = historyItem.scaleIsInitial();
+    frameState.obscuredInsets = historyItem.obscuredInsets();
 #endif
 
     for (auto& childHistoryItem : historyItem.children()) {
@@ -112,15 +107,15 @@ static FrameState toFrameState(const HistoryItem& historyItem)
     return frameState;
 }
 
-PageState toPageState(const WebCore::HistoryItem& historyItem)
+BackForwardListItemState toBackForwardListItemState(const WebCore::HistoryItem& historyItem)
 {
-    PageState pageState;
-
-    pageState.title = historyItem.title();
-    pageState.mainFrameState = toFrameState(historyItem);
-    pageState.shouldOpenExternalURLsPolicy = historyItem.shouldOpenExternalURLsPolicy();
-
-    return pageState;
+    BackForwardListItemState state;
+    state.identifier = historyItem.identifier();
+    state.pageState.title = historyItem.title();
+    state.pageState.mainFrameState = toFrameState(historyItem);
+    state.pageState.shouldOpenExternalURLsPolicy = historyItem.shouldOpenExternalURLsPolicy();
+    state.pageState.sessionStateObject = historyItem.stateObject();
+    return state;
 }
 
 static Ref<FormData> toFormData(const HTTPBody& httpBody)
@@ -134,7 +129,7 @@ static Ref<FormData> toFormData(const HTTPBody& httpBody)
             break;
 
         case HTTPBody::Element::Type::File:
-            formData->appendFileRange(element.filePath, element.fileStart, element.fileLength.value_or(BlobDataItem::toEndOfFile), element.expectedFileModificationTime.value_or(FileSystem::invalidFileTime()));
+            formData->appendFileRange(element.filePath, element.fileStart, element.fileLength.valueOr(BlobDataItem::toEndOfFile), element.expectedFileModificationTime);
             break;
 
         case HTTPBody::Element::Type::Blob:
@@ -173,27 +168,29 @@ static void applyFrameState(HistoryItem& historyItem, const FrameState& frameSta
         historyItem.setFormData(toFormData(httpBody));
     }
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
     historyItem.setExposedContentRect(frameState.exposedContentRect);
     historyItem.setUnobscuredContentRect(frameState.unobscuredContentRect);
     historyItem.setMinimumLayoutSizeInScrollViewCoordinates(frameState.minimumLayoutSizeInScrollViewCoordinates);
     historyItem.setContentSize(frameState.contentSize);
     historyItem.setScaleIsInitial(frameState.scaleIsInitial);
+    historyItem.setObscuredInsets(frameState.obscuredInsets);
 #endif
 
     for (const auto& childFrameState : frameState.children) {
-        Ref<HistoryItem> childHistoryItem = HistoryItem::create(childFrameState.urlString, String());
+        Ref<HistoryItem> childHistoryItem = HistoryItem::create(childFrameState.urlString, { }, { });
         applyFrameState(childHistoryItem, childFrameState);
 
         historyItem.addChildItem(WTFMove(childHistoryItem));
     }
 }
 
-Ref<HistoryItem> toHistoryItem(const PageState& pageState)
+Ref<HistoryItem> toHistoryItem(const BackForwardListItemState& itemState)
 {
-    Ref<HistoryItem> historyItem = HistoryItem::create(pageState.mainFrameState.urlString, pageState.title);
-    historyItem->setShouldOpenExternalURLsPolicy(pageState.shouldOpenExternalURLsPolicy);
-    applyFrameState(historyItem, pageState.mainFrameState);
+    Ref<HistoryItem> historyItem = HistoryItem::create(itemState.pageState.mainFrameState.urlString, itemState.pageState.title, { }, itemState.identifier);
+    historyItem->setShouldOpenExternalURLsPolicy(itemState.pageState.shouldOpenExternalURLsPolicy);
+    historyItem->setStateObject(itemState.pageState.sessionStateObject.get());
+    applyFrameState(historyItem, itemState.pageState.mainFrameState);
 
     return historyItem;
 }

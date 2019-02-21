@@ -27,6 +27,7 @@
 #define WKBundlePagePrivate_h
 
 #include <WebKit/WKBase.h>
+#include <WebKit/WKDeprecated.h>
 #include <WebKit/WKEvent.h>
 #include <WebKit/WKGeometry.h>
 #include <WebKit/WKUserContentInjectedFrames.h>
@@ -37,7 +38,7 @@ extern "C" {
 #endif
 
 WK_EXPORT void WKBundlePageStopLoading(WKBundlePageRef page);
-WK_EXPORT void WKBundlePageSetDefersLoading(WKBundlePageRef page, bool defersLoading);
+WK_EXPORT void WKBundlePageSetDefersLoading(WKBundlePageRef page, bool defersLoading) WK_C_API_DEPRECATED;
 WK_EXPORT bool WKBundlePageIsEditingCommandEnabled(WKBundlePageRef page, WKStringRef commandName);
 WK_EXPORT void WKBundlePageClearMainFrameName(WKBundlePageRef page);
 WK_EXPORT void WKBundlePageClose(WKBundlePageRef page);
@@ -76,6 +77,9 @@ WK_EXPORT void WKBundlePageSetComposition(WKBundlePageRef page, WKStringRef text
 WK_EXPORT bool WKBundlePageHasComposition(WKBundlePageRef page);
 WK_EXPORT void WKBundlePageConfirmComposition(WKBundlePageRef page);
 WK_EXPORT void WKBundlePageConfirmCompositionWithText(WKBundlePageRef page, WKStringRef text);
+
+WK_EXPORT void WKBundlePageSetUseDarkAppearance(WKBundlePageRef page, bool useDarkAppearance);
+WK_EXPORT bool WKBundlePageIsUsingDarkAppearance(WKBundlePageRef page);
 
 WK_EXPORT bool WKBundlePageCanShowMIMEType(WKBundlePageRef, WKStringRef mimeType);
 
@@ -119,6 +123,16 @@ typedef uint32_t WKEventThrottlingBehavior;
 
 // Passing null in the second parameter clears the override.
 WK_EXPORT void WKBundlePageSetEventThrottlingBehaviorOverride(WKBundlePageRef, WKEventThrottlingBehavior*);
+
+enum {
+    kWKCompositingPolicyNormal = 0,
+    kWKCompositingPolicyConservative
+};
+
+typedef uint32_t WKCompositingPolicy;
+
+// Passing null in the second parameter clears the override.
+WK_EXPORT void WKBundlePageSetCompositingPolicyOverride(WKBundlePageRef, WKCompositingPolicy*);
 
 #if TARGET_OS_IPHONE
 WK_EXPORT void WKBundlePageSetUseTestingViewportConfiguration(WKBundlePageRef, bool);

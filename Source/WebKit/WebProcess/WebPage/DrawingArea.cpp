@@ -43,15 +43,14 @@
 #include "DrawingAreaImpl.h"
 #endif
 
-using namespace WebCore;
-
 namespace WebKit {
+using namespace WebCore;
 
 std::unique_ptr<DrawingArea> DrawingArea::create(WebPage& webPage, const WebPageCreationParameters& parameters)
 {
     switch (parameters.drawingAreaType) {
 #if PLATFORM(COCOA)
-#if !PLATFORM(IOS)
+#if !PLATFORM(IOS_FAMILY)
     case DrawingAreaTypeTiledCoreAnimation:
         return std::make_unique<TiledCoreAnimationDrawingArea>(webPage, parameters);
 #endif
@@ -88,7 +87,7 @@ void DrawingArea::dispatchAfterEnsuringUpdatedScrollPosition(WTF::Function<void 
     function();
 }
 
-#if USE(REQUEST_ANIMATION_FRAME_DISPLAY_MONITOR)
+#if USE(REQUEST_ANIMATION_FRAME_DISPLAY_MONITOR) && !(PLATFORM(MAC) && ENABLE(WEBPROCESS_WINDOWSERVER_BLOCKING))
 RefPtr<WebCore::DisplayRefreshMonitor> DrawingArea::createDisplayRefreshMonitor(PlatformDisplayID)
 {
     return nullptr;

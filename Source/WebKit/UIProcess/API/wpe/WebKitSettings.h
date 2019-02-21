@@ -236,13 +236,6 @@ WEBKIT_API void
 webkit_settings_set_default_charset                            (WebKitSettings *settings,
                                                                 const gchar    *default_charset);
 
-WEBKIT_DEPRECATED gboolean
-webkit_settings_get_enable_private_browsing                    (WebKitSettings *settings);
-
-WEBKIT_DEPRECATED void
-webkit_settings_set_enable_private_browsing                    (WebKitSettings *settings,
-                                                                gboolean        enabled);
-
 WEBKIT_API gboolean
 webkit_settings_get_enable_developer_extras                    (WebKitSettings *settings);
 
@@ -401,6 +394,13 @@ webkit_settings_set_enable_media_stream                        (WebKitSettings *
                                                                 gboolean        enabled);
 
 WEBKIT_API gboolean
+webkit_settings_get_enable_mock_capture_devices                (WebKitSettings *settings);
+
+WEBKIT_API void
+webkit_settings_set_enable_mock_capture_devices                (WebKitSettings *settings,
+                                                                gboolean        enabled);
+
+WEBKIT_API gboolean
 webkit_settings_get_enable_spatial_navigation                  (WebKitSettings *settings);
 
 WEBKIT_API void
@@ -422,6 +422,13 @@ webkit_settings_set_enable_encrypted_media                     (WebKitSettings *
                                                                 gboolean        enabled);
 
 WEBKIT_API gboolean
+webkit_settings_get_enable_media_capabilities                  (WebKitSettings *settings);
+
+WEBKIT_API void
+webkit_settings_set_enable_media_capabilities                  (WebKitSettings *settings,
+                                                                gboolean        enabled);
+
+WEBKIT_API gboolean
 webkit_settings_get_allow_file_access_from_file_urls           (WebKitSettings *settings);
 
 WEBKIT_API void
@@ -434,6 +441,13 @@ webkit_settings_get_allow_universal_access_from_file_urls      (WebKitSettings *
 WEBKIT_API void
 webkit_settings_set_allow_universal_access_from_file_urls      (WebKitSettings *settings,
                                                                 gboolean        allowed);
+
+WEBKIT_API gboolean
+webkit_settings_get_enable_javascript_markup                   (WebKitSettings *settings);
+
+WEBKIT_API void
+webkit_settings_set_enable_javascript_markup                   (WebKitSettings *settings,
+                                                                gboolean        enabled);
 
 G_END_DECLS
 

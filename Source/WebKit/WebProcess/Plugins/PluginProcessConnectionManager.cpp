@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Apple Inc. All rights reserved.
+ * Copyright (C) 2010-2018 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -72,7 +72,7 @@ PluginProcessConnection* PluginProcessConnectionManager::getPluginProcessConnect
     bool supportsAsynchronousInitialization;
     if (!WebProcess::singleton().parentProcessConnection()->sendSync(Messages::WebProcessProxy::GetPluginProcessConnection(pluginProcessToken),
                                                      Messages::WebProcessProxy::GetPluginProcessConnection::Reply(encodedConnectionIdentifier, supportsAsynchronousInitialization), 0))
-        return 0;
+        return nullptr;
 
 #if USE(UNIX_DOMAIN_SOCKETS)
     IPC::Connection::Identifier connectionIdentifier = encodedConnectionIdentifier.releaseFileDescriptor();
@@ -81,11 +81,11 @@ PluginProcessConnection* PluginProcessConnectionManager::getPluginProcessConnect
 #elif OS(WINDOWS)
     IPC::Connection::Identifier connectionIdentifier = encodedConnectionIdentifier.handle();
 #endif
-    if (IPC::Connection::identifierIsNull(connectionIdentifier))
+    if (!IPC::Connection::identifierIsValid(connectionIdentifier))
         return nullptr;
 
-    RefPtr<PluginProcessConnection> pluginProcessConnection = PluginProcessConnection::create(this, pluginProcessToken, connectionIdentifier, supportsAsynchronousInitialization);
-    m_pluginProcessConnections.append(pluginProcessConnection);
+    auto pluginProcessConnection = PluginProcessConnection::create(this, pluginProcessToken, connectionIdentifier, supportsAsynchronousInitialization);
+    m_pluginProcessConnections.append(pluginProcessConnection.copyRef());
 
     {
         LockHolder locker(m_tokensAndConnectionsMutex);
@@ -94,7 +94,7 @@ PluginProcessConnection* PluginProcessConnectionManager::getPluginProcessConnect
         m_tokensAndConnections.set(pluginProcessToken, pluginProcessConnection->connection());
     }
 
-    return pluginProcessConnection.get();
+    return pluginProcessConnection.ptr();
 }
 
 void PluginProcessConnectionManager::removePluginProcessConnection(PluginProcessConnection* pluginProcessConnection)

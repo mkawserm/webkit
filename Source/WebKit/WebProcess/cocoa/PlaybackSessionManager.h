@@ -25,7 +25,7 @@
 
 #pragma once
 
-#if PLATFORM(IOS) || (PLATFORM(MAC) && ENABLE(VIDEO_PRESENTATION_MODE))
+#if PLATFORM(IOS_FAMILY) || (PLATFORM(MAC) && ENABLE(VIDEO_PRESENTATION_MODE))
 
 #include "MessageReceiver.h"
 #include <WebCore/EventListener.h>
@@ -70,9 +70,6 @@ public:
 private:
     friend class VideoFullscreenInterfaceContext;
 
-    // PlaybackSessionInterface
-    void resetMediaState() final;
-
     // PlaybackSessionModelClient
     void durationChanged(double) final;
     void currentTimeChanged(double currentTime, double anchorTime) final;
@@ -88,6 +85,8 @@ private:
     void externalPlaybackChanged(bool enabled, WebCore::PlaybackSessionModel::ExternalPlaybackTargetType, const String& localizedDeviceName) final;
     void wirelessVideoPlaybackDisabledChanged(bool) final;
     void mutedChanged(bool) final;
+    void volumeChanged(double) final;
+    void isPictureInPictureSupportedChanged(bool) final;
 
     PlaybackSessionInterfaceContext(PlaybackSessionManager&, uint64_t contextId);
 
@@ -108,6 +107,8 @@ public:
     void clearPlaybackControlsManager();
     uint64_t contextIdForMediaElement(WebCore::HTMLMediaElement&);
 
+    WebCore::HTMLMediaElement* currentPlaybackControlsElement() const;
+
 protected:
     friend class PlaybackSessionInterfaceContext;
     friend class VideoFullscreenManager;
@@ -124,7 +125,6 @@ protected:
     void removeClientForContext(uint64_t contextId);
 
     // Interface to PlaybackSessionInterfaceContext
-    void resetMediaState(uint64_t contextId);
     void durationChanged(uint64_t contextId, double);
     void currentTimeChanged(uint64_t contextId, double currentTime, double anchorTime);
     void bufferedTimeChanged(uint64_t contextId, double bufferedTime);
@@ -139,6 +139,8 @@ protected:
     void externalPlaybackChanged(uint64_t contextId, bool enabled, WebCore::PlaybackSessionModel::ExternalPlaybackTargetType, String localizedDeviceName);
     void wirelessVideoPlaybackDisabledChanged(uint64_t contextId, bool);
     void mutedChanged(uint64_t contextId, bool);
+    void volumeChanged(uint64_t contextId, double);
+    void isPictureInPictureSupportedChanged(uint64_t contextId, bool);
 
     // Messages from PlaybackSessionManagerProxy
     void play(uint64_t contextId);
@@ -157,6 +159,8 @@ protected:
     void togglePictureInPicture(uint64_t contextId);
     void toggleMuted(uint64_t contextId);
     void setMuted(uint64_t contextId, bool muted);
+    void setVolume(uint64_t contextId, double volume);
+    void setPlayingOnSecondScreen(uint64_t contextId, bool value);
 
     WebPage* m_page;
     HashMap<WebCore::HTMLMediaElement*, uint64_t> m_mediaElements;
@@ -167,4 +171,4 @@ protected:
 
 } // namespace WebKit
 
-#endif // PLATFORM(IOS) || (PLATFORM(MAC) && ENABLE(VIDEO_PRESENTATION_MODE))
+#endif // PLATFORM(IOS_FAMILY) || (PLATFORM(MAC) && ENABLE(VIDEO_PRESENTATION_MODE))

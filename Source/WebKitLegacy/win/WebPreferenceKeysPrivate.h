@@ -178,9 +178,13 @@
 
 #define WebKitCustomElementsEnabledPreferenceKey "WebKitCustomElementsEnabled"
 
+#define WebKitMenuItemElementEnabledPreferenceKey "WebKitMenuItemElementEnabled"
+
 #define WebKitModernMediaControlsEnabledPreferenceKey "WebKitModernMediaControlsEnabled"
 
 #define WebKitWebAnimationsEnabledPreferenceKey "WebKitWebAnimationsEnabled"
+
+#define WebKitWebAnimationsCSSIntegrationEnabledPreferenceKey "WebKitWebAnimationsCSSIntegrationEnabled"
 
 #define WebKitUserTimingEnabledPreferenceKey "WebKitUserTimingEnabled"
 
@@ -197,3 +201,8 @@
 #define WebKitInspectorAdditionsEnabledPreferenceKey "WebKitInspectorAdditionsEnabled"
 
 #define WebKitVisualViewportAPIEnabledPreferenceKey "WebKitVisualViewportAPIEnabled"
+
+#define WebKitServerTimingEnabledPreferenceKey "WebKitServerTimingEnabled"
+
+#define WebKitCSSOMViewScrollingAPIEnabledPreferenceKey "WebKitCSSOMViewScrollingAPIEnabled"
+

@@ -46,7 +46,7 @@
 #import <WebKit/WebViewPrivate.h>
 #import <wtf/Assertions.h>
 
-#if !PLATFORM(IOS)
+#if !PLATFORM(IOS_FAMILY)
 DumpRenderTreeDraggingInfo *draggingInfo = nil;
 #endif
 
@@ -96,7 +96,7 @@ DumpRenderTreeDraggingInfo *draggingInfo = nil;
 
 - (void)modalWindowWillClose:(NSNotification *)notification
 {
-#if !PLATFORM(IOS)
+#if !PLATFORM(IOS_FAMILY)
     [[NSNotificationCenter defaultCenter] removeObserver:self name:NSWindowWillCloseNotification object:nil];
     [NSApp abortModal];
 #endif
@@ -104,7 +104,7 @@ DumpRenderTreeDraggingInfo *draggingInfo = nil;
 
 - (void)webViewRunModal:(WebView *)sender
 {
-#if !PLATFORM(IOS)
+#if !PLATFORM(IOS_FAMILY)
     gTestRunner->setWindowIsKey(false);
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(modalWindowWillClose:) name:NSWindowWillCloseNotification object:nil];
     [NSApp runModalForWindow:[sender window]];
@@ -143,7 +143,7 @@ DumpRenderTreeDraggingInfo *draggingInfo = nil;
 }
 
 
-#if !PLATFORM(IOS)
+#if !PLATFORM(IOS_FAMILY)
 - (void)webView:(WebView *)sender dragImage:(NSImage *)anImage at:(NSPoint)viewLocation offset:(NSSize)initialOffset event:(NSEvent *)event pasteboard:(NSPasteboard *)pboard source:(id)sourceObj slideBack:(BOOL)slideFlag forView:(NSView *)view
 {
      assert(!draggingInfo);
@@ -293,7 +293,7 @@ DumpRenderTreeDraggingInfo *draggingInfo = nil;
 
 - (BOOL)webView:(WebView *)webView supportsFullScreenForElement:(DOMElement*)element withKeyboard:(BOOL)withKeyboard
 {
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
     return NO;
 #else
     return YES;
@@ -356,16 +356,16 @@ DumpRenderTreeDraggingInfo *draggingInfo = nil;
     }
 }
 
-- (void)webView:(WebView *)webView decidePolicyForUserMediaRequestFromOrigin:(WebSecurityOrigin *)origin listener:(id<WebAllowDenyPolicyListener>)listener
-{
-    // Allow all user media requests for now.
-    [listener allow];
-}
-
 - (NSData *)webCryptoMasterKeyForWebView:(WebView *)sender
 {
     // Any 128 bit key would do, all we need for testing is to implement the callback.
     return [NSData dataWithBytes:"\x00\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a\x0b\x0c\x0d\x0e\x0f" length:16];
+}
+
+- (NSString *)signedPublicKeyAndChallengeStringForWebView:(WebView *)sender
+{
+    // Any fake response would do, all we need for testing is to implement the callback.
+    return @"MIHFMHEwXDANBgkqhkiG9w0BAQEFAANLADBIAkEAnX0TILJrOMUue%2BPtwBRE6XfV%0AWtKQbsshxk5ZhcUwcwyvcnIq9b82QhJdoACdD34rqfCAIND46fXKQUnb0mvKzQID%0AAQABFhFNb3ppbGxhSXNNeUZyaWVuZDANBgkqhkiG9w0BAQQFAANBAAKv2Eex2n%2FS%0Ar%2F7iJNroWlSzSMtTiQTEB%2BADWHGj9u1xrUrOilq%2Fo2cuQxIfZcNZkYAkWP4DubqW%0Ai0%2F%2FrgBvmco%3D";
 }
 
 - (void)webView:(WebView *)sender runOpenPanelForFileButtonWithResultListener:(id<WebOpenPanelResultListener>)resultListener allowMultipleFiles:(BOOL)allowMultipleFiles
@@ -393,7 +393,7 @@ DumpRenderTreeDraggingInfo *draggingInfo = nil;
     [resultListener chooseFilename:[filePaths firstObject]];
 }
 
-#if !PLATFORM(IOS)
+#if !PLATFORM(IOS_FAMILY)
 
 - (NSUInteger)webView:(WebView *)webView dragDestinationActionMaskForDraggingInfo:(id <NSDraggingInfo>)draggingInfo
 {
@@ -407,7 +407,7 @@ DumpRenderTreeDraggingInfo *draggingInfo = nil;
 
 - (void)dealloc
 {
-#if !PLATFORM(IOS)
+#if !PLATFORM(IOS_FAMILY)
     [draggingInfo release];
     draggingInfo = nil;
 #endif

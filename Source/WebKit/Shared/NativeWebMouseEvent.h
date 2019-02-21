@@ -38,9 +38,19 @@ OBJC_CLASS NSView;
 typedef union _GdkEvent GdkEvent;
 #endif
 
-#if PLATFORM(WPE)
+#if PLATFORM(IOS_FAMILY)
+#include <wtf/RetainPtr.h>
+OBJC_CLASS WebEvent;
+#endif
+
+#if USE(LIBWPE)
 struct wpe_input_pointer_event;
 #endif
+
+#if PLATFORM(WIN)
+#include <windows.h>
+#endif
+
 
 namespace WebKit {
 
@@ -51,14 +61,22 @@ public:
 #elif PLATFORM(GTK)
     NativeWebMouseEvent(const NativeWebMouseEvent&);
     NativeWebMouseEvent(GdkEvent*, int);
-#elif PLATFORM(WPE)
+#elif PLATFORM(IOS_FAMILY)
+    NativeWebMouseEvent(::WebEvent *);
+#elif USE(LIBWPE)
     NativeWebMouseEvent(struct wpe_input_pointer_event*, float deviceScaleFactor);
+#elif PLATFORM(WIN)
+    NativeWebMouseEvent(HWND, UINT message, WPARAM, LPARAM, bool);
 #endif
 
 #if USE(APPKIT)
     NSEvent* nativeEvent() const { return m_nativeEvent.get(); }
 #elif PLATFORM(GTK)
     const GdkEvent* nativeEvent() const { return m_nativeEvent.get(); }
+#elif PLATFORM(IOS_FAMILY)
+    ::WebEvent* nativeEvent() const { return m_nativeEvent.get(); }
+#elif PLATFORM(WIN)
+    const MSG* nativeEvent() const { return &m_nativeEvent; }
 #else
     const void* nativeEvent() const { return nullptr; }
 #endif
@@ -68,6 +86,10 @@ private:
     RetainPtr<NSEvent> m_nativeEvent;
 #elif PLATFORM(GTK)
     GUniquePtr<GdkEvent> m_nativeEvent;
+#elif PLATFORM(IOS_FAMILY)
+    RetainPtr<::WebEvent> m_nativeEvent;
+#elif PLATFORM(WIN)
+    MSG m_nativeEvent;
 #endif
 };
 

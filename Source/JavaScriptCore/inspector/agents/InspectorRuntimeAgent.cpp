@@ -56,7 +56,7 @@ static bool asBool(const bool* b)
 }
 
 InspectorRuntimeAgent::InspectorRuntimeAgent(AgentContext& context)
-    : InspectorAgentBase(ASCIILiteral("Runtime"))
+    : InspectorAgentBase("Runtime"_s)
     , m_injectedScriptManager(context.injectedScriptManager)
     , m_scriptDebugServer(context.environment.scriptDebugServer())
     , m_vm(context.environment.vm())
@@ -83,7 +83,7 @@ static Ref<Protocol::Runtime::ErrorRange> buildErrorRangeObject(const JSTokenLoc
         .release();
 }
 
-void InspectorRuntimeAgent::parse(ErrorString&, const String& expression, Protocol::Runtime::SyntaxErrorType* result, std::optional<String>& message, RefPtr<Protocol::Runtime::ErrorRange>& range)
+void InspectorRuntimeAgent::parse(ErrorString&, const String& expression, Protocol::Runtime::SyntaxErrorType* result, Optional<String>& message, RefPtr<Protocol::Runtime::ErrorRange>& range)
 {
     JSLockHolder lock(m_vm);
 
@@ -111,7 +111,7 @@ void InspectorRuntimeAgent::parse(ErrorString&, const String& expression, Protoc
     }
 }
 
-void InspectorRuntimeAgent::evaluate(ErrorString& errorString, const String& expression, const String* objectGroup, const bool* includeCommandLineAPI, const bool* doNotPauseOnExceptionsAndMuteConsole, const int* executionContextId, const bool* returnByValue, const bool* generatePreview, const bool* saveResult, RefPtr<Protocol::Runtime::RemoteObject>& result, std::optional<bool>& outWasThrown, std::optional<int>& savedResultIndex)
+void InspectorRuntimeAgent::evaluate(ErrorString& errorString, const String& expression, const String* objectGroup, const bool* includeCommandLineAPI, const bool* doNotPauseOnExceptionsAndMuteConsole, const int* executionContextId, const bool* returnByValue, const bool* generatePreview, const bool* saveResult, const bool* /* emulateUserGesture */, RefPtr<Protocol::Runtime::RemoteObject>& result, Optional<bool>& wasThrown, Optional<int>& savedResultIndex)
 {
     InjectedScript injectedScript = injectedScriptForEval(errorString, executionContextId);
     if (injectedScript.hasNoValue())
@@ -123,9 +123,7 @@ void InspectorRuntimeAgent::evaluate(ErrorString& errorString, const String& exp
     if (asBool(doNotPauseOnExceptionsAndMuteConsole))
         muteConsole();
 
-    bool wasThrown;
     injectedScript.evaluate(errorString, expression, objectGroup ? *objectGroup : String(), asBool(includeCommandLineAPI), asBool(returnByValue), asBool(generatePreview), asBool(saveResult), result, wasThrown, savedResultIndex);
-    outWasThrown = wasThrown;
 
     if (asBool(doNotPauseOnExceptionsAndMuteConsole)) {
         unmuteConsole();
@@ -133,11 +131,27 @@ void InspectorRuntimeAgent::evaluate(ErrorString& errorString, const String& exp
     }
 }
 
-void InspectorRuntimeAgent::callFunctionOn(ErrorString& errorString, const String& objectId, const String& expression, const JSON::Array* optionalArguments, const bool* doNotPauseOnExceptionsAndMuteConsole, const bool* returnByValue, const bool* generatePreview, RefPtr<Protocol::Runtime::RemoteObject>& result, std::optional<bool>& outWasThrown)
+void InspectorRuntimeAgent::awaitPromise(const String& promiseObjectId, const bool* returnByValue, const bool* generatePreview, const bool* saveResult, Ref<AwaitPromiseCallback>&& callback)
+{
+    InjectedScript injectedScript = m_injectedScriptManager.injectedScriptForObjectId(promiseObjectId);
+    if (injectedScript.hasNoValue()) {
+        callback->sendFailure("Could not find InjectedScript for promiseObjectId"_s);
+        return;
+    }
+
+    injectedScript.awaitPromise(promiseObjectId, asBool(returnByValue), asBool(generatePreview), asBool(saveResult), [callback = WTFMove(callback)] (ErrorString& errorString, RefPtr<Protocol::Runtime::RemoteObject>&& result, Optional<bool>& wasThrown, Optional<int>& savedResultIndex) {
+        if (!errorString.isEmpty())
+            callback->sendFailure(errorString);
+        else
+            callback->sendSuccess(WTFMove(result), wasThrown, savedResultIndex);
+    });
+}
+
+void InspectorRuntimeAgent::callFunctionOn(ErrorString& errorString, const String& objectId, const String& expression, const JSON::Array* optionalArguments, const bool* doNotPauseOnExceptionsAndMuteConsole, const bool* returnByValue, const bool* generatePreview, RefPtr<Protocol::Runtime::RemoteObject>& result, Optional<bool>& wasThrown)
 {
     InjectedScript injectedScript = m_injectedScriptManager.injectedScriptForObjectId(objectId);
     if (injectedScript.hasNoValue()) {
-        errorString = ASCIILiteral("Could not find InjectedScript for objectId");
+        errorString = "Could not find InjectedScript for objectId"_s;
         return;
     }
 
@@ -151,11 +165,7 @@ void InspectorRuntimeAgent::callFunctionOn(ErrorString& errorString, const Strin
     if (asBool(doNotPauseOnExceptionsAndMuteConsole))
         muteConsole();
 
-    bool wasThrown;
-
     injectedScript.callFunctionOn(errorString, objectId, expression, arguments, asBool(returnByValue), asBool(generatePreview), result, wasThrown);
-
-    outWasThrown = wasThrown;
 
     if (asBool(doNotPauseOnExceptionsAndMuteConsole)) {
         unmuteConsole();
@@ -167,7 +177,7 @@ void InspectorRuntimeAgent::getPreview(ErrorString& errorString, const String& o
 {
     InjectedScript injectedScript = m_injectedScriptManager.injectedScriptForObjectId(objectId);
     if (injectedScript.hasNoValue()) {
-        errorString = ASCIILiteral("Could not find InjectedScript for objectId");
+        errorString = "Could not find InjectedScript for objectId"_s;
         return;
     }
 
@@ -184,7 +194,7 @@ void InspectorRuntimeAgent::getProperties(ErrorString& errorString, const String
 {
     InjectedScript injectedScript = m_injectedScriptManager.injectedScriptForObjectId(objectId);
     if (injectedScript.hasNoValue()) {
-        errorString = ASCIILiteral("Could not find InjectedScript for objectId");
+        errorString = "Could not find InjectedScript for objectId"_s;
         return;
     }
 
@@ -202,7 +212,7 @@ void InspectorRuntimeAgent::getDisplayableProperties(ErrorString& errorString, c
 {
     InjectedScript injectedScript = m_injectedScriptManager.injectedScriptForObjectId(objectId);
     if (injectedScript.hasNoValue()) {
-        errorString = ASCIILiteral("Could not find InjectedScript for objectId");
+        errorString = "Could not find InjectedScript for objectId"_s;
         return;
     }
 
@@ -220,7 +230,7 @@ void InspectorRuntimeAgent::getCollectionEntries(ErrorString& errorString, const
 {
     InjectedScript injectedScript = m_injectedScriptManager.injectedScriptForObjectId(objectId);
     if (injectedScript.hasNoValue()) {
-        errorString = ASCIILiteral("Could not find InjectedScript for objectId");
+        errorString = "Could not find InjectedScript for objectId"_s;
         return;
     }
 
@@ -230,15 +240,15 @@ void InspectorRuntimeAgent::getCollectionEntries(ErrorString& errorString, const
     injectedScript.getCollectionEntries(errorString, objectId, objectGroup ? *objectGroup : String(), start, fetch, entries);
 }
 
-void InspectorRuntimeAgent::saveResult(ErrorString& errorString, const JSON::Object& callArgument, const int* executionContextId, std::optional<int>& savedResultIndex)
+void InspectorRuntimeAgent::saveResult(ErrorString& errorString, const JSON::Object& callArgument, const int* executionContextId, Optional<int>& savedResultIndex)
 {
     InjectedScript injectedScript;
 
     String objectId;
-    if (callArgument.getString(ASCIILiteral("objectId"), objectId)) {
+    if (callArgument.getString("objectId"_s, objectId)) {
         injectedScript = m_injectedScriptManager.injectedScriptForObjectId(objectId);
         if (injectedScript.hasNoValue()) {
-            errorString = ASCIILiteral("Could not find InjectedScript for objectId");
+            errorString = "Could not find InjectedScript for objectId"_s;
             return;
         }
     } else {
@@ -268,27 +278,27 @@ void InspectorRuntimeAgent::getRuntimeTypesForVariablesAtOffsets(ErrorString& er
 
     typeDescriptions = JSON::ArrayOf<Protocol::Runtime::TypeDescription>::create();
     if (!m_vm.typeProfiler()) {
-        errorString = ASCIILiteral("The VM does not currently have Type Information.");
+        errorString = "The VM does not currently have Type Information."_s;
         return;
     }
 
     MonotonicTime start = MonotonicTime::now();
-    m_vm.typeProfilerLog()->processLogEntries(ASCIILiteral("User Query"));
+    m_vm.typeProfilerLog()->processLogEntries(m_vm, "User Query"_s);
 
     for (size_t i = 0; i < locations.length(); i++) {
         RefPtr<JSON::Value> value = locations.get(i);
         RefPtr<JSON::Object> location;
         if (!value->asObject(location)) {
-            errorString = ASCIILiteral("Array of TypeLocation objects has an object that does not have type of TypeLocation.");
+            errorString = "Array of TypeLocation objects has an object that does not have type of TypeLocation."_s;
             return;
         }
 
         int descriptor;
         String sourceIDAsString;
         int divot;
-        location->getInteger(ASCIILiteral("typeInformationDescriptor"), descriptor);
-        location->getString(ASCIILiteral("sourceID"), sourceIDAsString);
-        location->getInteger(ASCIILiteral("divot"), divot);
+        location->getInteger("typeInformationDescriptor"_s, descriptor);
+        location->getString("sourceID"_s, sourceIDAsString);
+        location->getInteger("divot"_s, divot);
 
         bool okay;
         TypeLocation* typeLocation = m_vm.typeProfiler()->findLocation(divot, sourceIDAsString.toIntPtrStrict(&okay), static_cast<TypeProfilerSearchDescriptor>(descriptor), m_vm);
@@ -380,7 +390,7 @@ void InspectorRuntimeAgent::setControlFlowProfilerEnabledState(bool isControlFlo
 void InspectorRuntimeAgent::getBasicBlocks(ErrorString& errorString, const String& sourceIDAsString, RefPtr<JSON::ArrayOf<Protocol::Runtime::BasicBlock>>& basicBlocks)
 {
     if (!m_vm.controlFlowProfiler()) {
-        errorString = ASCIILiteral("The VM does not currently have a Control Flow Profiler.");
+        errorString = "The VM does not currently have a Control Flow Profiler."_s;
         return;
     }
 

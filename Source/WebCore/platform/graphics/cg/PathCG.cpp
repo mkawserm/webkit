@@ -39,10 +39,6 @@
 #include <wtf/RetainPtr.h>
 #include <wtf/text/WTFString.h>
 
-#if PLATFORM(WIN)
-#include <WebKitSystemInterface/WebKitSystemInterface.h>
-#endif
-
 namespace WebCore {
 
 static size_t putBytesNowhere(void*, const void*, size_t count)
@@ -184,7 +180,7 @@ bool Path::contains(const FloatPoint &point, WindRule rule) const
 
     // CGPathContainsPoint returns false for non-closed paths, as a work-around, we copy and close the path first.  Radar 4758998 asks for a better CG API to use
     RetainPtr<CGMutablePathRef> path = adoptCF(copyCGPathClosingSubpaths(m_path));
-    bool ret = CGPathContainsPoint(path.get(), 0, point, rule == RULE_EVENODD ? true : false);
+    bool ret = CGPathContainsPoint(path.get(), 0, point, rule == WindRule::EvenOdd ? true : false);
     return ret;
 }
 
@@ -318,6 +314,13 @@ void Path::platformAddPathForRoundedRect(const FloatRect& rect, const FloatSize&
         CGPathAddRoundedRect(ensurePlatformPath(), nullptr, rectToDraw, radiusWidth, radiusHeight);
         return;
     }
+
+#if (PLATFORM(MAC) && __MAC_OS_X_VERSION_MIN_REQUIRED >= 101400) || (PLATFORM(IOS_FAMILY) && __IPHONE_OS_VERSION_MIN_REQUIRED >= 120000)
+    CGRect rectToDraw = rect;
+    CGSize corners[4] = { bottomLeftRadius, bottomRightRadius, topRightRadius, topLeftRadius };
+    CGPathAddUnevenCornersRoundedRect(ensurePlatformPath(), nullptr, rectToDraw, corners);
+    return;
+#endif
 #endif
 
     addBeziersForRoundedRect(rect, topLeftRadius, topRightRadius, bottomLeftRadius, bottomRightRadius);

@@ -12,7 +12,6 @@
 
 #include <deque>
 #include <memory>
-#include <sstream>
 #include <string>
 #include <utility>
 #include <vector>
@@ -22,6 +21,7 @@
 #include "modules/audio_processing/aec3/frame_blocker.h"
 #include "modules/audio_processing/aec3/mock/mock_block_processor.h"
 #include "modules/audio_processing/audio_buffer.h"
+#include "rtc_base/strings/string_builder.h"
 #include "test/gmock.h"
 #include "test/gtest.h"
 
@@ -104,6 +104,8 @@ class CaptureTransportVerificationProcessor : public BlockProcessor {
 
   void GetMetrics(EchoControl::Metrics* metrics) const override {}
 
+  void SetAudioBufferDelay(size_t delay_ms) override{};
+
  private:
   RTC_DISALLOW_IMPLICIT_CONSTRUCTORS(CaptureTransportVerificationProcessor);
 };
@@ -131,6 +133,8 @@ class RenderTransportVerificationProcessor : public BlockProcessor {
   void UpdateEchoLeakageStatus(bool leakage_detected) override {}
 
   void GetMetrics(EchoControl::Metrics* metrics) const override {}
+
+  void SetAudioBufferDelay(size_t delay_ms) override{};
 
  private:
   std::deque<std::vector<std::vector<float>>> received_render_blocks_;
@@ -160,7 +164,7 @@ class EchoCanceller3Tester {
   // output.
   void RunCaptureTransportVerificationTest() {
     EchoCanceller3 aec3(
-        sample_rate_hz_, false,
+        EchoCanceller3Config(), sample_rate_hz_, false,
         std::unique_ptr<BlockProcessor>(
             new CaptureTransportVerificationProcessor(num_bands_)));
 
@@ -185,7 +189,7 @@ class EchoCanceller3Tester {
   // block processor.
   void RunRenderTransportVerificationTest() {
     EchoCanceller3 aec3(
-        sample_rate_hz_, false,
+        EchoCanceller3Config(), sample_rate_hz_, false,
         std::unique_ptr<BlockProcessor>(
             new RenderTransportVerificationProcessor(num_bands_)));
 
@@ -249,7 +253,7 @@ class EchoCanceller3Tester {
         break;
     }
 
-    EchoCanceller3 aec3(sample_rate_hz_, false,
+    EchoCanceller3 aec3(EchoCanceller3Config(), sample_rate_hz_, false,
                         std::move(block_processor_mock));
 
     for (size_t frame_index = 0; frame_index < kNumFramesToProcess;
@@ -331,7 +335,7 @@ class EchoCanceller3Tester {
       } break;
     }
 
-    EchoCanceller3 aec3(sample_rate_hz_, false,
+    EchoCanceller3 aec3(EchoCanceller3Config(), sample_rate_hz_, false,
                         std::move(block_processor_mock));
 
     for (size_t frame_index = 0; frame_index < kNumFramesToProcess;
@@ -420,7 +424,7 @@ class EchoCanceller3Tester {
       } break;
     }
 
-    EchoCanceller3 aec3(sample_rate_hz_, false,
+    EchoCanceller3 aec3(EchoCanceller3Config(), sample_rate_hz_, false,
                         std::move(block_processor_mock));
     for (size_t frame_index = 0; frame_index < kNumFramesToProcess;
          ++frame_index) {
@@ -458,12 +462,13 @@ class EchoCanceller3Tester {
   // This test verifies that the swapqueue is able to handle jitter in the
   // capture and render API calls.
   void RunRenderSwapQueueVerificationTest() {
+    const EchoCanceller3Config config;
     EchoCanceller3 aec3(
-        sample_rate_hz_, false,
+        config, sample_rate_hz_, false,
         std::unique_ptr<BlockProcessor>(
             new RenderTransportVerificationProcessor(num_bands_)));
 
-    for (size_t frame_index = 0; frame_index < kRenderTransferQueueSize;
+    for (size_t frame_index = 0; frame_index < kRenderTransferQueueSizeFrames;
          ++frame_index) {
       if (sample_rate_hz_ > 16000) {
         render_buffer_.SplitIntoFrequencyBands();
@@ -478,7 +483,7 @@ class EchoCanceller3Tester {
       aec3.AnalyzeRender(&render_buffer_);
     }
 
-    for (size_t frame_index = 0; frame_index < kRenderTransferQueueSize;
+    for (size_t frame_index = 0; frame_index < kRenderTransferQueueSizeFrames;
          ++frame_index) {
       aec3.AnalyzeCapture(&capture_buffer_);
       if (sample_rate_hz_ > 16000) {
@@ -599,15 +604,15 @@ class EchoCanceller3Tester {
 };
 
 std::string ProduceDebugText(int sample_rate_hz) {
-  std::ostringstream ss;
+  rtc::StringBuilder ss;
   ss << "Sample rate: " << sample_rate_hz;
-  return ss.str();
+  return ss.Release();
 }
 
 std::string ProduceDebugText(int sample_rate_hz, int variant) {
-  std::ostringstream ss;
+  rtc::StringBuilder ss;
   ss << "Sample rate: " << sample_rate_hz << ", variant: " << variant;
-  return ss.str();
+  return ss.Release();
 }
 
 }  // namespace
@@ -678,11 +683,6 @@ TEST(EchoCanceller3Messaging, EchoLeakage) {
       EchoCanceller3Tester(rate).RunEchoLeakageVerificationTest(variant);
     }
   }
-}
-
-TEST(EchoCanceller3, ConfigValidation) {
-  EchoCanceller3Config config;
-  EXPECT_TRUE(EchoCanceller3::Validate(config));
 }
 
 #if RTC_DCHECK_IS_ON && GTEST_HAS_DEATH_TEST && !defined(WEBRTC_ANDROID)

@@ -40,9 +40,8 @@
 SOFT_LINK_FRAMEWORK_OPTIONAL(AVFoundation)
 SOFT_LINK_CLASS_OPTIONAL(AVFoundation, AVPlayerLayer)
 
-using namespace WebCore;
-
 namespace WebKit {
+using namespace WebCore;
 
 static NSString * const platformCALayerPointer = @"WKPlatformCALayer";
 
@@ -63,7 +62,7 @@ PlatformCALayerRemoteCustom::PlatformCALayerRemoteCustom(LayerType layerType, Pl
 #if HAVE(OUT_OF_PROCESS_LAYER_HOSTING)
     case LayerHostingMode::OutOfProcess:
         m_layerHostingContext = LayerHostingContext::createForExternalHostingProcess();
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
         if (layerType == LayerTypeAVPlayerLayer) {
             float scaleFactor = context.deviceScaleFactor();
             // Set a scale factor here to make convertRect:toLayer:nil take scale factor into account. <rdar://problem/18316542>.
@@ -101,7 +100,7 @@ uint32_t PlatformCALayerRemoteCustom::hostingContextID()
 
 Ref<WebCore::PlatformCALayer> PlatformCALayerRemoteCustom::clone(PlatformCALayerClient* owner) const
 {
-    RetainPtr<CALayer *> clonedLayer;
+    RetainPtr<CALayer> clonedLayer;
     bool copyContents = true;
 
     if (layerType() == LayerTypeAVPlayerLayer) {
@@ -137,12 +136,12 @@ Ref<WebCore::PlatformCALayer> PlatformCALayerRemoteCustom::clone(PlatformCALayer
 
 CFTypeRef PlatformCALayerRemoteCustom::contents() const
 {
-    return [m_platformLayer contents];
+    return (__bridge CFTypeRef)[m_platformLayer contents];
 }
 
 void PlatformCALayerRemoteCustom::setContents(CFTypeRef contents)
 {
-    [m_platformLayer setContents:(id)contents];
+    [m_platformLayer setContents:(__bridge id)contents];
 }
 
 void PlatformCALayerRemoteCustom::setNeedsDisplayInRect(const FloatRect& rect)

@@ -31,14 +31,13 @@
 #include "PluginModuleInfo.h"
 #include <WebCore/MIMETypeRegistry.h>
 #include <WebCore/SecurityOrigin.h>
-#include <WebCore/URL.h>
 #include <algorithm>
 #include <wtf/ListHashSet.h>
 #include <wtf/StdLibExtras.h>
-
-using namespace WebCore;
+#include <wtf/URL.h>
 
 namespace WebKit {
+using namespace WebCore;
 
 PluginInfoStore::PluginInfoStore()
     : m_pluginListIsUpToDate(false)
@@ -160,6 +159,12 @@ static inline String pathExtension(const URL& url)
 
 #if !PLATFORM(COCOA)
 
+bool PluginInfoStore::shouldAllowPluginToRunUnsandboxed(const String& pluginBundleIdentifier)
+{
+    UNUSED_PARAM(pluginBundleIdentifier);
+    return false;
+}
+
 PluginModuleLoadPolicy PluginInfoStore::defaultLoadPolicyForPlugin(const PluginModuleInfo&)
 {
     return PluginModuleLoadNormally;
@@ -207,7 +212,7 @@ PluginModuleInfo PluginInfoStore::findPlugin(String& mimeType, const URL& url, P
 
 bool PluginInfoStore::isSupportedPlugin(const PluginInfoStore::SupportedPlugin& plugin, const String& mimeType, const URL& pluginURL)
 {
-    if (plugin.mimeTypes.contains(mimeType))
+    if (!mimeType.isEmpty() && plugin.mimeTypes.contains(mimeType))
         return true;
     auto extension = pathExtension(pluginURL);
     return extension.isEmpty() ? false : plugin.extensions.contains(extension);
@@ -224,22 +229,22 @@ bool PluginInfoStore::isSupportedPlugin(const String& mimeType, const URL& plugi
     }) != notFound;
 }
 
-std::optional<Vector<SupportedPluginName>> PluginInfoStore::supportedPluginNames()
+Optional<Vector<SupportedPluginIdentifier>> PluginInfoStore::supportedPluginIdentifiers()
 {
     if (!m_supportedPlugins)
-        return std::nullopt;
+        return WTF::nullopt;
 
     return WTF::map(*m_supportedPlugins, [] (auto&& item) {
-        return SupportedPluginName { item.matchingDomain, item.name };
+        return SupportedPluginIdentifier { item.matchingDomain, item.identifier };
     });
 }
 
-void PluginInfoStore::addSupportedPlugin(String&& domainName, String&& name, HashSet<String>&& mimeTypes, HashSet<String> extensions)
+void PluginInfoStore::addSupportedPlugin(String&& domainName, String&& identifier, HashSet<String>&& mimeTypes, HashSet<String> extensions)
 {
     if (!m_supportedPlugins)
         m_supportedPlugins = Vector<SupportedPlugin> { };
 
-    m_supportedPlugins->append(SupportedPlugin { WTFMove(domainName), WTFMove(name), WTFMove(mimeTypes), WTFMove(extensions) });
+    m_supportedPlugins->append(SupportedPlugin { WTFMove(domainName), WTFMove(identifier), WTFMove(mimeTypes), WTFMove(extensions) });
 }
 
 PluginModuleInfo PluginInfoStore::infoForPluginWithPath(const String& pluginPath) const

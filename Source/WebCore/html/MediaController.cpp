@@ -36,7 +36,7 @@
 #include <wtf/StdLibExtras.h>
 #include <wtf/text/AtomicString.h>
 
-using namespace WebCore;
+namespace WebCore {
 
 Ref<MediaController> MediaController::create(ScriptExecutionContext& context)
 {
@@ -532,7 +532,7 @@ bool MediaController::hasEnded() const
 
 void MediaController::scheduleEvent(const AtomicString& eventName)
 {
-    m_pendingEvents.append(Event::create(eventName, false, true));
+    m_pendingEvents.append(Event::create(eventName, Event::CanBubble::No, Event::IsCancelable::Yes));
     if (!m_asyncEventTimer.isActive())
         m_asyncEventTimer.startOneShot(0_s);
 }
@@ -681,5 +681,7 @@ void MediaController::scheduleTimeupdateEvent()
     scheduleEvent(eventNames().timeupdateEvent);
     m_previousTimeupdateTime = now;
 }
+
+} // namespace WebCore
 
 #endif

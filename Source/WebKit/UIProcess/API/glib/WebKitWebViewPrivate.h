@@ -36,6 +36,7 @@
 #include "WebPageProxy.h"
 #include <WebCore/IntRect.h>
 #include <WebCore/LinkIcon.h>
+#include <wtf/CompletionHandler.h>
 #include <wtf/text/CString.h>
 
 void webkitWebViewCreatePage(WebKitWebView*, Ref<API::PageConfiguration>&&);
@@ -51,20 +52,20 @@ WebKit::WebPageProxy* webkitWebViewCreateNewPage(WebKitWebView*, const WebCore::
 void webkitWebViewReadyToShowPage(WebKitWebView*);
 void webkitWebViewRunAsModal(WebKitWebView*);
 void webkitWebViewClosePage(WebKitWebView*);
-void webkitWebViewRunJavaScriptAlert(WebKitWebView*, const CString& message);
-bool webkitWebViewRunJavaScriptConfirm(WebKitWebView*, const CString& message);
-CString webkitWebViewRunJavaScriptPrompt(WebKitWebView*, const CString& message, const CString& defaultText);
-bool webkitWebViewRunJavaScriptBeforeUnloadConfirm(WebKitWebView*, const CString& message);
+void webkitWebViewRunJavaScriptAlert(WebKitWebView*, const CString& message, Function<void()>&& completionHandler);
+void webkitWebViewRunJavaScriptConfirm(WebKitWebView*, const CString& message, Function<void(bool)>&& completionHandler);
+void webkitWebViewRunJavaScriptPrompt(WebKitWebView*, const CString& message, const CString& defaultText, Function<void(const String&)>&& completionHandler);
+void webkitWebViewRunJavaScriptBeforeUnloadConfirm(WebKitWebView*, const CString& message, Function<void(bool)>&& completionHandler);
 bool webkitWebViewIsShowingScriptDialog(WebKitWebView*);
 bool webkitWebViewIsScriptDialogRunning(WebKitWebView*, WebKitScriptDialog*);
 String webkitWebViewGetCurrentScriptDialogMessage(WebKitWebView*);
 void webkitWebViewSetCurrentScriptDialogUserInput(WebKitWebView*, const String&);
 void webkitWebViewAcceptCurrentScriptDialog(WebKitWebView*);
 void webkitWebViewDismissCurrentScriptDialog(WebKitWebView*);
-std::optional<WebKitScriptDialogType> webkitWebViewGetCurrentScriptDialogType(WebKitWebView*);
+Optional<WebKitScriptDialogType> webkitWebViewGetCurrentScriptDialogType(WebKitWebView*);
 void webkitWebViewMakePermissionRequest(WebKitWebView*, WebKitPermissionRequest*);
 void webkitWebViewMakePolicyDecision(WebKitWebView*, WebKitPolicyDecisionType, WebKitPolicyDecision*);
-void webkitWebViewMouseTargetChanged(WebKitWebView*, const WebKit::WebHitTestResultData&, WebKit::WebEvent::Modifiers);
+void webkitWebViewMouseTargetChanged(WebKitWebView*, const WebKit::WebHitTestResultData&, OptionSet<WebKit::WebEvent::Modifier>);
 void webkitWebViewHandleDownloadRequest(WebKitWebView*, WebKit::DownloadProxy*);
 void webkitWebViewPrintFrame(WebKitWebView*, WebKit::WebFrameProxy*);
 void webkitWebViewResourceLoadStarted(WebKitWebView*, WebKit::WebFrameProxy*, uint64_t resourceIdentifier, WebKitURIRequest*);
@@ -74,6 +75,9 @@ WebKitWebResource* webkitWebViewGetLoadingWebResource(WebKitWebView*, uint64_t r
 void webKitWebViewDidReceiveSnapshot(WebKitWebView*, uint64_t callbackID, WebKit::WebImage*);
 #endif
 void webkitWebViewRemoveLoadingWebResource(WebKitWebView*, uint64_t resourceIdentifier);
+void webkitWebViewMaximizeWindow(WebKitWebView*, CompletionHandler<void()>&&);
+void webkitWebViewMinimizeWindow(WebKitWebView*, CompletionHandler<void()>&&);
+void webkitWebViewRestoreWindow(WebKitWebView*, CompletionHandler<void()>&&);
 void webkitWebViewEnterFullScreen(WebKitWebView*);
 void webkitWebViewExitFullScreen(WebKitWebView*);
 void webkitWebViewPopulateContextMenu(WebKitWebView*, const Vector<WebKit::WebContextMenuItemData>& proposedMenu, const WebKit::WebHitTestResultData&, GVariant*);

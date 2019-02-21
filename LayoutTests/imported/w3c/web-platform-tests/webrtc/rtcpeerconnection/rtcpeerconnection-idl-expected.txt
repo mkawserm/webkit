@@ -3,23 +3,32 @@ Description
 This test verifies the availability of the RTCPeerConnection interface.
 
 
+PASS Partial interface RTCPeerConnection: original interface defined 
+PASS Partial interface RTCPeerConnection[2]: original interface defined 
+PASS Partial interface RTCPeerConnection[3]: original interface defined 
+PASS Partial interface RTCPeerConnection[4]: original interface defined 
+PASS Partial interface RTCPeerConnection[5]: original interface defined 
+PASS Partial interface RTCPeerConnection[6]: original interface defined 
+PASS Partial interface RTCPeerConnection[7]: original interface defined 
 PASS EventTarget interface: existence and properties of interface object 
 PASS EventTarget interface object length 
 PASS EventTarget interface object name 
 PASS EventTarget interface: existence and properties of interface prototype object 
 PASS EventTarget interface: existence and properties of interface prototype object's "constructor" property 
+PASS EventTarget interface: existence and properties of interface prototype object's @@unscopables property 
 PASS RTCPeerConnection interface: existence and properties of interface object 
 PASS RTCPeerConnection interface object length 
 PASS RTCPeerConnection interface object name 
 PASS RTCPeerConnection interface: existence and properties of interface prototype object 
 PASS RTCPeerConnection interface: existence and properties of interface prototype object's "constructor" property 
+PASS RTCPeerConnection interface: existence and properties of interface prototype object's @@unscopables property 
 PASS RTCPeerConnection interface: operation createOffer(RTCOfferOptions) 
 PASS RTCPeerConnection interface: operation createAnswer(RTCAnswerOptions) 
-FAIL RTCPeerConnection interface: operation setLocalDescription(RTCSessionDescription) assert_equals: property has wrong .length expected 1 but got 0
+PASS RTCPeerConnection interface: operation setLocalDescription(RTCSessionDescription) 
 PASS RTCPeerConnection interface: attribute localDescription 
 PASS RTCPeerConnection interface: attribute currentLocalDescription 
 PASS RTCPeerConnection interface: attribute pendingLocalDescription 
-FAIL RTCPeerConnection interface: operation setRemoteDescription(RTCSessionDescription) assert_equals: property has wrong .length expected 1 but got 0
+PASS RTCPeerConnection interface: operation setRemoteDescription(RTCSessionDescription) 
 PASS RTCPeerConnection interface: attribute remoteDescription 
 PASS RTCPeerConnection interface: attribute currentRemoteDescription 
 PASS RTCPeerConnection interface: attribute pendingRemoteDescription 
@@ -39,18 +48,22 @@ PASS RTCPeerConnection interface: attribute onicegatheringstatechange
 FAIL RTCPeerConnection interface: operation createOffer(RTCSessionDescriptionCallback, RTCPeerConnectionErrorCallback, RTCOfferOptions) assert_throws: calling operation with this = null didn't throw TypeError function "function () {
             fn.apply(obj, args);
         }" did not throw
-FAIL RTCPeerConnection interface: operation setLocalDescription(RTCSessionDescription, VoidFunction, RTCPeerConnectionErrorCallback) assert_equals: property has wrong .length expected 1 but got 0
+FAIL RTCPeerConnection interface: operation setLocalDescription(RTCSessionDescription, VoidFunction, RTCPeerConnectionErrorCallback) assert_throws: calling operation with this = null didn't throw TypeError function "function () {
+            fn.apply(obj, args);
+        }" did not throw
 FAIL RTCPeerConnection interface: operation createAnswer(RTCSessionDescriptionCallback, RTCPeerConnectionErrorCallback) assert_throws: calling operation with this = null didn't throw TypeError function "function () {
             fn.apply(obj, args);
         }" did not throw
-FAIL RTCPeerConnection interface: operation setRemoteDescription(RTCSessionDescription, VoidFunction, RTCPeerConnectionErrorCallback) assert_equals: property has wrong .length expected 1 but got 0
+FAIL RTCPeerConnection interface: operation setRemoteDescription(RTCSessionDescription, VoidFunction, RTCPeerConnectionErrorCallback) assert_throws: calling operation with this = null didn't throw TypeError function "function () {
+            fn.apply(obj, args);
+        }" did not throw
 FAIL RTCPeerConnection interface: operation addIceCandidate(RTCIceCandidate, VoidFunction, RTCPeerConnectionErrorCallback) assert_throws: calling operation with this = null didn't throw TypeError function "function () {
             fn.apply(obj, args);
         }" did not throw
 FAIL RTCPeerConnection interface: operation getStats(MediaStreamTrack, RTCStatsCallback, RTCPeerConnectionErrorCallback) assert_throws: calling operation with this = null didn't throw TypeError function "function () {
             fn.apply(obj, args);
         }" did not throw
-FAIL RTCPeerConnection interface: operation generateCertificate(AlgorithmIdentifier) assert_own_property: interface object missing static operation expected property "generateCertificate" missing
+PASS RTCPeerConnection interface: operation generateCertificate(AlgorithmIdentifier) 
 PASS RTCPeerConnection interface: operation getSenders() 
 PASS RTCPeerConnection interface: operation getReceivers() 
 PASS RTCPeerConnection interface: operation addTrack(MediaStreamTrack, MediaStream) 
@@ -114,7 +127,7 @@ FAIL RTCPeerConnection interface: calling addIceCandidate(RTCIceCandidate, VoidF
 PASS RTCPeerConnection interface: pc must inherit property "getStats(MediaStreamTrack, RTCStatsCallback, RTCPeerConnectionErrorCallback)" with the proper type 
 PASS RTCPeerConnection interface: calling getStats(MediaStreamTrack, RTCStatsCallback, RTCPeerConnectionErrorCallback) on pc with too few arguments must throw TypeError 
 PASS RTCPeerConnection interface: pc must inherit property "generateCertificate(AlgorithmIdentifier)" with the proper type 
-FAIL RTCPeerConnection interface: calling generateCertificate(AlgorithmIdentifier) on pc with too few arguments must throw TypeError assert_own_property: interface object must have static operation as own property expected property "generateCertificate" missing
+PASS RTCPeerConnection interface: calling generateCertificate(AlgorithmIdentifier) on pc with too few arguments must throw TypeError 
 PASS RTCPeerConnection interface: pc must inherit property "getSenders()" with the proper type 
 PASS RTCPeerConnection interface: pc must inherit property "getReceivers()" with the proper type 
 PASS RTCPeerConnection interface: pc must inherit property "addTrack(MediaStreamTrack, MediaStream)" with the proper type 

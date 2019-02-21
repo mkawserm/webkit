@@ -20,6 +20,7 @@
 
 #pragma once
 
+#include "JSDOMWrapper.h"
 #include "JSNode.h"
 #include "TestDOMJIT.h"
 #include <JavaScriptCore/DOMJITGetterSetter.h>
@@ -48,6 +49,7 @@ public:
     }
 
     static JSC::JSValue getConstructor(JSC::VM&, const JSC::JSGlobalObject*);
+    static void heapSnapshot(JSCell*, JSC::HeapSnapshotBuilder&);
     TestDOMJIT& wrapped() const
     {
         return static_cast<TestDOMJIT&>(Base::wrapped());

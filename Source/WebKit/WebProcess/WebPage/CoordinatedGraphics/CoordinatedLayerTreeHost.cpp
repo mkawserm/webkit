@@ -33,8 +33,8 @@
 #include "DrawingArea.h"
 #include "WebPage.h"
 #include "WebPageProxyMessages.h"
+#include <WebCore/Frame.h>
 #include <WebCore/FrameView.h>
-#include <WebCore/MainFrame.h>
 #include <WebCore/PageOverlayController.h>
 
 #if USE(GLIB_EVENT_LOOP)
@@ -139,13 +139,13 @@ void CoordinatedLayerTreeHost::sizeDidChange(const IntSize& newSize)
     scheduleLayerFlush();
 }
 
-void CoordinatedLayerTreeHost::setVisibleContentsRect(const FloatRect& rect, const FloatPoint& trajectoryVector)
+void CoordinatedLayerTreeHost::setVisibleContentsRect(const FloatRect& rect)
 {
-    m_coordinator.setVisibleContentsRect(rect, trajectoryVector);
+    m_coordinator.setVisibleContentsRect(rect);
     scheduleLayerFlush();
 }
 
-void CoordinatedLayerTreeHost::renderNextFrame()
+void CoordinatedLayerTreeHost::renderNextFrame(bool forceRepaint)
 {
     m_isWaitingForRenderer = false;
     bool scheduledWhileWaitingForRenderer = std::exchange(m_scheduledWhileWaitingForRenderer, false);
@@ -167,8 +167,10 @@ void CoordinatedLayerTreeHost::renderNextFrame()
         m_forceRepaintAsync.needsFreshFlush = false;
     }
 
-    if (scheduledWhileWaitingForRenderer || m_layerFlushTimer.isActive()) {
+    if (scheduledWhileWaitingForRenderer || m_layerFlushTimer.isActive() || forceRepaint) {
         m_layerFlushTimer.stop();
+        if (forceRepaint)
+            m_coordinator.forceFrameSync();
         layerFlushTimerFired();
     }
 }
@@ -187,6 +189,7 @@ void CoordinatedLayerTreeHost::layerFlushTimerFired()
 
     m_coordinator.syncDisplayState();
     m_webPage.flushPendingEditorStateUpdate();
+    m_webPage.willDisplayPage();
 
     if (!m_isValid || !m_coordinator.rootCompositingLayer())
         return;
@@ -209,10 +212,16 @@ void CoordinatedLayerTreeHost::commitSceneState(const CoordinatedGraphicsState& 
     m_isWaitingForRenderer = true;
 }
 
+void CoordinatedLayerTreeHost::flushLayersAndForceRepaint()
+{
+    m_coordinator.forceFrameSync();
+    scheduleLayerFlush();
+}
+
 void CoordinatedLayerTreeHost::deviceOrPageScaleFactorChanged()
 {
     m_coordinator.deviceOrPageScaleFactorChanged();
-    m_webPage.mainFrame()->pageOverlayController().didChangeDeviceScaleFactor();
+    m_webPage.corePage()->pageOverlayController().didChangeDeviceScaleFactor();
 }
 
 void CoordinatedLayerTreeHost::pageBackgroundTransparencyChanged()
@@ -234,11 +243,6 @@ void CoordinatedLayerTreeHost::scheduleAnimation()
 
     scheduleLayerFlush();
     m_layerFlushTimer.startOneShot(1_s * m_coordinator.nextAnimationServiceTime());
-}
-
-void CoordinatedLayerTreeHost::clearUpdateAtlases()
-{
-    m_coordinator.clearUpdateAtlases();
 }
 
 } // namespace WebKit

@@ -27,7 +27,7 @@
 #import "ArgumentCodersMac.h"
 
 #import <CoreText/CoreText.h>
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
 #import <UIKit/UIKit.h>
 #endif
 
@@ -36,8 +36,6 @@
 #import "Encoder.h"
 #import "WebCoreArgumentCoders.h"
 #import <WebCore/ColorMac.h>
-
-using namespace WebCore;
 
 namespace IPC {
 
@@ -62,6 +60,8 @@ enum class NSType {
 }
 
 namespace IPC {
+using namespace WebCore;
+
 static NSType typeFromObject(id object)
 {
     ASSERT(object);
@@ -243,7 +243,7 @@ static inline bool isSerializableValue(id value)
 #else
     auto fontClass = [UIFont class];
 #endif
-    return ![value isKindOfClass:fontClass] || isSerializableFont(reinterpret_cast<CTFontRef>(value));
+    return ![value isKindOfClass:fontClass] || isSerializableFont((__bridge CTFontRef)value);
 }
 
 static inline RetainPtr<NSDictionary> filterUnserializableValues(NSDictionary *dictionary)
@@ -407,7 +407,7 @@ bool decode(Decoder& decoder, RetainPtr<NSDictionary>& result)
 void encode(Encoder& encoder, NSFont *font)
 {
     // NSFont could use CTFontRef code if we had it in ArgumentCodersCF.
-    encode(encoder, [[font fontDescriptor] fontAttributes]);
+    encode(encoder, font.fontDescriptor.fontAttributes);
 }
 
 bool decode(Decoder& decoder, RetainPtr<NSFont>& result)
@@ -421,11 +421,32 @@ bool decode(Decoder& decoder, RetainPtr<NSFont>& result)
 
     return result;
 }
-#endif
+#endif // USE(APPKIT)
+
+#if PLATFORM(IOS_FAMILY)
+
+void encode(Encoder& encoder, UIFont *font)
+{
+    encode(encoder, font.fontDescriptor.fontAttributes);
+}
+
+bool decode(Decoder& decoder, RetainPtr<UIFont>& result)
+{
+    RetainPtr<NSDictionary> fontAttributes;
+    if (!decode(decoder, fontAttributes))
+        return false;
+
+    UIFontDescriptor *fontDescriptor = [UIFontDescriptor fontDescriptorWithFontAttributes:fontAttributes.get()];
+    result = [UIFont fontWithDescriptor:fontDescriptor size:0];
+
+    return result;
+}
+
+#endif // PLATFORM(IOS_FAMILY)
 
 void encode(Encoder& encoder, NSNumber *number)
 {
-    encode(encoder, (CFNumberRef)number);
+    encode(encoder, (__bridge CFNumberRef)number);
 }
 
 bool decode(Decoder& decoder, RetainPtr<NSNumber>& result)
@@ -440,7 +461,7 @@ bool decode(Decoder& decoder, RetainPtr<NSNumber>& result)
 
 void encode(Encoder& encoder, NSString *string)
 {
-    encode(encoder, (CFStringRef)string);
+    encode(encoder, (__bridge CFStringRef)string);
 }
 
 bool decode(Decoder& decoder, RetainPtr<NSString>& result)
@@ -492,7 +513,7 @@ bool decode(Decoder& decoder, RetainPtr<NSArray>& result)
 
 void encode(Encoder& encoder, NSDate *date)
 {
-    encode(encoder, (CFDateRef)date);
+    encode(encoder, (__bridge CFDateRef)date);
 }
 
 bool decode(Decoder& decoder, RetainPtr<NSDate>& result)
@@ -507,7 +528,7 @@ bool decode(Decoder& decoder, RetainPtr<NSDate>& result)
 
 void encode(Encoder& encoder, NSData *data)
 {
-    encode(encoder, (CFDataRef)data);
+    encode(encoder, (__bridge CFDataRef)data);
 }
 
 bool decode(Decoder& decoder, RetainPtr<NSData>& result)
@@ -522,7 +543,7 @@ bool decode(Decoder& decoder, RetainPtr<NSData>& result)
 
 void encode(Encoder& encoder, NSURL *URL)
 {
-    encode(encoder, (CFURLRef)URL);
+    encode(encoder, (__bridge CFURLRef)URL);
 }
 
 bool decode(Decoder& decoder, RetainPtr<NSURL>& result)

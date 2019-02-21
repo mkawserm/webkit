@@ -30,7 +30,7 @@
 #import <CoreText/CTFontManager.h>
 #import <WebKit/WKStringCF.h>
 #import <wtf/NeverDestroyed.h>
-#import <wtf/ObjcRuntimeExtras.h>
+#import <wtf/ObjCRuntimeExtras.h>
 #import <wtf/RetainPtr.h>
 
 #if USE(APPKIT)
@@ -47,7 +47,7 @@ namespace WTR {
 
 static NSURL *resourcesDirectoryURL()
 {
-    static NeverDestroyed<RetainPtr<NSURL *>> resourcesDirectory([[NSBundle bundleForClass:[WKTRFontActivatorDummyClass class]] resourceURL]);
+    static NeverDestroyed<RetainPtr<NSURL>> resourcesDirectory([[NSBundle bundleForClass:[WKTRFontActivatorDummyClass class]] resourceURL]);
     return resourcesDirectory.get().get();
 }
 
@@ -117,7 +117,7 @@ void activateFonts()
 
     NSMutableArray *fontURLs = [NSMutableArray array];
     for (unsigned i = 0; fontFileNames[i]; ++i) {
-        NSURL *fontURL = [resourcesDirectoryURL() URLByAppendingPathComponent:[NSString stringWithUTF8String:fontFileNames[i]]];
+        NSURL *fontURL = [resourcesDirectoryURL() URLByAppendingPathComponent:[NSString stringWithUTF8String:fontFileNames[i]] isDirectory:NO];
         [fontURLs addObject:[fontURL absoluteURL]];
     }
 
@@ -136,7 +136,7 @@ void activateFonts()
 void installFakeHelvetica(WKStringRef configuration)
 {
     RetainPtr<CFStringRef> configurationString = adoptCF(WKStringCopyCFString(kCFAllocatorDefault, configuration));
-    NSURL *resourceURL = [resourcesDirectoryURL() URLByAppendingPathComponent:[NSString stringWithFormat:@"FakeHelvetica-%@.ttf", configurationString.get()]];
+    NSURL *resourceURL = [resourcesDirectoryURL() URLByAppendingPathComponent:[NSString stringWithFormat:@"FakeHelvetica-%@.ttf", configurationString.get()] isDirectory:NO];
     CFErrorRef error = nullptr;
     CTFontManagerRegisterFontsForURL(static_cast<CFURLRef>(resourceURL), kCTFontManagerScopeProcess, &error);
 }
@@ -154,8 +154,7 @@ void uninstallFakeHelvetica()
         if ([[url lastPathComponent] hasPrefix:@"FakeHelvetica"])
             [fontsToRemove addObject:url];
     }
-    CFArrayRef errors = nullptr;
-    CTFontManagerUnregisterFontsForURLs(static_cast<CFArrayRef>(fontsToRemove), kCTFontManagerScopeProcess, &errors);
+    CTFontManagerUnregisterFontsForURLs(static_cast<CFArrayRef>(fontsToRemove), kCTFontManagerScopeProcess, nullptr);
 }
 
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014 Apple Inc. All rights reserved.
+ * Copyright (C) 2014-2018 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -28,15 +28,18 @@
 
 #if HAVE(IOSURFACE)
 
+#import "GraphicsContext3D.h"
 #import "GraphicsContextCG.h"
+#import "HostWindow.h"
 #import "IOSurfacePool.h"
 #import "ImageBuffer.h"
 #import "ImageBufferDataCG.h"
 #import "Logging.h"
-#import "MachSendRight.h"
+#import "PlatformScreen.h"
 #import <pal/spi/cg/CoreGraphicsSPI.h>
 #import <pal/spi/cocoa/IOSurfaceSPI.h>
 #import <wtf/Assertions.h>
+#import <wtf/MachSendRight.h>
 #import <wtf/MathExtras.h>
 #import <wtf/text/TextStream.h>
 
@@ -107,10 +110,12 @@ void IOSurface::moveToPool(std::unique_ptr<IOSurface>&& surface)
     IOSurfacePool::sharedPool().addSurface(WTFMove(surface));
 }
 
+#if USE(IOSURFACE_CANVAS_BACKING_STORE)
 std::unique_ptr<IOSurface> IOSurface::createFromImageBuffer(std::unique_ptr<ImageBuffer> imageBuffer)
 {
     return WTFMove(imageBuffer->m_data.surface);
 }
+#endif
 
 static NSDictionary *optionsForBiplanarSurface(IntSize size, unsigned pixelFormat, size_t firstPlaneBytesPerPixel, size_t secondPlaneBytesPerPixel)
 {
@@ -148,7 +153,7 @@ static NSDictionary *optionsForBiplanarSurface(IntSize size, unsigned pixelForma
         (id)kIOSurfaceHeight: @(height),
         (id)kIOSurfacePixelFormat: @(pixelFormat),
         (id)kIOSurfaceAllocSize: @(totalBytes),
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
         (id)kIOSurfaceCacheMode: @(kIOMapWriteCombineCache),
 #endif
         (id)kIOSurfacePlaneInfo: planeInfo,
@@ -176,7 +181,7 @@ static NSDictionary *optionsFor32BitSurface(IntSize size, unsigned pixelFormat)
         (id)kIOSurfaceBytesPerElement: @(bytesPerElement),
         (id)kIOSurfaceBytesPerRow: @(bytesPerRow),
         (id)kIOSurfaceAllocSize: @(totalBytes),
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
         (id)kIOSurfaceCacheMode: @(kIOMapWriteCombineCache),
 #endif
         (id)kIOSurfaceElementHeight: @(1)
@@ -199,12 +204,14 @@ IOSurface::IOSurface(IntSize size, IntSize contextSize, CGColorSpaceRef colorSpa
     case Format::RGBA:
         options = optionsFor32BitSurface(size, 'BGRA');
         break;
+#if HAVE(IOSURFACE_RGB10)
     case Format::RGB10:
         options = optionsFor32BitSurface(size, 'w30r');
         break;
     case Format::RGB10A8:
         options = optionsForBiplanarSurface(size, 'b3a8', 4, 1);
         break;
+#endif
     case Format::YUV422:
         options = optionsForBiplanarSurface(size, '422f', 1, 1);
         break;
@@ -232,7 +239,7 @@ IntSize IOSurface::maximumSize()
     // Protect against maxSize being { 0, 0 }.
     const int iOSMaxSurfaceDimensionLowerBound = 1024;
 
-#if PLATFORM(IOS)
+#if PLATFORM(IOS_FAMILY)
     // Match limits imposed by Core Animation. FIXME: should have API for this <rdar://problem/25454148>
     const int iOSMaxSurfaceDimension = 8 * 1024;
 #else
@@ -269,7 +276,7 @@ void IOSurface::setContextSize(IntSize contextSize)
     m_contextSize = contextSize;
 }
 
-CGContextRef IOSurface::ensurePlatformContext()
+CGContextRef IOSurface::ensurePlatformContext(const HostWindow* hostWindow)
 {
     if (m_cgContext)
         return m_cgContext.get();
@@ -282,6 +289,7 @@ CGContextRef IOSurface::ensurePlatformContext()
     switch (format()) {
     case Format::RGBA:
         break;
+#if HAVE(IOSURFACE_RGB10)
     case Format::RGB10:
     case Format::RGB10A8:
         // A half-float format will be used if CG needs to read back the IOSurface contents,
@@ -290,12 +298,25 @@ CGContextRef IOSurface::ensurePlatformContext()
         bitsPerPixel = 64;
         bitmapInfo = kCGImageAlphaPremultipliedLast | kCGBitmapByteOrder16Host | kCGBitmapFloatComponents;
         break;
+#endif
     case Format::YUV422:
         ASSERT_NOT_REACHED();
         break;
     }
     
     m_cgContext = adoptCF(CGIOSurfaceContextCreate(m_surface.get(), m_contextSize.width(), m_contextSize.height(), bitsPerComponent, bitsPerPixel, m_colorSpace.get(), bitmapInfo));
+
+#if PLATFORM(MAC) && ENABLE(WEBPROCESS_WINDOWSERVER_BLOCKING)
+    if (auto displayMask = primaryOpenGLDisplayMask()) {
+        if (hostWindow && hostWindow->displayID())
+            displayMask = displayMaskForDisplay(hostWindow->displayID());
+ALLOW_DEPRECATED_DECLARATIONS_BEGIN
+        CGIOSurfaceContextSetDisplayMask(m_cgContext.get(), displayMask);
+ALLOW_DEPRECATED_DECLARATIONS_END
+    }
+#else
+    UNUSED_PARAM(hostWindow);
+#endif
 
     return m_cgContext.get();
 }
@@ -345,11 +366,13 @@ IOSurface::Format IOSurface::format() const
     if (pixelFormat == 'BGRA')
         return Format::RGBA;
 
+#if HAVE(IOSURFACE_RGB10)
     if (pixelFormat == 'w30r')
         return Format::RGB10;
 
     if (pixelFormat == 'b3a8')
         return Format::RGB10A8;
+#endif
 
     if (pixelFormat == '422f')
         return Format::YUV422;
@@ -360,7 +383,7 @@ IOSurface::Format IOSurface::format() const
 
 IOSurfaceID IOSurface::surfaceID() const
 {
-#if PLATFORM(IOS) && (!USE(APPLE_INTERNAL_SDK) || __IPHONE_OS_VERSION_MIN_REQUIRED < 110000)
+#if PLATFORM(IOS_FAMILY) && (!USE(APPLE_INTERNAL_SDK) || __IPHONE_OS_VERSION_MIN_REQUIRED < 110000)
     return 0;
 #else
     return IOSurfaceGetID(m_surface.get());
@@ -387,8 +410,10 @@ void IOSurface::releaseGraphicsContext()
 
 bool IOSurface::allowConversionFromFormatToFormat(Format sourceFormat, Format destFormat)
 {
+#if HAVE(IOSURFACE_RGB10)
     if ((sourceFormat == Format::RGB10 || sourceFormat == Format::RGB10A8) && destFormat == Format::YUV422)
         return false;
+#endif
 
     return true;
 }
@@ -449,12 +474,14 @@ static TextStream& operator<<(TextStream& ts, IOSurface::Format format)
     case IOSurface::Format::YUV422:
         ts << "YUV422";
         break;
+#if HAVE(IOSURFACE_RGB10)
     case IOSurface::Format::RGB10:
         ts << "RGB10";
         break;
     case IOSurface::Format::RGB10A8:
         ts << "RGB10A8";
         break;
+#endif
     }
     return ts;
 }

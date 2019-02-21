@@ -17,9 +17,9 @@
 // references, where appropriate.
 #include "modules/audio_coding/acm2/acm_codec_database.h"
 
-#include <assert.h>
-
-#include "rtc_base/checks.h"
+#include "absl/strings/match.h"
+#include "api/array_view.h"
+#include "modules/audio_coding/acm2/rent_a_codec.h"
 
 #if ((defined WEBRTC_CODEC_ISAC) && (defined WEBRTC_CODEC_ISACFX))
 #error iSAC and iSACFX codecs cannot be enabled at the same time
@@ -42,7 +42,7 @@ bool IsILBCRateValid(int rate, int frame_size_samples) {
       (rate == 13300)) {
     return true;
   } else if (((frame_size_samples == 160) || (frame_size_samples == 320)) &&
-      (rate == 15200)) {
+             (rate == 15200)) {
     return true;
   } else {
     return false;
@@ -62,55 +62,54 @@ bool IsOpusRateValid(int rate) {
 
 const CodecInst ACMCodecDB::database_[] = {
 #if (defined(WEBRTC_CODEC_ISAC) || defined(WEBRTC_CODEC_ISACFX))
-  {103, "ISAC", 16000, 480, 1, 32000},
-# if (defined(WEBRTC_CODEC_ISAC))
-  {104, "ISAC", 32000, 960, 1, 56000},
-# endif
+    {103, "ISAC", 16000, 480, 1, 32000},
+#if (defined(WEBRTC_CODEC_ISAC))
+    {104, "ISAC", 32000, 960, 1, 56000},
 #endif
-  // Mono
-  {107, "L16", 8000, 80, 1, 128000},
-  {108, "L16", 16000, 160, 1, 256000},
-  {109, "L16", 32000, 320, 1, 512000},
-  // Stereo
-  {111, "L16", 8000, 80, 2, 128000},
-  {112, "L16", 16000, 160, 2, 256000},
-  {113, "L16", 32000, 320, 2, 512000},
-  // G.711, PCM mu-law and A-law.
-  // Mono
-  {0, "PCMU", 8000, 160, 1, 64000},
-  {8, "PCMA", 8000, 160, 1, 64000},
-  // Stereo
-  {110, "PCMU", 8000, 160, 2, 64000},
-  {118, "PCMA", 8000, 160, 2, 64000},
+#endif
+    // Mono
+    {107, "L16", 8000, 80, 1, 128000},
+    {108, "L16", 16000, 160, 1, 256000},
+    {109, "L16", 32000, 320, 1, 512000},
+    // Stereo
+    {111, "L16", 8000, 80, 2, 128000},
+    {112, "L16", 16000, 160, 2, 256000},
+    {113, "L16", 32000, 320, 2, 512000},
+    // G.711, PCM mu-law and A-law.
+    // Mono
+    {0, "PCMU", 8000, 160, 1, 64000},
+    {8, "PCMA", 8000, 160, 1, 64000},
+    // Stereo
+    {110, "PCMU", 8000, 160, 2, 64000},
+    {118, "PCMA", 8000, 160, 2, 64000},
 #ifdef WEBRTC_CODEC_ILBC
-  {102, "ILBC", 8000, 240, 1, 13300},
+    {102, "ILBC", 8000, 240, 1, 13300},
 #endif
-  // Mono
-  {9, "G722", 16000, 320, 1, 64000},
-  // Stereo
-  {119, "G722", 16000, 320, 2, 64000},
+    // Mono
+    {9, "G722", 16000, 320, 1, 64000},
+    // Stereo
+    {119, "G722", 16000, 320, 2, 64000},
 #ifdef WEBRTC_CODEC_OPUS
-  // Opus internally supports 48, 24, 16, 12, 8 kHz.
-  // Mono and stereo.
-  {120, "opus", 48000, 960, 2, 64000},
+    // Opus internally supports 48, 24, 16, 12, 8 kHz.
+    // Mono and stereo.
+    {120, "opus", 48000, 960, 2, 64000},
 #endif
-  // Comfort noise for four different sampling frequencies.
-  {13, "CN", 8000, 240, 1, 0},
-  {98, "CN", 16000, 480, 1, 0},
-  {99, "CN", 32000, 960, 1, 0},
+    // Comfort noise for four different sampling frequencies.
+    {13, "CN", 8000, 240, 1, 0},
+    {98, "CN", 16000, 480, 1, 0},
+    {99, "CN", 32000, 960, 1, 0},
 #ifdef ENABLE_48000_HZ
-  {100, "CN", 48000, 1440, 1, 0},
+    {100, "CN", 48000, 1440, 1, 0},
 #endif
-  {106, "telephone-event", 8000, 240, 1, 0},
-  {114, "telephone-event", 16000, 240, 1, 0},
-  {115, "telephone-event", 32000, 240, 1, 0},
-  {116, "telephone-event", 48000, 240, 1, 0},
+    {106, "telephone-event", 8000, 240, 1, 0},
+    {114, "telephone-event", 16000, 240, 1, 0},
+    {115, "telephone-event", 32000, 240, 1, 0},
+    {116, "telephone-event", 48000, 240, 1, 0},
 #ifdef WEBRTC_CODEC_RED
-  {127, "red", 8000, 0, 1, 0},
+    {127, "red", 8000, 0, 1, 0},
 #endif
-  // To prevent compile errors due to trailing commas.
-  {-1, "Null", -1, -1, 0, -1}
-};
+    // To prevent compile errors due to trailing commas.
+    {-1, "Null", -1, -1, 0, -1}};
 
 // Create database with all codec settings at compile time.
 // Each entry needs the following parameters in the given order:
@@ -119,9 +118,9 @@ const CodecInst ACMCodecDB::database_[] = {
 const ACMCodecDB::CodecSettings ACMCodecDB::codec_settings_[] = {
 #if (defined(WEBRTC_CODEC_ISAC) || defined(WEBRTC_CODEC_ISACFX))
     {2, {480, 960}, 0, 1},
-# if (defined(WEBRTC_CODEC_ISAC))
+#if (defined(WEBRTC_CODEC_ISAC))
     {1, {960}, 0, 1},
-# endif
+#endif
 #endif
     // Mono
     {4, {80, 160, 240, 320}, 0, 2},
@@ -146,9 +145,9 @@ const ACMCodecDB::CodecSettings ACMCodecDB::codec_settings_[] = {
     // Stereo
     {6, {160, 320, 480, 640, 800, 960}, 0, 2},
 #ifdef WEBRTC_CODEC_OPUS
-    // Opus supports frames shorter than 10ms,
-    // but it doesn't help us to use them.
-    // Mono and stereo.
+// Opus supports frames shorter than 10ms,
+// but it doesn't help us to use them.
+// Mono and stereo.
 #if WEBRTC_OPUS_SUPPORT_120MS_PTIME
     {5, {480, 960, 1920, 2880, 5760}, 0, 2},
 #else
@@ -171,16 +170,15 @@ const ACMCodecDB::CodecSettings ACMCodecDB::codec_settings_[] = {
     {1, {0}, 0, 1},
 #endif
     // To prevent compile errors due to trailing commas.
-    {-1, {-1}, -1, 0}
-};
+    {-1, {-1}, -1, 0}};
 
 // Create a database of all NetEQ decoders at compile time.
 const NetEqDecoder ACMCodecDB::neteq_decoders_[] = {
 #if (defined(WEBRTC_CODEC_ISAC) || defined(WEBRTC_CODEC_ISACFX))
     NetEqDecoder::kDecoderISAC,
-# if (defined(WEBRTC_CODEC_ISAC))
+#if (defined(WEBRTC_CODEC_ISAC))
     NetEqDecoder::kDecoderISACswb,
-# endif
+#endif
 #endif
     // Mono
     NetEqDecoder::kDecoderPCM16B, NetEqDecoder::kDecoderPCM16Bwb,
@@ -210,10 +208,8 @@ const NetEqDecoder ACMCodecDB::neteq_decoders_[] = {
 #ifdef ENABLE_48000_HZ
     NetEqDecoder::kDecoderCNGswb48kHz,
 #endif
-    NetEqDecoder::kDecoderAVT,
-    NetEqDecoder::kDecoderAVT16kHz,
-    NetEqDecoder::kDecoderAVT32kHz,
-    NetEqDecoder::kDecoderAVT48kHz,
+    NetEqDecoder::kDecoderAVT, NetEqDecoder::kDecoderAVT16kHz,
+    NetEqDecoder::kDecoderAVT32kHz, NetEqDecoder::kDecoderAVT48kHz,
 #ifdef WEBRTC_CODEC_RED
     NetEqDecoder::kDecoderRED,
 #endif
@@ -245,12 +241,12 @@ int ACMCodecDB::CodecNumber(const CodecInst& codec_inst) {
   }
 
   // Comfort Noise is special case, packet-size & rate is not checked.
-  if (STR_CASE_CMP(database_[codec_id].plname, "CN") == 0) {
+  if (absl::EqualsIgnoreCase(database_[codec_id].plname, "CN")) {
     return codec_id;
   }
 
   // RED is special case, packet-size & rate is not checked.
-  if (STR_CASE_CMP(database_[codec_id].plname, "red") == 0) {
+  if (absl::EqualsIgnoreCase(database_[codec_id].plname, "red")) {
     return codec_id;
   }
 
@@ -260,8 +256,7 @@ int ACMCodecDB::CodecNumber(const CodecInst& codec_inst) {
     int i;
     int packet_size_samples;
     for (i = 0; i < codec_settings_[codec_id].num_packet_sizes; i++) {
-      packet_size_samples =
-          codec_settings_[codec_id].packet_sizes_samples[i];
+      packet_size_samples = codec_settings_[codec_id].packet_sizes_samples[i];
       if (codec_inst.pacsize == packet_size_samples) {
         packet_size_ok = true;
         break;
@@ -279,14 +274,13 @@ int ACMCodecDB::CodecNumber(const CodecInst& codec_inst) {
 
   // Check the validity of rate. Codecs with multiple rates have their own
   // function for this.
-  if (STR_CASE_CMP("isac", codec_inst.plname) == 0) {
+  if (absl::EqualsIgnoreCase("isac", codec_inst.plname)) {
     return IsISACRateValid(codec_inst.rate) ? codec_id : kInvalidRate;
-  } else if (STR_CASE_CMP("ilbc", codec_inst.plname) == 0) {
-    return IsILBCRateValid(codec_inst.rate, codec_inst.pacsize)
-        ? codec_id : kInvalidRate;
-  } else if (STR_CASE_CMP("opus", codec_inst.plname) == 0) {
-    return IsOpusRateValid(codec_inst.rate)
-        ? codec_id : kInvalidRate;
+  } else if (absl::EqualsIgnoreCase("ilbc", codec_inst.plname)) {
+    return IsILBCRateValid(codec_inst.rate, codec_inst.pacsize) ? codec_id
+                                                                : kInvalidRate;
+  } else if (absl::EqualsIgnoreCase("opus", codec_inst.plname)) {
+    return IsOpusRateValid(codec_inst.rate) ? codec_id : kInvalidRate;
   }
 
   return database_[codec_id].rate == codec_inst.rate ? codec_id : kInvalidRate;
@@ -298,14 +292,13 @@ int ACMCodecDB::CodecNumber(const CodecInst& codec_inst) {
 // Does not check other codec settings, such as payload type and packet size.
 // Returns the id of the codec, or -1 if no match is found.
 int ACMCodecDB::CodecId(const CodecInst& codec_inst) {
-  return (CodecId(codec_inst.plname, codec_inst.plfreq,
-                  codec_inst.channels));
+  return (CodecId(codec_inst.plname, codec_inst.plfreq, codec_inst.channels));
 }
 
 int ACMCodecDB::CodecId(const char* payload_name,
                         int frequency,
                         size_t channels) {
-  for (const CodecInst& ci : RentACodec::Database()) {
+  for (const CodecInst& ci : database_) {
     bool name_match = false;
     bool frequency_match = false;
     bool channels_match = false;
@@ -313,10 +306,10 @@ int ACMCodecDB::CodecId(const char* payload_name,
     // Payload name, sampling frequency and number of channels need to match.
     // NOTE! If |frequency| is -1, the frequency is not applicable, and is
     // always treated as true, like for RED.
-    name_match = (STR_CASE_CMP(ci.plname, payload_name) == 0);
+    name_match = absl::EqualsIgnoreCase(ci.plname, payload_name);
     frequency_match = (frequency == ci.plfreq) || (frequency == -1);
     // The number of channels must match for all codecs but Opus.
-    if (STR_CASE_CMP(payload_name, "opus") != 0) {
+    if (!absl::EqualsIgnoreCase(payload_name, "opus")) {
       channels_match = (channels == ci.channels);
     } else {
       // For opus we just check that number of channels is valid.
@@ -325,7 +318,7 @@ int ACMCodecDB::CodecId(const char* payload_name,
 
     if (name_match && frequency_match && channels_match) {
       // We have found a matching codec in the list.
-      return &ci - RentACodec::Database().data();
+      return &ci - database_;
     }
   }
 

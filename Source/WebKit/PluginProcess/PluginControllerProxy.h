@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Apple Inc. All rights reserved.
+ * Copyright (C) 2010-2018 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -23,8 +23,7 @@
  * THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef PluginControllerProxy_h
-#define PluginControllerProxy_h
+#pragma once
 
 #if ENABLE(NETSCAPE_PLUGIN_API)
 
@@ -75,8 +74,8 @@ public:
 
     bool isInitializing() const { return m_isInitializing; }
     
-    void setInitializationReply(Ref<Messages::WebProcessConnection::CreatePlugin::DelayedReply>&&);
-    RefPtr<Messages::WebProcessConnection::CreatePlugin::DelayedReply> takeInitializationReply();
+    void setInitializationReply(Messages::WebProcessConnection::CreatePlugin::DelayedReply&&);
+    Messages::WebProcessConnection::CreatePlugin::DelayedReply takeInitializationReply();
 
 private:
     void startPaintTimer();
@@ -102,7 +101,7 @@ private:
 #if PLATFORM(COCOA)
     void pluginFocusOrWindowFocusChanged(bool) override;
     void setComplexTextInputState(PluginComplexTextInputState) override;
-    const WebCore::MachSendRight& compositingRenderServerPort() override;
+    const WTF::MachSendRight& compositingRenderServerPort() override;
 #endif
 
     float contentsScaleFactor() override;
@@ -136,20 +135,20 @@ private:
     void manualStreamDidFinishLoading();
     void manualStreamDidFail(bool wasCancelled);
     void handleMouseEvent(const WebMouseEvent&);
-    void handleWheelEvent(const WebWheelEvent&, bool& handled);
-    void handleMouseEnterEvent(const WebMouseEvent&, bool& handled);
-    void handleMouseLeaveEvent(const WebMouseEvent&, bool& handled);
-    void handleKeyboardEvent(const WebKeyboardEvent&, bool& handled);
-    void handleEditingCommand(const String&, const String&, bool&);
-    void isEditingCommandEnabled(const String&, bool&);
-    void handlesPageScaleFactor(bool&);
-    void requiresUnifiedScaleFactor(bool&);
-    void paintEntirePlugin();
-    void supportsSnapshotting(bool&);
-    void snapshot(ShareableBitmap::Handle& backingStoreHandle);
+    void handleWheelEvent(const WebWheelEvent&, CompletionHandler<void(bool handled)>&&);
+    void handleMouseEnterEvent(const WebMouseEvent&, CompletionHandler<void(bool handled)>&&);
+    void handleMouseLeaveEvent(const WebMouseEvent&, CompletionHandler<void(bool handled)>&&);
+    void handleKeyboardEvent(const WebKeyboardEvent&, CompletionHandler<void(bool handled)>&&);
+    void handleEditingCommand(const String&, const String&, CompletionHandler<void(bool handled)>&&);
+    void isEditingCommandEnabled(const String&, CompletionHandler<void(bool)>&&);
+    void handlesPageScaleFactor(CompletionHandler<void(bool)>&&);
+    void requiresUnifiedScaleFactor(CompletionHandler<void(bool)>&&);
+    void paintEntirePlugin(CompletionHandler<void()>&&);
+    void supportsSnapshotting(CompletionHandler<void(bool)>&&);
+    void snapshot(CompletionHandler<void(ShareableBitmap::Handle&&)>);
     void setFocus(bool);
     void didUpdate();
-    void getPluginScriptableNPObject(uint64_t& pluginScriptableNPObjectID);
+    void getPluginScriptableNPObject(CompletionHandler<void(uint64_t pluginScriptableNPObjectID)>&&);
 
     void windowFocusChanged(bool);
     void windowVisibilityChanged(bool);
@@ -166,7 +165,7 @@ private:
     void storageBlockingStateChanged(bool);
     void privateBrowsingStateChanged(bool);
     void mutedStateChanged(bool);
-    void getFormValue(bool& returnValue, String& formValue);
+    void getFormValue(CompletionHandler<void(bool returnValue, String&& formValue)>&&);
 
     void platformInitialize(const PluginCreationParameters&);
     void platformDestroy();
@@ -184,7 +183,7 @@ private:
     bool m_isVisible;
     bool m_isWindowVisible;
 
-    RefPtr<Messages::WebProcessConnection::CreatePlugin::DelayedReply> m_initializationReply;
+    Messages::WebProcessConnection::CreatePlugin::DelayedReply m_initializationReply;
 
     RefPtr<Plugin> m_plugin;
 
@@ -237,5 +236,3 @@ private:
 } // namespace WebKit
 
 #endif // ENABLE(NETSCAPE_PLUGIN_API)
-
-#endif // PluginControllerProxy_h

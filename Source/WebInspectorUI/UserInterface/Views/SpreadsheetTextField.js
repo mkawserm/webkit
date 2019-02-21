@@ -40,13 +40,15 @@ WI.SpreadsheetTextField = class SpreadsheetTextField
 
         this._element.classList.add("spreadsheet-text-field");
 
-        this._element.addEventListener("focus", this._handleFocus.bind(this));
+        this._element.addEventListener("mousedown", this._handleMouseDown.bind(this), true);
+        this._element.addEventListener("click", this._handleClick.bind(this));
         this._element.addEventListener("blur", this._handleBlur.bind(this));
         this._element.addEventListener("keydown", this._handleKeyDown.bind(this));
         this._element.addEventListener("input", this._handleInput.bind(this));
 
         this._editing = false;
         this._valueBeforeEditing = "";
+        this._completionPrefix = "";
     }
 
     // Public
@@ -73,10 +75,9 @@ WI.SpreadsheetTextField = class SpreadsheetTextField
     {
         this._suggestionHintElement.textContent = value;
 
-        if (value) {
-            if (this._suggestionHintElement.parentElement !== this._element)
-                this._element.append(this._suggestionHintElement);
-        } else
+        if (value)
+            this._reAttachSuggestionHint();
+        else
             this._suggestionHintElement.remove();
     }
 
@@ -138,13 +139,9 @@ WI.SpreadsheetTextField = class SpreadsheetTextField
 
     completionSuggestionsSelectedCompletion(suggestionsView, selectedText = "")
     {
-        let prefix = this.valueWithoutSuggestion();
-        let completionPrefix = this._getCompletionPrefix(prefix);
+        this.suggestionHint = selectedText.slice(this._completionPrefix.length);
 
-        this.suggestionHint = selectedText.slice(completionPrefix.length);
-
-        if (this._suggestionHintElement.parentElement !== this._element)
-            this._element.append(this._suggestionHintElement);
+        this._reAttachSuggestionHint();
 
         if (this._delegate && typeof this._delegate.spreadsheetTextFieldDidChange === "function")
             this._delegate.spreadsheetTextFieldDidChange(this);
@@ -165,8 +162,7 @@ WI.SpreadsheetTextField = class SpreadsheetTextField
         //        newPrefix:  1px solid
         //     selectedText:            rosybrown
         let prefix = this.valueWithoutSuggestion();
-        let completionPrefix = this._getCompletionPrefix(prefix);
-        let newPrefix = prefix.slice(0, -completionPrefix.length);
+        let newPrefix = prefix.slice(0, -this._completionPrefix.length);
 
         this._element.textContent = newPrefix + selectedText;
 
@@ -190,16 +186,21 @@ WI.SpreadsheetTextField = class SpreadsheetTextField
     {
         if (this._valueBeforeEditing !== this.value) {
             this.value = this._valueBeforeEditing;
-            this._selectText();
 
             if (this._delegate && typeof this._delegate.spreadsheetTextFieldDidChange === "function")
                 this._delegate.spreadsheetTextFieldDidChange(this);
         }
     }
 
-    _handleFocus(event)
+    _handleClick(event)
     {
         this.startEditing();
+    }
+
+    _handleMouseDown(event)
+    {
+        if (this._editing)
+            event.stopPropagation();
     }
 
     _handleBlur(event)
@@ -207,10 +208,15 @@ WI.SpreadsheetTextField = class SpreadsheetTextField
         if (!this._editing)
             return;
 
+        // Keep editing after tabbing out of Web Inspector window and back.
+        if (document.activeElement === this._element)
+            return;
+
         this._applyCompletionHint();
         this.discardCompletion();
 
-        this._delegate.spreadsheetTextFieldDidBlur(this, event);
+        let changed = this._valueBeforeEditing !== this.value;
+        this._delegate.spreadsheetTextFieldDidBlur(this, event, changed);
         this.stopEditing();
     }
 
@@ -275,6 +281,10 @@ WI.SpreadsheetTextField = class SpreadsheetTextField
         if (event.key === "Escape") {
             event.stop();
             this._discardChange();
+            window.getSelection().removeAllRanges();
+
+            if (this._delegate && this._delegate.spreadsheetTextFieldDidPressEsc)
+                this._delegate.spreadsheetTextFieldDidPressEsc(this, this._valueBeforeEditing);
         }
     }
 
@@ -287,6 +297,9 @@ WI.SpreadsheetTextField = class SpreadsheetTextField
                 this._suggestionsView.selectNext();
             else
                 this._suggestionsView.selectPrevious();
+
+            // Update popover position in case text moved, e.g. started or stopped wrapping.
+            this._showSuggestionsView();
 
             if (this._delegate && typeof this._delegate.spreadsheetTextFieldDidChange === "function")
                 this._delegate.spreadsheetTextFieldDidChange(this);
@@ -350,9 +363,9 @@ WI.SpreadsheetTextField = class SpreadsheetTextField
         if (!this._completionProvider)
             return;
 
-        let prefix = this.valueWithoutSuggestion();
-        let completionPrefix = this._getCompletionPrefix(prefix);
-        let completions = this._completionProvider(completionPrefix);
+        let valueWithoutSuggestion = this.valueWithoutSuggestion();
+        let {completions, prefix} = this._completionProvider(valueWithoutSuggestion);
+        this._completionPrefix = prefix;
 
         if (!completions.length) {
             this.discardCompletion();
@@ -360,7 +373,7 @@ WI.SpreadsheetTextField = class SpreadsheetTextField
         }
 
         // No need to show the completion popover with only one item that matches the entered value.
-        if (completions.length === 1 && completions[0] === prefix) {
+        if (completions.length === 1 && completions[0] === valueWithoutSuggestion) {
             this.discardCompletion();
             return;
         }
@@ -376,19 +389,30 @@ WI.SpreadsheetTextField = class SpreadsheetTextField
         if (completions.length === 1) {
             // No need to show the completion popover that matches the suggestion hint.
             this._suggestionsView.hide();
-        } else {
-            let startOffset = prefix.length - completionPrefix.length;
-            this._suggestionsView.showUntilAnchorMoves(() => {
-                return this._getCaretRect(startOffset);
-            });
-        }
+        } else
+            this._showSuggestionsView();
 
         this._suggestionsView.selectedIndex = NaN;
-        if (completionPrefix) {
+        if (this._completionPrefix) {
             // Select first item and call completionSuggestionsSelectedCompletion.
             this._suggestionsView.selectNext();
         } else
             this.suggestionHint = "";
+    }
+
+    _showSuggestionsView()
+    {
+        let prefix = this.valueWithoutSuggestion();
+        let startOffset = prefix.length - this._completionPrefix.length;
+        let caretRect = this._getCaretRect(startOffset);
+
+        // Hide completion popover when the anchor element is removed from the DOM.
+        if (!caretRect)
+            this._suggestionsView.hide();
+        else {
+            this._suggestionsView.show(caretRect);
+            this._suggestionsView.hideWhenElementMoves(this._element);
+        }
     }
 
     _getCaretRect(startOffset)
@@ -396,7 +420,7 @@ WI.SpreadsheetTextField = class SpreadsheetTextField
         let selection = window.getSelection();
 
         let isHidden = (clientRect) => {
-            return clientRect.x === 0 && clientRect.y === 0
+            return clientRect.x === 0 && clientRect.y === 0;
         };
 
         if (selection.rangeCount) {
@@ -419,21 +443,19 @@ WI.SpreadsheetTextField = class SpreadsheetTextField
         return new WI.Rect(clientRect.left + leftPadding, clientRect.top, clientRect.width, clientRect.height);
     }
 
-    _getCompletionPrefix(prefix)
-    {
-        // For "border: 1px so|", we want to suggest "solid" based on "so" prefix.
-        let match = prefix.match(/[a-z0-9()-]+$/i);
-        if (match)
-            return match[0];
-
-        return prefix;
-    }
-
     _applyCompletionHint()
     {
         if (!this._completionProvider || !this.suggestionHint)
             return;
 
         this._element.textContent = this._element.textContent;
+    }
+
+    _reAttachSuggestionHint()
+    {
+        if (this._suggestionHintElement.parentElement === this._element)
+            return;
+
+        this._element.append(this._suggestionHintElement);
     }
 };

@@ -29,8 +29,9 @@
 #if WK_API_ENABLED
 
 #import "DownloadProxy.h"
+#import "WKNSData.h"
 #import "WKWebViewInternal.h"
-#import "WeakObjCPtr.h"
+#import <wtf/WeakObjCPtr.h>
 
 @implementation _WKDownload {
     API::ObjectStorage<WebKit::DownloadProxy> _download;
@@ -48,9 +49,14 @@
     _download->cancel();
 }
 
+- (void)publishProgressAtURL:(NSURL *)URL
+{
+    _download->publishProgress(URL);
+}
+
 - (NSURLRequest *)request
 {
-    return _download->request().nsURLRequest(WebCore::DoNotUpdateHTTPBody);
+    return _download->request().nsURLRequest(WebCore::HTTPBodyUpdatePolicy::DoNotUpdateHTTPBody);
 }
 
 - (WKWebView *)originatingWebView
@@ -72,6 +78,11 @@
 - (BOOL)wasUserInitiated
 {
     return _download->wasUserInitiated();
+}
+
+- (NSData *)resumeData
+{
+    return WebKit::wrapper(_download->resumeData());
 }
 
 #pragma mark WKObject protocol implementation

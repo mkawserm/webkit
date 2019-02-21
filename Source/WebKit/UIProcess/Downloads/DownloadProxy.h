@@ -41,10 +41,10 @@ class Data;
 
 namespace WebCore {
 class AuthenticationChallenge;
+class IntRect;
 class ProtectionSpace;
 class ResourceError;
 class ResourceResponse;
-class URL;
 }
 
 namespace WebKit {
@@ -74,11 +74,29 @@ public:
     WebPageProxy* originatingPage() const;
     void setOriginatingPage(WebPageProxy*);
 
-    void setRedirectChain(Vector<WebCore::URL>&& redirectChain) { m_redirectChain = WTFMove(redirectChain); }
-    const Vector<WebCore::URL>& redirectChain() const { return m_redirectChain; }
+    void setRedirectChain(Vector<URL>&& redirectChain) { m_redirectChain = WTFMove(redirectChain); }
+    const Vector<URL>& redirectChain() const { return m_redirectChain; }
 
     void setWasUserInitiated(bool value) { m_wasUserInitiated = value; }
     bool wasUserInitiated() const { return m_wasUserInitiated; }
+
+    String destinationFilename() const { return m_destinationFilename; }
+    void setDestinationFilename(const String& d) { m_destinationFilename = d; }
+
+    uint64_t expectedContentLength() const { return m_expectedContentLength; }
+    void setExpectedContentLength(uint64_t expectedContentLength) { m_expectedContentLength = expectedContentLength; }
+
+    uint64_t bytesLoaded() const { return m_bytesLoaded; }
+    void setBytesLoaded(uint64_t bytesLoaded) { m_bytesLoaded = bytesLoaded; }
+
+#if USE(SYSTEM_PREVIEW)
+    bool isSystemPreviewDownload() const { return request().isSystemPreview(); }
+    const WebCore::IntRect& systemPreviewDownloadRect() const { return request().systemPreviewRect(); }
+#endif
+
+#if PLATFORM(COCOA)
+    void publishProgress(const URL&);
+#endif
 
 private:
     explicit DownloadProxy(DownloadProxyMap&, WebProcessPool&, const WebCore::ResourceRequest&);
@@ -88,7 +106,7 @@ private:
 
     // Message handlers.
     void didStart(const WebCore::ResourceRequest&, const String& suggestedFilename);
-    void didReceiveAuthenticationChallenge(const WebCore::AuthenticationChallenge&, uint64_t challengeID);
+    void didReceiveAuthenticationChallenge(WebCore::AuthenticationChallenge&&, uint64_t challengeID);
     void didReceiveResponse(const WebCore::ResourceResponse&);
     void didReceiveData(uint64_t length);
     void shouldDecodeSourceDataOfMIMEType(const String& mimeType, bool& result);
@@ -106,9 +124,12 @@ private:
     RefPtr<API::Data> m_resumeData;
     WebCore::ResourceRequest m_request;
     String m_suggestedFilename;
+    String m_destinationFilename;
+    uint64_t m_expectedContentLength { 0 };
+    uint64_t m_bytesLoaded { 0 };
 
     WeakPtr<WebPageProxy> m_originatingPage;
-    Vector<WebCore::URL> m_redirectChain;
+    Vector<URL> m_redirectChain;
     bool m_wasUserInitiated { true };
 };
 

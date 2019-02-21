@@ -24,6 +24,8 @@
 #include <webkit2/webkit-web-extension.h>
 #include <wtf/glib/GUniquePtr.h>
 
+G_GNUC_BEGIN_IGNORE_DEPRECATIONS;
+
 typedef struct _WebKitNodeFilter {
     GObject parent;
 } WebKitNodeFilter;
@@ -65,18 +67,18 @@ private:
     bool testTreeWalker(WebKitWebPage* page)
     {
         WebKitDOMDocument* document = webkit_web_page_get_dom_document(page);
-        g_assert(WEBKIT_DOM_IS_DOCUMENT(document));
+        g_assert_true(WEBKIT_DOM_IS_DOCUMENT(document));
         assertObjectIsDeletedWhenTestFinishes(G_OBJECT(document));
 
         WebKitDOMElement* root = webkit_dom_document_get_element_by_id(document, "root");
-        g_assert(WEBKIT_DOM_IS_NODE(root));
+        g_assert_true(WEBKIT_DOM_IS_NODE(root));
         assertObjectIsDeletedWhenTestFinishes(G_OBJECT(root));
 
         // No filter.
         GRefPtr<WebKitDOMTreeWalker> walker = adoptGRef(webkit_dom_document_create_tree_walker(document, WEBKIT_DOM_NODE(root), WEBKIT_DOM_NODE_FILTER_SHOW_ALL, nullptr, FALSE, nullptr));
-        g_assert(WEBKIT_DOM_IS_TREE_WALKER(walker.get()));
+        g_assert_true(WEBKIT_DOM_IS_TREE_WALKER(walker.get()));
         assertObjectIsDeletedWhenTestFinishes(G_OBJECT(walker.get()));
-        g_assert(!webkit_dom_tree_walker_get_filter(walker.get()));
+        g_assert_null(webkit_dom_tree_walker_get_filter(walker.get()));
 
         unsigned i = 0;
         for (WebKitDOMNode* node = WEBKIT_DOM_NODE(root); node; node = webkit_dom_tree_walker_next_node(walker.get()), ++i) {
@@ -90,9 +92,9 @@ private:
         // Input elements filter.
         GRefPtr<WebKitDOMNodeFilter> filter = adoptGRef(static_cast<WebKitDOMNodeFilter*>(g_object_new(webkit_node_filter_get_type(), nullptr)));
         walker = adoptGRef(webkit_dom_document_create_tree_walker(document, WEBKIT_DOM_NODE(root), WEBKIT_DOM_NODE_FILTER_SHOW_ALL, filter.get(), FALSE, nullptr));
-        g_assert(WEBKIT_DOM_IS_TREE_WALKER(walker.get()));
+        g_assert_true(WEBKIT_DOM_IS_TREE_WALKER(walker.get()));
         assertObjectIsDeletedWhenTestFinishes(G_OBJECT(filter.get()));
-        g_assert(webkit_dom_tree_walker_get_filter(walker.get()) == filter.get());
+        g_assert_true(webkit_dom_tree_walker_get_filter(walker.get()) == filter.get());
 
         i = 0;
         for (WebKitDOMNode* node = WEBKIT_DOM_NODE(root); node; node = webkit_dom_tree_walker_next_node(walker.get()), ++i) {
@@ -105,9 +107,9 @@ private:
 
         // Show only elements, reusing the input filter.
         walker = adoptGRef(webkit_dom_document_create_tree_walker(document, WEBKIT_DOM_NODE(root), WEBKIT_DOM_NODE_FILTER_SHOW_ELEMENT, filter.get(), FALSE, nullptr));
-        g_assert(WEBKIT_DOM_IS_TREE_WALKER(walker.get()));
+        g_assert_true(WEBKIT_DOM_IS_TREE_WALKER(walker.get()));
         assertObjectIsDeletedWhenTestFinishes(G_OBJECT(walker.get()));
-        g_assert(webkit_dom_tree_walker_get_filter(walker.get()) == filter.get());
+        g_assert_true(webkit_dom_tree_walker_get_filter(walker.get()) == filter.get());
 
         i = 0;
         for (WebKitDOMNode* node = WEBKIT_DOM_NODE(root); node; node = webkit_dom_tree_walker_next_node(walker.get()), ++i) {
@@ -124,18 +126,18 @@ private:
     bool testNodeIterator(WebKitWebPage* page)
     {
         WebKitDOMDocument* document = webkit_web_page_get_dom_document(page);
-        g_assert(WEBKIT_DOM_IS_DOCUMENT(document));
+        g_assert_true(WEBKIT_DOM_IS_DOCUMENT(document));
         assertObjectIsDeletedWhenTestFinishes(G_OBJECT(document));
 
         WebKitDOMElement* root = webkit_dom_document_get_element_by_id(document, "root");
-        g_assert(WEBKIT_DOM_IS_NODE(root));
+        g_assert_true(WEBKIT_DOM_IS_NODE(root));
         assertObjectIsDeletedWhenTestFinishes(G_OBJECT(root));
 
         // No filter.
         GRefPtr<WebKitDOMNodeIterator> iter = adoptGRef(webkit_dom_document_create_node_iterator(document, WEBKIT_DOM_NODE(root), WEBKIT_DOM_NODE_FILTER_SHOW_ALL, nullptr, FALSE, nullptr));
-        g_assert(WEBKIT_DOM_IS_NODE_ITERATOR(iter.get()));
+        g_assert_true(WEBKIT_DOM_IS_NODE_ITERATOR(iter.get()));
         assertObjectIsDeletedWhenTestFinishes(G_OBJECT(iter.get()));
-        g_assert(!webkit_dom_node_iterator_get_filter(iter.get()));
+        g_assert_null(webkit_dom_node_iterator_get_filter(iter.get()));
 
         unsigned i = 0;
         while (WebKitDOMNode* node = webkit_dom_node_iterator_next_node(iter.get(), nullptr)) {
@@ -150,9 +152,9 @@ private:
         // Input elements filter.
         GRefPtr<WebKitDOMNodeFilter> filter = adoptGRef(static_cast<WebKitDOMNodeFilter*>(g_object_new(webkit_node_filter_get_type(), nullptr)));
         iter = adoptGRef(webkit_dom_document_create_node_iterator(document, WEBKIT_DOM_NODE(root), WEBKIT_DOM_NODE_FILTER_SHOW_ALL, filter.get(), FALSE, nullptr));
-        g_assert(WEBKIT_DOM_IS_NODE_ITERATOR(iter.get()));
+        g_assert_true(WEBKIT_DOM_IS_NODE_ITERATOR(iter.get()));
         assertObjectIsDeletedWhenTestFinishes(G_OBJECT(iter.get()));
-        g_assert(webkit_dom_node_iterator_get_filter(iter.get()) == filter.get());
+        g_assert_true(webkit_dom_node_iterator_get_filter(iter.get()) == filter.get());
 
         i = 0;
         while (WebKitDOMNode* node = webkit_dom_node_iterator_next_node(iter.get(), nullptr)) {
@@ -166,9 +168,9 @@ private:
 
         // Show only elements, reusing the input filter.
         iter = adoptGRef(webkit_dom_document_create_node_iterator(document, WEBKIT_DOM_NODE(root), WEBKIT_DOM_NODE_FILTER_SHOW_ELEMENT, filter.get(), FALSE, nullptr));
-        g_assert(WEBKIT_DOM_IS_NODE_ITERATOR(iter.get()));
+        g_assert_true(WEBKIT_DOM_IS_NODE_ITERATOR(iter.get()));
         assertObjectIsDeletedWhenTestFinishes(G_OBJECT(iter.get()));
-        g_assert(webkit_dom_node_iterator_get_filter(iter.get()) == filter.get());
+        g_assert_true(webkit_dom_node_iterator_get_filter(iter.get()) == filter.get());
 
         i = 0;
         while (WebKitDOMNode* node = webkit_dom_node_iterator_next_node(iter.get(), nullptr)) {
@@ -201,4 +203,4 @@ static void __attribute__((constructor)) registerTests()
     REGISTER_TEST(WebKitDOMNodeFilterTest, "WebKitDOMNodeFilter/node-iterator");
 }
 
-
+G_GNUC_END_IGNORE_DEPRECATIONS;

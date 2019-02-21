@@ -31,8 +31,11 @@
 #include "Path.h"
 #include "RenderImage.h"
 #include "RenderView.h"
+#include <wtf/IsoMallocInlines.h>
 
 namespace WebCore {
+
+WTF_MAKE_ISO_ALLOCATED_IMPL(HTMLAreaElement);
 
 using namespace HTMLNames;
 
@@ -207,7 +210,7 @@ bool HTMLAreaElement::isMouseFocusable() const
 bool HTMLAreaElement::isFocusable() const
 {
     RefPtr<HTMLImageElement> image = imageElement();
-    if (!image || !image->renderer() || image->renderer()->style().visibility() != VISIBLE)
+    if (!image || !image->renderer() || image->renderer()->style().visibility() != Visibility::Visible)
         return false;
 
     return supportsFocus() && Element::tabIndex() >= 0;

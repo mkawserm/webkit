@@ -241,7 +241,8 @@ def parse_args(args):
                  "'only' == only run the SKIP tests, "
                  "'always' == always skip, even if listed on the command line.")),
         optparse.make_option("--force", action="store_true", default=False,
-            help="Run all tests with PASS as expected result, even those marked SKIP in the test list (implies --skipped=ignore)"),
+            help="Run all tests with PASS as expected result, even those marked SKIP in the test list or " + \
+                 "those which are device-specific (implies --skipped=ignore)"),
         optparse.make_option("--time-out-ms",
             help="Set the timeout for each test"),
         optparse.make_option("--order", action="store", default="natural",
@@ -290,13 +291,14 @@ def parse_args(args):
         optparse.make_option('--display-server', choices=['xvfb', 'xorg', 'weston', 'wayland'], default='xvfb',
             help='"xvfb": Use a virtualized X11 server. "xorg": Use the current X11 session. '
                  '"weston": Use a virtualized Weston server. "wayland": Use the current wayland session.'),
+        optparse.make_option("--world-leaks", action="store_true", default=False, help="Check for world leaks (currently, only documents). Differs from --leaks in that this uses internal instrumentation, rather than external tools."),
     ]))
 
     option_group_definitions.append(("iOS Options", [
         optparse.make_option('--no-install', action='store_const', const=False, default=True, dest='install',
             help='Skip install step for device and simulator testing'),
         optparse.make_option('--version', help='Specify the version of iOS to be used. By default, this will adopt the runtime for iOS Simulator.'),
-        optparse.make_option('--device-type', help='iOS Simulator device type identifier (default: i386 -> iPhone 5, x86_64 -> iPhone 5s)'),
+        optparse.make_option('--device-type', help='iOS Simulator device type identifier (default: i386 -> iPhone 5, x86_64 -> iPhone SE)'),
         optparse.make_option('--dedicated-simulators', action="store_true", default=False,
             help="If set, dedicated iOS simulators will always be created.  If not set, the script will attempt to use any currently running simulator."),
         optparse.make_option('--show-touches', action="store_true", default=False, help="If set, a small dot will be shown where the generated touches are. Helpful for debugging touch tests."),
@@ -370,8 +372,7 @@ def _print_expectations(port, options, args, logging_stream):
 def _set_up_derived_options(port, options):
     """Sets the options values that depend on other options values."""
     if not options.child_processes:
-        options.child_processes = os.environ.get("WEBKIT_TEST_CHILD_PROCESSES",
-                                                 str(port.default_child_processes()))
+        options.child_processes = os.environ.get('WEBKIT_TEST_CHILD_PROCESSES')
 
     if not options.configuration:
         options.configuration = port.default_configuration()

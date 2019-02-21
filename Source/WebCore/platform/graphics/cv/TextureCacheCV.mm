@@ -26,6 +26,8 @@
 #include "config.h"
 #include "TextureCacheCV.h"
 
+#if HAVE(CORE_VIDEO)
+
 #include "GraphicsContext3D.h"
 
 #include "CoreVideoSoftLink.h"
@@ -72,7 +74,7 @@ RetainPtr<TextureCacheCV::TextureType> TextureCacheCV::textureFromImage(CVPixelB
 #endif
     RetainPtr<TextureType> videoTexture = adoptCF(bareVideoTexture);
 
-    auto weakThis = m_weakPtrFactory.createWeakPtr(*this);
+    auto weakThis = makeWeakPtr(*this);
     dispatch_async(dispatch_get_main_queue(), [weakThis] {
         if (!weakThis)
             return;
@@ -89,3 +91,5 @@ RetainPtr<TextureCacheCV::TextureType> TextureCacheCV::textureFromImage(CVPixelB
 }
 
 }
+
+#endif // HAVE(CORE_VIDEO)
